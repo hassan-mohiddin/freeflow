@@ -89,6 +89,8 @@ Preserve accepted behavior, failure semantics, repository conventions, and sourc
 
 Allow local choices of helpers, editing order, and focused checks while the agreed result and effects remain unchanged. Handle edge cases required by accepted behavior, direct evidence, or material safety.
 
+For one mechanical edit repeated across many sites, edit the first site by hand, then write a script or codemod for the rest. Run it on that first site from its original state and diff against your hand edit until they match, then run it on every site. Keep the script in the task's scratch location and point to it in the report so a reviewer can rerun it. Edit by hand instead when the sites are few enough to check at a glance or each needs its own decision.
+
 For an unfamiliar design boundary that could invalidate later work, establish its first coherent implementation and distinguishing observation before dependent expansion. Compare the actual ownership, identity, ordering, and failure behavior with the selected design—not merely its proposed filenames. Preserve accepted predicates when a sketch proves wrong; stop dependent effects and resolve the affected mechanism through the current owner. Supported local improvements need no automatic handback or separate review.
 
 ## Execute A Bounded Learning Action

@@ -35,7 +35,7 @@ A screenshot does not prove semantics, network correctness, console cleanliness,
 5. Exercise required error, loading, empty, permission, offline, or recovery states.
 6. Repeat only when environment or code changed, or variance requires evidence.
 
-For visual changes, compare before/after at the relevant viewport and state. Aesthetic preference is not evidence when a design system, accepted reference, or product decision defines the expected result.
+For visual changes, compare before/after at the relevant viewport and state. A claim that nothing visible changed needs an image diff against the saved baseline, with its tolerance stated, as its observer. Aesthetic preference is not evidence when a design system, accepted reference, or product decision defines the expected result.
 
 ## Stop Conditions
 
