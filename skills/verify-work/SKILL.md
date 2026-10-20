@@ -23,7 +23,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 Goal: know exactly what is being claimed, where it must hold, and why it is expected, before choosing a check.
 
-Identify the behavior or property, the required observing boundary, and the source of its expectation. Keep this compact when obvious; do not let an available test silently narrow a broader claim. Claims may concern behavior, a reported failure, structural validity, interfaces, integration, host lifecycle, installed artifacts, failure or recovery semantics, performance, or repository state. A claim that a change is safe names the one fact it rests on, with a check that shows it.
+Identify the behavior or property, the required observing boundary, and the source of its expectation. Keep this compact when obvious; do not let an available test silently narrow a broader claim. Claims may concern behavior, a reported failure, structural validity, interfaces, integration, host lifecycle, installed artifacts, failure or recovery semantics, performance, or repository state. A claim that a change is safe names the one fact it rests on, with a check that shows it, graded as [Work Review](../../skills/review-work/references/work.md)'s correctness lens describes.
 
 Distinguish required acceptance from an optional stronger assertion. If evidence for an optional claim is unavailable, qualify or withdraw that claim rather than automatically add implementation. A required guarantee remains unresolved until supported or explicitly changed by its owner.
 

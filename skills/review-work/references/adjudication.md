@@ -22,6 +22,8 @@ State:
 
 State the concrete reason: unsupported, stale, resolved, duplicate, preference-only, out of scope or outside the artifact's job, or based on a source or dependency misread.
 
+Never close a security finding (one about what [Security Risk Lens](security-risk-lens.md) covers) as Rejected on your own: give the user the finding and your reason, and keep it Open until they agree.
+
 ### Open
 
 State:
@@ -94,11 +96,19 @@ For work, verify the affected boundary and perform ordinary self-review. For an 
 
 Select focused independent follow-up only when accepted corrections or revisions, affected interactions or dependencies, new evidence, or remaining risk still require judgment from a separate context. Do not dispatch follow-up merely because Review 1 found an Issue or because a correction or revision occurred.
 
-If Review 2 remains Blocking, adjudicate it before acting again. Diagnose a repeated, extending, invalidating, causally uncertain, or basis-uncertain blocker. Return an independent clear local defect to its owner when diagnosis would add no useful understanding. Review 3 remains exceptional, separately authorized, and final.
+If Review 2 remains Blocking, adjudicate it before acting again. Diagnose a repeated, extending, invalidating, causally uncertain, or basis-uncertain blocker. Return an independent clear local defect to its owner when diagnosis would add no useful understanding. Review 3 remains exceptional, separately authorized, and final. If Review 3 remains Blocking, rethink the approach rather than correct it again: route the blocker to Diagnose Failure, or to Discuss when the approach itself is in question.
 
 ## Record The Review
 
-When the task has a Working Record, record the adjudicated review there as a `Review — judgment and effect:` entry through [Track Work](../../../skills/track-work/SKILL.md): the reviewer's model and family, the reviewed state and what the reviewer was given, each material item with its disposition and reason, the derived judgment, and the next route. Keep Rejected items and their reasons, so a rejection can be checked later against what turned out to be true.
+Append the dispositions, each with its reason, and the derived judgment to the saved report (`scratch/reviews/R<n>-report.md` when the task has a task directory; otherwise give them in the hand-over report). Keep Rejected items and their reasons, so a rejection can be checked later against what turned out to be true.
+
+When the task has a Working Record, then record one Material update per independent review through [Track Work](../../../skills/track-work/SKILL.md), in the shape its format reference defines:
+
+```text
+- Review — round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: ...; Accepted: <n>; Rejected: <n>; Open: <n>; reviewed: <commit or version>; report: <path>; effect: ...
+```
+
+The judgment is the adjudicated one, not the reviewer's; the effect is the next route.
 
 ## Stop
 

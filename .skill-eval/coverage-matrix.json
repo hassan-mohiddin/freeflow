@@ -381,7 +381,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with this source, 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "3895c1c68db0ca70bcf64b49b2400a7234dc272c11a73f37526ea35c6b9b7a1b",
+      "source_sha256": "c723e788ca2ba1b7e8599358e770fec1019f8b6add9051176827d024dda1f1f4",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -473,7 +473,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. The test-changes script has its own tests (.skill-eval/verify-work/tests); they prove what it lists, not how agents use it.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "212272969186a7d393af34dd507644e5ecd15793161c511c1a2716f89a36d433",
+      "source_sha256": "f09623b898ecc65b781e29d2e2fbcffeeb1b75ed0022d580e4007240c282105a",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -504,7 +504,7 @@
       "case_concept": "Implementation evidence invalidates one assumption; change route without restarting unaffected work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. Work Agreement guidance measured on 2026-10-13 (.skill-eval/work-agreement, baseline 5a7db0e6, candidate 522903b7, anthropic/claude-haiku-5-5 medium, 3 trials; aggregates 20261012212234-b38e8191 natural and 20261012212240-5af3ab7e explicit): agreement updated on a change of direction 3/3 vs 0/3; next step proposed at the agreement's edge 3/3 vs 1/3 and scope proposed 3/3 vs 2/3 (advisory Haiku judge); ask-first, unanswered-proposal and no-push/PR checks equal on both arms. Workflow's body was read in no natural run. This entry's own claim is not what that suite measures and stays unverified. Description changed 2026-10-13 (\"Use before starting work that changes code or files, ...\"); .skill-eval/workflow-activation (aggregate 20261012212950-1a9988c6, Haiku 5.5, 3 trials) measured the body read 0/9 on change requests for both the previous and this description (a core.md cue reached 4/6), and 0/3 false reads on a plain question for all.",
       "source_path": "skills/workflow/SKILL.md",
-      "source_sha256": "4aed27ab96bf7292e883a2bad33cc9740ef0f5ac2eef66efcc2e27f5736d621f",
+      "source_sha256": "bc6eb54bb944dfbdf8ad7e18a699259cafcb8b65604ade7ecd0c465f45e992f7",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
