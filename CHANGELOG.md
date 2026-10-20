@@ -75,6 +75,7 @@
 - Review Work's independence rule now says what the research supports: an independent review needs a separately selected reviewer in a separate context, repeating a review with the same model adds no independent vote, and a reviewer from a different model family changes what gets flagged without a measured gain in real defects found. Reviews record the reviewer's model and family.
 - Evaluate Behavior rejects, before any subject runs, an expectation field its kind does not define (a misspelled field was silently ignored before) and a group with no expectations and no review questions. A run whose selected checks are all unavailable now exits nonzero, because it observed nothing.
 - Write Spec's decision records can be `Retired`, with the date and the reason, when a decision is dropped and nothing replaces it, and a durable decision that shapes how existing software works is also stated, with a pointer to its record, in the owning subsystem doc's Decisions section, which Write Docs keeps current.
+- Finish Branch gives a pull-request description a shape when the repository has no template or convention: a short briefing that says why the change exists, what changed, its scope and what it leaves out, what else it could affect, and how it was verified. A repository's own template or convention still comes first.
 
 ### Fixed
 
