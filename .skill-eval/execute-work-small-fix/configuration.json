@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "kind": "configuration",
+  "id": "execute-work-small-fix-shared",
+  "configuration": {
+    "host": {
+      "name": "pi"
+    },
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "none"
+    },
+    "runtime": {
+      "prompt": "host"
+    },
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-v0-notes@sha256:83da19fb6f9caac73dd7055124877bfcadbf6b327f0050082ea76014f7ed203f",
+      "workdir": "/testbed",
+      "network": "none"
+    },
+    "network": "none",
+    "freeflow": {
+      "source": {
+        "kind": "git",
+        "ref": "e87877a78639987f13ea0d43cfae8350a7da96dc"
+      },
+      "repository": {},
+      "personal": {}
+    }
+  }
+}

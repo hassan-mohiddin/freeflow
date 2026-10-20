@@ -1,0 +1,116 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "permission-fix-shared-editors",
+  "type": "body",
+  "input": {
+    "prompt": "Users a document is shared with for editing get \"forbidden\" when they try to save changes to it. Please fix that."
+  },
+  "fixture": ".skill-eval/execute-work-small-fix/fixtures/access",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "23d09cba8fb9d8bda140977b08dddba0a79eab26"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source"],
+  "expectations": [
+    {
+      "id": "baseline-hidden-tests",
+      "kind": "command",
+      "variant": "baseline",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".grader/access.test.mjs"],
+      "files": {
+        ".grader/access.test.mjs": ".skill-eval/execute-work-small-fix/graders/access.test.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "a user shared with edit access can edit",
+            "a user shared with view access still cannot edit",
+            "stored documents without sharedWith still work",
+            "stored shares grant edit only for edit access",
+            "owners and admins can still edit and strangers cannot",
+            "viewing is unchanged"
+          ]
+        }
+      }
+    },
+    {
+      "id": "candidate-hidden-tests",
+      "kind": "command",
+      "variant": "candidate",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".grader/access.test.mjs"],
+      "files": {
+        ".grader/access.test.mjs": ".skill-eval/execute-work-small-fix/graders/access.test.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "a user shared with edit access can edit",
+            "a user shared with view access still cannot edit",
+            "stored documents without sharedWith still work",
+            "stored shares grant edit only for edit access",
+            "owners and admins can still edit and strangers cannot",
+            "viewing is unchanged"
+          ]
+        }
+      }
+    },
+    {
+      "id": "baseline-execute-work-read",
+      "kind": "tool-call",
+      "variant": "baseline",
+      "comparison": "execute-work-read",
+      "tool": "read",
+      "argumentContains": ["execute-work/SKILL.md"],
+      "expect": "called"
+    },
+    {
+      "id": "candidate-execute-work-read",
+      "kind": "tool-call",
+      "variant": "candidate",
+      "comparison": "execute-work-read",
+      "tool": "read",
+      "argumentContains": ["execute-work/SKILL.md"],
+      "expect": "called"
+    },
+    {
+      "id": "baseline-review-work-read",
+      "kind": "tool-call",
+      "variant": "baseline",
+      "comparison": "review-work-read",
+      "tool": "read",
+      "argumentContains": ["review-work/SKILL.md"],
+      "expect": "called"
+    },
+    {
+      "id": "candidate-review-work-read",
+      "kind": "tool-call",
+      "variant": "candidate",
+      "comparison": "review-work-read",
+      "tool": "read",
+      "argumentContains": ["review-work/SKILL.md"],
+      "expect": "called"
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/execute-work-small-fix/reference/access"
+  }
+}

@@ -1,0 +1,13 @@
+[
+  { "id": "d1", "ownerId": "ana", "title": "Roadmap" },
+  { "id": "d2", "ownerId": "ana", "title": "Budget", "sharedWith": [{ "userId": "ben", "access": "view" }] },
+  {
+    "id": "d3",
+    "ownerId": "cy",
+    "title": "Notes",
+    "sharedWith": [
+      { "userId": "ben", "access": "edit" },
+      { "userId": "dee", "access": "view" }
+    ]
+  }
+]

@@ -1,0 +1,6 @@
+{
+  "pageSize": 20,
+  "maxPageSize": 100,
+  "timeoutMs": 5000,
+  "theme": "light"
+}

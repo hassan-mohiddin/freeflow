@@ -1,0 +1,132 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "config-fix-default-page-size",
+  "type": "body",
+  "input": {
+    "prompt": "The README says the default page size is 20, but the app uses 50. Make the default 20."
+  },
+  "fixture": ".skill-eval/execute-work-small-fix/fixtures/settings",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "23d09cba8fb9d8bda140977b08dddba0a79eab26"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source"],
+  "expectations": [
+    {
+      "id": "baseline-hidden-tests",
+      "kind": "command",
+      "variant": "baseline",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".grader/settings.test.mjs"],
+      "files": {
+        ".grader/settings.test.mjs": ".skill-eval/execute-work-small-fix/graders/settings.test.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the default page size is 20",
+            "the other defaults are unchanged",
+            "an override still replaces the default",
+            "a page size above the maximum is still rejected",
+            "the README still documents a default page size of 20"
+          ]
+        }
+      }
+    },
+    {
+      "id": "candidate-hidden-tests",
+      "kind": "command",
+      "variant": "candidate",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".grader/settings.test.mjs"],
+      "files": {
+        ".grader/settings.test.mjs": ".skill-eval/execute-work-small-fix/graders/settings.test.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the default page size is 20",
+            "the other defaults are unchanged",
+            "an override still replaces the default",
+            "a page size above the maximum is still rejected",
+            "the README still documents a default page size of 20"
+          ]
+        }
+      }
+    },
+    {
+      "id": "baseline-execute-work-read",
+      "kind": "tool-call",
+      "variant": "baseline",
+      "comparison": "execute-work-read",
+      "tool": "read",
+      "argumentContains": ["execute-work/SKILL.md"],
+      "expect": "called"
+    },
+    {
+      "id": "candidate-execute-work-read",
+      "kind": "tool-call",
+      "variant": "candidate",
+      "comparison": "execute-work-read",
+      "tool": "read",
+      "argumentContains": ["execute-work/SKILL.md"],
+      "expect": "called"
+    },
+    {
+      "id": "baseline-verify-work-read",
+      "kind": "tool-call",
+      "variant": "baseline",
+      "comparison": "verify-work-read",
+      "tool": "read",
+      "argumentContains": ["verify-work/SKILL.md"],
+      "expect": "not-called"
+    },
+    {
+      "id": "candidate-verify-work-read",
+      "kind": "tool-call",
+      "variant": "candidate",
+      "comparison": "verify-work-read",
+      "tool": "read",
+      "argumentContains": ["verify-work/SKILL.md"],
+      "expect": "not-called"
+    },
+    {
+      "id": "baseline-review-work-read",
+      "kind": "tool-call",
+      "variant": "baseline",
+      "comparison": "review-work-read",
+      "tool": "read",
+      "argumentContains": ["review-work/SKILL.md"],
+      "expect": "not-called"
+    },
+    {
+      "id": "candidate-review-work-read",
+      "kind": "tool-call",
+      "variant": "candidate",
+      "comparison": "review-work-read",
+      "tool": "read",
+      "argumentContains": ["review-work/SKILL.md"],
+      "expect": "not-called"
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/execute-work-small-fix/reference/settings"
+  }
+}

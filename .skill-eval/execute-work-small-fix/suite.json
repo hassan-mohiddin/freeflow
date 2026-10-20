@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "execute-work-small-fix",
+  "groups": ["groups/small-fix.json", "groups/config-fix.json", "groups/permission-fix.json"],
+  "decision": {
+    "measure": { "metric": "cost" },
+    "arms": ["baseline", "candidate"],
+    "direction": "lower",
+    "method": "sign-test",
+    "alpha": 0.05,
+    "min_cases": 3
+  }
+}

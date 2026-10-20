@@ -1,0 +1,132 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "small-fix-slug-trailing-hyphen",
+  "type": "body",
+  "input": {
+    "prompt": "Post URLs end with a stray hyphen when the title ends in punctuation: `slugify(\"Hello, World!\")` returns `hello-world-`. It should return `hello-world`. Please fix it."
+  },
+  "fixture": ".skill-eval/execute-work-small-fix/fixtures/slug",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "23d09cba8fb9d8bda140977b08dddba0a79eab26"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source"],
+  "expectations": [
+    {
+      "id": "baseline-hidden-tests",
+      "kind": "command",
+      "variant": "baseline",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".grader/slug.test.mjs"],
+      "files": {
+        ".grader/slug.test.mjs": ".skill-eval/execute-work-small-fix/graders/slug.test.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "a title ending in punctuation has no trailing hyphen",
+            "the post URL has no trailing hyphen",
+            "words are still joined by one hyphen",
+            "leading spaces and symbols are still dropped",
+            "a title of only symbols gives an empty slug"
+          ]
+        }
+      }
+    },
+    {
+      "id": "candidate-hidden-tests",
+      "kind": "command",
+      "variant": "candidate",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".grader/slug.test.mjs"],
+      "files": {
+        ".grader/slug.test.mjs": ".skill-eval/execute-work-small-fix/graders/slug.test.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "a title ending in punctuation has no trailing hyphen",
+            "the post URL has no trailing hyphen",
+            "words are still joined by one hyphen",
+            "leading spaces and symbols are still dropped",
+            "a title of only symbols gives an empty slug"
+          ]
+        }
+      }
+    },
+    {
+      "id": "baseline-execute-work-read",
+      "kind": "tool-call",
+      "variant": "baseline",
+      "comparison": "execute-work-read",
+      "tool": "read",
+      "argumentContains": ["execute-work/SKILL.md"],
+      "expect": "called"
+    },
+    {
+      "id": "candidate-execute-work-read",
+      "kind": "tool-call",
+      "variant": "candidate",
+      "comparison": "execute-work-read",
+      "tool": "read",
+      "argumentContains": ["execute-work/SKILL.md"],
+      "expect": "called"
+    },
+    {
+      "id": "baseline-verify-work-read",
+      "kind": "tool-call",
+      "variant": "baseline",
+      "comparison": "verify-work-read",
+      "tool": "read",
+      "argumentContains": ["verify-work/SKILL.md"],
+      "expect": "not-called"
+    },
+    {
+      "id": "candidate-verify-work-read",
+      "kind": "tool-call",
+      "variant": "candidate",
+      "comparison": "verify-work-read",
+      "tool": "read",
+      "argumentContains": ["verify-work/SKILL.md"],
+      "expect": "not-called"
+    },
+    {
+      "id": "baseline-review-work-read",
+      "kind": "tool-call",
+      "variant": "baseline",
+      "comparison": "review-work-read",
+      "tool": "read",
+      "argumentContains": ["review-work/SKILL.md"],
+      "expect": "not-called"
+    },
+    {
+      "id": "candidate-review-work-read",
+      "kind": "tool-call",
+      "variant": "candidate",
+      "comparison": "review-work-read",
+      "tool": "read",
+      "argumentContains": ["review-work/SKILL.md"],
+      "expect": "not-called"
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/execute-work-small-fix/reference/slug"
+  }
+}
