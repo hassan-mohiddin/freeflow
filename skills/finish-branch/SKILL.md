@@ -69,7 +69,7 @@ The pull-request description, or the final report when there is no pull request,
 - the evidence: each check run on the final state and its result;
 - the review outcome: self-review only, or each independent review's judgment with every Rejected finding and why.
 
-Build it from the Working Record ([Track Work](../track-work/SKILL.md)) when one exists, not from memory. When the repository has a pull-request template, fit these into its sections.
+Build it from the Working Record ([Track Work](../track-work/SKILL.md)) when one exists, not from memory. When the repository has a pull-request template, fit these into its sections; otherwise [integration options](references/integration-options.md) gives the description's shape.
 
 ## Execute Only The Chosen Route
 
