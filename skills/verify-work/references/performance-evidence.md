@@ -19,6 +19,8 @@ Record:
 - warm-up, sample count, variance, and noise controls when relevant;
 - correctness checks that must remain true.
 
+Before measuring, write the sentence you expect to report, such as "p95 search latency at 50 users drops below 200 ms". The checks below test that sentence; one rewritten to fit the numbers is a new claim.
+
 Use project SLOs, budgets, historical baselines, or explicit requirements. Do not invent universal thresholds.
 
 ## Evidence Strength
@@ -35,8 +37,9 @@ A microbenchmark is diagnostic when it isolates a hypothesis; it becomes accepta
 
 ## Compare Honestly
 
-- Keep behavior-relevant configuration matched.
-- Report median/percentiles or variance rather than one favorable run.
+- Keep behavior-relevant configuration matched, with each side tuned as production runs it (release build, flags, pools, batching, indexes); against a side left on defaults, name no winner.
+- Report the median and range of repeated runs, not one favorable run. When comparing, alternate the sides, at least five runs each, so warm-up and drift favor neither.
+- Count failed and non-success results, and confirm the timed work happened: fast rejections, early timeouts, unawaited promises and lazy results nobody reads measure work that never ran.
 - For how cost grows with input size, run the same operation on the input and on double it.
 - Include cold/warm cache distinctions when they affect users.
 - Separate elapsed-time improvement from increased cost, memory, load, or downstream work.
@@ -55,6 +58,7 @@ Stop or downgrade the claim when:
 - environments or inputs differ materially;
 - profiler evidence contradicts the targeted optimization;
 - variance is larger than the claimed improvement;
+- errors went uncounted, the timed work may not have run, or a compared side ran untuned;
 - correctness, freshness, security, or resource behavior regresses;
 - only a nearby operation improved;
 - required production evidence is unavailable.
