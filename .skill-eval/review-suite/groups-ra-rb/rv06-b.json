@@ -1,0 +1,168 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv06-b",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rr-a276b963/real/workspace",
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "full": {
+      "subject": {
+        "context": [".skill-eval/review-suite/context-ra-rb/rv06-b/full.md"]
+      }
+    },
+    "pointer": {
+      "subject": {
+        "context": [
+          ".skill-eval/review-suite/context-ra-rb/rv06-b/pointer.md",
+          ".skill-eval/review-suite/context/rv06-b/requirements.md"
+        ]
+      }
+    },
+    "pointer-judge-first": {
+      "subject": {
+        "context": [
+          ".skill-eval/review-suite/context-ra-rb/rv06-b/pointer-judge-first.md",
+          ".skill-eval/review-suite/context/rv06-b/requirements.md"
+        ]
+      }
+    }
+  },
+  "reference": "pointer",
+  "component": ["subject.context"],
+  "expectations": [
+    {
+      "id": "full-only-review",
+      "variant": "full",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "pointer-only-review",
+      "variant": "pointer",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "pointer-judge-first-only-review",
+      "variant": "pointer-judge-first",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "full-judgment-line",
+      "variant": "full",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "pointer-judgment-line",
+      "variant": "pointer",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "pointer-judge-first-judgment-line",
+      "variant": "pointer-judge-first",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "full-not-passed",
+      "variant": "full",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "pointer-not-passed",
+      "variant": "pointer",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "pointer-judge-first-not-passed",
+      "variant": "pointer-judge-first",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "full-names-file-1",
+      "variant": "full",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "process.mjs"
+    },
+    {
+      "id": "pointer-names-file-1",
+      "variant": "pointer",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "process.mjs"
+    },
+    {
+      "id": "pointer-judge-first-names-file-1",
+      "variant": "pointer-judge-first",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "process.mjs"
+    }
+  ],
+  "review_questions": [
+    "Did the review identify the defect at skills/evaluate-skill/scripts/lib/process.mjs:45 (the expression `retainedOutputBytes += buffer.length;`): retain() increases retainedOutputBytes before checking it against outputLimitBytes (the check is on line 46). A chunk that is rejected is still counted, so retained_output_bytes overstates what was kept and can exceed the limit. Did it support the finding with the file and line?",
+    "Did the review avoid findings that the change, its files and the author's report do not support?"
+  ],
+  "rubric": [
+    {
+      "id": "identified",
+      "question": "Did the review identify the defect at skills/evaluate-skill/scripts/lib/process.mjs:45 (the expression `retainedOutputBytes += buffer.length;`): retain() increases retainedOutputBytes before checking it against outputLimitBytes (the check is on line 46). A chunk that is rejected is still counted, so retained_output_bytes overstates what was kept and can exceed the limit. Did it support the finding with the file and line?"
+    }
+  ],
+  "judges": [
+    {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "high"
+    }
+  ]
+}

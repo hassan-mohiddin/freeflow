@@ -1,0 +1,168 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv05-a",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rr-9f311f68/real/workspace",
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "full": {
+      "subject": {
+        "context": [".skill-eval/review-suite/context-ra-rb/rv05-a/full.md"]
+      }
+    },
+    "pointer": {
+      "subject": {
+        "context": [
+          ".skill-eval/review-suite/context-ra-rb/rv05-a/pointer.md",
+          ".skill-eval/review-suite/context/rv05-a/requirements.md"
+        ]
+      }
+    },
+    "pointer-judge-first": {
+      "subject": {
+        "context": [
+          ".skill-eval/review-suite/context-ra-rb/rv05-a/pointer-judge-first.md",
+          ".skill-eval/review-suite/context/rv05-a/requirements.md"
+        ]
+      }
+    }
+  },
+  "reference": "pointer",
+  "component": ["subject.context"],
+  "expectations": [
+    {
+      "id": "full-only-review",
+      "variant": "full",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "pointer-only-review",
+      "variant": "pointer",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "pointer-judge-first-only-review",
+      "variant": "pointer-judge-first",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "full-judgment-line",
+      "variant": "full",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "pointer-judgment-line",
+      "variant": "pointer",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "pointer-judge-first-judgment-line",
+      "variant": "pointer-judge-first",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "full-not-passed",
+      "variant": "full",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "pointer-not-passed",
+      "variant": "pointer",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "pointer-judge-first-not-passed",
+      "variant": "pointer-judge-first",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "full-names-file-1",
+      "variant": "full",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "index.ts"
+    },
+    {
+      "id": "pointer-names-file-1",
+      "variant": "pointer",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "index.ts"
+    },
+    {
+      "id": "pointer-judge-first-names-file-1",
+      "variant": "pointer-judge-first",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "index.ts"
+    }
+  ],
+  "review_questions": [
+    "Did the review identify the defect at pi-extension/src/index.ts:409 (the expression `sessionHasConversationOrRoutingState(ctx)`): In a configured session with no conversation or routing entries, the controller is left undefined. The status path then reports the routing runtime as 'cognitive blocked · runtime_inactive', although the runtime has not started yet. The fix shows 'cognitive standard · pending' for this state, and it also changes the setModeStatus signature in runtime-context.ts. Did it support the finding with the file and line?",
+    "Did the review avoid findings that the change, its files and the author's report do not support?"
+  ],
+  "rubric": [
+    {
+      "id": "identified",
+      "question": "Did the review identify the defect at pi-extension/src/index.ts:409 (the expression `sessionHasConversationOrRoutingState(ctx)`): In a configured session with no conversation or routing entries, the controller is left undefined. The status path then reports the routing runtime as 'cognitive blocked · runtime_inactive', although the runtime has not started yet. The fix shows 'cognitive standard · pending' for this state, and it also changes the setModeStatus signature in runtime-context.ts. Did it support the finding with the file and line?"
+    }
+  ],
+  "judges": [
+    {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "high"
+    }
+  ]
+}
