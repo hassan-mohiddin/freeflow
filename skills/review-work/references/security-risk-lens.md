@@ -62,6 +62,6 @@ Do not omit an observed security issue because the selected lenses were narrower
 
 ## Return Through The Selected Role
 
-For self-review, return a route-changing security concern to [Workflow](../../../skills/workflow/SKILL.md). Use [Diagnose Failure](../../../skills/diagnose-failure/SKILL.md) for unknown exploitability or cause, [Decision Gate](../../../skills/decision-gate/SKILL.md) for missing policy or accepted-risk decisions, [Design For Depth](../../../skills/design-for-depth/SKILL.md) when trust decisions spread across callers, and [Launch Work](../../../skills/launch-work/SKILL.md) when the concern affects production rollout.
+For self-review, return a route-changing security concern to [Workflow](../../../skills/workflow/SKILL.md). Use [Diagnose Failure](../../../skills/diagnose-failure/SKILL.md) for unknown exploitability or cause, [Agree Work](../../../skills/agree-work/SKILL.md) for missing policy or accepted-risk decisions, [Design For Depth](../../../skills/design-for-depth/SKILL.md) when trust decisions spread across callers, and [Launch Work](../../../skills/launch-work/SKILL.md) when the concern affects production rollout.
 
 For independent review, classify the concern in the review report and stop. Do not route, correct, or dispatch follow-up. The receiving agent adjudicates the report and selects what follows.

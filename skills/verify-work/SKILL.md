@@ -12,7 +12,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 ## Rules
 
 - Verification establishes facts, not review judgment, authority, or permission to continue. A Supported claim permits judgment of the result; it does not establish a review Pass, close a Slice, or authorize delivery.
-- Never encode a guess as an expected result. When expected behavior is unsettled or sources conflict, return the issue through [Workflow](../../skills/workflow/SKILL.md) or [Decision Gate](../../skills/decision-gate/SKILL.md).
+- Never encode a guess as an expected result. When expected behavior is unsettled or sources conflict, return the issue through [Workflow](../../skills/workflow/SKILL.md) or [Agree Work](../../skills/agree-work/SKILL.md). A test that pins a choice the user has not agreed says so.
 - Run active checks (tests, reproductions, benchmarks, instrumentation) only when the current agreement covers them. Otherwise return the purpose, observer, expected evidence, and stop condition to Workflow and wait.
 - Never rerun until unfavorable evidence disappears, and never change valid tests, implementation, Specs, policy, or acceptance merely to make a signal green. Preserve failures, contradictions, and partial or reduced-fidelity results.
 - If a revised check establishes less than the original, the original claim stays Inconclusive unless other evidence establishes it at the required boundary; expose that limitation before acceptance rather than carry the stronger claim into the report.

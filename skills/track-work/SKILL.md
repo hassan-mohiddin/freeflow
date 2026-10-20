@@ -86,6 +86,8 @@ When the agreement grows or changes, replace the lines it changes, as a direct e
 
 For a long or unattended run, or once the agreement has changed several times, also keep `sources/work-agreement-log.md`: one dated, numbered entry per exchange that set or changed the agreement, the proposal in one line and the user's reply verbatim, append-only. It holds only those exchanges, not discussion. List it under Recovery sources with the trigger "read when changing the Work agreement or when its wording is in question".
 
+[Agree Work](../agree-work/SKILL.md)'s decision list lives in `sources/decisions.md`, under Recovery sources. Only its items the user answered are Decisions; its defaults are what you assumed, never what the user accepted.
+
 ## Use Slices For Work With Partial State
 
 A Slice is a unit of work that would leave something to reconcile if interrupted: half-applied edits, a draft in progress, findings from 12 of 20 sources, a running process.

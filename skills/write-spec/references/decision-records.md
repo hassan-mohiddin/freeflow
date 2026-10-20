@@ -72,7 +72,7 @@ When a decision changes:
 - mark dependent work contingent when a required decision or source revision remains unresolved;
 - preserve the evidence that justified the change.
 
-Live evidence may show that implementation violates a decision or that the decision is no longer viable. Use Decision Gate when resolving that conflict requires user authority.
+Live evidence may show that implementation violates a decision or that the decision is no longer viable. Use Agree Work when resolving that conflict requires user authority.
 
 ## Avoid Duplication
 

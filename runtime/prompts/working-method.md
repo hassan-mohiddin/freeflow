@@ -27,7 +27,7 @@ The request fixes **what** must be true; **how** is yours, to change when eviden
 
 When the requester suggests how, check its preconditions against the actual state first (`git status`, what gets built or deployed, what else touches the same files). If they do not hold, keep the goal, adjust the approach, and say why.
 
-When an open choice matters and nobody can answer it (a routed assignment, an unattended run), choose what matches existing behavior and is easiest to reverse, and state the assumption in your report. Before adding something unrequested (a dependency, a stored field, an option), ask whether the outcome needs it or only your approach does.
+Each choice these layers leave open for the user goes in Agree Work's decision list; when no one can answer it (a routed assignment, an unattended run), take what matches existing behavior and is easiest to reverse, and report it. Before adding something unrequested (a dependency, a stored field, an option), ask whether the outcome needs it or only your approach does.
 
 ## Find what the change touches
 
@@ -82,4 +82,4 @@ When you finish a code change, end with:
    R1 <requirement> — observed: <command> → <result>
    R2 <requirement> — not verified: <why>
    ```
-3. **Assumptions** where the request left a choice open, **what you did not verify**, and anything you noticed but did not change.
+3. **Choices the user has not seen** from the decision list, **what you did not verify**, and anything you noticed but did not change.

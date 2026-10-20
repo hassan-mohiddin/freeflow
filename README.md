@@ -41,7 +41,8 @@ Coding agents commonly fail at control boundaries:
 | Pressure | Freeflow response |
 | --- | --- |
 | A question or tentative idea becomes an edit. | The Interaction Contract distinguishes discussion from authorization. |
-| A prompt conflicts with policy, tests, or accepted behavior. | Decision Gate exposes the material conflict before mutation. |
+| A prompt conflicts with policy, tests, or accepted behavior. | Agree Work exposes the material conflict before mutation. |
+| A request leaves choices open that the agent never notices. | Agree Work lists them with defaults before building and waits for the user's answer. |
 | New evidence invalidates the chosen approach. | Workflow re-enters only the affected owner and preserves valid work. |
 | Every task receives the same heavy process. | Workflow scales pressure to consequence, uncertainty, interaction, and reversibility. |
 | A passing command becomes an unsupported completion claim. | Verify Work ties the claim to the actual observer and evidence boundary. |

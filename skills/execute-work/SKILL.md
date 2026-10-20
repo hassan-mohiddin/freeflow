@@ -40,7 +40,7 @@ If the agreement is materially unclear, return to [Workflow](../workflow/SKILL.m
 
 An agreement to fix a bug can cover investigation before the remedy is known. Distinguish evidence gathering from implementation even when both are authorized.
 
-Use [Discuss](../discuss/SKILL.md) when outcome or material approach alternatives need reconsideration, [Decision Gate](../decision-gate/SKILL.md) for one blocking user-owned choice or source conflict, and [Diagnose Failure](../diagnose-failure/SKILL.md) when the cause is unsupported.
+Use [Discuss](../discuss/SKILL.md) when outcome or material approach alternatives need reconsideration, [Agree Work](../agree-work/SKILL.md) for one blocking user-owned choice or source conflict, and [Diagnose Failure](../diagnose-failure/SKILL.md) when the cause is unsupported.
 
 ## Gather Enough Context For This Unit
 
@@ -114,7 +114,7 @@ Do not continue merely because implementation has begun.
 - Clear local defect and supported remedy -> correct within the same action.
 - Required outcome clear but mechanism invalidated -> stop dependent edits and re-establish the approach.
 - Failure cause unclear or correction repeats -> Diagnose Failure before another patch.
-- Expected behavior or acceptance unsettled -> Discuss or Decision Gate.
+- Expected behavior or acceptance unsettled -> Discuss or Agree Work.
 - New requirement, scope, compatibility, persistence, evidence, or user-facing return boundary -> Workflow before adopting it.
 
 Before pursuing a prerequisite, distinguish what the accepted outcome requires from what the current approach happens to need. Choose the smallest supported remedy preserving acceptance. A failed approach does not prove that a host change or stronger guarantee is necessary.

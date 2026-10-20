@@ -31,7 +31,7 @@ Interpret the whole turn through the Interaction Contract.
 
 - For discussion or a question, collaborate and inspect relevant existing evidence as needed.
 - For execution, establish the intended outcome, permitted scope, and user-facing return condition. The agreement may cover a plan, one correction, one Slice, or a whole task.
-- If the request already establishes those boundaries, acknowledge them briefly and proceed. Otherwise ask only the missing material question and wait before the unsettled execution. Read [Asking The User](references/asking-the-user.md) before asking the user for a choice that is theirs to make.
+- For work that builds or changes behavior, agree it through [Agree Work](../agree-work/SKILL.md) before the first edit: what you will do, where you stop, and the choices that are the user's. For other execution, if the request already establishes those boundaries, acknowledge them briefly and proceed; otherwise ask only the missing material question and wait before the unsettled execution.
 
 For example, after discussing several possible Slices, an ambiguous "proceed" may need: "Implement the next Slice and return, or finish the described task?" Do not ask this when the user already requested the whole task with a clear endpoint.
 
@@ -102,7 +102,7 @@ Goal: one activity is responsible for the current question or result, and it kee
 Choose the narrowest activity whose responsibility matches the current question or result.
 
 - [Discuss](../discuss/SKILL.md) owns open direction, alternatives, assumptions, and collaborative outcome or approach decisions.
-- [Decision Gate](../decision-gate/SKILL.md) resolves one known user-owned choice or material source conflict.
+- [Agree Work](../agree-work/SKILL.md) agrees the work and the user's choices before building, keeps them in its decision list, and resolves a user-owned choice or material source conflict that comes up during the work.
 - [Execute Work](../execute-work/SKILL.md) owns concrete work, including bounded implementation preparation, execution, and in-Slice continuation.
 - [Diagnose Failure](../diagnose-failure/SKILL.md) establishes unsupported or repeatedly failing causes before correction.
 - [Verify Work](../verify-work/SKILL.md) establishes factual support; [Review Work](../review-work/SKILL.md) judges resulting work and guiding artifacts.
@@ -138,7 +138,7 @@ Route from the consequence of evidence:
 - Clear defect with a supported remedy -> return to its producer, correct within authority, then recheck the affected result.
 - Outcome settled, implementation approach invalidated -> re-establish how through Execute Work, or Discuss when material alternatives require reconsideration.
 - Cause unsupported, contradictory, or repeatedly failing -> Diagnose Failure.
-- Outcome, expected behavior, or acceptance unsettled -> Discuss or Decision Gate.
+- Outcome, expected behavior, or acceptance unsettled -> Discuss or Agree Work.
 - Required claim exceeds its evidence -> distinguish unavailable or stale evidence, an inadequate observer, and a demonstrated defect. Recover or establish the missing observation through Verify Work before commissioning a guessed fix.
 - Optional stronger claim lacks evidence -> qualify or withdraw that claim rather than automatically expand implementation.
 - Accepted content or strategy changed -> reconcile affected task memory and return affected artifacts to their owners before dependent use.

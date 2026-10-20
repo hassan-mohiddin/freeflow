@@ -59,7 +59,7 @@ Delegate when the expected saving in cost or quality exceeds the handoff, the ra
 - missing facts about the environment: a worker observes;
 - an unresolved design or governing choice: Coordinator;
 - settled mechanics: a worker, or a script when the work is deterministic and repeated;
-- a decision the user owns: Coordinator asks, using [Decision Gate](../../skills/decision-gate/SKILL.md); never a worker.
+- a decision the user owns: Coordinator asks, using [Agree Work](../../skills/agree-work/SKILL.md), and keeps its decision list; never a worker.
 
 Default: follow your mode reference. Keep a tightly coupled edit, check, and interpret loop with one producer; hand off results that can be separated from it. A separate multi-entry record update qualifies; a one-line update in the middle of your own work does not. A read-only check of the candidate against the Slice's acceptance requirements qualifies even mid-implementation, because it gives Coordinator a different result, not a repeat.
 
@@ -109,7 +109,7 @@ Establish the contract, your assigned role, the constraints, and the return cond
 
 Challenge unsupported premises and report better-supported approaches. A governing change, one that alters the accepted outcome, architecture, policy, scope, authority, failure behavior, or required evidence, stops dependent effects until Coordinator decides. An unprescribed filename or helper does not require a return. For an unexplained or repeatedly stalling failure, use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) within scope or return.
 
-Run routine tools without announcing them; put findings in the report. Questions for the user go to Coordinator in the return.
+Run routine tools without announcing them; put findings in the report. Questions for the user, and the choices you made that the contract did not settle, go to Coordinator in the return.
 
 Verify the actual candidate and self-review through the producing method, using [Verify Work](../../skills/verify-work/SKILL.md) to say what the observations support. Keep failed, stale, incomplete, and inconclusive evidence. If a test changes, say what the old and new versions each establish.
 
