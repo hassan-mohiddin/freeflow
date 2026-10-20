@@ -75,6 +75,8 @@ When operations can overlap, identify:
 - stale-read policy;
 - observer capable of proving the required outcome.
 
+Before serializing writers, ask whether they need one shared target at all. When each publishes its own facts, give each its own file, key, or record and combine them where they are read; two workers updating different fields of one state file still share it. Serialize, with a lock, a queue, or a single writer, only when one shared target is itself required.
+
 Do not add locks, queues, retries, or optimistic versions without naming the invariant they protect.
 
 ## Define Failure And Recovery
