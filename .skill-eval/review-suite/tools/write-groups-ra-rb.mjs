@@ -42,8 +42,9 @@ const LENSES =
   "source alignment, correctness and integration, failure and risk, evidence and acceptance, scope and minimality, maintainability";
 const FIX_SKILL = `${relativeSuite}/skills-ra-rb/review-work`;
 // The Haiku check of the fix before it merges (groups-fix-haiku/, suite-fix-haiku.json): `pointer` and `pointer-fix`
-// exactly as trial 2 builds them, on these groups, with the suite's Haiku configuration instead of Grok.
-const HAIKU_CHECK_ARMS = ["pointer", "pointer-fix"];
+// exactly as trial 2 builds them, on these groups, with the suite's Haiku configuration instead of Grok. The subject
+// sees its run's directory, which the evaluator names after the arm, so the arms take neutral names: b and c.
+const HAIKU_CHECK_ARMS = { pointer: "b", "pointer-fix": "c" };
 const HAIKU_CHECK_GROUPS = [
   ["rv03-b", "rv16-b", "rv19-a", "rv05-a", "rv01-b", "rv15-a"],
   ["rv07-a", "rv16-a", "rv24-b", "rv08-a"],
@@ -263,11 +264,18 @@ function main() {
     };
     writeFileSync(path.join(groupsDirectory, `${row.id}.json`), `${JSON.stringify(group, null, 2)}\n`);
     if (HAIKU_CHECK_GROUPS.includes(row.id)) {
+      const rename = Object.entries(HAIKU_CHECK_ARMS);
       const check = {
         ...group,
         configuration: { extends: "../configuration.json" },
-        arms: Object.fromEntries(HAIKU_CHECK_ARMS.map((arm) => [arm, group.arms[arm]])),
-        expectations: group.expectations.filter((expectation) => HAIKU_CHECK_ARMS.includes(expectation.variant)),
+        arms: Object.fromEntries(rename.map(([arm, name]) => [name, group.arms[arm]])),
+        reference: HAIKU_CHECK_ARMS[REFERENCE],
+        expectations: group.expectations
+          .filter((expectation) => Object.hasOwn(HAIKU_CHECK_ARMS, expectation.variant))
+          .map((expectation) => {
+            const name = HAIKU_CHECK_ARMS[expectation.variant];
+            return { ...expectation, id: `${name}${expectation.id.slice(expectation.variant.length)}`, variant: name };
+          }),
       };
       writeFileSync(path.join(haikuDirectory, `${row.id}.json`), `${JSON.stringify(check, null, 2)}\n`);
     }

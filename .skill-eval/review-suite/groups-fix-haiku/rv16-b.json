@@ -19,40 +19,40 @@
     "extends": "../configuration.json"
   },
   "arms": {
-    "pointer": {
+    "b": {
       "subject": {
         "context": [".skill-eval/review-suite/context-ra-rb/rv16-b/b.md"]
       }
     },
-    "pointer-fix": {
+    "c": {
       "subject": {
         "context": [".skill-eval/review-suite/context-ra-rb/rv16-b/c.md"],
         "skills": [".skill-eval/review-suite/skills-ra-rb/review-work"]
       }
     }
   },
-  "reference": "pointer",
+  "reference": "b",
   "component": ["subject.context", "subject.skills"],
   "expectations": [
     {
-      "id": "pointer-only-review",
-      "variant": "pointer",
+      "id": "b-only-review",
+      "variant": "b",
       "comparison": "only-review",
       "kind": "changed-paths",
       "expect": "equals",
       "paths": ["review.md"]
     },
     {
-      "id": "pointer-fix-only-review",
-      "variant": "pointer-fix",
+      "id": "c-only-review",
+      "variant": "c",
       "comparison": "only-review",
       "kind": "changed-paths",
       "expect": "equals",
       "paths": ["review.md"]
     },
     {
-      "id": "pointer-judgment-line",
-      "variant": "pointer",
+      "id": "b-judgment-line",
+      "variant": "b",
       "comparison": "judgment-line",
       "kind": "file-text",
       "path": "review.md",
@@ -61,8 +61,8 @@
       "value": "Judgment: "
     },
     {
-      "id": "pointer-fix-judgment-line",
-      "variant": "pointer-fix",
+      "id": "c-judgment-line",
+      "variant": "c",
       "comparison": "judgment-line",
       "kind": "file-text",
       "path": "review.md",
@@ -71,8 +71,8 @@
       "value": "Judgment: "
     },
     {
-      "id": "pointer-not-passed",
-      "variant": "pointer",
+      "id": "b-not-passed",
+      "variant": "b",
       "comparison": "not-passed",
       "kind": "file-text",
       "path": "review.md",
@@ -81,8 +81,8 @@
       "value": "Judgment: Pass"
     },
     {
-      "id": "pointer-fix-not-passed",
-      "variant": "pointer-fix",
+      "id": "c-not-passed",
+      "variant": "c",
       "comparison": "not-passed",
       "kind": "file-text",
       "path": "review.md",
@@ -91,8 +91,8 @@
       "value": "Judgment: Pass"
     },
     {
-      "id": "pointer-names-file-1",
-      "variant": "pointer",
+      "id": "b-names-file-1",
+      "variant": "b",
       "comparison": "names-file-1",
       "kind": "file-text",
       "path": "review.md",
@@ -100,8 +100,8 @@
       "value": "assembler.ts"
     },
     {
-      "id": "pointer-fix-names-file-1",
-      "variant": "pointer-fix",
+      "id": "c-names-file-1",
+      "variant": "c",
       "comparison": "names-file-1",
       "kind": "file-text",
       "path": "review.md",
@@ -109,8 +109,8 @@
       "value": "assembler.ts"
     },
     {
-      "id": "pointer-names-file-2",
-      "variant": "pointer",
+      "id": "b-names-file-2",
+      "variant": "b",
       "comparison": "names-file-2",
       "kind": "file-text",
       "path": "review.md",
@@ -118,8 +118,8 @@
       "value": "assembler.js"
     },
     {
-      "id": "pointer-fix-names-file-2",
-      "variant": "pointer-fix",
+      "id": "c-names-file-2",
+      "variant": "c",
       "comparison": "names-file-2",
       "kind": "file-text",
       "path": "review.md",

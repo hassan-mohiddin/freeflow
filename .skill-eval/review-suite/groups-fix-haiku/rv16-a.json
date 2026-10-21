@@ -19,40 +19,40 @@
     "extends": "../configuration.json"
   },
   "arms": {
-    "pointer": {
+    "b": {
       "subject": {
         "context": [".skill-eval/review-suite/context-ra-rb/rv16-a/b.md"]
       }
     },
-    "pointer-fix": {
+    "c": {
       "subject": {
         "context": [".skill-eval/review-suite/context-ra-rb/rv16-a/c.md"],
         "skills": [".skill-eval/review-suite/skills-ra-rb/review-work"]
       }
     }
   },
-  "reference": "pointer",
+  "reference": "b",
   "component": ["subject.context", "subject.skills"],
   "expectations": [
     {
-      "id": "pointer-only-review",
-      "variant": "pointer",
+      "id": "b-only-review",
+      "variant": "b",
       "comparison": "only-review",
       "kind": "changed-paths",
       "expect": "equals",
       "paths": ["review.md"]
     },
     {
-      "id": "pointer-fix-only-review",
-      "variant": "pointer-fix",
+      "id": "c-only-review",
+      "variant": "c",
       "comparison": "only-review",
       "kind": "changed-paths",
       "expect": "equals",
       "paths": ["review.md"]
     },
     {
-      "id": "pointer-judgment-line",
-      "variant": "pointer",
+      "id": "b-judgment-line",
+      "variant": "b",
       "comparison": "judgment-line",
       "kind": "file-text",
       "path": "review.md",
@@ -61,8 +61,8 @@
       "value": "Judgment: "
     },
     {
-      "id": "pointer-fix-judgment-line",
-      "variant": "pointer-fix",
+      "id": "c-judgment-line",
+      "variant": "c",
       "comparison": "judgment-line",
       "kind": "file-text",
       "path": "review.md",
@@ -71,8 +71,8 @@
       "value": "Judgment: "
     },
     {
-      "id": "pointer-not-blocked",
-      "variant": "pointer",
+      "id": "b-not-blocked",
+      "variant": "b",
       "comparison": "not-blocked",
       "kind": "file-text",
       "path": "review.md",
@@ -81,8 +81,8 @@
       "value": "Judgment: Blocking"
     },
     {
-      "id": "pointer-fix-not-blocked",
-      "variant": "pointer-fix",
+      "id": "c-not-blocked",
+      "variant": "c",
       "comparison": "not-blocked",
       "kind": "file-text",
       "path": "review.md",
@@ -91,8 +91,8 @@
       "value": "Judgment: Blocking"
     },
     {
-      "id": "pointer-not-inconclusive",
-      "variant": "pointer",
+      "id": "b-not-inconclusive",
+      "variant": "b",
       "comparison": "not-inconclusive",
       "kind": "file-text",
       "path": "review.md",
@@ -101,8 +101,8 @@
       "value": "Judgment: Inconclusive"
     },
     {
-      "id": "pointer-fix-not-inconclusive",
-      "variant": "pointer-fix",
+      "id": "c-not-inconclusive",
+      "variant": "c",
       "comparison": "not-inconclusive",
       "kind": "file-text",
       "path": "review.md",
@@ -111,8 +111,8 @@
       "value": "Judgment: Inconclusive"
     },
     {
-      "id": "pointer-judged-pass",
-      "variant": "pointer",
+      "id": "b-judged-pass",
+      "variant": "b",
       "comparison": "judged-pass",
       "kind": "file-text",
       "path": "review.md",
@@ -121,8 +121,8 @@
       "value": "Judgment: Pass"
     },
     {
-      "id": "pointer-fix-judged-pass",
-      "variant": "pointer-fix",
+      "id": "c-judged-pass",
+      "variant": "c",
       "comparison": "judged-pass",
       "kind": "file-text",
       "path": "review.md",

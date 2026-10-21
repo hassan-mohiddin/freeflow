@@ -97,7 +97,7 @@ One trial. Another runs only after a new yes from Hassan.
 
 Fixed on 2026-10-21, before the check runs, for `suite-fix-haiku.json` (`groups-fix-haiku/`, written by `tools/write-groups-ra-rb.mjs`). Hassan asked for the smallest check that can gate merging the fix (draft PR #72) and for it to run on Haiku. Nothing in this section may move once the check has started.
 
-- Arms: `pointer` (`b.md`, `skills/review-work`) and `pointer-fix` (`c.md`, identical to `b.md`, with `skills-ra-rb/review-work`), exactly as trial 2 builds them. `full` does not run.
+- Arms: `pointer` (`b.md`, `skills/review-work`) and `pointer-fix` (`c.md`, identical to `b.md`, with `skills-ra-rb/review-work`), exactly as trial 2 builds them. `full` does not run. They run as arms `b` (`pointer`) and `c` (`pointer-fix`): the subject sees its run directory, which is named after the arm, so the names say nothing. This naming was set after a 2-review pilot on rv16-b, which is not counted; the conditions below did not change.
 - Subject: the suite's `configuration.json`, `anthropic/claude-haiku-5-5` at medium thinking through the plan's auth extension `@gotgenes/pi-anthropic-auth` 3.4.3. Judge: `identified`, Haiku at high thinking with the same extension.
 - Groups, one trial each: defective rv03-b, rv16-b, rv19-a, rv05-a, rv01-b, rv15-a; clean rv07-a, rv16-a, rv24-b, rv08-a. 20 reviews; 12 judged.
 - Merge the fix when both hold:
