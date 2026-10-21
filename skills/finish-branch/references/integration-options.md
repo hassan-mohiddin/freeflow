@@ -78,4 +78,4 @@ Stop when conflict resolution would choose between:
 - security, privacy, billing, permissions, or compatibility policies;
 - two architecture directions.
 
-Return the conflict and evidence to Workflow. The next route may be review, diagnosis, Agree Work, Spec revision, or Plan revision—not “take ours” or “take theirs.”
+Stop and report the conflict and its evidence. The next route may be review, diagnosis, Agree Work, Spec revision, or Plan revision—not “take ours” or “take theirs.”

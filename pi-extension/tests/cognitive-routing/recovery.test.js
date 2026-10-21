@@ -589,17 +589,17 @@ test("projection-off recovery can read packaged instructions and resume assessme
         ];
       if (n === 3)
         return [
-          { name: "routing_unit", args: { operation: "recover", request: "Read the packaged Workflow method." } },
+          { name: "routing_unit", args: { operation: "recover", request: "Read the packaged Agree Work method." } },
         ];
       if (n === 4)
-        return [{ name: "read", args: { path: join(packageRoot, "skills/workflow/SKILL.md"), offset: 1, limit: 8 } }];
+        return [{ name: "read", args: { path: join(packageRoot, "skills/agree-work/SKILL.md"), offset: 1, limit: 8 } }];
       if (n === 5) {
         const read = manager
           .getBranch()
           .filter((e) => e.message?.toolName === "read")
           .at(-1);
         assert.equal(read.message.isError, false);
-        assert.match(JSON.stringify(read.message), /name: workflow|# Workflow/);
+        assert.match(JSON.stringify(read.message), /# Agree Work/);
         return [
           {
             name: "return_work",

@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/cognitive-routing/`, `capabilities/cognitive-routing/`, `runtime/prompts/cognitive-routing.md`
 > **Tests:** `pi-extension/tests/cognitive-routing/`, `pi-extension/tests/cache-reuse/`
-> **Verified at:** `1b1ad851` (2026-10-21)
+> **Verified at:** `e0b8282c` (2026-10-22)
 > **User docs:** `plugin-docs/capabilities/cognitive-routing.md`
 
 For contributors changing Cognitive Routing on Pi: how routing moves work between profiles in one session, how it records and recovers its state, how the Coordinator's projected view is built, and which of its behaviors are deliberate. What routing is for users, how to configure it, and how to choose a mode are in the user guide.
@@ -28,7 +28,7 @@ It deliberately does not:
 | --- | --- | --- |
 | Profile | A configured provider, model and effort used as `coordinator`, `helper` or `executor`. | `Profile`, `Pair`, `PROFILES` in `types.ts` |
 | Delegation mode | Which workers automatic routing uses: `executor` (the default), `helper`, or `both`. | `DelegationMode` |
-| Control | `automatic` (the Coordinator delegates and routing switches profiles), `manual` (one held profile runs the ordinary unsplit workflow), or `inactive`. | `Control` |
+| Control | `automatic` (the Coordinator delegates and routing switches profiles), `manual` (one held profile runs the ordinary unsplit cycle), or `inactive`. | `Control` |
 | View | What a request is built for: a profile, or `solo` when routing does not split the work. Only the Coordinator's view under projection is selective; Helper and Executor always see the same ordinary history, so they share a view, and without projection every profile does. | `View`, `projection.ts` |
 | Unit | One outcome under Coordinator judgment, containing one or more assignments. At most one is open. | `Unit` |
 | Assignment | One accepted contract for one worker, and its return. At most one is outstanding. | `Assignment` |

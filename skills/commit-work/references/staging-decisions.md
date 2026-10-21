@@ -71,7 +71,7 @@ Include it only when:
 - it describes the same accepted behavior;
 - its own maintenance policy permits the update.
 
-Do not edit a durable artifact merely to make implementation appear coherent. Return contradictions to [Workflow](../../workflow/SKILL.md).
+Do not edit a durable artifact merely to make implementation appear coherent. Settle contradictions through [Agree Work](../../agree-work/SKILL.md).
 
 Working Records under `.freeflow/tasks/**` are ignored local memory and must never be staged or committed.
 

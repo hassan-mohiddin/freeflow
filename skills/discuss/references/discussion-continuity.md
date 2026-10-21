@@ -2,7 +2,7 @@
 
 Read this before preserving discussion across context loss, creating or updating durable task memory from discussion, or carrying a proposed or selected checkpoint beyond the current conversational context.
 
-This reference is judgment: adapt it to the discussion. Its binding statements restate [Discuss](../SKILL.md), Workflow, or Track Work Rules.
+This reference is judgment: adapt it to the discussion. Its binding statements restate [Discuss](../SKILL.md) or Track Work Rules.
 
 Discussion state is not automatically a Working Record, Spec, Plan, checkpoint, or authority. Preserve the required outcome separately from the current approach, and distinguish the user's execution agreement from proposals that have not been selected.
 
@@ -49,7 +49,7 @@ Discuss
 -> supported state worth preserving
 -> Track Work performs one atomic update
 -> Discuss confirms the preserved meaning
--> continue discussion or return to Workflow
+-> continue discussion or move to Agree Work
 ```
 
 A Working Record is appropriate when:
@@ -68,11 +68,11 @@ When a rough route is useful, preserve provisional Slices, the Checkpoints betwe
 
 Preserve the agreed outcome, scope, and user-facing return condition when losing them could interrupt covered work or permit drift. Authorization to investigate or propose a design is not acceptance of its production consequences. When learning changes the approach, retain the question, strongest evidence and limits, remaining uncertainty, artifact disposition, and affected later work—not the prototype's construction history.
 
-After preservation, return to Discuss unless Workflow established another route. Record mutation does not transfer ownership or authorize execution.
+After preservation, return to Discuss unless the user chose another route. Record mutation does not transfer ownership or authorize execution.
 
 ## Carry Checkpoints On The Route
 
-A commit, publication, review, user decision, or planned handoff that the discussion anticipates is a Checkpoint on the route, not a Slice. With a record, propose it in Future Work using Track Work's Checkpoint types and states: `proposed` while only anticipated, `pending` once Workflow selects it. Without a record, keep it in the conversation.
+A commit, publication, review, user decision, or planned handoff that the discussion anticipates is a Checkpoint on the route, not a Slice. With a record, propose it in Future Work using Track Work's Checkpoint types and states: `proposed` while only anticipated, `pending` once the user selects it. Without a record, keep it in the conversation.
 
 Keep local commit authority separate from push or publication, and keep migration, release, and launch separately controlled.
 

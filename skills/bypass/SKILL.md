@@ -25,9 +25,9 @@ Establish:
 
 A bare `/bypass` means `/bypass next`.
 
-If the same user turn both authorizes an activity and explicitly requests reduced pressure, interpret the whole turn through [Workflow](../workflow/SKILL.md). Bypass may modify that authorized activity; it does not supply its authority.
+If the same user turn both authorizes an activity and explicitly requests reduced pressure, interpret the whole turn as the Interaction Contract says. Bypass may modify that authorized activity; it does not supply its authority.
 
-If no authorized activity exists, return to Workflow and wait. Do not treat bypass as permission to implement, inspect actively, mutate, deliver, commit, or continue.
+If no authorized activity exists, say so and wait. Do not treat bypass as permission to implement, inspect actively, mutate, deliver, commit, or continue.
 
 ## Skip Only Optional Pressure
 
@@ -75,13 +75,13 @@ When evidence is declined:
 - leave the affected claim explicitly unverified;
 - do not accept or reuse the result beyond the remaining evidence boundary;
 - do not cross a checkpoint or dependent boundary that requires the missing evidence;
-- return to Workflow when the expected exit, checkpoint, or safe continuation must change.
+- use Agree Work when the expected exit, checkpoint, or safe continuation must change.
 
 A request to skip evidence generation changes what may be claimed. It does not change what the available evidence proves.
 
 ## Route Changes Are Not Bypass
 
-Treat the request as a Workflow route change when the user wants to:
+Treat the request as a change to the agreement, not a bypass, when the user wants to:
 
 - change accepted behavior, scope, effects, or stop conditions;
 - weaken or replace an accepted evidence requirement;
@@ -90,7 +90,7 @@ Treat the request as a Workflow route change when the user wants to:
 - change mode or an active capability protocol;
 - continue despite contradictory evidence or a source conflict.
 
-An explicit user instruction may authorize the changed route, but Workflow must reconcile its consequences before dependent work continues.
+An explicit user instruction may authorize the changed route, but reconcile its consequences (the agreement, the Working Record, affected artifacts) before dependent work continues.
 
 Use Agree Work when a user-owned choice or source conflict remains unresolved.
 
@@ -149,6 +149,6 @@ When a boundary remains:
 
 1. do not perform the blocked action;
 2. state the boundary the bypass cannot remove;
-3. return to Workflow, Agree Work, or the relevant current owner.
+3. return to Agree Work or the relevant current owner.
 
 Bypass ends when the selected optional pressure has been removed, its scope expires, or a non-bypassable boundary requires another route.

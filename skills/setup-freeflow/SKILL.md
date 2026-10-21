@@ -69,7 +69,7 @@ If local config is invalid, report that it blocks effective runtime. Repair or r
 After successful verification, apply newly effective context directly for the remainder of the setup turn:
 
 - read the [Interaction Contract](../../runtime/prompts/interaction-contract.md);
-- read [Workflow](../workflow/SKILL.md) when Freeflow is effective.
+- read the [core guidance](../../runtime/prompts/core.md) when Freeflow is effective.
 
 These direct reads establish same-turn guidance; they do not prove that a lifecycle adapter ran. After first activation, use [host setup](references/host-setup.md) to name the exact host-native lifecycle action for automatic delivery and resource refresh, state what applies before that boundary, and keep delivery confirmed, unavailable, or unconfirmed from evidence.
 

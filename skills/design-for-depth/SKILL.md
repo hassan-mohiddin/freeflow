@@ -101,7 +101,7 @@ Architecture-bearing checks protect accepted behavior, visible failures, require
 
 ## Return The Smallest Supported Change
 
-Return to [Workflow](../workflow/SKILL.md) when ownership, scope, authority, or the route changes. Otherwise return to the current activity with the structural evidence, affected outcome, boundary, likely-changing decision, assumptions, and remaining evidence or user-owned choice.
+When ownership, scope, authority, or the route changes, settle it through [Agree Work](../agree-work/SKILL.md). Otherwise return to the current activity with the structural evidence, affected outcome, boundary, likely-changing decision, assumptions, and remaining evidence or user-owned choice.
 
 Compare alternatives only when real. Recommend the simplest supported boundary that preserves required behavior, with its principal cost and what would invalidate it. Results include keeping the existing design, a local correction, diagnosis, an artifact revision, a bounded learning action, an accepted deepening, explicit deferral, or a stop for owner direction. Use [Simplify Code](../simplify-code/SKILL.md) when the selected result is behavior-preserving reduction.
 
