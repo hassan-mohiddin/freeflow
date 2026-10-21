@@ -4,7 +4,7 @@ Read this at a hand-over, before dispatching, proposing, or skipping an independ
 
 This reference is judgment; Review Work's Rules still bind, and what each mode permits restates its first Rule.
 
-A **hand-over** is the end of the agreed work, when it goes back to the user to accept: before [Finish Branch](../../../skills/finish-branch/SKILL.md) delivers it, or before the final report when nothing is delivered. Self-review of an intermediate result, such as one Slice or a small local fix, needs no gate.
+A **hand-over** is the end of the agreed work, when it goes back to the user to accept: before [Deliver Work](../../../skills/deliver-work/SKILL.md) merges or opens a pull request for it, or before the final report when nothing is delivered. Self-review of an intermediate result, such as one Slice or a small local fix, needs no gate.
 
 ## Find The Mode
 

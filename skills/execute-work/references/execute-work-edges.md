@@ -46,16 +46,15 @@ Stop before dependent work, use the checkpoint’s owner, and continue from its 
 
 - Agree Work for a selected user decision;
 - [Review Work](../../review-work/SKILL.md) for selected independent judgment;
-- [Commit Work](../../commit-work/SKILL.md) for an authorized local commit;
-- [Handoff](../../handoff/SKILL.md) for selected continuity transfer;
-- [Finish Branch](../../finish-branch/SKILL.md), [Release Work](../../release-work/SKILL.md), or [Launch Work](../../launch-work/SKILL.md) for their separately authorized boundaries.
+- [Deliver Work](../../deliver-work/SKILL.md) for an authorized local commit, push, merge, pull request, release or launch;
+- [Handoff](../../handoff/SKILL.md) for selected continuity transfer.
 
 When durable memory exists, Track Work preserves the checkpoint’s selection, condition, result, and task effect. Its Checkpoint types map to these owners:
 
 | Type | Owner |
 | --- | --- |
-| `preserve` | Commit Work |
-| `publish` | Commit Work for a simple push; otherwise Finish Branch or Release Work |
+| `preserve` | Deliver Work (commit) |
+| `publish` | Deliver Work (push, pull request or release) |
 | `review` | Review Work |
 | `decision` | Agree Work |
 | `continuity` | Handoff |
@@ -68,11 +67,8 @@ Useful follow-on work is not implied authority.
 
 Propose it to the user before using:
 
-- Commit Work for an unselected commit or push;
+- Deliver Work for an unselected commit or push; integration, preservation, discard, or branch cleanup; versioned publication; or production exposure, rollback, or recovery;
 - [Migration Work](../../migration-work/SKILL.md) for consumer, state, or traffic movement;
-- Finish Branch for integration, preservation, discard, or branch cleanup;
-- Release Work for versioned publication;
-- Launch Work for production exposure, rollback, or recovery;
 - Handoff for point-in-time continuation transfer.
 
 Preserve the supported execution result before routing away. A follow-on owner does not retroactively change the completed action or Current Slice.

@@ -106,7 +106,7 @@ A slice is a coherent result, not a file list. Mention files, modules, or system
 
 Consider checkpoints at meaningful slice, phase, integration, risk, and continuity boundaries. Record only useful additions; normal verification and silent self-review need no repeated fields.
 
-A selected local commit names its coherent outcome and conditions, not merely “commit after this slice.” Approval to execute the Plan may authorize listed local commits subject to live evidence and Commit Work inspection; approval of its strategy alone does not. Neither implies push, integration, migration, deprecation, release, or launch. Record actual results and commit identities in the Working Record.
+A selected local commit names its coherent outcome and conditions, not merely “commit after this slice.” Approval to execute the Plan may authorize listed local commits subject to live evidence and Deliver Work's commit inspection; approval of its strategy alone does not. Neither implies push, integration, migration, deprecation, release, or launch. Record actual results and commit identities in the Working Record.
 
 ## Adapt For The Work Type
 

@@ -97,7 +97,7 @@ Read [Verify Work](../verify-work/SKILL.md) for each migration-unit, compatibili
 
 Propose broader judgment, such as an independent review through Review Work, when the migration changes public contracts, moves consequential data, crosses security or privacy boundaries, affects many consumers, or performs irreversible cutover or cleanup. This skill supplies the migration boundary and evidence.
 
-Use [Release Work](../release-work/SKILL.md) when the replacement must be published as a versioned artifact. Use [Launch Work](../launch-work/SKILL.md) when migration stages change production traffic, data, configuration, or exposure.
+Use [Deliver Work](../deliver-work/SKILL.md)'s release route when the replacement must be published as a versioned artifact, and its launch route when migration stages change production traffic, data, configuration, or exposure.
 
 ## Report Completion Precisely
 

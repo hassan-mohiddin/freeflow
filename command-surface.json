@@ -52,7 +52,7 @@
     },
     {
       "command": "/commit-work",
-      "skill": "commit-work"
+      "skill": "deliver-work"
     },
     {
       "command": "/handoff",
@@ -60,15 +60,15 @@
     },
     {
       "command": "/finish-branch",
-      "skill": "finish-branch"
+      "skill": "deliver-work"
     },
     {
       "command": "/release-work",
-      "skill": "release-work"
+      "skill": "deliver-work"
     },
     {
       "command": "/launch-work",
-      "skill": "launch-work"
+      "skill": "deliver-work"
     },
     {
       "command": "/bypass",

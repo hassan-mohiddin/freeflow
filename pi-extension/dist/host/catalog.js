@@ -15,11 +15,13 @@ export const WORKFLOW_COMMANDS = [
   { command: "diagnose-failure", skill: "diagnose-failure" },
   { command: "verify-work", skill: "verify-work" },
   { command: "review-work", skill: "review-work" },
-  { command: "commit-work", skill: "commit-work" },
+  // Commit Work, Finish Branch, Release Work and Launch Work became Deliver Work in 0.9.0; their commands open it
+  // for one release.
+  { command: "commit-work", skill: "deliver-work" },
   { command: "handoff", skill: "handoff" },
-  { command: "finish-branch", skill: "finish-branch" },
-  { command: "release-work", skill: "release-work" },
-  { command: "launch-work", skill: "launch-work" },
+  { command: "finish-branch", skill: "deliver-work" },
+  { command: "release-work", skill: "deliver-work" },
+  { command: "launch-work", skill: "deliver-work" },
   // The Bypass skill was removed in 0.9.0; its command opens Agree Work, which now owns skipping optional steps, for
   // one release.
   { command: "bypass", skill: "agree-work" },
@@ -31,19 +33,16 @@ export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-
  */
 export const FREEFLOW_MODEL_SKILL_NAMES = [
   "agree-work",
-  "commit-work",
+  "deliver-work",
   "migration-work",
   "design-for-depth",
   "diagnose-failure",
   "discuss",
   "evaluate-behavior",
   "execute-work",
-  "finish-branch",
   "handoff",
-  "release-work",
   "review-work",
   "setup-freeflow",
-  "launch-work",
   "map-features",
   "simplify-code",
   "track-work",

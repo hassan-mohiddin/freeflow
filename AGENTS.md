@@ -80,7 +80,7 @@ Freeflow runs on every Pi turn and request, so its work delays every model call 
 
 ## Release And CI
 
-- Use `release-work` for version classification, release preparation, artifact checks, publication, recovery, and consumer-side verification.
+- Use `deliver-work`'s release route for version classification, release preparation, artifact checks, publication, recovery, and consumer-side verification.
 - `npm run check` is the deterministic local/CI gate. It does not run model-based skill evaluations or require publication credentials.
 - Release preparation may update version metadata and move verified `Unreleased` notes into a version section, but it must not commit, tag, push, publish, or create a GitHub Release by itself.
 - A Git tag in the form `vX.Y.Z` is the human-controlled release boundary; what the tag workflow does is in the [Release process](dev-docs/guides/release.md).

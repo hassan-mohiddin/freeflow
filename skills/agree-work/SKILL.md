@@ -128,4 +128,4 @@ Goal: before you claim done, the user sees every choice they have not seen.
 - **The list:** give each `agreed` item the `file:line`, test or output that shows it was done as agreed, and each `changed` item its reason.
 - **The diff:** read the change for anything the user would see (names, messages, defaults, behavior on error, data written) that no item covers, and add it as `new`.
 
-The hand-over ([Finish Branch](../finish-branch/SKILL.md), or the final report) shows what done looks like against what was done, and only the `new`, `changed` and `default` items. Agreed items stay out.
+The hand-over (the pull request through [Deliver Work](../deliver-work/SKILL.md), or the final report) shows what done looks like against what was done, and only the `new`, `changed` and `default` items. Agreed items stay out.
