@@ -1,0 +1,73 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "wf-import",
+  "type": "body",
+  "input": {
+    "prompt": "Add an import command that reads a browser's exported bookmarks HTML file into the shelf, then document it in the README."
+  },
+  "fixture": ".skill-eval/freeflow-routing/fixtures/shelf",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-routing-shelf@sha256:6c4b251731fe13c9d22c077856d8221362a0e17acced3f01e6cccd2b10b1b064",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 2,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-routing/cards/wf-import.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "read-workflow",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/workflow/SKILL.md"],
+      "expect": "succeeded"
+    },
+    {
+      "id": "read-agree-work",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/agree-work/SKILL.md"],
+      "expect": "succeeded"
+    },
+    {
+      "id": "read-execute-work",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/execute-work/SKILL.md"],
+      "expect": "succeeded"
+    }
+  ],
+  "review_questions": []
+}

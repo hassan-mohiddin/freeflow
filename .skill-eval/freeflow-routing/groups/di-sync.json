@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "di-sync",
+  "type": "body",
+  "input": {
+    "prompt": "I keep thinking about syncing my shelf between my laptop and my phone, but I'm not sure what approach makes sense. Can we explore the options?"
+  },
+  "fixture": ".skill-eval/freeflow-routing/fixtures/shelf",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-routing-shelf@sha256:6c4b251731fe13c9d22c077856d8221362a0e17acced3f01e6cccd2b10b1b064",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 2,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-routing/cards/di-sync.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "read-discuss",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/discuss/SKILL.md"],
+      "expect": "succeeded"
+    }
+  ],
+  "review_questions": []
+}

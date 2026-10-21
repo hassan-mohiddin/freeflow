@@ -1,0 +1,82 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "one-line-fix",
+  "type": "body",
+  "input": {
+    "prompt": "The door screen says 'Helo' instead of 'Hello'. Fix the typo in src/greet.js."
+  },
+  "fixture": ".skill-eval/freeflow-tool-use/fixtures/one-line-fix",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-tool-use@sha256:16a3f298e47de3cbe8b6b6939ac379cc258cb39cc906c06abd555dc907f35493",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 4,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-tool-use/cards/one-line-fix.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "task",
+      "kind": "command",
+      "variant": "freeflow",
+      "argv": ["node", "--test", "--test-reporter=tap", ".ftu-hidden.test.mjs"],
+      "files": {
+        ".ftu-hidden.test.mjs": ".skill-eval/freeflow-tool-use/graders/one-line-fix.test.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["ftu: the greeting says Hello", "ftu: the rest of the screen is unchanged"]
+        }
+      }
+    },
+    {
+      "id": "tool-edit",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "edit",
+      "expect": "succeeded"
+    },
+    {
+      "id": "no-patch",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "apply_patch",
+      "expect": "not-called"
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-tool-use/reference/one-line-fix"
+  }
+}

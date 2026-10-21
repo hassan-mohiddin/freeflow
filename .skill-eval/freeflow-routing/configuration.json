@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "kind": "configuration",
+  "id": "freeflow-routing",
+  "configuration": {
+    "host": {
+      "name": "pi",
+      "extensions": [
+        {
+          "package": "@gotgenes/pi-anthropic-auth",
+          "version": "3.4.3"
+        }
+      ]
+    },
+    "model": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "none"
+    },
+    "runtime": {
+      "prompt": "host"
+    },
+    "network": "none",
+    "freeflow": {
+      "source": {
+        "kind": "git",
+        "ref": "1a21211c71c4b1f5604b5375de9a5a547ae616c9"
+      },
+      "repository": {
+        "cognitiveRouting": {
+          "enabled": false
+        },
+        "toolExecution": {
+          "enabled": true
+        }
+      },
+      "personal": {}
+    }
+  }
+}

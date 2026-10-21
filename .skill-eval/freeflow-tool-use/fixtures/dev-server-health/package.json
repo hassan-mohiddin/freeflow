@@ -1,0 +1,10 @@
+{
+  "name": "pantry",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "test": "node --test"
+  }
+}

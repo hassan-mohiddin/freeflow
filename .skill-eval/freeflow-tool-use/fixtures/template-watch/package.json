@@ -1,0 +1,9 @@
+{
+  "name": "bistro-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "watch": "node tools/watch.js"
+  }
+}

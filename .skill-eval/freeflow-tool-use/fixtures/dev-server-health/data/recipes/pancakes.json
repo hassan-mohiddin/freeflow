@@ -1,0 +1,5 @@
+{
+  "name": "Pancakes",
+  "ingredients": ["flour", "milk", "eggs", "butter"],
+  "minutes": 50
+}

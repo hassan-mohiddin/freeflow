@@ -1,0 +1,88 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "move-helper",
+  "type": "body",
+  "input": {
+    "prompt": "Move formatPrice out of src/utils.js into a new file, src/money.js, rename it formatMoney, and update everything that uses it."
+  },
+  "fixture": ".skill-eval/freeflow-tool-use/fixtures/move-helper",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-tool-use@sha256:16a3f298e47de3cbe8b6b6939ac379cc258cb39cc906c06abd555dc907f35493",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 4,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-tool-use/cards/move-helper.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "task",
+      "kind": "command",
+      "variant": "freeflow",
+      "argv": ["node", "--test", "--test-reporter=tap", ".ftu-hidden.test.mjs"],
+      "files": {
+        ".ftu-hidden.test.mjs": ".skill-eval/freeflow-tool-use/graders/move-helper.test.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "ftu: src/money.js exports formatMoney with the same output",
+            "ftu: utils.js keeps slugify and no longer has the price helper",
+            "ftu: nothing names formatPrice any more",
+            "ftu: the cart, invoice and receipt import formatMoney from money.js",
+            "ftu: every page prints what it printed before"
+          ]
+        }
+      }
+    },
+    {
+      "id": "tool-patch",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "apply_patch",
+      "expect": "succeeded"
+    },
+    {
+      "id": "tool-edit",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "edit",
+      "expect": "succeeded"
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-tool-use/reference/move-helper"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "freeflow-tool-use",
+  "groups": [
+    "groups/dev-server-health.json",
+    "groups/template-watch.json",
+    "groups/slow-suite.json",
+    "groups/move-helper.json",
+    "groups/one-line-fix.json"
+  ]
+}

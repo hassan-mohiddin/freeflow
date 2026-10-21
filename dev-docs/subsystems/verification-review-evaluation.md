@@ -1,6 +1,6 @@
 # Verification, Review and Evaluation
 
-> **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/`, `skills/map-features/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `.skill-eval/freeflow-vs-plain/`, `scripts/validation/check-eval-definitions.mjs`
+> **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/`, `skills/map-features/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `.skill-eval/freeflow-vs-plain/`, `.skill-eval/freeflow-routing/`, `.skill-eval/freeflow-tool-use/`, `scripts/validation/check-eval-definitions.mjs`
 > **Tests:** `.skill-eval/evaluate-behavior/tests/`, `.skill-eval/verify-work/tests/`
 > **Verified at:** `2003af05` (2026-10-19)
 
@@ -143,6 +143,13 @@ The gate suites under `.skill-eval/gate/` are written by `.skill-eval/gate/tools
 ### Freeflow against plain Pi
 
 `.skill-eval/freeflow-vs-plain/` is the standing suite for Hassan's cost rule: success no worse and cost no higher, or a named gain that pays for the extra cost. Ten small coding tasks (bug fixes, one with its symptom in the wrong layer, a README-specified feature, a refactor, a test for a fixed bug, a config tweak, one in Python) each run in two arms on Pi with one shared model (Claude Haiku 5.5 through the subscription's auth extension, both set in the suite's `configuration.json`): `plain` (`freeflow: null`) and `freeflow` (Freeflow built from a commit, Cognitive Routing and Tool Execution off). Every task is a conversation with the same simulated user in both arms (a card per task in `cards/`, on the subjects' model, at most five agent turns): it answers only what the agent asks, says go when asked to proceed, and ends once the agent reports the change made, so an agent that agrees the work before building (Agree Work) is not graded on a run no one answered. Each task has its own digest-pinned image holding the project's Git history outside the workspace (`GIT_DIR`), sealed with `network: none`; hidden tests are command graders, and behaviour markers (a test that fails before the change, existing tests kept, the fix at the root, a refused `ask_user` call) are reported checks outside the decision, beside judged rubric markers. The rule is declared as two suites over the same groups: `suite.json` decides on the hidden-tests comparison and `suite-cost.json` on the `cost` metric, run after it with `--reuse` at no extra subject cost. It runs only when proposed with its cost and expected decision and the user says yes; its README has the task table, marker map, image build, reading of the verdicts and cost estimate.
+
+### Routing and tool use
+
+Two standing suites measure Freeflow built from any commit, so the same suite measures `main` and a branch through `--source freeflow=<commit>`; both are one `freeflow` arm (Cognitive Routing off, Tool Execution on, Haiku 5.5 through the auth extension, Pi's host prompt, the whole tool set including Freeflow's), in a digest-pinned image with `network: none`, with a simulated user, and neither declares a decision, since one arm has nothing to compare: each has a report script that reads two results side by side. They are the trigger and tool-use evals of the plan to remove the Workflow skill.
+
+- `.skill-eval/freeflow-routing/` asks whether an ordinary request opens the skill that owns it. 90 requests in one fixture repository (`shelf`, whose image holds a branch, a release and an uncommitted change), from the case table in `.skill-eval/freeflow-routing/scripts/cases.mjs`: three per skill for all 25 skills, and near misses (dedicated ones, and neighbours' requests) for each. A run is at most two turns. Checks are transcript checks on `read` of each expected `SKILL.md` and its absence for each near miss; the report counts reads by `read` or `bash` and gives per skill the hit rate (and on the first turn), the false-trigger rate and what opened instead. Workflow's requests also count Agree Work and Execute Work as the route, so before and after the removal measure the same route. Body groups with transcript checks, not description groups: the skills are Freeflow's package, not a declared target, and the change deletes a skill and edits the core prompt.
+- `.skill-eval/freeflow-tool-use/` asks whether the agent picks the Tool Execution tool a task calls for, and whether the work gets done: a dev server and its readiness (`bash_background`, `stop_background`), a watcher whose lines need acting on (`monitor`), a three-minute test suite (`bash_background`), a multi-file move with a new file (`apply_patch`) and a one-word fix (`edit`). Hidden tests grade the work (`check-tasks` proves each task in the image); tool-call checks grade the tool, with the alternatives reported.
 
 ### Verification
 
@@ -379,19 +386,21 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 | `.skill-eval/scripts/gate.mjs`, `gate.md`, `.skill-eval/gate.json`, `.skill-eval/gate/` | The contributor gate, its configuration and suites |
 | `.skill-eval/review-suite/` | The review suite: 25 cases, 50 groups (clean, seeded and real defects, a held-out third), the F3 and F7 suites, generators in `tools/`, results in `results/` |
 | `.skill-eval/freeflow-vs-plain/` | The standing Freeflow-against-plain-Pi suite: ten tasks with fixtures, image history, hidden-test and marker graders, references and wrong answers; its `image/build.mjs` builds the images and records their digests, `.skill-eval/freeflow-vs-plain/scripts/groups.mjs` writes the groups, and `.skill-eval/freeflow-vs-plain/scripts/check-wrong.mjs` grades the wrong answers |
+| `.skill-eval/freeflow-routing/` | The routing suite: the case table (`.skill-eval/freeflow-routing/scripts/cases.mjs`), the `shelf` fixture and its image history (`.skill-eval/freeflow-routing/image/make-history.mjs`, with `--check`), the group and card writer (`.skill-eval/freeflow-routing/scripts/groups.mjs`) and the per-skill report (`.skill-eval/freeflow-routing/scripts/report.mjs`) |
+| `.skill-eval/freeflow-tool-use/` | The tool-use suite: five tasks with fixtures, hidden tests and the protected files' originals in `.skill-eval/freeflow-tool-use/graders/originals/`, references, the image, the group writer (`.skill-eval/freeflow-tool-use/scripts/groups.mjs`) and the per-task report (`.skill-eval/freeflow-tool-use/scripts/report.mjs`) |
 | `.skill-eval/skill-family/` | Write Skill and Evaluate Behavior guidance cases (14 groups), including W3 description cases for instruction text other than skills |
 | `.skill-eval/examples/gondolin-extension/` | An MIT-licensed example isolation extension for the confined shell, copied from Pi's examples with a minimal guest environment and egress denied |
 | `scripts/validation/check-eval-definitions.mjs` | Loads every `.skill-eval` definition and checks its fixtures exist, inside `npm run check` |
 
 ## Tests
 
-`.skill-eval/evaluate-behavior/tests/` has 35 test files, run by `npm run test:skill-eval` with a fake Pi (`helpers/fake-pi.mjs`) and a fake Docker (`helpers/fake-docker.mjs`):
+`.skill-eval/evaluate-behavior/tests/` has 38 test files, run by `npm run test:skill-eval` with a fake Pi (`helpers/fake-pi.mjs`) and a fake Docker (`helpers/fake-docker.mjs`):
 
 - **Definitions and arms:** `definitions`, `arms`, `measure`, `source-override`, `entrypoint`, `check-eval-definitions`.
 - **Execution and isolation:** `run`, `isolation`, `identity`, `pi-guard`, `rpc`, `command-tool`, `concurrency`, `participants`, `freeflow`, `build-source`, `claude-code`.
 - **Environments:** `shell` (probes, refusals, the Gondolin example; the real micro-VM case is skipped without QEMU), `container`, `tool-execution-container` (Freeflow's tools through real Pi in a real container with a scripted model; skipped without Docker, a local image, Pi or `npm ci`).
 - **Grading and tasks:** `grading`, `grade-command`, `reference`.
-- **Measurement:** `trials`, `decision`, `metrics`, `validity`, `scan`, `freeflow-vs-plain` (the standing suite's decisions and arm shape).
+- **Measurement:** `trials`, `decision`, `metrics`, `validity`, `scan`, `freeflow-vs-plain` (the standing suite's decisions and arm shape), `freeflow-routing` and `freeflow-tool-use` (each suite's shape, its report on known runs, and one group as a stub dry run through `.skill-eval/evaluate-behavior/tests/helpers/suite-stub.mjs`: a copy of the suite with stand-ins for Freeflow's build, the auth extension and the simulated user).
 - **Judging:** `review`, `judge`, `agreement`.
 - **Views and gate:** `view`, `view-html` (snapshot, escaping, no scripts or network), `gate`.
 
@@ -421,6 +430,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-22: Two standing suites for the Workflow removal: `.skill-eval/freeflow-routing/` (90 requests, three per skill and near misses, graded on which `SKILL.md` files the run read) and `.skill-eval/freeflow-tool-use/` (five tasks where a Tool Execution tool is the right choice, graded on the work and the tool), each with a report that reads a before and an after result side by side.
 - 2026-10-22: Freeflow's Tool Execution tools are confined in a container subject: `bash_background` and `monitor` run in the container (and need one), with their output folder readable; `apply_patch` paths are checked like `write`; a leading `~` resolves to the home directory before any path check. A last-loaded route extension moves shell commands into the container after other extensions' checks, and a wrapper stops a command in the container when its docker client is killed. An RPC prompt names `followUp`, and a run Pi starts between prompts (a background notice) joins the turn before it instead of failing the run.
 - 2026-10-21: A container subject's workspace is mounted at its host path, where `bash` and declared commands start, and `workdir` becomes a link to it, so `bash` and the host's file tools agree on paths; before, `bash` started at `workdir` while the host reported the host path. The transcript scan resolves a container's relative bash paths from the workspace.
 - 2026-10-21: Every task in `.skill-eval/freeflow-vs-plain/` is a conversation with a simulated user, the same in both arms, whose card answers only what is asked and says go; with a single prompt, Freeflow's Agree Work stopped for a reply and was graded on an empty workspace.

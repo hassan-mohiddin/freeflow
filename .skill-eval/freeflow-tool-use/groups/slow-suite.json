@@ -1,0 +1,95 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "slow-suite",
+  "type": "body",
+  "input": {
+    "prompt": "Run the full test suite (it takes a few minutes) and fix whatever fails."
+  },
+  "fixture": ".skill-eval/freeflow-tool-use/fixtures/slow-suite",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-tool-use@sha256:16a3f298e47de3cbe8b6b6939ac379cc258cb39cc906c06abd555dc907f35493",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 4,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-tool-use/cards/slow-suite.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "task",
+      "kind": "command",
+      "variant": "freeflow",
+      "argv": ["node", "--test", "--test-reporter=tap", ".ftu-hidden.test.mjs"],
+      "files": {
+        ".ftu-hidden.test.mjs": ".skill-eval/freeflow-tool-use/graders/slow-suite.test.mjs",
+        ".ftu-original/test/available.test.js": ".skill-eval/freeflow-tool-use/graders/originals/slow-suite/test/available.test.js",
+        ".ftu-original/test/reserve.test.js": ".skill-eval/freeflow-tool-use/graders/originals/slow-suite/test/reserve.test.js",
+        ".ftu-original/test/restock.test.js": ".skill-eval/freeflow-tool-use/graders/originals/slow-suite/test/restock.test.js",
+        ".ftu-original/test/ship.test.js": ".skill-eval/freeflow-tool-use/graders/originals/slow-suite/test/ship.test.js",
+        ".ftu-original/test/validation.test.js": ".skill-eval/freeflow-tool-use/graders/originals/slow-suite/test/validation.test.js",
+        ".ftu-original/test/warehouse.mjs": ".skill-eval/freeflow-tool-use/graders/originals/slow-suite/test/warehouse.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "ftu: reserved units are no longer available",
+            "ftu: reserving more than is available is refused",
+            "ftu: shipping, restocking and validation still work",
+            "ftu: the suite's tests are unchanged"
+          ]
+        }
+      }
+    },
+    {
+      "id": "tool-background",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash_background",
+      "argumentContains": ["test"],
+      "expect": "called"
+    },
+    {
+      "id": "no-foreground-suite",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash",
+      "argumentContains": ["npm test"],
+      "expect": "not-called"
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-tool-use/reference/slow-suite"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "shelf",
+  "version": "1.4.0",
+  "description": "A reading list for the command line, with a small web view.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "shelf": "bin/shelf.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "serve": "node bin/shelf.js serve",
+    "deploy": "sh scripts/deploy.sh"
+  }
+}
