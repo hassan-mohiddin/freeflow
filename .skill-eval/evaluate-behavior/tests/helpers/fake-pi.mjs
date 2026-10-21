@@ -13,17 +13,21 @@ async function write(file, contents, mode) {
  * A small Pi stand-in. In JSON mode it loads each --extension with a minimal extension API (on, registerTool),
  * asks the configured models.json endpoint for tool calls, passes each through the extensions' tool_call
  * handlers, and runs it with an extension's tool or, failing that, the host shell, reporting Pi's JSON events.
- * In RPC mode it answers a body subject's prompt with a short reply, first running \`rpcBash\` (when given) as one
- * bash tool call through the extensions, with \`{skill}\` replaced by the first declared skill's directory.
+ * In RPC mode it answers a body subject's prompt with a short reply, first running \`rpcTools\` (or \`rpcBash\`, one
+ * bash call) through the extensions, as Pi would: bash with the host shell, and \`write\` and \`read\` as Pi's file tools
+ * do, on the host path they are given. In every string input, \`{skill}\` becomes the first declared skill's directory
+ * and \`{cwd}\` the working directory Pi reports. Each call and its output is appended to \`tools\`.
  */
-export async function installFakePi(root, { rpcBash = null } = {}) {
+export async function installFakePi(root, { rpcBash = null, rpcTools = null } = {}) {
   const bin = path.join(root, "bin");
   const log = path.join(root, "pi.jsonl");
+  const toolsLog = path.join(root, "pi-tools.jsonl");
+  const calls = rpcTools ?? (rpcBash === null ? [] : [{ toolName: "bash", input: { command: rpcBash } }]);
   await write(
     path.join(bin, "pi"),
     `#!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 const args = process.argv.slice(2);
@@ -61,14 +65,35 @@ if (mode === "rpc") {
       }
       const message = { role: "assistant", content: [{ type: "text", text: "done" }], provider: "fake", model: "fake", usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } }, stopReason: "stop" };
       emit({ type: "agent_start" });
-      const rpcBash = ${JSON.stringify(rpcBash)};
-      if (rpcBash !== null) {
-        const skill = flag("--skill")[0] ?? "";
-        const input = { command: rpcBash.replaceAll("{skill}", skill) };
-        emit({ type: "tool_execution_start", toolCallId: "b", toolName: "bash", args: input });
-        const blocked = (handlers.get("tool_call") ?? []).map((handler) => handler({ toolName: "bash", input }, { cwd: process.cwd() })).find((result) => result?.block);
-        const result = blocked ? { status: 1 } : spawnSync("/bin/sh", ["-c", input.command], { cwd: process.cwd(), env: process.env, encoding: "utf8" });
-        emit({ type: "tool_execution_end", toolCallId: "b", toolName: "bash", result: { content: [{ type: "text", text: (result.stdout ?? "") + (result.stderr ?? "") }] }, isError: result.status !== 0 });
+      const skill = flag("--skill")[0] ?? "";
+      const cwd = process.cwd();
+      for (const [index, call] of ${JSON.stringify(calls)}.entries()) {
+        const toolName = call.toolName;
+        const input = Object.fromEntries(Object.entries(call.input).map(([key, value]) => [key, typeof value === "string" ? value.replaceAll("{skill}", skill).replaceAll("{cwd}", cwd) : value]));
+        const toolCallId = index === 0 ? "b" : "b" + index;
+        emit({ type: "tool_execution_start", toolCallId, toolName, args: { ...input } });
+        const blocked = (handlers.get("tool_call") ?? []).map((handler) => handler({ toolName, input }, { cwd })).find((result) => result?.block);
+        let output = "";
+        let isError = false;
+        if (blocked) {
+          output = blocked.reason;
+          isError = true;
+        } else if (toolName === "bash") {
+          const result = spawnSync("/bin/sh", ["-c", input.command], { cwd, env: process.env, encoding: "utf8" });
+          output = (result.stdout ?? "") + (result.stderr ?? "");
+          isError = result.status !== 0;
+        } else {
+          try {
+            const file = path.resolve(cwd, input.path);
+            if (toolName === "write") writeFileSync(file, input.content);
+            output = toolName === "read" ? readFileSync(file, "utf8") : "Successfully wrote " + input.path;
+          } catch (error) {
+            output = error.message;
+            isError = true;
+          }
+        }
+        appendFileSync(${JSON.stringify(toolsLog)}, JSON.stringify({ toolName, input, cwd, output, isError }) + "\\n");
+        emit({ type: "tool_execution_end", toolCallId, toolName, result: { content: [{ type: "text", text: output }] }, isError });
       }
       emit({ type: "message_end", message });
       emit({ type: "turn_end", message, toolResults: [] });
@@ -124,5 +149,5 @@ if (mode === "rpc") {
 `,
     0o755,
   );
-  return { bin, log };
+  return { bin, log, tools: toolsLog };
 }

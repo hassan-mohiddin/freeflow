@@ -2,6 +2,9 @@
 // Importing this module registers the run-metrics hook and the `metrics` aggregator; the CLI imports it once.
 // A metric whose evidence is missing is null, never 0, so an absent measurement cannot read as a free one.
 
+import { realpathSync } from "node:fs";
+import path from "node:path";
+
 import { measuredCost } from "./budget.mjs";
 import { registerAggregator, registerRunMetricsHook } from "./hooks.mjs";
 
@@ -17,15 +20,26 @@ export const METRIC_NAMES = [
   "tokens.cacheWrite",
   "cost",
   "cacheHitRate",
+  "peakContext",
+  "skillReads",
+  "skillReadTokens",
 ];
+
+// No tokenizer ships with the evaluator, so skill-read tokens are estimated from the bytes that entered the context.
+export const BYTES_PER_TOKEN = 4;
+// The directories of a Freeflow package that hold model-facing instructions: skills, capability skills and prompts.
+const FREEFLOW_INSTRUCTION_DIRECTORIES = ["skills", "capabilities", "runtime"];
 
 /**
  * One run's metrics. RPC observations record turns, each with its tool activity; a one-shot observation records
  * one turn's tool activity at top level. Usage is the run's merged usage.
  *
- * @param {{ observation?: any, run: any }} context
+ * `peakContext` and the skill reads come from the run's transcript (see `peakContext` and `skillReads`), so they are
+ * measured on Pi only; on another host, or without a transcript, they are null.
+ *
+ * @param {{ observation?: any, run: any, subject?: any }} context
  */
-export function runMetricsFor({ observation, run }) {
+export function runMetricsFor({ observation, run, subject }) {
   const turns = Array.isArray(observation?.turns) ? observation.turns : Array.isArray(run?.turns) ? run.turns : null;
   const activity = turns !== null ? turnActivity(turns) : topLevelActivity(observation, run);
   const usage = isObject(run?.usage) ? run.usage : isObject(observation?.usage) ? observation.usage : null;
@@ -49,7 +63,123 @@ export function runMetricsFor({ observation, run }) {
     cost: measuredCost(usage),
     // The share of prompt tokens served from the provider's cache.
     cacheHitRate: prompted === null || prompted === 0 ? null : tokens.cacheRead / prompted,
+    ...transcriptMetrics({ run, subject }),
   };
+}
+
+/** The transcript-derived metrics, null unless the run is a Pi run with a transcript. */
+function transcriptMetrics({ run, subject }) {
+  const host = subject?.host?.name ?? run?.process?.host ?? null;
+  const transcript = Array.isArray(run?.transcript) ? run.transcript : null;
+  if (host !== "pi" || transcript === null) return { peakContext: null, skillReads: null, skillReadTokens: null };
+  const reads = skillReads(transcript, { roots: skillRoots(subject), cwd: run?.workspace ?? subject?.workspace });
+  return { peakContext: peakContext(transcript), skillReads: reads.reads, skillReadTokens: reads.tokens };
+}
+
+/**
+ * The largest single request a run sent: for each assistant message (one model request) of a Pi transcript, its
+ * input tokens plus cache reads plus cache writes, which together are the whole prompt that request carried. Null when
+ * no assistant message records all three.
+ *
+ * @param {any[]} transcript
+ */
+export function peakContext(transcript) {
+  let peak = null;
+  for (const message of transcript) {
+    if (message?.role !== "assistant" || !isObject(message.usage)) continue;
+    const parts = [message.usage.input, message.usage.cacheRead, message.usage.cacheWrite].map(count);
+    if (parts.includes(null)) continue;
+    const size = parts[0] + parts[1] + parts[2];
+    if (peak === null || size > peak) peak = size;
+  }
+  return peak;
+}
+
+/**
+ * Directories whose files count as skill reads for a subject: each declared skill, and the instruction directories
+ * (`skills`, `capabilities`, `runtime`) of the Freeflow package the arm loads. Each is listed as given and by its
+ * real path, since a path in the transcript may use either.
+ */
+export function skillRoots(subject) {
+  const roots = [
+    ...(subject?.environment?.skills ?? []).map((skill) => skill?.path),
+    ...(typeof subject?.freeflowRoot === "string"
+      ? FREEFLOW_INSTRUCTION_DIRECTORIES.map((directory) => path.join(subject.freeflowRoot, directory))
+      : []),
+  ].filter((root) => typeof root === "string" && path.isAbsolute(root));
+  return [...new Set(roots.flatMap((root) => [path.resolve(root), realOr(root)]))];
+}
+
+/**
+ * Every successful read of a skill file in a Pi transcript, re-reads included: a `read` call whose path lies inside
+ * one of `roots`, and a `bash` call whose command names a path inside one, such as `cat <skill>/SKILL.md`. Each
+ * counts the text its result put into the context, so a partial read counts what it returned and a bash command
+ * counts its whole output. Tokens are estimated as UTF-8 bytes over `BYTES_PER_TOKEN`, rounded up per read.
+ * Returns `{ reads, tokens, bytes }`; zero when the arm has no skills or read none.
+ *
+ * @param {any[]} transcript
+ * @param {{ roots: string[], cwd?: string }} options
+ */
+export function skillReads(transcript, { roots, cwd }) {
+  const calls = new Map();
+  let reads = 0;
+  let tokens = 0;
+  let bytes = 0;
+  if (roots.length === 0) return { reads, tokens, bytes };
+  for (const message of transcript) {
+    if (message?.role === "assistant" && Array.isArray(message.content)) {
+      for (const block of message.content) {
+        if (block?.type === "toolCall" && typeof block.id === "string") calls.set(block.id, block);
+      }
+      continue;
+    }
+    if (message?.role !== "toolResult" || message.isError === true) continue;
+    const call = calls.get(message.toolCallId);
+    if (call === undefined || !readsSkill(call, roots, cwd)) continue;
+    const size = Buffer.byteLength(resultText(message), "utf8");
+    reads += 1;
+    bytes += size;
+    tokens += Math.ceil(size / BYTES_PER_TOKEN);
+  }
+  return { reads, tokens, bytes };
+}
+
+function readsSkill(call, roots, cwd) {
+  const args = isObject(call.arguments) ? call.arguments : {};
+  if (call.name === "read" && typeof args.path === "string") {
+    const target = resolveReadPath(args.path, cwd);
+    return roots.some((root) => target === root || target.startsWith(`${root}${path.sep}`));
+  }
+  if (call.name === "bash" && typeof args.command === "string") {
+    return roots.some((root) => new RegExp(`${escapeRegExp(root)}(?:/|$|["'\\s])`).test(args.command));
+  }
+  return false;
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function resolveReadPath(value, cwd) {
+  const written = value.startsWith("@") ? value.slice(1) : value;
+  return path.resolve(typeof cwd === "string" ? cwd : "/", written);
+}
+
+function resultText(message) {
+  if (typeof message.content === "string") return message.content;
+  if (!Array.isArray(message.content)) return "";
+  return message.content
+    .filter((part) => part?.type === "text" && typeof part.text === "string")
+    .map((part) => part.text)
+    .join("");
+}
+
+function realOr(target) {
+  try {
+    return realpathSync(target);
+  } catch {
+    return path.resolve(target);
+  }
 }
 
 /** A run's metrics as flat `{ name: number | null }` values; a run without recorded metrics has every value null. */
@@ -115,6 +245,15 @@ export function runMetricsLines(run) {
       `cache-hit-rate=${format(values.cacheHitRate)}`,
       `cost=${format(values.cost)}`,
     ]),
+    ...(values.peakContext === null && values.skillReads === null
+      ? []
+      : [
+          row("  context", [
+            `peak-context=${format(values.peakContext)}`,
+            `skill-reads=${format(values.skillReads)}`,
+            `skill-read-tokens~=${format(values.skillReadTokens)}`,
+          ]),
+        ]),
   ];
 }
 

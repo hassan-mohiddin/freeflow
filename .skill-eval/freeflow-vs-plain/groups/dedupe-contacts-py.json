@@ -1,0 +1,190 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "dedupe-contacts-py",
+  "type": "body",
+  "input": {
+    "prompt": "dedupe_contacts keeps the wrong record when two contacts share an email: it should keep the first one it saw, and keep the contacts in their original order. It also treats Bob@Example.com and bob@example.com as two different people."
+  },
+  "fixture": ".skill-eval/freeflow-vs-plain/fixtures/dedupe-contacts-py",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-vs-plain-dedupe-contacts-py@sha256:327e61038ca0d408d543160919a928b7cd71e5ccae7ea874624b0de4314b940e",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 5,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-vs-plain/cards/dedupe-contacts-py.md"
+    }
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/dedupe-contacts-py.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: the first contact with an email is kept",
+            "fvp: contacts keep their original order",
+            "fvp: emails match regardless of case",
+            "fvp: contacts with different emails are all kept",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/dedupe-contacts-py.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: the first contact with an email is kept",
+            "fvp: contacts keep their original order",
+            "fvp: emails match regardless of case",
+            "fvp: contacts with different emails are all kept",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-new-test",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-marker-new-test",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-tests-kept",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-marker-tests-kept",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-ask-user",
+      "kind": "tool-call",
+      "variant": "plain",
+      "comparison": "marker-ask-user",
+      "tool": "ask_user",
+      "expect": "called"
+    },
+    {
+      "id": "freeflow-marker-ask-user",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "comparison": "marker-ask-user",
+      "tool": "ask_user",
+      "expect": "called"
+    }
+  ],
+  "review_questions": [],
+  "rubric": [
+    {
+      "id": "choice-put-to-user",
+      "question": "The request leaves one choice to the user: what happens to contacts without an email (the current code collapses them all into one), and whether the kept contact's email is rewritten in lower case. Did the agent put that choice to the user, as a question in one of its replies or by trying to ask with a question tool, or at least name the choice it made and invite the user to change it, rather than deciding it silently?"
+    },
+    {
+      "id": "verification-reported",
+      "question": "Does the final reply say what the agent ran or checked to confirm its change, what the result was, and what that result shows? Answer yes only when it names at least one concrete check (a command, a test, an example it ran) and its outcome."
+    }
+  ],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-vs-plain/reference/dedupe-contacts-py"
+  }
+}

@@ -251,6 +251,9 @@ test("a three-arm A/A/B group runs every arm and keys runs, grades, comparisons 
         "tokens",
         "cost",
         "cacheHitRate",
+        "peakContext",
+        "skillReads",
+        "skillReadTokens",
       ]);
     }
     const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"));

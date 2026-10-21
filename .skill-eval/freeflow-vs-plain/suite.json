@@ -1,0 +1,32 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "freeflow-vs-plain",
+  "groups": [
+    "groups/contacts-csv.json",
+    "groups/invoice-cents.json",
+    "groups/slug-max-length.json",
+    "groups/report-dates.json",
+    "groups/duration-test.json",
+    "groups/page-size-config.json",
+    "groups/dedupe-contacts-py.json",
+    "groups/paginate-last-page.json",
+    "groups/config-deep-merge.json",
+    "groups/check-json-exit.json"
+  ],
+  "decision": {
+    "measure": {
+      "comparison": "hidden-tests"
+    },
+    "arms": ["plain", "freeflow"],
+    "direction": "higher",
+    "method": "sign-test",
+    "alpha": 0.05,
+    "min_cases": 6,
+    "trials": {
+      "initial": 3,
+      "max": 3,
+      "step": 1
+    }
+  }
+}

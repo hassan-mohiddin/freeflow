@@ -6,7 +6,7 @@
 
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -16,6 +16,17 @@ const DOCKER_TIMEOUT_MS = 30_000;
 /** Resource limits for every container the evaluator starts. */
 export const CONTAINER_LIMITS = Object.freeze({ memory: "4g", cpus: "2", pids: "1024" });
 const KEEP_ALIVE = "trap 'exit 0' TERM INT; while :; do sleep 3600 & wait $!; done";
+// Run as root in a subject's container after it starts: replaces the declared workdir (empty, or absent, in the image)
+// with a link to the workspace's mount at its host path. The image's own references to the workdir, such as
+// GIT_WORK_TREE=/testbed or a script that changes into it, then reach the workspace under the same canonical path the
+// shell starts in. A second mount would not do: Git compares the working directory with its work tree by path, so from
+// a subfolder of one mount it would resolve paths against the other's root.
+const LINK_WORKDIR = [
+  'if [ -d "$1" ] && [ ! -L "$1" ]; then',
+  '  rmdir "$1" 2>/dev/null || { echo "the image has files at $1, where the workspace goes; use an image whose workdir is empty" >&2; exit 1; }',
+  "fi",
+  'mkdir -p "$(dirname "$1")" && ln -s "$2" "$1"',
+].join("\n");
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -59,7 +70,10 @@ export function validateContainerEnvironment(value, label, fail) {
   if (value.network !== "none") fail("invalid-definition", `${label}.network must be "none"`);
 }
 
-/** The shell a container environment provides: bash runs in the container, which shows the workspace at workdir. */
+/**
+ * The shell a container environment provides: bash runs in the container, which shows the workspace at its host
+ * path, where bash starts, and at workdir, a link to it; `workspace` is that guest name.
+ */
 export function containerShell(environment) {
   if (environment?.kind !== "container") return undefined;
   const container = { image: environment.image, workdir: environment.workdir, network: environment.network };
@@ -262,11 +276,12 @@ export function containerName(purpose) {
 }
 
 /**
- * The options every evaluator container shares: limits, the declared network, the workspace mount, and each
- * declared resource (a skill, context, Freeflow's package) read-only at its own host path, so a path the subject
- * was given, such as `node <skill>/scripts/x.mjs`, resolves in the container exactly as it does for `read`.
+ * The options every evaluator container shares: limits, the declared network, the workspace mounted read-write at
+ * `at` and used as the working directory, and each declared resource (a skill, context, Freeflow's package) read-only
+ * at its own host path, so a path the subject was given, such as `node <skill>/scripts/x.mjs`, resolves in the
+ * container exactly as it does for `read`.
  */
-function runOptions(container, workspace, resources = []) {
+function runOptions(container, { workspace, at, resources = [] }) {
   const mounts = resources.flatMap((resource) => ["--volume", `${resource}:${resource}:ro`]);
   return [
     "--label",
@@ -280,27 +295,33 @@ function runOptions(container, workspace, resources = []) {
     "--pids-limit",
     CONTAINER_LIMITS.pids,
     "--volume",
-    `${workspace}:${container.workdir}`,
+    `${workspace}:${at}`,
     ...mounts,
     "--workdir",
-    container.workdir,
+    at,
   ];
 }
 
 /**
- * Creates and starts a long-lived container for one subject (or one probe run) with the workspace mounted at
- * workdir and each of `resources` (absolute host directories) read-only at the same path. `remove()` force-removes
- * it and is safe to call more than once; callers call it in `finally`, so a cancelled run removes it too.
+ * Creates and starts a long-lived container for one subject (or one probe run). The workspace is mounted at its own
+ * canonical host path, which is also the shell's working directory, so `pwd`, the working directory the host tells
+ * the model and the paths its file tools take all name one directory; the declared workdir (such as /testbed) is a
+ * link to it. Each of `resources` (absolute host directories) is mounted read-only at the same path. The handle's
+ * `workdir` is where bash and declared commands run. `remove()` force-removes the container and is safe to call more
+ * than once; callers call it in `finally`, so a cancelled run removes it too.
  */
 export async function startContainer({ container, workspace, resources = [], purpose = "subject" }) {
   const name = containerName(purpose);
   const host = await dockerHost();
+  // The host process (Pi, Claude Code) reports its working directory resolved, so the mount uses the same spelling.
+  const workdir = await realpath(workspace);
   let removed = false;
   const remove = async () => {
     if (removed) return;
     removed = true;
     await run("docker", ["rm", "--force", name], { timeout: DOCKER_TIMEOUT_MS }).catch(() => {});
   };
+  let step = "starting a container";
   try {
     await run(
       "docker",
@@ -308,7 +329,7 @@ export async function startContainer({ container, workspace, resources = [], pur
         "create",
         "--name",
         name,
-        ...runOptions(container, workspace, resources),
+        ...runOptions(container, { workspace: workdir, at: workdir, resources }),
         "--entrypoint",
         "sh",
         container.image,
@@ -318,18 +339,20 @@ export async function startContainer({ container, workspace, resources = [], pur
       { timeout: DOCKER_TIMEOUT_MS },
     );
     await run("docker", ["start", name], { timeout: DOCKER_TIMEOUT_MS });
+    step = `linking ${container.workdir} to the workspace in a container`;
+    await run("docker", ["exec", "--user", "0", name, "sh", "-c", LINK_WORKDIR, "sh", container.workdir, workdir], {
+      timeout: DOCKER_TIMEOUT_MS,
+    });
   } catch (error) {
     await remove();
-    throw new Error(
-      `starting a container from ${container.image} failed: ${firstLine(error?.stderr) ?? error.message}`,
-    );
+    throw new Error(`${step} from ${container.image} failed: ${firstLine(error?.stderr) ?? error.message}`);
   }
-  return { name, host, remove };
+  return { name, host, workdir, remove };
 }
 
 /** The value the guard reads to route bash into a running container. */
-export function containerTarget(handle, container) {
-  return JSON.stringify({ name: handle.name, host: handle.host, workdir: container.workdir });
+export function containerTarget(handle) {
+  return JSON.stringify({ name: handle.name, host: handle.host, workdir: handle.workdir });
 }
 
 /** The running container from `containerTarget`'s value, or null when there is none. */
@@ -343,7 +366,7 @@ export function parseContainerTarget(value) {
   }
 }
 
-/** The docker client argv that runs a declared command's argv inside the running container, at its workdir. */
+/** The docker client argv that runs a declared command's argv inside the running container, where bash runs. */
 export function containerExecArgv(target, argv) {
   const host = typeof target.host === "string" && target.host !== "" ? ["--host", target.host] : [];
   return ["docker", ...host, "exec", "--workdir", target.workdir, target.name, ...argv];
@@ -351,10 +374,20 @@ export function containerExecArgv(target, argv) {
 
 /**
  * The argv that runs a command grader in a fresh container on the graded copy, with the same limits and network.
- * The caller removes the container by name afterwards, so a timeout or cancellation leaves nothing running.
+ * A grader is the author's, not the subject's, so it sees the copy at the declared workdir, where its argv expects
+ * it. The caller removes the container by name afterwards, so a timeout or cancellation leaves nothing running.
  */
 export function graderArgv({ container, copy, argv, name }) {
-  return ["docker", "run", "--rm", "--name", name, ...runOptions(container, copy), container.image, ...argv];
+  return [
+    "docker",
+    "run",
+    "--rm",
+    "--name",
+    name,
+    ...runOptions(container, { workspace: copy, at: container.workdir }),
+    container.image,
+    ...argv,
+  ];
 }
 
 export async function removeContainer(name) {

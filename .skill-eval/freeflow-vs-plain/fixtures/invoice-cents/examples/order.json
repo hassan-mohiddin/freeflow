@@ -1,0 +1,8 @@
+{
+  "customer": "Harbour Books",
+  "items": [
+    { "description": "A5 notebook", "price": 4.35, "qty": 1 },
+    { "description": "Gel pen, black", "price": 1.2, "qty": 3 },
+    { "description": "Desk tray", "price": 12.5, "qty": 1 }
+  ]
+}

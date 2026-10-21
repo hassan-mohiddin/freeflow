@@ -81,7 +81,7 @@ export async function runBody({
       workspace: subject.workspace,
       resources: subject.resourceRoots,
     });
-    subject.processEnvironment.SKILL_EVAL_CONTAINER = containerTarget(container, declaredContainer);
+    subject.processEnvironment.SKILL_EVAL_CONTAINER = containerTarget(container);
   }
   let observation;
   try {
@@ -406,6 +406,8 @@ async function prepareSubject(
             repository: freeflow.repository,
             personal: freeflow.personal,
           },
+    // Where the built Freeflow package lies, so metrics can tell its skill reads apart; not recorded in run.json.
+    freeflowRoot: freeflow?.packageRoot ?? null,
     runtime: materializedRuntime,
     host,
     fixture,

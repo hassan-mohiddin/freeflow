@@ -176,3 +176,56 @@ test("a Freeflow configuration needs the host prompt", async () => {
     });
   });
 });
+
+// A fake Pi that reads its Freeflow package's verify-work skill twice when one is loaded, then answers; each request's
+// usage grows, so peak context is the last one.
+async function installSkillReadingPi(root) {
+  const bin = path.join(root, "bin");
+  await mkdir(bin, { recursive: true });
+  const executable = path.join(bin, "pi");
+  await writeFile(
+    executable,
+    `#!/usr/bin/env node
+const roots = JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS);
+const freeflow = roots.find((entry) => entry.endsWith("package"));
+const emit = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
+const usage = (input, cacheRead) => ({ input, output: 5, cacheRead, cacheWrite: 0, cost: { total: 0.001 } });
+const skill = freeflow + "/skills/verify-work/SKILL.md";
+for (const [index, input] of [[0, 100], [1, 60]]) {
+  const id = "read-" + index;
+  emit({ type: "message_end", message: { role: "assistant", content: [{ type: "toolCall", id, name: "read", arguments: { path: skill } }], usage: usage(input, index * 300), stopReason: "toolUse" } });
+  emit({ type: "message_end", message: { role: "toolResult", toolCallId: id, toolName: "read", content: [{ type: "text", text: freeflow ? "v".repeat(40) : "missing" }], isError: !freeflow } });
+}
+emit({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "done" }], provider: "fake", model: "model", usage: usage(20, 400), stopReason: "stop" } });
+emit({ type: "agent_settled" });
+`,
+  );
+  await chmod(executable, 0o755);
+  return bin;
+}
+
+test("run metrics count reads of the loaded Freeflow package's skills and the peak request, and none for plain Pi", async () => {
+  await withTempDirectory(async (root) => {
+    await installFakeSnapshot(root);
+    const bin = await installSkillReadingPi(root);
+    const group = freeflowGroup();
+    group.arms = { plain: { freeflow: null }, freeflow: {} };
+    group.reference = "plain";
+    group.component = ["freeflow"];
+    group.expectations = [{ id: "no-skill-read", kind: "skill-read", variant: "freeflow", expect: "never" }];
+    const definition = await writeJson(path.join(root, "groups/task-memory.json"), group);
+
+    const result = runCli(root, bin, definition);
+
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    const metrics = async (arm) =>
+      JSON.parse(await readFile(path.join(resultDirectory, "groups/task-memory", arm, "run.json"), "utf8")).metrics;
+    // Two reads of 40 bytes each, 10 estimated tokens each; the largest request carried 20 + 400 tokens.
+    const freeflow = await metrics("freeflow");
+    assert.deepEqual([freeflow.peakContext, freeflow.skillReads, freeflow.skillReadTokens], [420, 2, 20]);
+    // Plain Pi has no package: its failed reads count nothing, and it read no skill.
+    const plain = await metrics("plain");
+    assert.deepEqual([plain.peakContext, plain.skillReads, plain.skillReadTokens], [420, 0, 0]);
+  });
+});

@@ -1,0 +1,10 @@
+{
+  "name": "status-board",
+  "version": "1.6.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node bin/start.js",
+    "test": "node --test"
+  }
+}

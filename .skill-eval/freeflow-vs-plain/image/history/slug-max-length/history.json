@@ -1,0 +1,6 @@
+{
+  "commits": [
+    { "message": "slugify with accents and a custom separator", "date": "2026-05-14T08:30:00+00:00", "overlay": "1" },
+    { "message": "Document maxLength for 1.2", "date": "2026-10-02T10:15:00+00:00" }
+  ]
+}

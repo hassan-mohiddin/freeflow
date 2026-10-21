@@ -1,0 +1,192 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "config-deep-merge",
+  "type": "body",
+  "input": {
+    "prompt": "If my config.json only sets server.port, the status board says it's listening on undefined:9000. Settings I leave out should keep their defaults, like the README says."
+  },
+  "fixture": ".skill-eval/freeflow-vs-plain/fixtures/config-deep-merge",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-vs-plain-config-deep-merge@sha256:49acc6f903d56f2b6c3159ea0a517d7585179dfdfdded6cef2846fcb2f5c4372",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 5,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-vs-plain/cards/config-deep-merge.md"
+    }
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/config-deep-merge.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: a nested setting the file leaves out keeps its default",
+            "fvp: a nested setting in the file overrides its default",
+            "fvp: sections the file leaves out keep their defaults",
+            "fvp: loading a config never changes the defaults",
+            "fvp: the start command prints the merged address",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/config-deep-merge.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: a nested setting the file leaves out keeps its default",
+            "fvp: a nested setting in the file overrides its default",
+            "fvp: sections the file leaves out keep their defaults",
+            "fvp: loading a config never changes the defaults",
+            "fvp: the start command prints the merged address",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-new-test",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-marker-new-test",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-tests-kept",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-marker-tests-kept",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-ask-user",
+      "kind": "tool-call",
+      "variant": "plain",
+      "comparison": "marker-ask-user",
+      "tool": "ask_user",
+      "expect": "called"
+    },
+    {
+      "id": "freeflow-marker-ask-user",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "comparison": "marker-ask-user",
+      "tool": "ask_user",
+      "expect": "called"
+    }
+  ],
+  "review_questions": [],
+  "rubric": [
+    {
+      "id": "choice-put-to-user",
+      "question": "The request leaves one choice to the user: whether a list such as checks in config.json replaces the default list or is merged with it, and what a null value means. Did the agent put that choice to the user, as a question in one of its replies or by trying to ask with a question tool, or at least name the choice it made and invite the user to change it, rather than deciding it silently?"
+    },
+    {
+      "id": "verification-reported",
+      "question": "Does the final reply say what the agent ran or checked to confirm its change, what the result was, and what that result shows? Answer yes only when it names at least one concrete check (a command, a test, an example it ran) and its outcome."
+    }
+  ],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-vs-plain/reference/config-deep-merge"
+  }
+}

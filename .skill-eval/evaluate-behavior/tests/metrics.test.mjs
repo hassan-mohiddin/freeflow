@@ -9,8 +9,11 @@ import {
   aggregateMetrics,
   aggregateMetricsLines,
   METRIC_NAMES,
+  peakContext,
   runMetricsFor,
   runMetricsLines,
+  skillReads,
+  skillRoots,
 } from "../../../skills/evaluate-behavior/scripts/lib/metrics.mjs";
 import { aggregateGroups } from "../../../skills/evaluate-behavior/scripts/lib/trials.mjs";
 import { renderResult } from "../../../skills/evaluate-behavior/scripts/lib/view.mjs";
@@ -64,6 +67,9 @@ test("a body run with turns gives exact metrics from its timestamps, turns, tool
     tokens: { input: 200, output: 50, cacheRead: 600, cacheWrite: 200 },
     cost: 0.0125,
     cacheHitRate: 0.6,
+    peakContext: null,
+    skillReads: null,
+    skillReadTokens: null,
   });
   // Registered through the hook, the same fields land in run.metrics.
   assert.deepEqual(runMetrics({ observation, run }), runMetricsFor({ observation, run }));
@@ -85,6 +91,9 @@ test("a one-shot run counts one turn and its top-level tool activity", () => {
     tokens: { input: 100, output: 20, cacheRead: 0, cacheWrite: 0 },
     cost: 0.001,
     cacheHitRate: 0,
+    peakContext: null,
+    skillReads: null,
+    skillReadTokens: null,
   });
 });
 
@@ -97,6 +106,9 @@ test("missing usage, timestamps or tool activity give null, never 0", () => {
     tokens: { input: null, output: null, cacheRead: null, cacheWrite: null },
     cost: null,
     cacheHitRate: null,
+    peakContext: null,
+    skillReads: null,
+    skillReadTokens: null,
   });
   // Usage with no prompt tokens at all has no hit rate; usage without a cost has a null cost.
   const empty = runMetricsFor({
@@ -227,6 +239,9 @@ test("perTrial holds one entry per trial and arm with every metric, null where u
       "tokens.cacheWrite": 0,
       cost: 0.01,
       cacheHitRate: 0.5,
+      peakContext: null,
+      skillReads: null,
+      skillReadTokens: null,
     });
     const failed = perTrial.find((entry) => entry.trial === "t3" && entry.arm === "same");
     assert.ok(Object.values(failed.values).every((value) => value === null));
@@ -272,4 +287,129 @@ test("the aggregate and run views render tracked metrics", async () => {
     const view = await renderResult(resultDirectory, undefined, { root });
     assert.match(view, /^metric\tcacheHitRate\tbaseline=median:0\.5 mean:0\.5 n=1\t/m);
   });
+});
+
+// A Pi transcript: one model request per assistant message, each with the usage of the prompt it carried.
+const assistant = (usage, ...calls) => ({
+  role: "assistant",
+  content: calls.map(([id, name, args]) => ({ type: "toolCall", id, name, arguments: args })),
+  usage,
+});
+const result = (toolCallId, text, isError = false) => ({
+  role: "toolResult",
+  toolCallId,
+  content: [{ type: "text", text }],
+  isError,
+});
+
+test("peak context is the largest single request's input plus cache reads plus cache writes", () => {
+  const transcript = [
+    { role: "user", content: "fix it" },
+    assistant({ input: 3000, output: 100, cacheRead: 0, cacheWrite: 1000 }),
+    assistant({ input: 500, output: 900, cacheRead: 4000, cacheWrite: 200 }),
+    // The last request is not the largest: a compaction or a shorter branch can shrink a later prompt.
+    assistant({ input: 2000, output: 50, cacheRead: 1000, cacheWrite: 0 }),
+  ];
+  // Requests carried 4000, 4700 and 3000 tokens; output is not part of what a request sent.
+  assert.equal(peakContext(transcript), 4700);
+  // A message without complete usage is skipped; with none at all the metric is unmeasured, never 0.
+  assert.equal(
+    peakContext([assistant({ input: 10, output: 1 }), assistant({ input: 7, cacheRead: 3, cacheWrite: 0 })]),
+    10,
+  );
+  assert.equal(
+    peakContext([
+      { role: "user", content: "hi" },
+      { role: "assistant", content: [] },
+    ]),
+    null,
+  );
+});
+
+test("skill reads count every read of a skill or Freeflow instruction file, re-reads included, from what entered the context", async () => {
+  await withTempDirectory(async (root) => {
+    const freeflowRoot = path.join(root, "freeflow");
+    const declared = path.join(root, "skills/target");
+    const workspace = path.join(root, "workspace");
+    const roots = skillRoots({ freeflowRoot, environment: { skills: [{ path: declared }] } });
+    assert.deepEqual(roots, [
+      declared,
+      path.join(freeflowRoot, "skills"),
+      path.join(freeflowRoot, "capabilities"),
+      path.join(freeflowRoot, "runtime"),
+    ]);
+    const skill = path.join(freeflowRoot, "skills/verify-work/SKILL.md");
+    const transcript = [
+      assistant(
+        { input: 1, cacheRead: 0, cacheWrite: 0 },
+        ["a", "read", { path: skill }],
+        ["b", "read", { path: "src/app.js" }],
+        ["c", "read", { path: path.join(freeflowRoot, "pi-extension/freeflow/index.js") }],
+      ),
+      result("a", "x".repeat(4001)),
+      result("b", "y".repeat(800)),
+      result("c", "z".repeat(800)),
+      // The same skill read again later, a reference through bash, a declared skill read relatively, and a failed read.
+      assistant(
+        { input: 1, cacheRead: 0, cacheWrite: 0 },
+        ["d", "read", { path: `@${skill}` }],
+        ["e", "bash", { command: `cat ${path.join(freeflowRoot, "skills/verify-work/references/x.md")} | head` }],
+        ["f", "read", { path: path.relative(workspace, path.join(declared, "SKILL.md")) }],
+        ["g", "read", { path: path.join(freeflowRoot, "capabilities/compaction/SKILL.md") }],
+        ["h", "bash", { command: "node --test" }],
+      ),
+      result("d", "x".repeat(4001)),
+      result("e", "é".repeat(10)),
+      result("f", "s".repeat(3)),
+      result("g", "missing", true),
+      result("h", "ok"),
+    ];
+    // a and d: 4001 bytes each, 1001 tokens each; e: 20 UTF-8 bytes, 5 tokens; f: 3 bytes, 1 token.
+    assert.deepEqual(skillReads(transcript, { roots, cwd: workspace }), { reads: 4, tokens: 2008, bytes: 8025 });
+    // An arm with no skills and no Freeflow, such as plain Pi, reads none: a measured 0, not a missing value.
+    assert.deepEqual(skillReads(transcript, { roots: [], cwd: workspace }), { reads: 0, tokens: 0, bytes: 0 });
+
+    // Through the run-metrics hook: measured for a Pi run with a transcript, null for another host or none.
+    const run = { workspace, transcript, usage: null };
+    const pi = runMetricsFor({ run, subject: { host: { name: "pi" }, freeflowRoot, environment: { skills: [] } } });
+    assert.deepEqual([pi.peakContext, pi.skillReads, pi.skillReadTokens], [1, 3, 2007]);
+    const plain = runMetricsFor({
+      run,
+      subject: { host: { name: "pi" }, freeflowRoot: null, environment: { skills: [] } },
+    });
+    assert.deepEqual([plain.peakContext, plain.skillReads, plain.skillReadTokens], [1, 0, 0]);
+    const claude = runMetricsFor({ run, subject: { host: { name: "claude-code" }, freeflowRoot } });
+    assert.deepEqual([claude.peakContext, claude.skillReads, claude.skillReadTokens], [null, null, null]);
+    assert.equal(runMetricsFor({ run: { workspace }, subject: { host: { name: "pi" } } }).peakContext, null);
+  });
+});
+
+test("peak context and skill-read tokens aggregate per arm with paired differences, and the run view shows them", () => {
+  const measured = (arm, peak, tokens) => ({
+    variant: arm,
+    state: "complete",
+    metrics: { peakContext: peak, skillReads: tokens === 0 ? 0 : 2, skillReadTokens: tokens },
+  });
+  const section = aggregateMetrics({
+    arms: ["plain", "freeflow"],
+    reference: "plain",
+    trials: [
+      { id: "t1", runs: { plain: measured("plain", 10000, 0), freeflow: measured("freeflow", 25000, 6000) } },
+      { id: "t2", runs: { plain: measured("plain", 14000, 0), freeflow: measured("freeflow", 20000, 9000) } },
+    ],
+  });
+  assert.deepEqual(section.arms.freeflow.peakContext, { count: 2, median: 22500, mean: 22500, min: 20000, max: 25000 });
+  assert.deepEqual(section.arms.plain.skillReadTokens, { count: 2, median: 0, mean: 0, min: 0, max: 0 });
+  assert.deepEqual(section.differences.freeflow.peakContext, { pairs: 2, mean: 10500, median: 10500 });
+  assert.deepEqual(section.differences.freeflow.skillReadTokens, { pairs: 2, mean: 7500, median: 7500 });
+  assert.deepEqual(section.perTrial[1].values.peakContext, 25000);
+  assert.ok(
+    aggregateMetricsLines(section).includes(
+      "metric\tpeakContext\tplain=median:12000 mean:12000 n=2\tfreeflow=median:22500 mean:22500 n=2\tfreeflow-plain=mean:+10500 pairs=2",
+    ),
+  );
+  assert.deepEqual(
+    runMetricsLines(measured("freeflow", 25000, 6000)).at(-1),
+    "  context\tpeak-context=25000\tskill-reads=2\tskill-read-tokens~=6000",
+  );
 });

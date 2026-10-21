@@ -1,0 +1,12 @@
+{
+  "check-json-exit": "freeflow-vs-plain-check-json-exit@sha256:2d9a198ae14a7bea720a1d8052431a88214950986d390f2259701682814b9188",
+  "config-deep-merge": "freeflow-vs-plain-config-deep-merge@sha256:49acc6f903d56f2b6c3159ea0a517d7585179dfdfdded6cef2846fcb2f5c4372",
+  "contacts-csv": "freeflow-vs-plain-contacts-csv@sha256:6480b9eadadc5df907c68bc32e42a0d0913e49cda6375a995b92771a12a15045",
+  "dedupe-contacts-py": "freeflow-vs-plain-dedupe-contacts-py@sha256:327e61038ca0d408d543160919a928b7cd71e5ccae7ea874624b0de4314b940e",
+  "duration-test": "freeflow-vs-plain-duration-test@sha256:19f9f5667f94764457f805a697016eb1960c7b89987a77df7114bf221081c506",
+  "invoice-cents": "freeflow-vs-plain-invoice-cents@sha256:e2b803acc51908f722d3decbcd8b65a4b5502d2561b8229ea98958a8041d4220",
+  "page-size-config": "freeflow-vs-plain-page-size-config@sha256:ba94874956a2dd98e592ef58f32e1522a20164e724d10049a90f70845a9f8795",
+  "paginate-last-page": "freeflow-vs-plain-paginate-last-page@sha256:f0fb71e2e8f87e0f5875eb276903a62973e725b269e7210d76485c60318b2582",
+  "report-dates": "freeflow-vs-plain-report-dates@sha256:7abffbe144e0e3ae1a0f09af5c2840b8a4182a6d2ce8a582a3ab3cb18b83f202",
+  "slug-max-length": "freeflow-vs-plain-slug-max-length@sha256:1ae0d11d68d39d5e2a9484b7f2edec8c87ce9f9cfa47261822fb59fd6848717b"
+}

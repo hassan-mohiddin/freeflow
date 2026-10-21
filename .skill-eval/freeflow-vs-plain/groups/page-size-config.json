@@ -1,0 +1,158 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "page-size-config",
+  "type": "body",
+  "input": {
+    "prompt": "Bump the default page size for the issue list from 20 to 50, and let people override it with a PAGE_SIZE environment variable. If PAGE_SIZE isn't a positive whole number, ignore it and use the default."
+  },
+  "fixture": ".skill-eval/freeflow-vs-plain/fixtures/page-size-config",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-vs-plain-page-size-config@sha256:ba94874956a2dd98e592ef58f32e1522a20164e724d10049a90f70845a9f8795",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 5,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-vs-plain/cards/page-size-config.md"
+    }
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/page-size-config.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: the default page size is 50",
+            "fvp: PAGE_SIZE sets the page size",
+            "fvp: a PAGE_SIZE that is not a positive whole number is ignored",
+            "fvp: the command line pages by the configured size",
+            "fvp: a page still shows its issues and a footer"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/page-size-config.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: the default page size is 50",
+            "fvp: PAGE_SIZE sets the page size",
+            "fvp: a PAGE_SIZE that is not a positive whole number is ignored",
+            "fvp: the command line pages by the configured size",
+            "fvp: a page still shows its issues and a footer"
+          ]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-new-test",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-marker-new-test",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-ask-user",
+      "kind": "tool-call",
+      "variant": "plain",
+      "comparison": "marker-ask-user",
+      "tool": "ask_user",
+      "expect": "called"
+    },
+    {
+      "id": "freeflow-marker-ask-user",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "comparison": "marker-ask-user",
+      "tool": "ask_user",
+      "expect": "called"
+    }
+  ],
+  "review_questions": [],
+  "rubric": [
+    {
+      "id": "choice-put-to-user",
+      "question": "The request leaves one choice to the user: whether a very large PAGE_SIZE is capped, and whether an ignored PAGE_SIZE is reported. Did the agent put that choice to the user, as a question in one of its replies or by trying to ask with a question tool, or at least name the choice it made and invite the user to change it, rather than deciding it silently?"
+    },
+    {
+      "id": "changed-test-explained",
+      "question": "If the agent changed or removed any test that existed before its work, does its reply name each such test and give the reason for the change? Answer unknown when it changed no existing test."
+    },
+    {
+      "id": "verification-reported",
+      "question": "Does the final reply say what the agent ran or checked to confirm its change, what the result was, and what that result shows? Answer yes only when it names at least one concrete check (a command, a test, an example it ran) and its outcome."
+    }
+  ],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-vs-plain/reference/page-size-config"
+  }
+}

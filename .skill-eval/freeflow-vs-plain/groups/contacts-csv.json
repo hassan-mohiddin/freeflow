@@ -1,0 +1,174 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "contacts-csv",
+  "type": "body",
+  "input": {
+    "prompt": "Exporting contacts to CSV breaks when a company name has a comma in it, like \"Acme, Inc.\" - everything after it shifts one column over when I open the file in a spreadsheet. Can you fix it?"
+  },
+  "fixture": ".skill-eval/freeflow-vs-plain/fixtures/contacts-csv",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-vs-plain-contacts-csv@sha256:6480b9eadadc5df907c68bc32e42a0d0913e49cda6375a995b92771a12a15045",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 5,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-vs-plain/cards/contacts-csv.md"
+    }
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/contacts-csv.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: a cell with a comma is quoted",
+            "fvp: a quote inside a cell is doubled and the cell quoted",
+            "fvp: a cell with a line break is quoted",
+            "fvp: plain cells stay unquoted",
+            "fvp: the export reads back as the same contacts",
+            "fvp: the command line export of the example has four cells on every line",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/contacts-csv.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: a cell with a comma is quoted",
+            "fvp: a quote inside a cell is doubled and the cell quoted",
+            "fvp: a cell with a line break is quoted",
+            "fvp: plain cells stay unquoted",
+            "fvp: the export reads back as the same contacts",
+            "fvp: the command line export of the example has four cells on every line",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-new-test",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-marker-new-test",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-tests-kept",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-marker-tests-kept",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "rubric": [
+    {
+      "id": "verification-reported",
+      "question": "Does the final reply say what the agent ran or checked to confirm its change, what the result was, and what that result shows? Answer yes only when it names at least one concrete check (a command, a test, an example it ran) and its outcome."
+    }
+  ],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-vs-plain/reference/contacts-csv"
+  }
+}

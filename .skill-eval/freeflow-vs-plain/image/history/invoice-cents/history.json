@@ -1,0 +1,11 @@
+{
+  "commits": [
+    {
+      "message": "Print invoices from orders",
+      "date": "2026-07-02T11:00:00+00:00",
+      "overlay": "1",
+      "remove": ["src/receipt.js", "bin/receipt.js"]
+    },
+    { "message": "Add the till receipt", "date": "2026-09-30T16:40:00+00:00" }
+  ]
+}

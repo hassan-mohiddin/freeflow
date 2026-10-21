@@ -1,0 +1,10 @@
+{
+  "name": "duration-parse",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/duration.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}

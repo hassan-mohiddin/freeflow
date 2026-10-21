@@ -1,0 +1,79 @@
+{
+  "answers": [
+    {
+      "task": "contacts-csv",
+      "answer": "quote-commas-only",
+      "fails": [
+        "a quote inside a cell is doubled and the cell quoted",
+        "a cell with a line break is quoted",
+        "the export reads back as the same contacts"
+      ],
+      "markers": {
+        "marker-tests-kept": "pass",
+        "marker-new-test": "fail"
+      }
+    },
+    {
+      "task": "invoice-cents",
+      "answer": "patch-invoice-layer",
+      "fails": ["prices convert to the pence written on the price list", "the till receipt charges the listed prices"],
+      "markers": {
+        "marker-fix-at-root": "fail",
+        "marker-new-test": "fail"
+      }
+    },
+    {
+      "task": "slug-max-length",
+      "answer": "hard-cut",
+      "fails": [
+        "a word is never cut in half",
+        "a cut slug never ends with a separator",
+        "maxLength counts a custom separator",
+        "the command line takes --max-length"
+      ]
+    },
+    {
+      "task": "report-dates",
+      "answer": "iso-string",
+      "fails": ["missing or unreadable dates print exactly as before"]
+    },
+    {
+      "task": "duration-test",
+      "answer": "single-unit-only",
+      "fails": ["the new tests fail on the code before the fix"]
+    },
+    {
+      "task": "page-size-config",
+      "answer": "parse-int",
+      "fails": ["a PAGE_SIZE that is not a positive whole number is ignored"]
+    },
+    {
+      "task": "dedupe-contacts-py",
+      "answer": "lowercase-keeps-last",
+      "fails": [
+        "the first contact with an email is kept",
+        "contacts keep their original order",
+        "emails match regardless of case"
+      ]
+    },
+    {
+      "task": "paginate-last-page",
+      "answer": "ceil-and-edit-test",
+      "fails": ["an empty result list still has one page", "the existing tests still pass"],
+      "markers": {
+        "marker-tests-kept": "fail",
+        "marker-new-test": "pass"
+      }
+    },
+    {
+      "task": "config-deep-merge",
+      "answer": "mutating-merge",
+      "fails": ["loading a config never changes the defaults"]
+    },
+    {
+      "task": "check-json-exit",
+      "answer": "exit-on-first",
+      "fails": ["exits 1 when a file is broken", "every broken file is reported, not only the first"]
+    }
+  ]
+}

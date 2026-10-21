@@ -1,0 +1,13 @@
+{
+  "name": "json-check",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "check-json": "bin/check-json.js"
+  },
+  "scripts": {
+    "check": "node bin/check-json.js data",
+    "test": "node --test"
+  }
+}

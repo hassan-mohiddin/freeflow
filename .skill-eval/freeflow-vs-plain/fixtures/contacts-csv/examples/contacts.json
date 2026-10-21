@@ -1,0 +1,10 @@
+[
+  { "name": "Priya Nair", "email": "priya@example.com", "company": "Northwind", "notes": "met at the expo" },
+  { "name": "Tom Okafor", "email": "tom@example.com", "company": "Acme, Inc.", "notes": null },
+  {
+    "name": "Lena Fischer",
+    "email": "lena@example.com",
+    "company": "Fischer & Sons",
+    "notes": "prefers \"Dr. Fischer\""
+  }
+]

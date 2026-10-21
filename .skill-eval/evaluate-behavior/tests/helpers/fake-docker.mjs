@@ -1,6 +1,9 @@
 // Test helper only: a `docker` stand-in that logs every invocation and acts like a small container engine.
-// `exec` runs the command in the mounted workspace with no network client and nothing outside its mounts (the
-// workspace, and read-only resources at their own host paths); `run` runs a grader's argv in the mounted copy.
+// `exec` runs the command in the mounted workspace with no network client and nothing outside what the container
+// shows (the workspace at its mount path, links made in the container, and read-only resources at their own host
+// paths): it translates the container's paths to host paths on the way in and the workspace's host path back to its
+// mount path on the way out, so `pwd` prints what it would in the container. `exec --user 0 ... sh <workdir> <path>`
+// is the evaluator's link step and records <workdir> as a link to <path>. `run` runs a grader's argv in the mounted copy.
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -60,32 +63,47 @@ if (command === "version") {
   process.stdout.write(JSON.stringify([entry("amd64"), entry("arm64")]) + "\\n");
 } else if (command === "create") {
   const { options, volumes } = parseRun(rest);
-  const [source, workdir] = volumes[0].split(":");
+  const [source, target] = volumes[0].split(":");
   // Further volumes are read-only resources mounted at their own host path.
   const resources = volumes.slice(1).map((volume) => volume.split(":"));
   if (resources.some(([from, to, mode]) => from !== to || mode !== "ro")) fail("fake docker: a resource mount must be path:path:ro");
-  writeFileSync(stateFile(options["--name"]), JSON.stringify({ source, workdir, resources: resources.map(([from]) => from) }));
+  writeFileSync(stateFile(options["--name"]), JSON.stringify({ source, target, links: {}, resources: resources.map(([from]) => from) }));
   process.stdout.write("fake-container-id\\n");
 } else if (command === "start") {
   if (!existsSync(stateFile(rest[0]))) fail("Error: No such container: " + rest[0]);
 } else if (command === "rm") {
   rmSync(stateFile(rest.at(-1)), { force: true });
+} else if (command === "exec" && rest[0] === "--user") {
+  const name = rest[2];
+  if (!existsSync(stateFile(name))) fail("Error: No such container: " + name);
+  const state = JSON.parse(readFileSync(stateFile(name), "utf8"));
+  const [link, to] = rest.slice(-2);
+  if (to !== state.target) fail("fake docker: the link step must point at the workspace's mount");
+  state.links[link] = to;
+  writeFileSync(stateFile(name), JSON.stringify(state));
 } else if (command === "exec") {
   const workdir = rest[rest.indexOf("--workdir") + 1];
   const name = rest[rest.indexOf("--workdir") + 2];
   if (!existsSync(stateFile(name))) fail("Error: No such container: " + name);
-  const { source, resources = [] } = JSON.parse(readFileSync(stateFile(name), "utf8"));
-  const script = rest.at(-1).replaceAll(workdir, source);
+  const { source, target, links = {}, resources = [] } = JSON.parse(readFileSync(stateFile(name), "utf8"));
+  const toHost = (text) => {
+    let mapped = text;
+    for (const [link, to] of Object.entries(links)) mapped = mapped.replaceAll(link, to);
+    return mapped.replaceAll(target, source);
+  };
+  const original = rest.at(-1);
+  const script = toHost(original);
   // Nothing outside the mount exists in the container, and it has no network client.
   if (/curl|wget/.test(script)) {
     process.stdout.write("NO-HTTP-CLIENT\\n");
     process.exit(0);
   }
-  const outside = (script.match(/(?:^|[\\s'"=>])(\\/[^\\s'";]*)/g) ?? []).map((match) => match.trim().replace(/^['"=>]/, "")).filter((entry) => ![source, ...resources].some((mount) => entry === mount || entry.startsWith(mount + "/")));
+  const visible = [target, ...Object.keys(links), ...resources];
+  const outside = (original.match(/(?:^|[\\s'"=>])(\\/[^\\s'";]*)/g) ?? []).map((match) => match.trim().replace(/^['"=>]/, "")).filter((entry) => !visible.some((mount) => entry === mount || entry.startsWith(mount + "/")));
   if (outside.length > 0) fail("sh: " + outside[0] + ": No such file or directory");
-  const result = spawnSync("/bin/sh", ["-c", script], { cwd: source, env: { PATH: "/usr/bin:/bin" }, encoding: "utf8" });
-  process.stdout.write(result.stdout);
-  process.stderr.write(result.stderr);
+  const result = spawnSync("/bin/sh", ["-c", script], { cwd: toHost(workdir), env: { PATH: "/usr/bin:/bin" }, encoding: "utf8" });
+  process.stdout.write(result.stdout.replaceAll(source, target));
+  process.stderr.write(result.stderr.replaceAll(source, target));
   process.exit(result.status ?? 1);
 } else if (command === "run") {
   const { options, argv: given } = parseRun(rest);

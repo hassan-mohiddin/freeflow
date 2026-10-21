@@ -303,8 +303,19 @@ test("probes, subjects and graders run in containers with the declared limits, i
     const calls = await dockerCalls(docker.log);
     const verbs = calls.map((args) => (args[0] === "--host" ? `host ${args[2]}` : args[0]));
     // After the image, one `run` checks that the engine shares the folder the workspaces live under.
-    const probe = ["version", "image", "run", "context", "create", "start", ...Array(6).fill("host exec"), "rm"];
-    const subject = ["context", "create", "start", "rm"];
+    // Each container starts, then `exec` links the declared workdir to the workspace's mount.
+    const probe = [
+      "version",
+      "image",
+      "run",
+      "context",
+      "create",
+      "start",
+      "exec",
+      ...Array(6).fill("host exec"),
+      "rm",
+    ];
+    const subject = ["context", "create", "start", "exec", "rm"];
     assert.deepEqual(verbs, [...probe, ...probe, ...subject, "run", "rm", ...subject, "run", "rm"]);
 
     for (const created of calls.filter((args) => args[0] === "create")) {
@@ -312,12 +323,15 @@ test("probes, subjects and graders run in containers with the declared limits, i
       assert.equal(option("--network"), "none");
       assert.equal(option("--memory"), "4g");
       assert.equal(option("--cpus"), "2");
-      assert.equal(option("--workdir"), "/testbed");
-      assert.match(
-        option("--volume"),
-        /\/(confinement\/(baseline|candidate)|(baseline|candidate))\/workspace:\/testbed$/,
-      );
+      // The workspace is mounted at its own host path, where the shell starts; /testbed becomes a link to it.
+      const workspace = option("--workdir");
+      assert.match(workspace, /\/(confinement\/(baseline|candidate)|(baseline|candidate))\/workspace$/);
+      assert.equal(option("--volume"), `${workspace}:${workspace}`);
       assert.ok(created.includes(IMAGE));
+      const name = option("--name");
+      const linked = calls.find((args) => args[0] === "exec" && args.includes(name));
+      assert.deepEqual(linked.slice(0, 4), ["exec", "--user", "0", name]);
+      assert.deepEqual(linked.slice(-2), ["/testbed", workspace]);
     }
     const removed = calls.filter((args) => args[0] === "rm").map((args) => args.at(-1));
     const names = calls.filter((args) => args[0] === "create").map((args) => args[args.indexOf("--name") + 1]);
@@ -370,7 +384,7 @@ test("a container group without bash still runs its declared commands in a subje
     const verbs = calls.map((args) => (args[0] === "--host" ? `host ${args[2]}` : args[0]));
     // No shell to probe; each arm gets a subject container, then its grader runs in a fresh one.
     const prerequisites = ["version", "image", "run"];
-    const subject = ["context", "create", "start", "rm"];
+    const subject = ["context", "create", "start", "exec", "rm"];
     assert.deepEqual(verbs, [...prerequisites, ...prerequisites, ...subject, "run", "rm", ...subject, "run", "rm"]);
   });
 });
@@ -424,9 +438,71 @@ test("a container subject's bash runs a declared skill's script at the path it w
     const skill = run.resources.skills[0].path;
     const created = (await dockerCalls(docker.log)).filter((args) => args[0] === "create").at(-1);
     const volumes = created.flatMap((arg, index) => (created[index - 1] === "--volume" ? [arg] : []));
-    assert.deepEqual(volumes, [`${run.workspace}:/testbed`, `${skill}:${skill}:ro`]);
+    assert.deepEqual(volumes, [`${run.workspace}:${run.workspace}`, `${skill}:${skill}:ro`]);
     const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"));
     assert.equal(grade.checks[0].state, "pass", JSON.stringify(grade.checks[0]));
+  });
+});
+
+test("a container subject's bash starts where Pi says it works, and bash and the file tools see the same files", async () => {
+  await withTempDirectory(async (root) => {
+    // As a model would: write with the file tool at the path Pi reported, read it from bash at that path and at the
+    // declared workdir, write from bash, then read that back with the file tool.
+    const pi = await installFakePi(root, {
+      rpcTools: [
+        { toolName: "write", input: { path: "{cwd}/from-write.txt", content: "written by write" } },
+        {
+          toolName: "bash",
+          input: {
+            command:
+              "pwd && cat {cwd}/from-write.txt && echo && cat /testbed/from-write.txt && echo && " +
+              "printf 'written by bash' > {cwd}/from-bash.txt",
+          },
+        },
+        { toolName: "read", input: { path: "{cwd}/from-bash.txt" } },
+      ],
+    });
+    const docker = await installFakeDocker(root);
+    const definition = await write(
+      path.join(root, "groups/boxed.json"),
+      containerGroup({
+        tools: ["read", "write", "bash"],
+        arms: { only: {} },
+        reference: "only",
+        component: undefined,
+        expectations: [
+          {
+            id: "bash-wrote",
+            kind: "file-text",
+            variant: "only",
+            path: "from-bash.txt",
+            expect: "contains",
+            value: "written by bash",
+          },
+        ],
+      }),
+    );
+
+    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--dry-run"]);
+
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed");
+    const run = await readJson(path.join(groupDirectory, "only/run.json"));
+    assert.equal(run.state, "complete");
+    const [written, bash, read] = (await readFile(pi.tools, "utf8"))
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    // The working directory Pi reports is the workspace, and bash starts there too.
+    assert.equal(written.cwd, run.workspace);
+    assert.equal(written.isError, false, written.output);
+    assert.equal(bash.isError, false, bash.output);
+    assert.deepEqual(bash.output.trimEnd().split("\n"), [written.cwd, "written by write", "written by write"]);
+    assert.equal(read.isError, false, read.output);
+    assert.equal(read.output, "written by bash");
+    const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"));
+    assert.equal(grade.checks[0].state, "pass", JSON.stringify(grade.checks[0]));
+    assert.ok((await dockerCalls(docker.log)).some((args) => args[0] === "exec" && args[1] === "--user"));
   });
 });
 

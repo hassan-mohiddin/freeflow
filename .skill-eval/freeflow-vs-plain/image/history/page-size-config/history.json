@@ -1,0 +1,6 @@
+{
+  "commits": [
+    { "message": "List issues one page at a time", "date": "2026-08-20T13:00:00+00:00", "overlay": "1" },
+    { "message": "Move the page size into src/config.js", "date": "2026-10-09T09:45:00+00:00" }
+  ]
+}

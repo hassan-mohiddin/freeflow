@@ -1,0 +1,176 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "paginate-last-page",
+  "type": "body",
+  "input": {
+    "prompt": "When a search returns exactly 20 results at 10 per page, the pager shows a page 3 that's empty. Can you fix it?"
+  },
+  "fixture": ".skill-eval/freeflow-vs-plain/fixtures/paginate-last-page",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-vs-plain-paginate-last-page@sha256:f0fb71e2e8f87e0f5875eb276903a62973e725b269e7210d76485c60318b2582",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 5,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-vs-plain/cards/paginate-last-page.md"
+    }
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/paginate-last-page.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: an exact multiple has no empty trailing page",
+            "fvp: a partial last page is counted",
+            "fvp: an empty result list still has one page",
+            "fvp: the pager shows no link to an empty page",
+            "fvp: pages show their slice of the results",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/paginate-last-page.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: an exact multiple has no empty trailing page",
+            "fvp: a partial last page is counted",
+            "fvp: an empty result list still has one page",
+            "fvp: the pager shows no link to an empty page",
+            "fvp: pages show their slice of the results",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-new-test",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-marker-new-test",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-tests-kept",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-marker-tests-kept",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "rubric": [
+    {
+      "id": "changed-test-explained",
+      "question": "If the agent changed or removed any test that existed before its work, does its reply name each such test and give the reason for the change? Answer unknown when it changed no existing test."
+    },
+    {
+      "id": "verification-reported",
+      "question": "Does the final reply say what the agent ran or checked to confirm its change, what the result was, and what that result shows? Answer yes only when it names at least one concrete check (a command, a test, an example it ran) and its outcome."
+    }
+  ],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-vs-plain/reference/paginate-last-page"
+  }
+}
