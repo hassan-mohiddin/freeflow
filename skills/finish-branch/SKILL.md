@@ -41,7 +41,7 @@ The user owns whether to:
 - rewrite or force-push history;
 - clean up a checkout or worktree.
 
-Present only routes supported by the observed state. Do not force a fixed menu when an option is impossible, unsafe, or irrelevant. Approval of one route covers only the scope shown and accepted. Read Workflow's [Asking The User](../workflow/references/asking-the-user.md) before asking the user for a choice that is theirs to make; the supported routes are the options.
+Present only routes supported by the observed state. Do not force a fixed menu when an option is impossible, unsafe, or irrelevant. Approval of one route covers only the scope shown and accepted. Ask as [Agree Work](../agree-work/SKILL.md)'s "Ask One Question" describes; the supported routes are the options.
 
 ## State Readiness Honestly
 
@@ -65,7 +65,7 @@ Goal: the user can accept or refuse the change from the hand-over alone, without
 The pull-request description, or the final report when there is no pull request, carries:
 
 - what done looks like, from the work agreement, against what was done, naming anything left out or changed on the way;
-- choices the work made that the agreement did not settle, each marked agreed (with where) or for the user;
+- choices the user has not seen, from [Agree Work](../agree-work/SKILL.md)'s decision list: its `new`, `changed` and `default` items, each with where it shows;
 - the evidence: each check run on the final state and its result;
 - the review outcome: self-review only, or each independent review's judgment with every Rejected finding and why.
 

@@ -48,4 +48,4 @@ Stop or downgrade the claim when:
 - only a nearby path, screenshot, or mocked page was tested;
 - browser evidence contradicts tests, specs, or accepted behavior.
 
-Read [Diagnose Failure](../../../skills/diagnose-failure/SKILL.md) for unexplained browser failures. Read [Decision Gate](../../../skills/decision-gate/SKILL.md) when browser evidence conflicts with accepted behavior or exposes a user-owned decision.
+Read [Diagnose Failure](../../../skills/diagnose-failure/SKILL.md) for unexplained browser failures. Read [Agree Work](../../../skills/agree-work/SKILL.md) when browser evidence conflicts with accepted behavior or exposes a user-owned decision.

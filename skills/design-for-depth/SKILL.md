@@ -17,7 +17,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 - A design recommendation is not implementation authority, and this lens never enlarges a task by itself. A new dependency must earn its place through the accepted outcome or a demonstrated need.
 - Never remove required correctness, trust, or safety to make a design smaller. Never turn hypothetical lifecycle completeness into a production requirement.
-- Never design around an invented product or failure policy. When a boundary changes product behavior, public interfaces, compatibility, permissions, security, privacy, billing, data-loss behavior, migration direction, or another user-owned outcome, use [Decision Gate](../decision-gate/SKILL.md) with its concrete consequences and supported alternatives.
+- Never design around an invented product or failure policy. When a boundary changes product behavior, public interfaces, compatibility, permissions, security, privacy, billing, data-loss behavior, migration direction, or another user-owned outcome, use [Agree Work](../agree-work/SKILL.md) with its concrete consequences and supported alternatives.
 - Do not invent APIs, files, or stronger guarantees to make a design look complete; name the missing observation or choice instead.
 
 ## Start With The Required Outcome

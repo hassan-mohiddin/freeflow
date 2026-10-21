@@ -1,6 +1,6 @@
 # Ask User And The Inbound Channel
 
-> **Covers:** `pi-extension/src/ask-user/`, `pi-extension/src/host/inbound.ts`, `skills/workflow/references/asking-the-user.md`
+> **Covers:** `pi-extension/src/ask-user/`, `pi-extension/src/host/inbound.ts`, `skills/agree-work/SKILL.md` (Ask One Question)
 > **Tests:** `pi-extension/tests/ask-user/`, `pi-extension/tests/host/inbound.test.js`
 > **Verified at:** `5728b9aa` (2026-10-12)
 
@@ -8,7 +8,7 @@ For contributors changing how Freeflow on Pi asks the user a question, or how co
 
 ## Purpose
 
-**`ask_user`** lets the agent put a choice that is the user's to a dialog mid-turn and continue on the answer, instead of asking in its reply and ending the turn. Any activity that needs the user's choice uses it: scope beyond what was authorized, a blocking decision (Decision Gate), a direction once discussion narrows (Discuss), a route for finishing a branch. Each activity keeps its own judgment about what to ask; the tool changes how.
+**`ask_user`** lets the agent put a choice that is the user's to a dialog mid-turn and continue on the answer, instead of asking in its reply and ending the turn. Any activity that needs the user's choice uses it: scope beyond what was authorized, the agreement before building and a blocking decision (Agree Work), a direction once discussion narrows (Discuss), a route for finishing a branch. Each activity keeps its own judgment about what to ask; the tool changes how.
 
 **The inbound channel** is one delivery rule for content arriving from outside the turn. Background command exits, monitor events and messages from other sessions ([Messaging](messaging.md)) are its sources.
 
@@ -44,7 +44,7 @@ Closing any dialog dismisses the whole question.
 
 1. The tool description (shape and mechanics) and one `promptGuidelines` line, which Pi adds to the system prompt's rules while the tool is active. Tool Execution's rules rewrite (`tool-execution/prompt.ts`) removes only three of Pi's generic lines, so the guideline survives.
 2. One host-neutral bullet in `runtime/prompts/interaction-contract.md`: a question tool usually fits a bounded choice that is the user's; ask in the reply when the choice needs explaining or is open. It reaches Claude Code and the other hook hosts too.
-3. Workflow's reference `asking-the-user.md` with the full method, read "before asking the user for a choice that is theirs to make". Where no dialog can be shown it says to ask in the reply; where no one will read the reply in time (a routed assignment, an unattended run) it defers to the Working Method, which owns that case: choose what matches existing behavior and is easiest to reverse, and state the assumption. Workflow, Decision Gate, Discuss and Finish Branch link it with that same condition.
+3. Agree Work's "Ask One Question" section with the full method, read with the skill. Where no dialog can be shown it says to ask in the reply; where no one will read the reply in time (a routed assignment, an unattended run) the Working Method owns that case: take what matches existing behavior and is easiest to reverse, and report it in the decision list. Discuss and Finish Branch point to the same section. The agreement before building is one reply, not a dialog: a decision list doesn't fit 2–4 options.
 
 **Task memory's confirmations** use `confirmWithUser()`: in the terminal a one-question `QuestionForm` with the options Yes and No and without an own-answer row or notes, elsewhere Pi's `confirm` as before.
 
@@ -54,8 +54,8 @@ Closing any dialog dismisses the whole question.
 
 | Decision | Reason | Rejected | Source |
 | --- | --- | --- | --- |
-| The question tool serves every place Freeflow needs the user's choice, not Decision Gate alone. | Authority, direction, finishing work and task memory all need the user's choice; tying the tool to one skill would hide it from the rest. | The tool as Decision Gate's mechanism. | User, 2026-10-11 (Task 002 D-002) |
-| Guidance in three layers: tool description and prompt guideline, one Interaction Contract bullet, an on-demand Workflow reference. | The agent always knows the tool and when it fits, and reads the full method only when about to ask; the contract bullet also serves Claude Code's own question tool. | A capability skill; the full method in the system prompt. | User, 2026-10-11 (D-002) |
+| The question tool serves every place Freeflow needs the user's choice, not Agree Work alone. | Authority, direction, finishing work and task memory all need the user's choice; tying the tool to one skill would hide it from the rest. | The tool as Agree Work's mechanism. | User, 2026-10-11 (Task 002 D-002) |
+| Guidance in three layers: tool description and prompt guideline, one Interaction Contract bullet, the method on demand (a Workflow reference until 2026-10-20, now Agree Work's "Ask One Question"). | The agent always knows the tool and when it fits, and reads the full method only when about to ask; the contract bullet also serves Claude Code's own question tool. | A capability skill; the full method in the system prompt. | User, 2026-10-11 (D-002); moved with Agree Work, 2026-10-20 |
 | No timeout. | An automatic answer decides something the user owns. | Claude Code's optional auto-continue. | D-001 |
 | Workers do not ask under automatic routing. | The Coordinator owns the user interaction; Claude Code's subagents cannot ask either. | Any profile asking. | Task 002 spec §4.2 |
 | Idle notices start the turn as a Freeflow custom message, not a user message. | A user message shows another session's or a command's words as the user's (the user's trial); `keepSections()` keeps Freeflow's sections on the run Pi starts (Pi #10267). | Starting idle turns as user messages (the earlier workaround for Pi #10267). | Task 002 D-008 |

@@ -13,7 +13,7 @@ Deployment changes what runs. Rollout changes who or what is exposed. A build, m
 
 Loading this skill, preparing launch options, or approving a general implementation Plan does not authorize deployment, exposure, rollback, destructive migration, or another production action. Execute only the stages explicitly requested or separately approved through an inspected launch contract or accepted operational policy.
 
-Use [Decision Gate](../decision-gate/SKILL.md) when deployment, exposure, rollback, destructive migration, launch window, acceptable degradation, user communication, or recovery direction remains a user-owned choice.
+Use [Agree Work](../agree-work/SKILL.md) when deployment, exposure, rollback, destructive migration, launch window, acceptable degradation, user communication, or recovery direction remains a user-owned choice.
 
 Before selecting risk lenses, operational evidence, rollout stages, or recovery checks, read [launch readiness](references/launch-readiness.md). Use [Release Work](../release-work/SKILL.md) when a versioned artifact must be published first. Use [Migration Work](../migration-work/SKILL.md) when the launch transitions data, traffic, consumers, configuration, or compatibility contracts between old and replacement paths with migration or removal obligations.
 

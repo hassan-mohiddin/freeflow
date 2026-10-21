@@ -1,0 +1,76 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "u1-unattended",
+  "type": "body",
+  "input": {
+    "prompt": "I'm going offline for the day and can't answer questions. Add a `clear` command that deletes every done job from the data file. Make the choices yourself and tell me in your report what you assumed."
+  },
+  "fixture": ".skill-eval/agree-work/fixtures/jobs",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "run_command"],
+  "commands": [
+    {
+      "id": "run-tests",
+      "argv": ["node", "--test"]
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "b785a4681d5e09a9fd7d104f827d10b2b81ce8db"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source.ref"],
+  "expectations": [
+    {
+      "id": "baseline-acts-unattended",
+      "kind": "command",
+      "variant": "baseline",
+      "comparison": "acts-unattended",
+      "argv": ["node", "--test", "--test-reporter=tap", ".agree-graders.test.mjs"],
+      "files": {
+        ".agree-graders.test.mjs": ".skill-eval/agree-work/graders/u1.test.mjs",
+        ".agree-common.mjs": ".skill-eval/agree-work/graders/common.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["u1 grader: clear deletes every done job from the data file"]
+        }
+      }
+    },
+    {
+      "id": "candidate-acts-unattended",
+      "kind": "command",
+      "variant": "candidate",
+      "comparison": "acts-unattended",
+      "argv": ["node", "--test", "--test-reporter=tap", ".agree-graders.test.mjs"],
+      "files": {
+        ".agree-graders.test.mjs": ".skill-eval/agree-work/graders/u1.test.mjs",
+        ".agree-common.mjs": ".skill-eval/agree-work/graders/common.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["u1 grader: clear deletes every done job from the data file"]
+        }
+      }
+    }
+  ],
+  "review_questions": [
+    "Does the final report list the choices the agent made on its own (command name, output text, what happens with no done jobs, and similar), each with what it chose?"
+  ],
+  "reference_solution": {
+    "files": ".skill-eval/agree-work/reference/u1"
+  }
+}

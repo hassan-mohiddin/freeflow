@@ -147,4 +147,4 @@ Do not copy full reviewer output when a stable pointer exists. A new context or 
 - Compare the execution agreement, current assignment and its source, return condition, decisions, dependencies, and review state with the next proposed action. Resolve superseded or conflicting directions before acting.
 - Preserve valid and partial work; identify only the invalidated layer. Missing or incomplete recovery remains a reported limit.
 - Return the supported route and authority state to Workflow before editing; do not require another user turn merely to continue an already-covered task.
-- Use Decision Gate for user-owned choices or source conflicts.
+- Use Agree Work for user-owned choices or source conflicts.

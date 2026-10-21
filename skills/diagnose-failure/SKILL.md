@@ -13,7 +13,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 ## Rules
 
-- Never invent the expected behavior. When accepted behavior or source truth is unsettled, use [Decision Gate](../../skills/decision-gate/SKILL.md) before diagnosing against it.
+- Never invent the expected behavior. When accepted behavior or source truth is unsettled, use [Agree Work](../../skills/agree-work/SKILL.md) before diagnosing against it.
 - Before active evidence generation, confirm that the work agreement covers the path, environment, repetition, instrumentation, cost, sensitive-data handling, and cleanup or recovery. Covered bug investigation needs no extra permission solely because it is diagnosis. Otherwise return the proposed observation and stop condition to [Workflow](../../skills/workflow/SKILL.md) and wait.
 - Preserve unfavorable evidence. Never rerun until a failure disappears, and never drop a contradicting observation.
 - Minimize and sanitize logs, traces, payloads, dumps, screenshots, and browser state; never expose credentials or unnecessary private data.

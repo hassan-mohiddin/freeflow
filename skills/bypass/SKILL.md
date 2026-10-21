@@ -35,6 +35,7 @@ A valid bypass may remove:
 
 - an unnecessary Spec, Plan, or Working Record;
 - extended questioning whose answer would not change the accepted activity;
+- waiting for the user to answer [Agree Work](../agree-work/SKILL.md)'s agreement before building; its decision list is still kept and goes in the final report;
 - an artifact created only for ceremony;
 - duplicate explanation or status reporting;
 - a proposed but unselected review or checkpoint with no remaining risk purpose;
@@ -91,7 +92,7 @@ Treat the request as a Workflow route change when the user wants to:
 
 An explicit user instruction may authorize the changed route, but Workflow must reconcile its consequences before dependent work continues.
 
-Use [Decision Gate](../decision-gate/SKILL.md) only when one user-owned choice or source conflict remains unresolved.
+Use Agree Work when a user-owned choice or source conflict remains unresolved.
 
 ## Apply The Selected Scope
 
@@ -148,6 +149,6 @@ When a boundary remains:
 
 1. do not perform the blocked action;
 2. state the boundary the bypass cannot remove;
-3. return to Workflow, Decision Gate, or the relevant current owner.
+3. return to Workflow, Agree Work, or the relevant current owner.
 
 Bypass ends when the selected optional pressure has been removed, its scope expires, or a non-bypassable boundary requires another route.

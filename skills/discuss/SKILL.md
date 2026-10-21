@@ -15,7 +15,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 - Conversation, convergence, a recommendation, or a recorded proposal never authorizes execution. Begin implementation only under an execution agreement established through [Workflow](../workflow/SKILL.md).
 - Keep supported facts and explicit decisions distinct from hypotheses, proposed mechanisms, and unresolved choices. An assistant recommendation never becomes a requirement because it is repeated or recorded.
-- Leave priorities, behavior, constraints, and tradeoffs the user owns to the user; ask rather than decide them. Read Workflow's [Asking The User](../workflow/references/asking-the-user.md) before asking the user for a choice that is theirs to make.
+- Leave priorities, behavior, constraints, and tradeoffs the user owns to the user; ask rather than decide them. Ask as [Agree Work](../agree-work/SKILL.md)'s "Ask One Question" describes.
 - Never weaken required behavior to make an approach look simpler.
 - A successful demonstration is not production acceptance; promotion must be deliberately selected and its effects authorized.
 
@@ -29,7 +29,7 @@ A request to discuss keeps the user involved as understanding develops. Gather r
 
 A direct action request may already settle the outcome and delegate approach selection. Do not force a discussion phase when existing evidence can resolve the remaining facts and reversible local choices. Return clear covered work to Workflow.
 
-Use [Decision Gate](../decision-gate/SKILL.md) for one known blocking user-owned choice or source conflict. Use [Diagnose Failure](../diagnose-failure/SKILL.md) when a reported or recurring failure needs a supported cause rather than broader option discussion.
+Use [Agree Work](../agree-work/SKILL.md) for one known blocking user-owned choice or source conflict. Use [Diagnose Failure](../diagnose-failure/SKILL.md) when a reported or recurring failure needs a supported cause rather than broader option discussion.
 
 ## Separate Outcome From Approach
 
@@ -133,7 +133,7 @@ Return only what the next route needs: supported understanding, tentative approa
 - Stable accepted content needing a durable source -> [Write Spec](../write-spec/SKILL.md).
 - A supported ordered strategy needing a durable artifact -> [Write Plan](../write-plan/SKILL.md).
 - Covered concrete work -> Workflow and Execute Work.
-- One blocking owner choice -> Decision Gate.
+- One blocking owner choice -> Agree Work.
 - Unsupported failure cause -> Diagnose Failure.
 - No action needed -> answer or stop.
 
