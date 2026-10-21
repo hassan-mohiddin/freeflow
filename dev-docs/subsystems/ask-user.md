@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/ask-user/`, `pi-extension/src/host/inbound.ts`, `skills/agree-work/SKILL.md` (Ask One Question)
 > **Tests:** `pi-extension/tests/ask-user/`, `pi-extension/tests/host/inbound.test.js`
-> **Verified at:** `5bdc55b2` (2026-10-22)
+> **Verified at:** `e0b8282c` (2026-10-22)
 
 For contributors changing how Freeflow on Pi asks the user a question, or how content from outside the turn reaches the model. Design and decisions: Task 002's spec (`.freeflow/tasks/task-002-*/specs/ask-user-monitor-messaging.md`, local to the developer's checkout).
 
@@ -14,7 +14,7 @@ For contributors changing how Freeflow on Pi asks the user a question, or how co
 
 It deliberately does not:
 
-- decide when to ask: the Interaction Contract, Workflow and the asking skills do;
+- decide when to ask: the Interaction Contract, core's cycle and the asking skills do;
 - time out: a question waits for the user (Task 002 D-001), since an automatic answer would decide something the user owns;
 - let a Cognitive Routing worker ask: under automatic routing the Coordinator talks to the user, and a worker returns the choice in its report.
 

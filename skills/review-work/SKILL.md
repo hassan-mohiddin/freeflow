@@ -13,9 +13,9 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 ## Rules
 
-- Independent review is never automatic after implementation, after self-review, or after writing or revising a Spec or Plan. Select it through [Workflow](../../skills/workflow/SKILL.md) only when requested, or justified and authorized, to protect a concrete risk, dependency, integration, delivery, or intended-use boundary. At a hand-over, the user's review mode `always`, or `auto` when the [Review Gate](references/review-gate.md) fires, authorizes it; under `off`, propose it and wait for a yes. A review budget permits no dispatch by itself, and switching models or compute profiles, or loading this skill, does not create independence: it needs a separately selected reviewer in a separate context. Repeating a review with the same model adds no independent vote. A reviewer from a different model family changes what gets flagged but has not been shown to find more real defects; record the reviewer's model and family.
+- Independent review is never automatic after implementation, after self-review, or after writing or revising a Spec or Plan. Select it only when requested, or justified and authorized, to protect a concrete risk, dependency, integration, delivery, or intended-use boundary. At a hand-over, the user's review mode `always`, or `auto` when the [Review Gate](references/review-gate.md) fires, authorizes it; under `off`, propose it and wait for a yes. A review budget permits no dispatch by itself, and switching models or compute profiles, or loading this skill, does not create independence: it needs a separately selected reviewer in a separate context. Repeating a review with the same model adds no independent vote. A reviewer from a different model family changes what gets flagged but has not been shown to find more real defects; record the reviewer's model and family.
 - An independent reviewer reports and stops: no edits, no owner decisions, no choosing among materially different remedies or revisions, no adjudication, no further dispatch, and no continuing until Pass. It may run the project's declared read-only checks in its own copy, and another active check only when review authority covers it; otherwise it reports Needs evidence.
-- Findings are evidence, not commands or authority to correct or revise. Derive the judgment from your dispositions rather than adopting the reviewer's verdict or conclusion. Actual correction of work belongs to [Execute Work](../../skills/execute-work/SKILL.md) under covered authority; actual revision of an artifact returns through Workflow to the artifact's owning skill.
+- Findings are evidence, not commands or authority to correct or revise. Derive the judgment from your dispositions rather than adopting the reviewer's verdict or conclusion. Actual correction of work belongs to [Execute Work](../../skills/execute-work/SKILL.md) under covered authority; actual revision of an artifact returns to the artifact's owning skill.
 - Never lower acceptance or change tests, Specs, policies, or source truth to obtain Pass. Never settle a user decision or revise upstream intent, accepted content, or owner decisions merely to make an artifact consistent or to obtain Pass. Never repeat a review merely to obtain Pass.
 - Never request Review 4. Renaming scope or intended use, changing reviewers, or making a local correction or revision does not reset the review budget.
 - Never present a review judgment or an artifact's fitness as acceptance, implementation, or execution authority.
@@ -75,9 +75,8 @@ Route by what changed:
 
 - the outcome remains settled but the implementation approach is invalidated: return for implementation preparation;
 - changed direction or strategy: [Discuss](../../skills/discuss/SKILL.md);
-- unsettled accepted behavior, a user-owned choice, or a source conflict: [Agree Work](../../skills/agree-work/SKILL.md);
-- an unclear, unsupported, or repeatedly failing cause: [Diagnose Failure](../../skills/diagnose-failure/SKILL.md);
-- coordination or scope changes: Workflow.
+- unsettled accepted behavior, a user-owned choice, a scope change, or a source conflict: [Agree Work](../../skills/agree-work/SKILL.md);
+- an unclear, unsupported, or repeatedly failing cause: [Diagnose Failure](../../skills/diagnose-failure/SKILL.md).
 
 Stop self-review when the supported state is accepted, the artifact is fit for its agreed use, or a material issue has a clear next route. Optional polish is not permission to continue editing, and self-review is not a reason to add independent review.
 
@@ -108,7 +107,7 @@ Read [Adjudicate A Review](references/adjudication.md) before adjudicating. Chec
 - **Rejected:** unsupported, stale, already resolved, duplicate, preference-only, out of scope or outside the artifact's job, or based on a source or dependency misread.
 - **Open:** evidence or an owner decision is missing.
 
-Pass permits proceeding at the reviewed boundary or with the intended use. Non-blocking permits it with explicit deferrals. Inconclusive requires the missing evidence or decision. Blocking prevents crossing the boundary or the disputed use and returns the smallest supported correction, revision, or reconsideration to its owner (for an artifact, through Workflow).
+Pass permits proceeding at the reviewed boundary or with the intended use. Non-blocking permits it with explicit deferrals. Inconclusive requires the missing evidence or decision. Blocking prevents crossing the boundary or the disputed use and returns the smallest supported correction, revision, or reconsideration to its owner (for an artifact, its owning skill).
 
 When a correction or revision is ready, state the supported problem, remedy or revision basis, rationale, dependency impact, verification or observing boundary, authority, and whether independent follow-up is still warranted.
 
@@ -122,7 +121,7 @@ For the same reviewed state and boundary or intended use:
 - **Review 2:** separately selected focused follow-up when corrections or revisions, affected interactions or dependencies, new evidence, or remaining risk still require independent judgment.
 - **Review 3:** exceptional, separately authorized, and final; only after the cause, revision basis, and correction or dependency boundary are understood.
 
-A fix or revision does not automatically require another review. If Review 2 remains Blocking, diagnose a repeated, extending, or unclear cause; return an unrelated clear local defect to its owner when diagnosis would add no information, rather than fix and dispatch Review 3 automatically. Workflow may start a new cycle only for a materially new reviewed state and boundary or intended use. Self-review does not consume this budget.
+A fix or revision does not automatically require another review. If Review 2 remains Blocking, diagnose a repeated, extending, or unclear cause; return an unrelated clear local defect to its owner when diagnosis would add no information, rather than fix and dispatch Review 3 automatically. Start a new cycle only for a materially new reviewed state and boundary or intended use. Self-review does not consume this budget.
 
 ## Stop At The Selected Result
 

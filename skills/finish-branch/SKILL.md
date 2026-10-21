@@ -110,7 +110,7 @@ Do not run destructive reset, clean, branch deletion, worktree removal, remote d
 
 ## Return Conflicts And Failures
 
-Resolve a conflict locally only when both sides' intended behavior is settled and the resolution is mechanical. Return behavior, source-truth, API, data, security, compatibility, or architecture conflicts to [Workflow](../workflow/SKILL.md).
+Resolve a conflict locally only when both sides' intended behavior is settled and the resolution is mechanical. Return behavior, source-truth, API, data, security, compatibility, or architecture conflicts to [Agree Work](../agree-work/SKILL.md).
 
 Use [Diagnose Failure](../diagnose-failure/SKILL.md) when integrated checks fail without a supported cause. Return mixed or unrelated branch contents to [Commit Work](../commit-work/SKILL.md), which owns staging decisions. Preserve branch state before re-entering another owning activity.
 

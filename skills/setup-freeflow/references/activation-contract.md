@@ -59,7 +59,7 @@ On Pi the core prompt, Interaction Contract and Working Method are always delive
 
 - **Unconfigured:** missing or invalid repository config means Freeflow is not effective. An explicit setup request may create missing minimal activation; replacing invalid config requires specific authorization and source-conflict resolution.
 - **Configured but ineffective:** top-level disablement or invalid local config prevents effective Freeflow. An explicit request governs the selected enablement, configuration, or repair.
-- **Effective:** obey the Interaction Contract and core Workflow guidance. Optional capability behavior remains subject to its own effective state.
+- **Effective:** obey the Interaction Contract and the core guidance. Optional capability behavior remains subject to its own effective state.
 
 A user operating native host settings changes host-managed state directly. That action is distinct from an agent editing `.freeflow/config.json` or `.freeflow/local.json`; verify the resulting source and effective state afterward.
 

@@ -32,7 +32,7 @@ Do not silently create or switch branches.
 
 `git commit --amend` rewrites an existing checkpoint. Use it only when the user explicitly requests amendment and the exact target commit, included changes, authorship effects, and remote-history state are known.
 
-If the target may already be shared or pushed, return to [Workflow](../../workflow/SKILL.md) or Finish Branch before rewriting it.
+If the target may already be shared or pushed, ask the user, or use Finish Branch, before rewriting it.
 
 Use `--allow-empty` only for an explicitly requested empty checkpoint with a named repository purpose. An accidentally empty index is not authorization for an empty commit.
 
@@ -91,4 +91,4 @@ Do not claim nested changes are preserved by committing only the parent reposito
 
 Return to Commit Work only when the repository has one supported, recoverable checkpoint candidate.
 
-Otherwise preserve the exact Git state and return to Workflow, Finish Branch, Diagnose Failure, or the producing activity whose responsibility changed.
+Otherwise preserve the exact Git state and return to Finish Branch, Diagnose Failure, or the producing activity whose responsibility changed.

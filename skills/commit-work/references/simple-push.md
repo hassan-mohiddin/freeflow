@@ -60,7 +60,7 @@ When no upstream exists, set one only when the remote and branch destination are
 
 Do not push additional branches or tags.
 
-A force push is not a simple push. Return an explicitly requested history rewrite to Workflow or Finish Branch.
+A force push is not a simple push. Take an explicitly requested history rewrite to Finish Branch.
 
 ## Handle Rejection Without Escalation
 
@@ -69,7 +69,7 @@ If the push is rejected or fails:
 - preserve the complete result;
 - do not automatically pull, merge, rebase, force, change remotes, or change destination;
 - inspect whether any remote update occurred;
-- return authentication, divergence, policy, or destination decisions to [Workflow](../../workflow/SKILL.md) or Finish Branch.
+- return authentication, divergence, policy, or destination decisions to the user or Finish Branch.
 
 A failed push does not invalidate the local commit.
 

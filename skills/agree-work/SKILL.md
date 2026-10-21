@@ -9,7 +9,7 @@ Agree with the user what the work will do and every choice that is theirs, keep 
 
 A **user-owned choice** changes something the user will see or live with: behavior, names or text the user meets, defaults, what happens on error, data written, scope, risk, or compatibility. Mechanics that change none of these are yours to choose.
 
-[Workflow](../workflow/SKILL.md) decides when the work starts, continues and ends; [Discuss](../discuss/SKILL.md) owns direction that is still open rather than a bounded choice; the [Interaction Contract](../../runtime/prompts/interaction-contract.md) governs what the user's turn asks for.
+[Discuss](../discuss/SKILL.md) owns direction that is still open rather than a bounded choice; the [Interaction Contract](../../runtime/prompts/interaction-contract.md) governs what the user's turn asks for.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
@@ -53,7 +53,9 @@ Technical:      <N> more choices; say "show technical" to see them.
 
 Show the technical list in full when the user asks or has said they always want it, and leave the line out when they have said never. With no plain items, say so and still wait.
 
-"Go", "fine", "your call" and "just do it" accept every default: those items become `agreed`. A correction changes only the item it names. Then continue under the agreement as [Workflow](../workflow/SKILL.md) describes.
+`Where I stop` names the endpoint the user can hold you to. After discussing several possible Slices, an ambiguous "proceed" needs it settled: the next Slice and return, or the whole task? Do not ask when the user already named the endpoint.
+
+"Go", "fine", "your call" and "just do it" accept every default: those items become `agreed`. A correction changes only the item it names. Then build within the agreement, through to where you stop.
 
 ## When To Skip
 
@@ -98,6 +100,8 @@ Goal: no choice is made silently, and the user is interrupted only when the work
 - A new choice that does not block: take your default, add it as `new`, and continue.
 - A default that proves wrong: mark it `changed` with why; if it changes an `agreed` item, that needs the user's yes.
 - Several at once: ask the earliest one whose answer decides whether the others matter. Mid-work questions come one at a time; the agreement is the only list you send.
+- Work that turns out larger with the same outcome stays covered: continue without asking.
+- A remedy that changes behavior, compatibility, scope, or another user-owned boundary needs a new yes: explain its concrete consequence and the realistic alternatives, then ask.
 
 When sources the work relies on disagree, state each one's exact claim, scope and status (current, accepted, draft, historical, generated) and apply the repository's own precedence; code is not right because it runs, and tests are not requirements because they fail. Ask only when precedence does not settle it and the answer changes the result.
 

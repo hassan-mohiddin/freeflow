@@ -1126,7 +1126,8 @@ test("Pi exposes the canonical base skills without TDD, a mode skill, or compati
         return match[1];
       });
     assert.deepEqual([...skillNames].sort(), [...FREEFLOW_MODEL_SKILL_NAMES].sort());
-    assert.ok(skillNames.includes("workflow"));
+    assert.ok(skillNames.includes("agree-work"));
+    assert.ok(!skillNames.includes("workflow"));
     assert.ok(!skillNames.includes("tdd"));
     assert.ok(!skillNames.includes("mode-contract"));
     assert.ok(!skillNames.includes("discover"));

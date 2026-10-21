@@ -26,7 +26,7 @@ Read this before selecting risk lenses, operational evidence, rollout stages, or
 - Authentication, authorization, secret handling, untrusted input, dependency, network, and privilege boundaries are verified where affected.
 - Telemetry and support tooling do not expose secrets or unnecessary personal data.
 
-When Workflow selects a security-focused review, read the [security risk lens](../../review-work/references/security-risk-lens.md).
+When a security-focused review is selected, read the [security risk lens](../../review-work/references/security-risk-lens.md).
 
 ## Performance And Capacity
 

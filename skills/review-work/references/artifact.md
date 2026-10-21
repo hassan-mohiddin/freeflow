@@ -51,4 +51,4 @@ Do not demand implementation detail from a PRD, progress history from a Plan, or
 
 ## Where Revisions Go
 
-Actual revision returns through [Workflow](../../../skills/workflow/SKILL.md) to the artifact's owning skill. In self-review after a revision, repeat source alignment along with the affected lenses, once.
+Actual revision returns to the artifact's owning skill. In self-review after a revision, repeat source alignment along with the affected lenses, once.

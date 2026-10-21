@@ -135,7 +135,7 @@ Not: a separate "Commit the parser" Slice.
 | `decision` | owner chooses a design | owner chooses between options |
 | `continuity` | pause or handoff point | pause or handoff point |
 
-A Checkpoint is `proposed` while it is only anticipated and `pending` once the user authorizes or selects it. Activate it as soon as authority exists. A pending or deferred Checkpoint must be closed before its Slice closes; `completed` means the boundary happened, even when its judgment was adverse.
+Propose a Checkpoint only where it protects a dependency, decision, rollback, transfer, integration, or delivery; self-review is not one. A Checkpoint is `proposed` while it is only anticipated and `pending` once the user authorizes or selects it. Activate it as soon as authority exists. A pending or deferred Checkpoint must be closed before its Slice closes; `completed` means the boundary happened, even when its judgment was adverse.
 
 On long tasks, a `preserve` Checkpoint every few Slices keeps a recoverable point without a Slice of its own.
 
@@ -198,6 +198,6 @@ Closing selects nothing. Set the Next useful action from the actual result.
 
 ## Return
 
-Return to the activity that asked for the update: [Discuss](../discuss/SKILL.md) for discussion, [Execute Work](../execute-work/SKILL.md) for Slice work, [Workflow](../workflow/SKILL.md) for routing. [Handoff](../handoff/SKILL.md) owns point-in-time transfer; [Write Spec](../write-spec/SKILL.md) and [Write Plan](../write-plan/SKILL.md) own the task's artifacts.
+Return to the activity that asked for the update: [Discuss](../discuss/SKILL.md) for discussion, [Execute Work](../execute-work/SKILL.md) for Slice work. [Handoff](../handoff/SKILL.md) owns point-in-time transfer; [Write Spec](../write-spec/SKILL.md) and [Write Plan](../write-plan/SKILL.md) own the task's artifacts.
 
 Stop when the record lets a fresh context continue correctly. Stop and report, rather than invent, when authority, structure, or the meaning of a transition is missing. A record update never completes the work it describes.

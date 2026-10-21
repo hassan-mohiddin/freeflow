@@ -7,7 +7,6 @@ contract="$repo_root/skills/setup-freeflow/references/activation-contract.md"
 host_setup="$repo_root/skills/setup-freeflow/references/host-setup.md"
 core_prompt="$repo_root/runtime/prompts/core.md"
 interaction_contract="$repo_root/runtime/prompts/interaction-contract.md"
-workflow_skill="$repo_root/skills/workflow/SKILL.md"
 action_selection_skill="$repo_root/skills/action-selection/SKILL.md"
 cognitive_routing_prompt="$repo_root/runtime/prompts/cognitive-routing.md"
 agents_file="$repo_root/AGENTS.md"
@@ -44,7 +43,6 @@ for file in \
 	"$host_setup" \
 	"$core_prompt" \
 	"$interaction_contract" \
-	"$workflow_skill" \
 	"$action_selection_skill" \
 	"$cognitive_routing_prompt" \
 	"$agents_file" \
@@ -64,20 +62,19 @@ require_text "$contract" 'An invalid existing local file blocks effective Freefl
 require_text "$host_setup" 'Do not generate host-specific Freeflow instructions'
 require_text "$setup_skill" 'automatic runtime delivery as **confirmed**, **unavailable**, or **unconfirmed**'
 require_text "$setup_skill" '../../runtime/prompts/interaction-contract.md'
-require_text "$setup_skill" '../workflow/SKILL.md'
+require_text "$setup_skill" '../../runtime/prompts/core.md'
 
 require_text "$interaction_contract" '# Freeflow Interaction Contract'
 require_text "$interaction_contract" 'Only a request to act authorizes action.'
 require_text "$interaction_contract" 'Read the whole turn before acting'
 require_text "$core_prompt" '## Terms'
-require_text "$core_prompt" '## Load The Selected Method'
+require_text "$core_prompt" '## How Freeflow Works'
+require_text "$core_prompt" 'read Agree Work, send its agreement and wait'
 require_text "$core_prompt" 'Then continue the covered work toward the agreed end.'
 require_text "$cognitive_routing_prompt" 'Before relying on Automatic routing, read the complete cognitive-routing skill if its body is absent.'
 require_text "$cognitive_routing_prompt" 'This bootstrap read is the only environment call in that response.'
 require_text "$cognitive_routing_prompt" 'If unavailable, stop and report the missing method.'
 require_text "$cognitive_routing_prompt" 'Reload it after context loss before applying remembered routing rules.'
-require_text "$workflow_skill" "Own the whole interaction, from the user's request to a supported end."
-require_text "$workflow_skill" 'When the owner needs an environment interaction and the action or tool choice is not already obvious'
 require_text "$action_selection_skill" 'Choose environment interactions that advance the current question or result'
 require_text "$action_selection_skill" 'return the changed evidence to the current owner.'
 require_text "$dev_docs_index" 'runtime/prompts/'

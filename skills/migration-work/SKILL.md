@@ -22,7 +22,7 @@ Use [Agree Work](../agree-work/SKILL.md) when any of these remain unresolved:
 
 Do not manufacture a migration because code looks old. Inspect ownership, supported consumers, runtime use, source truth, incidents, maintenance cost, and current value.
 
-When replacement behavior, interfaces, ownership, or failure semantics remain unsettled, return that evidence to [Workflow](../workflow/SKILL.md). Use [Discuss](../discuss/SKILL.md) for open direction, [Design for Depth](../design-for-depth/SKILL.md) for design-bearing boundaries, and [Write Spec](../write-spec/SKILL.md) when accepted migration behavior needs a durable contract.
+When replacement behavior, interfaces, ownership, or failure semantics remain unsettled, stop and settle them: [Agree Work](../agree-work/SKILL.md) for a user-owned choice, [Discuss](../discuss/SKILL.md) for open direction, [Design for Depth](../design-for-depth/SKILL.md) for design-bearing boundaries, and [Write Spec](../write-spec/SKILL.md) when accepted migration behavior needs a durable contract.
 
 ## Define The Migration Contract
 
@@ -56,7 +56,7 @@ When an additive or replacement stage is approved:
 - give temporary compatibility machinery an owner, purpose, failure behavior, exit condition, and removal evidence;
 - do not add features to the old path unless required for safety or an explicit support decision.
 
-If compatibility machinery starts spreading caller knowledge, public states, or exceptions, return the structural evidence to Workflow rather than building a second permanent system.
+If compatibility machinery starts spreading caller knowledge, public states, or exceptions, take the structural evidence to Design for Depth rather than building a second permanent system.
 
 An emergency migration without a viable replacement may be necessary for security or data safety, but it requires explicit owner direction, bounded impact, and a documented failure and recovery contract.
 
@@ -74,7 +74,7 @@ For each unit:
 
 Code search alone cannot prove completion when runtime, external, dormant, generated, offline, or independently deployed consumers may exist.
 
-Stop and return evidence to Workflow when replacement behavior diverges, unknown consumers appear, a new owner decision is required, data cannot be reconciled, recovery assumptions fail, compatibility machinery spreads, or the next safe unit is unclear. Preserve completed units; do not restart the whole migration automatically.
+Stop and report the evidence, taking any choice it leaves to the user through Agree Work, when replacement behavior diverges, unknown consumers appear, a new owner decision is required, data cannot be reconciled, recovery assumptions fail, compatibility machinery spreads, or the next safe unit is unclear. Preserve completed units; do not restart the whole migration automatically.
 
 ## Remove The Old Path
 
@@ -89,13 +89,13 @@ Check, as relevant:
 - old code, adapters, flags, tests, docs, alerts, dashboards, secrets, jobs, and configuration are classified for removal or retention;
 - the replacement remains verified with the old path disabled or absent.
 
-Do not delete source truth or historical migration evidence merely to make searches clean. If current docs or contracts would become false, return them to Workflow and update them only when they are included in the approved migration or removal scope. Preserve durable history where repository policy requires it.
+Do not delete source truth or historical migration evidence merely to make searches clean. If current docs or contracts would become false, report them and update them only when they are included in the approved migration or removal scope. Preserve durable history where repository policy requires it.
 
 ## Verification And Review
 
 Read [Verify Work](../verify-work/SKILL.md) for each migration-unit, compatibility, reconciliation, and absence claim. “The new path passes” does not prove “the old path is unused.” Missing telemetry is unavailable evidence, not zero use.
 
-Return the need for broader judgment to Workflow when the migration changes public contracts, moves consequential data, crosses security or privacy boundaries, affects many consumers, or performs irreversible cutover or cleanup. Workflow selects any independent review; this skill supplies the migration boundary and evidence.
+Propose broader judgment, such as an independent review through Review Work, when the migration changes public contracts, moves consequential data, crosses security or privacy boundaries, affects many consumers, or performs irreversible cutover or cleanup. This skill supplies the migration boundary and evidence.
 
 Use [Release Work](../release-work/SKILL.md) when the replacement must be published as a versioned artifact. Use [Launch Work](../launch-work/SKILL.md) when migration stages change production traffic, data, configuration, or exposure.
 

@@ -224,7 +224,7 @@ test("Pi exposes base skills without mode or Skills controls", async () => {
     assert.equal(resources.skillPaths.length, FREEFLOW_MODEL_SKILL_NAMES.length + 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/compaction/SKILL.md")));
     assert.ok(!resources.skillPaths.some((path) => /capabilities\/(cognitive-routing|task-memory)\//.test(path)));
-    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/workflow/SKILL.md")));
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/agree-work/SKILL.md")));
     assert.ok(
       !resources.skillPaths.some(
         (path) => path.includes("context-virtualization") || path.includes("conversation-history"),

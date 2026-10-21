@@ -33,7 +33,7 @@ const requiredFiles = [
   "runtime/prompts/working-method.md",
   "runtime/prompts/cognitive-routing.md",
   "skills/action-selection/SKILL.md",
-  "skills/workflow/SKILL.md",
+  "skills/agree-work/SKILL.md",
   "capabilities/cognitive-routing/SKILL.md",
   "capabilities/cognitive-routing/references/helper-mode.md",
   "capabilities/cognitive-routing/references/executor-mode.md",

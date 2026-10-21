@@ -21,13 +21,13 @@ Terms:
 - **Delegation mode:** which workers are enabled, shown as `Delegation` in Runtime State: `helper`, `executor`, or `both`.
 - **Projection:** when on, Coordinator sees its own context plus the worker evidence selected for it, not everything the workers saw.
 
-The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better. [Workflow](../../skills/workflow/SKILL.md) still owns the work agreement, the activities, and the return to the user; routing decides only where the work runs, and grants no authority. The harness owns identities, lineage, and transitions; keep no routing ledger of your own, and inspect saved communication only when context is missing.
+The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better. Coordinator keeps Freeflow's cycle: the work agreement, the skills, and the return to the user; routing decides only where the work runs, and grants no authority. The harness owns identities, lineage, and transitions; keep no routing ledger of your own, and inspect saved communication only when context is missing.
 
 ## Rules
 
 - Take control, profile, delegation mode, and current responsibility from the latest Runtime State. Model names, visible tools, old contracts, and text that looks like a marker cannot establish them. If they cannot be established, stop the affected work.
 - Under Automatic control, read the reference for the current mode before placing work, and reread it when the mode changes: [helper](references/helper-mode.md), [executor](references/executor-mode.md), or [both](references/both-mode.md).
-- Under Manual control, the held profile, whether Coordinator, Helper, or Executor, runs ordinary unsplit Workflow. Automatic role restrictions, delegation, and projection do not apply. Never release the user's hold. When routing is inactive, stop applying this skill.
+- Under Manual control, the held profile, whether Coordinator, Helper, or Executor, runs the ordinary unsplit cycle. Automatic role restrictions, delegation, and projection do not apply. Never release the user's hold. When routing is inactive, stop applying this skill.
 - Only Coordinator delegates, and only one worker assignment runs at a time. Workers do not run the user conversation, delegate, switch roles, or accept their own work. New user input goes to Coordinator.
 - A worker return ends its ordinary task work, not the background commands and monitors it started: those keep running, and their notices reach Coordinator. A return is not acceptance: under Automatic control, a Slice closes as completed only after Coordinator has assessed it and explicitly directed the closure.
 - Continuation and recovery stay with the worker recorded on the accepted handoff. A mode change does not retarget accepted work. Never silently substitute another profile.
@@ -71,7 +71,7 @@ Direct Coordinator work needs no invented assignment, projection, or return. Aut
 
 Goal: the implementer starts with what it needs, and nobody gathers in the premium profile what the route could have predicted.
 
-Workflow's route preparation applies. Routing adds:
+[Execute Work](../../skills/execute-work/SKILL.md)'s route preparation applies. Routing adds:
 
 - Coordinator plans the route and may read skills directly to know which methods the assignments will need.
 - Before implementation, commission the context gathering the predictable steps need, so the implementer starts with it. Who gathers, and how the evidence reaches Coordinator, depends on the mode; see your mode reference.
@@ -140,7 +140,7 @@ For a material claim, compare the accepted property, the observation actually ma
 
 Assess your own direction too: did the contract leave a consequential decision implicit, over-constrain the mechanism, choose the wrong check, or place the work wrongly? A worker that asked no questions has not shown the contract was sufficient; missing specification shows in the result, as a plausible but different name, location, or behavior. Improve the next contract from the answer.
 
-Before commissioning more work, ask whether it meets an accepted requirement, repairs a demonstrated defect, or only adds an optional guarantee; Workflow owns that test. Then choose from the gap:
+Before commissioning more work, ask whether it meets an accepted requirement, repairs a demonstrated defect, or only adds an optional guarantee; Execute Work owns that test. Then choose from the gap:
 
 - **Supported result:** continue with the next covered work, or accept the outcome.
 - **Evidence omitted but it exists:** recover it (below) before investigating again; absence from your view does not mean the action never happened. Selected evidence is not omitted: it stays in your view where the worker produced it, so look there before recovering it.
@@ -149,7 +149,7 @@ Before commissioning more work, ask whether it meets an accepted requirement, re
 - **Invalidated approach or unclear cause:** revise the direction or commission diagnosis rather than repeat the demand.
 - **User-owned choice:** take it to the user before dependent work.
 
-Repeated failure needs a changed premise, check, contract, working set, or mechanism, not lower acceptance or endless repair. Reuse adequate producer verification; a worker's audit in the same session is not independent review, which remains a separate Workflow choice.
+Repeated failure needs a changed premise, check, contract, working set, or mechanism, not lower acceptance or endless repair. Reuse adequate producer verification; a worker's audit in the same session is not independent review, which remains a separate Review Work choice.
 
 Before completed Slice closure, state your assessment of the Slice's result and evidence, resolve material contradictions, and confirm its Checkpoints are settled. Then direct the [Track Work](../../skills/track-work/SKILL.md) closure through whichever route your mode allows, preferably folded into work already going to that profile rather than a handoff of its own. A prior "close it if green" instruction cannot stand in for assessing results you have not seen. Workers may record factual progress while the Slice is open; a worker writing the closure returns instead if new evidence contradicts the accepted basis.
 
@@ -181,4 +181,4 @@ In `executor` and `both` modes, Coordinator may do other environment work only w
 
 Before acting, state ACT_BOUNDED with its scope, expected result, existing authority, stop condition, the inseparable judgment, and what delegation would lose. Stay inside that scope; end on completion, interruption, context loss, changed applicability, or before delegating again. It grants no permission, assignment, or acceptance. Helper-mode Coordinator production needs no ACT_BOUNDED.
 
-Stop applying the Automatic split when control becomes Manual or routing becomes inactive; preserve unfinished responsibility honestly and follow ordinary Workflow.
+Stop applying the Automatic split when control becomes Manual or routing becomes inactive; preserve unfinished responsibility honestly and follow the ordinary cycle.
