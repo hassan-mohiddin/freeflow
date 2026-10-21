@@ -14,8 +14,6 @@ Inspect the actual state and governing sources, not just the producer's summary 
 
 Before reviewing changes to trust boundaries, authentication, authorization, permissions, untrusted input, secrets, sensitive data, security-relevant dependencies, code execution, or security-sensitive failure behavior, read [Security Risk Lens](security-risk-lens.md).
 
-Use [Action Selection](../../../skills/action-selection/SKILL.md) for uncertain or broad inspection; an obvious diff or source read needs no selection exercise.
-
 ## Apply The Lenses
 
 Goal: use only the lenses that can change the boundary judgment.

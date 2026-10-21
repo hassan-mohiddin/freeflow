@@ -80,7 +80,7 @@ A registered task's resume view names its directory in an `Environment:` line. W
 
 Goal: the user talks to the Coordinator, so task memory stays with the Coordinator.
 
-Under automatic routing the Coordinator proposes task memory actions and keeps the focused record current, as it owns the user's direction. A worker reads task memory (`projects`, `list`, `view`, `search`, `env` without a change) and writes a record only when its assignment's contract says so; an action it would propose, such as attaching another task, goes in its report for the Coordinator to propose. The resume view reaches every profile, including after a worker's compaction.
+Under automatic routing the Coordinator proposes task memory actions and writes the user's own words into the focused record (a Decision or a Work agreement change), as it owns the user's direction; other record maintenance goes where the delegation mode places it. A worker reads task memory (`projects`, `list`, `view`, `search`, `env` without a change) and writes a record only when its assignment's contract says so; an action it would propose, such as attaching another task, goes in its report for the Coordinator to propose. The resume view reaches every profile, including after a worker's compaction.
 
 ## Held Records
 

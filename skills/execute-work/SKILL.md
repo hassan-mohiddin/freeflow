@@ -37,7 +37,7 @@ Before production changes, establish:
 
 Before effects, check whether a selected checkpoint or separately controlled boundary is already due.
 
-If the agreement is materially unclear, settle it through Agree Work before the unsettled execution. A clear request may already establish it; do not ask again merely to perform a ritual.
+An exactly specified change, or a run where no one can answer, counts as the agreement (defaults recorded, as Agree Work's "When To Skip" says); otherwise settle the agreement through Agree Work before the first edit. A request that only looks clear still leaves choices open.
 
 An agreement to fix a bug can cover investigation before the remedy is known. Distinguish evidence gathering from implementation even when both are authorized.
 
@@ -59,7 +59,7 @@ For substantial dependent work, make a compact, usually internal forecast of the
 
 Before substantial implementation, read [Design for Depth](../design-for-depth/SKILL.md) and use its Implementation Decisions method when unresolved representation, identity, ownership, algorithm, or failure choices could invalidate significant dependent work. Reuse applicable design decisions already supplied; distinguish required constraints, suggested mechanisms, and local freedom. A reference to a design is not enough when its relevant content is unavailable. Resolve the consequential unknown, not every future coding detail.
 
-Use [Action Selection](../action-selection/SKILL.md) when choosing the next source, observer, or effect is uncertain, broad, or repetitive. Stop gathering when the current unit is sufficiently supported. A mechanical read of a known caller or signature can remain inside execution; discovering an invalidated mechanism requires re-entry before dependent edits.
+Stop gathering when the current unit is sufficiently supported. A mechanical read of a known caller or signature can remain inside execution; discovering an invalidated mechanism requires re-entry before dependent edits.
 
 When specialized domain guidance is needed, read [Domain Skill Composition](references/domain-skill-composition.md). Before writing or changing code, read [Code Practices](references/code-practices.md). Before designing or materially changing a behavior check, read [Test Design](../verify-work/references/test-design.md); choose its oracle from accepted behavior rather than the implementation.
 

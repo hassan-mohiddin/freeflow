@@ -11,10 +11,6 @@
       "skill": "discuss"
     },
     {
-      "command": "/action-selection",
-      "skill": "action-selection"
-    },
-    {
       "command": "/track-work",
       "skill": "track-work"
     },
@@ -76,7 +72,7 @@
     },
     {
       "command": "/bypass",
-      "skill": "bypass"
+      "skill": "agree-work"
     }
   ],
   "piNativeCommands": [

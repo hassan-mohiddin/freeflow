@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/cognitive-routing/`, `capabilities/cognitive-routing/`, `runtime/prompts/cognitive-routing.md`
 > **Tests:** `pi-extension/tests/cognitive-routing/`, `pi-extension/tests/cache-reuse/`
-> **Verified at:** `e0b8282c` (2026-10-22)
+> **Verified at:** `a7dbf116` (2026-10-22)
 > **User docs:** `plugin-docs/capabilities/cognitive-routing.md`
 
 For contributors changing Cognitive Routing on Pi: how routing moves work between profiles in one session, how it records and recovers its state, how the Coordinator's projected view is built, and which of its behaviors are deliberate. What routing is for users, how to configure it, and how to choose a mode are in the user guide.
@@ -75,7 +75,7 @@ no open unit
        -> close: accept, cancel, or defer U1
 ```
 
-**Contract.** A useful contract communicates the required result and why it matters, established facts and remaining questions, scope and permitted effects, the evidence needed for assessment, and the return condition. A preparation assignment names what must be learned rather than guessing the patch. The routing skill teaches this; the runtime stores the contract as given.
+**Contract.** A useful contract communicates the required result and why it matters, established facts and remaining questions, scope and permitted effects, the evidence needed for assessment, and the return condition. A preparation assignment names what must be learned rather than guessing the patch. Names, messages and other contracts the request and repository leave open go to the user before delegating, not into the contract (the routing skill and its cue). The routing skill teaches this; the runtime stores the contract as given.
 
 **Return.** A report records the actual work, evidence, limitations, changed assumptions and partial effects. Once the report is saved, ordinary task work for that assignment ends (`worker_task_phase_ended` in the gate). The worker may correct its selection and retry the saved handoff (`return_work retry`), but cannot continue implementation because delivery is blocked.
 
@@ -152,6 +152,7 @@ Freeflow's and Pi's compaction may remove active user or evidence bodies while t
 | Natural-language input always goes through the Coordinator; an unchanged outstanding assignment resumes only through `/freeflow resume`; manual holds survive navigation until released. | Keeps restrictions and identity without a prose classifier deciding whether input means "continue". | Inferring resumption from the user's words. | Task 001 D-001 |
 | Mode intents: `helper` maximizes quality (the Coordinator implements, Helper takes what needs no Coordinator-level reasoning); `executor` is the cost saver (Executor does environment work from contracts); `both` sends consequential work to Executor and support to Helper. | The modes serve different goals: quality in `helper`, where under-delegation is the failure to prevent, and cost in `executor`. | Helper by default everywhere (Task 001 D-007, superseded). | Task 007 D-001; Task 001 D-006 |
 | State is native session events replayed by a reducer that enforces every transition rule. | Inherits Pi's ancestry (navigation, forks) and avoids two sources of truth. Rules once enforced only in handlers could be bypassed. | A separate state store; handler-only checks. | Spec §1.3; Task 009 D-008, `f0abfb11` |
+| The Coordinator takes contract choices the request and repository leave open (names, messages, interfaces) to the user before delegating; in `executor` and `both` modes it also writes the user's own words (a Decision or a Work agreement line) into the Working Record itself. | A Coordinator that fixes a name or message the repository does not settle makes the user's choice for them, and the worker builds it faithfully. A decision held as "noted, not recorded" until the next assignment returned could be lost if the Coordinator's context was compacted first. | Fixing open contracts in the assignment; routing every record write through a worker. | 0.9.0 guidance revision |
 | Tool definitions stay visible to every profile; the gate decides what may run. | Changing tool lists with profile or settings rewrites the cached prompt on every switch. | Showing each profile only its tools. | Task 004 |
 | Only tool results are selectable evidence; worker assistant messages are not. | Workers rarely write text, and what they would select belongs in the report; assistant text candidates flooded evidence inspection. | Selecting whole assistant messages or their text. | Task 009 D-003, `212e40b9` |
 | A profile receives another profile's reasoning only on the same model and the same view. | A worker replaying the Coordinator's signed thinking after a different view broke Claude requests and the cache. | Never sharing; always sharing. | Task 009 D-002, `212e40b9` |
@@ -265,6 +266,7 @@ Deterministic source and fixture checks establish configuration and gating rules
 
 ## Changes
 
+- 0.9.0 (2026-10-22): the Coordinator surfaces open contract choices to the user and records the user's own decisions directly; a worker no longer loads Action Selection, which is removed.
 - Task 004 (2026-10-11): placeholders say why a worker result is not shown, provenance names each call, the Coordinator is told its selected evidence is in view, and the return receipt no longer reads as undelivered.
 - Task 003 (2026-10-11): routing tools renamed without the `freeflow_` prefix; old names still read from saved history.
 - Task 013 (2026-10-03): view renderings cached with stable identities (`25ec4b04`); startup verified by the file's tail, no trust point on `/reload`.

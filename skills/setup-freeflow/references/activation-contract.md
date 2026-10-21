@@ -71,6 +71,8 @@ When effective, host adapters deliver:
 
 - `runtime/prompts/core.md`;
 - `runtime/prompts/interaction-contract.md`;
+- `runtime/prompts/working-method.md`;
+- on Pi, `runtime/prompts/tool-execution.md` and `runtime/prompts/cognitive-routing.md` while those capabilities are effective;
 - the base Freeflow skill surface;
 - compact current capability state.
 

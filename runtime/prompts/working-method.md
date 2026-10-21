@@ -40,7 +40,11 @@ echo '--- old data'; grep -rn 'write.*state_field' src | head
 echo '--- concurrent or scheduled'; grep -rn 'async\|schedule' src | head
 ```
 
-Decide each line and write the decision next to it. Anything the request does not ask to change keeps behaving as today. Put the change where the behavior is owned, even when many callers share that code: keep callers correct by checking each, not by avoiding the shared code. Read the tests that cover that code before editing; they are the contract.
+For each line, write your decision next to it and name the thing: it changes too, because the request's goal needs it, or its users must still get exactly what they get now. The request not mentioning something is no reason to leave it out. Put the change where the behavior is owned, even when many callers share that code: keep callers correct by checking each, not by avoiding the shared code. Read the tests that cover that code before editing; they are the contract.
+
+## Keep output small
+
+Every tool result is sent again with each later request. Cap searches and command output (`| head -20`, `2>&1 | tail -40`) and say when you cut it: a capped result does not show that nothing else matched. Save long output to a scratch file (the task's `scratch/` when it has a Working Record, otherwise `${TMPDIR:-/tmp}`, never elsewhere in the repository) and query the file instead of rerunning the command.
 
 ## Predict, observe, compare
 

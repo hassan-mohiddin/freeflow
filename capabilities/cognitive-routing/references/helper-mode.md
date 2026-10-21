@@ -1,6 +1,6 @@
 # Helper Mode
 
-Judgment for placing work when Runtime State shows `Delegation: helper`. The core skill's Rules still apply.
+Judgment for placing work when Runtime State shows `Delegation: helper`. The Cognitive Routing skill's Rules still apply.
 
 Helper mode is for the best output quality. Coordinator implements; Helper takes everything that does not need Coordinator-level reasoning. There is no Executor to invoke or simulate.
 

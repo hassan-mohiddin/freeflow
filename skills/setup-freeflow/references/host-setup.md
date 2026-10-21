@@ -36,7 +36,7 @@ Session settings can temporarily inherit, enable, or disable Freeflow and overri
 
 Personal settings use omission to inherit. The settings path refuses to overwrite invalid or tracked local config and establishes local Git exclusion when needed. These are user-operated host controls; they update state before the next model turn. Agent-performed file edits still follow Setup Freeflow's mutation-authority rules.
 
-When effective, Pi's `before_agent_start` path preserves the existing system prompt and composes the mandatory `core.md` and `interaction-contract.md` fragments plus the Cognitive Routing prompt when effective. Runtime State is refreshed at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the provider context. Base skill bodies and capability bodies remain discoverable rather than hidden persistent messages. The former Context Virtualization and Conversation History settings, prompts, and tool operations are removed.
+When effective, Pi's `before_agent_start` path preserves the existing system prompt and composes the mandatory `core.md` and `interaction-contract.md` fragments and `working-method.md`, plus `tool-execution.md` and the Cognitive Routing prompt while those capabilities are effective. Runtime State is refreshed at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the provider context. Base skill bodies and capability bodies remain discoverable rather than hidden persistent messages. The former Context Virtualization and Conversation History settings, prompts, and tool operations are removed.
 
 A config written during setup is visible to the available Pi adapter on the next agent turn. After first activation, tell the user to run `/reload` so Pi refreshes skills and resources fully. Without reload, the adapter can load core runtime context on the next agent turn, but resource discovery waits for reload. For the remainder of the setup turn, read newly effective context directly after verification instead of claiming that another `before_agent_start` invocation already occurred.
 
@@ -46,7 +46,7 @@ Confirm automatic delivery through current extension status or runtime evidence 
 
 The packaged runtime hook reads the same repository and local layers. At supported `SessionStart` boundaries—startup, resume, clear, and compact—it restores the complete enabled core context. It does not process submitted prompts or persist session controls.
 
-When top-level Freeflow is effective, the hook loads `runtime/prompts/core.md` and `runtime/prompts/interaction-contract.md` and emits a compact active Runtime State. It does not inject skill bodies or inspect Pi-only capabilities.
+When top-level Freeflow is effective, the hook loads `runtime/prompts/core.md`, `runtime/prompts/interaction-contract.md` and `runtime/prompts/working-method.md`, each unless `prompts` turns it off, and emits a compact active Runtime State. It does not inject skill bodies or inspect Pi-only capabilities.
 
 After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session/startup as available. Name the exact control supported by the current host; do not prescribe Pi's `/reload`. Until that boundary runs, use same-turn direct reads without claiming automatic delivery.
 

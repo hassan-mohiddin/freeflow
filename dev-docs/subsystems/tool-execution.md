@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/tool-execution/`, `runtime/prompts/tool-execution.md`
 > **Tests:** `pi-extension/tests/tool-execution/`
-> **Verified at:** `1a21211c` (2026-10-21)
+> **Verified at:** `a7dbf116` (2026-10-22)
 > **User docs:** `plugin-docs/capabilities/tool-execution.md`
 
 For contributors changing Tool Execution on Pi: what Freeflow adds around Pi's own tools, how each part hooks into Pi, and which of its behaviors are deliberate.
@@ -55,7 +55,7 @@ It deliberately does not:
 In `before_agent_start` (`index.ts`), when effective:
 
 1. `toolExecutionSections()` replaces two of Pi's sections in place: `rules` (Pi's rendering minus `REMOVED_RULES`: "Use read to examine files instead of cat or sed", "Be concise in your responses", "Show file paths clearly when working with files") and `docs` (shortened to one line pointing at Pi's documentation).
-2. After `freeflow_guidance` (Freeflow's own fixed system section; see [Prompt assembly](prompt-assembly.md)), `toolExecutionTail()` appends `environment` (platform, OS release, the shell Pi's `bash` uses) and `tool_execution`, the text of `runtime/prompts/tool-execution.md` ("Working In The Environment": search and read, command output, running the code, editing with Pi's `edit` and `write`). When to use each Freeflow tool is in that tool's description, not here (see Decisions).
+2. After `freeflow_guidance` (Freeflow's own fixed system section; see [Prompt assembly](prompt-assembly.md)), `toolExecutionTail()` appends `environment` (platform, OS release, the shell Pi's `bash` uses) and `tool_execution`, the text of `runtime/prompts/tool-execution.md` ("Working In The Environment": search and read, running the code, editing with Pi's `edit` and `write`; capping command output and scratch files are the Working Method's). When to use each Freeflow tool is in that tool's description, not here (see Decisions).
 
 Every value comes from the configuration and the machine, so the system prompt is the same on every request.
 
@@ -149,7 +149,7 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | The Runtime State's skills line changes only where the state refreshes anyway, and is left out under routing projection. | Each state change appends a whole state copy (about 100 to 200 tokens) after earlier input; a skill read is about 2,600 tokens. The state is shared by every profile, and the Coordinator's projected view lacks workers' reads. | Updating the line on every read; a line per profile. | Skill re-reads, October 2026 |
 | Messages state the fact and one next step, with no reassurance. | The wording was reviewed against Freeflow's Beyond the Weights research on model behavior. | — | `48a9387`, `3894a01` |
 | Settings of the retired v2 runtime still load and do nothing. | Existing configuration files stay valid. | Rejecting them. | `ca1cc90` |
-| The prompt section does not repeat habits the Working Method states, such as trying a new script on a case whose answer is known. | Pi sends the Working Method whenever Freeflow is on, so a repeated line is paid for twice on every request (Write Skill's Guidance Placement). The section keeps the mechanics of working in the environment. | Keeping both copies. | Context cut, October 2026 |
+| The prompt section does not repeat habits the Working Method states, such as trying a new script on a case whose answer is known, or capping output, saying when it was cut, and saving long output to a scratch file (the Working Method's "Keep output small", since 0.9.0). | Pi sends the Working Method whenever Freeflow is on, so a repeated line is paid for twice on every request (Write Skill's Guidance Placement). The section keeps the mechanics of working in the environment. | Keeping both copies. | Context cut, October 2026 |
 | A monitor's guidance (when to use it instead of `bash_background`, flushing each pipe stage, matching failures as well as success) lives in its tool description, not in the prompt section or Verify Work. | It is needed only when choosing or writing a watch, where the description is read; Working Method already states the general rule that a check proves only what it could have caught (Write Skill's Guidance Placement). | A line in the always-sent prompt section; a Verify Work rule. | Task 002 |
 | Monitor notices wake an idle agent, bounded by 20 notices a minute and 40 lines a notice. | A watch that cannot wake the agent cannot report a failure while it waits (spec O-6); each wake is a model request, so the limit bounds the cost. | Holding idle events until the next turn. | Task 002 |
 
@@ -264,6 +264,7 @@ See [the tests README](../../pi-extension/tests/tool-execution/README.md). In sh
 
 ## Changes
 
+- October 2026 (0.9.0): the prompt section's opening sentence and its "Command output" section moved to the Working Method's "Keep output small", which reaches every host; the section keeps searching, reading, running code and editing with Pi's tools.
 - October 2026 (Freeflow without Workflow): when to use each Freeflow tool moved from the prompt section into that tool's description, and the edit-tool choice is stated once, in `apply_patch`'s.
 - October 2026: repeat reads of Freeflow instruction files answered with one line; the skills line in the Runtime State.
 - Task 002 (2026-10-11): monitors.

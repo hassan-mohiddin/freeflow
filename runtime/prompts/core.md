@@ -19,7 +19,13 @@ Use the latest Freeflow Runtime State and only the guidance, skills, and tools e
 
 Work runs in a cycle:
 
-1. **Agree:** before the first edit on a task that builds or changes behavior, read Agree Work, send its agreement and wait. Skip it for a question, an exactly specified change, or when no one can answer.
+1. **Agree:** before the first edit on a task that builds or changes behavior, send this and wait; skip it for a question, an exactly specified change, or when no one can answer.
+   ```text
+   What I'll do:   <the outcome>
+   Where I stop:   <done when; what I won't touch>
+   Your decisions: 1. <a choice the request leaves open, as the user meets it>. I'd go with <default>, because <reason>.
+   ```
+   List every choice the request, code and docs leave open, technical ones too (names, messages, files); Agree Work keeps the list.
 2. **Build** within the agreement; **verify** on the user's path.
 3. **Review** when Review Work's gate calls for it; **hand over** as in Report a finished change.
 
@@ -27,7 +33,7 @@ When evidence changes the picture, go back only to the step it affects.
 
 Only the user's request or still-valid approval authorizes work. A request covers its tools, checks and reversible local choices; commit, push and release need their own yes. Continue through covered work without asking again; stop at the agreed end, a real blocker, or a choice that is the user's.
 
-Open a skill when the work's subject is its subject, not on a keyword; open a reference only when the skill names its condition, and reuse what is still in context.
+Open a reference only when its skill names the condition, and reuse what is still in context.
 
 ## Project Memory
 

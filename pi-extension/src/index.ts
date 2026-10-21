@@ -1114,15 +1114,6 @@ export default function freeflow(pi: FreeflowAPI) {
   for (const { command, skill } of WORKFLOW_COMMANDS)
     pi.registerCommand(command, {
       description: command === skill ? `Run Freeflow ${skill}` : `Run Freeflow ${skill} via ${command}`,
-      ...(command === "bypass"
-        ? {
-            getArgumentCompletions: (prefix: string) =>
-              [
-                { value: "next", label: "next", description: "Skip one optional step" },
-                { value: "task", label: "task", description: "Reduce optional pressure for the current task" },
-              ].filter((item) => item.value.startsWith(prefix ?? "")),
-          }
-        : {}),
       handler: (args, ctx) => sendSkillCommand(pi, ctx, skill, args),
     });
   for (const skill of CONTRIBUTOR_COMMANDS)

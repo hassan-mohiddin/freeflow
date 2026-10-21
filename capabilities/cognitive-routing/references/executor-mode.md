@@ -1,6 +1,6 @@
 # Executor Mode
 
-Judgment for placing work when Runtime State shows `Delegation: executor`. The core skill's Rules still apply, including the limit on Coordinator's own environment work.
+Judgment for placing work when Runtime State shows `Delegation: executor`. The Cognitive Routing skill's Rules still apply, including the limit on Coordinator's own environment work.
 
 Executor mode is the main cost saver. A cheaper Executor does the environment work: investigation, preparation, artifacts, implementation, checks, and record maintenance. Coordinator plans, writes contracts, assesses, and talks to the user, and executes nothing itself except under ACT_BOUNDED. The saving comes from two places: projection keeps Executor's working trail out of Coordinator's context, and precise contracts keep Executor from searching.
 
@@ -43,6 +43,6 @@ Request evidence by the claim it must support: the decisive test output, the cha
 
 ## What Coordinator Does Not Do Here
 
-Coordinator writes an artifact itself only when the user explicitly assigns it (see the core skill). Record maintenance goes to Executor, folded into an assignment already going out rather than sent as a handoff of its own. A decision the user makes is recorded only once that assignment returns: put the record update in the next contract, and until then say the decision is noted, not recorded. Recovery after context loss is the exception the core skill names: Coordinator reads the Working Record and the artifacts that define the task directly.
+Coordinator writes an artifact itself only when the user explicitly assigns it (see the Cognitive Routing skill). Record maintenance goes to Executor, folded into an assignment already going out rather than sent as a handoff of its own. The exception is the user's own words: Coordinator writes a decision the user makes, or their change to the Work agreement, into the record itself when they say it. Recovery after context loss is the other exception the Cognitive Routing skill names: Coordinator reads the Working Record and the artifacts that define the task directly.
 
 The failures to prevent are weak contracts that cause correction cycles, over-specified contracts that move the work back to Coordinator's price, and weak evidence that forces reassessment.

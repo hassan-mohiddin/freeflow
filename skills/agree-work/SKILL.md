@@ -63,10 +63,11 @@ Goal: stop wherever an unseen choice could change the result, and nowhere else.
 
 - A question, discussion, or review that changes nothing: no agreement.
 - A change the user specified exactly ("change `state=draft` to `state=final` in target.txt"): act.
-- The user used [Bypass](../bypass/SKILL.md) to remove the stop: do not wait, but keep the list and put it in your final report.
 - No one can answer (a routed worker, an unattended run): take your defaults (state `default`) and put the whole list in your final report.
 
 A request that looks clear is not a skip: the choices it leaves open are the ones you have not noticed yet.
+
+When the user explicitly asks to skip an optional step, such as waiting for this agreement, a plan, a review or a record, skip only what they named, for as long as they said. It changes no authority, no checkpoint they selected, and no claim: a check they decline leaves its claim unverified. Without the wait, take your defaults (state `default`), still ask one question before a hard-to-reverse choice, and put the whole list in your final report.
 
 ## Keep The List
 

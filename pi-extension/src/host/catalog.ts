@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
  */
 export const WORKFLOW_COMMANDS = [
   { command: "discuss", skill: "discuss" },
-  { command: "action-selection", skill: "action-selection" },
   { command: "track-work", skill: "track-work" },
   { command: "write-spec", skill: "write-spec" },
   { command: "write-plan", skill: "write-plan" },
@@ -22,7 +21,9 @@ export const WORKFLOW_COMMANDS = [
   { command: "finish-branch", skill: "finish-branch" },
   { command: "release-work", skill: "release-work" },
   { command: "launch-work", skill: "launch-work" },
-  { command: "bypass", skill: "bypass" },
+  // The Bypass skill was removed in 0.9.0; its command opens Agree Work, which now owns skipping optional steps, for
+  // one release.
+  { command: "bypass", skill: "agree-work" },
 ];
 
 export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-behavior"];
@@ -32,9 +33,7 @@ export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-
  * skills directory, the package and the coverage matrix against it instead of a fixed count.
  */
 export const FREEFLOW_MODEL_SKILL_NAMES = [
-  "action-selection",
   "agree-work",
-  "bypass",
   "commit-work",
   "migration-work",
   "design-for-depth",

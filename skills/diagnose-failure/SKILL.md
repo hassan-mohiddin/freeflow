@@ -63,7 +63,7 @@ Choose a repeatable diagnostic loop whose possible results differ between those 
 
 Read [Diagnostic Loop Catalog](references/diagnostic-loop-catalog.md) when the exact loop is not obvious or several loop shapes are plausible. Read [Flaky and Performance Diagnosis](references/flaky-and-performance-diagnosis.md) when timing, randomness, environment, concurrency, or resources shape the failure.
 
-Use [Action Selection](../../skills/action-selection/SKILL.md) when tools, targets, or observers for the selected causal question remain uncertain or broad. Stop reading when adequate context supports the experiment; the objective is not exhaustive understanding of the subsystem.
+Stop reading when adequate context supports the experiment; the objective is not exhaustive understanding of the subsystem.
 
 If no safe useful observer is available, report the smallest missing input, trace, environment, permission, or instrumentation rather than patching a guess.
 

@@ -1,6 +1,6 @@
 # Both Mode
 
-Judgment for placing work when Runtime State shows `Delegation: both`. The core skill's Rules still apply, including the limit on Coordinator's own environment work.
+Judgment for placing work when Runtime State shows `Delegation: both`. The Cognitive Routing skill's Rules still apply, including the limit on Coordinator's own environment work.
 
 Both mode is the middle ground between quality and cost. Executor does consequential work, including code; Helper does support; Coordinator plans, writes contracts, assesses, and talks to the user. Every assignment names its worker with `worker: "helper"` or `worker: "executor"`.
 

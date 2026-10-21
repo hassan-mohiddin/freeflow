@@ -35,8 +35,6 @@ Use the smallest direct observation that can disagree with the claim. Before rel
 
 For saved evidence, identify what code or artifact, check, configuration, and environment it examined, using existing outputs and source identities where available. Compare relevant later changes, including new files and generated output; HEAD alone does not identify an uncommitted candidate. Keep two facts separate: the observation occurred, and it applies to the current state. A later edit does not erase an earlier pass, and uncertain applicability does not certify the new candidate. Report missing identity or output rather than building a new evidence store. Reuse results whose applicability remains supported; rerun only affected evidence, and do not repeat checks merely because another activity or context began.
 
-Use [Action Selection](../../skills/action-selection/SKILL.md) when several observers are plausible or the likely interaction is broad; Verify Work keeps the claim and interprets support. An already-selected focused check needs no extra selection.
-
 Read the relevant reference before designing or selecting evidence:
 
 - [Test Design](references/test-design.md) before designing or materially changing a behavior check, including regression or characterization coverage and a test's fixture or shared setup. Before reporting such a change, list it with [test-changes](scripts/test-changes.mjs).

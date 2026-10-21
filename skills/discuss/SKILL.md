@@ -13,7 +13,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 ## Rules
 
-- Conversation, convergence, a recommendation, or a recorded proposal never authorizes execution. Begin implementation only under an execution agreement established through [Agree Work](../agree-work/SKILL.md).
+- Conversation, convergence, a recommendation, or a recorded proposal never authorizes execution. Begin implementation only under a work agreement; [Agree Work](../agree-work/SKILL.md) says when one is needed.
 - Keep supported facts and explicit decisions distinct from hypotheses, proposed mechanisms, and unresolved choices. An assistant recommendation never becomes a requirement because it is repeated or recorded.
 - Leave priorities, behavior, constraints, and tradeoffs the user owns to the user; ask rather than decide them. Ask as [Agree Work](../agree-work/SKILL.md)'s "Ask One Question" describes.
 - Never weaken required behavior to make an approach look simpler.
@@ -52,7 +52,7 @@ Goal: answer the question the discussion needs with the smallest observation tha
 
 Before inspecting the environment, identify the missing fact and how its answer could change the discussion. Check whether current evidence already supplies it.
 
-Use [Action Selection](../action-selection/SKILL.md) for uncertain or broad inspection. Prefer a focused source, caller, contract, or observation over a repository survey. Read more only when the result leaves a material question unresolved.
+Prefer a focused source, caller, contract, or observation over a repository survey. Read more only when the result leaves a material question unresolved.
 
 Existing code, tests, documentation, policies, artifacts, repository state, supplied material, and current primary sources may settle factual questions. Inspect them rather than asking the user to supply facts available to the agent. Source inspection cannot establish unobserved runtime behavior.
 
@@ -81,7 +81,7 @@ Goal: when evidence cannot settle a question, the smallest experiment that can s
 
 Use an experiment or prototype when existing evidence cannot settle a material question and exercising behavior can distinguish the remaining answers. A separate prototype should isolate the uncertainty more safely or economically than changing production; unfamiliarity alone does not require one.
 
-If the work is an accepted useful outcome regardless of what it teaches, treat it as Delivery or Deepening rather than disguise implementation as Learning. Incidental learning does not change its authority or acceptance boundary.
+If the work is an accepted useful outcome regardless of what it teaches, treat it as delivery work, not an experiment; do not disguise implementation as learning. Incidental learning does not change its authority or acceptance boundary.
 
 Frame the action before proposing execution:
 

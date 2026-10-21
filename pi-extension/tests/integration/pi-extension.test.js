@@ -1063,14 +1063,13 @@ test("Pi statusline keeps an inactive Cognitive Routing runtime blocked", () => 
   assert.equal(ctx.statuses.at(-1).value, "freeflow: routing blocked · runtime_inactive");
 });
 
-test("Pi exposes bypass scope argument completions", () => {
+test("Pi keeps /bypass for one release as a command that opens Agree Work", () => {
   const { commands } = loadExtension();
   const bypassCommand = commands.find((command) => command.name === "bypass");
   assert.ok(bypassCommand);
-  assert.deepEqual(bypassCommand.definition.getArgumentCompletions(""), [
-    { value: "next", label: "next", description: "Skip one optional step" },
-    { value: "task", label: "task", description: "Reduce optional pressure for the current task" },
-  ]);
+  assert.equal(bypassCommand.definition.description, "Run Freeflow agree-work via bypass");
+  assert.equal(bypassCommand.definition.getArgumentCompletions, undefined);
+  assert.ok(!commands.some((command) => command.name === "action-selection"));
 });
 
 test("Pi describes the mode-free Freeflow argument surface and manual profile controls", () => {
@@ -1113,7 +1112,7 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), []);
 });
 
-test("Pi exposes the canonical base skills without TDD, a mode skill, or compatibility aliases", async () => {
+test("Pi exposes the canonical base skills without TDD, a mode skill, or removed skills", async () => {
   const cwd = await configuredRepo();
   try {
     const { handlers, commands, sentMessages, sentMessageOptions } = loadExtension();
@@ -1132,10 +1131,12 @@ test("Pi exposes the canonical base skills without TDD, a mode skill, or compati
     assert.ok(!skillNames.includes("mode-contract"));
     assert.ok(!skillNames.includes("discover"));
     assert.ok(!skillNames.includes("execute-plan"));
+    assert.ok(!skillNames.includes("action-selection"));
+    assert.ok(!skillNames.includes("bypass"));
 
     for (const [commandName, expectedSkill] of [
-      ["action-selection", "action-selection"],
       ["discuss", "discuss"],
+      ["bypass", "agree-work"],
       ["track-work", "track-work"],
       ["execute-work", "execute-work"],
     ]) {

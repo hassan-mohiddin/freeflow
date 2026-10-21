@@ -20,8 +20,6 @@ Distinguish accepted behavior from the suggested implementation mechanism, and c
 
 If upstream content is unresolved or contradictory, mark dependent material contingent rather than generating exhaustive downstream findings against an unsettled premise.
 
-Use [Action Selection](../../../skills/action-selection/SKILL.md) when source inspection could branch broadly; skip it for an obvious artifact or dependency read.
-
 ## Judge The Artifact By Its Job
 
 Goal: ask of each artifact only what its job requires.

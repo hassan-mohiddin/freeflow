@@ -7,7 +7,7 @@ contract="$repo_root/skills/setup-freeflow/references/activation-contract.md"
 host_setup="$repo_root/skills/setup-freeflow/references/host-setup.md"
 core_prompt="$repo_root/runtime/prompts/core.md"
 interaction_contract="$repo_root/runtime/prompts/interaction-contract.md"
-action_selection_skill="$repo_root/skills/action-selection/SKILL.md"
+working_method="$repo_root/runtime/prompts/working-method.md"
 cognitive_routing_prompt="$repo_root/runtime/prompts/cognitive-routing.md"
 agents_file="$repo_root/AGENTS.md"
 dev_docs_index="$repo_root/dev-docs/README.md"
@@ -43,7 +43,7 @@ for file in \
 	"$host_setup" \
 	"$core_prompt" \
 	"$interaction_contract" \
-	"$action_selection_skill" \
+	"$working_method" \
 	"$cognitive_routing_prompt" \
 	"$agents_file" \
 	"$dev_docs_index" \
@@ -63,20 +63,22 @@ require_text "$host_setup" 'Do not generate host-specific Freeflow instructions'
 require_text "$setup_skill" 'automatic runtime delivery as **confirmed**, **unavailable**, or **unconfirmed**'
 require_text "$setup_skill" '../../runtime/prompts/interaction-contract.md'
 require_text "$setup_skill" '../../runtime/prompts/core.md'
+require_text "$setup_skill" '../../runtime/prompts/working-method.md'
 
 require_text "$interaction_contract" '# Freeflow Interaction Contract'
 require_text "$interaction_contract" 'Only a request to act authorizes action.'
 require_text "$interaction_contract" 'Read the whole turn before acting'
 require_text "$core_prompt" '## Terms'
 require_text "$core_prompt" '## How Freeflow Works'
-require_text "$core_prompt" 'read Agree Work, send its agreement and wait'
+require_text "$core_prompt" 'send this and wait; skip it for a question, an exactly specified change, or when no one can answer.'
+require_text "$core_prompt" 'Agree Work keeps the list.'
 require_text "$core_prompt" 'Then continue the covered work toward the agreed end.'
 require_text "$cognitive_routing_prompt" 'Before relying on Automatic routing, read the complete cognitive-routing skill if its body is absent.'
 require_text "$cognitive_routing_prompt" 'This bootstrap read is the only environment call in that response.'
 require_text "$cognitive_routing_prompt" 'If unavailable, stop and report the missing method.'
 require_text "$cognitive_routing_prompt" 'Reload it after context loss before applying remembered routing rules.'
-require_text "$action_selection_skill" 'Choose environment interactions that advance the current question or result'
-require_text "$action_selection_skill" 'return the changed evidence to the current owner.'
+require_text "$working_method" '## Keep output small'
+require_text "$working_method" 'a capped result does not show that nothing else matched.'
 require_text "$dev_docs_index" 'runtime/prompts/'
 require_text "$dev_docs_index" 'skills are cued by their own descriptions'
 require_text "$workflow_doc" 'Interaction Lifecycle'

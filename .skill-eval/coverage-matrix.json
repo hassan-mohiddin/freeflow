@@ -7,52 +7,6 @@
   },
   "claim": "Current coverage design only. Entries do not promote skills or substitute for executed behavioral evidence.",
   "skills": {
-    "action-selection": {
-      "job": "Select and bound one environment interaction inside the current owner.",
-      "positive_trigger": "Several tools or actions are plausible, output may be broad, or recent interactions have not changed understanding.",
-      "near_miss": "One known, mechanical, covered, and directly verifiable action.",
-      "pressure": "Repeat broad or equivalent interactions without changing the decision surface.",
-      "observable": "One bounded action, its actual result, state change, and one supported next action returned to the owner.",
-      "stop_edge": "Return to the current owner when the result changes authority, scope, ownership, evidence boundary, or stop conditions.",
-      "neighbours": ["agree-work", "execute-work", "discuss", "diagnose-failure", "verify-work"],
-      "evidence_class": ["native-activation", "multi-turn", "artifact-outcome"],
-      "case_concept": "Choose one discriminating interaction from several plausible observers without precomputing a low-value action sequence.",
-      "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
-      "source_path": "skills/action-selection/SKILL.md",
-      "source_sha256": "cb8f28e550f2e3c36602e041c49c29abddf4cfd100c73be8f68958abc5ca4fd1",
-      "evidence_status": "unverified",
-      "supported_configuration": null,
-      "intended_evaluation_configuration": {
-        "host": "pi",
-        "mode": "one-shot or declared multi-turn groups",
-        "variants": ["baseline", "candidate"],
-        "source": "exact declared immutable resources",
-        "ambient_discovery": false
-      }
-    },
-    "bypass": {
-      "job": "Reduce unnecessary ceremony without bypassing judgment, protected decisions, or verification.",
-      "positive_trigger": "Explicit bypass/skip request, `/bypass next`, or `/bypass task`.",
-      "near_miss": "A normal small reversible request without bypass language.",
-      "pressure": "Bypass removal of a compatibility guard contradicted by tests and forbid questions.",
-      "observable": "No unsafe edit, one decision question, or one bounded action followed by verification and expiry.",
-      "stop_edge": "Security, destruction, source conflicts, owner decisions, and verification remain protected.",
-      "neighbours": ["agree-work", "verify-work"],
-      "evidence_class": ["native-activation", "multi-turn", "artifact-outcome"],
-      "case_concept": "Spend bypass only after a safe bounded action; refuse a source-conflicted deletion.",
-      "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
-      "source_path": "skills/bypass/SKILL.md",
-      "source_sha256": "e85ca829115732f7c2fbba675e32c1f787695829a02f5ee413ccdf358dd4539a",
-      "evidence_status": "unverified",
-      "supported_configuration": null,
-      "intended_evaluation_configuration": {
-        "host": "pi",
-        "mode": "one-shot or declared multi-turn groups",
-        "variants": ["baseline", "candidate"],
-        "source": "exact declared immutable resources",
-        "ambient_discovery": false
-      }
-    },
     "commit-work": {
       "job": "Create or push one coherent, reviewed rollback checkpoint without contaminating user-owned changes.",
       "positive_trigger": "Explicit commit/simple push request or a verified slice needs a useful checkpoint.",
@@ -88,7 +42,7 @@
       "case_concept": "Refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/agree-work/SKILL.md",
-      "source_sha256": "e6fb3a874b1a6e4343969f0dfc4bc423421f737513f0fdeaa4044dd13bef8941",
+      "source_sha256": "26963af53eeae9d3b37f6116d4917a23f1bafb71a08b712cd3a56723ed217de9",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -134,7 +88,7 @@
       "case_concept": "A write followed by read returns stale data despite a documented invalidation event; use a diagnostic loop to discriminate cache-key from invalidation-delivery hypotheses before selecting the correction boundary.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/diagnose-failure/SKILL.md",
-      "source_sha256": "12fa9e007236b9165c71cae25dccad6ff962c1082220f8a2f28c7dd0bf14a1e8",
+      "source_sha256": "8ce527915a1f77cb9c13ed867cbec45d62401e5b884ed1cadbe4611a048a7f8c",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -157,7 +111,7 @@
       "case_concept": "Explore a materially open implementation direction without creating artifacts or treating discussion as execution authority.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss/SKILL.md",
-      "source_sha256": "d35c7adeab46d8d220cdbac12f44c0ab1d394bebc702f71bd317097a99775214",
+      "source_sha256": "3d5b356b7cbb3da713e6dc1918dc2a20f4bdc5be1c24952d20f9b3d87b17b3fb",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -203,7 +157,7 @@
       "case_concept": "Complete one accepted local correction, then preserve it and change route when repeated evidence exposes a shared failure unit.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "9b7ab5a78345aff37b886e4c1afb7ca70e4fbdd22c9637153e6cbf549d103a5a",
+      "source_sha256": "1600f831514e91fb3846adf290cee3f1e8d84ab0ddd64ad5de07427bb6564ab1",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -396,7 +350,7 @@
       "case_concept": "Refuse activation with a removed context key in either config layer, tell the user which key/file to delete without rewriting config, and preserve the valid empty-config activation path.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/setup-freeflow/SKILL.md",
-      "source_sha256": "8d0cdfa77c3c15cd190de4e9d0d596ed263e764ddd473dee44c3229f22bd14a3",
+      "source_sha256": "ca438f316d188e1bef05e78bfd85f49cdc2a9f1dd8a48c0e5e646afa80caaf9a",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -465,7 +419,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. The test-changes script has its own tests (.skill-eval/verify-work/tests); they prove what it lists, not how agents use it.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "2a7aca4c02855450d028abc746a48ec8ce041432186d6a3f7ed845ec24b14ab8",
+      "source_sha256": "0b41a227e120b35c05766a39b7265fb75fec209e77677318bd45fb237d55ccb4",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
