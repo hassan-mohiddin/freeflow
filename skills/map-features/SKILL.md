@@ -1,6 +1,6 @@
 ---
 name: "map-features"
-description: "Use when a project needs a saved, tested way to check its software live: setting up the steps, helper and feature map that launch it and drive each feature as a user would, or rechecking them after the software changed."
+description: "Use when setting up or rechecking a reusable way to check a project's software live: a feature map and helper that drive each feature as a user would."
 ---
 
 # Map Features

@@ -1,6 +1,6 @@
 ---
 name: "commit-work"
-description: "Use when creating an explicitly requested or selected local Git commit, including staging its exact contents, verifying the resulting checkpoint, or performing a separately authorized simple push."
+description: "Use when making a local Git commit the user asked for or agreed to, or a separately authorized simple push. Not for merging or pull requests (Finish Branch)."
 ---
 
 # Commit Work

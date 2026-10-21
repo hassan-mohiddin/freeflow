@@ -1,6 +1,6 @@
 ---
 name: review-work
-description: "Use when reviewing code, other finished work, a report or task record of work done, an eval case, or a document that will guide later work, such as a spec, plan, design, decision record, handoff, or skill, for whether it is correct and complete enough to use: your own before reporting or using it, or another's, or when weighing a review report of it. Running checks to see whether it works is Verify Work."
+description: "Use when reviewing whether finished work or a spec, plan, skill, eval or report is fit to use: your own before handing over, another's, or a review report. Not for running checks (Verify Work)."
 ---
 
 # Review Work

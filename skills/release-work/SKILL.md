@@ -1,6 +1,6 @@
 ---
 name: release-work
-description: Use when preparing, publishing, or verifying a versioned software release.
+description: "Use when preparing, publishing or verifying a versioned release: version number, changelog, tag, registry. Not for a commit (Commit Work), merge (Finish Branch) or deployment (Launch Work)."
 ---
 
 # Release Work

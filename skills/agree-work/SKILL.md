@@ -1,6 +1,6 @@
 ---
 name: "agree-work"
-description: "Use before building or changing behavior, to agree with the user what you will do, where you stop, and the choices that are theirs; and when a choice that is the user's, or a conflict between sources the work relies on, comes up during the work."
+description: "Use before building or changing behavior, to agree what you will do, where you stop and the user's choices; and when such a choice or conflicting sources arise mid-work. Not for questions or exact edits."
 ---
 
 # Agree Work

@@ -1,6 +1,6 @@
 ---
 name: verify-work
-description: "Use when checking whether work or a claim actually holds: running tests, builds, or the real path, and judging what the evidence shows, including failures and conflicting results."
+description: "Use when checking whether work or a claim holds: running tests, builds or the real path and reading the evidence. Not for finding causes (Diagnose Failure) or judging fitness (Review Work)."
 ---
 
 # Verify Work

@@ -1,6 +1,6 @@
 ---
 name: finish-branch
-description: "Use when deciding what to do with work on a branch or worktree: merge it, open a pull request, keep it for later, or delete it."
+description: "Use when branch or worktree work is ready to hand over, or when deciding what to do with it: merge, pull request, keep for later, or delete."
 ---
 
 # Finish Branch

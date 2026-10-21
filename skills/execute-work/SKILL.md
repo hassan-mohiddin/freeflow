@@ -1,6 +1,6 @@
 ---
 name: execute-work
-description: "Use when carrying out work the user asked for or approved that changes files or settings: implementing, fixing, prototyping, configuring, or maintaining code. When a failure's cause is unknown, Diagnose Failure comes first."
+description: "Use when carrying out requested or agreed work that changes files or settings: implementing, fixing, configuring, prototyping. Not yet agreed: Agree Work first; unknown failure cause: Diagnose Failure first."
 ---
 
 # Execute Work

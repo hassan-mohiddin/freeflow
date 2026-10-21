@@ -1,6 +1,6 @@
 ---
 name: write-skill
-description: "Use when creating or revising an agent skill, or other text an agent reads and acts on: instruction files such as AGENTS.md or CLAUDE.md, system or runtime prompts, tool descriptions, subagent briefs, or judge prompts."
+description: "Use when creating or revising a skill or other text an agent acts on: AGENTS.md, CLAUDE.md, system or runtime prompts, tool descriptions, subagent briefs or judge prompts."
 ---
 
 # Write Skill
