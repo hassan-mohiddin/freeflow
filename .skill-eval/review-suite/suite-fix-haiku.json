@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "review-suite-fix-haiku",
+  "groups": [
+    "groups-fix-haiku/rv03-b.json",
+    "groups-fix-haiku/rv16-b.json",
+    "groups-fix-haiku/rv19-a.json",
+    "groups-fix-haiku/rv05-a.json",
+    "groups-fix-haiku/rv01-b.json",
+    "groups-fix-haiku/rv15-a.json",
+    "groups-fix-haiku/rv07-a.json",
+    "groups-fix-haiku/rv16-a.json",
+    "groups-fix-haiku/rv24-b.json",
+    "groups-fix-haiku/rv08-a.json"
+  ]
+}

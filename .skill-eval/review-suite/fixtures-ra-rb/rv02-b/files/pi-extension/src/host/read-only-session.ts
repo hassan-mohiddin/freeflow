@@ -1,0 +1,298 @@
+import { createHash } from "node:crypto";
+import { statSync } from "node:fs";
+import { lstat, open, stat } from "node:fs/promises";
+import { TextDecoder } from "node:util";
+
+export interface ReadOnlySessionEntry {
+  type: string;
+  id: string;
+  parentId?: string | null;
+  [key: string]: unknown;
+}
+export interface ReadOnlySessionSnapshot {
+  path: string;
+  sessionId: string;
+  version: number;
+  hash: string;
+  entries: readonly ReadOnlySessionEntry[];
+}
+export class ReadOnlySessionError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly line?: number,
+  ) {
+    super(message);
+    this.name = "ReadOnlySessionError";
+  }
+}
+
+export const SESSION_READ_LIMITS = {
+  maxBytes: 512 * 1024 * 1024,
+  maxEntryBytes: 128 * 1024 * 1024,
+  maxEntries: 250000,
+};
+function decodeEntry(text: string, line: number, seen: Set<string>): ReadOnlySessionEntry {
+  let value: any;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    throw new ReadOnlySessionError("invalid_json", "Incomplete or invalid session JSON.", line);
+  }
+  if (!value || Array.isArray(value) || typeof value !== "object" || typeof value.type !== "string")
+    throw new ReadOnlySessionError("invalid_entry", "Invalid session entry.", line);
+  if (line === 1) {
+    if (
+      value.type !== "session" ||
+      typeof value.id !== "string" ||
+      !value.id ||
+      ![2, 3].includes(value.version) ||
+      typeof value.cwd !== "string"
+    )
+      throw new ReadOnlySessionError("invalid_header", "A supported native session header is required.", line);
+  } else {
+    if (value.type === "session" || typeof value.id !== "string" || !value.id || seen.has(value.id))
+      throw new ReadOnlySessionError("invalid_id", "Missing, duplicate, or misplaced session identity.", line);
+    if (value.parentId !== null && (typeof value.parentId !== "string" || !seen.has(value.parentId)))
+      throw new ReadOnlySessionError("invalid_parent", "Parent is absent or occurs after its child.", line);
+    seen.add(value.id);
+  }
+  return value;
+}
+export function parseReadOnlySessionText(text: string): readonly ReadOnlySessionEntry[] {
+  const lines = text.split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  if (!lines.length || !lines[0]) throw new ReadOnlySessionError("empty", "Session snapshot is empty.");
+  const seen = new Set<string>();
+  return lines.map((line, i) => decodeEntry(line, i + 1, seen));
+}
+/** Whole-file snapshots read so far; tests check that a verified startup reads none. */
+export const readOnlySessionCounters = { snapshots: 0 };
+export async function readOnlySessionSnapshot(
+  path: string,
+  options: { maxBytes?: number; maxEntryBytes?: number; maxEntries?: number } = {},
+): Promise<ReadOnlySessionSnapshot> {
+  readOnlySessionCounters.snapshots++;
+  const limits = { ...SESSION_READ_LIMITS, ...options };
+  if (Object.values(limits).some((n) => !Number.isSafeInteger(n) || n <= 0))
+    throw new ReadOnlySessionError("invalid_limit", "Invalid snapshot limit.");
+  let file: Awaited<ReturnType<typeof open>> | undefined;
+  try {
+    file = await open(path, "r");
+    const before = await file.stat({ bigint: true });
+    if (!before.isFile()) throw new ReadOnlySessionError("read_limit", "Session is not a regular file.");
+    if (before.size > BigInt(limits.maxBytes))
+      throw new ReadOnlySessionError(
+        "read_limit",
+        `Session exceeds the supported ${limits.maxBytes} byte snapshot limit.`,
+      );
+    const hash = createHash("sha256"),
+      entries: ReadOnlySessionEntry[] = [],
+      seen = new Set<string>();
+    let total = 0,
+      lineBytes = 0,
+      parts: Buffer[] = [];
+    const append = (part: Buffer) => {
+      lineBytes += part.length;
+      if (lineBytes > limits.maxEntryBytes)
+        throw new ReadOnlySessionError(
+          "entry_limit",
+          `Session entry exceeds ${limits.maxEntryBytes} bytes.`,
+          entries.length + 1,
+        );
+      if (part.length) parts.push(part);
+    };
+    const decode = () => {
+      if (entries.length >= limits.maxEntries)
+        throw new ReadOnlySessionError("entry_count_limit", `Session exceeds ${limits.maxEntries} entries.`);
+      let text: string;
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(parts, lineBytes));
+      } catch {
+        throw new ReadOnlySessionError("invalid_encoding", "Session is not complete UTF-8.", entries.length + 1);
+      }
+      entries.push(decodeEntry(text, entries.length + 1, seen));
+      parts = [];
+      lineBytes = 0;
+    };
+    for (;;) {
+      const buffer = Buffer.alloc(64 * 1024),
+        { bytesRead } = await file.read(buffer, 0, buffer.length, null);
+      if (!bytesRead) break;
+      total += bytesRead;
+      if (total > limits.maxBytes)
+        throw new ReadOnlySessionError("read_limit", "Session grew beyond the supported snapshot limit.");
+      const bytes = buffer.subarray(0, bytesRead);
+      hash.update(bytes);
+      let start = 0,
+        end: number;
+      while ((end = bytes.indexOf(10, start)) !== -1) {
+        append(bytes.subarray(start, end));
+        decode();
+        start = end + 1;
+      }
+      append(bytes.subarray(start));
+    }
+    if (lineBytes) decode();
+    if (!entries.length) throw new ReadOnlySessionError("empty", "Session snapshot is empty.");
+    const after = await file.stat({ bigint: true }),
+      current = await stat(path, { bigint: true });
+    const signature = (v: typeof before) => [v.dev, v.ino, v.size, v.mtimeNs, v.ctimeNs].join(":");
+    if (
+      signature(before) !== signature(after) ||
+      signature(after) !== signature(current) ||
+      after.size !== BigInt(total)
+    )
+      throw new ReadOnlySessionError("source_changed", "Session changed during snapshot capture.");
+    return { path, sessionId: entries[0].id, version: entries[0].version as number, hash: hash.digest("hex"), entries };
+  } catch (error) {
+    if (error instanceof ReadOnlySessionError) throw error;
+    throw new ReadOnlySessionError("read_failed", error instanceof Error ? error.message : String(error));
+  } finally {
+    await file?.close();
+  }
+}
+
+export function activeReadOnlySessionBranch(
+  snapshot: ReadOnlySessionSnapshot,
+  leafId: string | null,
+): readonly ReadOnlySessionEntry[] {
+  if (leafId === null) return [];
+  const byId = new Map(snapshot.entries.slice(1).map((entry) => [entry.id, entry]));
+  const path: ReadOnlySessionEntry[] = [];
+  const seen = new Set<string>();
+  let cursor: string | null = leafId;
+  while (cursor !== null) {
+    const entry = byId.get(cursor);
+    if (!entry || seen.has(cursor))
+      throw new ReadOnlySessionError("ancestry_unavailable", "Requested native ancestry is unavailable.");
+    seen.add(cursor);
+    path.push(entry);
+    cursor = entry.parentId as string | null;
+  }
+  return path.reverse();
+}
+
+interface PersistedBranchReader {
+  getSessionFile?(): string | undefined;
+  getSessionId(): string;
+  getEntries(): readonly unknown[];
+}
+// Byte offset and entry count up to which a session file is known to equal Pi's in-memory entries.
+const verified = new Map<string, { size: number; count: number }>();
+
+/** Pi just parsed this file into memory, so its current bytes are the verified prefix. */
+export function trustLoadedSession(reader: PersistedBranchReader): void {
+  const path = reader.getSessionFile?.();
+  if (!path) return;
+  try {
+    verified.set(path, { size: statSync(path).size, count: reader.getEntries().length });
+  } catch {
+    verified.delete(path);
+  }
+}
+
+/**
+ * At `session_start`, trust the file only when Pi just parsed it. A reload keeps Pi's session in memory without
+ * re-reading the file, so it establishes nothing: after a failed write, memory could hold an entry the file lacks.
+ * The previous trust point, or a full check, still applies after a reload.
+ */
+export function trustStartedSession(reason: unknown, reader: PersistedBranchReader): void {
+  if (reason) trustLoadedSession(reader);
+}
+
+async function tailMatches(path: string, reader: PersistedBranchReader): Promise<boolean> {
+  const point = verified.get(path);
+  if (!point) return false;
+  const entries = reader.getEntries();
+  let file: Awaited<ReturnType<typeof open>> | undefined;
+  try {
+    file = await open(path, "r");
+    const { size } = await file.stat();
+    if (size < point.size || entries.length < point.count) return false;
+    const buffer = Buffer.alloc(size - point.size);
+    const { bytesRead } = await file.read(buffer, 0, buffer.length, point.size);
+    if (bytesRead !== buffer.length) return false;
+    const lines = new TextDecoder("utf-8", { fatal: true }).decode(buffer).split("\n");
+    if (lines.pop() !== "") return false;
+    const appended = entries.slice(point.count);
+    // Pi appends each entry as its JSON serialization, in memory order.
+    if (lines.length !== appended.length || lines.some((line, i) => line !== JSON.stringify(appended[i]))) return false;
+    verified.set(path, { size, count: entries.length });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await file?.close();
+  }
+}
+
+/**
+ * Whether every entry Pi holds is persisted, judged only by the bytes appended since the trust point: true when the
+ * file grew by exactly those entries. False when there is no trust point or anything differs; callers then fall back
+ * to a full snapshot.
+ */
+export async function persistedTailMatches(reader: PersistedBranchReader): Promise<boolean> {
+  const path = reader.getSessionFile?.();
+  return !!path && (await tailMatches(path, reader));
+}
+
+/** Verify one newly appended native anchor without re-reading the historical session. */
+export async function persistedLastEntryMatches(path: string | undefined, entry: unknown): Promise<boolean> {
+  if (!path) return false;
+  let file: Awaited<ReturnType<typeof open>> | undefined;
+  try {
+    const expected = Buffer.from(`${JSON.stringify(entry)}\n`, "utf8");
+    if (!expected.length || expected.length > 1024 * 1024) return false;
+    const named = await lstat(path, { bigint: true });
+    if (!named.isFile() || named.isSymbolicLink() || named.size < BigInt(expected.length)) return false;
+    file = await open(path, "r");
+    const before = await file.stat({ bigint: true });
+    if (before.size > BigInt(Number.MAX_SAFE_INTEGER)) return false;
+    const actual = Buffer.alloc(expected.length);
+    let offset = 0;
+    while (offset < actual.length) {
+      const read = await file.read(
+        actual,
+        offset,
+        actual.length - offset,
+        Number(before.size) - actual.length + offset,
+      );
+      if (!read.bytesRead) return false;
+      offset += read.bytesRead;
+    }
+    const after = await file.stat({ bigint: true });
+    const current = await lstat(path, { bigint: true });
+    const signature = (value: typeof before) =>
+      [value.dev, value.ino, value.size, value.mtimeNs, value.ctimeNs].join(":");
+    return (
+      before.isFile() &&
+      signature(named) === signature(before) &&
+      signature(before) === signature(after) &&
+      signature(after) === signature(current) &&
+      actual.equals(expected)
+    );
+  } catch {
+    return false;
+  } finally {
+    await file?.close();
+  }
+}
+
+/** Whether the persisted session holds exactly this branch: tail-only after a trust point, else a full comparison. */
+export async function persistedBranchMatches(
+  reader: PersistedBranchReader,
+  leaf: string | null,
+  branch: readonly unknown[],
+): Promise<boolean> {
+  const path = reader.getSessionFile?.();
+  if (!path) return false;
+  if (await tailMatches(path, reader)) return true;
+  const snapshot = await readOnlySessionSnapshot(path);
+  const matches =
+    snapshot.sessionId === reader.getSessionId() &&
+    JSON.stringify(activeReadOnlySessionBranch(snapshot, leaf)) === JSON.stringify(branch);
+  if (matches) trustLoadedSession(reader);
+  else verified.delete(path);
+  return matches;
+}

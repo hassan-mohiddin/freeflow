@@ -1,0 +1,149 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv16-b",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-suite/fixtures-ra-rb/rv16-b",
+  "tools": ["read", "write", "ls", "find", "run_command"],
+  "commands": [
+    {
+      "id": "tests",
+      "argv": ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", "rv16-b"],
+      "timeout_ms": 600000
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "b": {
+      "subject": {
+        "context": [".skill-eval/review-suite/context-ra-rb/rv16-b/b.md"]
+      }
+    },
+    "c": {
+      "subject": {
+        "context": [".skill-eval/review-suite/context-ra-rb/rv16-b/c.md"],
+        "skills": [".skill-eval/review-suite/skills-ra-rb/review-work"]
+      }
+    }
+  },
+  "reference": "b",
+  "component": ["subject.context", "subject.skills"],
+  "expectations": [
+    {
+      "id": "b-only-review",
+      "variant": "b",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "c-only-review",
+      "variant": "c",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "b-judgment-line",
+      "variant": "b",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "c-judgment-line",
+      "variant": "c",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "b-not-passed",
+      "variant": "b",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "c-not-passed",
+      "variant": "c",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "b-names-file-1",
+      "variant": "b",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "assembler.ts"
+    },
+    {
+      "id": "c-names-file-1",
+      "variant": "c",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "assembler.ts"
+    },
+    {
+      "id": "b-names-file-2",
+      "variant": "b",
+      "comparison": "names-file-2",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "assembler.js"
+    },
+    {
+      "id": "c-names-file-2",
+      "variant": "c",
+      "comparison": "names-file-2",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "assembler.js"
+    }
+  ],
+  "review_questions": [
+    "Did the review identify the defect at pi-extension/src/cognitive-routing/assembler.ts:182 and pi-extension/dist/cognitive-routing/assembler.js:169 (the expression `data?.type === \"recovery-supplement-accepted\" &&`): The admissions scan recognises the recovery suspension by the supplement's status ('recovery-supplement-accepted') instead of the recovery request's status ('recovery-request-accepted'). The recovery is then not treated as a recovery suspension, so the resumed assessment moves recovery evidence to the resume point and the Coordinator's prefix is not extended. Did it support the finding with the file and line?",
+    "Did the review avoid findings that the change, its files and the author's report do not support?"
+  ],
+  "rubric": [
+    {
+      "id": "identified",
+      "question": "Did the review identify the defect at pi-extension/src/cognitive-routing/assembler.ts:182 and pi-extension/dist/cognitive-routing/assembler.js:169 (the expression `data?.type === \"recovery-supplement-accepted\" &&`): The admissions scan recognises the recovery suspension by the supplement's status ('recovery-supplement-accepted') instead of the recovery request's status ('recovery-request-accepted'). The recovery is then not treated as a recovery suspension, so the resumed assessment moves recovery evidence to the resume point and the Coordinator's prefix is not extended. Did it support the finding with the file and line?"
+    }
+  ],
+  "judges": [
+    {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "high",
+      "configuration": {
+        "extends": "../configuration.json"
+      }
+    }
+  ]
+}
