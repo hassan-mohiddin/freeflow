@@ -1,0 +1,173 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv14-a",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-suite/fixtures-ra-rb/rv14-a",
+  "tools": ["read", "write", "ls", "find", "run_command"],
+  "commands": [
+    {
+      "id": "tests",
+      "argv": ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", "rv14-a"],
+      "timeout_ms": 600000
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration-grok.json"
+  },
+  "arms": {
+    "full": {
+      "subject": {
+        "context": [".skill-eval/review-suite/context-ra-rb/rv14-a/a.md"]
+      }
+    },
+    "pointer": {
+      "subject": {
+        "context": [".skill-eval/review-suite/context-ra-rb/rv14-a/b.md"]
+      }
+    },
+    "pointer-fix": {
+      "subject": {
+        "context": [".skill-eval/review-suite/context-ra-rb/rv14-a/c.md"],
+        "skills": [".skill-eval/review-suite/skills-ra-rb/review-work"]
+      }
+    }
+  },
+  "reference": "pointer",
+  "component": ["subject.context", "subject.skills"],
+  "expectations": [
+    {
+      "id": "full-only-review",
+      "variant": "full",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "pointer-only-review",
+      "variant": "pointer",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "pointer-fix-only-review",
+      "variant": "pointer-fix",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "full-judgment-line",
+      "variant": "full",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "pointer-judgment-line",
+      "variant": "pointer",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "pointer-fix-judgment-line",
+      "variant": "pointer-fix",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "full-not-passed",
+      "variant": "full",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "pointer-not-passed",
+      "variant": "pointer",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "pointer-fix-not-passed",
+      "variant": "pointer-fix",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "full-names-file-1",
+      "variant": "full",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "runtime.ts"
+    },
+    {
+      "id": "pointer-names-file-1",
+      "variant": "pointer",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "runtime.ts"
+    },
+    {
+      "id": "pointer-fix-names-file-1",
+      "variant": "pointer-fix",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "runtime.ts"
+    }
+  ],
+  "review_questions": [
+    "Did the review identify the defect at pi-extension/src/context-virtualization/runtime.ts:308 (the expression `isDuplicate(refs.filter((ref): ref is string => typeof ref === \"string\"))`): restoreNow's duplicate check compares the raw references again, the statement the commit replaced. The references \"ctx:tool-1\" and \"ctx:tool-1 \" then pass the check as distinct; the loop still uses the normalized list, so the batch is applied twice instead of being rejected. archiveNow is unchanged. Did it support the finding with the file and line?",
+    "Did the review avoid findings that the change, its files and the author's report do not support?"
+  ],
+  "rubric": [
+    {
+      "id": "identified",
+      "question": "Did the review identify the defect at pi-extension/src/context-virtualization/runtime.ts:308 (the expression `isDuplicate(refs.filter((ref): ref is string => typeof ref === \"string\"))`): restoreNow's duplicate check compares the raw references again, the statement the commit replaced. The references \"ctx:tool-1\" and \"ctx:tool-1 \" then pass the check as distinct; the loop still uses the normalized list, so the batch is applied twice instead of being rejected. archiveNow is unchanged. Did it support the finding with the file and line?"
+    }
+  ],
+  "judges": [
+    {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "high",
+      "configuration": {
+        "extends": "../configuration.json"
+      }
+    }
+  ]
+}

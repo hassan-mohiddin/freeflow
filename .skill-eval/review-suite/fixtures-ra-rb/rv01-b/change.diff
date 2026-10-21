@@ -1,0 +1,548 @@
+diff --git a/capabilities/compaction/SKILL.md b/capabilities/compaction/SKILL.md
+index d0af2f57..6a914878 100644
+--- a/capabilities/compaction/SKILL.md
++++ b/capabilities/compaction/SKILL.md
+@@ -24,9 +24,8 @@ The Rules are binding; if one cannot be met, stop and say why. The rest of this
+ 
+ Goal: compact where stopping loses nothing that is not written down. That is a safe point: a finished step whose result you know, such as a check you ran and read, a complete set of edits, or a written report. Halfway through an edit set, with a command still running, or partway through a batch of reads you need together is not one.
+ 
+-- At Freeflow's first notice ("compaction is due soon"): if you are at a safe point, compact now. If your work ends within a step or two with a final answer, finish it instead; it ends the context's growth without a compaction. Otherwise finish the current step, start nothing large, then compact.
+-- Under Cognitive Routing, a worker's return is not such an end: the Coordinator and the next assignment continue the same history. Compact before returning, not after.
+-- At "compact now", or when the user asks: the end of your current step is the safe point. If the step cannot end soon, write its partial state into the record or summary and compact.
++- At Freeflow's first notice ("compaction is due soon"): if you are at a safe point, compact now. If your work ends within a step or two, with a final answer or a worker's return, finish it instead. Otherwise finish the current step, start nothing large, then compact.
++- At "compact now", or when the user asks: the end of your current step is the safe point. If the step cannot end soon, write its partial state into the record or summary and compact. Under Cognitive Routing a worker compacts before returning: the Coordinator and the next assignment continue the same history, so a return does not stop its growth.
+ 
+ ## The summary
+ 
+diff --git a/capabilities/compaction/references/summary-format.md b/capabilities/compaction/references/summary-format.md
+index 522d6bd8..f7ef5014 100644
+--- a/capabilities/compaction/references/summary-format.md
++++ b/capabilities/compaction/references/summary-format.md
+@@ -101,7 +101,7 @@ Each heading means exactly what it means in the Working Record format ([Working
+ Freeflow builds the new cycle from four pieces. The agent writes only the first part of the first piece.
+ 
+ 1. **The summary**, wrapped by Pi as a user message: `The conversation history before this point was compacted into the following summary: <summary>…</summary>`. Inside: the agent's summary, then `## Freeflow state at compaction`, which Freeflow writes.
+-2. **The carried context:** the user's latest messages verbatim, then the carried files (read at compaction) and tool results.
++2. **The carried context:** the user's latest messages verbatim, then the carried files (read at compaction) and tool results, with files and read results numbered by file line.
+ 3. **The recovery message.**
+ 4. **Freeflow's Runtime State**, as on every request.
+ 
+@@ -171,10 +171,13 @@ retries should respect Retry-After, the API team says they ban clients that don'
+ 
+ ## Files, read at compaction
+ 
++Numbered by file line, as are read results below.
++
+ ### src/http/client.ts (lines 40-118)
+ 
+-```ts
+-…
++```
++ 40	…
++118	…
+ ```
+ 
+ ## Tool results
+diff --git a/pi-extension/dist/compaction/carry.js b/pi-extension/dist/compaction/carry.js
+index 508cd375..e4ea84b3 100644
+--- a/pi-extension/dist/compaction/carry.js
++++ b/pi-extension/dist/compaction/carry.js
+@@ -88,6 +88,17 @@ export function latestUserMessages(branch, skip = () => false) {
+   }
+   return kept;
+ }
++/**
++ * Text with each line's number in front, as `nl -ba` prints it, so a copy can be cited by file line without being read
++ * again. Pi's note after a partial read ("[Showing lines …]", "[N more lines in file …]") stays unnumbered.
++ */
++export function numberLines(text, first) {
++  const note = /\n\n\[(?:Showing lines \d+-\d+ of \d+|\d+ more lines in file)[^\n]*\]$/.exec(text);
++  const body = note ? text.slice(0, note.index) : text;
++  const lines = body.split("\n");
++  const width = String(first + lines.length - 1).length;
++  return lines.map((line, i) => `${String(first + i).padStart(width)}\t${line}`).join("\n") + (note ? note[0] : "");
++}
+ function fenced(body) {
+   const longest = Math.max(2, ...[...body.matchAll(/`+/g)].map((match) => match[0].length));
+   const fence = "`".repeat(longest + 1);
+@@ -104,13 +115,13 @@ export function renderCarried(noticePrefix, cycle, userMessages, files, results
+     );
+   if (files.length)
+     parts.push(
+-      "## Files, read at compaction\n\n" +
++      "## Files, read at compaction\n\nNumbered by file line, as are read results below.\n\n" +
+         files
+           .map((file) => {
+             const range = "lines" in file && file.lines ? ` (lines ${file.lines[0]}-${file.lines[1]})` : "";
+             return "error" in file
+               ? `### ${file.path}\n\nNot carried: ${file.error}.`
+-              : `### ${file.path}${range}\n\n${fenced(file.text)}`;
++              : `### ${file.path}${range}\n\n${fenced(numberLines(file.text, "lines" in file && file.lines ? file.lines[0] : 1))}`;
+           })
+           .join("\n\n"),
+     );
+@@ -120,7 +131,7 @@ export function renderCarried(noticePrefix, cycle, userMessages, files, results
+         results
+           .map(
+             (result) =>
+-              `### ${result.id} ${result.tool}${result.label && result.label !== result.id ? `: ${result.label}` : ""}\n\n${fenced(result.text)}`,
++              `### ${result.id} ${result.tool}${result.label && result.label !== result.id ? `: ${result.label}` : ""}\n\n${fenced(result.firstLine === undefined ? result.text : numberLines(result.text, result.firstLine))}`,
+           )
+           .join("\n\n"),
+     );
+diff --git a/pi-extension/dist/compaction/controller.js b/pi-extension/dist/compaction/controller.js
+index 0c317101..a060b706 100644
+--- a/pi-extension/dist/compaction/controller.js
++++ b/pi-extension/dist/compaction/controller.js
+@@ -13,7 +13,7 @@ import {
+   SUMMARY_LIMIT_TOKENS,
+ } from "./carry.js";
+ import { cycleFiles, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
+-import { renderIndex, resolveResult, resultIndex, scopeResults } from "./results.js";
++import { renderIndex, resolveResult, resultFirstLine, resultIndex, scopeResults } from "./results.js";
+ /**
+  * Freeflow compaction's agent path. After each turn Freeflow measures the context and, once per cycle each, says
+  * compaction is due (the warning, with the result index) and then to compact now. The agent asks to compact with
+@@ -30,7 +30,7 @@ export const USER_REQUEST =
+ const ABNORMAL_STOPS = new Set(["error", "aborted", "length"]);
+ /** The most results the carried context lists by ref; the newest are listed. */
+ const MAX_LISTED = 60;
+-/** Pi checks its own threshold only after a run ends, so within a run "compact now" repeats as context keeps growing. */
++/** "Compact now" repeats as the context keeps growing, so a long step that passed it is reminded before Pi compacts. */
+ const COMPACT_NOW_REPEAT = 10_000;
+ const hash = (text) => createHash("sha256").update(text).digest("hex");
+ const branchOf = (ctx) => ctx.sessionManager?.getBranch?.() ?? [];
+@@ -139,17 +139,16 @@ export class CompactionController {
+     const prefix = this.host.noticePrefix;
+     const { window, trigger } = thresholds;
+     if (this.host.coordinatorUnderProjection())
+-      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger} once this run ends. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return; then continue.`;
++      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return; then continue.`;
+     const index = withList ? this.indexText(ctx) : "";
+     const list = index ? `\n\n${index}` : "";
+     // A worker's return hands the same history to the Coordinator and the next assignment, so it ends no growth.
+     const worker = this.host.routingAssignment() !== undefined;
+     if (level === "compactNow")
+-      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger} once this run ends, or when a request overflows the model's window. The end of your current step is the safe point: write down any partial state, then prepare and call freeflow_compact; ${worker ? "compact before you return, since the next assignment continues this history; " : ""}if Pi compacts first, its own summary replaces yours.${list}`;
+-    const end = worker
+-      ? "If you are at one now, compact now. A return does not end this history: the Coordinator and the next assignment continue it, so compact before you return, not after."
+-      : "If you are at one now, compact now; if your work ends within a step or two with a final answer, finish it instead.";
+-    return `${prefix} Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger} once this run ends. Keep working until a safe point: a finished step whose result you know (a check read, an edit set complete, a report written), not mid-edit or with a command running. ${end} At the safe point, read the compaction skill, update the Working Record, ${this.carryText(ctx)}, write the summary, and call freeflow_compact. A "compact now" notice follows near Pi's limit.${list}`;
++      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger}, or when a request overflows the model's window. The end of your current step is the safe point: write down any partial state, then prepare and call freeflow_compact; ${worker ? "compact before you return, since the Coordinator and the next assignment continue this history; " : ""}if Pi compacts first, its own summary replaces yours.${list}`;
++    // Before compact now there is room for the Coordinator's next turn, so a worker may finish a return first.
++    const end = `If you are at one now, compact now; if your work ends within a step or two with ${worker ? "a return" : "a final answer"}, finish it instead.`;
++    return `${prefix} Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}, once the run ends. Keep working until a safe point: a finished step whose result you know (a check read, an edit set complete, a report written), not mid-edit or with a command running. ${end} At the safe point, read the compaction skill, update the Working Record, ${this.carryText(ctx)}, write the summary, and call freeflow_compact. A "compact now" notice follows near Pi's limit.${list}`;
+   }
+   /** Check a freeflow_compact call and schedule it for the end of this turn; throws with the reason it is refused. */
+   async request(params, ctx) {
+@@ -257,7 +256,17 @@ export class CompactionController {
+     const resolve = (id) => {
+       if (!this.host.nativeRefs()) return resolveResult(branch, id);
+       const source = this.host.resolveRef(id);
+-      return source && { id, tool: source.tool, label: id, tokens: estimateTokens(source.text), text: source.text };
++      const firstLine = resultFirstLine(branch, id.replace(/^ctx:/, ""));
++      return (
++        source && {
++          id,
++          tool: source.tool,
++          label: id,
++          tokens: estimateTokens(source.text),
++          text: source.text,
++          ...(firstLine === undefined ? {} : { firstLine }),
++        }
++      );
+     };
+     const results = ids.map(resolve).filter(Boolean);
+     const missing = ids.filter((id) => !results.some((result) => result.id === id));
+diff --git a/pi-extension/dist/compaction/results.js b/pi-extension/dist/compaction/results.js
+index ba95e488..2f2abebc 100644
+--- a/pi-extension/dist/compaction/results.js
++++ b/pi-extension/dist/compaction/results.js
+@@ -71,12 +71,23 @@ function allResults(branch) {
+       label: label(tool, call?.input),
+       tokens: estimateTokens(text),
+       text,
++      ...firstLineOf(tool, call?.input, message),
+       entry,
+       input: call?.input,
+     });
+   }
+   return results;
+ }
++/** A text read of a file starts at its offset (Pi's read is 1-based); an image or failed read has no lines. */
++function firstLineOf(tool, input, message) {
++  if (tool !== "read" || typeof input?.path !== "string" || message?.isError) return {};
++  if ((message?.content ?? []).some((part) => part?.type === "image")) return {};
++  return { firstLine: Number.isInteger(input?.offset) && input.offset > 0 ? input.offset : 1 };
++}
++/** The first line of the read result in a session entry, for a result carried by routing ref. */
++export function resultFirstLine(branch, entryId) {
++  return allResults(branch).find((result) => result.entry?.id === entryId)?.firstLine;
++}
+ export function resolveResult(branch, id) {
+   const found = allResults(branch).find((result) => result.id === id);
+   if (!found) return undefined;
+diff --git a/pi-extension/src/compaction/README.md b/pi-extension/src/compaction/README.md
+index 9c09bf22..1a6e161d 100644
+--- a/pi-extension/src/compaction/README.md
++++ b/pi-extension/src/compaction/README.md
+@@ -21,7 +21,7 @@ Compaction is on by default whenever Freeflow is on: `compaction.enabled` in Fre
+ - `freeflow_compact` is accepted only when compaction is due: the context is past the warning point, or the user ran `/freeflow compact` in this cycle. Due is recomputed from the measurement, so a reload does not lose it.
+ - Context reuse off: no list, no carry budget, and `carry` items are refused; the user's latest messages are still carried.
+ - A list inserted with the warning is context too, so its size moves the warning point earlier.
+-- The warning is sent once per cycle; "compact now" when the context crosses its point and again each time it grows another 10k tokens, because Pi 1.0 checks its own threshold only after a run ends, not between turns. Mid-run a notice joins the next request; at the end of a run it waits for the next prompt rather than starting work.
++- The warning is sent once per cycle; "compact now" when the context crosses its point and again each time it grows another 10k tokens, so a long step that passed it is reminded before Pi compacts; Pi 1.0 checks its own threshold on an estimate before each response, after a run, and before a prompt. Mid-run a notice joins the next request; at the end of a run it waits for the next prompt rather than starting work.
+ - The warning is advance notice: the agent keeps working to a safe point (a finished step whose result it knows), finishes work that ends within a step or two instead of compacting, and compacts at once if it is already at one. "Compact now" makes the end of the current step the safe point. `/freeflow compact` is immediate.
+ - Carry is the agent's picks plus an automatic fill: the newest results of the work in progress (the current assignment under routing, otherwise the cycle) take the rest of the budget, and the others are listed by ref in the carried context. With context reuse off nothing is copied; under routing the list stays, because evidence selection needs it.
+ - The carry budget is 15% of the window, at most 40k, and at most a quarter of the warning point, so a large Pi reserve cannot make the carried context refill the next cycle.
+diff --git a/pi-extension/src/compaction/carry.ts b/pi-extension/src/compaction/carry.ts
+index cf3ad80d..0b0a3778 100644
+--- a/pi-extension/src/compaction/carry.ts
++++ b/pi-extension/src/compaction/carry.ts
+@@ -113,6 +113,18 @@ export function latestUserMessages(branch: readonly any[], skip: (message: strin
+   return kept;
+ }
+ 
++/**
++ * Text with each line's number in front, as `nl -ba` prints it, so a copy can be cited by file line without being read
++ * again. Pi's note after a partial read ("[Showing lines …]", "[N more lines in file …]") stays unnumbered.
++ */
++export function numberLines(text: string, first: number): string {
++  const note = /\n\n\[(?:Showing lines \d+-\d+ of \d+|\d+ more lines in file)[^\n]*\]$/.exec(text);
++  const body = note ? text.slice(0, note.index) : text;
++  const lines = body.split("\n");
++  const width = String(first + lines.length - 1).length;
++  return lines.map((line, i) => `${String(first + i).padStart(width)}\t${line}`).join("\n") + (note ? note[0] : "");
++}
++
+ function fenced(body: string): string {
+   const longest = Math.max(2, ...[...body.matchAll(/`+/g)].map((match) => match[0].length));
+   const fence = "`".repeat(longest + 1);
+@@ -140,13 +152,13 @@ export function renderCarried(
+     );
+   if (files.length)
+     parts.push(
+-      "## Files, read at compaction\n\n" +
++      "## Files, read at compaction\n\nNumbered by file line, as are read results below.\n\n" +
+         files
+           .map((file) => {
+             const range = "lines" in file && file.lines ? ` (lines ${file.lines[0]}-${file.lines[1]})` : "";
+             return "error" in file
+               ? `### ${file.path}\n\nNot carried: ${file.error}.`
+-              : `### ${file.path}${range}\n\n${fenced(file.text)}`;
++              : `### ${file.path}${range}\n\n${fenced(numberLines(file.text, "lines" in file && file.lines ? file.lines[0] : 1))}`;
+           })
+           .join("\n\n"),
+     );
+@@ -156,7 +168,7 @@ export function renderCarried(
+         results
+           .map(
+             (result) =>
+-              `### ${result.id} ${result.tool}${result.label && result.label !== result.id ? `: ${result.label}` : ""}\n\n${fenced(result.text)}`,
++              `### ${result.id} ${result.tool}${result.label && result.label !== result.id ? `: ${result.label}` : ""}\n\n${fenced(result.firstLine === undefined ? result.text : numberLines(result.text, result.firstLine))}`,
+           )
+           .join("\n\n"),
+     );
+diff --git a/pi-extension/src/compaction/controller.ts b/pi-extension/src/compaction/controller.ts
+index b9ad7a23..339167a9 100644
+--- a/pi-extension/src/compaction/controller.ts
++++ b/pi-extension/src/compaction/controller.ts
+@@ -16,7 +16,15 @@ import {
+   type CarryItem,
+ } from "./carry.js";
+ import { cycleFiles, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
+-import { renderIndex, resolveResult, resultIndex, scopeResults, type Result, type ScopeResult } from "./results.js";
++import {
++  renderIndex,
++  resolveResult,
++  resultFirstLine,
++  resultIndex,
++  scopeResults,
++  type Result,
++  type ScopeResult,
++} from "./results.js";
+ import type { Thresholds } from "./thresholds.js";
+ 
+ /**
+@@ -72,7 +80,7 @@ export type Notice = { level: "warning" | "compactNow"; text: string };
+ const ABNORMAL_STOPS = new Set(["error", "aborted", "length"]);
+ /** The most results the carried context lists by ref; the newest are listed. */
+ const MAX_LISTED = 60;
+-/** Pi checks its own threshold only after a run ends, so within a run "compact now" repeats as context keeps growing. */
++/** "Compact now" repeats as the context keeps growing, so a long step that passed it is reminded before Pi compacts. */
+ const COMPACT_NOW_REPEAT = 10_000;
+ const hash = (text: string) => createHash("sha256").update(text).digest("hex");
+ const branchOf = (ctx: any): any[] => ctx.sessionManager?.getBranch?.() ?? [];
+@@ -195,17 +203,16 @@ export class CompactionController {
+     const prefix = this.host.noticePrefix;
+     const { window, trigger } = thresholds;
+     if (this.host.coordinatorUnderProjection())
+-      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger} once this run ends. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return; then continue.`;
++      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return; then continue.`;
+     const index = withList ? this.indexText(ctx) : "";
+     const list = index ? `\n\n${index}` : "";
+     // A worker's return hands the same history to the Coordinator and the next assignment, so it ends no growth.
+     const worker = this.host.routingAssignment() !== undefined;
+     if (level === "compactNow")
+-      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger} once this run ends, or when a request overflows the model's window. The end of your current step is the safe point: write down any partial state, then prepare and call freeflow_compact; ${worker ? "compact before you return, since the next assignment continues this history; " : ""}if Pi compacts first, its own summary replaces yours.${list}`;
+-    const end = worker
+-      ? "If you are at one now, compact now. A return does not end this history: the Coordinator and the next assignment continue it, so compact before you return, not after."
+-      : "If you are at one now, compact now; if your work ends within a step or two with a final answer, finish it instead.";
+-    return `${prefix} Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger} once this run ends. Keep working until a safe point: a finished step whose result you know (a check read, an edit set complete, a report written), not mid-edit or with a command running. ${end} At the safe point, read the compaction skill, update the Working Record, ${this.carryText(ctx)}, write the summary, and call freeflow_compact. A "compact now" notice follows near Pi's limit.${list}`;
++      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger}, or when a request overflows the model's window. The end of your current step is the safe point: write down any partial state, then prepare and call freeflow_compact; ${worker ? "compact before you return, since the Coordinator and the next assignment continue this history; " : ""}if Pi compacts first, its own summary replaces yours.${list}`;
++    // Before compact now there is room for the Coordinator's next turn, so a worker may finish a return first.
++    const end = `If you are at one now, compact now; if your work ends within a step or two with ${worker ? "a return" : "a final answer"}, finish it instead.`;
++    return `${prefix} Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}, once the run ends. Keep working until a safe point: a finished step whose result you know (a check read, an edit set complete, a report written), not mid-edit or with a command running. ${end} At the safe point, read the compaction skill, update the Working Record, ${this.carryText(ctx)}, write the summary, and call freeflow_compact. A "compact now" notice follows near Pi's limit.${list}`;
+   }
+ 
+   /** Check a freeflow_compact call and schedule it for the end of this turn; throws with the reason it is refused. */
+@@ -322,7 +329,17 @@ export class CompactionController {
+     const resolve = (id: string): Result | undefined => {
+       if (!this.host.nativeRefs()) return resolveResult(branch, id);
+       const source = this.host.resolveRef(id);
+-      return source && { id, tool: source.tool, label: id, tokens: estimateTokens(source.text), text: source.text };
++      const firstLine = resultFirstLine(branch, id.replace(/^ctx:/, ""));
++      return (
++        source && {
++          id,
++          tool: source.tool,
++          label: id,
++          tokens: estimateTokens(source.text),
++          text: source.text,
++          ...(firstLine === undefined ? {} : { firstLine }),
++        }
++      );
+     };
+     const results = ids.map(resolve).filter(Boolean) as Result[];
+     const missing = ids.filter((id) => !results.some((result) => result.id === id));
+diff --git a/pi-extension/src/compaction/results.ts b/pi-extension/src/compaction/results.ts
+index e1374e03..c20f965f 100644
+--- a/pi-extension/src/compaction/results.ts
++++ b/pi-extension/src/compaction/results.ts
+@@ -31,6 +31,8 @@ export interface ResultRow {
+ 
+ export interface Result extends ResultRow {
+   text: string;
++  /** For a text read of a file, the file line its text starts at, so a carried copy can show line numbers. */
++  firstLine?: number;
+ }
+ 
+ const resultText = (message: any): string =>
+@@ -91,6 +93,7 @@ function allResults(branch: readonly any[]): (Result & { entry: any; input: any
+       label: label(tool, call?.input),
+       tokens: estimateTokens(text),
+       text,
++      ...firstLineOf(tool, call?.input, message),
+       entry,
+       input: call?.input,
+     });
+@@ -98,6 +101,18 @@ function allResults(branch: readonly any[]): (Result & { entry: any; input: any
+   return results;
+ }
+ 
++/** A text read of a file starts at its offset (Pi's read is 1-based); an image or failed read has no lines. */
++function firstLineOf(tool: string, input: any, message: any): { firstLine?: number } {
++  if (tool !== "read" || typeof input?.path !== "string" || message?.isError) return {};
++  if ((message?.content ?? []).some((part: any) => part?.type === "image")) return {};
++  return { firstLine: Number.isInteger(input?.offset) && input.offset > 0 ? input.offset : 1 };
++}
++
++/** The first line of the read result in a session entry, for a result carried by routing ref. */
++export function resultFirstLine(branch: readonly any[], entryId: string): number | undefined {
++  return allResults(branch).find((result) => result.entry?.id === entryId)?.firstLine;
++}
++
+ export function resolveResult(branch: readonly any[], id: string): Result | undefined {
+   const found = allResults(branch).find((result) => result.id === id);
+   if (!found) return undefined;
+diff --git a/pi-extension/tests/compaction/agent-path.test.js b/pi-extension/tests/compaction/agent-path.test.js
+index 04eacae8..0de9351c 100644
+--- a/pi-extension/tests/compaction/agent-path.test.js
++++ b/pi-extension/tests/compaction/agent-path.test.js
+@@ -74,7 +74,8 @@ test("/freeflow compact leads to one compaction and the same run continues from
+       // Compaction removes the skill from context, so Freeflow's messages carry its recovery rules.
+       assert.match(after[1], /they take precedence over older instructions in the summary or a Working Record/);
+       assert.doesNotMatch(after[1], /Compact now/, "the compaction completes /freeflow compact, so it is not carried");
+-      assert.match(after[1], /### evidence\.txt\n\n`+\nFRESH_AT_COMPACTION\n`+/);
++      // Read fresh at compaction and numbered by file line, so it can be cited without reading it again.
++      assert.match(after[1], /### evidence\.txt\n\n`+\n1\tFRESH_AT_COMPACTION\n`+/);
+       assert.match(after[2], /^\[Freeflow notice, not from the user\] Compaction finished; cycle 2 starts here\./);
+       assert.match(after[2], /if the summary names a Working Record for this work/);
+       assert.match(after[2], /do not call freeflow_compact again in this cycle/);
+diff --git a/pi-extension/tests/compaction/carry.test.js b/pi-extension/tests/compaction/carry.test.js
+index 07a69a96..c6549e59 100644
+--- a/pi-extension/tests/compaction/carry.test.js
++++ b/pi-extension/tests/compaction/carry.test.js
+@@ -1,5 +1,8 @@
+ import assert from "node:assert/strict";
++import { writeFile } from "node:fs/promises";
++import { join } from "node:path";
+ import test from "node:test";
++import { numberLines } from "../../dist/compaction/carry.js";
+ import { CompactionController } from "../../dist/compaction/controller.js";
+ import { thresholds } from "../../dist/compaction/thresholds.js";
+ import { fixture } from "../fixtures/routing-native.js";
+@@ -43,7 +46,7 @@ test(
+         assert.ok(!JSON.stringify(requests[0].input).includes(LIST), "/freeflow compact inserts no list under routing");
+         assert.match(
+           JSON.stringify(requests[3].input),
+-          new RegExp(`### ${ref} read\\\\n\\\\n\`+\\\\nEXACT_EVIDENCE_BODY_81`),
++          new RegExp(`### ${ref} read\\\\n\\\\n\`+\\\\n1\\\\tEXACT_EVIDENCE_BODY_81`),
+         );
+         const entry = manager.getBranch().find((each) => each.type === "compaction");
+         assert.deepEqual(
+@@ -112,3 +115,40 @@ test("a list inserted with the warning moves the warning point earlier by the li
+   assert.equal(controller(false).observe(ctx)?.level, "warning", "the list's size pushes it over");
+   assert.equal(controller(true).observe(ctx), undefined, "with routing refs there is no list and no shift");
+ });
++
++test("carried text is numbered by file line, from a read's offset, leaving Pi's partial-read note as it is", () => {
++  assert.equal(numberLines("a\nb", 1), "1\ta\n2\tb");
++  assert.equal(numberLines("x\ny\nz", 9), " 9\tx\n10\ty\n11\tz", "numbers align to the widest");
++  assert.equal(
++    numberLines("x\ny\n\n[Showing lines 40-41 of 90. Use offset=42 to continue.]", 40),
++    "40\tx\n41\ty\n\n[Showing lines 40-41 of 90. Use offset=42 to continue.]",
++  );
++  assert.equal(
++    numberLines("x\n\n[12 more lines in file. Use offset=3 to continue.]", 2),
++    "2\tx\n\n[12 more lines in file. Use offset=3 to continue.]",
++  );
++});
++
++test("a carried read result is numbered from the offset it was read at", { timeout: 30000 }, async () => {
++  await fixture(
++    async (n) =>
++      [
++        [{ name: "read", args: { path: "lines.txt", offset: 3 } }],
++        [{ name: "freeflow_compact", args: { summary: "S", carry: [{ result: "r1" }] } }],
++      ][n - 1] ?? [],
++    false,
++    async ({ manager }) => {
++      const carried = manager.getBranch().find((entry) => entry.customType === "freeflow-carried-context");
++      assert.match(String(carried.content), /### r1 read: lines\.txt\n\n`+\n3\tLINE_THREE\n4\tLINE_FOUR\n`+/);
++    },
++    true,
++    {
++      cognitiveRouting: { enabled: false },
++      freeflowConfig: { toolExecution: { enabled: true } },
++      beforePrompt: async (run) => {
++        await writeFile(join(run.cwd, "lines.txt"), "LINE_ONE\nLINE_TWO\nLINE_THREE\nLINE_FOUR");
++        await compactNow(run);
++      },
++    },
++  );
++});
+diff --git a/pi-extension/tests/compaction/notices.test.js b/pi-extension/tests/compaction/notices.test.js
+index 33d0cde7..8f06ecf9 100644
+--- a/pi-extension/tests/compaction/notices.test.js
++++ b/pi-extension/tests/compaction/notices.test.js
+@@ -38,7 +38,7 @@ test(
+         assert.match(JSON.stringify(requests[2].input), /- r1  read  big\.txt  ~1000 tokens/);
+         // Without routing a final answer ends the context's growth, so finishing stays an option; no return is mentioned.
+         assert.match(JSON.stringify(requests[2].input), /finish it instead/);
+-        assert.doesNotMatch(JSON.stringify(requests[2].input), /compact before you return/);
++        assert.doesNotMatch(JSON.stringify(requests[2].input), /with a return/);
+         assert.equal(count(requests[3], WARNING), 1, "sent once per cycle");
+         assert.equal(count(requests[4], COMPACT_NOW), 1);
+         // Accepted without /freeflow compact: the notices made it due. The new cycle carries r1's body.
+@@ -122,25 +122,24 @@ test(
+   },
+ );
+ 
+-test(
+-  "compact now repeats as the context keeps growing, since Pi does not compact within a run",
+-  { timeout: 30000 },
+-  async () => {
+-    // Compact now at 102,999: crossed at 120k, not repeated at 125k, repeated at 131k (10k past the last one).
+-    const usage = [50_000, 100_000, 120_000, 125_000, 131_000, 1_000];
+-    const read = [{ name: "read", args: { path: "evidence.txt" } }];
+-    await fixture(
+-      async (n) => (n <= 5 ? read : []),
+-      false,
+-      async ({ requests }) => {
+-        assert.equal(count(requests[3], COMPACT_NOW), 1, "the first compact now");
+-        assert.equal(count(requests[4], COMPACT_NOW), 1, "not repeated before another 10k");
+-        assert.equal(count(requests[5], COMPACT_NOW), 2, "repeated 10k past the last one");
+-        assert.match(JSON.stringify(requests[5].input), /once this run ends, or when a request overflows/);
+-        assert.equal(count(requests[5], WARNING), 1, "the warning stays once per cycle");
+-      },
+-      true,
+-      { ...noRouting, response: withUsage((n) => usage[n - 1] ?? 1_000) },
+-    );
+-  },
+-);
++test("compact now repeats as the context keeps growing", { timeout: 30000 }, async () => {
++  // Compact now at 102,999: crossed at 120k, not repeated at 125k, repeated at 131k (10k past the last one).
++  const usage = [50_000, 100_000, 120_000, 125_000, 131_000, 1_000];
++  const read = [{ name: "read", args: { path: "evidence.txt" } }];
++  await fixture(
++    async (n) => (n <= 5 ? read : []),
++    false,
++    async ({ requests }) => {
++      assert.equal(count(requests[3], COMPACT_NOW), 1, "the first compact now");
++      assert.equal(count(requests[4], COMPACT_NOW), 1, "not repeated before another 10k");
++      assert.equal(count(requests[5], COMPACT_NOW), 2, "repeated 10k past the last one");
++      assert.match(
++        JSON.stringify(requests[5].input),
++        /Pi compacts on its own past about \d+, or when a request overflows/,
++      );
++      assert.equal(count(requests[5], WARNING), 1, "the warning stays once per cycle");
++    },
++    true,
++    { ...noRouting, response: withUsage((n) => usage[n - 1] ?? 1_000) },
++  );
++});
+diff --git a/pi-extension/tests/compaction/worker-warning.test.js b/pi-extension/tests/compaction/worker-warning.test.js
+index 538d5f55..b0f8fe57 100644
+--- a/pi-extension/tests/compaction/worker-warning.test.js
++++ b/pi-extension/tests/compaction/worker-warning.test.js
+@@ -1,5 +1,7 @@
+ import assert from "node:assert/strict";
+ import test from "node:test";
++import { CompactionController } from "../../dist/compaction/controller.js";
++import { thresholds } from "../../dist/compaction/thresholds.js";
+ import { fixture, response } from "../fixtures/routing-native.js";
+ 
+ // The warning reaching a worker in the middle of its own assignment, under projection: the worker gets the worker's
+@@ -38,9 +40,8 @@ test("a worker warned mid-assignment compacts, continues its contract, and retur
+       const notice = JSON.stringify(requests[3].input);
+       assert.match(notice, /Keep working until a safe point/, "the worker's notice, not the Coordinator's");
+       assert.doesNotMatch(notice, /do not compact yourself/);
+-      // A return hands the same history on, so the worker is told to compact before it, not to finish instead.
+-      assert.match(notice, /A return does not end this history: .* compact before you return, not after\./);
+-      assert.doesNotMatch(notice, /finish it instead/);
++      // Before compact now a return may still finish first; compact now asks for compaction before the return.
++      assert.match(notice, /if your work ends within a step or two with a return, finish it instead/);
+ 
+       const compactions = manager.getBranch().filter((entry) => entry.type === "compaction");
+       assert.equal(compactions.length, 1);
+@@ -65,3 +66,29 @@ test("a worker warned mid-assignment compacts, continues its contract, and retur
+     },
+   );
+ });
++
++test("a worker's compact now asks it to compact before returning; the warning lets a return finish", () => {
++  const limits = thresholds(128_000, 16_384);
++  const notice = (tokens, assignment) =>
++    new CompactionController({
++      effective: () => true,
++      routingProfile: () => (assignment ? "executor" : undefined),
++      routingAssignment: () => assignment,
++      background: () => [],
++      noticePrefix: "[notice]",
++      coordinatorUnderProjection: () => false,
++      carryEnabled: () => true,
++      nativeRefs: () => assignment !== undefined,
++      assignmentResults: () => undefined,
++      resolveRef: () => undefined,
++      summarize: async () => undefined,
++      measure: () => ({ tokens, thresholds: limits }),
++    }).observe({ sessionManager: { getBranch: () => [] } })?.text;
++  assert.match(
++    notice(limits.compactNow, "a1"),
++    /compact before you return, since the Coordinator and the next assignment/,
++  );
++  assert.doesNotMatch(notice(limits.compactNow, undefined), /return/);
++  assert.match(notice(limits.warning, "a1"), /with a return, finish it instead/);
++  assert.match(notice(limits.warning, undefined), /with a final answer, finish it instead/);
++});

@@ -45,15 +45,43 @@ if (!existsSync(files)) {
   console.error("run this from the workspace: files/ is missing");
   process.exit(2);
 }
+// Without them every test that imports a package fails at load, which reads as the change's failure.
+if (!existsSync(path.join(root, "node_modules"))) {
+  console.error("the tests cannot run here: this checkout has no node_modules (run npm ci at its root)");
+  process.exit(2);
+}
 
 // The command tool shows at most 32 KB, so the report keeps one line per top-level test, the details of each failure
-// (up to 30 lines) and the totals, instead of every subtest's TAP block.
+// (up to 30 lines) and the totals, instead of every subtest's TAP block. A test file that fails to load reports only
+// "test failed" at :1:1; the cause is in the file's stderr, which node --test prints as "# " lines before the file's
+// result. A run of such lines that names an error is kept, without its stack frames: up to 8 lines each and 60 in all.
+const DIAGNOSTIC_LINES = 8;
+const DIAGNOSTIC_TOTAL = 60;
+const TOTALS = /^# (tests|suites|pass|fail|cancelled|skipped|todo|duration_ms) /;
 function compact(tap) {
   const out = [];
   const lines = tap.split("\n");
   const indent = (line) => line.length - line.trimStart().length;
+  let diagnostic = [];
+  let diagnosticTotal = 0;
+  const flushDiagnostic = () => {
+    if (diagnostic.some((line) => /\b(?:[A-Z]\w*Error\b|ERR_[A-Z_]+)/.test(line))) {
+      const kept = diagnostic.filter((line) => !/^#\s+at /.test(line) && !/^# Node\.js v/.test(line));
+      for (const line of kept.slice(0, DIAGNOSTIC_LINES)) {
+        if (diagnosticTotal < DIAGNOSTIC_TOTAL) out.push(line);
+        else if (diagnosticTotal === DIAGNOSTIC_TOTAL) out.push("# (further diagnostics omitted)");
+        diagnosticTotal += 1;
+      }
+    }
+    diagnostic = [];
+  };
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
+    if (/^# /.test(line) && !/^# Subtest: /.test(line) && !TOTALS.test(line)) {
+      diagnostic.push(line);
+      continue;
+    }
+    flushDiagnostic();
     const failed = /^\s*not ok \d+ - /.test(line);
     if (/^ok \d+ - /.test(line) || failed) {
       out.push(line);
@@ -66,8 +94,9 @@ function compact(tap) {
           detail += 1;
         }
       }
-    } else if (/^# (tests|suites|pass|fail|cancelled|skipped|todo|duration_ms) /.test(line)) out.push(line);
+    } else if (TOTALS.test(line)) out.push(line);
   }
+  flushDiagnostic();
   return `${out.join("\n")}\n`;
 }
 

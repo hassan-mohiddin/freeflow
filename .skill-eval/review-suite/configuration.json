@@ -5,7 +5,7 @@
   "configuration": {
     "host": {
       "name": "pi",
-      "extensions": [{ "package": "@gotgenes/pi-anthropic-auth", "version": "3.4.2" }]
+      "extensions": [{ "package": "@gotgenes/pi-anthropic-auth", "version": "3.4.3" }]
     },
     "model": { "model": "anthropic/claude-haiku-5-5", "thinking": "medium" },
     "subject": {
