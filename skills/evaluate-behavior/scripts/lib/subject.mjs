@@ -81,7 +81,7 @@ export async function runBody({
       workspace: subject.workspace,
       resources: subject.resourceRoots,
     });
-    subject.processEnvironment.SKILL_EVAL_CONTAINER = containerTarget(container, declaredContainer);
+    subject.processEnvironment.SKILL_EVAL_CONTAINER = containerTarget(container);
   }
   let observation;
   try {

@@ -131,7 +131,11 @@ export async function scanRun({
   skipped = [],
 }) {
   const workspace = typeof run?.workspace === "string" ? run.workspace : null;
-  const guest = arm === null ? undefined : group?.variants?.[arm]?.shell?.workspace;
+  const shell = arm === null ? undefined : group?.variants?.[arm]?.shell;
+  const guest = shell?.workspace;
+  // A container's bash starts in the workspace at its host path (the guest path is a link to it); another isolation's
+  // starts at its guest path.
+  const startsAtGuest = typeof guest === "string" && shell?.container === undefined;
   const hostRoots = [home, root].filter((entry) => typeof entry === "string" && entry !== "");
   // The arm directory holds the run's resources and package copies; only its isolation holds what no tool may read.
   const armDirectory = directory ?? armDirectoryOf(run);
@@ -143,12 +147,12 @@ export async function scanRun({
       !isContained(path.join(armDirectory, "isolation"), target));
   const isGuest = (word) => typeof guest === "string" && (word === guest || word.startsWith(`${guest}/`));
   // Where a word of a bash command points on the host, or null when it is no host path: a guest path is the
-  // workspace, and a relative path with `..` starts from the workspace (or, in a container, from its guest path).
+  // workspace, and a relative path with `..` starts from where bash starts.
   const bashTarget = (word) => {
     if (isGuest(word)) return null;
     if (path.isAbsolute(word)) return path.normalize(word);
     if (!word.split("/").includes("..") || workspace === null) return null;
-    if (typeof guest === "string") {
+    if (startsAtGuest) {
       const resolved = path.posix.resolve(guest, word);
       return isGuest(resolved) ? null : path.normalize(resolved);
     }

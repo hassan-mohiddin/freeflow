@@ -437,7 +437,7 @@ export async function verifyConfinement({ arm, host = "pi", shell, extensions, d
     SKILL_EVAL_PROMPT_MODE: "isolated",
     SKILL_EVAL_SHELL: JSON.stringify(shell),
     [PROBE_VARIABLE]: nonce,
-    ...(container === null ? {} : { SKILL_EVAL_CONTAINER: containerTarget(container, shell.container) }),
+    ...(container === null ? {} : { SKILL_EVAL_CONTAINER: containerTarget(container) }),
   };
   const timeout = AbortSignal.timeout(PROBE_TIMEOUT_MS);
   const eventsFile = path.join(directory, "events.jsonl");

@@ -56,6 +56,22 @@ test("a clean run has no flags: reads inside the workspace and declared resource
   });
 });
 
+test("a container's bash starts in the workspace at its host path, so a relative path climbs from there", async () => {
+  await withRoot(async (root) => {
+    const run = runWith(root, [
+      { toolName: "bash", args: { command: "cat ../resources/skills/0/SKILL.md /testbed/../testbed/AGENTS.md" } },
+      { toolName: "bash", args: { command: "cat ../../../notes.txt" } },
+    ]);
+    const container = { image: `example.org/task@sha256:${"a".repeat(64)}`, workdir: "/testbed", network: "none" };
+    const group = { variants: { arm: { shell: { workspace: "/testbed", container } } }, expectations: [] };
+    const flags = await scanRun({ run, group, arm: "arm", home: path.join(root, "home"), root });
+    assert.deepEqual(
+      flags.map((flag) => [flag.kind, flag.evidence.command]),
+      [["outside-read", "cat ../../../notes.txt"]],
+    );
+  });
+});
+
 test("honest work seen in stored runs is not flagged", async () => {
   await withRoot(async (root) => {
     const arm = path.join(root, "runs/arm");
