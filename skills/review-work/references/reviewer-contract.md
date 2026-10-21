@@ -2,7 +2,7 @@
 
 Read this before preparing or performing a separately selected independent review, of work or of a durable artifact.
 
-This reference is a contract: the required context and the reviewer prompt for the kind under review are binding as written. The reviewer did not produce the reviewed state. Give them the work product or the complete artifact, source truth, dependencies, and evidence needed to judge it directly. Do not provide only the producer's summary, reasoning, claimed result, or change description.
+This reference is a contract: the brief or required context, and the reviewer instructions or prompt, for the kind under review are binding as written. The reviewer did not produce the reviewed state. Give them the work product or the complete artifact, source truth, dependencies, and evidence needed to judge it directly. Do not provide only the producer's summary, reasoning, claimed result, or change description.
 
 When the task has a task directory, save the brief as `scratch/reviews/R<n>-brief.md` there and the returned report as `R<n>-report.md` beside it, where `<n>` is the review number. Delete nothing there without the user's yes.
 
@@ -10,71 +10,47 @@ When the task has a task directory, save the brief as `scratch/reviews/R<n>-brie
 
 Use this section for code, a diff, an implementation, or integrated work.
 
-### Required Context
+### The Brief
 
-Provide:
+The brief points to where the reviewer finds each input; the reviewer reads them itself. Never paste the requirements, the diff, the docs, or the evidence into it, and never send only your summary of them. Write the brief in this shape, one labelled line each:
 
-- the work and future action covered by the review;
-- accepted outcome, requirements, and non-goals;
-- relevant Specs, Plans, tests, policies, ADRs, and established behavior;
-- the project's Review Rules (or its `REVIEW.md`), read from the base branch;
-- the implementation, changed files, or diff range;
-- verification evidence and known gaps;
-- only the review lenses material to this boundary;
-- active evidence authority: by default the project's declared read-only checks (tests, build, typecheck, the feature map's drive steps), run in the reviewer's own copy with no edits, network calls, or paid runs; plus each other exact covered check with its expected evidence and stop condition, or none;
-- review number and, for Review 2 or 3, the previous report, its adjudication, and the diff since the previous review's reviewed state, not the whole change.
+```md
+Review: [1 | 2 | 3]
+Boundary: [the protected future action]
+Reviewed state: [commit]
+Method: [path to Review Work's SKILL.md], its references/work.md, and the Work section of references/reviewer-contract.md
+Agreement: [path to the Working Record, read through its resume view, or to the accepted outcome, requirements and non-goals; plus any Spec or Plan it names]
+Docs: [paths to the dev docs covering the changed files, read from the base branch | none]
+Review rules: [path to the project's Review Rules or REVIEW.md, read from the base branch | none]
+Diff: [base]..[head]
+Evidence: [path to the verification evidence and known gaps; check it, don't trust it | none]
+May run: [the project's declared read-only checks, named | another exact covered check, its expected evidence and stop condition | nothing]
+Previous report: [Review 2 or 3 only: path to the previous report and its adjudication]
+Report: [path to write the report to]
+```
 
-When state transitions or proof integrity matter, also provide the invariant or state owner, affecting paths, observing mechanism, forbidden mutations, prior-state requirements, adversarial disproof, mutation footprint, and fidelity limits.
+Write each path in backticks. Add a `Lenses:` line only to narrow the review to the lenses material to this boundary, and a `Notes:` line pointing to the invariant, state owner, affecting paths, observer, forbidden mutations, prior-state requirements, adversarial disproof, mutation footprint and fidelity limits when state transitions or proof integrity matter. By default, `May run` is the project's declared read-only checks (tests, build, typecheck, the feature map's drive steps), run in the reviewer's own copy with no edits, network calls, or paid runs. For Review 2 or 3, the diff is the range since the previous review's reviewed state, not the whole change.
 
-### Reviewer Prompt
+Before dispatching, run [check-brief](../scripts/check-brief.mjs) on the brief: `node <review-work-directory>/scripts/check-brief.mjs <brief> [--root <repository>]`. It refuses a brief missing a required line or naming a path or commit that does not exist. Dispatch only a brief it accepts; if it cannot run, check the same by hand and say so in the record.
+
+A reviewer that cannot read files is a host gap: record it, and do not paste the inputs instead.
+
+### Reviewer Instructions
+
+The reviewer reads this section, not a copy of it.
 
 ```md
 # Independent Work Review
 
-Review work you did not produce. Inspect the supplied work, source truth, and evidence directly. Report without editing. The review ends with this report; do not adjudicate findings, fix items, dispatch follow-up, or continue merely to obtain Pass.
+Review work you did not produce. Inspect the work, source truth, and evidence the brief points to directly. Report without editing. The review ends with this report; do not adjudicate findings, fix items, dispatch follow-up, or continue merely to obtain Pass.
 
 A pass is valid. Use a high evidence bar, not a high item count. Do not broaden scope or treat possible improvement as unfinished work.
 
-Read the supplied evidence first. Run a check listed under Active evidence authority, in your own copy, only when that evidence is missing or does not convince you; run nothing else, and make no edits, network calls, or paid runs. When a claim still lacks evidence, report **Needs evidence** with the claim and required observing boundary. When you run a check, apply Verify Work's check-result and claim-result semantics; active evidence does not authorize editing or broaden the review.
-
-## Boundary
-
-- Protected future action: [boundary]
-- Reviewed state: [commit, tree, diff, or other exact identity]
-- Work: [diff range, changed files, implementation, or integrated result]
-
-## Accepted Outcome And Non-Goals
-
-- Outcome: [required result]
-- Requirements: [accepted requirements]
-- Non-goals: [intentional exclusions]
-
-## Source Truth
-
-- [Specs, Plans, tests, policies, ADRs, and established behavior]
-
-## Verification Evidence
-
-- Checks and results: [commands, observations, and results]
-- Known gaps: [gaps or none]
-- When relevant: [state owner, affecting paths, observer, forbidden mutations, prior-state requirements, adversarial disproof, mutation footprint, fidelity limits]
-
-## Review Scope
-
-- Review number: [1 | 2 | 3]
-- Material lenses: [source alignment | correctness and integration | failure and risk | evidence and acceptance | scope and minimality | maintainability]
-- Active evidence authority: [the project's declared read-only checks: tests, build, typecheck, feature map drive steps | other exact covered check, expected evidence, and stop condition | none]
-
-For Review 2 or 3:
-
-- Previous report and its adjudication: [report path, or items with Accepted | Rejected | Open]
-- Clarifications: [settled decisions or none]
-- Diff since the previous review's reviewed state: [range], with corrections and new evidence
-- Remaining risk: [narrow unresolved scope]
+Read the brief's pointers: the agreement (through the Working Record's resume view when the brief names one), the docs, the Review Rules, which feed the classes and lenses below but never add a class, and the diff. Then read the evidence as claims to check. Run a check listed under `May run`, in your own copy, only when that evidence is missing or does not convince you; run nothing else, and make no edits, network calls, or paid runs. When a claim still lacks evidence, report **Needs evidence** with the claim and required observing boundary. When you run a check, apply Verify Work's check-result and claim-result semantics; active evidence does not authorize editing or broaden the review.
 
 ## Check
 
-Apply only the selected lenses:
+Apply the lenses the brief names, or all of these:
 
 - accepted behavior is implemented without invention or omission;
 - affected callers, states, and components remain correct together;

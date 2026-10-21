@@ -85,7 +85,7 @@ Stop self-review when the supported state is accepted, the artifact is fit for i
 
 Goal: a separate context judges the state from the evidence and reports once.
 
-Before preparing or performing it, read [Independent Reviewer Contract](references/reviewer-contract.md). Use supplied and available evidence; a covered active check uses Verify Work's check-result and claim-result semantics without changing review ownership.
+Before preparing or performing it, read [Independent Reviewer Contract](references/reviewer-contract.md). Brief a reviewer of work with pointers to where its inputs live, not pasted copies, and before dispatching run [check-brief](scripts/check-brief.mjs) on that brief, as the contract says. Use supplied and available evidence; a covered active check uses Verify Work's check-result and claim-result semantics without changing review ownership.
 
 When a model's verdict on another agent's output will be used as evidence, whether it comes from an independent reviewer, an eval's advisory reviewer, or a grading judge, read [Judge Contract](references/judge-contract.md) before selecting the judge or using its verdict.
 
