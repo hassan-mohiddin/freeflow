@@ -41,6 +41,13 @@ const BOUNDARY = "ready for PR review";
 const LENSES =
   "source alignment, correctness and integration, failure and risk, evidence and acceptance, scope and minimality, maintainability";
 const FIX_SKILL = `${relativeSuite}/skills-ra-rb/review-work`;
+// The Haiku check of the fix before it merges (groups-fix-haiku/, suite-fix-haiku.json): `pointer` and `pointer-fix`
+// exactly as trial 2 builds them, on these groups, with the suite's Haiku configuration instead of Grok.
+const HAIKU_CHECK_ARMS = ["pointer", "pointer-fix"];
+const HAIKU_CHECK_GROUPS = [
+  ["rv03-b", "rv16-b", "rv19-a", "rv05-a", "rv01-b", "rv15-a"],
+  ["rv07-a", "rv16-a", "rv24-b", "rv08-a"],
+].flat();
 // The over-blocking fix: each edit is [file in the skill, text it follows or replaces, replacement].
 const FIX = [
   [
@@ -188,7 +195,8 @@ function main() {
   const groupsDirectory = path.join(suite, "groups-ra-rb");
   const contextDirectory = path.join(suite, "context-ra-rb");
   const fixturesDirectory = path.join(suite, "fixtures-ra-rb");
-  for (const directory of [groupsDirectory, contextDirectory, fixturesDirectory]) {
+  const haikuDirectory = path.join(suite, "groups-fix-haiku");
+  for (const directory of [groupsDirectory, contextDirectory, fixturesDirectory, haikuDirectory]) {
     rmSync(directory, { recursive: true, force: true });
     mkdirSync(directory, { recursive: true });
   }
@@ -254,7 +262,32 @@ function main() {
       ...(defective ? { rubric: [{ id: "identified", question: identified }], judges: [JUDGE] } : {}),
     };
     writeFileSync(path.join(groupsDirectory, `${row.id}.json`), `${JSON.stringify(group, null, 2)}\n`);
+    if (HAIKU_CHECK_GROUPS.includes(row.id)) {
+      const check = {
+        ...group,
+        configuration: { extends: "../configuration.json" },
+        arms: Object.fromEntries(HAIKU_CHECK_ARMS.map((arm) => [arm, group.arms[arm]])),
+        expectations: group.expectations.filter((expectation) => HAIKU_CHECK_ARMS.includes(expectation.variant)),
+      };
+      writeFileSync(path.join(haikuDirectory, `${row.id}.json`), `${JSON.stringify(check, null, 2)}\n`);
+    }
   }
+  const missing = HAIKU_CHECK_GROUPS.filter((id) => !kept.some((row) => row.id === id));
+  if (missing.length > 0) throw new Error(`Haiku check groups not in the suite: ${missing.join(", ")}`);
+  writeFileSync(
+    path.join(suite, "suite-fix-haiku.json"),
+    `${JSON.stringify(
+      {
+        schema_version: 2,
+        kind: "suite",
+        id: "review-suite-fix-haiku",
+        // Decided by the written rule in results/ra-rb-decision-rules.md, not by a suite decision.
+        groups: HAIKU_CHECK_GROUPS.map((id) => `groups-fix-haiku/${id}.json`),
+      },
+      null,
+      2,
+    )}\n`,
+  );
 
   writeFileSync(
     path.join(suite, "suite-ra-rb.json"),

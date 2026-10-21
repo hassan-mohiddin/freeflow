@@ -53,7 +53,7 @@ A later audit of the clean variants (`clean-audit.json`) traced every requiremen
 - `configuration.json`: the subject configuration every group extends.
 - `tests.json`: each base change's test files, all passing on its clean variant; `tools/run-tests.mjs` runs them for a reviewer through the `tests` command.
 - `clean-audit.json`: the clean audit's exclusions and repairs.
-- `groups-ra-rb/`, `context-ra-rb/`, `fixtures-ra-rb/`, `skills-ra-rb/`, `suite-ra-rb.json`, `configuration-grok.json`: the R-a and fix definitions (`tools/write-groups-ra-rb.mjs`); `context-ra-rb/<group>/` holds each arm's reviewer brief, `fixtures-ra-rb/<group>/` is the suite's workspace plus `requirements.md`, and `skills-ra-rb/review-work/` is the live Review Work with the over-blocking fix, generated, never edited by hand.
+- `groups-ra-rb/`, `context-ra-rb/`, `fixtures-ra-rb/`, `skills-ra-rb/`, `suite-ra-rb.json`, `configuration-grok.json`: the R-a and fix definitions (`tools/write-groups-ra-rb.mjs`); `context-ra-rb/<group>/` holds each arm's reviewer brief, `fixtures-ra-rb/<group>/` is the suite's workspace plus `requirements.md`, and `skills-ra-rb/review-work/` is the live Review Work with the over-blocking fix, generated, never edited by hand. `groups-fix-haiku/` and `suite-fix-haiku.json`, from the same tool, are the Haiku check of that fix: `pointer` and `pointer-fix` on 10 of these groups, with `configuration.json`; its rule is in `results/ra-rb-decision-rules.md`.
 - `tools/verify-case.mjs`: rebuilds a case's variants from the base commit and runs committed tests (`--test`), the fix's tests on a real variant (`--fix-test`), or proof tests, after an optional `--build`.
 
 ## Groups

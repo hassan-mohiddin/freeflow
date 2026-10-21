@@ -92,3 +92,15 @@ Otherwise the fix is not adopted. The suite's `decision` (a sign test on `identi
 ### Trials
 
 One trial. Another runs only after a new yes from Hassan.
+
+## Haiku check of the over-blocking fix before it merges
+
+Fixed on 2026-10-21, before the check runs, for `suite-fix-haiku.json` (`groups-fix-haiku/`, written by `tools/write-groups-ra-rb.mjs`). Hassan asked for the smallest check that can gate merging the fix (draft PR #72) and for it to run on Haiku. Nothing in this section may move once the check has started.
+
+- Arms: `pointer` (`b.md`, `skills/review-work`) and `pointer-fix` (`c.md`, identical to `b.md`, with `skills-ra-rb/review-work`), exactly as trial 2 builds them. `full` does not run.
+- Subject: the suite's `configuration.json`, `anthropic/claude-haiku-5-5` at medium thinking through the plan's auth extension `@gotgenes/pi-anthropic-auth` 3.4.3. Judge: `identified`, Haiku at high thinking with the same extension.
+- Groups, one trial each: defective rv03-b, rv16-b, rv19-a, rv05-a, rv01-b, rv15-a; clean rv07-a, rv16-a, rv24-b, rv08-a. 20 reviews; 12 judged.
+- Merge the fix when both hold:
+  1. detected(`pointer-fix`) ≥ detected(`pointer`) − 1, over the 6 defective groups; an unknown or missing `identified` answer is a miss;
+  2. rejected(`pointer-fix`) ≤ rejected(`pointer`), over the 4 clean groups, where a rejection is a `Judgment: Blocking` or `Judgment: Inconclusive` first line of `review.md`, or none.
+- The check can show harm, not benefit: the clean groups are those Grok blocked without support in trial 1, and Haiku blocked few clean changes in F5. A run that fails on infrastructure (capacity, rate limit, network, login) runs again once; a second failure counts as a miss or a rejection for its arm.
