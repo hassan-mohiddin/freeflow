@@ -48,7 +48,7 @@ For a new setup, write the minimal activation boundary:
 
 Add `enabled: false` only when the user explicitly requests Freeflow to be disabled. Add optional capability configuration only when the user explicitly requests it.
 
-If repository config is invalid or conflicts with accepted source truth, use [Decision Gate](../decision-gate/SKILL.md) before replacing or reinterpreting it.
+If repository config is invalid or conflicts with accepted source truth, use [Agree Work](../agree-work/SKILL.md) before replacing or reinterpreting it.
 
 Do not create or append Freeflow instructions in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, or another host-owned instruction surface.
 

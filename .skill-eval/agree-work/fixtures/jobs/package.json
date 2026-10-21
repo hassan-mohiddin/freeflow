@@ -1,0 +1,10 @@
+{
+  "name": "jobs",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "A small job queue with a command line.",
+  "scripts": {
+    "test": "node --test"
+  }
+}

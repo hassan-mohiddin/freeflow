@@ -59,7 +59,7 @@ Include narrow dirty-state or process details when omission could cause loss, ov
 
 Exclude secrets, credentials, unrestricted personal data, and private payloads unnecessary for continuation. Do not promise access to unavailable sources or reconstruct their exact content from memory.
 
-If safe transfer would require inventing intent, approval, evidence, status, or destination, state the missing information. Use [Decision Gate](../decision-gate/SKILL.md) when resolving it needs one user-owned choice.
+If safe transfer would require inventing intent, approval, evidence, status, or destination, state the missing information. Use [Agree Work](../agree-work/SKILL.md) when resolving it needs one user-owned choice.
 
 ## Reconstruct Before Resuming
 

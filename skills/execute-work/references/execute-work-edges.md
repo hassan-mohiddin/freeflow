@@ -44,7 +44,7 @@ A checkpoint is due only when Workflow, an approved Plan, repository policy, or 
 
 Stop before dependent work, use the checkpoint’s owner, and return its result to Workflow:
 
-- [Decision Gate](../../decision-gate/SKILL.md) for a selected user decision;
+- [Agree Work](../../agree-work/SKILL.md) for a selected user decision;
 - [Review Work](../../review-work/SKILL.md) for selected independent judgment;
 - [Commit Work](../../commit-work/SKILL.md) for an authorized local commit;
 - [Handoff](../../handoff/SKILL.md) for selected continuity transfer;
@@ -57,7 +57,7 @@ When durable memory exists, Track Work preserves the checkpoint’s selection, c
 | `preserve` | Commit Work |
 | `publish` | Commit Work for a simple push; otherwise Finish Branch or Release Work |
 | `review` | Review Work |
-| `decision` | Decision Gate |
+| `decision` | Agree Work |
 | `continuity` | Handoff |
 
 Do not create a checkpoint merely because an action or Slice ended. Do not force a stale checkpoint when its condition, evidence, or protected boundary no longer holds; return the discrepancy for a supported cancellation, replacement, deferral, or revision before dependent work.

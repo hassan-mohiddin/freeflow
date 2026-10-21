@@ -34,7 +34,7 @@ It does not override:
 - selected checkpoints or separately controlled effects;
 - mode, capability, host, or tool controls.
 
-When domain guidance conflicts with accepted intent or live source truth, return the conflict to Workflow. Use [Decision Gate](../../decision-gate/SKILL.md) when resolving it requires one user-owned choice.
+When domain guidance conflicts with accepted intent or live source truth, return the conflict to Workflow. Use [Agree Work](../../agree-work/SKILL.md) when resolving it requires one user-owned choice.
 
 ## Return To The Current Owner
 

@@ -88,7 +88,7 @@ For the setup turn itself, direct reads of newly effective context establish gui
 
 Do not create replacement Freeflow text in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, or another repository instruction surface.
 
-Existing repo instructions remain live source truth within host precedence. Inspect conflicts and use Decision Gate rather than overwriting them to make Freeflow appear active.
+Existing repo instructions remain live source truth within host precedence. Inspect conflicts and use Agree Work rather than overwriting them to make Freeflow appear active.
 
 ## Setup Invariants
 

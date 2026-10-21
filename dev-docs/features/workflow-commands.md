@@ -1,7 +1,7 @@
 # Workflow Commands
 
 > **Covers:** `pi-extension/src/host/catalog.ts`
-> **Verified at:** `c07e84ed` (2026-10-19)
+> **Verified at:** `1b1ad851` (2026-10-21)
 > **User docs:** `plugin-docs/workflow.md`
 
 Freeflow registers one Pi command per workflow skill (`/discuss`, `/write-plan`, `/verify-work`, `/review-work`, `/commit-work`, `/bypass next|task` and the rest, plus `/setup-freeflow`, `/write-skill` and `/evaluate-behavior`). Each sends that skill to the model as the next turn, so running one is a model call. Typing one and reading its completions is not. How skills route to each other: [Skill routing](../subsystems/skill-routing.md); how they reach the model: [Prompt assembly](../subsystems/prompt-assembly.md).

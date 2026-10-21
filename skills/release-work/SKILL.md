@@ -13,7 +13,7 @@ A commit is not a release. A tag does not prove which artifact was built. A succ
 
 Loading this skill, preparing release options, or approving a general implementation Plan does not authorize a version change, remote tag, release record, registry publication, deprecation, yank, or replacement. Execute only release stages explicitly requested or separately approved. Before editing, read the repository's release policy, versioning scheme, package metadata, changelog convention, release automation, supported branches, signing or provenance requirements, and latest published versions.
 
-Use [Decision Gate](../decision-gate/SKILL.md) when the route depends on an unresolved choice about:
+Use [Agree Work](../agree-work/SKILL.md) when the route depends on an unresolved choice about:
 
 - whether to release and which channel or audience receives it;
 - compatibility or breaking-change classification;

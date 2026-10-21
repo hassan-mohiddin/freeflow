@@ -13,7 +13,7 @@ A replacement existing does not prove that consumers moved. A migration unit may
 
 Loading this skill, discussing a migration, or approving a general implementation Plan does not authorize migration, deprecation, cutover, destructive cleanup, or removal. Execute only the stages and units explicitly requested or separately approved.
 
-Use [Decision Gate](../decision-gate/SKILL.md) when any of these remain unresolved:
+Use [Agree Work](../agree-work/SKILL.md) when any of these remain unresolved:
 
 - whether the old behavior should be maintained, deprecated, or removed;
 - advisory versus compulsory migration, deadlines, or support windows;

@@ -33,9 +33,9 @@ export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-
  */
 export const FREEFLOW_MODEL_SKILL_NAMES = [
   "action-selection",
+  "agree-work",
   "bypass",
   "commit-work",
-  "decision-gate",
   "migration-work",
   "design-for-depth",
   "diagnose-failure",

@@ -1,0 +1,26 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "agree-work",
+  "groups": [
+    "groups/b1-queue-limit.json",
+    "groups/b2-priority.json",
+    "groups/b3-status-filter.json",
+    "groups/b4-created-date.json",
+    "groups/b5-remove.json",
+    "groups/b6-json-output.json",
+    "groups/n1-exact-change.json",
+    "groups/n2-question.json",
+    "groups/u1-unattended.json"
+  ],
+  "decision": {
+    "measure": {
+      "score": "hidden-tests"
+    },
+    "arms": ["baseline", "candidate"],
+    "direction": "higher",
+    "method": "sign-test",
+    "alpha": 0.05,
+    "min_cases": 6
+  }
+}
