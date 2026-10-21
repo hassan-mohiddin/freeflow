@@ -25,7 +25,7 @@ Every group runs the same task twice per trial, paired by task, on the same host
 | `freeflow` | Freeflow's Pi extension built from the commit in `configuration.json` (`freeflow.source.ref`), default settings except **Cognitive Routing off** (no delegation, no worker profiles) and **Tool Execution off** (see [Limits](#limits)). Task Memory and Messaging are off by default. |
 
 Both arms share `configuration.json`: host `pi`, `runtime.prompt: host` (so Freeflow's own prompt reaches the model),
-`subject.kind: none`, `network: none`, and the model (`xai/grok-4.7`, thinking `medium`). Each group adds only its task
+`subject.kind: none`, `network: none`, and the model (`anthropic/claude-haiku-5-5`, thinking `medium`; Grok 4.7 was the first choice and is no longer available). Each group adds only its task
 and its container (`environment.image`, digest-pinned, `network: none`, with `bash` running inside it). `component` is
 `["freeflow"]`, so the evaluator refuses a group whose arms differ anywhere else.
 
@@ -170,6 +170,7 @@ reads:
 
 | Model                     | Per run (plain / freeflow) | Full run (60)        | Pilot (4) | Judged markers (optional, 60 calls) |
 | ------------------------- | -------------------------- | -------------------- | --------- | ----------------------------------- |
+| `anthropic/claude-haiku-5-5`, medium | ~$0.10–0.25 / ~$0.15–0.40 | ~$8–20, likely ~$12 | ~$1–2 | ~$1–3 |
 | `xai/grok-4.7`, medium    | ~$0.10–0.35 / ~$0.15–0.50  | ~$8–26, likely ~$15  | ~$1–2     | ~$1–3                               |
 | a small model (later)     | measure with a pilot first | pilot cost × 15      | —         | —                                   |
 
