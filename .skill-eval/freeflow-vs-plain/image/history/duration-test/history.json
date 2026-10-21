@@ -1,0 +1,9 @@
+{
+  "commits": [
+    { "message": "parseDuration for h, m, s and ms", "date": "2026-09-01T10:00:00+00:00", "overlay": "1" },
+    {
+      "message": "Fix parseDuration dropping all but the last unit (1h30m gave 30m)",
+      "date": "2026-10-14T17:45:00+00:00"
+    }
+  ]
+}

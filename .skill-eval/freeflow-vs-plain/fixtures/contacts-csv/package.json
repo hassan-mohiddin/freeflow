@@ -1,0 +1,12 @@
+{
+  "name": "contacts-csv",
+  "version": "1.3.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "contacts-csv": "bin/export.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

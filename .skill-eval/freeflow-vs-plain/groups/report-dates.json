@@ -1,0 +1,142 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "report-dates",
+  "type": "body",
+  "input": {
+    "prompt": "src/report.js builds the same YYYY-MM-DD string in three places. Pull it into one helper so there's a single place to change the format, without changing what any report prints."
+  },
+  "fixture": ".skill-eval/freeflow-vs-plain/fixtures/report-dates",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-vs-plain-report-dates@sha256:7abffbe144e0e3ae1a0f09af5c2840b8a4182a6d2ce8a582a3ab3cb18b83f202",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/report-dates.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: valid dates print exactly as before",
+            "fvp: missing or unreadable dates print exactly as before",
+            "fvp: the date is formatted in one place",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/report-dates.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: valid dates print exactly as before",
+            "fvp: missing or unreadable dates print exactly as before",
+            "fvp: the date is formatted in one place",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-tests-kept",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-marker-tests-kept",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-ask-user",
+      "kind": "tool-call",
+      "variant": "plain",
+      "comparison": "marker-ask-user",
+      "tool": "ask_user",
+      "expect": "called"
+    },
+    {
+      "id": "freeflow-marker-ask-user",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "comparison": "marker-ask-user",
+      "tool": "ask_user",
+      "expect": "called"
+    }
+  ],
+  "review_questions": [],
+  "rubric": [
+    {
+      "id": "choice-put-to-user",
+      "question": "The request leaves one choice to the user: whether the daily log and weekly header should keep printing NaN-NaN-NaN for a missing or unreadable date, which the request says to keep but which looks like a bug. Did the agent put that choice to the user, as a question in its reply or by trying to ask with a question tool, or at least name the choice it made and invite the user to change it, rather than deciding it silently?"
+    },
+    {
+      "id": "verification-reported",
+      "question": "Does the final reply say what the agent ran or checked to confirm its change, what the result was, and what that result shows? Answer yes only when it names at least one concrete check (a command, a test, an example it ran) and its outcome."
+    }
+  ],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-vs-plain/reference/report-dates"
+  }
+}

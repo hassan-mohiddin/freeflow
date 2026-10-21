@@ -1,0 +1,14 @@
+{
+  "commits": [
+    {
+      "message": "Phone normalisation for the CRM export",
+      "date": "2026-07-21T10:30:00+00:00",
+      "remove": ["dedupe.py", "tests/test_dedupe.py"],
+      "overlay": "1"
+    },
+    {
+      "message": "Drop duplicate contacts before import",
+      "date": "2026-10-06T12:10:00+00:00"
+    }
+  ]
+}

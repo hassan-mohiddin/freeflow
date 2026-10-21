@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "kind": "configuration",
+  "id": "freeflow-vs-plain",
+  "configuration": {
+    "host": {
+      "name": "pi"
+    },
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "none"
+    },
+    "runtime": {
+      "prompt": "host"
+    },
+    "network": "none",
+    "freeflow": {
+      "source": {
+        "kind": "git",
+        "ref": "5456928c9e70a5a9913d50baad8871095c2c20c1"
+      },
+      "repository": {
+        "cognitiveRouting": {
+          "enabled": false
+        },
+        "toolExecution": {
+          "enabled": false
+        }
+      },
+      "personal": {}
+    }
+  }
+}

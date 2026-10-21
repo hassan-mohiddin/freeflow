@@ -1,0 +1,12 @@
+{
+  "name": "issue-list",
+  "version": "0.4.2",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "issues": "bin/issues.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
