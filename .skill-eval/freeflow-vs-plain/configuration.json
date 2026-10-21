@@ -4,7 +4,13 @@
   "id": "freeflow-vs-plain",
   "configuration": {
     "host": {
-      "name": "pi"
+      "name": "pi",
+      "extensions": [
+        {
+          "package": "@gotgenes/pi-anthropic-auth",
+          "version": "3.4.3"
+        }
+      ]
     },
     "model": {
       "model": "anthropic/claude-haiku-5-5",
