@@ -9,17 +9,17 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
-import { CASES, SKILLS } from "../../freeflow-routing/scripts/cases.mjs";
+import { CASES, RETIRED, SKILLS } from "../../freeflow-routing/scripts/cases.mjs";
 import { openedSkills, summarize } from "../../freeflow-routing/scripts/report.mjs";
 import { removeStub, stubSuiteRun } from "./helpers/suite-stub.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const suiteDirectory = path.join(root, ".skill-eval/freeflow-routing");
 
-test("every skill has three requests and at least one near miss, and the skill list is Freeflow's", () => {
+test("every skill has three requests and at least one near miss, and the skill list is Freeflow's plus the retired ones", () => {
   const catalog = readFileSync(path.join(root, "pi-extension/src/host/catalog.ts"), "utf8");
   const listed = [...catalog.matchAll(/^ {2}"([a-z-]+)",$/gm)].map((match) => match[1]);
-  assert.deepEqual([...SKILLS].sort(), [...listed].sort());
+  assert.deepEqual([...SKILLS].sort(), [...listed, ...RETIRED].sort());
   for (const skill of SKILLS) {
     assert.equal(CASES.filter((entry) => entry.hit === skill).length, 3, skill);
     assert.ok(

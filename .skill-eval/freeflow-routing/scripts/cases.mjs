@@ -6,6 +6,10 @@
 // with or without Workflow, so before and after the Workflow removal measure the same route.
 
 /** Every skill Freeflow ships to the model on main (FREEFLOW_MODEL_SKILL_NAMES); Workflow is the one the plan removes. */
+// Skills the suite still measures although Freeflow has removed them: the suite runs on the pinned base, where they exist,
+// and again on later builds, so before and after compare the same requests.
+export const RETIRED = ["workflow"];
+
 export const SKILLS = [
   "action-selection",
   "agree-work",
