@@ -1,4 +1,11 @@
-import { decideToolCall, escapeXml, guardState, loadDeclaredContext, renderDeclaredContext } from "./guard-rules.mjs";
+import {
+  CONTAINER_ROUTE,
+  decideToolCall,
+  escapeXml,
+  guardState,
+  loadDeclaredContext,
+  renderDeclaredContext,
+} from "./guard-rules.mjs";
 
 function buildSubjectSystemPrompt(options, declaredContext) {
   const tools = options.selectedTools ?? [];
@@ -59,8 +66,12 @@ export default function registerSkillEvalGuard(pi) {
   pi.on("tool_call", (event, ctx) => {
     const decision = decideToolCall(state, event.toolName, event.input, ctx.cwd, process.env);
     if (decision?.command === undefined) return decision;
-    // Pi's bash then runs only the docker client; the command itself runs in the subject's container.
-    event.input.command = decision.command;
+    // A shell tool's command runs in the subject's container. The route extension, loaded after every other one,
+    // rewrites it there, so extensions that read the command (Freeflow refuses a trailing `&` in bash) see the one
+    // the model wrote. Without the route nothing would move it into the container, so the call is refused.
+    if (globalThis[CONTAINER_ROUTE] !== true) {
+      return { block: true, reason: "the evaluator's container route is not loaded, so this command cannot run" };
+    }
     return undefined;
   });
 }

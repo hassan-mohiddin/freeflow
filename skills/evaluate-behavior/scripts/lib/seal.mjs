@@ -12,6 +12,8 @@
 // otherwise the host's. Each run records what held as `sealing`. The subject's host process itself (Pi or Claude Code)
 // always keeps the network, which it needs to reach the model, and reads only its copied login.
 
+import { SHELL_TOOLS } from "../guard-rules.mjs";
+
 const POLICIES = new Set(["none", "host"]);
 
 /** @param {(code: string, message: string) => never} fail */
@@ -34,7 +36,8 @@ export function sealPaths(group, arm, shell) {
     (expectation) => expectation.kind === "command" && expectation.variant === arm,
   );
   return {
-    bash: group.tools?.includes("bash") ? (container ? "container" : "shell") : null,
+    // Freeflow's background commands run in the same shell as bash, in the container (guard-rules.mjs).
+    bash: (group.tools ?? []).some((tool) => SHELL_TOOLS.has(tool)) ? (container ? "container" : "shell") : null,
     commands: hasCommands ? (container ? "container" : "host") : null,
     graders: hasGraders ? (container ? "container" : "host") : null,
   };

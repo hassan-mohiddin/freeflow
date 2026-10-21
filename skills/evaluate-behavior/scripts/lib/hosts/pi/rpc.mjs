@@ -65,6 +65,10 @@ class RpcSession {
     this.parseErrors = [];
     this.protocolErrors = [];
     this.activeTurn = null;
+    // A run Pi starts on its own while no prompt is in flight: an extension's message that starts a turn, such as
+    // Freeflow's notice that a background command exited or a monitor printed a line. Its activity joins the latest
+    // turn when it settles; the next prompt waits for it.
+    this.unprompted = null;
     this.decoder = new StringDecoder("utf8");
     this.buffer = "";
     this.incompleteFrameBytes = 0;
@@ -106,6 +110,7 @@ class RpcSession {
         delivery = { kind: "explicit-skill-command", turn: 1, targetPath, command };
       }
       for (const [index, prompt] of deliveredPrompts.entries()) {
+        await this.unpromptedSettled();
         if (this.signal?.aborted || this.terminationReason !== null) break;
         if (delivery.kind === "unavailable") delivery = { kind: "natural-prompt", turn: 1, targetPath: null };
         const resumed = this.resumeBefore.has(index + 1) ? await this.resume() : null;
@@ -115,6 +120,8 @@ class RpcSession {
         if (this.afterTurn !== null) turn.workspace = await this.afterTurn(turn.turn);
         if (turn.assistantError !== null) break;
         if (this.nextPrompt !== null && index === deliveredPrompts.length - 1 && this.terminationReason === null) {
+          // A run a notice started right after the turn is part of what the user sees before replying.
+          await this.unpromptedSettled();
           const next = await this.nextPrompt(this.turns);
           // The simulated user's time is not the subject's lack of progress.
           this.resetWatchdog();
@@ -130,6 +137,7 @@ class RpcSession {
         });
         this.requestTermination("protocol-error");
       }
+      await this.unpromptedSettled();
     } finally {
       if (!this.child.stdin.destroyed) this.child.stdin.end();
     }
@@ -187,22 +195,31 @@ class RpcSession {
       resolveSettled = resolve;
       rejectSettled = reject;
     });
+    // An unprompted run still going when the prompt is sent becomes part of this turn.
+    const joined = this.unprompted;
+    this.unprompted = null;
     this.activeTurn = {
       turn: turnNumber,
       prompt,
-      response: "",
-      transcript: [],
-      successfulReads: [],
-      toolActivity: [],
-      calls: new Map(),
+      response: joined?.response ?? "",
+      transcript: joined?.transcript ?? [],
+      successfulReads: joined?.successfulReads ?? [],
+      toolActivity: joined?.toolActivity ?? [],
+      calls: joined?.calls ?? new Map(),
       promptAccepted: false,
-      usage: null,
-      assistantError: null,
+      usage: joined?.usage ?? null,
+      assistantError: joined?.assistantError ?? null,
       settled: false,
       resolveSettled,
       rejectSettled,
     };
-    await Promise.all([this.sendCommand({ type: "prompt", message: prompt }), settlement]);
+    joined?.resolveSettled();
+    // Pi refuses a prompt while it runs, unless told how to queue it. A run a notice starts as the prompt is sent
+    // takes the prompt as its follow-up, and the turn records both.
+    await Promise.all([
+      this.sendCommand({ type: "prompt", message: prompt, streamingBehavior: "followUp" }),
+      settlement,
+    ]);
     const result = finishTurn(this.activeTurn);
     this.activeTurn = null;
     return result;
@@ -280,6 +297,61 @@ class RpcSession {
     } else if (event.type === "response") this.observeResponse(event);
     else if (event.type === "agent_settled") this.observeSettlement();
     else if (this.activeTurn !== null) this.observeTurnEvent(event);
+    else if (event.type === "agent_start" || this.unprompted !== null) this.observeUnpromptedEvent(event);
+  }
+
+  /** Events of a run Pi started without a prompt; it opens with agent_start. */
+  observeUnpromptedEvent(event) {
+    if (this.unprompted === null) {
+      let resolveSettled;
+      const settled = new Promise((resolve) => {
+        resolveSettled = resolve;
+      });
+      this.unprompted = {
+        response: "",
+        transcript: [],
+        successfulReads: [],
+        toolActivity: [],
+        calls: new Map(),
+        usage: null,
+        assistantError: null,
+        settled,
+        resolveSettled,
+      };
+    }
+    this.observeTurnEvent(event, this.unprompted);
+  }
+
+  /** Resolves once no unprompted run is in progress. */
+  async unpromptedSettled() {
+    while (this.unprompted !== null && this.terminationReason === null) {
+      const { settled } = this.unprompted;
+      await Promise.race([settled, this.closed.catch(() => {})]);
+      if (this.unprompted?.settled === settled && this.terminationReason === null) {
+        // The process closed while the run was in progress; nothing more will arrive.
+        break;
+      }
+    }
+  }
+
+  /** An unprompted run settled: its activity joins the latest turn, as if that turn had continued. */
+  settleUnprompted() {
+    const run = this.unprompted;
+    this.unprompted = null;
+    const turn = this.turns.at(-1);
+    if (turn === undefined) {
+      run.resolveSettled();
+      this.failProtocol("unprompted-run-before-first-turn", { line: this.eventLine });
+      return;
+    }
+    turn.transcript.push(...run.transcript);
+    turn.successfulReads.push(...run.successfulReads);
+    turn.toolActivity.push(...run.toolActivity);
+    if (run.response !== "") turn.response = run.response;
+    turn.usage = mergeUsage(turn.usage, run.usage);
+    turn.assistantError ??= run.assistantError;
+    turn.unpromptedRuns = (turn.unpromptedRuns ?? 0) + 1;
+    run.resolveSettled();
   }
 
   observeResponse(event) {
@@ -310,6 +382,10 @@ class RpcSession {
   }
 
   observeSettlement() {
+    if (this.activeTurn === null && this.unprompted !== null) {
+      this.settleUnprompted();
+      return;
+    }
     if (this.activeTurn === null || this.activeTurn.settled) {
       this.failProtocol("unexpected-agent-settled", { line: this.eventLine });
       return;
@@ -318,7 +394,7 @@ class RpcSession {
     this.activeTurn.resolveSettled();
   }
 
-  observeTurnEvent(event) {
+  observeTurnEvent(event, turn = this.activeTurn) {
     if (event.type === "tool_execution_start") {
       const activity = {
         toolCallId: event.toolCallId ?? null,
@@ -327,39 +403,39 @@ class RpcSession {
         completed: false,
         isError: null,
       };
-      this.activeTurn.toolActivity.push(activity);
-      if (typeof event.toolCallId === "string") this.activeTurn.calls.set(event.toolCallId, activity);
+      turn.toolActivity.push(activity);
+      if (typeof event.toolCallId === "string") turn.calls.set(event.toolCallId, activity);
       return;
     }
     if (event.type === "tool_execution_end") {
-      this.observeToolEnd(event);
+      this.observeToolEnd(event, turn);
       return;
     }
-    if (event.type === "message_end" && event.message) this.observeMessage(event.message);
+    if (event.type === "message_end" && event.message) this.observeMessage(event.message, turn);
   }
 
-  observeToolEnd(event) {
-    const activity = this.activeTurn.calls.get(event.toolCallId);
+  observeToolEnd(event, turn) {
+    const activity = turn.calls.get(event.toolCallId);
     if (!activity) return;
     activity.completed = true;
     activity.isError = event.isError === true;
     if (event.isError !== true && activity.toolName === "read" && typeof activity.args?.path === "string") {
-      this.activeTurn.successfulReads.push(activity.args.path);
+      turn.successfulReads.push(activity.args.path);
     }
   }
 
-  observeMessage(message) {
-    this.activeTurn.transcript.push(message);
+  observeMessage(message, turn) {
+    turn.transcript.push(message);
     this.transcript.push(message);
     if (message.role !== "assistant") return;
-    this.activeTurn.response = messageText(message);
-    this.activeTurn.usage = mergeUsage(this.activeTurn.usage, message.usage);
+    turn.response = messageText(message);
+    turn.usage = mergeUsage(turn.usage, message.usage);
     this.observedModel = {
       provider: message.provider ?? null,
       model: message.model ?? null,
     };
     if (message.stopReason === "error" || message.stopReason === "aborted") {
-      this.activeTurn.assistantError = message.errorMessage ?? `assistant stopped with ${message.stopReason}`;
+      turn.assistantError = message.errorMessage ?? `assistant stopped with ${message.stopReason}`;
     }
   }
 

@@ -25,6 +25,15 @@ export function guardExtensionPath() {
   return guardExtension;
 }
 const commandToolExtension = fileURLToPath(new URL("../../../pi-command-tool.mjs", import.meta.url));
+const containerRouteExtension = fileURLToPath(new URL("../../../pi-container-route.mjs", import.meta.url));
+
+/**
+ * The extension that moves shell commands into a subject's container. It loads after every other extension, so
+ * theirs see each command as the model wrote it; the guard refuses container shell calls without it.
+ */
+export function containerRouteExtensionPath() {
+  return containerRouteExtension;
+}
 const observerExtension = fileURLToPath(new URL("../../../pi-observer.mjs", import.meta.url));
 
 export function piArguments(
@@ -37,6 +46,7 @@ export function piArguments(
   model,
   freeflowEntry,
   hostExtensions = [],
+  containerRoute = false,
 ) {
   const args = ["--mode", mode];
   if (mode === "json") args.push("-p");
@@ -49,6 +59,7 @@ export function piArguments(
   if (freeflowEntry !== null) args.push("--extension", freeflowEntry);
   for (const bundle of runtime.extensions) args.push("--extension", bundle.entry);
   if (observeContext) args.push("--extension", observerExtension);
+  if (containerRoute) args.push("--extension", containerRouteExtension);
   args.push("--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve");
   if (group.tools.length === 0) args.push("--no-tools");
   else args.push("--tools", group.tools.join(","));

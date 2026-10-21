@@ -1807,3 +1807,140 @@ test("a body group resumes its session from its file before each turn resume_bef
     );
   });
 });
+
+// A Pi stand-in for one RPC session in which an extension starts runs on its own: after the first prompt settles it
+// delivers a notice (as Freeflow does when a background command exits) that runs a tool and replies; with
+// `busyPrompt`, a prompt that arrives during such a run is queued and answered after it, as Pi does with a follow-up.
+async function installNoticePi(root) {
+  const executable = path.join(root, "notice-pi.mjs");
+  await writeFile(
+    executable,
+    `#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+const emit = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
+const log = (value) => appendFileSync(process.env.NOTICE_LOG, JSON.stringify(value) + "\\n");
+const message = (text) => ({ role: "assistant", content: [{ type: "text", text }], provider: "fake", model: "fake", usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: { total: 0.5 } }, stopReason: "stop" });
+let prompts = 0;
+let running = false;
+const queued = [];
+let settlements = 0;
+const run = (text, tool) => {
+  running = true;
+  emit({ type: "agent_start" });
+  if (tool) {
+    emit({ type: "tool_execution_start", toolCallId: tool, toolName: "bash", args: { command: "cat bg.output" } });
+    emit({ type: "tool_execution_end", toolCallId: tool, toolName: "bash", result: { content: [{ type: "text", text: "ready" }] }, isError: false });
+  }
+  emit({ type: "message_end", message: message(text) });
+  const settle = () => {
+    const next = queued.shift();
+    if (next) return next();
+    running = false;
+    emit({ type: "agent_settled" });
+    settlements += 1;
+    // The first prompt's run has settled; the background command it started exits a moment later.
+    if (settlements === 1) setTimeout(() => run("The background command exited; its output says ready.", "notice-tool"), 50);
+  };
+  setTimeout(settle, Number(process.env.NOTICE_RUN_MS || 0));
+};
+let buffer = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  buffer += chunk;
+  let newline;
+  while ((newline = buffer.indexOf("\\n")) !== -1) {
+    const command = JSON.parse(buffer.slice(0, newline));
+    buffer = buffer.slice(newline + 1);
+    log(command);
+    emit({ type: "response", id: command.id, command: command.type, success: true });
+    if (command.type !== "prompt") continue;
+    prompts += 1;
+    const number = prompts;
+    const answer = () => run("Turn " + number + " response", null);
+    if (running) {
+      if (command.streamingBehavior !== "followUp") throw new Error("a prompt while running needs streamingBehavior");
+      queued.push(answer);
+      continue;
+    }
+    answer();
+  }
+});
+`,
+  );
+  await chmod(executable, 0o755);
+  return executable;
+}
+
+async function noticeSession(root, { nextPrompt, runMs = 0 }) {
+  const { runRpcBodySession } = await import("../../../skills/evaluate-behavior/scripts/lib/hosts/pi/rpc.mjs");
+  const command = await installNoticePi(root);
+  const noticeLog = path.join(root, "notice.jsonl");
+  const observation = await runRpcBodySession({
+    command,
+    args: [],
+    cwd: root,
+    eventsFile: path.join(root, "events.jsonl"),
+    stderrFile: path.join(root, "stderr.log"),
+    environment: { ...process.env, NOTICE_LOG: noticeLog, NOTICE_RUN_MS: String(runMs) },
+    prompts: ["Start the server and tell me when it is ready."],
+    nextPrompt,
+  });
+  return { observation, commands: await readJsonLines(noticeLog, "notice Pi log") };
+}
+
+test("a run an extension starts between turns joins the turn before it, and the next prompt waits for it", async () => {
+  await withTempDirectory(async (root) => {
+    let replies = 0;
+    const { observation, commands } = await noticeSession(root, {
+      // The simulated user takes longer than the notice, which starts a run while no prompt is in flight.
+      nextPrompt: async () => {
+        replies += 1;
+        if (replies > 1) return null;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        return "go";
+      },
+      runMs: 100,
+    });
+    assert.deepEqual(observation.protocolErrors, []);
+    assert.equal(observation.settled, true);
+    assert.equal(observation.turns.length, 2);
+    const [first, second] = observation.turns;
+    assert.equal(first.unpromptedRuns, 1);
+    assert.deepEqual(
+      first.toolActivity.map((call) => [call.toolCallId, call.completed]),
+      [["notice-tool", true]],
+    );
+    assert.equal(first.response, "The background command exited; its output says ready.");
+    assert.equal(first.usage.cost.total, 1);
+    assert.equal(second.response, "Turn 2 response");
+    assert.equal(observation.usage.cost.total, 1.5);
+    // Every prompt says how to queue it should Pi be running.
+    const prompts = commands.filter((command) => command.type === "prompt");
+    assert.deepEqual(
+      prompts.map((command) => [command.message, command.streamingBehavior]),
+      [
+        ["Start the server and tell me when it is ready.", "followUp"],
+        ["go", "followUp"],
+      ],
+    );
+  });
+});
+
+test("a session waits for a run an extension started before it ends, and records it", async () => {
+  await withTempDirectory(async (root) => {
+    const { observation } = await noticeSession(root, {
+      // The user replies at once with nothing more, while the notice is still to come: the session ends only after
+      // the run the notice starts, if it starts before the session closes.
+      nextPrompt: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        return null;
+      },
+      runMs: 200,
+    });
+    assert.deepEqual(observation.protocolErrors, []);
+    assert.equal(observation.settled, true);
+    assert.equal(observation.turns.length, 1);
+    assert.equal(observation.turns[0].unpromptedRuns, 1);
+    assert.equal(observation.response, "The background command exited; its output says ready.");
+  });
+});

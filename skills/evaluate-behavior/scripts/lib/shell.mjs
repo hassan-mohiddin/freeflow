@@ -11,6 +11,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import { SHELL_TOOLS } from "../guard-rules.mjs";
 import { containerShell, containerTarget, missingContainerPrerequisites, startContainer } from "./container.mjs";
 import { hostAdapter } from "./hosts/index.mjs";
 
@@ -335,8 +336,9 @@ export async function prepareShell({ group, variants, hostExtensions, groupDirec
         missing,
       });
     }
-    // A container without bash gives the subject no shell to probe: it hosts only declared commands and graders.
-    if (shell.container !== undefined && !group.tools.includes("bash")) continue;
+    // A container without a shell tool (bash, or Freeflow's background commands, which run in the same shell) gives the
+    // subject no shell to probe: it hosts only declared commands and graders.
+    if (shell.container !== undefined && !group.tools.some((tool) => SHELL_TOOLS.has(tool))) continue;
     confinement[arm] = await verifyConfinement({
       arm,
       host: group.host ?? "pi",

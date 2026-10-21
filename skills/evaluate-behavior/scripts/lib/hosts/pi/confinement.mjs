@@ -6,7 +6,7 @@ import http from "node:http";
 import path from "node:path";
 
 import { baseProcessEnvironment } from "../../process.mjs";
-import { guardExtensionPath, runPiProcess } from "./process.mjs";
+import { containerRouteExtensionPath, guardExtensionPath, runPiProcess } from "./process.mjs";
 
 const PROBE_PROVIDER = "skill-eval-probe";
 const PROBE_MODEL = "confinement";
@@ -34,6 +34,8 @@ export async function probeShell({ probes, workspace, isolation, extensions, gua
     };
     const args = ["--mode", "json", "-p", "--no-session", "--no-extensions", "--extension", guardExtensionPath()];
     for (const extension of extensions) args.push("--extension", extension.path);
+    // A container shell's commands reach the container through the route extension, last, as in a subject.
+    if (guard.SKILL_EVAL_CONTAINER) args.push("--extension", containerRouteExtensionPath());
     args.push(
       "--no-skills",
       "--no-prompt-templates",
