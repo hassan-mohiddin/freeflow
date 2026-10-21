@@ -96,7 +96,7 @@ A defect the change did not introduce is **Pre-existing**: report it for the use
 
 A **Needs evidence** item must identify the claim, required observing boundary, available evidence and its limit, why the gap affects judgment, and the smallest evidence that could disagree. Establish that the claim is required. Check the candidate examined and any later code/test changes; a weakened assertion or superseded capture cannot establish current acceptance. Missing evidence does not by itself justify an implementation fix or a stronger requirement.
 
-A Blocking Issue must identify the exact location, violated requirement or source truth, evidence, concrete boundary consequence, and correction constraints or owning activity to re-enter. Trace the failure from a real caller or input, citing each step at file:line. If you cannot cite a step, report **Needs evidence** instead; if your own reading shows a step cannot happen, such as a value the producer never sends or an API that does exist, drop the item. Recommend a specific correction only when directly supported. For any Issue, name the defect's class and every other place in the reviewed state where it occurs, not one line.
+A Blocking Issue must identify the exact location, violated requirement or source truth, evidence, concrete boundary consequence, and correction constraints or owning activity to re-enter. For a failure in behavior, trace it from a real caller or input, citing each step at file:line. If you cannot cite a step, report **Needs evidence** instead; if your own reading shows a step cannot happen, such as a value the producer never sends or an API that does exist, drop the item. A defect against a stated requirement on wording or convention cites the requirement and the line instead. Recommend a specific correction only when directly supported. For any Issue, name the defect's class and every other place in the reviewed state where it occurs, not one line.
 
 For Review 2 or 3, inspect only the diff since the previous review's reviewed state: accepted corrections, affected interactions, new evidence, and remaining risk. Never repeat a finding already Accepted, Rejected, or fixed; reopen a Rejected one only with contradictory evidence. For each new Blocking Issue, state whether it repeats, extends, invalidates, or exposes another consequence of a prior correction; is independent; or cannot yet be related from the evidence. Report a related pattern rather than proposing another patch. Review 3 is final; do not recommend Review 4.
 
@@ -124,7 +124,7 @@ Relationship to prior items (Review 2 or 3 only): [related consequence | indepen
 ### Review Items
 
 #### Issues — Blocking
-- [location, issue, path from a real caller or input with file:line per step, violated source, evidence, consequence, correction constraints or owning activity]
+- [location, issue, path from a real caller or input with file:line per step (for wording or convention, the requirement and line), violated source, evidence, consequence, correction constraints or owning activity]
 
 #### Issues — Non-blocking
 - [location, issue, evidence, why it can be deferred]
