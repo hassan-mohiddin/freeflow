@@ -29,14 +29,15 @@
         "context": [".skill-eval/review-suite/context-ra-rb/rv08-a/b.md"]
       }
     },
-    "pointer-judge-first": {
+    "pointer-fix": {
       "subject": {
-        "context": [".skill-eval/review-suite/context-ra-rb/rv08-a/c.md"]
+        "context": [".skill-eval/review-suite/context-ra-rb/rv08-a/c.md"],
+        "skills": [".skill-eval/review-suite/skills-ra-rb/review-work"]
       }
     }
   },
   "reference": "pointer",
-  "component": ["subject.context"],
+  "component": ["subject.context", "subject.skills"],
   "expectations": [
     {
       "id": "full-only-review",
@@ -55,8 +56,8 @@
       "paths": ["review.md"]
     },
     {
-      "id": "pointer-judge-first-only-review",
-      "variant": "pointer-judge-first",
+      "id": "pointer-fix-only-review",
+      "variant": "pointer-fix",
       "comparison": "only-review",
       "kind": "changed-paths",
       "expect": "equals",
@@ -83,8 +84,8 @@
       "value": "Judgment: "
     },
     {
-      "id": "pointer-judge-first-judgment-line",
-      "variant": "pointer-judge-first",
+      "id": "pointer-fix-judgment-line",
+      "variant": "pointer-fix",
       "comparison": "judgment-line",
       "kind": "file-text",
       "path": "review.md",
@@ -113,8 +114,8 @@
       "value": "Judgment: Blocking"
     },
     {
-      "id": "pointer-judge-first-not-blocked",
-      "variant": "pointer-judge-first",
+      "id": "pointer-fix-not-blocked",
+      "variant": "pointer-fix",
       "comparison": "not-blocked",
       "kind": "file-text",
       "path": "review.md",
@@ -143,8 +144,8 @@
       "value": "Judgment: Inconclusive"
     },
     {
-      "id": "pointer-judge-first-not-inconclusive",
-      "variant": "pointer-judge-first",
+      "id": "pointer-fix-not-inconclusive",
+      "variant": "pointer-fix",
       "comparison": "not-inconclusive",
       "kind": "file-text",
       "path": "review.md",
@@ -173,8 +174,8 @@
       "value": "Judgment: Pass"
     },
     {
-      "id": "pointer-judge-first-judged-pass",
-      "variant": "pointer-judge-first",
+      "id": "pointer-fix-judged-pass",
+      "variant": "pointer-fix",
       "comparison": "judged-pass",
       "kind": "file-text",
       "path": "review.md",

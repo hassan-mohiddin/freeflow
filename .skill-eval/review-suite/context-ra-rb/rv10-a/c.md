@@ -4,6 +4,5 @@ Context:
 - Requirements: `requirements.md`
 - Builder's evidence (check it, don't trust it): `verification.md`
 - Diff: `change.diff`, with the changed files after the change in `files/`
-Form your own view from the diff and the requirements first, then check `verification.md`'s claims against it.
 You may run: the `tests` command, which runs the change's declared tests. No edits.
 Write your report to `review.md`, then stop.

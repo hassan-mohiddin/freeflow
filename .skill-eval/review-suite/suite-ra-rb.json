@@ -53,7 +53,7 @@
     "measure": {
       "judged": "identified"
     },
-    "arms": ["pointer", "pointer-judge-first"],
+    "arms": ["pointer", "pointer-fix"],
     "direction": "higher",
     "method": "sign-test",
     "alpha": 0.05,

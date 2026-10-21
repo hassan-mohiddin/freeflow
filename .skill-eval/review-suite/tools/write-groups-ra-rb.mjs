@@ -1,14 +1,18 @@
-// Writes the R-a and R-b groups, their reviewer briefs and suite-ra-rb.json from the suite's groups (run
-// write-groups.mjs first). R-a asks whether a short pointer brief finds as many defects as today's full reviewer
-// prompt; R-b whether telling the reviewer to judge before reading the author's report finds more. Three arms share
-// one reference, `pointer`, and differ only in the brief, each arm's only declared context, in a file named
-// neutrally (context-ra-rb/<group>/a.md, b.md, c.md), so no path the subject sees names its arm:
+// Writes the R-a groups and the over-blocking fix's groups (trial 2), their reviewer briefs, the fixed skill copy and
+// suite-ra-rb.json from the suite's groups (run write-groups.mjs first). R-a asks whether a short pointer brief finds
+// as many defects as today's full reviewer prompt; the fix asks whether Review Work's rule to trace a Blocking Issue
+// from a real caller or input rejects fewer clean changes. Three arms share one reference, `pointer`. Each arm's only
+// declared context is its brief, in a file named neutrally (context-ra-rb/<group>/a.md, b.md, c.md), so no path the
+// subject sees names its arm:
 // - `full` (a.md): the Work Reviewer Prompt from skills/review-work/references/reviewer-contract.md, filled in for
 //   the group: requirements and the author's report pasted, the changed files listed, Review 1, every lens, and the
 //   `tests` command as active evidence authority (none for a real variant, which has no tests command), plus one
 //   sentence before its Output section putting the Judgment line first, as the task prompt requires;
 // - `pointer` (b.md): the pointer brief (DESIGN-task-path.md section 4) adapted to the fixture workspace;
-// - `pointer-judge-first` (c.md): the pointer brief plus one line on the order.
+// - `pointer-fix` (c.md): the pointer brief word for word, with skills-ra-rb/review-work as its subject skill instead
+//   of skills/review-work: the live skill plus the fix's three edits (FIX), where the fix would ship. The subject sees
+//   either skill only as its run's copy, so the path names no arm.
+// Trial 1 ran a `pointer-judge-first` arm in c.md's place (aea3b537); its results are in results/.
 // Each group's fixture is the suite's workspace plus the variant's requirements.md (fixtures-ra-rb/<group>/), so the
 // pointer arms point to a file the reviewer reads rather than to text already in its prompt.
 // Kept as the F3 groups have them: every defective variant and every clean variant the clean audit keeps; group IDs,
@@ -29,15 +33,32 @@ const JUDGE = {
   thinking: "high",
   configuration: { extends: "../configuration.json" },
 };
-const ARMS = ["full", "pointer", "pointer-judge-first"];
+const ARMS = ["full", "pointer", "pointer-fix"];
 // Brief file names the subject may see in its declared context path; the mapping is in README.md and the rules.
-const BRIEF_FILES = { full: "a.md", pointer: "b.md", "pointer-judge-first": "c.md" };
+const BRIEF_FILES = { full: "a.md", pointer: "b.md", "pointer-fix": "c.md" };
 const REFERENCE = "pointer";
 const BOUNDARY = "ready for PR review";
 const LENSES =
   "source alignment, correctness and integration, failure and risk, evidence and acceptance, scope and minimality, maintainability";
-const JUDGE_FIRST =
-  "Form your own view from the diff and the requirements first, then check `verification.md`'s claims against it.";
+const FIX_SKILL = `${relativeSuite}/skills-ra-rb/review-work`;
+// The over-blocking fix: each edit is [file in the skill, text it follows or replaces, replacement].
+const FIX = [
+  [
+    "references/reviewer-contract.md",
+    "correction constraints or owning activity to re-enter.",
+    "correction constraints or owning activity to re-enter. Trace the failure from a real caller or input, citing each step at file:line. If you cannot cite a step, report **Needs evidence** instead; if your own reading shows a step cannot happen, such as a value the producer never sends or an API that does exist, drop the item.",
+  ],
+  [
+    "references/reviewer-contract.md",
+    "- [location, issue, violated source, evidence, consequence, correction constraints or owning activity]",
+    "- [location, issue, path from a real caller or input with file:line per step, violated source, evidence, consequence, correction constraints or owning activity]",
+  ],
+  [
+    "SKILL.md",
+    "A Blocking Issue must explain why the protected boundary cannot be crossed or the intended use cannot proceed.",
+    "A Blocking Issue must explain why the protected boundary cannot be crossed or the intended use cannot proceed. For work, it also traces the failure from a real caller or input, citing each step at file:line: if you cannot cite a step, report Needs evidence; if your own reading shows a step cannot happen, it is not an Issue.",
+  ],
+];
 
 /** The Work section's Reviewer Prompt, exactly as the contract has it. */
 export function workReviewerPrompt(contract) {
@@ -67,12 +88,23 @@ export function changedFiles(diff) {
 // Pasted text is fenced so its own headings stay inside the brief's section.
 const fence = (text) => `~~~~markdown\n${text.endsWith("\n") ? text : `${text}\n`}~~~~`;
 
-function replaceOnce(text, from, to) {
+function replaceOnce(text, from, to, where = "reviewer prompt") {
   const at = text.indexOf(from);
   if (at < 0 || text.indexOf(from, at + from.length) >= 0) {
-    throw new Error(`reviewer prompt: expected exactly one ${JSON.stringify(from)}`);
+    throw new Error(`${where}: expected exactly one ${JSON.stringify(from)}`);
   }
   return text.slice(0, at) + to + text.slice(at + from.length);
+}
+
+/** skills-ra-rb/review-work: the live Review Work with the fix's edits, each matched exactly once. */
+function writeFixSkill() {
+  const target = path.join(root, FIX_SKILL);
+  rmSync(target, { recursive: true, force: true });
+  cpSync(path.join(root, "skills/review-work"), target, { recursive: true });
+  for (const [file, from, to] of FIX) {
+    const at = path.join(target, file);
+    writeFileSync(at, replaceOnce(readFileSync(at, "utf8"), from, to, `review-work/${file}`));
+  }
 }
 
 /** The `full` arm's brief: the Work Reviewer Prompt filled in from the group's fixture. */
@@ -130,8 +162,8 @@ export function fullBrief(template, { requirements, verification, files, tests }
   return fills.reduce((text, [from, to]) => replaceOnce(text, from, to), template);
 }
 
-/** The pointer brief, adapted to the fixture workspace; `judgeFirst` adds the one line R-b tests. */
-export function pointerBrief({ tests, judgeFirst }) {
+/** The pointer brief, adapted to the fixture workspace. */
+export function pointerBrief({ tests }) {
   return [
     `Review round 1 of the change in this workspace, for the boundary "${BOUNDARY}".`,
     "Method: read the review-work skill's SKILL.md and its work reference.",
@@ -139,7 +171,6 @@ export function pointerBrief({ tests, judgeFirst }) {
     "- Requirements: `requirements.md`",
     "- Builder's evidence (check it, don't trust it): `verification.md`",
     "- Diff: `change.diff`, with the changed files after the change in `files/`",
-    ...(judgeFirst ? [JUDGE_FIRST] : []),
     tests
       ? "You may run: the `tests` command, which runs the change's declared tests. No edits."
       : "You may run: nothing; no check is declared for this change. No edits.",
@@ -161,6 +192,7 @@ function main() {
     rmSync(directory, { recursive: true, force: true });
     mkdirSync(directory, { recursive: true });
   }
+  writeFixSkill();
 
   for (const row of kept) {
     const source = JSON.parse(readFileSync(path.join(suite, "groups", `${row.id}.json`), "utf8"));
@@ -182,8 +214,8 @@ function main() {
         files: changedFiles(readFileSync(path.join(workspace, "change.diff"), "utf8")),
         tests,
       }),
-      pointer: pointerBrief({ tests, judgeFirst: false }),
-      "pointer-judge-first": pointerBrief({ tests, judgeFirst: true }),
+      pointer: pointerBrief({ tests }),
+      "pointer-fix": pointerBrief({ tests }),
     };
     mkdirSync(path.join(contextDirectory, row.id), { recursive: true });
     for (const arm of ARMS) writeFileSync(path.join(contextDirectory, row.id, BRIEF_FILES[arm]), briefs[arm]);
@@ -208,9 +240,14 @@ function main() {
       tools: source.tools,
       ...(source.commands ? { commands: source.commands } : {}),
       configuration: { extends: "../configuration-grok.json" },
-      arms: Object.fromEntries(ARMS.map((arm) => [arm, { subject: { context: [brief(arm)] } }])),
+      arms: Object.fromEntries(
+        ARMS.map((arm) => [
+          arm,
+          { subject: { context: [brief(arm)], ...(arm === "pointer-fix" ? { skills: [FIX_SKILL] } : {}) } },
+        ]),
+      ),
       reference: REFERENCE,
-      component: ["subject.context"],
+      component: ["subject.context", "subject.skills"],
       expectations,
       review_questions: source.review_questions,
       // Whether the review identified the defect is judged, so a decision rule can use it.
@@ -227,12 +264,12 @@ function main() {
         kind: "suite",
         id: "review-suite-ra-rb",
         groups: kept.map((row) => `groups-ra-rb/${row.id}.json`),
-        // R-b: judge first against the pointer brief on detection over the defective cases; a clean case has no
-        // judged measure and is left out. R-a's margin and R-b's clean-rejection condition cannot be expressed
-        // here and are fixed in results/ra-rb-decision-rules.md.
+        // The fix against the pointer brief on detection over the defective cases; a clean case has no judged
+        // measure and is left out. The rules that decide R-a and the fix (clean rejections, detection and cost
+        // margins) cannot be expressed here and are fixed in results/ra-rb-decision-rules.md.
         decision: {
           measure: { judged: "identified" },
-          arms: [REFERENCE, "pointer-judge-first"],
+          arms: [REFERENCE, "pointer-fix"],
           direction: "higher",
           method: "sign-test",
           alpha: 0.05,

@@ -51,3 +51,44 @@ The plan does not settle these. They were proposed by the builder and accepted o
 - a missing first line counts as a clean rejection;
 - cost is the mean over complete runs with a measured cost; if either arm has a run with no measured cost, the cost condition is reported as not shown and R-a is not adopted on that trial;
 - "within one case of its margin" means one more or one fewer case would flip that rule's outcome.
+
+## Trial 2: R-a again, and the over-blocking fix
+
+Fixed on 2026-10-21, after trial 1 and before trial 2 starts, by Hassan's choice of one trial with three arms. Nothing in this section may move once trial 2 has started. Trial 1's rules above stay as they were; trial 2 is decided on its own aggregate, and trial 1's results are not pooled with it.
+
+### Arms
+
+- `full` (`a.md`) and `pointer` (reference, `b.md`): unchanged from trial 1.
+- `pointer-fix` (`c.md`): the pointer brief word for word (`c.md` is identical to `b.md`), with `skills-ra-rb/review-work` as its subject skill. That copy is `skills/review-work` plus the fix's three edits, written by `tools/write-groups-ra-rb.mjs`: in `references/reviewer-contract.md`, after "…correction constraints or owning activity to re-enter.", the sentences "Trace the failure from a real caller or input, citing each step at file:line. If you cannot cite a step, report **Needs evidence** instead; if your own reading shows a step cannot happen, such as a value the producer never sends or an API that does exist, drop the item."; the report template's Blocking line, which becomes "- [location, issue, path from a real caller or input with file:line per step, violated source, evidence, consequence, correction constraints or owning activity]"; and in `SKILL.md`, after "A Blocking Issue must explain why the protected boundary cannot be crossed or the intended use cannot proceed.", the sentence "For work, it also traces the failure from a real caller or input, citing each step at file:line: if you cannot cite a step, report Needs evidence; if your own reading shows a step cannot happen, it is not an Issue."
+- `component`: `["subject.context", "subject.skills"]`. `full` differs from `pointer` in its brief; `pointer-fix` differs from `pointer` in its subject skill only.
+
+The `tests` command runs on this checkout's `node_modules` (`npm ci` from the root lockfile; Pi 1.0.1), and its output keeps a test file's load error. Trial 2 runs with no `--reuse`.
+
+### Measures
+
+As in trial 1: detection on the defective groups, clean rejection on the clean groups, and cost, read from trial 2's aggregate after `review --rubric`, with the same readings (an unknown or missing `identified` answer is a miss; a missing first line is a rejection; cost is the mean over complete runs with a measured cost, and a run with no measured cost in either compared arm leaves a cost condition not shown).
+
+The clean set is the 15 clean groups listed in `suite-ra-rb.json` when trial 2 starts. If Hassan relabels rv01-a's change (rs-97b149b0) as defective before the start, rv01-a leaves the suite and the clean counts are out of 14; the rules below do not change.
+
+### R-a: adopt the pointer brief
+
+Adopt when all three hold, `pointer` against `full`, on trial 2 alone:
+
+1. detected(`full`) − detected(`pointer`) ≤ 2;
+2. rejected(`pointer`) − rejected(`full`) ≤ 1;
+3. `pointer`'s mean cost per review is no higher than `full`'s.
+
+Otherwise R-a is rejected.
+
+### The fix: adopt the tracing rule
+
+Adopt when both hold, `pointer-fix` against `pointer`:
+
+1. rejected(`pointer-fix`) ≤ rejected(`pointer`) − 2: it rejects at least 2 fewer clean changes;
+2. detected(`pointer-fix`) ≥ detected(`pointer`) − 1: it detects at most 1 fewer defect.
+
+Otherwise the fix is not adopted. The suite's `decision` (a sign test on `identified`, `pointer-fix` against `pointer`) is recorded and reported, but it decides nothing here.
+
+### Trials
+
+One trial. Another runs only after a new yes from Hassan.
