@@ -18,11 +18,11 @@ Before editing, identify:
 - the complexity or coordination to remove;
 - why the current structure exists, including compatibility, platform, performance, migration, and recovery constraints.
 
-If expected behavior is unclear or should change, return to [Workflow](../workflow/SKILL.md). If failure or current behavior is unexplained, use [Diagnose Failure](../diagnose-failure/SKILL.md). Do not characterize an invented expectation.
+If expected behavior is unclear or should change, settle it through [Agree Work](../agree-work/SKILL.md). If failure or current behavior is unexplained, use [Diagnose Failure](../diagnose-failure/SKILL.md). Do not characterize an invented expectation.
 
 Use existing adequate checks. When protection is missing, establish the smallest useful observation of behavior before transforming it; read [Test Design](../verify-work/references/test-design.md) before designing or materially changing the check. Characterization protects required stable behavior, not every accidental implementation detail. It is evidence for a refactor, not a mandatory test-first implementation method.
 
-Return changes to interfaces, ownership, public state, or failure behavior through Workflow with [Design for Depth](../design-for-depth/SKILL.md) as a lens. Do not disguise a material redesign as cleanup.
+Take changes to interfaces, ownership, public state, or failure behavior to Agree Work, with [Design for Depth](../design-for-depth/SKILL.md) as a lens. Do not disguise a material redesign as cleanup.
 
 Read [Simplification Patterns](references/simplification-patterns.md) before selecting or materially changing the transformation. Read [Code Practices](../execute-work/references/code-practices.md) before changing code.
 

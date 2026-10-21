@@ -10,7 +10,7 @@ Freeflow’s model-facing behavior is delivered through coordinated core, capabi
 
 - Freeflow identity and shared boundaries;
 - shared terminology;
-- loading a selected skill's method, and when a skill applies: its subject, not a trigger word;
+- How Freeflow Works: the cycle (agree through Agree Work before the first edit on a task that builds or changes behavior, build and verify, review when Review Work's gate calls for it, hand over), what authorizes work and where it stops, and when to open a skill or a reference: its subject, not a trigger word. It replaced the Workflow skill in October 2026, whose body agents rarely opened, so the cycle now reaches every turn and the skill descriptions carry the routing;
 - compact readiness and recovery invariants, including what counts as context loss: the conversation about the current work is no longer in context, so a new message, a pause or a resumed session that keeps it is not context loss;
 - Project Memory: reading the project's developer docs before changing or judging code, and keeping what is learned where it lasts (task state in the Working Record, how the project works in developer docs, only agent rules in instruction files such as AGENTS.md or CLAUDE.md);
 
@@ -82,7 +82,7 @@ The renderer decides config validity with Pi's own validator (`pi-extension/src/
 
 The user selects which runtime prompts these hosts receive with `prompts` (`core`, `interactionContract`, `workingMethod`), each on unless a config turns it off, the personal file overriding the shared one prompt by prompt (`selectedRuntimePrompts()` in `config-validation.ts`). With none selected the hook renders nothing, not a lone Runtime State. Pi accepts the key and ignores it, always delivering every prompt ([ADR 0011](../adr/0011-single-adaptive-workflow.md), amended).
 
-Hook delivery does not enforce Workflow policy, block tools, grant permissions, or replace repository instructions. Hook trust and registration are host concerns; Setup reports delivery as confirmed, unavailable, or unconfirmed.
+Hook delivery does not enforce Freeflow policy, block tools, grant permissions, or replace repository instructions. Hook trust and registration are host concerns; Setup reports delivery as confirmed, unavailable, or unconfirmed.
 
 ### Gemini CLI
 
@@ -118,23 +118,22 @@ See [Pi integration](../../plugin-docs/integrations/pi.md) for native-host behav
 
 ## Nested execution model
 
-Prompt delivery describes what the model sees. Workflow and Cognitive Routing describe how authorized execution is coordinated after that surface is available:
+Prompt delivery describes what the model sees. Core's cycle and Cognitive Routing describe how authorized execution is coordinated after that surface is available:
 
 ```text
-Interaction Lifecycle
-└─ Workflow Feedback Loop
-   ├─ establishes agreement, owner, and slice
-   └─ Cognitive Routing — automatic control only
-      ├─ Coordinator selects the responsible worker for the next result
-      │  ├─ Helper: ordinary support, preparation, checks, and settled mechanics
-      │  └─ Executor: substantive or consequential results
-      ├─ Coordinator compares acceptance with actual evidence
-      │  ├─ continue, change worker, or explicitly replace an assignment within an open unit
-      │  └─ close the supported unit through routing_unit
-      └─ Action Selection bounds environment interactions
+Freeflow cycle (core): agree, build and verify, review and hand over
+├─ skills chosen by their descriptions; Agree Work owns the agreement, Track Work the Slices
+└─ Cognitive Routing — automatic control only
+   ├─ Coordinator selects the responsible worker for the next result
+   │  ├─ Helper: ordinary support, preparation, checks, and settled mechanics
+   │  └─ Executor: substantive or consequential results
+   ├─ Coordinator compares acceptance with actual evidence
+   │  ├─ continue, change worker, or explicitly replace an assignment within an open unit
+   │  └─ close the supported unit through routing_unit
+   └─ Action Selection bounds environment interactions
 ```
 
-Manual control runs the ordinary unsplit Workflow for the held profile. Automatic Coordinator owns user-facing judgment and places work by delegation mode: Coordinator implements in `helper`, Executor-only delegates environment work to Executor, and `both` uses Helper by default while commissioning Executor for substantive or consequential results. Only Coordinator delegates one worker at a time; `both` requires an explicit worker choice. A unit may contain sequential assignments to different workers, but preparation and follow-up are optional routes. A saved report ends the assigned worker's task permission without accepting the unit or closing a Slice. Explicit retry preserves the saved report, and replacement preserves prior effects; routing does not add a second Workflow or model-authored boundary ledger. Attached recovery lets Coordinator request missing evidence while preserving the returned assignment, original report, selection, and assessment; the assignment's recorded worker receives only bounded selection/exact-read work and returns a distinct supplement. Unsettled recovery must complete or be cancelled before `assess` resumes the assessment. Late user input reaching a prepared worker request requires an interrupted return before task tools. With projection enabled, Helper and Executor share ordinary active history while Coordinator receives selected worker evidence with original producer attribution; compaction retains the last observed delivered-user basis rather than treating stored-but-undelivered history as new input. Under automatic control, Coordinator must assess a supported Slice result and explicitly direct completed Track Work closure; Manual follows ordinary Workflow and Track Work instead. These operations do not change user authority or make an internal handback the user-facing endpoint.
+Manual control runs the ordinary unsplit cycle for the held profile. Automatic Coordinator owns user-facing judgment and places work by delegation mode: Coordinator implements in `helper`, Executor-only delegates environment work to Executor, and `both` uses Helper by default while commissioning Executor for substantive or consequential results. Only Coordinator delegates one worker at a time; `both` requires an explicit worker choice. A unit may contain sequential assignments to different workers, but preparation and follow-up are optional routes. A saved report ends the assigned worker's task permission without accepting the unit or closing a Slice. Explicit retry preserves the saved report, and replacement preserves prior effects; routing does not add a second orchestrator or model-authored boundary ledger. Attached recovery lets Coordinator request missing evidence while preserving the returned assignment, original report, selection, and assessment; the assignment's recorded worker receives only bounded selection/exact-read work and returns a distinct supplement. Unsettled recovery must complete or be cancelled before `assess` resumes the assessment. Late user input reaching a prepared worker request requires an interrupted return before task tools. With projection enabled, Helper and Executor share ordinary active history while Coordinator receives selected worker evidence with original producer attribution; compaction retains the last observed delivered-user basis rather than treating stored-but-undelivered history as new input. Under automatic control, Coordinator must assess a supported Slice result and explicitly direct completed Track Work closure; Manual follows the ordinary cycle and Track Work instead. These operations do not change user authority or make an internal handback the user-facing endpoint.
 
 ## Failure and recovery boundaries
 

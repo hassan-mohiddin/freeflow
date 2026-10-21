@@ -1,10 +1,10 @@
 # Domain Skill Composition
 
-Read this when specialized engineering guidance must support the current owner.
+Read this when specialized domain guidance is needed.
 
-This reference is judgment: adapt it to the task. Its binding statements restate [Workflow](../SKILL.md) Rules.
+This reference is judgment: adapt it to the task. Its binding statements restate [Execute Work](../SKILL.md) Rules and Freeflow's always-loaded guidance.
 
-Freeflow owns authority interpretation, current ownership, route changes, evidence honesty, checkpoints, continuity, and deciding when the work is done. Domain guidance supplies specialized engineering method. It does not become another Workflow, current owner, or authority source.
+Freeflow owns authority interpretation, current ownership, route changes, evidence honesty, checkpoints, continuity, and deciding when the work is done. Domain guidance supplies specialized engineering method. It does not become another current owner or an authority source.
 
 ## Compose One Current Owner
 
@@ -20,7 +20,7 @@ Prefer repository policy, current primary sources, and technology-specific evide
 
 Do not load a handbook because one keyword appears. Do not combine several overlapping methodologies merely because each contains useful advice.
 
-## Preserve Workflow Boundaries
+## Preserve Freeflow Boundaries
 
 Domain guidance may provide techniques for frontend systems, accessibility, browsers, security, performance, databases, APIs, CI/CD, observability, cloud platforms, migrations, releases, deployments, or other specialized work.
 
@@ -34,12 +34,12 @@ It does not override:
 - selected checkpoints or separately controlled effects;
 - mode, capability, host, or tool controls.
 
-When domain guidance conflicts with accepted intent or live source truth, return the conflict to Workflow. Use [Agree Work](../../agree-work/SKILL.md) when resolving it requires one user-owned choice.
+When domain guidance conflicts with accepted intent or live source truth, settle the conflict through [Agree Work](../../agree-work/SKILL.md) before following it.
 
 ## Return To The Current Owner
 
 Return domain results, evidence, assumptions, and limits to the same current owner.
 
-A domain method, tool choice, or new observation does not automatically change the current owner, accepted scope, durable task state, or Workflow route.
+A domain method, tool choice, or new observation does not automatically change the current owner, accepted scope, durable task state, or route.
 
-When the domain method exposes material architecture, authority, safety, evidence, or scope pressure, return that changed boundary to Workflow rather than silently expanding the method.
+When the domain method exposes material architecture, authority, safety, evidence, or scope pressure, return that changed boundary to the current owner, or to Agree Work when the user owns it, rather than silently expanding the method.

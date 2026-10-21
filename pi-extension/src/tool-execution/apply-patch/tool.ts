@@ -4,7 +4,7 @@ import { applyPatch, type PatchFileState, type PatchResult } from "./plan.js";
 export const APPLY_PATCH = "apply_patch";
 
 const DESCRIPTION =
-  "Use the apply_patch tool to edit files. Its input is a patch: *** Begin Patch, then *** Add File:, *** Update File: (optionally followed by *** Move to:) or *** Delete File: sections, then *** End Patch. In update sections, @@ lines anchor a hunk and every other line starts with space (context), - (remove) or + (add). Include enough context lines for each hunk to match one place.";
+  "Use apply_patch to change several files in one call, or to add, delete or move files together with other changes; to change one existing file, use edit. The input is a patch: *** Begin Patch, then *** Add File:, *** Update File: (optionally followed by *** Move to:) or *** Delete File: sections, then *** End Patch. In update sections, @@ lines anchor a hunk and every other line starts with space (context), - (remove) or + (add). Copy context lines from your latest view of the file, enough for each hunk to match one place.";
 
 const CODES = { add: "A", update: "M", move: "M", delete: "D" } as const;
 

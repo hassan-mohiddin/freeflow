@@ -1,6 +1,6 @@
 ---
 name: discuss
-description: "Use when exploring, clarifying, or revisiting what to accomplish or how to approach it, especially when user collaboration, alternatives, assumptions, or new evidence could change the next action."
+description: "Use when what to do, or how, is still open: exploring options or assumptions with the user, or revisiting a direction after new evidence. Before building, use Agree Work."
 ---
 
 # Discuss
@@ -13,7 +13,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 ## Rules
 
-- Conversation, convergence, a recommendation, or a recorded proposal never authorizes execution. Begin implementation only under an execution agreement established through [Workflow](../workflow/SKILL.md).
+- Conversation, convergence, a recommendation, or a recorded proposal never authorizes execution. Begin implementation only under an execution agreement established through [Agree Work](../agree-work/SKILL.md).
 - Keep supported facts and explicit decisions distinct from hypotheses, proposed mechanisms, and unresolved choices. An assistant recommendation never becomes a requirement because it is repeated or recorded.
 - Leave priorities, behavior, constraints, and tradeoffs the user owns to the user; ask rather than decide them. Ask as [Agree Work](../agree-work/SKILL.md)'s "Ask One Question" describes.
 - Never weaken required behavior to make an approach look simpler.
@@ -27,7 +27,7 @@ Respond to the substance before steering the process.
 
 A request to discuss keeps the user involved as understanding develops. Gather relevant existing facts when needed, explain what they imply, and return at the next meaningful question or supported conclusion.
 
-A direct action request may already settle the outcome and delegate approach selection. Do not force a discussion phase when existing evidence can resolve the remaining facts and reversible local choices. Return clear covered work to Workflow.
+A direct action request may already settle the outcome and delegate approach selection. Do not force a discussion phase when existing evidence can resolve the remaining facts and reversible local choices. Hand clear covered work to Execute Work.
 
 Use [Agree Work](../agree-work/SKILL.md) for one known blocking user-owned choice or source conflict. Use [Diagnose Failure](../diagnose-failure/SKILL.md) when a reported or recurring failure needs a supported cause rather than broader option discussion.
 
@@ -94,7 +94,7 @@ Frame the action before proposing execution:
 
 Add a time or cost boundary when repetition or setup could grow; do not demand an exact token prediction. If no adequate observer is available within scope, state the limitation rather than inventing a proof.
 
-Return the framed action to Workflow for authority and, when needed, [Track Work](../track-work/SKILL.md) preservation, then [Execute Work](../execute-work/SKILL.md) for execution. Existing authority may already cover the experiment; its name does not create another approval gate.
+Check that the agreement covers the framed action, preserve it through [Track Work](../track-work/SKILL.md) when needed, then run it through [Execute Work](../execute-work/SKILL.md). Existing authority may already cover the experiment; its name does not create another approval gate.
 
 Assess returned evidence against the original question. Negative or inconclusive evidence is a valid result; one failed technique does not prove every alternative impossible. If a new prerequisite is reported, distinguish a limitation of the observer or chosen approach from a requirement of the intended outcome before recommending more work.
 
@@ -115,10 +115,10 @@ Once a record exists, use it as working memory during the discussion, updating i
 ```text
 Discuss establishes supported meaning
 -> Track Work preserves material state
--> Discuss continues or returns the direction to Workflow
+-> Discuss continues or hands the direction to Agree Work
 ```
 
-The record does not select work or grant authority. When the route includes a commit, a publication, a review, a user decision, or a planned handoff, propose it as a Checkpoint on the route rather than as a separate Slice; Workflow selects it.
+The record does not select work or grant authority. When the route includes a commit, a publication, a review, a user decision, or a planned handoff, propose it as a Checkpoint on the route rather than as a separate Slice; the user selects it.
 
 ## Converge And Return
 
@@ -126,13 +126,13 @@ Goal: end the discussion when the next sound action no longer depends on it, and
 
 End the current discussion when the next sound action no longer depends on unresolved direction, or when a bounded learning action, missing user decision, wait, or stop is clear. Do not continue merely because more detail could be explored.
 
-When the user requests execution, return to Workflow to establish its outcome, scope, and user-facing return condition. If the user delegates the remaining investigation and implementation, do not require them to finish planning it. Context gathered during discussion counts toward preparing the route; do not repeat it, and gather what the route still needs before the first production change.
+When the user requests execution, agree its outcome, scope, and user-facing return condition through Agree Work. If the user delegates the remaining investigation and implementation, do not require them to finish planning it. Context gathered during discussion counts toward preparing the route; do not repeat it, and gather what the route still needs before the first production change.
 
 Return only what the next route needs: supported understanding, tentative approach, material open questions, relevant evidence, recommended or accepted next action, continuity, and authority state.
 
 - Stable accepted content needing a durable source -> [Write Spec](../write-spec/SKILL.md).
 - A supported ordered strategy needing a durable artifact -> [Write Plan](../write-plan/SKILL.md).
-- Covered concrete work -> Workflow and Execute Work.
+- Covered concrete work -> Execute Work.
 - One blocking owner choice -> Agree Work.
 - Unsupported failure cause -> Diagnose Failure.
 - No action needed -> answer or stop.

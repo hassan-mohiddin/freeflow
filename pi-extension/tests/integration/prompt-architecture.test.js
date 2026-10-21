@@ -71,8 +71,10 @@ test("re-entry recovery is stable and capability-neutral", async () => {
     readFile(join(process.cwd(), "capabilities", "cognitive-routing", "SKILL.md"), "utf8"),
   ]);
 
-  assert.match(core, /## Load The Selected Method/);
-  assert.match(core, /Before applying a selected skill, read its current body/);
+  assert.match(core, /## How Freeflow Works/);
+  assert.match(core, /read Agree Work, send its agreement and wait/);
+  assert.match(core, /Open a skill when the work's subject is its subject/);
+  assert.match(core, /stop at the agreed end, a real blocker, or a choice that is the user's/);
   assert.match(core, /## Recover After Context Loss/);
   assert.match(core, /latest Freeflow Runtime State/);
   assert.match(core, /recovery is not a bypass/);
@@ -84,7 +86,7 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   );
   assert.doesNotMatch(core, /then the History entries the next action depends on/);
   assert.match(core, /Then continue the covered work toward the agreed end/);
-  assert.match(core, /Context loss is not a reason to stop or to ask for permission again/);
+  assert.match(core, /Context loss is no reason to stop or ask again/);
   assert.match(core, /## Terms/);
   // Skills are cued by their descriptions, not by core (Task 003 audit B and D).
   assert.doesNotMatch(core, /## Cues/);
@@ -95,7 +97,7 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   // method owns detailed role and handoff policy. Keep both obligations checked.
   assert.match(
     cognitiveRouting,
-    /Under Manual control, the held Coordinator, Helper, or Executor follows ordinary unsplit Workflow/,
+    /Under Manual control, the held Coordinator, Helper, or Executor follows the ordinary unsplit cycle/,
   );
   assert.match(cognitiveRouting, /When routing is inactive, stop applying this split/);
   assert.match(
@@ -135,7 +137,7 @@ test("composes the mandatory core fragments, current capabilities, discovery, an
     const order = [
       "# Freeflow Stable Guidance",
       "## Terms",
-      "## Load The Selected Method",
+      "## How Freeflow Works",
       "## Recover After Context Loss",
       "# Freeflow Interaction Contract",
     ].map((marker) => prompt.indexOf(marker));
@@ -144,10 +146,17 @@ test("composes the mandatory core fragments, current capabilities, discovery, an
       order,
       [...order].sort((a, b) => a - b),
     );
-    assert.match(prompt, /Before applying a selected skill, read its current body when it is not already in context/);
+    assert.match(prompt, /Open a skill when the work's subject is its subject/);
     assert.match(prompt, /Read the whole turn before acting/);
-    assert.match(prompt, /When a turn mixes questions and requests, answer the questions first/);
-    assert.match(prompt, /Act on a request only when it is clear and none of the answers could change it/);
+    assert.match(
+      prompt,
+      /When a turn mixes questions and requests, or a question arrives mid-work, answer the questions first/,
+    );
+    assert.match(
+      prompt,
+      /Act, or continue the current step, only when the request is clear and no answer could change it/,
+    );
+    assert.match(prompt, /On "stop", start no new effect; finish or revert only what is in flight, then report/);
     assert.match(prompt, /no reflexive "you're absolutely right"/);
     assert.doesNotMatch(prompt, /## Mode\b|strict-workflow|conversation mode|workflow mode/);
     assert.doesNotMatch(prompt, /Skills prompt/);
@@ -250,7 +259,9 @@ test("Tool Execution adds its guidance section after Freeflow's and no skill of 
     assert.match(before.renderedGuidance, /## Working Method\n\n# Freeflow Working Method/);
     assert.doesNotMatch(before.renderedGuidance, /Working In The Environment/);
     assert.match(sections.tool_execution, /^# Working In The Environment/);
-    assert.match(sections.tool_execution, /bash_background/);
+    assert.match(sections.tool_execution, /single `edit` call/);
+    // When to use each Freeflow tool lives in that tool's description only.
+    assert.doesNotMatch(sections.tool_execution, /bash_background|monitor|stop_background|apply_patch/);
     assert.deepEqual(Object.keys(sections).slice(-3), ["freeflow_guidance", "environment", "tool_execution"]);
     for (const text of [before.renderedGuidance, sections.tool_execution])
       assert.doesNotMatch(text, /freeflow_(run|tools|result|read|search|patch)|catalog generation/);

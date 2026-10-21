@@ -2,7 +2,7 @@
 
 Read this before a bounded action writes or changes code. Follow the repository's language, style, testing, and documentation conventions before generic advice.
 
-This reference is judgment: adapt it to the work. Its binding statements restate [Execute Work](../SKILL.md) or Workflow Rules.
+This reference is judgment: adapt it to the work. Its binding statements restate [Execute Work](../SKILL.md) Rules.
 
 ## Make Intent Legible
 
@@ -57,7 +57,7 @@ Before adding behavior for an edge case, ask:
 Then act proportionately:
 
 - **Required or observed, with defined behavior:** implement the smallest complete behavior and test the relevant boundary.
-- **Material but undefined:** stop and return the missing behavior decision to [Workflow](../../workflow/SKILL.md).
+- **Material but undefined:** stop and settle the missing behavior decision through [Agree Work](../../agree-work/SKILL.md).
 - **Plausible but unsupported:** gather evidence; do not add speculative handling.
 - **Useful but optional:** report or defer it as separate work.
 - **Purely hypothetical:** leave it alone.

@@ -1,6 +1,6 @@
 ---
 name: diagnose-failure
-description: "Use when a bug, failure, regression, performance problem, or repeated unsuccessful correction lacks a supported cause."
+description: "Use when a bug, failure, regression or slowdown has no known cause, or repeated fixes have not worked, to find the cause before fixing it."
 ---
 
 # Diagnose Failure
@@ -14,11 +14,11 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 ## Rules
 
 - Never invent the expected behavior. When accepted behavior or source truth is unsettled, use [Agree Work](../../skills/agree-work/SKILL.md) before diagnosing against it.
-- Before active evidence generation, confirm that the work agreement covers the path, environment, repetition, instrumentation, cost, sensitive-data handling, and cleanup or recovery. Covered bug investigation needs no extra permission solely because it is diagnosis. Otherwise return the proposed observation and stop condition to [Workflow](../../skills/workflow/SKILL.md) and wait.
+- Before active evidence generation, confirm that the work agreement covers the path, environment, repetition, instrumentation, cost, sensitive-data handling, and cleanup or recovery. Covered bug investigation needs no extra permission solely because it is diagnosis. Otherwise propose the observation and stop condition to the user and wait.
 - Preserve unfavorable evidence. Never rerun until a failure disappears, and never drop a contradicting observation.
 - Minimize and sanitize logs, traces, payloads, dumps, screenshots, and browser state; never expose credentials or unnecessary private data.
 - Report a mitigation as containment, not resolution. Never claim fixed when only mitigation succeeded or the reported boundary remains unverified.
-- If a remedy changes scope, compatibility, public behavior, failure semantics, or another user-owned boundary, return its concrete consequence and alternatives through Workflow before adopting it.
+- If a remedy changes scope, compatibility, public behavior, failure semantics, or another user-owned boundary, take its concrete consequence and alternatives to Agree Work before adopting it.
 
 ## Enter For An Unsettled Cause
 
@@ -26,7 +26,7 @@ Goal: diagnose when the cause is genuinely unknown, and not otherwise.
 
 Use diagnosis for unexplained bugs, failed checks, regressions, flaky or environmental behavior, contradictory observations, and corrections that repeatedly fail or expose related coordination.
 
-Do not investigate an ordinary mistake when fresh evidence already establishes a clear local defect and the accepted remedy; return that correction to Workflow. Finding count, or several bugs in one area, does not establish a shared structural cause.
+Do not investigate an ordinary mistake when fresh evidence already establishes a clear local defect and the accepted remedy; return that correction to Execute Work. Finding count, or several bugs in one area, does not establish a shared structural cause.
 
 Keep diagnosis within the same coherent Slice. Use [Track Work](../../skills/track-work/SKILL.md) when continuity requires preserving the hypothesis, discriminating evidence, rejected approaches, blocker, and next useful action. Do not record every trial.
 
@@ -118,7 +118,7 @@ Goal: the investigation causes no damage and leaves no hidden residue.
 
 Bound repetitions by time, cost, effects, and environment safety. Temporary instrumentation must distinguish hypotheses; keep it isolated and state its observer, its mutation or performance impact, its removal condition, and whether it remains afterward.
 
-When immediate harm needs containment before diagnosis is settled, return one narrower, reversible mitigation to Workflow. It must preserve evidence, define checking and recovery, and avoid settling undefined behavior.
+When immediate harm needs containment before diagnosis is settled, propose one narrower, reversible mitigation to the user. It must preserve evidence, define checking and recovery, and avoid settling undefined behavior.
 
 A requested experimental patch can generate evidence when authorized as learning. It does not select production behavior or authorize continuing beyond its question.
 

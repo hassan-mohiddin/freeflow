@@ -66,7 +66,7 @@ Do not compensate for a stall by generating a long plan, exploring every remaini
 When no covered interaction can discriminate:
 
 - return the smallest missing evidence to the current owner;
-- return a changed authority, scope, ownership, direction, or required observing boundary to [Workflow](../../workflow/SKILL.md);
+- return a changed authority, scope, ownership, direction, or required observing boundary to the current owner;
 - use [Diagnose Failure](../../diagnose-failure/SKILL.md) when repeated failure lacks a supported cause;
 - stop when the active execution contract requires return.
 

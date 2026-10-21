@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: "Use when work will be continued later or by someone else: handing off, pausing for later, or moving it to another session with what the next context needs."
+description: "Use when work will continue later or with someone else: handing it off, pausing it, or moving it to another session with what the next context needs."
 ---
 
 # Handoff
@@ -36,7 +36,7 @@ Partial work is a valid transfer state. Preserve unverified edits, failing check
 Include only material information:
 
 - the intended outcome, agreed scope, user-facing return condition, and defining sources;
-- current task/Slice and Workflow route when present;
+- current task/Slice and route when present;
 - completed and partial work, supporting evidence, and what remains unverified;
 - relevant repository, worktree, artifact, configuration, or process identity;
 - accepted decisions and their sources, later amendments, and remaining hypotheses;
@@ -69,11 +69,11 @@ Follow current core and capability recovery guidance before task action. A hando
 2. Reconcile the record and handoff with current user direction, defining sources, and the relevant live environment. Follow supersession and corrections without silently reviving historical decisions.
 3. Check important completion, verification, review, commit, and artifact-identity claims against their evidence before repeating them. Reuse adequate current evidence; a transfer alone does not require rerunning every check.
 4. Establish the actual partial state, remaining dependencies, accepted work agreement, current assignment, and next useful action. Resolve contradictory old/new instructions from their sources before acting; do not resume editing when the current unit permits inspection only. Reopen only additional sources whose exact content or freshness changes that action.
-5. Return the recovered state to [Workflow](../workflow/SKILL.md) for the supported route and authority check. Continue covered work through its owner; stop for a genuine blocker or uncovered choice.
+5. Check that the recovered route still holds and the agreement still authorizes the next action under the user's latest direction. Continue covered work through its owner; stop for a genuine blocker or uncovered choice.
 
 Without a Working Record, use the available transfer and exact sources to reconstruct enough state; report any missing boundary rather than inventing it. If a required full-record read is incomplete or unavailable, follow Track Work's stop condition instead of claiming recovery succeeded.
 
-Do not edit merely because a handoff names a next action. Do not restart the whole task or ask for another "continue" solely because an already-authorized task crossed a context boundary. Slice selection and lifecycle remain with Workflow and Track Work, not the handoff.
+Do not edit merely because a handoff names a next action. Do not restart the whole task or ask for another "continue" solely because an already-authorized task crossed a context boundary. Slice selection and lifecycle remain with Track Work, not the handoff.
 
 ## Report And Stop
 

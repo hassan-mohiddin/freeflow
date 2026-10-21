@@ -1,19 +1,19 @@
 ---
 name: execute-work
-description: "Use when carrying out work the user asked for or approved that changes files or settings: implementing, fixing, prototyping, configuring, or maintaining code. When a failure's cause is unknown, Diagnose Failure comes first."
+description: "Use when carrying out requested or agreed work that changes files or settings: implementing, fixing, configuring, prototyping. Not yet agreed: Agree Work first; unknown failure cause: Diagnose Failure first."
 ---
 
 # Execute Work
 
 Produce the agreed concrete result through supported preparation, bounded execution, verification, and correction. Do not make the user supply an implementation plan when the request authorizes you to figure it out.
 
-Workflow establishes the work agreement and coordinates authority, ownership, and the user-facing return boundary. Execute Work owns implementation preparation and continuation within it. Task memory belongs to Track Work; governing choices remain with the user.
+[Agree Work](../agree-work/SKILL.md) establishes the work agreement and the user's choices; Execute Work owns route preparation, implementation and continuation within it. Task memory belongs to Track Work; governing choices remain with the user.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
 ## Rules
 
-- Stay inside the work agreement. An agreement to return a plan does not cover production edits. Before adopting a new requirement, scope, compatibility, persistence, evidence, or return boundary, return to [Workflow](../workflow/SKILL.md).
+- Stay inside the work agreement. An agreement to return a plan does not cover production edits. Before adopting a new requirement, scope, compatibility, persistence, evidence, or return boundary, return to Agree Work.
 - Never cross a selected checkpoint or separately controlled boundary while it is due and unresolved.
 - Never rewrite tests, Specs, Plans, policies, or acceptance merely to make implementation pass.
 - Return undefined consequential behavior to its owner rather than encode a guess.
@@ -33,20 +33,23 @@ Before production changes, establish:
 - **Approach:** the supported mechanism, affected code or artifacts, dependencies, and necessary ordering.
 - **Evidence:** a check or observation capable of disagreeing with the result.
 - **Agreement:** covered effects, extent of work, and when to return to the user.
+- **Route:** the main steps from here to the agreed end, their order, and which depend on feedback.
 
 Before effects, check whether a selected checkpoint or separately controlled boundary is already due.
 
-If the agreement is materially unclear, return to [Workflow](../workflow/SKILL.md) before the unsettled execution. A clear request may already establish it; do not ask again merely to perform a ritual.
+If the agreement is materially unclear, settle it through Agree Work before the unsettled execution. A clear request may already establish it; do not ask again merely to perform a ritual.
 
 An agreement to fix a bug can cover investigation before the remedy is known. Distinguish evidence gathering from implementation even when both are authorized.
 
-Use [Discuss](../discuss/SKILL.md) when outcome or material approach alternatives need reconsideration, [Agree Work](../agree-work/SKILL.md) for one blocking user-owned choice or source conflict, and [Diagnose Failure](../diagnose-failure/SKILL.md) when the cause is unsupported.
+Use [Discuss](../discuss/SKILL.md) when outcome or material approach alternatives need reconsideration, Agree Work for one blocking user-owned choice or source conflict, and [Diagnose Failure](../diagnose-failure/SKILL.md) when the cause is unsupported.
 
 ## Gather Enough Context For This Unit
 
 Goal: implementation starts from understanding, not from guesses, without researching more than the work needs.
 
-Start from the route and context prepared before execution ([Workflow](../workflow/SKILL.md)); gather here only what the route could not predict. Choose the next coherent result, then identify what is missing to implement and check it. Reuse current supported sources; inspect only the live boundaries whose freshness matters.
+Before the first production change, gather the context the route needs: the sources, callers, contracts, conventions, and examples its predictable steps will use, found now rather than mid-execution. Stop when the remaining unknowns can only be answered by doing the work, such as a test result, an experiment, or the user's reaction to a draft; keep those steps directional and adapt the route to their feedback. Reading files no step on the route needs is over-gathering; execution that keeps pausing for context the route could have predicted is under-gathering. A small, well-understood change needs no separate pass, and a direct request needs less preparation, not none.
+
+For each unit, gather only what the route could not predict. Choose the next coherent result, then identify what is missing to implement and check it. Reuse current supported sources; inspect only the live boundaries whose freshness matters.
 
 Find the relevant mechanism, callers, contracts, and observing seam before changing them. Do not begin substantial implementation from a guessed API, ownership boundary, or failure cause. Do not read every file or settle every later Slice merely to avoid all uncertainty.
 
@@ -58,7 +61,7 @@ Before substantial implementation, read [Design for Depth](../design-for-depth/S
 
 Use [Action Selection](../action-selection/SKILL.md) when choosing the next source, observer, or effect is uncertain, broad, or repetitive. Stop gathering when the current unit is sufficiently supported. A mechanical read of a known caller or signature can remain inside execution; discovering an invalidated mechanism requires re-entry before dependent edits.
 
-When specialized guidance is needed, read [Domain Skill Composition](../workflow/references/domain-skill-composition.md). Before writing or changing code, read [Code Practices](references/code-practices.md). Before designing or materially changing a behavior check, read [Test Design](../verify-work/references/test-design.md); choose its oracle from accepted behavior rather than the implementation.
+When specialized domain guidance is needed, read [Domain Skill Composition](references/domain-skill-composition.md). Before writing or changing code, read [Code Practices](references/code-practices.md). Before designing or materially changing a behavior check, read [Test Design](../verify-work/references/test-design.md); choose its oracle from accepted behavior rather than the implementation.
 
 ## Keep The Unit Coherent
 
@@ -115,7 +118,9 @@ Do not continue merely because implementation has begun.
 - Required outcome clear but mechanism invalidated -> stop dependent edits and re-establish the approach.
 - Failure cause unclear or correction repeats -> Diagnose Failure before another patch.
 - Expected behavior or acceptance unsettled -> Discuss or Agree Work.
-- New requirement, scope, compatibility, persistence, evidence, or user-facing return boundary -> Workflow before adopting it.
+- Required claim exceeds its evidence -> Verify Work: tell unavailable or stale evidence and an inadequate observer from a demonstrated defect before commissioning a guessed fix.
+- Accepted content or strategy changed -> return affected artifacts to their owners and reconcile the Working Record before dependent use.
+- New requirement, scope, compatibility, persistence, evidence, or user-facing return boundary -> Agree Work before adopting it.
 
 Before pursuing a prerequisite, distinguish what the accepted outcome requires from what the current approach happens to need. Choose the smallest supported remedy preserving acceptance. A failed approach does not prove that a host change or stronger guarantee is necessary.
 
@@ -149,7 +154,7 @@ Continue within the Slice while the next action serves the same outcome, remains
 
 When durable memory exists, preserve only material changes to understanding, dependencies, scope, evidence, blockers, and the next useful action. Before context loss, record truthful partial state rather than rushing to completion. Resume only after required reconstruction and relevant live-state reconciliation.
 
-Return to Workflow when a distinct Slice is ready, a selected checkpoint is due, the agreement changes, or no useful covered continuation remains. Workflow can select another already-authorized Slice without asking the user again. Internal method returns and delegation handbacks are not the user-facing endpoint.
+When a distinct Slice is ready, start it through Track Work; an already-authorized Slice needs no new user turn. When a selected checkpoint is due, use its owner; when the agreement changes, Agree Work. A method return, delegation handback, passing check, or context reconstruction is not the user-facing endpoint.
 
 Stop at the agreed return condition or an uncovered consequential boundary.
 

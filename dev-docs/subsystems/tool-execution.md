@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/tool-execution/`, `runtime/prompts/tool-execution.md`
 > **Tests:** `pi-extension/tests/tool-execution/`
-> **Verified at:** `5728b9aa` (2026-10-12)
+> **Verified at:** `1a21211c` (2026-10-21)
 > **User docs:** `plugin-docs/capabilities/tool-execution.md`
 
 For contributors changing Tool Execution on Pi: what Freeflow adds around Pi's own tools, how each part hooks into Pi, and which of its behaviors are deliberate.
@@ -48,14 +48,14 @@ It deliberately does not:
 
 ### Configuration and declaration
 
-`resolveToolExecutionConfig()` layers `toolExecution.enabled` from `.freeflow/config.json`, then `.freeflow/local.json`, then session scope. The default is on (`DEFAULT_TOOL_EXECUTION_CONFIG`). On every `status()` call `applyToolExecutionTools()` declares `apply_patch`, `bash_background` and `stop_background` when effective and withdraws them when not. All three are registered once at load with `defaultActive: false`, so their definitions never change; only whether they are declared does.
+`resolveToolExecutionConfig()` layers `toolExecution.enabled` from `.freeflow/config.json`, then `.freeflow/local.json`, then session scope. The default is on (`DEFAULT_TOOL_EXECUTION_CONFIG`). On every `status()` call `applyToolExecutionTools()` declares `apply_patch`, `bash_background`, `monitor` and `stop_background` when effective and withdraws them when not. All four are registered once at load with `defaultActive: false`, so their definitions never change; only whether they are declared does.
 
 ### Prompt
 
 In `before_agent_start` (`index.ts`), when effective:
 
 1. `toolExecutionSections()` replaces two of Pi's sections in place: `rules` (Pi's rendering minus `REMOVED_RULES`: "Use read to examine files instead of cat or sed", "Be concise in your responses", "Show file paths clearly when working with files") and `docs` (shortened to one line pointing at Pi's documentation).
-2. After `freeflow_guidance` (Freeflow's own fixed system section; see [Prompt assembly](prompt-assembly.md)), `toolExecutionTail()` appends `environment` (platform, OS release, the shell Pi's `bash` uses) and `tool_execution`, the text of `runtime/prompts/tool-execution.md` ("Working In The Environment": search and read, command output, running the code, editing, background commands).
+2. After `freeflow_guidance` (Freeflow's own fixed system section; see [Prompt assembly](prompt-assembly.md)), `toolExecutionTail()` appends `environment` (platform, OS release, the shell Pi's `bash` uses) and `tool_execution`, the text of `runtime/prompts/tool-execution.md` ("Working In The Environment": search and read, command output, running the code, editing with Pi's `edit` and `write`). When to use each Freeflow tool is in that tool's description, not here (see Decisions).
 
 Every value comes from the configuration and the machine, so the system prompt is the same on every request.
 
@@ -136,7 +136,8 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | Keep Pi's tools and add a layer through hooks; build only what Pi lacks (`apply_patch`, background commands). | Pi's tools match Claude Code's where it matters. The advantage of a strong harness is the file-state layer and guidance around the tools. Replacing tools Pi maintains would break codemode and other extensions that rely on them. | Claude Code-style replacement tools; the earlier Execution Runtime v2 (its own read, search, patch and script tools, output capture, a session store), which Pi 0.99's codemode, tool exposure and saved truncated output overlapped. | `ca1cc90`, `48a9387`; v2 kept in `.deprecated/tool-execution-v2/` |
 | One switch for the whole layer. | Users get complete workflows without internal seams as settings. | Sub-switches per part. | `ca1cc90` |
 | Replace Pi's `rules` and `docs` sections in place, add `environment` and `tool_execution` after Freeflow's guidance; never touch Pi's preamble. | Three of Pi's generic lines contradict the taught working style (bash-first reading, full reports). The Claude subscription plugin shapes prompts only when Pi's preamble is present. Replacing the whole prompt would drop project context, skills and other extensions' guidelines. | Replacing Pi's whole prompt; removing the preamble. | `ccfe0be`, `f51aff6` |
-| Guidance lives only in the system section, with no capability skill. | Nothing in it is needed only sometimes, and always-present, command-shaped text is the form that changes model behavior in Freeflow's research. | A Tool Execution skill or cue. | `f51aff6` |
+| Guidance is always present, in the system section and the tool descriptions, with no capability skill. | Nothing in it is needed only sometimes, and always-present, command-shaped text is the form that changes model behavior in Freeflow's research. | A Tool Execution skill or cue. | `f51aff6` |
+| The system section holds what an agent needs before choosing any tool, and the habits for Pi's own tools, whose descriptions are Pi's. When to use `apply_patch`, `bash_background`, `monitor` and `stop_background`, and when not, leads each one's own description, stated nowhere else. The choice between `edit` and `apply_patch` is stated once, in `apply_patch`'s description: several files, or adding, deleting or moving files with other changes, take `apply_patch`; one existing file takes `edit`. | The descriptions are sent whenever the section is, so a line in both is paid twice on every request, and the description is where the tool is chosen (Write Skill's Guidance Placement). The section said to use `edit` for one file while `apply_patch`'s description said to use it to edit files. | The when-to-use lines in the section as well; leaving the edit-tool choice split across the two. | Freeflow without Workflow spec, October 2026 |
 | Both edit tools stay visible to every model. | Each model does best in the edit format it was trained on: GPT models in Codex's patch format, others in search-and-replace. | Per-family exposure, to be decided by a comparison run that has not happened. | `e4d1a62` |
 | `apply_patch` plans the whole patch before writing. | A failed hunk then changes no file. A write failure after planning is reported as partial rather than hidden. | Applying section by section. | `e4d1a62` |
 | File state: fingerprint per file in memory, rebuilt from the branch; nothing persisted. | The lowest-coordination way to know what the model saw. It is rebuilt after resume and navigation without a store. | A persisted session store (retired with v2). | `48a9387` |
@@ -230,7 +231,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
 - `before_agent_start` does the same once per prompt, and only after state was built.
 - An instruction-file read compares its lines with that file's earlier records, with no file system access; a rebuild walks the branch once per navigation, resume or invalidation. `loadedSkills()` returns the recorded skill names.
 - Nothing runs in `context_with_system`. See [Performance](../guides/performance.md) for the request-path rules.
-- The prompt section is about 460 words of fixed text, written once and then read from the provider's cache.
+- The prompt section is about 370 words of fixed text, and the four tool descriptions about 430, each written once and then read from the provider's cache.
 
 ## Code Map
 
@@ -259,10 +260,11 @@ See [the tests README](../../pi-extension/tests/tool-execution/README.md). In sh
 - The edit error rewrite depends on Pi's error wording. A Pi upgrade that changes it fails `file-tracking-native.test.js` ("edit errors become one next action"), which runs Pi's real `edit`; without the test run, the rewrite would silently stop applying.
 - When a command changes a file the model read, the model is told the file changed, not given its new content, even if the command printed it.
 - Background output files are left in the OS temp directory.
-- Harness gaps against Claude Code that are not built: a watch tool for long-running output, progress nudges, point-of-use lines on Pi's tools, git status facts, and a backstop for oversized results.
+- Harness gaps against Claude Code that are not built: progress nudges, point-of-use lines on Pi's tools, git status facts, and a backstop for oversized results.
 
 ## Changes
 
+- October 2026 (Freeflow without Workflow): when to use each Freeflow tool moved from the prompt section into that tool's description, and the edit-tool choice is stated once, in `apply_patch`'s.
 - October 2026: repeat reads of Freeflow instruction files answered with one line; the skills line in the Runtime State.
 - Task 002 (2026-10-11): monitors.
 - `f51aff6` (2026-09-30): "Working In The Environment" as its own system section; the Tool Execution skill retired.

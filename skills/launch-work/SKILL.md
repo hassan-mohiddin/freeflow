@@ -1,6 +1,6 @@
 ---
 name: launch-work
-description: "Use when preparing or carrying out a production deployment, rollout, or rollback, or restoring production after a failed release."
+description: "Use when preparing or carrying out a production deployment, rollout or rollback, or restoring production after a failed release. Not for publishing a versioned release (Release Work)."
 ---
 
 # Launch Work
@@ -54,7 +54,7 @@ A concern is required only when its risk applies. Missing required evidence is n
 
 Read [Verify Work](../verify-work/SKILL.md) to match readiness claims to fresh direct evidence. Do not deploy merely to obtain evidence that should exist safely before production. When only production can answer a question, define an approved bounded learning rollout with observation, hold, abort, and recovery conditions first.
 
-Return unresolved owner decisions, material evidence gaps, or broader review needs to [Workflow](../workflow/SKILL.md). This skill defines the production boundary and evidence; Workflow owns routing and review selection.
+Take unresolved owner decisions to [Agree Work](../agree-work/SKILL.md), material evidence gaps to Verify Work, and broader review needs to Review Work. This skill defines the production boundary and evidence.
 
 ## Deploy And Expose In Approved Stages
 

@@ -45,7 +45,7 @@ After disposing the items, derive the adjudicated judgment. Do not separately ac
 
 ## Use Verification Results
 
-Route a known material evidence gap through [Workflow](../../../skills/workflow/SKILL.md) to [Verify Work](../../../skills/verify-work/SKILL.md). Verification produces factual evidence; it does not revise the reviewer's report or determine the review judgment.
+Route a known material evidence gap to [Verify Work](../../../skills/verify-work/SKILL.md). Verification produces factual evidence; it does not revise the reviewer's report or determine the review judgment.
 
 - **Supported:** re-adjudicate the evidence gap. Do not infer Pass.
 - **Contradicted:** re-adjudicate against source truth; the result may establish an Issue, invalidate one, or expose a source conflict.
@@ -76,7 +76,7 @@ When it is ready, state:
 
 Use existing correction or revision authority only when it covers that result (for an artifact revision, also its dependency impact). Otherwise propose the change and any warranted follow-up once, then wait. A finding, adjudication, or selected review does not authorize mutation.
 
-Actual correction of work returns to [Execute Work](../../../skills/execute-work/SKILL.md). Actual revision of an artifact returns through [Workflow](../../../skills/workflow/SKILL.md) to the artifact's owning skill: [Track Work](../../../skills/track-work/SKILL.md) for a Working Record, [Write Spec](../../../skills/write-spec/SKILL.md) for stable content or decision artifacts, [Write Plan](../../../skills/write-plan/SKILL.md) for a Plan, and [Handoff](../../../skills/handoff/SKILL.md) for a Handoff.
+Actual correction of work returns to [Execute Work](../../../skills/execute-work/SKILL.md). Actual revision of an artifact returns to the artifact's owning skill: [Track Work](../../../skills/track-work/SKILL.md) for a Working Record, [Write Spec](../../../skills/write-spec/SKILL.md) for stable content or decision artifacts, [Write Plan](../../../skills/write-plan/SKILL.md) for a Plan, and [Handoff](../../../skills/handoff/SKILL.md) for a Handoff.
 
 Preserve the accepted behavior; do not change tests, Specs, policies, or source truth, or revise upstream authority, accepted intent, or owner decisions, merely to satisfy a reviewer or obtain Pass.
 
@@ -85,7 +85,7 @@ Preserve the accepted behavior; do not change tests, Specs, policies, or source 
 - unclear, unsupported, or repeated cause: [Diagnose Failure](../../../skills/diagnose-failure/SKILL.md);
 - unsettled direction, content, or strategy, or materially different remedies or revisions: [Discuss](../../../skills/discuss/SKILL.md);
 - user-owned choice or source conflict: [Agree Work](../../../skills/agree-work/SKILL.md);
-- missing factual support: route the named claim through [Workflow](../../../skills/workflow/SKILL.md) to [Verify Work](../../../skills/verify-work/SKILL.md);
+- missing factual support: route the named claim to [Verify Work](../../../skills/verify-work/SKILL.md);
 - uncovered correction, revision, or dependency update: propose the bounded change and wait.
 
 When findings interact, assumptions or upstream authority are challenged, dependency effects remain uncertain, or user input could change the remedy or revision, report a problem checkpoint and stop before selecting or executing it.

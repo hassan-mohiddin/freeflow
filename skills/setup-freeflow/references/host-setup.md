@@ -46,7 +46,7 @@ Confirm automatic delivery through current extension status or runtime evidence 
 
 The packaged runtime hook reads the same repository and local layers. At supported `SessionStart` boundaries—startup, resume, clear, and compact—it restores the complete enabled core context. It does not process submitted prompts or persist session controls.
 
-When top-level Freeflow is effective, the hook loads `runtime/prompts/core.md` and `runtime/prompts/interaction-contract.md` and emits a compact active Runtime State. It does not inject a full Workflow body or inspect Pi-only capabilities.
+When top-level Freeflow is effective, the hook loads `runtime/prompts/core.md` and `runtime/prompts/interaction-contract.md` and emits a compact active Runtime State. It does not inject skill bodies or inspect Pi-only capabilities.
 
 After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session/startup as available. Name the exact control supported by the current host; do not prescribe Pi's `/reload`. Until that boundary runs, use same-turn direct reads without claiming automatic delivery.
 

@@ -293,17 +293,19 @@ export class BackgroundJobs {
   }
 }
 const START_DESCRIPTION = [
-  "Run a shell command in the background. Use it for servers, watchers and commands expected to run longer than two minutes. Returns an ID and an output file at once; you are notified once, when the command exits. Read the output file for output so far.",
+  "Run a shell command in the background; it returns at once with an ID and an output file. Use it for servers, watchers, and builds, test runs or installs expected to take over two minutes; run shorter commands with bash.",
+  "You are notified once, when the command exits; if you are idle then, the notice starts a new turn. Meanwhile do other work, and read the output file only for output so far; do not poll it.",
   "To be notified when something becomes ready, run a command that exits when it is: until grep -qE 'Listening|Error|Traceback' server.log; do sleep 1; done. Match the failure lines too: a check that waits only for success stays silent when the process crashes.",
+  "Commands stop when the session ends; their output files stay readable.",
 ].join("\n\n");
 const MONITOR_DESCRIPTION = [
-  "Watch a command's output as it happens: each line it prints to stdout reaches you as a notice (lines within 200 ms join one notice); stderr goes only to the output file. You also get one notice when the command exits or when timeout_ms passes (default 5 minutes, at most 30); start it again to keep watching. A notice that arrives while you are idle starts a model turn, so make the command print only lines you would act on; one that prints too much is stopped.",
-  "For a single notification (a server is ready, a build finished), use bash_background with a command that exits when the condition holds.",
+  "Use monitor to act on a running command's lines as they appear: errors in a log while you test, failures in a long test run. For one signal (a server is ready, a build finished), use bash_background with a command that exits when the condition holds.",
+  "Each line the command prints to stdout reaches you as a notice (lines within 200 ms join one notice); stderr goes only to the output file. You also get one notice when the command exits or when timeout_ms passes (default 5 minutes, at most 30); start it again to keep watching. A notice that arrives while you are idle starts a model turn, so make the command print only lines you would act on; one that prints too much is stopped.",
   "Every stage of a pipe must flush each line (grep --line-buffered, awk with fflush()), or lines wait in a buffer; head cannot.",
-  "Silence is not success: match every outcome you would act on, failures as well as success, for example tail -f app.log | grep -E --line-buffered 'ready|ERROR|Traceback|FAILED'. Stop it with stop_background.",
+  "Silence is not success: match every outcome you would act on, failures as well as success, for example tail -f app.log | grep -E --line-buffered 'ready|ERROR|Traceback|FAILED'.",
 ].join("\n\n");
 const STOP_DESCRIPTION =
-  "Stop a background command or monitor started with bash_background or monitor. Returns after the command has exited.";
+  "Stop a background command or monitor once neither you nor the user needs it, such as a server after the checks that used it. Returns after it has exited.";
 /** Registered once, inactive until Tool Execution is effective (see tool-execution/tools.ts). */
 export function registerBackgroundTools(pi, jobs, host) {
   const guard = () => {

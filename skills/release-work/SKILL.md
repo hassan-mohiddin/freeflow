@@ -1,6 +1,6 @@
 ---
 name: release-work
-description: Use when preparing, publishing, or verifying a versioned software release.
+description: "Use when preparing, publishing or verifying a versioned release: version number, changelog, tag, registry. Not for a commit (Commit Work), merge (Finish Branch) or deployment (Launch Work)."
 ---
 
 # Release Work
@@ -57,7 +57,7 @@ For approved preparation work:
 - inspect the exact artifacts that would be published;
 - keep credentials and signing material out of prompts, logs, diffs, and artifacts.
 
-Do not hand-edit generated artifacts or duplicate version truth when the repository has a canonical generator. Return required branch, commit, public-documentation, or migration work to [Workflow](../workflow/SKILL.md) unless it is included in the approved release scope.
+Do not hand-edit generated artifacts or duplicate version truth when the repository has a canonical generator. Propose required branch, commit, public-documentation, or migration work through [Agree Work](../agree-work/SKILL.md) unless it is included in the approved release scope.
 
 ## Preflight The Exact Release
 

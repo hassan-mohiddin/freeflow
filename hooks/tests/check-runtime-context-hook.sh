@@ -88,7 +88,7 @@ for expected in \
   '"hookEventName":"SessionStart"' \
   "# Freeflow Stable Guidance" \
   "## Terms" \
-  "## Load The Selected Method" \
+  "## How Freeflow Works" \
   "## Recover After Context Loss" \
   "# Freeflow Interaction Contract" \
   "Only a request to act authorizes action." \

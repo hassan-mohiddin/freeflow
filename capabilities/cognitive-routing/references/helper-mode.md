@@ -42,6 +42,6 @@ Helper gathers; Coordinator implements. Gathered evidence must reach Coordinator
 
 ## Coordinator's Own Production
 
-Coordinator's direct implementation passes through no handoff, and handoffs are part of how routing keeps long work on course. Rely on Execute Work's forecast and on Workflow's check before each continuation: does the next change meet a requirement, repair a demonstrated defect, or only add an optional guarantee? Do not invent assignments for your own work to recreate that boundary, and use no ACT_BOUNDED; direct production is what this mode is for.
+Coordinator's direct implementation passes through no handoff, and handoffs are part of how routing keeps long work on course. Rely on Execute Work's forecast and on Execute Work's check before each continuation: does the next change meet a requirement, repair a demonstrated defect, or only add an optional guarantee? Do not invent assignments for your own work to recreate that boundary, and use no ACT_BOUNDED; direct production is what this mode is for.
 
 Coordinator may update the Working Record directly as part of its own work. When closing a Slice, fold the writeback into Helper work already going out, or do it directly when it is one small update.

@@ -19,7 +19,7 @@ Recipient / purpose:
 - User-facing return condition:
 
 ## Current State
-- Workflow route:
+- Route:
 - Working Record, Spec, or Plan pointers:
 - Relevant source or artifact identity:
 
@@ -146,5 +146,5 @@ Do not copy full reviewer output when a stable pointer exists. A new context or 
 - Check important completion and evidence claims before repeating them; distinguish that a run occurred from whether it applies to the current candidate. Reuse adequate evidence rather than rerun every check merely because a transfer occurred.
 - Compare the execution agreement, current assignment and its source, return condition, decisions, dependencies, and review state with the next proposed action. Resolve superseded or conflicting directions before acting.
 - Preserve valid and partial work; identify only the invalidated layer. Missing or incomplete recovery remains a reported limit.
-- Return the supported route and authority state to Workflow before editing; do not require another user turn merely to continue an already-covered task.
+- Check the supported route and authority state before editing; do not require another user turn merely to continue an already-covered task.
 - Use Agree Work for user-owned choices or source conflicts.

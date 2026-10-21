@@ -1,6 +1,6 @@
 ---
 name: "action-selection"
-description: "Use before a search, read, or command whose target, scope, or output size is unclear, or when the last few actions have not moved the question forward; skip it when the next action is obvious."
+description: "Use before a search, read or command whose target or output size is unclear, or when recent actions have stopped moving the question forward. Skip it when the next action is obvious."
 ---
 
 # Action Selection
@@ -13,7 +13,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 ## Rules
 
-- Action Selection serves the current owner. It never changes the outcome, work agreement, execution method, scope, Slice, Checkpoint, or route, accepts no result, and an available tool grants no authority. Return changed authority, scope, ownership, direction, evidence boundary, or stop conditions to [Workflow](../workflow/SKILL.md).
+- Action Selection serves the current owner. It never changes the outcome, work agreement, execution method, scope, Slice, Checkpoint, or route, accepts no result, and an available tool grants no authority. Return changed authority, scope, ownership, direction, evidence boundary, or stop conditions to the current owner.
 - Never present a simulated, predicted, sampled, or truncated result as a complete observation. State truncation and sampling explicitly; a partial result does not show that omitted matches are irrelevant or that a search was exhaustive.
 - Never report an interaction's success as proof of a wider claim. A successful read is not understanding, a successful write is not correctness, and a passing tool result is not the claim it was meant to support; return the evidence for interpretation.
 - Do not emit candidate tables, scores, or speculative tool-call sequences unless a user-owned choice is exposed.
