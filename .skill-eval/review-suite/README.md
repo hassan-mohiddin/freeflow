@@ -109,7 +109,7 @@ Expected cost per trial: 45 groups × 3 arms = 135 subject runs, then `review --
 
 Trial 1 (2026-10-21, at aea3b537) ran `pointer-judge-first` in `c.md`'s place: the pointer brief plus "form your own view from the diff and the requirements first, then check `verification.md`'s claims against it". Its `tests` command failed at load in most base changes, because the checkout had no `node_modules` and the output dropped the load error, so its reviewers lacked the test evidence the suite assumes. Results and the audit of its clean rejections: `results/2026-10-21-ra-rb-grok.md`.
 
-Trial 2 is built and not run: Hassan chose on 2026-10-21 to skip it for now. Once the over-blocking fix is on `main`, `full` and `pointer` need the pre-fix skill before trial 2 can run, since both read Review Work from `skills/review-work` and `full`'s brief pastes its Work Reviewer Prompt.
+Trial 2 is built and retired, not run (Hassan, 2026-10-21). The Haiku check of the over-blocking fix (`suite-fix-haiku.json`) ran instead and the fix was not adopted; both are recorded in `results/2026-10-21-ra-rb-grok.md`.
 
 ## Measured with
 
