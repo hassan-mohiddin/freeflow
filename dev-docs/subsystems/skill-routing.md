@@ -63,7 +63,7 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 
 ## Reading The Graph
 
-The table is an adjacency map of direct Markdown links, not a call graph. Plain-text return destinations express control flow without creating package dependencies or table edges. Add a sibling link only when the target skill must be read or declared composition requires it.
+The table is an adjacency map of direct Markdown links, not a call graph. Plain-text return destinations express control flow without creating package dependencies or table edges. Skill descriptions route in plain text too: each says when its skill applies, names the neighbour that takes over only where two skills could fit the same request, and names the usual next skill only where that is not obvious (Discuss to Agree Work before building); these cues are not table edges. Add a sibling link only when the target skill must be read or declared composition requires it.
 
 Runtime behavior still depends on:
 

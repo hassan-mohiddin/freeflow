@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: "Use when work will be continued later or by someone else: handing off, pausing for later, or moving it to another session with what the next context needs."
+description: "Use when work will continue later or with someone else: handing it off, pausing it, or moving it to another session with what the next context needs."
 ---
 
 # Handoff

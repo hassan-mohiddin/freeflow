@@ -19,7 +19,7 @@
       "case_concept": "Choose one discriminating interaction from several plausible observers without precomputing a low-value action sequence.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/action-selection/SKILL.md",
-      "source_sha256": "0e9f8e5a1f3fc16acc3258c65bd58e42076a3c4e7aaaeb517e87c1e2cbecae08",
+      "source_sha256": "d1e2c2ff888110baad4a106878bd12ee9d7e62d4657ba6e54971876dbbb48227",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -42,7 +42,7 @@
       "case_concept": "Spend bypass only after a safe bounded action; refuse a source-conflicted deletion.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/bypass/SKILL.md",
-      "source_sha256": "3c711edb325831343509761dda9ea2e1daa5ced68eebbcdffc81197e90675cb9",
+      "source_sha256": "ea1a71f37a00b8394c586c09efc20549ae2ed0a1faa7c42ebdb1cbbc70a476b8",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -65,7 +65,7 @@
       "case_concept": "Commit only an owned settings fix while preserving unrelated staged and untracked work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/commit-work/SKILL.md",
-      "source_sha256": "eac787f276166396061ab990520ea38f449faadccc89837796faba21bb139f62",
+      "source_sha256": "54a9750c21447a8e1a16f602b053faa9ec4657f16e8f8446ff2f6328e36ba104",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -88,7 +88,7 @@
       "case_concept": "Refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/agree-work/SKILL.md",
-      "source_sha256": "d9b89dd7236c16dedf9025853c1f363e46db4dee94048f7b8cac8b87bc2f4a9e",
+      "source_sha256": "0846a1af01019b48ba4fb9b3db722a52fefde971bb5e300e7ea320baa4dc0f88",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -111,7 +111,7 @@
       "case_concept": "Repeated sibling defects must route to shared publication ownership instead of another caller patch.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/design-for-depth/SKILL.md",
-      "source_sha256": "181ae33d0d4b023ee3cd1f7826682856b699025776c3cefa43f17cd49075c545",
+      "source_sha256": "ea0c77156406c1b88f477793d25de09f391c36dbbb7555af4b4d34d8845f3aeb",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -134,7 +134,7 @@
       "case_concept": "A write followed by read returns stale data despite a documented invalidation event; use a diagnostic loop to discriminate cache-key from invalidation-delivery hypotheses before selecting the correction boundary.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/diagnose-failure/SKILL.md",
-      "source_sha256": "3b9588928826d9e9783a91da46061b4df816bb10dd85be2037701e1738776cb0",
+      "source_sha256": "911919d3d379fbedc0065aead12be3aa2dc558747a9f5da5019e40cf17747881",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -165,7 +165,7 @@
       "case_concept": "Explore a materially open implementation direction without creating artifacts or treating discussion as execution authority.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss/SKILL.md",
-      "source_sha256": "d457812c1debf4e578bdd335b8d129882d96869a17b18a5fdd9b94a06a4b3172",
+      "source_sha256": "3fad6f9d580d503c26322a9424887273d53b07fd11d2c159bc7eb7ef2845f123",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -188,7 +188,7 @@
       "case_concept": "Compare arms against a reference under a declared decision rule while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-behavior/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
       "source_path": "skills/evaluate-behavior/SKILL.md",
-      "source_sha256": "ad65e63eeb7d526e3a080a9c7c73e0ef87194982fcc9e5a4485719ff1368ba02",
+      "source_sha256": "c5999fb54f75edc1fa20d79be4af89d74be6e00535dda8e5e4a5e1a693425901",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -211,7 +211,7 @@
       "case_concept": "Complete one accepted local correction, then preserve it and change route when repeated evidence exposes a shared failure unit.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "49824b40d4c4d573bbafc8ee1a2d720c20d8c573c9c55409a99f90729918175f",
+      "source_sha256": "3ec98c42056efbffadc63f0fc8bcf8ee8acdec4ac3286539bb848f1c3e1d735e",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -234,7 +234,7 @@
       "case_concept": "Present safe routes without merging or cleaning a harness worktree until the owner selects one.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/finish-branch/SKILL.md",
-      "source_sha256": "df614800bde21243e1607773cc1fe21de73ec3368def56945700e63e98b09403",
+      "source_sha256": "0342d42f277543f58db74bcd5ca8a29ee7a0fe4c995674f9ca7dc71940b3bf96",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -257,7 +257,7 @@
       "case_concept": "Capture failed verification and partial review without claiming completion or continuing execution.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/handoff/SKILL.md",
-      "source_sha256": "dc4891fcb5478a6e69db85ae21335defbe7604791912e40a45b10a7c49ab48cc",
+      "source_sha256": "44dff757501717fe0b76a88a3a11506c0877df23e7cd25c35cab884db1e6750a",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -280,7 +280,7 @@
       "case_concept": "Hold exposure when metrics ingestion is broken despite a green deploy command.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/launch-work/SKILL.md",
-      "source_sha256": "cc8c3a15900298991ce1a6da21a862e0e0116a9f58c5bd03bbf43f13280ce0e1",
+      "source_sha256": "ac0d34044bfb2e25df04f6c6ee4386c25a0323d3fee43f8617e425e4a4981d79",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -303,7 +303,7 @@
       "case_concept": "On a small CLI or HTTP fixture, set-up mode writes a guide, helper and feature file that a fresh agent can follow to launch, drive and clean up (SPEC-verification V0).",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/map-features/SKILL.md",
-      "source_sha256": "0afb5f7f41ff0848944e2e1120afdddf6d2c1f4302cbc5766f91afd578e45bda",
+      "source_sha256": "d593952dd21d92f569ec7a602c22b37e9d58b88bc967b8c56c2ff84f2e2d24c4",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -349,7 +349,7 @@
       "case_concept": "Detect existing version and mismatched tag; refuse overwrite or tag movement.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/release-work/SKILL.md",
-      "source_sha256": "5e962d9e93cf63f5ee76ae990d6465509ce2379a86a71cf00dd7c5f13496d08b",
+      "source_sha256": "c86500e9ba70bd14a5b160cd7669f546c4b202a09ad3e1983635a867bbf099e8",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -379,9 +379,9 @@
       ],
       "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
-      "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with this source, 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified.",
+      "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with this body (the 2026-10-22 description is not what the suite delivers or measures), 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "fcde33928445d381ecd3a5190328ffe910ee00a296d2cab5da6fd443dd9a85f8",
+      "source_sha256": "35075feca3ff77e8b11036c2e6be666520f4eb7c1bb138e24abb91eb37f96a09",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -473,7 +473,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. The test-changes script has its own tests (.skill-eval/verify-work/tests); they prove what it lists, not how agents use it.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "180e5a37ab8fbb7e677f787b1c590baa2f972bafc2de87d612bf61d708ac11f3",
+      "source_sha256": "0222c5edb24e3d0fddd68ba46adb9bf92c5dcfcf439e3f83c16dee5e95a2ba10",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -502,9 +502,9 @@
       ],
       "evidence_class": ["native-activation", "multi-turn", "artifact-outcome"],
       "case_concept": "Implementation evidence invalidates one assumption; change route without restarting unaffected work.",
-      "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. Work Agreement guidance measured on 2026-10-13 (.skill-eval/work-agreement, baseline 5a7db0e6, candidate 522903b7, anthropic/claude-haiku-5-5 medium, 3 trials; aggregates 20261012212234-b38e8191 natural and 20261012212240-5af3ab7e explicit): agreement updated on a change of direction 3/3 vs 0/3; next step proposed at the agreement's edge 3/3 vs 1/3 and scope proposed 3/3 vs 2/3 (advisory Haiku judge); ask-first, unanswered-proposal and no-push/PR checks equal on both arms. Workflow's body was read in no natural run. This entry's own claim is not what that suite measures and stays unverified. Description changed 2026-10-13 (\"Use before starting work that changes code or files, ...\"); .skill-eval/workflow-activation (aggregate 20261012212950-1a9988c6, Haiku 5.5, 3 trials) measured the body read 0/9 on change requests for both the previous and this description (a core.md cue reached 4/6), and 0/3 false reads on a plain question for all.",
+      "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. Work Agreement guidance measured on 2026-10-13 (.skill-eval/work-agreement, baseline 5a7db0e6, candidate 522903b7, anthropic/claude-haiku-5-5 medium, 3 trials; aggregates 20261012212234-b38e8191 natural and 20261012212240-5af3ab7e explicit): agreement updated on a change of direction 3/3 vs 0/3; next step proposed at the agreement's edge 3/3 vs 1/3 and scope proposed 3/3 vs 2/3 (advisory Haiku judge); ask-first, unanswered-proposal and no-push/PR checks equal on both arms. Workflow's body was read in no natural run. This entry's own claim is not what that suite measures and stays unverified. Description changed 2026-10-13 (\"Use before starting work that changes code or files, ...\"); .skill-eval/workflow-activation (aggregate 20261012212950-1a9988c6, Haiku 5.5, 3 trials) measured the body read 0/9 on change requests for both the previous and the 2026-10-13 description (a core.md cue reached 4/6), and 0/3 false reads on a plain question for all. The description was shortened on 2026-10-22 and not measured.",
       "source_path": "skills/workflow/SKILL.md",
-      "source_sha256": "b27f61b06a21c9dc6d416c8e5cc3ade9a6dfc1bb3a233a066c4c7456880557d6",
+      "source_sha256": "0c4c20cb54757e268a38b789b2ade1aa910dce4dcc7af1610be2107d7ae7ad14",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -550,7 +550,7 @@
       "case_concept": "Plan one diagnosed persistence fix while leaving unresolved migration work directional.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-plan/SKILL.md",
-      "source_sha256": "45505cd0455b6141b3a5e00b42b0ffadd749a01b5c933503ecc71b1f20bfd264",
+      "source_sha256": "392498d543b0f45480c38864208ff35949c4565803151548809f5afa431527b5",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -573,7 +573,7 @@
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
       "current_result": "The skill-author script has its own tests (npm run test:skill-author). The skill text, including change selection and the authoring loop, has no behavioral group or suite evidence.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "5c7fa753332e55dcd27cf86c70b6284c922a8546e7ad69491ac33746a22d4e6c",
+      "source_sha256": "428a8dbdfab97fc7afde2d625e2a5c91bf8bd3509bf729f33eb5ae04b9f2809b",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

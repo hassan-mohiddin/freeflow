@@ -1,6 +1,6 @@
 ---
 name: discuss
-description: "Use when exploring, clarifying, or revisiting what to accomplish or how to approach it, especially when user collaboration, alternatives, assumptions, or new evidence could change the next action."
+description: "Use when what to do, or how, is still open: exploring options or assumptions with the user, or revisiting a direction after new evidence. Before building, use Agree Work."
 ---
 
 # Discuss

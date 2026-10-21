@@ -1,6 +1,6 @@
 ---
 name: "action-selection"
-description: "Use before a search, read, or command whose target, scope, or output size is unclear, or when the last few actions have not moved the question forward; skip it when the next action is obvious."
+description: "Use before a search, read or command whose target or output size is unclear, or when recent actions have stopped moving the question forward. Skip it when the next action is obvious."
 ---
 
 # Action Selection

@@ -1,6 +1,6 @@
 ---
 name: "workflow"
-description: "Use before starting work that changes code or files, fixes something, or takes more than one step: it settles what the user asked for and where to stop, picks the next activity, and carries the work to the agreed end."
+description: "Use before starting work that changes code or files: it settles what was asked and where to stop, and carries the work there."
 ---
 
 # Workflow

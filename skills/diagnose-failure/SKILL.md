@@ -1,6 +1,6 @@
 ---
 name: diagnose-failure
-description: "Use when a bug, failure, regression, performance problem, or repeated unsuccessful correction lacks a supported cause."
+description: "Use when a bug, failure, regression or slowdown has no known cause, or repeated fixes have not worked, to find the cause before fixing it."
 ---
 
 # Diagnose Failure

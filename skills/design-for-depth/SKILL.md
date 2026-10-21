@@ -1,6 +1,6 @@
 ---
 name: design-for-depth
-description: "Use when designing or changing code structure (modules, interfaces, data, state, error handling) and a choice could make the code harder to change later; not for small local edits."
+description: "Use when designing or changing code structure (modules, interfaces, data, state, error handling) and a choice could make the code harder to change later. Not for small local edits."
 ---
 
 # Design For Depth

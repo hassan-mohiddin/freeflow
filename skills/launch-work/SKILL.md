@@ -1,6 +1,6 @@
 ---
 name: launch-work
-description: "Use when preparing or carrying out a production deployment, rollout, or rollback, or restoring production after a failed release."
+description: "Use when preparing or carrying out a production deployment, rollout or rollback, or restoring production after a failed release. Not for publishing a versioned release (Release Work)."
 ---
 
 # Launch Work

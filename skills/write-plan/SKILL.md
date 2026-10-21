@@ -1,6 +1,6 @@
 ---
 name: write-plan
-description: "Use when writing or revising an ordered plan for carrying out work, such as an implementation, remediation, or migration plan."
+description: "Use when writing or revising an ordered plan for carrying out work, such as an implementation, remediation or migration plan. Not for defining what to build (Write Spec)."
 ---
 
 # Write Plan
