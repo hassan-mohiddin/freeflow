@@ -17,7 +17,6 @@ Every tool result stays in context and is sent again on every later turn. Take i
 - Cap every command's output: `2>&1 | tail -40`, or a filter for the lines you need.
 - Put scratch files in the current task's `scratch/` when the task has a Working Record, otherwise under `${TMPDIR:-/tmp}`; never elsewhere in the repository.
 - Save long output to a scratch file and query the file instead of running the command again: `cmd > "$SCRATCH/run.log" 2>&1; echo "exit=$?"; grep -E 'FAIL|ERROR' "$SCRATCH/run.log" | head -20`, where `$SCRATCH` is that location.
-- Start servers, watchers and any command expected to run longer than two minutes with `bash_background`. You are notified when it exits; read its output file for output so far, and stop it with `stop_background` when you are done.
 
 ## Running the code
 
@@ -26,12 +25,7 @@ Every tool result stays in context and is sent again on every later turn. Take i
 
 ## Editing
 
-- To change text in one existing file, use `edit`, with every change to that file in one call.
-- To change several files in one call, or to add, delete or move files together with other changes, use `apply_patch`.
+- Put every change to one existing file in a single `edit` call.
 - Create a single new file with `write`. Write over an existing file only after reading it.
-- Copy the old text, or the patch's context lines, from your latest view of that region. When an edit fails, do what the error says.
+- Copy `edit`'s old text from your latest view of that region.
 - After a successful edit, check behavior, not the file text.
-
-## Background commands
-
-- Background commands stop when the session ends; their output files stay readable.

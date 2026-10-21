@@ -250,7 +250,9 @@ test("Tool Execution adds its guidance section after Freeflow's and no skill of 
     assert.match(before.renderedGuidance, /## Working Method\n\n# Freeflow Working Method/);
     assert.doesNotMatch(before.renderedGuidance, /Working In The Environment/);
     assert.match(sections.tool_execution, /^# Working In The Environment/);
-    assert.match(sections.tool_execution, /bash_background/);
+    assert.match(sections.tool_execution, /single `edit` call/);
+    // When to use each Freeflow tool lives in that tool's description only.
+    assert.doesNotMatch(sections.tool_execution, /bash_background|monitor|stop_background|apply_patch/);
     assert.deepEqual(Object.keys(sections).slice(-3), ["freeflow_guidance", "environment", "tool_execution"]);
     for (const text of [before.renderedGuidance, sections.tool_execution])
       assert.doesNotMatch(text, /freeflow_(run|tools|result|read|search|patch)|catalog generation/);
