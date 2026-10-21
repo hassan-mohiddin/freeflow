@@ -4,7 +4,7 @@ import { imports, store, read } from "./.agree-common.mjs";
 
 const { run } = await imports.cli();
 
-test("clear deletes every done job from the data file", () => {
+test("u1 grader: clear deletes every done job from the data file", () => {
   const path = store([
     { id: 1, name: "a", status: "done" },
     { id: 2, name: "b", status: "pending" },

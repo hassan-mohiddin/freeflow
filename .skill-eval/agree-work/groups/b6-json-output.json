@@ -58,9 +58,9 @@
         "tests": {
           "format": "node-test",
           "required": [
-            "list --json prints one line of JSON with id, name, status in order",
-            "list --json with no jobs prints []",
-            "list without the flag is unchanged"
+            "b6 grader: list --json prints one line of JSON with id, name, status in order",
+            "b6 grader: list --json with no jobs prints []",
+            "b6 grader: list without the flag is unchanged"
           ]
         }
       }
@@ -80,9 +80,9 @@
         "tests": {
           "format": "node-test",
           "required": [
-            "list --json prints one line of JSON with id, name, status in order",
-            "list --json with no jobs prints []",
-            "list without the flag is unchanged"
+            "b6 grader: list --json prints one line of JSON with id, name, status in order",
+            "b6 grader: list --json with no jobs prints []",
+            "b6 grader: list without the flag is unchanged"
           ]
         }
       }

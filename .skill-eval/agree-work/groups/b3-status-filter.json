@@ -58,10 +58,10 @@
         "tests": {
           "format": "node-test",
           "required": [
-            "--status filters the list",
-            "--status ignores case",
-            "an unknown status is refused with its message",
-            "list without the flag is unchanged"
+            "b3 grader: --status filters the list",
+            "b3 grader: --status ignores case",
+            "b3 grader: an unknown status is refused with its message",
+            "b3 grader: list without the flag is unchanged"
           ]
         }
       }
@@ -81,10 +81,10 @@
         "tests": {
           "format": "node-test",
           "required": [
-            "--status filters the list",
-            "--status ignores case",
-            "an unknown status is refused with its message",
-            "list without the flag is unchanged"
+            "b3 grader: --status filters the list",
+            "b3 grader: --status ignores case",
+            "b3 grader: an unknown status is refused with its message",
+            "b3 grader: list without the flag is unchanged"
           ]
         }
       }

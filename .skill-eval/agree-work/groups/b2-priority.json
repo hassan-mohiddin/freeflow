@@ -58,11 +58,11 @@
         "tests": {
           "format": "node-test",
           "required": [
-            "high priority runs before normal",
-            "jobs without a priority are normal and keep oldest-first order",
-            "equal priorities run oldest first",
-            "a high job shows ! before its name",
-            "a normal job looks as before"
+            "b2 grader: high priority runs before normal",
+            "b2 grader: jobs without a priority are normal and keep oldest-first order",
+            "b2 grader: equal priorities run oldest first",
+            "b2 grader: a high job shows ! before its name",
+            "b2 grader: a normal job looks as before"
           ]
         }
       }
@@ -82,11 +82,11 @@
         "tests": {
           "format": "node-test",
           "required": [
-            "high priority runs before normal",
-            "jobs without a priority are normal and keep oldest-first order",
-            "equal priorities run oldest first",
-            "a high job shows ! before its name",
-            "a normal job looks as before"
+            "b2 grader: high priority runs before normal",
+            "b2 grader: jobs without a priority are normal and keep oldest-first order",
+            "b2 grader: equal priorities run oldest first",
+            "b2 grader: a high job shows ! before its name",
+            "b2 grader: a normal job looks as before"
           ]
         }
       }

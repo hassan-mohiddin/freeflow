@@ -58,9 +58,9 @@
         "tests": {
           "format": "node-test",
           "required": [
-            "remove deletes the job from the data file",
-            "an unknown id is refused with its message",
-            "the queue's remove returns whether it removed a job"
+            "b5 grader: remove deletes the job from the data file",
+            "b5 grader: an unknown id is refused with its message",
+            "b5 grader: the queue's remove returns whether it removed a job"
           ]
         }
       }
@@ -80,9 +80,9 @@
         "tests": {
           "format": "node-test",
           "required": [
-            "remove deletes the job from the data file",
-            "an unknown id is refused with its message",
-            "the queue's remove returns whether it removed a job"
+            "b5 grader: remove deletes the job from the data file",
+            "b5 grader: an unknown id is refused with its message",
+            "b5 grader: the queue's remove returns whether it removed a job"
           ]
         }
       }

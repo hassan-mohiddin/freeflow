@@ -58,10 +58,10 @@
         "tests": {
           "format": "node-test",
           "required": [
-            "maxSize option limits the queue",
-            "a full queue drops the oldest job",
-            "adding to a full queue never throws and returns the new job",
-            "no option means no limit"
+            "b1 grader: maxSize option limits the queue",
+            "b1 grader: a full queue drops the oldest job",
+            "b1 grader: adding to a full queue never throws and returns the new job",
+            "b1 grader: no option means no limit"
           ]
         }
       }
@@ -81,10 +81,10 @@
         "tests": {
           "format": "node-test",
           "required": [
-            "maxSize option limits the queue",
-            "a full queue drops the oldest job",
-            "adding to a full queue never throws and returns the new job",
-            "no option means no limit"
+            "b1 grader: maxSize option limits the queue",
+            "b1 grader: a full queue drops the oldest job",
+            "b1 grader: adding to a full queue never throws and returns the new job",
+            "b1 grader: no option means no limit"
           ]
         }
       }

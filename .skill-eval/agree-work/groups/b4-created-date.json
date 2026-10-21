@@ -58,10 +58,10 @@
         "tests": {
           "format": "node-test",
           "required": [
-            "a new job gets createdAt as a full ISO timestamp",
-            "the list shows the date in parentheses after the name",
-            "an old job without createdAt shows (-)",
-            "old data still lists and is not rewritten"
+            "b4 grader: a new job gets createdAt as a full ISO timestamp",
+            "b4 grader: the list shows the date in parentheses after the name",
+            "b4 grader: an old job without createdAt shows (-)",
+            "b4 grader: old data still lists and is not rewritten"
           ]
         }
       }
@@ -81,10 +81,10 @@
         "tests": {
           "format": "node-test",
           "required": [
-            "a new job gets createdAt as a full ISO timestamp",
-            "the list shows the date in parentheses after the name",
-            "an old job without createdAt shows (-)",
-            "old data still lists and is not rewritten"
+            "b4 grader: a new job gets createdAt as a full ISO timestamp",
+            "b4 grader: the list shows the date in parentheses after the name",
+            "b4 grader: an old job without createdAt shows (-)",
+            "b4 grader: old data still lists and is not rewritten"
           ]
         }
       }

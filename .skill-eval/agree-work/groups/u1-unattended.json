@@ -44,7 +44,7 @@
       "pass": {
         "tests": {
           "format": "node-test",
-          "required": ["clear deletes every done job from the data file"]
+          "required": ["u1 grader: clear deletes every done job from the data file"]
         }
       }
     },
@@ -62,7 +62,7 @@
       "pass": {
         "tests": {
           "format": "node-test",
-          "required": ["clear deletes every done job from the data file"]
+          "required": ["u1 grader: clear deletes every done job from the data file"]
         }
       }
     }
