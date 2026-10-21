@@ -75,7 +75,7 @@ Goal: the implementer starts with what it needs, and nobody gathers in the premi
 
 - Coordinator plans the route and may read skills directly to know which methods the assignments will need.
 - Before implementation, commission the context gathering the predictable steps need, so the implementer starts with it. Who gathers, and how the evidence reaches Coordinator, depends on the mode; see your mode reference.
-- The implementing producer forms the execution forecast described in [Execute Work](../../skills/execute-work/SKILL.md) under Gather Enough Context For This Unit. When a worker implements, Coordinator supplies the governing decisions and the worker forms the forecast; do not write the patch for it.
+- The implementing producer forms the execution forecast described in [Execute Work](../../skills/execute-work/SKILL.md) under Establish The Execution Basis. When a worker implements, Coordinator supplies the governing decisions and the worker forms the forecast; do not write the patch for it.
 
 ## Coordinator: Write A Contract That Carries The Decision
 
@@ -93,7 +93,7 @@ Put the actual contract in `delegate_work(operation: "assign")`. In `both` mode,
 
 State each requirement as the outcome for a named thing, without an escape clause such as "unless needed" or "as today". When behavior elsewhere must be preserved, say where the change belongs and what each named caller must still get: "keep what callers rely on today" alone can steer a worker away from a correct fix in shared code.
 
-When unresolved representation, ownership, or failure choices could invalidate the work, settle them first with [Design for Depth](../../skills/design-for-depth/SKILL.md). Your most valuable contribution is framing the problem so the worker finds it straightforward. For a consequential or repeatedly misunderstood property, name the mechanism and why it fits, the plausible wrong approach, and the observation that tells them apart. Give more structure where the worker has shown difficulty and more freedom where the mechanics are settled. A contract that contains the finished patch has moved the work back to Coordinator's price.
+When unresolved representation, ownership, or failure choices could invalidate the work, settle them first with Execute Work's [design](../../skills/execute-work/references/design.md) reference. Your most valuable contribution is framing the problem so the worker finds it straightforward. For a consequential or repeatedly misunderstood property, name the mechanism and why it fits, the plausible wrong approach, and the observation that tells them apart. Give more structure where the worker has shown difficulty and more freedom where the mechanics are settled. A contract that contains the finished patch has moved the work back to Coordinator's price.
 
 A gathering assignment names what must be learned, not a guessed implementation. Request evidence by purpose, since its refs do not exist yet; what you request is a minimum, and workers also return material discoveries and counterevidence. Shared history and provider caching do not convey unspoken direction, and a filename does not mean its content is available to the worker.
 
@@ -107,7 +107,7 @@ Goal: produce the assigned result resourcefully, within scope, and stop at the u
 
 Establish the contract, your assigned role, the constraints, and the return condition. Load the producing method when absent. Follow required direction; choose ordinary mechanics yourself. A useful discovery or an available tool grants no new authority.
 
-Challenge unsupported premises and report better-supported approaches. A governing change, one that alters the accepted outcome, architecture, policy, scope, authority, failure behavior, or required evidence, stops dependent effects until Coordinator decides. An unprescribed filename or helper does not require a return. For an unexplained or repeatedly stalling failure, use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) within scope or return.
+Challenge unsupported premises and report better-supported approaches. A governing change, one that alters the accepted outcome, architecture, policy, scope, authority, failure behavior, or required evidence, stops dependent effects until Coordinator decides. An unprescribed filename or helper does not require a return. For an unexplained or repeatedly stalling failure, use Execute Work's [diagnose](../../skills/execute-work/references/diagnose.md) reference within scope or return.
 
 Run routine tools without announcing them; put findings in the report. Questions for the user, and the choices you made that the contract did not settle, go to Coordinator in the return.
 

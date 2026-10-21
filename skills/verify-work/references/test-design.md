@@ -99,7 +99,7 @@ Keep fixture construction and cleanup in test utilities. Do not add public produ
 
 Prefer existing seams for clocks, randomness, scheduling, and external events. Do not expose new public test hooks merely for convenient assertions.
 
-Use observable synchronization, deterministic inputs, bounded eventual assertions, or the real diagnostic loop instead of arbitrary sleeps as proof. When timing or flakiness remains unexplained, use [Diagnose Failure](../../diagnose-failure/SKILL.md) before selecting a production correction.
+Use observable synchronization, deterministic inputs, bounded eventual assertions, or the real diagnostic loop instead of arbitrary sleeps as proof. When timing or flakiness remains unexplained, use Execute Work's [diagnose](../../execute-work/references/diagnose.md) before selecting a production correction.
 
 Test order does not establish correctness. A test written after code can be valid; an earlier test can still exercise the wrong path. Preserve evidence of which observations actually ran and never claim an unobserved earlier failure.
 
@@ -107,6 +107,6 @@ Test order does not establish correctness. A test written after code can be vali
 
 Reconsider the seam when setup becomes more conditional than the behavior, doubles reproduce internal orchestration, private states must be exposed, or integration fails despite isolated tests passing.
 
-A real integration check may be simpler than many mocks. When direct evidence shows caller coordination or unclear ownership, use [Design for Depth](../../design-for-depth/SKILL.md) to assess that boundary. Do not redesign production solely to satisfy a test framework or retain machinery that only its tests require.
+A real integration check may be simpler than many mocks. When direct evidence shows caller coordination or unclear ownership, use Execute Work's [design](../../execute-work/references/design.md#pressure-signals) to assess that boundary. Do not redesign production solely to satisfy a test framework or retain machinery that only its tests require.
 
 Stop designing checks when the required behavior has an adequate independent observer. More green tests do not justify broader requirements or stronger completion claims.

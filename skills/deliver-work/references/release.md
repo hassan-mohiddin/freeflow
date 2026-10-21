@@ -35,7 +35,7 @@ Approved preparation and publication stages:
 
 Use the repository's declared versioning scheme; do not impose semantic versioning on a project that uses dates, trains, build numbers or another scheme. Classify by what consumers can observe, not by diff size: a small change can be breaking, and a large internal refactor may be compatible. When compatibility is uncertain, inspect the supported consumers and ask rather than choosing the smallest bump.
 
-When consumers must move before a contract can be removed, use [Migration Work](../../migration-work/SKILL.md). An additive replacement release may come before the migration; a release that removes a contract waits for the accepted migration and its removal proof.
+When consumers must move before a contract can be removed, use Execute Work's [migration](../../execute-work/references/migration.md). An additive replacement release may come before the migration; a release that removes a contract waits for the accepted migration and its removal proof.
 
 ## Prepare The Release
 

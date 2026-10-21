@@ -1,6 +1,6 @@
 ---
 name: deliver-work
-description: "Use when committing, pushing, merging or opening a pull request, cleaning up a branch or worktree, releasing (version, changelog, tag, publish), or a deploy, rollout or rollback. Not for judging readiness (Review Work) or moving users or data to a replacement (Migration Work)."
+description: "Use when committing, pushing, merging or opening a pull request, cleaning up a branch or worktree, releasing (version, changelog, tag, publish), or a deploy, rollout or rollback. Not for judging readiness (Review Work) or moving users or data to a replacement (Execute Work)."
 ---
 
 # Deliver Work
@@ -55,7 +55,7 @@ Rules for a commit:
 
 ## Other Owners
 
-A choice that is the user's goes to [Agree Work](../agree-work/SKILL.md), with the supported routes as options; what a check supports, to [Verify Work](../verify-work/SKILL.md); a failure without a known cause, to [Diagnose Failure](../diagnose-failure/SKILL.md); a selected review not yet run, reported for [Review Work](../review-work/SKILL.md).
+A choice that is the user's goes to [Agree Work](../agree-work/SKILL.md), with the supported routes as options; what a check supports, to [Verify Work](../verify-work/SKILL.md); a failure without a known cause, to Execute Work's [diagnose](../execute-work/references/diagnose.md); a selected review not yet run, reported for [Review Work](../review-work/SKILL.md).
 
 ## Stop
 

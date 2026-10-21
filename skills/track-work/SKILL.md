@@ -127,13 +127,15 @@ Future Work:
 Not: a separate "Commit the parser" Slice.
 ```
 
-| Type | Code | Other work |
-| --- | --- | --- |
-| `preserve` | local commit | save a draft version or snapshot |
-| `publish` | push, pull request | publish, send to a client |
-| `review` | independent code review | editor or reviewer sign-off |
-| `decision` | owner chooses a design | owner chooses between options |
-| `continuity` | pause or handoff point | pause or handoff point |
+| Type | Code | Other work | Owner when due |
+| --- | --- | --- | --- |
+| `preserve` | local commit | save a draft version or snapshot | Deliver Work (commit) |
+| `publish` | push, pull request | publish, send to a client | Deliver Work (push, pull request or release) |
+| `review` | independent code review | editor or reviewer sign-off | Review Work |
+| `decision` | owner chooses a design | owner chooses between options | Agree Work |
+| `continuity` | pause or handoff point | pause or handoff point | Handoff |
+
+When a pending Checkpoint is due, stop dependent work, use its owner, and continue from the result. Do not force a Checkpoint whose condition, evidence or protected boundary no longer holds; return the discrepancy for cancellation, replacement, deferral or revision.
 
 Propose a Checkpoint only where it protects a dependency, decision, rollback, transfer, integration, or delivery; self-review is not one. A Checkpoint is `proposed` while it is only anticipated and `pending` once the user authorizes or selects it. Activate it as soon as authority exists. A pending or deferred Checkpoint must be closed before its Slice closes; `completed` means the boundary happened, even when its judgment was adverse.
 

@@ -8,7 +8,7 @@ Executor mode is the main cost saver. A cheaper Executor does the environment wo
 
 Goal: Executor's first attempt is right often enough that the saving outweighs the corrections.
 
-Coordinator's judgment reaches the work only through the contract, so the contract carries the decision. Frame the problem so the cheaper model finds it straightforward: the representation to use, the invariant to preserve, the wrong approach that looks right, and the check that tells them apart. For consequential design choices, write that content with the Implementation Decisions method in [Design for Depth](../../../skills/design-for-depth/SKILL.md).
+Coordinator's judgment reaches the work only through the contract, so the contract carries the decision. Frame the problem so the cheaper model finds it straightforward: the representation to use, the invariant to preserve, the wrong approach that looks right, and the check that tells them apart. For consequential design choices, write that content as Execute Work's [design](../../../skills/execute-work/references/design.md) reference describes under Settle The Choices.
 
 ```text
 Weak:   Add caching to the config loader.

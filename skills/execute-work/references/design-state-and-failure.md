@@ -1,6 +1,6 @@
 # State And Failure Boundaries
 
-Read this when correctness materially depends on canonical state, partial effects, atomic visibility, concurrency, cancellation, retries, recovery, reconciliation, or evidence of the final outcome.
+Read this when state must survive a failure: correctness materially depends on canonical state, partial effects, atomic visibility, concurrent writers, cancellation, retries, recovery, reconciliation, or evidence of the final outcome.
 
 This reference is judgment. Do not apply it to a simple local value change whose state owner and failure behavior are already sound.
 

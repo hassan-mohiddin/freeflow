@@ -82,7 +82,7 @@ Preserve the accepted behavior; do not change tests, Specs, policies, or source 
 
 ## Route When It Is Not Ready
 
-- unclear, unsupported, or repeated cause: [Diagnose Failure](../../../skills/diagnose-failure/SKILL.md);
+- unclear, unsupported, or repeated cause: Execute Work's [diagnose](../../../skills/execute-work/references/diagnose.md);
 - unsettled direction, content, or strategy, or materially different remedies or revisions: [Discuss](../../../skills/discuss/SKILL.md);
 - user-owned choice or source conflict: [Agree Work](../../../skills/agree-work/SKILL.md);
 - missing factual support: route the named claim to [Verify Work](../../../skills/verify-work/SKILL.md);
@@ -96,7 +96,7 @@ For work, verify the affected boundary and perform ordinary self-review. For an 
 
 Select focused independent follow-up only when accepted corrections or revisions, affected interactions or dependencies, new evidence, or remaining risk still require judgment from a separate context. Do not dispatch follow-up merely because Review 1 found an Issue or because a correction or revision occurred.
 
-If Review 2 remains Blocking, adjudicate it before acting again. Diagnose a repeated, extending, invalidating, causally uncertain, or basis-uncertain blocker. Return an independent clear local defect to its owner when diagnosis would add no useful understanding. Review 3 remains exceptional, separately authorized, and final. If Review 3 remains Blocking, rethink the approach rather than correct it again: route the blocker to Diagnose Failure, or to Discuss when the approach itself is in question.
+If Review 2 remains Blocking, adjudicate it before acting again. Diagnose a repeated, extending, invalidating, causally uncertain, or basis-uncertain blocker. Return an independent clear local defect to its owner when diagnosis would add no useful understanding. Review 3 remains exceptional, separately authorized, and final. If Review 3 remains Blocking, rethink the approach rather than correct it again: route the blocker to Execute Work's diagnose, or to Discuss when the approach itself is in question.
 
 ## Record The Review
 

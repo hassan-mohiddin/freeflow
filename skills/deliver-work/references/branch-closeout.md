@@ -77,4 +77,4 @@ Do not remove a worktree, checkout, session or harness state you did not create 
 
 Resolve a conflict locally only when both sides' intended behavior is settled and the resolution is mechanical. Stop and report the conflict with its evidence when resolving it would choose between competing product or API behavior, changed tests and changed implementation, incompatible migrations or data ownership, security, privacy, billing, permission or compatibility policies, or two architecture directions; the next route may be Agree Work, review, diagnosis, or a Spec or Plan revision, never "take ours" or "take theirs".
 
-Use [Diagnose Failure](../../diagnose-failure/SKILL.md) when integrated checks fail without a supported cause. Take mixed or unrelated branch contents back to the [commit](commit.md) staging decisions. Keep branch state before handing to another activity.
+Use Execute Work's [diagnose](../../execute-work/references/diagnose.md) when integrated checks fail without a supported cause. Take mixed or unrelated branch contents back to the [commit](commit.md) staging decisions. Keep branch state before handing to another activity.

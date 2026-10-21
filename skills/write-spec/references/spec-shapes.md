@@ -75,7 +75,7 @@ A technical design may contain implementation detail when that detail defines th
 
 ### Implementation Decisions
 
-Include this subsection when consequential engineering choices must survive implementation handoffs or context loss. For selecting those choices, use [Design for Depth](../../design-for-depth/SKILL.md); this shape preserves their result rather than duplicating the design method.
+Include this subsection when consequential engineering choices must survive implementation handoffs or context loss. For selecting those choices, use Execute Work's [design](../../execute-work/references/design.md); this shape preserves their result rather than duplicating the design method.
 
 Capture only what the intended implementation needs:
 

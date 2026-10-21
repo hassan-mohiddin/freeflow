@@ -10,9 +10,11 @@ export const WORKFLOW_COMMANDS = [
   { command: "write-plan", skill: "write-plan" },
   { command: "write-docs", skill: "write-docs" },
   { command: "execute-work", skill: "execute-work" },
-  { command: "simplify-code", skill: "simplify-code" },
-  { command: "migration-work", skill: "migration-work" },
-  { command: "diagnose-failure", skill: "diagnose-failure" },
+  // Simplify Code, Migration Work and Diagnose Failure became Execute Work references in 0.9.0, with Design for Depth;
+  // their commands open Execute Work for one release.
+  { command: "simplify-code", skill: "execute-work" },
+  { command: "migration-work", skill: "execute-work" },
+  { command: "diagnose-failure", skill: "execute-work" },
   { command: "verify-work", skill: "verify-work" },
   { command: "review-work", skill: "review-work" },
   // Commit Work, Finish Branch, Release Work and Launch Work became Deliver Work in 0.9.0; their commands open it
@@ -34,9 +36,6 @@ export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-
 export const FREEFLOW_MODEL_SKILL_NAMES = [
   "agree-work",
   "deliver-work",
-  "migration-work",
-  "design-for-depth",
-  "diagnose-failure",
   "discuss",
   "evaluate-behavior",
   "execute-work",
@@ -44,7 +43,6 @@ export const FREEFLOW_MODEL_SKILL_NAMES = [
   "review-work",
   "setup-freeflow",
   "map-features",
-  "simplify-code",
   "track-work",
   "verify-work",
   "write-docs",

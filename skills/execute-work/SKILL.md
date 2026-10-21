@@ -1,161 +1,88 @@
 ---
 name: execute-work
-description: "Use when carrying out requested or agreed work that changes files or settings: implementing, fixing, configuring, prototyping. Not yet agreed: Agree Work first; unknown failure cause: Diagnose Failure first."
+description: "Use when implementing, fixing, configuring, refactoring, simplifying or cleaning up code, designing modules or interfaces, finding why something fails, or migrating to a replacement and removing the old path. Not for open scope (Agree Work), checking (Verify Work), fitness (Review Work) or delivery (Deliver Work)."
 ---
 
 # Execute Work
 
-Produce the agreed concrete result through supported preparation, bounded execution, verification, and correction. Do not make the user supply an implementation plan when the request authorizes you to figure it out.
-
-[Agree Work](../agree-work/SKILL.md) establishes the work agreement and the user's choices; Execute Work owns route preparation, implementation and continuation within it. Task memory belongs to Track Work; governing choices remain with the user.
+Carry out agreed change work from the first edit to a checked result. The work agreement says what to build; work out how yourself when the request leaves that to you.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
+## Routes
+
+Read a reference only when its situation arises.
+
+| Situation | Read |
+| --- | --- |
+| Building on a representation, identity, ownership or algorithm choice that dependent work would redo if wrong | [design: Settle The Choices](references/design.md#settle-the-choices) |
+| A new or changed interface between parts, or choosing which part owns a decision | [design: Interfaces](references/design.md#interfaces) |
+| State that must survive a failure: partial effects, retries, concurrent writers, recovery | [design state and failure](references/design-state-and-failure.md) |
+| Module cycles, layering, dependency direction, or extracting shared code | [design: Modules And Dependencies](references/design.md#modules-and-dependencies) |
+| The same change keeps touching many places, or each fix adds another flag, state or caller rule | [design: Pressure Signals](references/design.md#pressure-signals) |
+| Behavior-preserving cleanup, refactoring or deletion is the agreed result | [simplify](references/simplify.md) |
+| A failure with no known cause, or two fixes that did not hold | [diagnose](references/diagnose.md) |
+| Moving users, data or traffic to a replacement, or removing an old path | [migration](references/migration.md) |
+| Adding edge-case handling, or a comment that explains why | [code practices](references/code-practices.md) |
+| Designing or changing a test | [Test Design](../verify-work/references/test-design.md) |
+| What a check shows, or a claim beyond its evidence | [Verify Work](../verify-work/SKILL.md) |
+| A choice that is the user's, or a step the agreement does not cover | [Agree Work](../agree-work/SKILL.md) |
+| Committing, pushing, merging, releasing or deploying | [Deliver Work](../deliver-work/SKILL.md) |
+
 ## Rules
 
-- Stay inside the work agreement. An agreement to return a plan does not cover production edits. Before adopting a new requirement, scope, compatibility, persistence, evidence, or return boundary, return to Agree Work.
-- Never cross a selected checkpoint or separately controlled boundary while it is due and unresolved.
-- Never rewrite tests, Specs, Plans, policies, or acceptance merely to make implementation pass.
-- Return undefined consequential behavior to its owner rather than encode a guess.
-- When a Working Record exists, record the Current Slice through [Track Work](../track-work/SKILL.md) before its first effect.
-- Never promote exploratory code into production, invent acceptance, or claim integration that was not observed.
-- Build the report from inspected resulting files, assertions, and outputs, not from requested changes phrased as accomplishments. Do not add cleanup, documentation, migration, deprecation, commit, push, integration, release, or launch merely because it would be useful.
+- Stay inside the work agreement; an agreement to return a plan does not cover production edits. Take a new requirement, scope, compatibility, persistence or evidence boundary to Agree Work before adopting it.
+- Never cross a selected Checkpoint while it is due and unresolved; Track Work names its owner.
+- Never rewrite a Spec, Plan, policy or acceptance criterion to make the implementation pass.
+- Never encode a guess for consequential behavior nobody defined: ask through Agree Work, or, when no one can answer, take the Working Method's default and report it.
+- When a Working Record exists, record the Current Slice through Track Work before its first effect.
+- Never promote exploratory code into production or invent acceptance.
 
 ## Establish The Execution Basis
 
-Goal: before any effect, you know which assignment applies, what it requires, and how its result will be checked.
+Goal: before the first effect, you know what is agreed, how you will get there, and what will show it worked.
 
-Consume the current request, accepted discussion, governing artifacts, and relevant live state. Establish which assignment and stopping condition currently apply; do not combine older directions with a superseding contract. Resolve material ambiguity before dependent effects. Do not restart discovery because execution was selected.
+- **Outcome:** the agreed result, its constraints and non-goals, and where you stop.
+- **Route:** the main steps, their order, and which depend on feedback. For substantial dependent work, forecast internally which changes belong together and the earliest observation that could invalidate the rest.
+- **Evidence:** the checks that could disagree with a wrong result, on the user's path.
 
-Before production changes, establish:
+Before the first production change, gather what the route's predictable steps will use (sources, callers, contracts, conventions, code to copy), with the queries in the Working Method's "Find what the change touches"; never start substantial work from a guessed API, owner or cause. Stop when what remains can only be learned by doing the work, such as a test result or the user's reaction to a draft, and adapt the route to that feedback. Reading files no step needs, or collecting information because it may be useful later, is over-gathering; pausing for context the route could have predicted is under-gathering. When the unit needs unexpectedly large context, return that need to the user rather than reading the whole dependency tree, citing the host's usage figures, never invented token counts. A small, well-understood change needs no separate pass. You are ready when you can say what will change, why it should work, and how it will be checked.
 
-- **Outcome:** the required result, constraints, non-goals, and acceptance boundary.
-- **Approach:** the supported mechanism, affected code or artifacts, dependencies, and necessary ordering.
-- **Evidence:** a check or observation capable of disagreeing with the result.
-- **Agreement:** covered effects, extent of work, and when to return to the user.
-- **Route:** the main steps from here to the agreed end, their order, and which depend on feedback.
+An agreement to fix a bug covers investigation before the remedy is known. Domain guidance, such as a framework or security skill, supplies method, never authority; load it for the concrete technology or risk, not for a keyword.
 
-Before effects, check whether a selected checkpoint or separately controlled boundary is already due.
+## Work One Method At A Time
 
-An exactly specified change, or a run where no one can answer, counts as the agreement (defaults recorded, as Agree Work's "When To Skip" says); otherwise settle the agreement through Agree Work before the first edit. A request that only looks clear still leaves choices open.
+Goal: the agreed result, by the simplest method that fits, with accepted behavior intact.
 
-An agreement to fix a bug can cover investigation before the remedy is known. Distinguish evidence gathering from implementation even when both are authorized.
+Work in units that each produce one checkable result, not one per command or file; [Track Work](../track-work/SKILL.md) owns how Slices are sized and recorded. Use one primary method at a time: direct implementation when the outcome and mechanism are understood, one routed reference when its situation holds, or a bounded learning action when an empirical question must be answered first.
 
-Use [Discuss](../discuss/SKILL.md) when outcome or material approach alternatives need reconsideration, Agree Work for one blocking user-owned choice or source conflict, and [Diagnose Failure](../diagnose-failure/SKILL.md) when the cause is unsupported.
+For one mechanical edit across many sites, edit the first site by hand, then write a script or codemod; run it on that site's original state and diff against your hand edit until they match, then run it everywhere. Keep the script in the task's scratch location and name it in the report. Edit by hand when the sites are few or each needs its own decision.
 
-## Gather Enough Context For This Unit
-
-Goal: implementation starts from understanding, not from guesses, without researching more than the work needs.
-
-Before the first production change, gather the context the route needs: the sources, callers, contracts, conventions, and examples its predictable steps will use, found now rather than mid-execution. Stop when the remaining unknowns can only be answered by doing the work, such as a test result, an experiment, or the user's reaction to a draft; keep those steps directional and adapt the route to their feedback. Reading files no step on the route needs is over-gathering; execution that keeps pausing for context the route could have predicted is under-gathering. A small, well-understood change needs no separate pass, and a direct request needs less preparation, not none.
-
-For each unit, gather only what the route could not predict. Choose the next coherent result, then identify what is missing to implement and check it. Reuse current supported sources; inspect only the live boundaries whose freshness matters.
-
-Find the relevant mechanism, callers, contracts, and observing seam before changing them. Do not begin substantial implementation from a guessed API, ownership boundary, or failure cause. Do not read every file or settle every later Slice merely to avoid all uncertainty.
-
-Readiness means you can explain what will change, why it should produce the accepted result, and how the result will be checked. It does not require knowing every line or helper in advance. If an unfamiliar fixture or observing stage could invalidate substantial dependent work, establish that observer first through a bounded investigation. Reuse adequate fixtures; do not make a separate prototype mandatory.
-
-For substantial dependent work, make a compact, usually internal forecast of the known changes that belong together, their supported order, and the earliest observation that could invalidate further work. Keep outcome-dependent steps conditional, and proceed with settled work without replanning after routine tool calls. When material feedback changes the basis, revise only the affected part while preserving the accepted outcome. Skip the forecast for straightforward local work; do not enumerate future tool calls.
-
-Before substantial implementation, read [Design for Depth](../design-for-depth/SKILL.md) and use its Implementation Decisions method when unresolved representation, identity, ownership, algorithm, or failure choices could invalidate significant dependent work. Reuse applicable design decisions already supplied; distinguish required constraints, suggested mechanisms, and local freedom. A reference to a design is not enough when its relevant content is unavailable. Resolve the consequential unknown, not every future coding detail.
-
-Stop gathering when the current unit is sufficiently supported. A mechanical read of a known caller or signature can remain inside execution; discovering an invalidated mechanism requires re-entry before dependent edits.
-
-When specialized domain guidance is needed, read [Domain Skill Composition](references/domain-skill-composition.md). Before writing or changing code, read [Code Practices](references/code-practices.md). Before designing or materially changing a behavior check, read [Test Design](../verify-work/references/test-design.md); choose its oracle from accepted behavior rather than the implementation.
-
-## Keep The Unit Coherent
-
-Goal: each unit of work produces one checkable result with a manageable working set.
-
-A bounded action produces one useful execution or learning result with a checkable claim. It may contain several files, tools, edits, and checks. Do not fragment it by command, file, test, or method change.
-
-Choose work that can be understood, executed, checked, and corrected with a manageable working set. Split when dependencies, uncertainty, or distinct outcomes make one attempt unreliable; retain enough understanding of later constraints to avoid an obvious dead end.
-
-When a Working Record exists, use Track Work for recovery and write-ahead Slice state. Preserve useful provisional remaining work and dependencies through its existing fields. At meaningful boundaries, record results with an identity, such as a commit SHA or document version, in the Slice's Material updates, and add Recovery sources as the work reveals what a resume would need. Do not create memory for a short direct result merely because execution began.
-
-Read [Execute Work Edges](references/execute-work-edges.md) when resuming uncertain prior work, changing a Slice boundary, reaching a selected checkpoint, or exposing separately controlled follow-on work.
-
-## Execute Through One Suitable Method
-
-Goal: the accepted result, produced by the simplest method that fits, with accepted behavior intact.
-
-Implement the supported approach directly when the outcome and mechanism are understood. Unfamiliar work may need preparation first; it does not automatically require a separate prototype or a test-first implementation sequence.
-
-Use one primary method at a time:
-
-- direct implementation for a supported change;
-- [Simplify Code](../simplify-code/SKILL.md) when behavior-preserving complexity reduction is the accepted outcome;
-- specialized domain guidance when the environment or risk needs it;
-- a bounded learning action when an empirical uncertainty must be resolved before production work.
-
-Preserve accepted behavior, failure semantics, repository conventions, and source truth.
-
-Allow local choices of helpers, editing order, and focused checks while the agreed result and effects remain unchanged. Handle edge cases required by accepted behavior, direct evidence, or material safety.
-
-For one mechanical edit repeated across many sites, edit the first site by hand, then write a script or codemod for the rest. Run it on that first site from its original state and diff against your hand edit until they match, then run it on every site. Keep the script in the task's scratch location and point to it in the report so a reviewer can rerun it. Edit by hand instead when the sites are few enough to check at a glance or each needs its own decision.
-
-For an unfamiliar design boundary that could invalidate later work, establish its first coherent implementation and distinguishing observation before dependent expansion. Compare the actual ownership, identity, ordering, and failure behavior with the selected design—not merely its proposed filenames. Preserve accepted predicates when a sketch proves wrong; stop dependent effects and resolve the affected mechanism through the current owner. Supported local improvements need no automatic handback or separate review.
-
-## Execute A Bounded Learning Action
-
-Goal: answer the declared question with the least building that can answer it.
-
-Consume the declared question, observer, permitted effects, expected evidence, and return condition. If they are insufficient for safe execution, establish the missing basis through the requesting owner before acting. Do not assume Discuss was previously used or repeat framing that is already adequate.
-
-Build and run only what the observation needs. Correct an understood local observer defect within scope. Before adding scaffolding or a dependency, check whether it serves the current observation or implements a future product. Return before materially expanding effects or pursuing a different question.
-
-Stop when the question is answered or the observing limit is reached. Report support, contradiction, inconclusive evidence, or unavailable evidence honestly; do not keep polishing the prototype to manufacture a favorable result.
-
-Return evidence, limits, exploratory artifacts, and residual effects to the owner that asked the question, following the agreed artifact disposition. The receiving owner assesses what the finding changes and which next action is supported and authorized.
+A bounded learning action answers one declared question with the least building that can, within the limits whoever framed it set. Report a negative or inconclusive result as plainly as a positive one, and do not polish a prototype toward a favorable answer.
 
 ## Re-enter When The Basis Changes
 
-Goal: stop building on a basis that no longer holds, and return only as far as the change requires.
+Goal: stop building on a basis that no longer holds, and go back only as far as the change requires.
 
-Do not continue merely because implementation has begun.
+| What changed | Go to |
+| --- | --- |
+| A clear local defect with a supported remedy | Correct it in the same action |
+| The mechanism is invalidated, the outcome is not | Stop dependent edits; re-establish the approach |
+| The cause is unclear, or a correction did not hold | [diagnose](references/diagnose.md), after the Working Method's "Diagnose before fixing" |
+| A claim exceeds its evidence | Verify Work, before fixing anything |
+| Accepted content, such as a Spec, Plan or Decision, changed | Its owner; reconcile the Working Record before dependent use |
+| A choice that is the user's | Agree Work |
 
-- Clear local defect and supported remedy -> correct within the same action.
-- Required outcome clear but mechanism invalidated -> stop dependent edits and re-establish the approach.
-- Failure cause unclear or correction repeats -> Diagnose Failure before another patch.
-- Expected behavior or acceptance unsettled -> Discuss or Agree Work.
-- Required claim exceeds its evidence -> Verify Work: tell unavailable or stale evidence and an inadequate observer from a demonstrated defect before commissioning a guessed fix.
-- Accepted content or strategy changed -> return affected artifacts to their owners and reconcile the Working Record before dependent use.
-- New requirement, scope, compatibility, persistence, evidence, or user-facing return boundary -> Agree Work before adopting it.
+Do not continue merely because implementation has begun. Before chasing a prerequisite, ask whether the agreed outcome needs it or only your current approach does; a failed approach does not prove a host change or stronger guarantee is necessary. Keep unaffected changes and contradicting evidence.
 
-Before pursuing a prerequisite, distinguish what the accepted outcome requires from what the current approach happens to need. Choose the smallest supported remedy preserving acceptance. A failed approach does not prove that a host change or stronger guarantee is necessary.
+## Check, Then Continue Or Return
 
-When corrections keep adding caller coordination, public states, flags, retries, test-only seams, or recovery rules, stop the patch stream. Diagnose the cause; use [Design for Depth](../design-for-depth/SKILL.md) when direct evidence establishes structural pressure. Do not use that lens to broaden ordinary local work.
+Goal: the result is supported where it will be used, and the report says exactly what exists.
 
-Preserve unaffected changes and contradictory evidence. An optional improvement is not unfinished work.
+Check where the result will be accepted or used, not after every edit. Use Verify Work for what the observations support, then the Working Method's "Review your own change", with [Review Work](../review-work/SKILL.md) for its lenses. Correct a supported local defect and rerun the affected checks once; route a repeated failure instead of iterating.
 
-## Verify And Self-Review The Result
+If the result makes existing documentation untrue, correcting it is part of this work: use [Write Docs](../write-docs/SKILL.md). New documentation still needs a request.
 
-Goal: the result is supported by evidence at the boundary where it will be used, and judged suitable before it is accepted.
+Before each continuation, ask whether the next change meets an agreed requirement, repairs a demonstrated defect, or only adds an optional guarantee; an optional improvement is not unfinished work. Continue while the next step serves the same outcome and stays covered, starting a distinct Slice the agreement covers through Track Work without waiting for the user; a passing check is not the endpoint.
 
-Check at the boundary where a result will be accepted or used—not after every edit or command.
-
-1. Run the covered focused checks through the actual behavior or artifact boundary.
-2. Use [Verify Work](../verify-work/SKILL.md) to classify what the observations support and what remains unverified.
-3. Once evidence initially supports the result, use [Review Work](../review-work/SKILL.md) for silent self-review of concrete work. Guiding artifacts use their owning artifact-review route.
-4. Correct a supported local defect within authority, then rerun affected evidence and affected review lenses once.
-5. Route unresolved or repeated failure rather than iterating blindly. Distinguish a code defect from an invalid observer, stale evidence, or a misunderstood assignment before selecting another correction.
-
-A green check proves only its exercised assertions; a source read does not prove runtime behavior. Tests may be written before or after implementation as appropriate, without a formal test-first loop or invented earlier failure. Review judges suitability without replacing evidence. Evidence gaps in required behavior remain visible; optional stronger claims may be qualified instead of becoming extra work.
-
-Independent review is separately selected. A self-review finding does not require a reviewer, and a reviewer suggestion does not authorize another change.
-
-If the result makes existing documentation say something no longer true, such as a user guide, a subsystem doc, or a folder README, correcting it is part of this work: use [Write Docs](../write-docs/SKILL.md). New documentation still needs a request.
-
-## Continue Or Return
-
-Goal: covered work continues without unnecessary stops, and the report describes exactly what exists.
-
-Continue within the Slice while the next action serves the same outcome, remains covered, and can still be checked coherently. A method change, correction, or verification run does not create or close a Slice.
-
-When durable memory exists, preserve only material changes to understanding, dependencies, scope, evidence, blockers, and the next useful action. Before context loss, record truthful partial state rather than rushing to completion. Resume only after required reconstruction and relevant live-state reconciliation.
-
-When a distinct Slice is ready, start it through Track Work; an already-authorized Slice needs no new user turn. When a selected checkpoint is due, use its owner; when the agreement changes, Agree Work. A method return, delegation handback, passing check, or context reconstruction is not the user-facing endpoint.
-
-Stop at the agreed return condition or an uncovered consequential boundary.
-
-Distinguish implemented, checked, and still unsupported properties. Account for relevant edits after the checks; do not pair a fresh pass with superseded code or test captures. Reuse applicable evidence and report missing bodies or cases explicitly. A completed action is not automatically a completed Slice, task, or delivery.
+Stop at the agreed return condition or an uncovered consequential boundary, and report as the Working Method's "Report a finished change" says, accounting for any edit made after the last check.

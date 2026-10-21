@@ -1,10 +1,10 @@
 # Workflow Commands
 
 > **Covers:** `pi-extension/src/host/catalog.ts`
-> **Verified at:** `ab76aa4a` (2026-10-22)
+> **Verified at:** `6a2d85ab` (2026-10-22)
 > **User docs:** `plugin-docs/workflow.md`
 
-Freeflow registers one Pi command per workflow skill (`/discuss`, `/write-plan`, `/verify-work`, `/review-work` and the rest, plus `/setup-freeflow`, `/write-skill` and `/evaluate-behavior`), and, for one release after their skills' removal in 0.9.0, `/bypass`, which opens Agree Work, and `/commit-work`, `/finish-branch`, `/release-work` and `/launch-work`, which open Deliver Work. Deliver Work has no command of its own yet; Pi's `/skill:deliver-work` opens it. Each sends its skill to the model as the next turn, so running one is a model call. Typing one and reading its completions is not. How skills route to each other: [Skill routing](../subsystems/skill-routing.md); how they reach the model: [Prompt assembly](../subsystems/prompt-assembly.md).
+Freeflow registers one Pi command per workflow skill (`/discuss`, `/write-plan`, `/verify-work`, `/review-work` and the rest, plus `/setup-freeflow`, `/write-skill` and `/evaluate-behavior`), and, for one release after their skills' removal in 0.9.0, `/bypass`, which opens Agree Work, `/commit-work`, `/finish-branch`, `/release-work` and `/launch-work`, which open Deliver Work, and `/simplify-code`, `/migration-work` and `/diagnose-failure`, which open Execute Work (Design for Depth, merged into Execute Work with them, never had a command). Deliver Work has no command of its own yet; Pi's `/skill:deliver-work` opens it. Each sends its skill to the model as the next turn, so running one is a model call. Typing one and reading its completions is not. How skills route to each other: [Skill routing](../subsystems/skill-routing.md); how they reach the model: [Prompt assembly](../subsystems/prompt-assembly.md).
 
 ## Sub-features
 

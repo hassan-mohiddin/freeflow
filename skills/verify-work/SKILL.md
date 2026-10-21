@@ -1,6 +1,6 @@
 ---
 name: verify-work
-description: "Use when checking whether work or a claim holds: running tests, builds or the real path and reading the evidence. Not for finding causes (Diagnose Failure) or judging fitness (Review Work)."
+description: "Use when checking whether work or a claim holds: running tests, builds or the real path and reading the evidence. Not for finding causes (Execute Work) or judging fitness (Review Work)."
 ---
 
 # Verify Work
@@ -86,7 +86,7 @@ A check may Pass by observing an expected rejection or failure.
 - **Inconclusive:** available evidence cannot establish or refute it at that boundary.
 - **Unavailable:** required evidence cannot currently be obtained safely or reliably.
 
-A Passed check can leave the claim Inconclusive. A no-regression or parity claim without an observed baseline is Inconclusive. A Failed check can expose a defect, an invalid expectation, an environment problem, or a source conflict; classify only the supported conclusion. Use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) when contradictions are unexplained or failure repeats.
+A Passed check can leave the claim Inconclusive. A no-regression or parity claim without an observed baseline is Inconclusive. A Failed check can expose a defect, an invalid expectation, an environment problem, or a source conflict; classify only the supported conclusion. Use Execute Work's [diagnose](../../skills/execute-work/references/diagnose.md) when contradictions are unexplained or failure repeats.
 
 ## Return Evidence To Its Owner
 

@@ -1081,6 +1081,16 @@ test("Pi keeps the four delivery commands for one release as commands that open 
   }
 });
 
+test("Pi keeps /simplify-code, /migration-work and /diagnose-failure for one release as commands that open Execute Work", () => {
+  const { commands } = loadExtension();
+  for (const name of ["simplify-code", "migration-work", "diagnose-failure"]) {
+    const command = commands.find((candidate) => candidate.name === name);
+    assert.ok(command, name);
+    assert.equal(command.definition.description, `Run Freeflow execute-work via ${name}`);
+  }
+  assert.ok(!commands.some((command) => command.name === "design-for-depth"));
+});
+
 test("Pi describes the mode-free Freeflow argument surface and manual profile controls", () => {
   const { commands } = loadExtension(freeflowExtension, {
     appendEntry() {},
@@ -1143,14 +1153,24 @@ test("Pi exposes the canonical base skills without TDD, a mode skill, or removed
     assert.ok(!skillNames.includes("action-selection"));
     assert.ok(!skillNames.includes("bypass"));
     assert.ok(skillNames.includes("deliver-work"));
-    for (const removed of ["commit-work", "finish-branch", "release-work", "launch-work"])
+    for (const removed of [
+      "commit-work",
+      "finish-branch",
+      "release-work",
+      "launch-work",
+      "design-for-depth",
+      "simplify-code",
+      "diagnose-failure",
+      "migration-work",
+    ])
       assert.ok(!skillNames.includes(removed), removed);
 
     for (const [commandName, expectedSkill] of [
       ["discuss", "discuss"],
       ["bypass", "agree-work"],
       ["commit-work", "deliver-work"],
-      ["migration-work", "migration-work"],
+      ["migration-work", "execute-work"],
+      ["diagnose-failure", "execute-work"],
       ["track-work", "track-work"],
       ["execute-work", "execute-work"],
     ]) {

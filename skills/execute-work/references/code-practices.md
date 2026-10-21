@@ -1,18 +1,35 @@
 # Code Practices
 
-Read this before a bounded action writes or changes code. Follow the repository's language, style, testing, and documentation conventions before generic advice.
+Read this before adding edge-case handling or a comment that explains why. The repository's own conventions come first.
 
 This reference is judgment: adapt it to the work. Its binding statements restate [Execute Work](../SKILL.md) Rules.
 
-## Make Intent Legible
+## Handle Edge Cases By Evidence
 
-- Use names that express domain meaning rather than implementation trivia.
-- Keep behavior, state, and policy near the code that owns them.
-- Prefer the smallest coherent change over speculative abstraction or broad cleanup.
-- Make important invariants and failure behavior explicit in code, types, tests, or narrow comments.
-- Add a dependency, fallback, flag, state, or extension point only for accepted behavior or observed pressure.
+Before adding behavior for an edge case, ask:
 
-Clear code explains what happens. Comments preserve important context the code cannot express safely.
+1. Is it required by accepted behavior or a settled failure contract?
+2. Has it been observed or shown reachable at the supported boundary?
+3. Could ignoring it cause material safety, data, security, compatibility, or user harm?
+4. Is the expected result defined and inside the agreed work?
+
+Then act proportionately:
+
+- **Required or observed, with defined behavior:** implement the smallest complete behavior and test the relevant boundary.
+- **Material but undefined:** stop and settle the missing behavior through [Agree Work](../../agree-work/SKILL.md).
+- **Plausible but unsupported:** gather evidence; do not add speculative handling.
+- **Useful but optional:** report or defer it as separate work.
+- **Purely hypothetical:** leave it alone.
+
+```text
+API contract permits a missing value and defines the result
+-> implement and test it
+
+"What if this is null?" with no requirement or reachable path
+-> do not add a null branch; classify the concern first
+```
+
+Prefer an explicit invariant or a clear failure over invented retry, fallback, recovery, or compatibility behavior. Handling an edge case creates a contract and a future maintenance cost.
 
 ## Comment Non-Obvious Why
 
@@ -24,14 +41,9 @@ Comment when a future reader could reasonably make a harmful change without know
 - why an obvious alternative was rejected;
 - why temporary behavior exists and what permits its removal.
 
-Do not:
+Do not narrate clear statements or control flow, keep comments that no longer match the code, record architecture history inline, or write `TODO: fix later` without a real reason or exit condition. For temporary behavior, name the actual constraint and removal condition, and link an existing issue when there is one; do not invent tracking metadata.
 
-- narrate clear statements or control flow;
-- preserve comments that no longer match the code;
-- record broad architecture history inline;
-- write `TODO: fix later` without a real reason or exit condition.
-
-Put task status and future work in the Working Record or issue tracker. Put broad durable rationale in a Spec, decision record, or ADR. Leave only the local explanation needed to change the code safely.
+Put task status and future work in the Working Record or issue tracker, how the code works and why in the developer docs ([Write Docs](../../write-docs/SKILL.md)), and a hard-to-reverse choice in a decision record. Leave in the code only the local explanation needed to change it safely.
 
 ```ts
 // Bad: repeats the code.
@@ -42,39 +54,3 @@ count += 1; // Increment count
 runFirstPass();
 runSecondPass();
 ```
-
-For temporary behavior, name the actual constraint and removal condition. Link an existing issue when one exists; do not invent tracking metadata.
-
-## Handle Edge Cases By Evidence
-
-Before adding behavior for an edge case, ask:
-
-1. Is it required by accepted behavior or a settled failure contract?
-2. Has it been observed or shown reachable at the supported boundary?
-3. Could ignoring it cause material safety, data, security, compatibility, or user harm?
-4. Is the expected result defined and inside the accepted work?
-
-Then act proportionately:
-
-- **Required or observed, with defined behavior:** implement the smallest complete behavior and test the relevant boundary.
-- **Material but undefined:** stop and settle the missing behavior decision through [Agree Work](../../agree-work/SKILL.md).
-- **Plausible but unsupported:** gather evidence; do not add speculative handling.
-- **Useful but optional:** report or defer it as separate work.
-- **Purely hypothetical:** leave it alone.
-
-```text
-API contract permits a missing value and defines the result
--> implement and test it
-
-"What if this is null?" with no requirement or reachable path
--> do not add a null branch; classify the concern first
-
-Each correction reveals another related state or flag
--> stop patching; diagnose the shared contract, cause, or ownership
-```
-
-Prefer an explicit invariant or clear failure over invented retry, fallback, recovery, or compatibility behavior. Handling an edge case creates a contract and future maintenance cost.
-
-## Stop When The Action Is Supported
-
-Once the accepted result is supported, comments are accurate, and no material self-review issue remains, stop. Possible polish, unrelated cleanup, and imagined resilience are not unfinished work. They require new evidence or another accepted bounded action.

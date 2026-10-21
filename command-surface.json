@@ -32,15 +32,15 @@
     },
     {
       "command": "/simplify-code",
-      "skill": "simplify-code"
+      "skill": "execute-work"
     },
     {
       "command": "/migration-work",
-      "skill": "migration-work"
+      "skill": "execute-work"
     },
     {
       "command": "/diagnose-failure",
-      "skill": "diagnose-failure"
+      "skill": "execute-work"
     },
     {
       "command": "/verify-work",

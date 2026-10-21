@@ -72,7 +72,7 @@ When a hook changes content, the state being committed is no longer the one that
 
 ## Failed Commit Commands
 
-After a failed or interrupted commit, inspect `git status`, `git diff`, `git diff --cached` and `git log -1 --oneline --decorate`; do not assume no commit was created or nothing changed. For identity, signing, credential-helper, editor, lock, filesystem or permission failures, do not change global or repository Git configuration without authority, do not delete lock files while their owner is unclear, do not retry through a materially different command without a supported cause, and report the exact blocker and the preserved state. Use [Diagnose Failure](../../diagnose-failure/SKILL.md) when the cause stays unclear or a retry repeats the failure.
+After a failed or interrupted commit, inspect `git status`, `git diff`, `git diff --cached` and `git log -1 --oneline --decorate`; do not assume no commit was created or nothing changed. For identity, signing, credential-helper, editor, lock, filesystem or permission failures, do not change global or repository Git configuration without authority, do not delete lock files while their owner is unclear, do not retry through a materially different command without a supported cause, and report the exact blocker and the preserved state. Use Execute Work's [diagnose](../../execute-work/references/diagnose.md) when the cause stays unclear or a retry repeats the failure.
 
 ## Submodules
 
@@ -80,4 +80,4 @@ A parent commit records a submodule pointer, not the submodule's uncommitted con
 
 ## Return
 
-Go back to the trunk's Commit steps only when the repository has one supported, recoverable candidate. Otherwise preserve the exact Git state and hand over to branch closeout, Diagnose Failure, or the activity whose responsibility changed.
+Go back to the trunk's Commit steps only when the repository has one supported, recoverable candidate. Otherwise preserve the exact Git state and hand over to branch closeout, Execute Work's diagnose, or the activity whose responsibility changed.

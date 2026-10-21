@@ -29,7 +29,7 @@ A request to discuss keeps the user involved as understanding develops. Gather r
 
 A direct action request may already settle the outcome and delegate approach selection. Do not force a discussion phase when existing evidence can resolve the remaining facts and reversible local choices. Hand clear covered work to Execute Work.
 
-Use [Agree Work](../agree-work/SKILL.md) for one known blocking user-owned choice or source conflict. Use [Diagnose Failure](../diagnose-failure/SKILL.md) when a reported or recurring failure needs a supported cause rather than broader option discussion.
+Use [Agree Work](../agree-work/SKILL.md) for one known blocking user-owned choice or source conflict. Use Execute Work's [diagnose](../execute-work/references/diagnose.md) when a reported or recurring failure needs a supported cause rather than broader option discussion.
 
 ## Separate Outcome From Approach
 
@@ -40,7 +40,7 @@ Identify which understanding is missing:
 - **What:** the problem or opportunity, desired result, accepted behavior, constraints, non-goals, and what would count as success.
 - **How:** the mechanism, dependencies, affected boundaries, tradeoffs, and evidence needed to produce that result in the actual environment.
 
-Use [Design for Depth](../design-for-depth/SKILL.md) when representation, identity, ownership, interfaces, algorithms, state, dependencies, or failure behavior materially shape the choice. If unresolved choices could materially change a technical recommendation or invalidate significant dependent work, read its Implementation Decisions method before recommending a mechanism. Use it to explain the differences that matter between viable approaches, not to turn ordinary discussion or a supported local change into an architecture exercise.
+Use Execute Work's [design](../execute-work/references/design.md) when representation, identity, ownership, interfaces, algorithms, state, dependencies, or failure behavior materially shape the choice, and read it before recommending a mechanism when unresolved choices could materially change a technical recommendation or invalidate significant dependent work. Use it to explain the differences that matter between viable approaches, not to turn ordinary discussion or a supported local change into an architecture exercise.
 
 These questions can be answered together. Reuse what remains supported instead of running two compulsory discovery passes. A detailed request may settle what while leaving how open; an investigation may reveal that the initial problem description was wrong.
 
@@ -134,7 +134,7 @@ Return only what the next route needs: supported understanding, tentative approa
 - A supported ordered strategy needing a durable artifact -> [Write Plan](../write-plan/SKILL.md).
 - Covered concrete work -> Execute Work.
 - One blocking owner choice -> Agree Work.
-- Unsupported failure cause -> Diagnose Failure.
+- Unsupported failure cause -> Execute Work's diagnose.
 - No action needed -> answer or stop.
 
 Neither an artifact nor a planning milestone is mandatory. Stop recommending or preserving once the agreed discussion result is supported.
