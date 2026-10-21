@@ -161,7 +161,8 @@ questions, and the cap is two turns) but carries Tool Execution's tool texts and
 | before and after | | ~$0.6 to $1.4 | |
 
 Billed to the Claude subscription, runs spend plan usage instead, which `--max-cost` does not see. Wall time is about
-30 to 90 seconds a run; with `--jobs 4`, a full run takes 15 to 35 minutes.
+30 to 90 seconds a run; with `--jobs 4`, a full run takes 15 to 35 minutes. Each group also builds Freeflow (about a
+second with npm's cache warm) and runs the six confinement probes in a container (a few seconds), at no model cost.
 
 ## Limits
 
