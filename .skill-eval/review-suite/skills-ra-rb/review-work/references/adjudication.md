@@ -84,7 +84,7 @@ Preserve the accepted behavior; do not change tests, Specs, policies, or source 
 
 - unclear, unsupported, or repeated cause: [Diagnose Failure](../../../skills/diagnose-failure/SKILL.md);
 - unsettled direction, content, or strategy, or materially different remedies or revisions: [Discuss](../../../skills/discuss/SKILL.md);
-- user-owned choice or source conflict: [Decision Gate](../../../skills/decision-gate/SKILL.md);
+- user-owned choice or source conflict: [Agree Work](../../../skills/agree-work/SKILL.md);
 - missing factual support: route the named claim through [Workflow](../../../skills/workflow/SKILL.md) to [Verify Work](../../../skills/verify-work/SKILL.md);
 - uncovered correction, revision, or dependency update: propose the bounded change and wait.
 

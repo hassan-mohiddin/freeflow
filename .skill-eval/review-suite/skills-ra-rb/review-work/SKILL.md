@@ -75,7 +75,7 @@ Route by what changed:
 
 - the outcome remains settled but the implementation approach is invalidated: return for implementation preparation;
 - changed direction or strategy: [Discuss](../../skills/discuss/SKILL.md);
-- unsettled accepted behavior, a user-owned choice, or a source conflict: [Decision Gate](../../skills/decision-gate/SKILL.md);
+- unsettled accepted behavior, a user-owned choice, or a source conflict: [Agree Work](../../skills/agree-work/SKILL.md);
 - an unclear, unsupported, or repeatedly failing cause: [Diagnose Failure](../../skills/diagnose-failure/SKILL.md);
 - coordination or scope changes: Workflow.
 
