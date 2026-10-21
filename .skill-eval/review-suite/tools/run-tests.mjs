@@ -45,6 +45,11 @@ if (!existsSync(files)) {
   console.error("run this from the workspace: files/ is missing");
   process.exit(2);
 }
+// Without them every test that imports a package fails at load, which reads as the change's failure.
+if (!existsSync(path.join(root, "node_modules"))) {
+  console.error("the tests cannot run here: this checkout has no node_modules (run npm ci at its root)");
+  process.exit(2);
+}
 
 // The command tool shows at most 32 KB, so the report keeps one line per top-level test, the details of each failure
 // (up to 30 lines) and the totals, instead of every subtest's TAP block. A test file that fails to load reports only

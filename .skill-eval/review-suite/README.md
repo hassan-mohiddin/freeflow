@@ -107,7 +107,9 @@ Decisions are fixed before the run in `results/ra-rb-decision-rules.md`. The sui
 
 Expected cost per trial: 45 groups × 3 arms = 135 subject runs, then `review --rubric` on the aggregate: 30 defective groups × 3 arms = 90 judge calls. Trial 1 measured $0.48 a review for `full` and $0.40 for `pointer`, about $57 for 135; with working tests a reviewer reads more output, so the run plan assumes $55 to $70. Judging is under $1, billed to the subscription through the auth extension. Judging must run before the decision exists, so the suite declares no adaptive trials; another trial needs a new yes. Run it without `--reuse`: the reuse key does not cover the installed `node_modules`.
 
-Trial 1 (2026-10-21, at aea3b537) ran `pointer-judge-first` in `c.md`'s place: the pointer brief plus "form your own view from the diff and the requirements first, then check `verification.md`'s claims against it". Its `tests` command failed at load in most base changes, because this checkout had no `node_modules` and the output dropped the load error, so its reviewers lacked the test evidence the suite assumes.
+Trial 1 (2026-10-21, at aea3b537) ran `pointer-judge-first` in `c.md`'s place: the pointer brief plus "form your own view from the diff and the requirements first, then check `verification.md`'s claims against it". Its `tests` command failed at load in most base changes, because the checkout had no `node_modules` and the output dropped the load error, so its reviewers lacked the test evidence the suite assumes. Results and the audit of its clean rejections: `results/2026-10-21-ra-rb-grok.md`.
+
+Trial 2 is built and not run: Hassan chose on 2026-10-21 to skip it for now. Once the over-blocking fix is on `main`, `full` and `pointer` need the pre-fix skill before trial 2 can run, since both read Review Work from `skills/review-work` and `full`'s brief pastes its Work Reviewer Prompt.
 
 ## Measured with
 
