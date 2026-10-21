@@ -46,17 +46,17 @@ const FIX = [
   [
     "references/reviewer-contract.md",
     "correction constraints or owning activity to re-enter.",
-    "correction constraints or owning activity to re-enter. Trace the failure from a real caller or input, citing each step at file:line. If you cannot cite a step, report **Needs evidence** instead; if your own reading shows a step cannot happen, such as a value the producer never sends or an API that does exist, drop the item.",
+    "correction constraints or owning activity to re-enter. For a failure in behavior, trace it from a real caller or input, citing each step at file:line. If you cannot cite a step, report **Needs evidence** instead; if your own reading shows a step cannot happen, such as a value the producer never sends or an API that does exist, drop the item. A defect against a stated requirement on wording or convention cites the requirement and the line instead.",
   ],
   [
     "references/reviewer-contract.md",
     "- [location, issue, violated source, evidence, consequence, correction constraints or owning activity]",
-    "- [location, issue, path from a real caller or input with file:line per step, violated source, evidence, consequence, correction constraints or owning activity]",
+    "- [location, issue, path from a real caller or input with file:line per step (for wording or convention, the requirement and line), violated source, evidence, consequence, correction constraints or owning activity]",
   ],
   [
     "SKILL.md",
     "A Blocking Issue must explain why the protected boundary cannot be crossed or the intended use cannot proceed.",
-    "A Blocking Issue must explain why the protected boundary cannot be crossed or the intended use cannot proceed. For work, it also traces the failure from a real caller or input, citing each step at file:line: if you cannot cite a step, report Needs evidence; if your own reading shows a step cannot happen, it is not an Issue.",
+    "A Blocking Issue must explain why the protected boundary cannot be crossed or the intended use cannot proceed. For a failure in the work's behavior, it also traces the failure from a real caller or input, citing each step at file:line: if you cannot cite a step, report Needs evidence; if your own reading shows a step cannot happen, it is not an Issue. A defect against a stated requirement on wording or convention cites the requirement and the line instead.",
   ],
 ];
 
