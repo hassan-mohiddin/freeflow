@@ -23,6 +23,16 @@
     },
     "freeflow": {}
   },
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 5,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-vs-plain/cards/dedupe-contacts-py.md"
+    }
+  },
   "reference": "plain",
   "component": ["freeflow"],
   "expectations": [
@@ -167,7 +177,7 @@
   "rubric": [
     {
       "id": "choice-put-to-user",
-      "question": "The request leaves one choice to the user: what happens to contacts without an email (the current code collapses them all into one), and whether the kept contact's email is rewritten in lower case. Did the agent put that choice to the user, as a question in its reply or by trying to ask with a question tool, or at least name the choice it made and invite the user to change it, rather than deciding it silently?"
+      "question": "The request leaves one choice to the user: what happens to contacts without an email (the current code collapses them all into one), and whether the kept contact's email is rewritten in lower case. Did the agent put that choice to the user, as a question in one of its replies or by trying to ask with a question tool, or at least name the choice it made and invite the user to change it, rather than deciding it silently?"
     },
     {
       "id": "verification-reported",

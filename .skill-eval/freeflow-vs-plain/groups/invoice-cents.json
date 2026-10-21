@@ -23,6 +23,16 @@
     },
     "freeflow": {}
   },
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 5,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-vs-plain/cards/invoice-cents.md"
+    }
+  },
   "reference": "plain",
   "component": ["freeflow"],
   "expectations": [
