@@ -1,10 +1,10 @@
 # Workflow Commands
 
 > **Covers:** `pi-extension/src/host/catalog.ts`
-> **Verified at:** `b85e65e0` (2026-10-22)
+> **Verified at:** `b7665190` (2026-10-22)
 > **User docs:** `plugin-docs/workflow.md`
 
-Freeflow registers one Pi command per workflow skill, under the skill's own name (`/discuss-work`, `/execute-work`, `/deliver-work`, `/verify-work`, `/review-work` and the rest, plus `/setup-freeflow`, `/write-skill` and `/evaluate-behavior`). A skill removed or merged in 0.9.0 keeps no command: `/discuss`, `/bypass`, `/action-selection`, `/commit-work`, `/finish-branch`, `/release-work`, `/launch-work`, `/simplify-code`, `/migration-work` and `/diagnose-failure` are gone. Each sends its skill to the model as the next turn, so running one is a model call. Typing one and reading its completions is not. How skills route to each other: [Skill routing](../subsystems/skill-routing.md); how they reach the model: [Prompt assembly](../subsystems/prompt-assembly.md).
+Freeflow registers one Pi command per workflow skill, under the skill's own name (`/discuss-work`, `/execute-work`, `/deliver-work`, `/verify-work`, `/review-work` and the rest, plus `/setup-freeflow`, `/write-skill` and `/evaluate-behavior`). A skill removed or merged in 0.9.0 keeps no command: `/discuss`, `/bypass`, `/action-selection`, `/commit-work`, `/finish-branch`, `/release-work`, `/launch-work`, `/simplify-code`, `/migration-work`, `/diagnose-failure`, `/write-spec`, `/write-plan` and `/handoff` are gone: Write Docs owns specs and plans, and Track Work handoffs. Each sends its skill to the model as the next turn, so running one is a model call. Typing one and reading its completions is not. How skills route to each other: [Skill routing](../subsystems/skill-routing.md); how they reach the model: [Prompt assembly](../subsystems/prompt-assembly.md).
 
 ## Sub-features
 

@@ -1,7 +1,5 @@
 # Documentation Shapes
 
-Read this before looking for a project's developer docs or proposing them for a project that has none, before choosing the structure of an overview, a subsystem doc, a folder README, a feature file, or a live-verification guide, or before restructuring one.
-
 This reference is judgment except for the header: these are shapes to adapt, not mandatory templates. Where the repository already has documentation conventions, follow them and borrow from these shapes only what they lack. Use the sections a document's readers need, in the order that serves them, and leave out a section with nothing true to say.
 
 The header is binding when you use it, because the [docs check](../scripts/docs-check.mjs) reads it. Use it on a document whose code the check should watch for staleness.
@@ -176,6 +174,10 @@ Shape the sections around what readers of this software need to know before chan
 - **A command-line tool:** the surface is its commands, flags, exit codes, and output formats.
 - **A data pipeline:** add data shapes at each stage, ordering and idempotency guarantees, and what reprocessing does.
 - **A small module:** purpose, surface, and a few invariants may be the whole document, or a folder README may be enough.
+
+## Test It On A New Reader
+
+For a new subsystem doc or overview, or one you substantially rewrote, test it on a reader without your context. Write five to ten questions a newcomer would ask: where is the code that does X, why does it do Y, is Z a bug, what breaks if W changes, which test proves V. Give a fresh agent only the document and the questions (a subagent where the host has one; otherwise ask the user to run it in a new session). Compare each answer with the code. Where an answer is wrong or unsure, fix the document and ask again. The test passes when the answers are right without new gaps; it shows the reader understood the document, not that every claim is current.
 
 ## User Guide
 

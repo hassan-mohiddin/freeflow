@@ -1,6 +1,6 @@
 ---
 name: track-work
-description: "Use when a task needs memory that outlasts the conversation: starting, updating, or recovering its Working Record, or before a compaction, pause, or handoff. It decides what the record says."
+description: "Use when a task needs memory beyond the conversation: starting, updating or recovering its Working Record, before a compaction, or to pause, hand off or transfer work to another session or person (a handover). Decides what the record says."
 ---
 
 # Track Work
@@ -18,6 +18,16 @@ The record has five sections:
 - **Notes:** free-form context with no authority.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
+
+## Routes
+
+| Situation | Go to |
+| --- | --- |
+| Context loss: compaction, a summary that replaces the conversation, clear, a transfer into another context | Recover After Context Loss, below |
+| A context limit is near | Prepare For A Context Boundary, below |
+| Handing work to a later session or someone else, or a pause | Prepare For A Context Boundary, then [handoff](references/handoff.md) |
+| A registered task (a task ID such as `my-project/task-003`), a child record, a project, or the user asking to group tasks, split a task across parallel sessions, or move a record out of a repository | [projects](references/projects.md) |
+| Editing record structure or preparing input for a command | [working record format](references/working-record-format.md) |
 
 ## Rules
 
@@ -133,7 +143,7 @@ Not: a separate "Commit the parser" Slice.
 | `publish` | push, pull request | publish, send to a client | Deliver Work (push, pull request or release) |
 | `review` | independent code review | editor or reviewer sign-off | Review Work |
 | `decision` | owner chooses a design | owner chooses between options | Discuss Work |
-| `continuity` | pause or handoff point | pause or handoff point | Handoff |
+| `continuity` | pause or handoff point | pause or handoff point | Track Work ([handoff](references/handoff.md)) |
 
 When a pending Checkpoint is due, stop dependent work, use its owner, and continue from the result. Do not force a Checkpoint whose condition, evidence or protected boundary no longer holds; return the discrepancy for cancellation, replacement, deferral or revision.
 
@@ -155,7 +165,8 @@ Then reconcile before acting. Establish the task and Slice state, the Work agree
 - Current user direction supersedes older instructions in the record, including a record written on another conversation branch.
 - Compare the record with the live state the next action depends on. If they disagree, resolve it from sources; do not follow whichever version lets work continue.
 - If the record conflicts with a defining Spec or Plan, the record does not win. Return the conflict to that artifact's owner before dependent work.
-- Reuse evidence that still applies instead of repeating the investigation. Reopen further sources only when their exact content or freshness changes the next action.
+- Check an important completion, verification, review, or commit claim, and the identity of what it examined, before repeating it; a run that happened may not apply to the current state. Reuse evidence that still applies instead of repeating the investigation. Reopen further sources only when their exact content or freshness changes the next action.
+- A next action a handoff names authorizes nothing by itself. Without a record, as when resuming from a handoff alone, reconstruct from it and the exact sources it names, and report a missing boundary instead of inventing it.
 
 With that conversation still in context, use `view resume` or read the relevant section; a new message, a pause or a resumed session is not context loss.
 
@@ -167,18 +178,15 @@ When a context limit is near or a pause or transfer is coming, make the record s
 - Update `Recovery sources` with what the next context must read, and why each matters. Drop entries the current work no longer needs; give a source needed only in some situation a trigger ("read when …").
 - Material that exists only in the conversation, such as a pasted image, file, or long message, will not survive. Save a copy under the task's `sources/` directory and point to it, or point to host-retrievable history when the host provides it.
 - Leave one Next useful action that a fresh context can act on.
+- For a pause or a transfer to another session or person, write the handoff with [handoff](references/handoff.md) once the record is sufficient.
 
 Do not rush a Slice to completion, claim an unfinished check passed, or guess the outcome of a running operation.
 
 A context boundary is not a Slice transition or a Checkpoint. Pause the Slice only when safe continuation is actually suspended, and use a `continuity` Checkpoint only for a planned pause or handoff, not for every compaction.
 
-## Projects And Child Records
-
-Read [Projects And Child Records](references/projects.md) when the work involves a registered task: a task ID such as `my-project/task-003`, a child record, a project, or the user asking to group tasks, split a task across parallel sessions, or move a record out of a repository.
-
 ## Maintain The Record
 
-Read [Working Record Format](references/working-record-format.md) before editing structure or preparing input for a command. It owns the exact shape, fields, states, and command contract.
+[Working Record Format](references/working-record-format.md) owns the exact shape, fields, states, and command contract; read it before editing structure or preparing input for a command.
 
 Edit meaning directly: Current Context bullets, optional fields, Material updates, Recovery sources, proposal order or removal, the Next useful action, and Notes. After a structural edit, run `validate`. It checks structure only; it cannot tell whether an edit changed history or skipped a lifecycle step, so never make those edits by hand.
 
@@ -200,6 +208,6 @@ Closing selects nothing. Set the Next useful action from the actual result.
 
 ## Return
 
-Return to the activity that asked for the update: [Discuss Work](../discuss-work/SKILL.md) for discussion, [Execute Work](../execute-work/SKILL.md) for Slice work. [Handoff](../handoff/SKILL.md) owns point-in-time transfer; [Write Spec](../write-spec/SKILL.md) and [Write Plan](../write-plan/SKILL.md) own the task's artifacts.
+Return to the activity that asked for the update: [Discuss Work](../discuss-work/SKILL.md) for discussion, [Execute Work](../execute-work/SKILL.md) for Slice work. [Write Docs](../write-docs/SKILL.md) owns the task's Specs and Plans.
 
 Stop when the record lets a fresh context continue correctly. Stop and report, rather than invent, when authority, structure, or the meaning of a transition is missing. A record update never completes the work it describes.

@@ -7,14 +7,11 @@ import { fileURLToPath } from "node:url";
 export const WORKFLOW_COMMANDS = [
   { command: "discuss-work", skill: "discuss-work" },
   { command: "track-work", skill: "track-work" },
-  { command: "write-spec", skill: "write-spec" },
-  { command: "write-plan", skill: "write-plan" },
   { command: "write-docs", skill: "write-docs" },
   { command: "execute-work", skill: "execute-work" },
   { command: "verify-work", skill: "verify-work" },
   { command: "review-work", skill: "review-work" },
   { command: "deliver-work", skill: "deliver-work" },
-  { command: "handoff", skill: "handoff" },
 ];
 
 export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-behavior"];
@@ -28,16 +25,13 @@ export const FREEFLOW_MODEL_SKILL_NAMES = [
   "discuss-work",
   "evaluate-behavior",
   "execute-work",
-  "handoff",
   "review-work",
   "setup-freeflow",
   "map-features",
   "track-work",
   "verify-work",
   "write-docs",
-  "write-plan",
   "write-skill",
-  "write-spec",
 ];
 
 export const STABLE_FREEFLOW_SURFACE = Object.freeze({

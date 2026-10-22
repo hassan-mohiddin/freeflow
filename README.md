@@ -222,14 +222,11 @@ Canonical Pi direct calls include:
 ```text
 /discuss-work
 /track-work
-/write-spec
-/write-plan
 /write-docs
 /execute-work
 /verify-work
 /review-work
 /deliver-work
-/handoff
 ```
 
 Contributor calls:

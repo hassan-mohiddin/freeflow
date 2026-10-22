@@ -12,7 +12,7 @@ Rule: loading this reference, discussing a migration, or approving a general imp
 
 Take to [Discuss Work](../../discuss-work/SKILL.md) whatever remains unresolved among: maintaining, deprecating or removing the old behavior; advisory versus compulsory migration, deadlines or support windows; compatibility, public API, data conversion, downtime, permissions, billing, security, privacy or data-loss behavior; irreversible cutover, destructive cleanup or rollback limits.
 
-Do not manufacture a migration because code looks old: inspect ownership, supported consumers, runtime use, source truth, incidents, maintenance cost, and current value. When replacement behavior, interfaces, ownership or failure semantics remain unsettled, settle them first: Discuss Work for a user-owned choice, [design](design.md) for a design-bearing boundary, [Write Spec](../../write-spec/SKILL.md) when the accepted migration behavior needs a durable contract.
+Do not manufacture a migration because code looks old: inspect ownership, supported consumers, runtime use, source truth, incidents, maintenance cost, and current value. When replacement behavior, interfaces, ownership or failure semantics remain unsettled, settle them first: Discuss Work for a user-owned choice, [design](design.md) for a design-bearing boundary, [Write Docs](../../write-docs/SKILL.md) when the accepted migration behavior needs a durable contract.
 
 ## Define The Migration Contract
 

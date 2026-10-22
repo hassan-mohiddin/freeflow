@@ -76,7 +76,7 @@ When it is ready, state:
 
 Use existing correction or revision authority only when it covers that result (for an artifact revision, also its dependency impact). Otherwise propose the change and any warranted follow-up once, then wait. A finding, adjudication, or selected review does not authorize mutation.
 
-Actual correction of work returns to [Execute Work](../../../skills/execute-work/SKILL.md). Actual revision of an artifact returns to the artifact's owning skill: [Track Work](../../../skills/track-work/SKILL.md) for a Working Record, [Write Spec](../../../skills/write-spec/SKILL.md) for stable content or decision artifacts, [Write Plan](../../../skills/write-plan/SKILL.md) for a Plan, and [Handoff](../../../skills/handoff/SKILL.md) for a Handoff.
+Actual correction of work returns to [Execute Work](../../../skills/execute-work/SKILL.md). Actual revision of an artifact returns to the artifact's owning skill: [Track Work](../../../skills/track-work/SKILL.md) for a Working Record or a handoff, and [Write Docs](../../../skills/write-docs/SKILL.md) for a Spec, Plan, decision record or documentation.
 
 Preserve the accepted behavior; do not change tests, Specs, policies, or source truth, or revise upstream authority, accepted intent, or owner decisions, merely to satisfy a reviewer or obtain Pass.
 

@@ -63,7 +63,7 @@ A pull-request URL proves creation, not readiness or merge.
 
 ### Keep For Later
 
-Report the trunk's lines plus why the branch is kept and what would end the wait. Read [Handoff](../../handoff/SKILL.md) only when continuing needs durable transfer context.
+Report the trunk's lines plus why the branch is kept and what would end the wait. Read Track Work's [handoff](../../track-work/references/handoff.md) only when continuing needs durable transfer context.
 
 ### Discard
 

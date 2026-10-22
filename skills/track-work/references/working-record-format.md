@@ -1,6 +1,6 @@
 # Working Record Format
 
-This reference owns the exact Schema 4 shape: sections, fields, states, lifecycle transitions, and the command contract. Read it before editing structure or preparing input for a command. It defines format, not what is worth recording; [Track Work](../SKILL.md) owns that judgment.
+This reference owns the exact Schema 4 shape: sections, fields, states, lifecycle transitions, and the command contract. It defines format, not what is worth recording; [Track Work](../SKILL.md) owns that judgment.
 
 ## Task Directory
 
@@ -237,13 +237,7 @@ A proposed Checkpoint has no ID in its heading (`### Checkpoint — <title>`). R
 
 An accepted Checkpoint leaves Future Work only through `checkpoint close`; never drop one by editing.
 
-| Type | Boundary | Earlier name, still read |
-| --- | --- | --- |
-| `preserve` | Save a recoverable point: commit, draft version, snapshot. | `local_commit` |
-| `publish` | Make work available beyond the workspace: push, pull request, publication, sending. | |
-| `review` | Independent judgment of the work. | `independent_review` |
-| `decision` | A user-owned choice that later work depends on. | `user_decision` |
-| `continuity` | A planned pause, handoff, or transfer. | |
+`Type` is one of the five in Track Work's Checkpoint table: `preserve`, `publish`, `review`, `decision`, `continuity`. Earlier names are still read: `local_commit` as `preserve`, `independent_review` as `review`, `user_decision` as `decision`.
 
 ## History
 

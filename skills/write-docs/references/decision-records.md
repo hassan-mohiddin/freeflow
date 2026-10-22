@@ -1,8 +1,6 @@
 # Decision Records
 
-Read this when writing or revising an artifact whose primary job is to preserve a decision and its rationale.
-
-This reference is judgment, with one Rule: never write an assumption, reviewer suggestion, or agent preference as an accepted decision, and never rewrite a superseded decision to match the present.
+This reference is judgment; its binding statements restate [Write Docs](../SKILL.md) Rules. Header, status and source trail follow Write Docs' [Header, Status And Sources](../SKILL.md#header-status-and-sources).
 
 ## Choose The Right Record
 
@@ -38,7 +36,7 @@ Use the repository's ADR or decision format when one exists. Otherwise adapt thi
 
 > **Doc ID:** DECISION-<stable-id>
 > **Type:** Decision | ADR
-> **Status:** Proposed | Accepted | Rejected | Superseded | Retired
+> **Status:** Draft | Accepted | Rejected | Superseded | Retired
 > **Owner:** <decision owner>
 > **Source:** <accepted context and evidence>
 
@@ -46,7 +44,7 @@ Use the repository's ADR or decision format when one exists. Otherwise adapt thi
 <Decision question, constraints, and evidence.>
 
 ## Decision
-<Chosen path and exact scope.>
+<Chosen path, exact scope, and why.>
 
 ## Alternatives
 <Only materially different alternatives and why they were not chosen.>
@@ -58,7 +56,7 @@ Use the repository's ADR or decision format when one exists. Otherwise adapt thi
 <Evidence, conditions, or later decision that would reopen or replace it.>
 ```
 
-State proposals as proposals. Do not write an assumption, reviewer suggestion, or agent preference as an accepted decision. For a consequential choice, identify the presented option, disclosed consequences, and acceptance source. Approval to investigate or draft an option does not establish acceptance of its eventual production requirements.
+For a consequential choice, identify the presented option, its disclosed consequences, and the acceptance source.
 
 ## Preserve Authority And History
 
@@ -76,4 +74,4 @@ Live evidence may show that implementation violates a decision or that the decis
 
 ## Avoid Duplication
 
-Reference the decision from dependent artifacts instead of copying its full rationale. When a durable decision shapes how existing software works, the owning subsystem doc's Decisions section states its current effect and points to the record; [Write Docs](../../write-docs/SKILL.md) keeps that section current. Keep task-local decisions in the Working Record unless they become durable beyond the task.
+Reference the decision from dependent artifacts instead of copying its full rationale. When a durable decision shapes how existing software works, the owning subsystem doc's Decisions section states its current effect and points to the record, and is kept current with the code like the rest of that doc. Keep task-local decisions in the Working Record unless they become durable beyond the task.
