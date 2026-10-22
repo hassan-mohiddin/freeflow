@@ -51,6 +51,14 @@
       "tool": "read",
       "argumentContains": ["/skills/migration-work/SKILL.md"],
       "expect": "succeeded"
+    },
+    {
+      "id": "read-execute-work",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/execute-work/SKILL.md"],
+      "expect": "succeeded"
     }
   ],
   "review_questions": []

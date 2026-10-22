@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Reads one or more freeflow-tool-use results and reports, per task: how often the work was done (the hidden tests),
 // how often each tool check held (the tool Tool Execution means for the task, and the reported alternatives), and how
-// many calls each tool got. With two results (before and after), it prints them side by side.
+// many calls each tool got. With two results (before and after), it prints them side by side. The script tasks
+// (suite-scripts.json, v0.9.0 only) add order facts read from the transcript, such as whether touch-map ran before
+// the first edit; a task with no runs in any result given is left out of the table.
 //
 //   node .skill-eval/freeflow-tool-use/scripts/report.mjs <result> [<result>] [--results <dir>] [--json]
 //
@@ -13,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { unclearedFlags } from "../../../skills/evaluate-behavior/scripts/lib/scan.mjs";
-import { TASKS } from "./groups.mjs";
+import { ALL_TASKS } from "./groups.mjs";
 
 const ARM = "freeflow";
 const COUNTED = ["bash", "bash_background", "monitor", "stop_background", "apply_patch", "edit", "write"];
@@ -40,12 +42,34 @@ function toolCalls(run) {
   return run.toolActivity ?? [];
 }
 
+const matches = (call, matchers) =>
+  call.completed === true &&
+  call.isError !== true &&
+  matchers.some(
+    (matcher) =>
+      call.toolName === matcher.tool &&
+      (matcher.contains ?? []).every((text) => JSON.stringify(call.args ?? {}).includes(text)),
+  );
+
+/**
+ * One order fact over a run's successful tool calls, in the order they ran: `before`, a call matching `first` came
+ * before the first call matching `then`; `afterLast`, one came after the last call matching `then`. Null when no call
+ * matched `then`, so the fact does not apply.
+ */
+export function orderFact(calls, fact) {
+  const firsts = calls.flatMap((call, index) => (matches(call, fact.first) ? [index] : []));
+  const thens = calls.flatMap((call, index) => (matches(call, fact.then) ? [index] : []));
+  if (thens.length === 0) return null;
+  if (firsts.length === 0) return false;
+  return fact.mode === "before" ? firsts[0] < thens[0] : firsts.at(-1) > thens.at(-1);
+}
+
 /** Every usable run per task: its check states and its tool-call counts. */
 export async function collect(result, resultsDirectory) {
-  const tasks = Object.fromEntries(TASKS.map((task) => [task.id, []]));
+  const tasks = Object.fromEntries(ALL_TASKS.map((task) => [task.id, []]));
   const skipped = [];
   for (const trial of await trialDirectories(result, resultsDirectory)) {
-    for (const task of TASKS) {
+    for (const task of ALL_TASKS) {
       const groupDirectory = path.join(trial, "groups", task.id);
       const run = await readJson(path.join(groupDirectory, ARM, "run.json"));
       if (run === null) continue;
@@ -61,10 +85,12 @@ export async function collect(result, resultsDirectory) {
       const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"));
       const checks = Object.fromEntries((grade?.checks ?? []).map((check) => [check.id, check.state]));
       const counts = Object.fromEntries(COUNTED.map((name) => [name, 0]));
-      for (const call of toolCalls(run)) if (call.toolName in counts) counts[call.toolName] += 1;
+      const calls = toolCalls(run);
+      for (const call of calls) if (call.toolName in counts) counts[call.toolName] += 1;
       tasks[task.id].push({
         checks,
         counts,
+        order: Object.fromEntries((task.order ?? []).map((fact) => [fact.id, orderFact(calls, fact)])),
         durationMs: run.metrics?.durationMs ?? null,
         cost: run.metrics?.cost ?? null,
       });
@@ -75,7 +101,7 @@ export async function collect(result, resultsDirectory) {
 
 export function summarize({ tasks }) {
   return Object.fromEntries(
-    TASKS.map((task) => {
+    ALL_TASKS.map((task) => {
       const runs = tasks[task.id];
       const rate = (id) => {
         const graded = runs.filter((run) => run.checks[id] === "pass" || run.checks[id] === "fail");
@@ -91,12 +117,24 @@ export function summarize({ tasks }) {
         ]),
       );
       const right = runs.filter((run) => task.right.every((check) => run.checks[check.id] === "pass")).length;
+      const order = Object.fromEntries(
+        (task.order ?? []).map((fact) => {
+          const applied = runs.filter((run) => run.order[fact.id] !== null);
+          return [
+            fact.id,
+            applied.length === 0
+              ? null
+              : { pass: applied.filter((run) => run.order[fact.id]).length, of: applied.length },
+          ];
+        }),
+      );
       return [
         task.id,
         {
           runs: runs.length,
           rightTool: runs.length === 0 ? null : { pass: right, of: runs.length },
           checks: Object.fromEntries(ids.map((id) => [id, rate(id)])),
+          order,
           meanCalls: calls,
         },
       ];
@@ -133,7 +171,8 @@ async function main(argv) {
     return 0;
   }
   const lines = [];
-  for (const task of TASKS) {
+  for (const task of ALL_TASKS) {
+    if (summaries.every((summary) => summary[task.id].runs === 0)) continue;
     lines.push(`${task.id} (${task.kind}): right tool = ${task.right.map((check) => check.id).join(" + ")}`);
     for (const [index, summary] of summaries.entries()) {
       const entry = summary[task.id];
@@ -144,8 +183,11 @@ async function main(argv) {
         .filter(([, mean]) => mean !== null && mean > 0)
         .map(([name, mean]) => `${name} ${mean.toFixed(1)}`)
         .join(", ");
+      const order = Object.entries(entry.order)
+        .map(([id, value]) => `${id} ${show(value)}`)
+        .join(", ");
       lines.push(
-        `  ${labels[index]}: ${entry.runs} runs; right tool ${show(entry.rightTool)}; ${checks}; calls per run: ${calls || "-"}`,
+        `  ${labels[index]}: ${entry.runs} runs; right tool ${show(entry.rightTool)}; ${checks}${order ? `; ${order}` : ""}; calls per run: ${calls || "-"}`,
       );
     }
   }

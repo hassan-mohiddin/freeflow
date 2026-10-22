@@ -27,7 +27,7 @@ may name only paths inside the workspace. Their output files are readable from `
 
 ## Tasks
 
-Five small tasks, each with a fixture (`fixtures/<task>`), a natural prompt that does not name the tool, hidden tests
+Five small tool tasks, each with a fixture (`fixtures/<task>`), a natural prompt that does not name the tool, hidden tests
 (`graders/<task>.test.mjs`, one named test per requirement, every name starting `ftu: `), a reference solution
 (`reference/<task>`) and the checks of the tool Tool Execution means for it. Prompts, cards and checks live in
 `scripts/groups.mjs`.
@@ -39,6 +39,44 @@ Five small tasks, each with a fixture (`fixtures/<task>`), a natural prompt that
 | `slow-suite` | run the full test suite (about three minutes) and fix what fails | `bash_background` called on the tests | `bash` never ran `npm test` in the foreground | the reservation bug fixed; the suite's tests unchanged |
 | `move-helper` | move `formatPrice` to a new `src/money.js` as `formatMoney` and update its users | `apply_patch` succeeded | `edit` succeeded | the new module, no `formatPrice` left, every page prints the same |
 | `one-line-fix` | fix a one-word typo in `src/greet.js` | `edit` succeeded, `apply_patch` not called | | the greeting and the rest of the screen |
+
+## Script tasks (v0.9.0 only)
+
+Four more tasks ask whether the agent uses v0.9.0's skill scripts where its skills say to, and whether Tool
+Execution's guidance notices reach it. They live in their own suite, `suite-scripts.json`, with their own
+configuration, `configuration-scripts.json`: the same host, model, settings and tools, but Freeflow pinned at v0.9.0
+(`51b9682f`) and `toolExecution.guidanceNotices` declared on. **They never run on the base build** (1a21211c): it has
+none of the scripts, and its settings validator refuses the `guidanceNotices` key, so they are not before/after cases.
+Their result is read on its own: a rate on v0.9.0, not a change.
+
+All four are requests in one project, `fixtures/ledger` (a household expense ledger; Node, no dependencies), with its
+Git history built into its own image (`freeflow-tool-use-ledger`, `image/Dockerfile.ledger`, history in
+`image/ledger-history`; `GIT_DIR=/opt/project.git`, as in the routing suite): `main` at release 0.2.0, the finished CSV
+export left uncommitted (`src/export.js` and its test new, `src/cli.js`, `README.md` and `CHANGELOG.md` changed) and an
+untracked `secrets.json`. Git's identity is set in the image, so a commit needs no setup.
+
+| Task | What the user asks | Right move (`right`) | Reported (`also`, order facts) | Hidden tests |
+| --- | --- | --- | --- | --- |
+| `self-review-report` | the monthly report lumps January to September into one row: fix it and add a test | `bash` ran `self-review.mjs` | the self-review notice reached the model; self-review ran after the last edit | each month its own row; the tests pass; they fail with the original `src/report.js` put back |
+| `touch-map-amount` | make `parseAmount` throw instead of returning NaN | `bash` ran `touch-map.mjs` | touch-map ran before the first edit | it throws; the import, `ledger add` and the budgets still skip or refuse a bad amount as before |
+| `commit-export` | commit the export, and make sure `secrets.json` can never be committed | `bash` ran `delivery-state.mjs`; `git commit` succeeded | `commit-state.mjs` ran; no `add -A`, `add --all`, `commit -a` or `git add … secrets.json`; the commit notice reached the model; delivery-state ran before the commit; `git show` after it | the repository's `.gitignore` ignores `secrets.json`; the export work and `secrets.json` unchanged; the tests pass |
+| `agree-budget-alerts` | budget alerts, with what they are left open | `bash` ran `choices.mjs agreement` | no `edit`, `write` or `apply_patch` on `src/` on the first turn; the agreement before the first edit | alerts at 100% or more and not below, in `ledger report` after the totals |
+
+A notice check (`notice-*`) is a `context-text` check on the provider context of the run's last request: it passes when
+the notice's text reached the model, which shows the notice fired. The self-review notice fires only when a test command
+passes after an edit and self-review has not run, so a run that ran self-review first fails that check and still passes
+`right`. Order facts are the report's, from the order of the run's successful tool calls (`scripts/report.mjs`,
+`orderFact`); a fact whose later call never happened (no edit, no commit) does not apply and is not counted.
+
+The cards hold what the hidden tests need as the user's preferences (for example "alert at 100% or more, nothing
+before"), revealed only when asked, as in the other tasks. `commit-export`'s card keeps the rule about pushing and pull
+requests and drops the one about commits, since the user asked for one.
+
+Each script task has a hand-made wrong answer (`wrong/<task>/<answer>`, listed in `wrong/manifest.json`):
+`node .skill-eval/freeflow-tool-use/scripts/check-wrong.mjs` grades each as if it were the reference, and its hidden
+tests must fail with exactly the listed tests.
+
+## Tool tasks: timing
 
 The dev server waits three seconds before it listens, so a request right after starting it fails; the watcher polls,
 so it sees edits made from the host; both stop on their own after ten idle minutes, which bounds a run whose agent ran
@@ -63,10 +101,16 @@ or the work done with the wrong tool, are different findings. Run metrics (cost,
 ## Build and pin the image
 
 ```bash
-node .skill-eval/freeflow-tool-use/image/build.mjs          # builds freeflow-tool-use, records image/digests.json
-node .skill-eval/freeflow-tool-use/scripts/groups.mjs       # writes groups, cards and suite.json with the digest
+node .skill-eval/freeflow-tool-use/image/build.mjs          # builds both images (or name one: tools, ledger), records image/digests.json
+node .skill-eval/freeflow-tool-use/scripts/groups.mjs       # writes groups, cards, suite.json and suite-scripts.json with the digests
 npx prettier --write .skill-eval/freeflow-tool-use
+node .skill-eval/freeflow-tool-use/image/build.mjs ledger   # again if prettier changed fixtures/ledger, then groups.mjs again
 ```
+
+The ledger image holds the fixture's history, so rebuild and re-pin it after any change to `fixtures/ledger` or
+`image/ledger-history`, a formatting change included. `node .skill-eval/freeflow-tool-use/image/make-history.mjs --check`
+builds the history on the host and fails if the work tree differs from it in anything but the listed uncommitted files.
+Its layers up to the history are image/Dockerfile's, so a machine that built the tools image builds it from cache.
 
 On Colima, which shares only `$HOME`, give the evaluator a temporary directory under it:
 `export TMPDIR=$HOME/.cache/skill-eval-tmp`.
@@ -75,6 +119,8 @@ On Colima, which shares only `$HOME`, give the evaluator a temporary directory u
 
 ```bash
 node skills/evaluate-behavior/scripts/skill-eval.mjs check-tasks .skill-eval/freeflow-tool-use/suite.json
+node skills/evaluate-behavior/scripts/skill-eval.mjs check-tasks .skill-eval/freeflow-tool-use/suite-scripts.json
+node .skill-eval/freeflow-tool-use/scripts/check-wrong.mjs
 node --test .skill-eval/evaluate-behavior/tests/freeflow-tool-use.test.mjs
 ```
 
@@ -89,11 +135,14 @@ through real Pi in a real container with a scripted model.
 After the user's yes, from the repository root, with the definitions and the image committed:
 
 ```bash
-# before: main (the definition's ref)
+# before: the base (the definition's ref)
 node skills/evaluate-behavior/scripts/skill-eval.mjs run .skill-eval/freeflow-tool-use/suite.json --trials 3 --jobs 4 --max-cost 1
-# after: the branch that moves the guidance
-node skills/evaluate-behavior/scripts/skill-eval.mjs run .skill-eval/freeflow-tool-use/suite.json --trials 3 --source freeflow=<commit> --jobs 4 --max-cost 1
+# after: v0.9.0 (main at 51b9682f), or a later build
+node skills/evaluate-behavior/scripts/skill-eval.mjs run .skill-eval/freeflow-tool-use/suite.json --trials 3 --source freeflow=51b9682fb44a9a68defd29e2ce3db64cae51581b --jobs 4 --max-cost 1
 node .skill-eval/freeflow-tool-use/scripts/report.mjs <before-aggregate> <after-aggregate>
+# script tasks: v0.9.0 only (pinned in configuration-scripts.json; --source freeflow=<commit> for a later build)
+node skills/evaluate-behavior/scripts/skill-eval.mjs run .skill-eval/freeflow-tool-use/suite-scripts.json --trials 3 --jobs 4 --max-cost 1
+node .skill-eval/freeflow-tool-use/scripts/report.mjs <scripts-aggregate>
 ```
 
 ## Cost
@@ -106,6 +155,7 @@ calls on top.
 | --- | --- | --- | --- |
 | one build | ~$0.005 to $0.02 | ~$0.08 to $0.3 | ~$0.02 |
 | before and after | | ~$0.15 to $0.6 | |
+| script tasks (4 × 3 trials) | ~$0.005 to $0.02 | ~$0.06 to $0.25 | ~$0.02 |
 
 Wall time is dominated by `slow-suite` (about three minutes per suite run, more if the agent reruns it): about 15 to
 30 minutes for a full run with `--jobs 4`.
@@ -120,6 +170,11 @@ Wall time is dominated by `slow-suite` (about three minutes per suite run, more 
 - **Background notices between turns** start a run of their own; the evaluator records it in the turn before it, and
   the next reply waits for it. A notice that would arrive after the conversation ended is never seen.
 - **The user is a model**, as in the routing suite; read conversations (`skill-eval view`) before trusting a change.
+- **A script task's commit ends with its container.** The history lives in the image, so the commit `commit-export`
+  makes is gone when the subject ends; graders see the image's history. What the commit held is read from the
+  transcript (the tool-call checks, and `skill-eval view`), never from the repository.
+- **Script tasks measure use, not quality.** A script that ran and an order fact that held do not show its output was
+  read; read the conversations for that. Each rests on one task.
 - **References are written in their own style.** The transcript scan holds a run whose files repeat most of the
   reference solution's new lines (an answer copy). A rename has one natural answer, so `reference/move-helper` imports
   `formatMoney as money`: it proves the task solvable without matching what a correct agent writes line for line. Keep

@@ -51,6 +51,14 @@
       "tool": "read",
       "argumentContains": ["/skills/finish-branch/SKILL.md"],
       "expect": "succeeded"
+    },
+    {
+      "id": "read-deliver-work",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/deliver-work/SKILL.md"],
+      "expect": "succeeded"
     }
   ],
   "review_questions": []

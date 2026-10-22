@@ -1,3 +1,4 @@
 {
-  "tools": "freeflow-tool-use@sha256:16a3f298e47de3cbe8b6b6939ac379cc258cb39cc906c06abd555dc907f35493"
+  "tools": "freeflow-tool-use@sha256:16a3f298e47de3cbe8b6b6939ac379cc258cb39cc906c06abd555dc907f35493",
+  "ledger": "freeflow-tool-use-ledger@sha256:3f202e9cfb5f0ad854129f64160c9fd87001df22ccbc15c3d45ef85d6cf46f0b"
 }

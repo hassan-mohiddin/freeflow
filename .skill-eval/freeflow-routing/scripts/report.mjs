@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Reads one or more freeflow-routing results and reports, per skill: how often its own requests opened it (hit rate,
 // and on the first turn), how often its near misses opened it anyway (false-trigger rate), and what was opened instead
-// when it was missed. With two results (before and after), it prints them side by side.
+// when it was missed. With two results (before and after), it prints them side by side, once per skill the suite
+// measures (the base's 25) and once per skill of the merged build (v0.9.0's 11, each with the skills merged into it).
 //
 //   node .skill-eval/freeflow-routing/scripts/report.mjs <result> [<result>] [--results <dir>] [--cases] [--json]
 //
@@ -9,12 +10,17 @@
 // aggregate's trials are all read. A skill counts as opened when the run read its SKILL.md: with `read`, or with a bash
 // command that names the file (cat, sed, head). Runs that did not complete, and runs held for transcript flags no one
 // has cleared, are left out and counted.
-import { readFile, stat } from "node:fs/promises";
+//
+// Each run is measured on its own build: the skills Freeflow shipped are read from the package the evaluator built
+// for the group (resources/freeflow/<n>/package/skills). On a build without a measured skill, its owner counts in its
+// place (cases.mjs, routeCase): commit-work's requests count as routed when Deliver Work opens, and its near misses
+// become Deliver Work's where that is still a different skill from the request's own route.
+import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { unclearedFlags } from "../../../skills/evaluate-behavior/scripts/lib/scan.mjs";
-import { CASES, SKILLS } from "./cases.mjs";
+import { CASES, OWNERS, SKILLS, ownerOf, routeCase } from "./cases.mjs";
 
 const SKILL_FILE = /\/skills\/([a-z0-9-]+)\/SKILL\.md\b/g;
 const ARM = "freeflow";
@@ -61,6 +67,29 @@ export function openedSkills(run) {
   return opened;
 }
 
+/** The skills a group's Freeflow build shipped, from the package the evaluator built; null when none is readable. */
+export async function buildSkills(groupDirectory) {
+  const builds = path.join(groupDirectory, "resources", "freeflow");
+  let skills = null;
+  for (const build of await readdir(builds).catch(() => [])) {
+    const folder = path.join(builds, build, "package", "skills");
+    const entries = await readdir(folder, { withFileTypes: true }).catch(() => null);
+    if (entries === null) continue;
+    skills ??= new Set();
+    for (const entry of entries) {
+      if (entry.isDirectory() && (await stat(path.join(folder, entry.name, "SKILL.md")).catch(() => null))) {
+        skills.add(entry.name);
+      }
+    }
+  }
+  return skills;
+}
+
+/** One run as its build measures it: the case routed for the build's skills (the base's when unknown). */
+export function measuredRun(entry, opened, present) {
+  return { case: routeCase(entry, present ?? new Set(SKILLS)), opened, unknownBuild: present === null };
+}
+
 /** Every usable run of every case in the results, as { case, opened, trial }, plus what was left out. */
 export async function collect(results, resultsDirectory) {
   const runs = [];
@@ -80,7 +109,8 @@ export async function collect(results, resultsDirectory) {
           skipped.push({ case: entry.id, trial, reason: `held: ${flags.join(", ")}` });
           continue;
         }
-        runs.push({ case: entry, opened: openedSkills(run), trial });
+        const present = await buildSkills(path.join(trial, "groups", entry.id));
+        runs.push({ ...measuredRun(entry, openedSkills(run), present), trial });
       }
     }
   }
@@ -89,48 +119,80 @@ export async function collect(results, resultsDirectory) {
 
 const share = (count, total) => (total === 0 ? null : { count, total, rate: count / total });
 
-/** The per-skill measures over a set of runs. */
+/** The measures of one row: its requests (`own`), the skill whose opening is "itself", and its near-miss checks. */
+function row(own, itself, near) {
+  const hit = (run) => run.case.expect.some((expected) => run.opened.has(expected));
+  const instead = {};
+  for (const run of own) {
+    if (hit(run)) continue;
+    const others = [...run.opened.keys()];
+    for (const other of others.length > 0 ? others : ["(none)"]) instead[other] = (instead[other] ?? 0) + 1;
+  }
+  return {
+    hit: share(own.filter(hit).length, own.length),
+    hitFirstTurn: share(
+      own.filter((run) => run.case.expect.some((expected) => run.opened.get(expected) === 1)).length,
+      own.length,
+    ),
+    opensItself: share(own.filter((run) => run.opened.has(itself)).length, own.length),
+    falseTrigger: share(near.filter((check) => check.run.opened.has(check.target)).length, near.length),
+    instead: Object.fromEntries(Object.entries(instead).sort(([, a], [, b]) => b - a)),
+  };
+}
+
+/**
+ * The measures over a set of runs: per measured skill (`skills`), per skill of the merged build (`owners`: the
+ * requests and near misses of every skill merged into it, on either build), and overall. A request whose skill has
+ * no owner on its build (`owned` false) counts toward no hit rate; `unowned` counts them.
+ */
 export function summarize(runs) {
+  const counted = runs.filter((run) => run.case.hit !== null && run.case.owned);
+  const checks = runs.flatMap((run) => run.case.checks.map((check) => ({ ...check, run })));
   const skills = {};
   for (const skill of SKILLS) {
-    const own = runs.filter((run) => run.case.hit === skill);
-    const hits = own.filter((run) => run.case.expect.some((expected) => run.opened.has(expected)));
-    const firstTurn = own.filter((run) => run.case.expect.some((expected) => run.opened.get(expected) === 1));
-    const itself = own.filter((run) => run.opened.has(skill));
-    const near = runs.filter((run) => run.case.not.includes(skill));
-    const instead = {};
-    for (const run of own) {
-      if (run.case.expect.some((expected) => run.opened.has(expected))) continue;
-      const others = [...run.opened.keys()];
-      for (const other of others.length > 0 ? others : ["(none)"]) instead[other] = (instead[other] ?? 0) + 1;
-    }
-    // Opened where nothing named it: neither expected nor a near miss of it.
+    // Opened where nothing named it: neither its request, expected, nor a near-miss target.
     const elsewhere = runs.filter(
-      (run) => run.case.hit !== skill && !run.case.expect.includes(skill) && !run.case.not.includes(skill),
+      (run) =>
+        run.case.hit !== skill &&
+        !run.case.expect.includes(skill) &&
+        !run.case.checks.some((check) => check.target === skill),
     );
     skills[skill] = {
-      hit: share(hits.length, own.length),
-      hitFirstTurn: share(firstTurn.length, own.length),
-      opensItself: share(itself.length, own.length),
-      falseTrigger: share(near.filter((run) => run.opened.has(skill)).length, near.length),
+      ...row(
+        counted.filter((run) => run.case.hit === skill),
+        skill,
+        checks.filter((check) => check.skill === skill),
+      ),
       openedElsewhere: share(elsewhere.filter((run) => run.opened.has(skill)).length, elsewhere.length),
-      instead: Object.fromEntries(Object.entries(instead).sort(([, a], [, b]) => b - a)),
+      unowned: runs.filter((run) => run.case.hit === skill && !run.case.owned).length,
+    };
+  }
+  const owners = {};
+  for (const owner of OWNERS) {
+    owners[owner] = {
+      merged: SKILLS.filter((skill) => ownerOf(skill) === owner && skill !== owner),
+      ...row(
+        counted.filter((run) => ownerOf(run.case.hit) === owner),
+        owner,
+        checks.filter((check) => check.family === owner),
+      ),
     };
   }
   const all = runs.length;
   return {
     runs: all,
     skills,
+    owners,
     overall: {
       hit: share(
-        runs.filter((run) => run.case.hit !== null && run.case.expect.some((skill) => run.opened.has(skill))).length,
-        runs.filter((run) => run.case.hit !== null).length,
+        counted.filter((run) => run.case.expect.some((skill) => run.opened.has(skill))).length,
+        counted.length,
       ),
-      falseTrigger: share(
-        runs.reduce((total, run) => total + run.case.not.filter((skill) => run.opened.has(skill)).length, 0),
-        runs.reduce((total, run) => total + run.case.not.length, 0),
-      ),
+      falseTrigger: share(checks.filter((check) => check.run.opened.has(check.target)).length, checks.length),
       opensPerRun: all === 0 ? null : runs.reduce((total, run) => total + run.opened.size, 0) / all,
+      unowned: runs.filter((run) => run.case.hit !== null && !run.case.owned).length,
+      droppedChecks: runs.reduce((total, run) => total + run.case.dropped.length, 0),
+      unknownBuild: runs.filter((run) => run.unknownBuild).length,
     },
   };
 }
@@ -148,17 +210,17 @@ function columns(values) {
   return values.map((value, index) => String(value).padStart(WIDTHS[index])).join(" ");
 }
 
-function table(labels, summaries) {
+function table(labels, summaries, section, names, heading) {
   const lines = [];
   lines.push(
-    ["skill".padEnd(18), ...labels.map((label) => `${columns(COLUMNS)}  instead (${label})`.padEnd(64))]
+    [heading.padEnd(18), ...labels.map((label) => `${columns(COLUMNS)}  instead (${label})`.padEnd(64))]
       .join(" | ")
       .trimEnd(),
   );
-  for (const skill of SKILLS) {
+  for (const skill of names) {
     const row = [skill.padEnd(18)];
     for (const summary of summaries) {
-      const entry = summary.skills[skill];
+      const entry = summary[section][skill];
       const instead = Object.entries(entry.instead)
         .slice(0, 3)
         .map(([name, count]) => `${name}×${count}`)
@@ -176,19 +238,26 @@ function table(labels, summaries) {
     }
     lines.push(row.join(" | ").trimEnd());
   }
-  for (const [index, summary] of summaries.entries()) {
-    lines.push(
-      `${labels[index]}: ${summary.runs} runs; hit ${percent(summary.overall.hit).trim()} (${fraction(summary.overall.hit)}), false triggers ${percent(summary.overall.falseTrigger).trim()} (${fraction(summary.overall.falseTrigger)}), ${summary.overall.opensPerRun?.toFixed(2) ?? "-"} skills opened per run`,
-    );
-  }
   return lines.join("\n");
+}
+
+function overallLines(labels, summaries) {
+  return summaries.map((summary, index) => {
+    const { overall } = summary;
+    const notes = [
+      overall.unowned > 0 ? `${overall.unowned} requests with no owner on this build` : null,
+      overall.droppedChecks > 0 ? `${overall.droppedChecks} near-miss checks dropped for this build` : null,
+      overall.unknownBuild > 0 ? `${overall.unknownBuild} runs whose build was unreadable, measured as the base` : null,
+    ].filter(Boolean);
+    return `${labels[index]}: ${summary.runs} runs; hit ${percent(overall.hit).trim()} (${fraction(overall.hit)}), false triggers ${percent(overall.falseTrigger).trim()} (${fraction(overall.falseTrigger)}), ${overall.opensPerRun?.toFixed(2) ?? "-"} skills opened per run${notes.length > 0 ? `; ${notes.join("; ")}` : ""}`;
+  });
 }
 
 function caseLines(label, runs) {
   return runs.map((run) => {
     const opened = [...run.opened.entries()].map(([skill, turn]) => `${skill}@${turn}`).join(" ") || "(none)";
-    const ok = run.case.hit === null || run.case.expect.some((skill) => run.opened.has(skill));
-    const wrong = run.case.not.filter((skill) => run.opened.has(skill));
+    const ok = run.case.hit === null || !run.case.owned || run.case.expect.some((skill) => run.opened.has(skill));
+    const wrong = run.case.checks.map((check) => check.target).filter((skill) => run.opened.has(skill));
     return `${label} ${run.case.id.padEnd(22)} ${ok && wrong.length === 0 ? "ok  " : "MISS"} opened: ${opened}${wrong.length > 0 ? `; near miss opened: ${wrong.join(", ")}` : ""}`;
   });
 }
@@ -222,12 +291,24 @@ async function main(argv) {
         case: run.case.id,
         trial: path.basename(run.trial),
         opened: Object.fromEntries(run.opened),
+        expect: run.case.expect,
+        nearMisses: run.case.checks.map((check) => check.target),
+        dropped: run.case.dropped,
       })),
     }));
     process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
     return 0;
   }
-  const lines = [table(labels, summaries)];
+  const lines = [
+    table(labels, summaries, "skills", SKILLS, "skill"),
+    "",
+    table(labels, summaries, "owners", OWNERS, "owner (merged)"),
+    ...OWNERS.filter((owner) => summaries[0].owners[owner].merged.length > 0).map(
+      (owner) => `  ${owner} takes ${summaries[0].owners[owner].merged.join(", ")}`,
+    ),
+    "",
+    ...overallLines(labels, summaries),
+  ];
   for (const [index, { skipped }] of collected.entries()) {
     if (skipped.length > 0) {
       lines.push(

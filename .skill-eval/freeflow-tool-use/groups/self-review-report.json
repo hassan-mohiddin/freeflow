@@ -1,0 +1,90 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "self-review-report",
+  "type": "body",
+  "input": {
+    "prompt": "The monthly report lumps January to September together into a single row. Fix it, and add a test that would have caught it."
+  },
+  "fixture": ".skill-eval/freeflow-tool-use/fixtures/ledger",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration-scripts.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-tool-use-ledger@sha256:3f202e9cfb5f0ad854129f64160c9fd87001df22ccbc15c3d45ef85d6cf46f0b",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 4,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-tool-use/cards/self-review-report.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "task",
+      "kind": "command",
+      "variant": "freeflow",
+      "argv": ["node", "--test", "--test-reporter=tap", ".ftu-hidden.test.mjs"],
+      "files": {
+        ".ftu-hidden.test.mjs": ".skill-eval/freeflow-tool-use/graders/self-review-report.test.mjs",
+        ".ftu-ledger-lib.mjs": ".skill-eval/freeflow-tool-use/graders/ledger-lib.mjs",
+        ".ftu-original/src/report.js": ".skill-eval/freeflow-tool-use/graders/originals/self-review-report/src/report.js"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "ftu: each month is its own row, labelled YYYY-MM",
+            "ftu: the project's tests pass",
+            "ftu: the project's tests fail on the original report code"
+          ]
+        }
+      }
+    },
+    {
+      "id": "tool-self-review",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash",
+      "argumentContains": ["self-review.mjs"],
+      "expect": "succeeded"
+    },
+    {
+      "id": "notice-self-review",
+      "kind": "context-text",
+      "variant": "freeflow",
+      "surface": "provider-context",
+      "value": "Before your final report (Execute Work)",
+      "expect": "contains"
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-tool-use/reference/self-review-report"
+  }
+}

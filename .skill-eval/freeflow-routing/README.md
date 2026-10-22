@@ -71,6 +71,38 @@ before the removal Workflow routes to the other two, after it they are reached d
 the same route. The report's `self` column shows how often Workflow itself opened. After the removal, Workflow is not in
 the build, and its row reads 0% `self` by construction.
 
+**Merged skills (v0.9.0).** v0.9.0 ships 11 skills: it merged 15 of the base's into others and dropped Action
+Selection. `MERGED` in `scripts/cases.mjs` names each removed skill's owner (Commit Work, Finish Branch, Launch Work and
+Release Work into Deliver Work; Agree Work, Bypass and Discuss into Discuss Work; Design for Depth, Diagnose Failure,
+Migration Work, Simplify Code and Workflow into Execute Work; Handoff into Track Work; Write Plan and Write Spec into
+Write Docs). The cases stay as written, and each run is measured on its own build (`routeCase`), which the report reads
+from the Freeflow package the evaluator built for the group. On the base nothing changes. On a build without a skill,
+Workflow's rule applies to every merged skill:
+
+- its requests count as routed when its owner opens (a commit request is a hit for Commit Work when Deliver Work
+  opens), and its row's `self` reads 0% by construction; Workflow's route becomes Execute Work or Discuss Work;
+- Action Selection has no owner (its job moved into the core prompt): its three requests count toward no hit rate on
+  that build and are reported as requests with no owner;
+- a near miss moves to the owner only while the owner is still a different skill from the request's own route. It is
+  dropped on that build when the owner is the request's route (a pull request must not open Commit Work: both are
+  Deliver Work now), when the case's `route` names the owner as also doing the request's job, or when it repeats
+  another check. The report counts dropped checks; `--json` lists them per case.
+
+Near misses dropped on the merged build (v0.9.0), so its false-trigger total is 17 checks, not 35:
+
+| Case | Near miss | Why |
+| --- | --- | --- |
+| `cw-commit-tsv`, `cw-commit-push`, `fb-pull-request`, `lw-deploy`, `rw-cut` | Finish Branch, Release Work, Commit Work, Release Work, Launch Work | own route: Deliver Work |
+| `dd-backends` | Migration Work | own route: Execute Work |
+| `wp-import`, `ws-design`, `ws-sync` | Write Spec, Write Plan, Write Docs | own route: Write Docs |
+| `aw-limit-flag`, `nm-sc-feature`, `nm-dd-local`, `nm-df-known-cause`, `nm-mg-notes` | Simplify Code, Simplify Code, Design for Depth, Diagnose Failure, Migration Work | the request is a code change, Execute Work's job (`route`) |
+| `nm-by-urgent`, `nm-di-decided` | Bypass, Discuss | a change to agree before building, Discuss Work's job (`route`) |
+| `nm-as-obvious` | Action Selection | no owner |
+| `nm-ho-summary` | Handoff | repeats its Track Work check |
+
+Near misses that move: Agree Work's (`nm-aw-question`, `nm-aw-exact`, `nm-wf-question`) to Discuss Work, Workflow's
+(`nm-wf-question`) to Execute Work, Write Plan's (`ew-plan-step-2`, `rv-plan`) to Write Docs.
+
 **Why body groups and not description groups.** The evaluator's description groups measure a declared target skill
 (`skill-read`) and `revision: description-only` compares two snapshots that differ only in a description. Neither fits:
 here the skills are Freeflow's own package, listed by Freeflow, and the change under test also deletes a skill and
@@ -89,7 +121,10 @@ question first still gets its reply and a second turn to open the skill.
 
 Each group's checks are transcript checks (`tool-call` on `read`): `read-<skill>` passes when the run read
 `/skills/<skill>/SKILL.md` for each skill in `expect`, and `no-<skill>` passes when it never read it for each skill in
-`not`. The aggregate counts them per group.
+`not`, plus the same checks for the merged build's owners (`gradedSkills`; a skill already checked keeps its base
+check). The groups are the same for both builds, so a check on a skill the build lacks passes or fails by construction
+(`read-deliver-work` always fails on the base). The aggregate counts them per group; the report, which knows each
+run's build, is the measure.
 
 The measures come from `scripts/report.mjs`, which reads the stored runs and counts a skill as opened when its
 `SKILL.md` was read with `read` or named in a successful `bash` command (`cat`, `sed`, `head`). Per skill:
@@ -99,8 +134,11 @@ The measures come from `scripts/report.mjs`, which reads the stored runs and cou
 - **false**: share of its near misses on which it opened anyway;
 - **instead**: what opened on a miss (`(none)` when nothing did).
 
-Overall it gives the hit rate over all 75 requests, the false-trigger rate over all near-miss checks, and skills opened
-per run. `--cases` lists every run's opened skills with the turn; `--json` writes everything, including the runs it
+The same measures follow per skill of the merged build (`owner (merged)`), over the requests and near misses of every
+skill merged into it, on both builds: Deliver Work's row adds Commit Work, Finish Branch, Launch Work and Release Work,
+so before and after of one v0.9.0 skill read side by side. Overall it gives the hit rate over the requests with an
+owner (75 on the base, 72 on v0.9.0), the false-trigger rate over the near-miss checks the build keeps, and skills
+opened per run. `--cases` lists every run's opened skills with the turn; `--json` writes everything, including the runs it
 left out (not complete, or held for uncleared transcript flags).
 
 ## Build and pin the image
@@ -135,9 +173,9 @@ After the user's yes, from the repository root, with the definitions and the ima
 ```bash
 # before: main (the definition's ref)
 node skills/evaluate-behavior/scripts/skill-eval.mjs run .skill-eval/freeflow-routing/suite.json --jobs 4 --max-cost 1.5
-# after: the branch that removes Workflow
-node skills/evaluate-behavior/scripts/skill-eval.mjs run .skill-eval/freeflow-routing/suite.json --source freeflow=<commit> --jobs 4 --max-cost 1.5
-node .skill-eval/freeflow-routing/scripts/report.mjs <before-result> <after-result>
+# after: v0.9.0 (main at 51b9682f), or any later build
+node skills/evaluate-behavior/scripts/skill-eval.mjs run .skill-eval/freeflow-routing/suite.json --source freeflow=51b9682fb44a9a68defd29e2ce3db64cae51581b --jobs 4 --max-cost 1.5
+node .skill-eval/freeflow-routing/scripts/report.mjs <before-result> <after-result> --cases
 ```
 
 `--source freeflow=<commit>` builds Freeflow from that commit for every group; the definitions are unchanged.

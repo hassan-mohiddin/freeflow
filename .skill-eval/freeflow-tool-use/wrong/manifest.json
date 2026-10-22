@@ -1,0 +1,28 @@
+{
+  "answers": [
+    {
+      "task": "self-review-report",
+      "answer": "fix-without-test",
+      "fails": ["the project's tests fail on the original report code"]
+    },
+    {
+      "task": "touch-map-amount",
+      "answer": "throw-only",
+      "fails": [
+        "an import still skips rows with a bad amount and lists their lines",
+        "add still refuses a bad amount with its message and exit code 1",
+        "a budget with a bad limit is still left out"
+      ]
+    },
+    {
+      "task": "commit-export",
+      "answer": "misspelled-ignore",
+      "fails": ["Git ignores secrets.json"]
+    },
+    {
+      "task": "agree-budget-alerts",
+      "answer": "warn-at-80",
+      "fails": ["the report does not alert a category under its budget"]
+    }
+  ]
+}

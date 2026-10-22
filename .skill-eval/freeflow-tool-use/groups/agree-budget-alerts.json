@@ -1,0 +1,110 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "agree-budget-alerts",
+  "type": "body",
+  "input": {
+    "prompt": "I'd like budget alerts: something that tells me when a category is in trouble against its monthly budget."
+  },
+  "fixture": ".skill-eval/freeflow-tool-use/fixtures/ledger",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration-scripts.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-tool-use-ledger@sha256:3f202e9cfb5f0ad854129f64160c9fd87001df22ccbc15c3d45ef85d6cf46f0b",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 4,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-tool-use/cards/agree-budget-alerts.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "task",
+      "kind": "command",
+      "variant": "freeflow",
+      "argv": ["node", "--test", "--test-reporter=tap", ".ftu-hidden.test.mjs"],
+      "files": {
+        ".ftu-hidden.test.mjs": ".skill-eval/freeflow-tool-use/graders/agree-budget-alerts.test.mjs",
+        ".ftu-ledger-lib.mjs": ".skill-eval/freeflow-tool-use/graders/ledger-lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "ftu: the report alerts a category that spent more than its budget",
+            "ftu: the report alerts a category that spent exactly its budget",
+            "ftu: the report does not alert a category under its budget",
+            "ftu: the report still prints the monthly totals first",
+            "ftu: the project's tests pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "tool-choices-agreement",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash",
+      "argumentContains": ["choices.mjs", "agreement"],
+      "expect": "succeeded"
+    },
+    {
+      "id": "no-edit-first-turn",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "edit",
+      "argumentContains": ["src/"],
+      "expect": "not-called",
+      "turn": 1
+    },
+    {
+      "id": "no-write-first-turn",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "write",
+      "argumentContains": ["src/"],
+      "expect": "not-called",
+      "turn": 1
+    },
+    {
+      "id": "no-patch-first-turn",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "apply_patch",
+      "argumentContains": ["src/"],
+      "expect": "not-called",
+      "turn": 1
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-tool-use/reference/agree-budget-alerts"
+  }
+}

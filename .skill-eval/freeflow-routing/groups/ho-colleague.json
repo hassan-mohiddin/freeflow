@@ -51,6 +51,14 @@
       "tool": "read",
       "argumentContains": ["/skills/handoff/SKILL.md"],
       "expect": "succeeded"
+    },
+    {
+      "id": "read-track-work",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/track-work/SKILL.md"],
+      "expect": "succeeded"
     }
   ],
   "review_questions": []

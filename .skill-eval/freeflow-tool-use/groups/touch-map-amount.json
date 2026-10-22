@@ -1,0 +1,84 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "touch-map-amount",
+  "type": "body",
+  "input": {
+    "prompt": "parseAmount returns NaN when the text isn't an amount, and NaN has ended up in saved ledgers. Make it throw a clear error instead."
+  },
+  "fixture": ".skill-eval/freeflow-tool-use/fixtures/ledger",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration-scripts.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-tool-use-ledger@sha256:3f202e9cfb5f0ad854129f64160c9fd87001df22ccbc15c3d45ef85d6cf46f0b",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 4,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-tool-use/cards/touch-map-amount.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "task",
+      "kind": "command",
+      "variant": "freeflow",
+      "argv": ["node", "--test", "--test-reporter=tap", ".ftu-hidden.test.mjs"],
+      "files": {
+        ".ftu-hidden.test.mjs": ".skill-eval/freeflow-tool-use/graders/touch-map-amount.test.mjs",
+        ".ftu-ledger-lib.mjs": ".skill-eval/freeflow-tool-use/graders/ledger-lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "ftu: parseAmount throws on text that is not an amount",
+            "ftu: good amounts read as before",
+            "ftu: an import still skips rows with a bad amount and lists their lines",
+            "ftu: add still refuses a bad amount with its message and exit code 1",
+            "ftu: a budget with a bad limit is still left out",
+            "ftu: the project's tests pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "tool-touch-map",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash",
+      "argumentContains": ["touch-map.mjs"],
+      "expect": "succeeded"
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-tool-use/reference/touch-map-amount"
+  }
+}

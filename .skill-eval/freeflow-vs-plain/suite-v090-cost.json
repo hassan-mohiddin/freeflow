@@ -1,0 +1,32 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "freeflow-vs-plain-v090-cost",
+  "groups": [
+    "groups-v090/contacts-csv.json",
+    "groups-v090/invoice-cents.json",
+    "groups-v090/slug-max-length.json",
+    "groups-v090/report-dates.json",
+    "groups-v090/duration-test.json",
+    "groups-v090/page-size-config.json",
+    "groups-v090/dedupe-contacts-py.json",
+    "groups-v090/paginate-last-page.json",
+    "groups-v090/config-deep-merge.json",
+    "groups-v090/check-json-exit.json"
+  ],
+  "decision": {
+    "measure": {
+      "metric": "cost"
+    },
+    "arms": ["plain", "freeflow"],
+    "direction": "lower",
+    "method": "sign-test",
+    "alpha": 0.05,
+    "min_cases": 6,
+    "trials": {
+      "initial": 3,
+      "max": 3,
+      "step": 1
+    }
+  }
+}

@@ -51,6 +51,14 @@
       "tool": "read",
       "argumentContains": ["/skills/bypass/SKILL.md"],
       "expect": "succeeded"
+    },
+    {
+      "id": "read-discuss-work",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/discuss-work/SKILL.md"],
+      "expect": "succeeded"
     }
   ],
   "review_questions": []
