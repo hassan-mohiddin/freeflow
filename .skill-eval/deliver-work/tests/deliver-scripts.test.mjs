@@ -97,7 +97,11 @@ test("delivery-state reports a merge in progress", async () => {
     git(root, "checkout", "--quiet", "main");
     await write(root, { "index.js": "export default 4;\n" });
     git(root, "commit", "--quiet", "-am", "main");
-    spawnSync("git", ["merge", "other"], { cwd: root, env: gitEnv });
+    // The merge stops on a conflict, so it runs without the throwing helper but with the same identity.
+    spawnSync("git", ["-c", "user.name=Test", "-c", "user.email=t@example.com", "merge", "other"], {
+      cwd: root,
+      env: gitEnv,
+    });
     const state = run("delivery-state.mjs", root, ["--json"]).json;
     assert.deepEqual(state.inProgress, ["merge"]);
     assert.equal(state.working.conflicted, 1);
