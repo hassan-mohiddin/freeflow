@@ -153,7 +153,7 @@ Deterministic prompt, gating, discovery, package, and host-adapter checks prove 
 
 ## Related documentation
 
-- [Workflow](../../plugin-docs/workflow.md)
+- [How Freeflow Works](../../plugin-docs/workflow.md)
 - [Architecture](../README.md)
 - [Skill routing](skill-routing.md)
 - [Capabilities](../../plugin-docs/capabilities/README.md)

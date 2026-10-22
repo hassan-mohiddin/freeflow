@@ -145,7 +145,7 @@ Ask the agent to search task memory. It searches the focused task, the task with
 
 ## Other hosts
 
-On Claude Code, Codex and other hosts, Track Work works as before: the agent recovers a record through its resume view, and opens closed entries by ID when it needs them. Projects, child records, task IDs, worktree fan-out and search are Track Work commands there too: ask the agent to create a project, fan a task out or search a project. Owners are recorded on every host, but only Pi refuses writes; elsewhere the agent checks the project before writing a record another session owns and asks you.
+On Claude Code, Codex and other hosts, Track Work works as before: after context loss the agent recovers a record with `working-record.mjs view recover` (the resume view, each defining artifact and recovery source and whether it resolves, and where live Git state disagrees with the record), and opens closed entries by ID when it needs them. Projects, child records, task IDs, worktree fan-out and search are Track Work commands there too: ask the agent to create a project, fan a task out or search a project. Owners are recorded on every host, but only Pi refuses writes; elsewhere the agent checks the project before writing a record another session owns and asks you.
 
 ## Prompt cache
 

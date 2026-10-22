@@ -76,7 +76,7 @@ require_text "$working_method" '## Keep output small'
 require_text "$working_method" 'a capped result does not show that nothing else matched.'
 require_text "$dev_docs_index" 'runtime/prompts/'
 require_text "$dev_docs_index" 'skills are cued by their own descriptions'
-require_text "$workflow_doc" 'Interaction Lifecycle'
+require_text "$workflow_doc" '## The Cycle'
 
 require_text "$pi_runtime" '../../../runtime/prompts/core.md'
 require_text "$pi_runtime" '../../../runtime/prompts/interaction-contract.md'

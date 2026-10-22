@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Promoted from `.deprecated/project-docs/adr/0005-no-silent-path-substitution.md` during ADR consolidation.
+Accepted. Promoted from `.deprecated/project-docs/adr/0005-no-silent-path-substitution.md` during ADR consolidation. Amended 2026-10-22: Discuss and Decision Gate are now Discuss Work ([ADR 0014](0014-capability-skills-and-a-compact-core.md)), where source conflicts and material path changes return; the decision is unchanged.
 
 ## Decision
 

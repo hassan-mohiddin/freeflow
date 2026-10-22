@@ -4,7 +4,7 @@
 
 Superseded by [ADR 0005](0005-discuss-and-track-work-replace-discover.md) and [ADR 0010](0010-remove-pi-compatibility-aliases.md).
 
-This ADR preserves the historical decision that consolidated three shallow discovery skills. Its `discover` identity and command are no longer the current canonical surface.
+This ADR preserves the historical decision that consolidated three shallow discovery skills. Its `discover` identity and command are no longer the current canonical surface. Since 0.9.0 (2026-10-22), `discuss` is part of Discuss Work and Design for Depth is Execute Work's design reference ([ADR 0014](0014-capability-skills-and-a-compact-core.md)).
 
 ## Decision
 

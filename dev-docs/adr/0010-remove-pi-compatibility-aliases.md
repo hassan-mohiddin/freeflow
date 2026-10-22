@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Supersedes the compatibility-alias consequences in ADR 0005.
+Accepted. Supersedes the compatibility-alias consequences in ADR 0005. Amended 2026-10-22: the rule now covers every removed or merged skill ([ADR 0014](0014-capability-skills-and-a-compact-core.md)), and it holds: no alias exists for any removed name, and `/discuss` itself became `/discuss-work`.
 
 ## Decision
 

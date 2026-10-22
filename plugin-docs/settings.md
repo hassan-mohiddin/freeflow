@@ -10,7 +10,7 @@ With nothing configured, Freeflow on Pi runs with these capabilities; each one's
 | --- | --- | --- |
 | Freeflow | on | The core guidance, the Interaction Contract, the Working Method and the skills, plus `ask_user` dialogs |
 | [Compaction](capabilities/compaction.md) | on | The agent compacts at a safe point from its own summary; Pi's compaction stays the fallback |
-| [Tool Execution](capabilities/tool-execution.md) | on | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors |
+| [Tool Execution](capabilities/tool-execution.md) | on | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors, and skill guidance at the tool call that needs it |
 | [Task Memory](capabilities/task-memory.md) | off | Working Records attached to the session; projects and child tasks |
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
 | [Cognitive Routing](capabilities/cognitive-routing.md) | off | Coordinator, Helper and Executor profiles on different models |
@@ -95,6 +95,7 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Compaction | `compaction.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
 | Context reuse | `compaction.carry` | `true`, `false` | `true` | Session, Personal, Repository |
 | Tool Execution | `toolExecution.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
+| — | `toolExecution.guidanceNotices` | `true`, `false` | `true` | Personal, Repository (files only) |
 | Task Memory | `taskMemory.enabled` | `true`, `false` | `false` | Session, Personal, Repository |
 | Auto-approve | — | opens the five switches below on their own screen, and names the ones that are on | none | Personal, Repository |
 | Auto-approve › Attach | `taskMemory.autoApprove.attach` | `true`, `false` | `false` | Personal, Repository |
@@ -124,6 +125,7 @@ What some of them mean:
 - **Ask before delivering** decides whether a message from another session waits for you; `project` delivers messages from sessions in this repository's Task Memory project and asks about the rest. See [Messaging](capabilities/messaging.md#ask-before-delivering).
 - **Delegation** chooses which workers automatic routing may use; each needs its preset. A preset's `thinking` is one of the model's thinking levels. See [Cognitive Routing](capabilities/cognitive-routing.md).
 - **Control** holds one profile for the session until you release it; it changes only while routing runs. `/freeflow profile` does the same.
+- **`toolExecution.guidanceNotices`** turns off the few lines of skill guidance Tool Execution adds to a tool result that needs them, such as the commit essentials on a `git commit`. See [Tool Execution](capabilities/tool-execution.md#guidance-notices).
 - **`prompts`** turns each of Freeflow's session-start prompts on or off on hosts other than Pi; Pi always delivers all of them.
 - **`review`** sets when the agent has finished work independently reviewed, by a separate reviewer; the agent's own self-review always runs. `auto` lets Review Work's risk check decide; `off` never starts one on its own, and when the change looks risky the agent proposes a review with its reason and cost and runs it only on your yes; `always` reviews every finished task. `auto` in your personal file returns a shared `off` or `always` to the default. `model` names the model a reviewer runs on, where the host lets the agent choose one; Freeflow passes the name on as written and does not check it. A setting other than the default shows in the agent's Runtime State, such as ``Review: `always`, reviewer model `claude-opus-4-5` ``.
 

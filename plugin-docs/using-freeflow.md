@@ -6,21 +6,22 @@ This guide is for users who want better results from Freeflow without learning i
 
 ## The practical model
 
-Freeflow organizes work around three product pillars:
+Freeflow is a feedback-based control system for coding agents: each step checks what actually happened (a script's output, a test, your answer) before the next one, rather than trusting the plan. It has three parts:
 
-| Pillar | Purpose | Current status |
+| Part | What it gives the agent | Where |
 | --- | --- | --- |
-| **Memory — Track Work** | Preserve decisions, current work, evidence limits, future work, and the next useful action in a Working Record. | Available through the shared skill surface. |
-| **Context — Context Control** | Planned source-aware control over what remains in context and how exact evidence is recovered. | Planned/in development; unavailable in this release. |
-| **Compute — Cognitive Routing** | Place work across Coordinator, Helper, and Executor profiles without changing Workflow ownership or user authority. | Experimental native-Pi capability; installed-host and model-behavior evidence remain separate. |
+| **The cycle** | Agree before building, build and verify, review and hand over, in a short always-loaded prompt with the Interaction Contract and the Working Method. | Every host where Freeflow delivers its prompts. |
+| **Eleven skills** | One per capability: discussing and agreeing, executing, verifying, reviewing, delivering, task memory, documents, and a few for contributors. Each brings references for less common situations and scripts that gather the facts a decision needs. | Every host. |
+| **Pi capabilities** | Tool Execution (including skill guidance at the tool call that needs it), Compaction, Task Memory, Messaging and Cognitive Routing. | Native Pi. |
 
-Freeflow also includes focused methods for discussion, planning, implementation, diagnosis, verification, review, commits, migration, releases, launches, and handoffs.
+[How Freeflow Works](workflow.md) describes the cycle, the agreement and every skill.
 
 ### What Freeflow does
 
 - distinguishes a question or tentative idea from authorization to act;
 - establishes the requested outcome, scope, and return boundary;
-- scales workflow pressure to consequence, uncertainty, interaction, and reversibility;
+- agrees the work and lists your choices, with defaults, before it builds;
+- scales the process to the work: a question gets an answer, a large change the whole cycle;
 - routes from evidence instead of blindly continuing a stale plan;
 - preserves durable task memory when continuity matters;
 - separates factual verification from judgment and independent review;
@@ -36,7 +37,6 @@ Freeflow also includes focused methods for discussion, planning, implementation,
 - make a passing command prove more than it observed;
 - make profile switching an independent review;
 - guarantee lower cost, better model output, or provider cache hits;
-- implement Context Control v2 in the current release;
 - make Cognitive Routing or Tool Execution available on every host;
 - replace Pi's own tools, permissions, or compaction.
 
@@ -45,10 +45,11 @@ Freeflow also includes focused methods for discussion, planning, implementation,
 1. [Install and activate Freeflow](getting-started.md).
 2. Verify that your host actually delivered the expected skills and runtime context.
 3. Give the agent a clear outcome and return boundary.
-4. Let Workflow select the narrowest useful method; invoke a skill directly only when it helps communicate intent.
-5. Ask for evidence at the boundary that matters.
-6. Use Track Work for multi-slice or long-running tasks.
-7. On native Pi, optionally configure Cognitive Routing after the ordinary Workflow is understood.
+4. Answer the agreement the agent sends before building: "go" accepts its defaults, or correct the line you disagree with.
+5. Let the agent open the skill that fits; invoke one directly only when it helps communicate intent.
+6. Ask for evidence at the boundary that matters.
+7. Use Track Work for multi-slice or long-running tasks.
+8. On native Pi, optionally configure Cognitive Routing once the ordinary cycle is familiar.
 
 Natural language is preferred. You do not need to name every skill or plan the implementation for the agent.
 
@@ -118,7 +119,7 @@ current code and ADRs if needed, but do not edit files. Recommend one option
 and identify the decision that remains mine.
 ```
 
-This normally routes through Discuss, with bounded investigation where evidence is needed.
+This normally goes through Discuss Work, with bounded investigation where evidence is needed.
 
 ### Implementation and verification
 
@@ -129,7 +130,7 @@ fail if cancellation still leaks a request. Run the relevant suite and return
 with changed paths, evidence, and remaining limits. Do not commit or push.
 ```
 
-A clear implementation request can already authorize preparation, edits, focused checks, correction, and self-review. It does not authorize commit or delivery unless stated.
+Before the first edit the agent sends its agreement (what it will do, where it stops, and your decisions with its defaults) and waits. Once you answer, the request covers preparation, edits, focused checks, correction, and self-review. It does not cover commit or delivery unless stated.
 
 ### Diagnose before correction
 
@@ -175,22 +176,19 @@ A prepared release is not a published release, and a published release is not a 
 
 ## Use skills as methods, not phases
 
-Freeflow skills are focused methods. Workflow chooses the current owner according to the actual question or result. A linked skill does not run automatically, and loading a skill does not authorize an effect.
+Freeflow skills are focused methods. Each skill's description says when it applies, and the agent opens the one that fits the actual question or result. A linked skill does not run automatically, and loading a skill does not authorize an effect.
 
-| Need | Useful method | What it owns |
+| Need | Command | What it covers |
 | --- | --- | --- |
-| Explore goals, alternatives, or approach | `/discuss` | Collaborative direction and bounded learning decisions |
-| Preserve accepted behavior or design | `/write-spec` | Durable content, constraints, interfaces, and uncertainty |
-| Order settled execution | `/write-plan` | Dependencies, ordered outcomes, checks, and invalidation conditions |
-| Document how the software works and why | `/write-docs` | Overviews, subsystem docs, folder READMEs, and user guides kept true as the code changes |
-| Implement approved work | `/execute-work` | Preparation, production, focused evidence, correction, and continuation |
-| Establish an unsupported cause | `/diagnose-failure` | Reproduction, hypotheses, discriminating evidence, and cause |
-| Establish what a check proves | `/verify-work` | Factual support at the required observer boundary |
-| Judge implementation or artifacts | `/review-work` | Suitability and correctness judgment; independent review only when selected |
-| Preserve long-running task state | `/track-work` | Working Record creation, recovery, Slices, decisions, and checkpoints |
-| Create a local commit | `/commit-work` | Exact staging, commit creation, and checkpoint verification |
-| Prepare or publish a release | `/release-work` | Version, artifact, destination, publication, and consumer verification boundaries |
-| Transfer continuation context | `/handoff` | Compact point-in-time continuation package |
+| Explore goals, alternatives or approach; agree before building | `/discuss-work` | Direction, learning actions, the agreement and decision list, choices mid-work, skipping an optional step |
+| Implement agreed work | `/execute-work` | Implementation, design, simplification, diagnosing an unknown cause, migration, and the self-review report |
+| Establish what a check proves | `/verify-work` | Factual support at the required observer boundary, and changes to existing tests |
+| Judge work or a document | `/review-work` | Self-review, the review gate, and independent review when selected |
+| Commit, push, merge, release or deploy | `/deliver-work` | Each delivery step within its own yes, with one stop list and report |
+| Preserve long-running task state | `/track-work` | Working Record creation, recovery, Slices, decisions, checkpoints and handoffs |
+| Write a spec, plan, decision record or docs | `/write-docs` | Specs and Plans that decide work, decision records, and user and developer docs kept true as the code changes |
+
+[How Freeflow Works](workflow.md#skills) lists all eleven skills, including the contributor ones, and the scripts they run. The 0.9.0 skills replaced twenty-five earlier ones; [What changed in 0.9.0](workflow.md#what-changed-in-090) says where each removed name went.
 
 ### Natural language first
 
@@ -201,7 +199,7 @@ Please diagnose why this test is flaky before proposing a fix.
 ```
 
 ```text
-/diagnose-failure Why is this test flaky?
+/execute-work Why is this test flaky?
 ```
 
 Use direct invocation when it removes ambiguity. Do not chain skill names into a mandatory pipeline such as “discuss, spec, plan, execute, review” unless the task actually needs those artifacts and boundaries.
@@ -210,51 +208,21 @@ Use direct invocation when it removes ambiguity. Do not chain skill names into a
 
 A plan can describe a release, but it does not authorize publication. A review can identify a correction, but it does not authorize editing. A Working Record can preserve the next action, but it does not grant permission to perform it.
 
-## Manage the Workflow
+## Steer the work
 
-Freeflow uses one adaptive Workflow.
+Freeflow runs one cycle: agree, build and verify, review and hand over. [How Freeflow Works](workflow.md) describes it in full.
 
-### Work agreement
+### The agreement
 
-For concrete work, the agent establishes:
+Before the first edit on a task that builds or changes behavior, the agent sends one message: what it will do, where it stops, and your decisions, each with its default and why. "Go" accepts every default; a correction changes only the line it names. A question, an exactly specified change, or a run where no one can answer needs no agreement; the agent then takes its defaults and lists them at the end.
 
-- the outcome;
-- permitted scope and effects;
-- constraints and accepted sources;
-- evidence needed for the result;
-- the user-facing return condition.
+A choice that comes up during the work stops it only when the work cannot go on without your answer. On Pi the agent can put that choice to you in a dialog and continue on your answer; see [Questions in a dialog](integrations/pi.md#questions-in-a-dialog). At the end, the hand-over shows the choices you have not seen.
 
-A clear request can establish this without another confirmation. An unresolved user-owned choice or uncovered effect requires a stop. On Pi the agent can put that choice to you in a dialog and continue on your answer; see [Questions in a dialog](integrations/pi.md#questions-in-a-dialog).
+You can ask the agent to skip an optional step, such as waiting for the agreement, a plan, a review or a record; it skips only that, and still asks before a hard-to-reverse choice.
 
-### Feedback Loop
+### Which skill does the work
 
-Every bounded activity follows the same loop:
-
-```text
-orient or reconstruct state
--> select or retain the current owner
--> establish the required result and supported approach
--> discuss, act, test, or observe
--> determine what the evidence supports
--> self-review the supported result
--> continue, correct, diagnose, ask, defer, stop, or complete
-```
-
-This is a reasoning loop, not a ceremony checklist.
-
-### Current owner
-
-The current owner is the method responsible for the next result. Examples:
-
-- Discuss owns an unsettled outcome or approach.
-- Execute Work owns concrete implementation.
-- Diagnose Failure owns an unsupported cause.
-- Verify Work owns a factual claim.
-- Review Work owns judgment, of work and of guiding artifacts.
-- Track Work owns durable task-memory operations.
-- Release Work owns release preparation and publication boundaries.
-
-Cognitive Routing changes the compute profile serving that owner; it does not create another Workflow owner.
+The agent opens the skill whose description fits the next result: Discuss Work while what or how is open, Execute Work for agreed changes (including finding why something fails), Verify Work for a factual claim, Review Work for judgment, Deliver Work for commit, push, merge, release or deploy, Track Work for task memory, Write Docs for documents. Cognitive Routing changes which model profile does the work; it does not change the skill or who decides.
 
 ### Slices
 
@@ -335,7 +303,7 @@ Only the user changes task state. Closing a Slice does not complete the task.
 
 ### Recovery after context loss
 
-When the conversation about the current work is no longer in context (after compaction, clear, a transfer, or a session that continues the work without it), the agent recovers the record through its `resume` view: the record's present state and a one-line index of closed History. It then reads what defines the task and the record's Recovery sources, opens the closed History entries the next action depends on by ID, and reconciles all of it with current user direction, live files, and actual effects. It does not open the whole record to recover it; that loads every History entry, most of which the next step does not need.
+When the conversation about the current work is no longer in context (after compaction, clear, a transfer, or a session that continues the work without it), the agent recovers the record with `working-record.mjs view recover`: the record's present state, a one-line index of closed History, each defining artifact and Recovery source with whether it resolves, and where live Git state disagrees with the record. It then reads what defines the task and the record's Recovery sources, opens the closed History entries the next action depends on by ID, and reconciles all of it with current user direction, live files, and actual effects. It does not open the whole record to recover it; that loads every History entry, most of which the next step does not need.
 
 While that conversation is still in context, including after a new message, a pause or a resumed session, re-reading the record wastes context and does not make it more authoritative.
 
@@ -568,19 +536,11 @@ Coordinator must differ from every enabled worker as a complete provider/model/t
 /freeflow resume
 ```
 
-Manual profile control runs an unsplit Workflow. It does not create an automatic routing policy, grant task authority, or make that profile an independent reviewer.
+Manual profile control runs all work, unsplit, in one profile. It does not create an automatic routing policy, grant task authority, or make that profile an independent reviewer.
 
-## Understand Context status
+## Removed context features
 
-The former Freeflow Context tool (`freeflow_context`), Context Virtualization, and Conversation History were removed in this breaking change. Their source, guidance, tests, and evaluation definitions are preserved in the [legacy context archive](../.deprecated/legacy-context/README.md), not as current runtime guidance. Delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present; either key makes that config invalid and prevents Freeflow activation until removed.
-
-Tool Execution and Compaction are separate capabilities; neither is Context Control v2.
-
-### Planned Context Control v2
-
-Context Control is the planned product pillar for source-aware residency, representation, and bounded recovery across admitted context. It is in development and unavailable in this release.
-
-No current Context Control v2 command, setting, or compatibility promise is published. Do not infer the future architecture from legacy capability names.
+The former Freeflow Context tool (`freeflow_context`), Context Virtualization, and Conversation History were removed in a breaking change. Their source, guidance, tests, and evaluation definitions are preserved in the [legacy context archive](../.deprecated/legacy-context/README.md), not as current runtime guidance. Delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present; either key makes that config invalid and prevents Freeflow activation until removed.
 
 ## Understand cache and cost claims
 
@@ -666,7 +626,6 @@ Freeflow documentation and deterministic checks can establish repository structu
 - universal model behavior;
 - prompt-cache hits or billing reductions;
 - independent review from routing profiles;
-- Context Control v2 implementation;
 - release publication or production deployment.
 
 Keep claims at the boundary actually observed.
@@ -674,7 +633,7 @@ Keep claims at the boundary actually observed.
 ## Read next
 
 - [Getting Started](getting-started.md)
-- [Workflow](workflow.md)
+- [How Freeflow Works](workflow.md)
 - [Skill routing and dependencies](../dev-docs/subsystems/skill-routing.md)
 - [Cognitive Routing](capabilities/cognitive-routing.md)
 - [Tool Execution](capabilities/tool-execution.md)

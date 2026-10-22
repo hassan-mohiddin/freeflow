@@ -1,6 +1,6 @@
 # Getting Started
 
-Freeflow is a portable workflow layer for coding agents. Choose the host that matches the capabilities you need, install the Freeflow package, activate it in a repository, and verify delivery before relying on it.
+Freeflow is a feedback-based control system for coding agents: a short always-loaded method and eleven skills that work as a portable layer on every host, and on Pi a native extension. Choose the host that matches the capabilities you need, install the Freeflow package, activate it in a repository, and verify delivery before relying on it.
 
 ## Choose a host
 
@@ -137,11 +137,11 @@ Cognitive Routing uses this v2 configuration under `.freeflow/config.json` or `.
 
 `delegation` accepts `executor`, `helper`, or `both` and defaults to `executor`; `projection` defaults to `true`. Profiles are `coordinator`, `helper`, and `executor`. Coordinator must differ from each worker enabled by the selected mode; Helper and Executor may share a pair. Repository delegation can be overridden personally or for one Pi session without changing repository or personal files. Older experimental routing names or fields such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported and have no migration; rewrite them manually. Configuration does not establish host availability or model evaluation.
 
-Tool Execution and Task Memory are opt-in, and Compaction is on unless you turn it off:
+Tool Execution and Compaction are on unless you turn them off, and Task Memory is opt-in:
 
 ```json
 {
-  "toolExecution": { "enabled": true },
+  "toolExecution": { "enabled": true, "guidanceNotices": true },
   "compaction": { "enabled": true, "carry": true },
   "taskMemory": { "enabled": true }
 }
@@ -156,7 +156,7 @@ Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or oth
 Use the host-native surface to confirm the installation:
 
 - **Codex:** trust the hook from `/hooks`, start a new session, and confirm the core Freeflow context is delivered.
-- **Claude Code:** reload plugins or start a new session, then use a namespaced Freeflow skill such as `/freeflow:discuss`.
+- **Claude Code:** reload plugins or start a new session, then use a namespaced Freeflow skill such as `/freeflow:discuss-work`.
 - **Gemini CLI:** use `/extensions list` and `/skills`; start or resume a session and confirm the core context is delivered by the Gemini `SessionStart` hook.
 - **Cursor:** confirm the installed plugin exposes the shared skills; if hooks are enabled, inspect the session-start result for the shared core context.
 - **GitHub Copilot / VS Code:** confirm the installed Agent Plugin exposes the shared skills; if hooks are enabled, inspect the `SessionStart` result for the shared core context.
@@ -175,6 +175,6 @@ Activation is not proof of runtime delivery. Setup reports delivery as `confirme
 - [Compaction](capabilities/compaction.md)
 - [Task Memory](capabilities/task-memory.md)
 - [Architecture](../dev-docs/README.md)
-- [Workflow](workflow.md)
+- [How Freeflow Works](workflow.md)
 - [Skill routing](../dev-docs/subsystems/skill-routing.md)
 - [Release process](../dev-docs/guides/release.md)

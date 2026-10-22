@@ -8,7 +8,7 @@ It changes how a model works in the repository, not what it is allowed to do: ev
 
 - Native Pi 0.99.1 or later, including Pi 1.0.
 - On by default whenever Freeflow is enabled.
-- One switch turns on the whole layer: the guidance, the file tracking, the edit messages, `apply_patch`, the background commands and monitors. There are no sub-switches.
+- One switch turns on the whole layer: the guidance, the file tracking, the edit messages, `apply_patch`, the background commands and monitors, and the guidance notices. The guidance notices alone can be turned off with `toolExecution.guidanceNotices: false`.
 
 ## Turning it off
 
@@ -43,13 +43,21 @@ The settings of the retired v2 runtime (`capture`, `programs`, `workspace`, `dis
 - After any other tool, and when a prompt starts, the model is told which files it read have changed or disappeared since.
 - When Pi's `edit` cannot find or uniquely match the old text, the error shows the closest lines (or every matching place) and one next step.
 
+**Guidance notices.** <a id="guidance-notices"></a>A few lines of a skill's guidance join the result of the tool call that makes them relevant, whether or not the agent read the skill:
+
+- a `git commit` result: Deliver Work's commit essentials (check what the commit holds; never commit Working Records, secrets or env files; no amend, no-verify, empty commit or push unless you asked; inspect after a failed commit or hook), plus a reminder of Write Skill's loss check when the commit holds instruction text such as a skill or `AGENTS.md`;
+- the second failure of the same test command: the two key lines of Execute Work's diagnose method;
+- a passing test command after the agent changed a file: a reminder to run Execute Work's `self-review.mjs` before reporting.
+
+The commit and self-review notices come at most once per run. They are added to a result not yet sent, so they do not change anything the provider has cached. Turn them off with `toolExecution.guidanceNotices: false` in `.freeflow/config.json` or `.freeflow/local.json`; they are not on the settings screen.
+
 **Shell habits.** `bash` refuses a command ending in `&` (it would keep running with no exit notice and no saved output) and a foreground `sleep` of 10 seconds or more, and points to `bash_background`.
 
 Every Freeflow message to the model states the fact and one next step. Notices are appended to the conversation; nothing already sent is edited.
 
 ## Evidence limits
 
-Local tests cover the tools, messages, file tracking and prompt assembly on native Pi, and live sessions on GPT-6 Luna and Sol 6.1 used `apply_patch` in its grammar form and the background commands. In live sessions on grok-4.7 and Claude Haiku 5.5, a filtered monitor reported a service ready and then woke the idle agent to report an error the service logged while still running. Whether the guidance and the two edit tools improve task results, turns, tokens or cost has not been measured; a comparison on a benchmark is planned.
+Local tests cover the tools, messages, file tracking, guidance notices and prompt assembly on native Pi, and live sessions on GPT-6 Luna and Sol 6.1 used `apply_patch` in its grammar form and the background commands. In live sessions on grok-4.7 and Claude Haiku 5.5, a filtered monitor reported a service ready and then woke the idle agent to report an error the service logged while still running. Whether the guidance, the guidance notices and the two edit tools improve task results, turns, tokens or cost has not been measured; a comparison on a benchmark is planned.
 
 ## Retired
 

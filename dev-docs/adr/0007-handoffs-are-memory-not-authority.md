@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Promoted from `.deprecated/project-docs/adr/0002-handoffs-are-memory-not-authority.md` during ADR consolidation.
+Accepted. Promoted from `.deprecated/project-docs/adr/0002-handoffs-are-memory-not-authority.md` during ADR consolidation. Amended 2026-10-22: the Handoff skill is now Track Work's handoff reference and Workflow is removed ([ADR 0014](0014-capability-skills-and-a-compact-core.md)); Track Work alone compares recovered memory with the current conversation and repository. The decision is unchanged.
 
 ## Decision
 
