@@ -29,3 +29,17 @@ test("skill-author rejects unknown commands without a stack trace", () => {
   assert.match(result.stderr, /Unknown command: legacy-command/);
   assert.doesNotMatch(result.stderr, /\n\s+at /);
 });
+
+test("skill-author help lists compare and validate's routing map", () => {
+  const result = spawnSync(process.execPath, [entrypoint, "--help"], {
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /skill-author compare \[<base-ref> \[<new-ref>\] \| --base <folder> \[<folder>\]\]/);
+  assert.match(result.stdout, /default: the merge-base with\s+the default branch/);
+  assert.match(result.stdout, /--paths <path>\.\.\.\] \[--deleted-only\] \[--verdicts <file>\] \[--markdown\]/);
+  assert.match(result.stdout, /exits nonzero while a rule-like unmatched unit has no verdict/);
+  assert.match(result.stdout, /validate <directory> \[--package-root <directory>\] \[--routing-map <file>\]/);
+  assert.match(result.stdout, /reports link cycles/);
+});

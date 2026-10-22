@@ -45,7 +45,7 @@ Commit intended Freeflow changes before refreshing; uncommitted and ignored file
 - Use ADRs sparingly for hard-to-reverse, surprising, tradeoff-driven decisions.
 - Do not hardcode volatile repo facts, directory inventories, or stack summaries into durable memory.
 - Do not add enforcement hooks until skill wording and evals prove the behavior needs mechanical enforcement.
-- Before editing a skill or other instruction text in this repository (a `SKILL.md`, its references, `AGENTS.md`, `runtime/prompts/`, or a tool's description), read and follow [Write Skill](skills/write-skill/SKILL.md). Its [Guidance Placement](skills/write-skill/references/guidance-placement.md) decides where each behavior lives: on the lowest rung that reaches the agent in time, with one owner.
+- Before editing a skill or other instruction text in this repository (a `SKILL.md`, its references, `AGENTS.md`, `runtime/prompts/`, or a tool's description), read and follow [Write Skill](skills/write-skill/SKILL.md). Its [Placement And Dependencies](skills/write-skill/references/placement-and-dependencies.md) decides where each behavior lives: on the lowest rung that reaches the agent in time, with one owner.
 
 ## Prompt Cache
 

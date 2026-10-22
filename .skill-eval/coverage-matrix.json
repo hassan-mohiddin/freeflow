@@ -249,7 +249,7 @@
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
       "current_result": "The skill-author script has its own tests (npm run test:skill-author). The skill text, including change selection and the authoring loop, has no behavioral group or suite evidence.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "1c1c592a62f893e0cee36e13a379f11f011e9307318ce82286d4d4dd8ceb58da",
+      "source_sha256": "812e736e3b7de762fc4420928155ded228031c2003cb6073c9028e9d02fdde8c",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
