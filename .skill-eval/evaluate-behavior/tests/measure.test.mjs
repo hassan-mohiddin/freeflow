@@ -170,7 +170,7 @@ test("a one-arm group refuses a component, a comparison, a foreign reference; tw
     });
     await assert.rejects(
       loadDefinition(suite, { root }),
-      /suite\.decision compares arms, but group measured-route has one arm/,
+      /suite\.decision compares arms, but group measured-route \(groups\/m\.json\) has one arm/,
     );
   });
 });

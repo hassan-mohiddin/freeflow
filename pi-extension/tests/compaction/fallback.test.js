@@ -31,6 +31,8 @@ test("Pi's own compaction gets Freeflow's instructions, state and recovery steps
       const summarizer = JSON.stringify(requests.slice(before));
       assert.match(summarizer, /Additional focus:/);
       assert.ok(summarizer.includes(FREEFLOW_INSTRUCTION), "Freeflow's instructions reach Pi's summarizer");
+      // Pi 1.4.0 lets the summary use the model's output limit, so Freeflow asks for its own summary limit.
+      assert.ok(summarizer.includes("Keep the summary under 8,000 tokens"), "the summary's length is bounded");
 
       const entry = compaction(manager);
       assert.match(entry.summary, /^fixture response/, "Pi's summary comes first");

@@ -5,7 +5,7 @@ description: "Use when the user asks about tasks or projects (open, create, swit
 
 # Task Memory
 
-With task memory on, a Pi session holds the Working Records it works on. Attached records are the ones this session may write; one attached record is the focus, the one the conversation is about. A record may be registered in a project, with an ID such as `my-project/task-003` and one owning session; registered tasks can have child records, each worked in its own session. Freeflow lists attached records in the Runtime State under `Task Memory:`, delivers the focused record's resume view when it becomes the focus or context is rebuilt, and refuses writes to records the session has not attached. [Track Work](../../skills/track-work/SKILL.md) still decides whether a task needs a record and what a record says; this skill covers how the session holds records and how the user's requests about tasks and projects become `task_memory` actions.
+With Task Memory on, a Pi session holds the Working Records it works on. Attached records are the ones this session may write; one attached record is the focus, the one the conversation is about. A record may be registered in a project, with an ID such as `my-project/task-003` and one owning session; registered tasks can have child records, each worked in its own session. Freeflow lists attached records in the Runtime State under `Task Memory:`, delivers the focused record's resume view when it becomes the focus or context is rebuilt, and refuses writes to records the session has not attached. [Track Work](../../skills/track-work/SKILL.md) still decides whether a task needs a record and what a record says; this skill covers how the session holds records and how the user's requests about tasks and projects become `task_memory` actions.
 
 A repository linked to a project, and each child's worktree, has `.freeflow/project`: a link to the project's store, so the user can open and edit its records in the editor. A path under it names the same record as the task ID; reach records by task ID and `task_memory` actions, not by listing that folder.
 
@@ -44,7 +44,7 @@ A fan-out result contains a command for a new terminal. Give it to the user exac
 
 ## Propose When Track Work Calls For A Record
 
-Goal: task memory where Track Work would keep a record, and none where it would not.
+Goal: a Task Memory record where Track Work would keep a record, and none where it would not.
 
 Propose attaching when a record already belongs to the work in front of you; propose `create` when Track Work says the task now needs a record and this repository is linked to a project. Without a project, create the record with Track Work's `init` in the repository and propose attaching it; propose `project_new` only when the user wants tasks grouped, kept across worktrees, or split into parallel sessions. A session with nothing attached is normal: a question, a short self-contained change, or a session the user keeps memory-free needs no record, so never propose one only because the Runtime State says nothing is attached.
 
@@ -78,9 +78,9 @@ A registered task's resume view names its directory in an `Environment:` line. W
 
 ## Under Cognitive Routing
 
-Goal: the user talks to the Coordinator, so task memory stays with the Coordinator.
+Goal: the user talks to the Coordinator, so Task Memory stays with the Coordinator.
 
-Under automatic routing the Coordinator proposes task memory actions and keeps the focused record current, as it owns the user's direction. A worker reads task memory (`projects`, `list`, `view`, `search`, `env` without a change) and writes a record only when its assignment's contract says so; an action it would propose, such as attaching another task, goes in its report for the Coordinator to propose. The resume view reaches every profile, including after a worker's compaction.
+Under automatic routing the Coordinator proposes Task Memory actions and writes the user's own words into the focused record (a Decision or a Work agreement change), as it owns the user's direction; other record maintenance goes where the delegation mode places it. A worker reads Task Memory (`projects`, `list`, `view`, `search`, `env` without a change) and writes a record only when its assignment's contract says so; an action it would propose, such as attaching another task, goes in its report for the Coordinator to propose. The resume view reaches every profile, including after a worker's compaction.
 
 ## Held Records
 

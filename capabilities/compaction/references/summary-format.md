@@ -9,7 +9,7 @@ The shape depends on one fact: whether the work has a Working Record.
 | Work has a Working Record | Shape | Why |
 | --- | --- | --- |
 | Yes | **Record-backed**: `Task`, `Now`, `In flight`, `Next steps` | The record already holds the task. The summary holds only what sits below the record's granularity. |
-| No | **Record-shaped**: the record's headings | The summary is the only task memory for the next cycle, so it uses the record's structure. |
+| No | **Record-shaped**: the record's headings | The summary is the only record of the task for the next cycle, so it uses the record's structure. |
 
 Compaction never creates a record. Whether a task needs one is decided at its start or when facts change its scope.
 
@@ -32,7 +32,7 @@ The summary must let a fresh context continue the **current step** correctly on 
 
 ```markdown
 ## Task
-- Record: `<path to record.md>` — recover it with Track Work's `view resume`, not by opening the file
+- Record: `<path to record.md>` — recover it with Track Work's `view recover`, not by opening the file
 - Goal: <one line>
 - Slice: <S-NNN> "<title>", <state>
 - Governing now: <only the decisions, constraints, and authority the next steps depend on>
@@ -117,7 +117,7 @@ What the agent passes as `summary`:
 
 ```markdown
 ## Task
-- Record: `.freeflow/tasks/task-014-http-retry/record.md` — recover it with Track Work's `view resume`, not by opening the file
+- Record: `.freeflow/tasks/task-014-http-retry/record.md` — recover it with Track Work's `view recover`, not by opening the file
 - Goal: the HTTP client retries failed requests with backoff and respects `Retry-After`.
 - Slice: S-003 "Add retry with backoff to the HTTP client", in progress
 - Governing now: retry 429 and 5xx only; `Retry-After` overrides the computed delay (the user: "the API team says they ban clients that don't"); no commits without asking.
@@ -141,7 +141,7 @@ What the next cycle's first request contains, in order:
 The conversation history before this point was compacted into the following summary:
 <summary>
 ## Task
-- Record: `.freeflow/tasks/task-014-http-retry/record.md` — recover it with Track Work's `view resume`, not by opening the file
+- Record: `.freeflow/tasks/task-014-http-retry/record.md` — recover it with Track Work's `view recover`, not by opening the file
 - Goal: the HTTP client retries failed requests with backoff and respects `Retry-After`.
 …
 ## Next steps

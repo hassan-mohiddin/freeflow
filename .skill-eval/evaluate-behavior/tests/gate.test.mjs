@@ -32,7 +32,7 @@ async function write(file, contents) {
 
 test("globs match repository paths: ** crosses directories, * stays within one", () => {
   assert.ok(globPattern("skills/review-work/**").test("skills/review-work/SKILL.md"));
-  assert.ok(globPattern("skills/review-work/**").test("skills/review-work/references/judge-contract.md"));
+  assert.ok(globPattern("skills/review-work/**").test("skills/review-work/references/evals-and-judges.md"));
   assert.ok(!globPattern("skills/review-work/**").test("skills/review-workflow/SKILL.md"));
   assert.ok(globPattern("skills/*/SKILL.md").test("skills/write-skill/SKILL.md"));
   assert.ok(!globPattern("skills/*/SKILL.md").test("skills/write-skill/references/x.md"));

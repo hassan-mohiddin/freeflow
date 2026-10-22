@@ -95,7 +95,7 @@ verified source
 -> registry and GitHub Release verification
 ```
 
-Use `release-work` for version classification, artifact checks, publication,
-recovery, and consumer-side verification. Never reuse an npm version or force-
+Use `deliver-work`'s release route for version classification, artifact checks,
+publication, recovery, and consumer-side verification. Never reuse an npm version or force-
 move a release tag. npm Trusted Publishing and the protected `npm` environment
 must be configured outside the repository before publication can succeed.

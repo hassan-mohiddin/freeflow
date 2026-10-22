@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/compaction/`, `capabilities/compaction/`
 > **Tests:** `pi-extension/tests/compaction/`, `pi-extension/tests/integration/request-path-budget.test.js`
-> **Verified at:** `737e4f53` (2026-10-13)
+> **Verified at:** `3e50548c` (2026-10-22)
 > **User docs:** `plugin-docs/capabilities/compaction.md`
 
 For contributors changing Freeflow compaction on Pi: how it decides when compaction is due, what it writes into the session, how it works with Cognitive Routing and with Pi's own compaction, and which of its behaviors are deliberate.
@@ -78,6 +78,8 @@ The budget is the smallest of 15% of the window, 40k tokens, and a quarter of th
 ### Pi's own compaction
 
 When Pi compacts (its trigger, an overflowing request, or `/compact`), `session_before_compact` calls `fallback()`. It drops any pending Freeflow compaction, adds the previous compaction's file lists back into Pi's preparation, and runs Pi's summarizer with Freeflow's instructions appended (`FALLBACK_INSTRUCTIONS`, which Pi shows as "Additional focus"). It then appends the harness part, which under routing lists the assignment's results by ref, with recovery steps, and records `freeflow.fallback: true`. Pi keeps its own summary shape and kept tail. If anything throws, `fallback()` returns `undefined` and Pi compacts as it would alone.
+
+From Pi 1.4.0 Pi's reserve only says when Pi compacts: the summarizer may write up to the model's output limit, which Pi reduces so input and output fit the window (`clampMaxTokensToContext()` in pi-ai), where earlier Pi capped it at 80% of the reserve. Freeflow's instructions therefore open by asking for a summary under `SUMMARY_LIMIT_TOKENS` (8,000), the limit `compact_context` enforces, so a cycle after Pi's compaction starts within the room an agent's compaction leaves. The thresholds and the carry budget do not depend on the summarizer's output limit: they are window and reserve arithmetic, and the agent's own compacting turn is an ordinary request that Pi fits to the window like any other (`thresholds.test.js`).
 
 ## Decisions
 
@@ -210,6 +212,7 @@ See [the tests README](../../pi-extension/tests/compaction/README.md) for each f
 
 ## Changes
 
+- Pi 1.4.0 (2026-10-22): Pi's summarizer is asked to keep the fallback summary under the agent path's 8,000-token limit.
 - October 2026: the harness part names the Freeflow skills read in the cycle it ends.
 - Task 003 (2026-10-11): `freeflow_compact` renamed `compact_context`.
 - `9078dd0` (2026-10-03): per-turn cost cut (turn usage, incremental estimate, index near the warning).

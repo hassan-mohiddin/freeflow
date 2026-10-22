@@ -34,7 +34,8 @@ function shown(path, cwd) {
   }
   return path;
 }
-function withLines(content, lines) {
+/** A tool result's content with lines appended to its text (before delivery: nothing already sent changes). */
+export function withLines(content, lines) {
   const text = content.map((part) => (part?.type === "text" ? part.text : "")).join("");
   return [
     { type: "text", text: [text, ...lines].filter(Boolean).join("\n") },

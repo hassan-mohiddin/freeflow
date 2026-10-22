@@ -2,7 +2,7 @@
 
 ## Status
 
-Superseded by [ADR 0011: Single Adaptive Workflow](0011-single-adaptive-workflow.md).
+Superseded by [ADR 0011: Single Adaptive Workflow](0011-single-adaptive-workflow.md), whose Workflow skill was in turn replaced by the cycle in core guidance ([ADR 0014](0014-capability-skills-and-a-compact-core.md)).
 
 ## Historical decision
 

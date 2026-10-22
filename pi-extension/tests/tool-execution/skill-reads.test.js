@@ -194,10 +194,10 @@ test("file tracking answers a repeat read, rebuilt after resume, until a compact
 });
 
 test("the skills read are listed in one order, whether recorded live or rebuilt after a resume", () => {
-  const writeSpec = join(ROOT, "skills/write-spec/SKILL.md");
+  const writeDocs = join(ROOT, "skills/write-docs/SKILL.md");
   // Parallel reads: the results complete in one order live, and the branch keeps them in another.
   const live = new SkillReads();
-  live.result(read({ path: writeSpec }, "write-spec body"), cwd);
+  live.result(read({ path: writeDocs }, "write-docs body"), cwd);
   live.result(read({ path: SKILL }, BODY), cwd);
   const rebuilt = new SkillReads();
   rebuilt.rebuild(
@@ -208,15 +208,15 @@ test("the skills read are listed in one order, whether recorded live or rebuilt 
           role: "assistant",
           content: [
             { type: "toolCall", id: "1", name: "read", arguments: { path: SKILL } },
-            { type: "toolCall", id: "2", name: "read", arguments: { path: writeSpec } },
+            { type: "toolCall", id: "2", name: "read", arguments: { path: writeDocs } },
           ],
         },
       },
       result("1", BODY),
-      result("2", "write-spec body"),
+      result("2", "write-docs body"),
     ],
     cwd,
   );
-  assert.deepEqual(live.skills(), ["track-work", "write-spec"]);
+  assert.deepEqual(live.skills(), ["track-work", "write-docs"]);
   assert.deepEqual(rebuilt.skills(), live.skills());
 });

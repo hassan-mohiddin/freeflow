@@ -11,6 +11,26 @@ const SCHEDULE_FIELDS = ["initial", "max", "step"];
 // Where each measure kind is read: comparisons from the deterministic counts, the others from aggregator sections.
 const MEASURE_KINDS = { comparison: null, metric: "metrics", judged: "judged", score: "scores" };
 const MEASURE_NAME = /^[A-Za-z][A-Za-z0-9._-]{0,63}$/;
+/**
+ * Metric names as decision rules and `perTrial` values name them (metrics.mjs records them); nested run.json fields
+ * use a dotted path.
+ */
+export const METRIC_NAMES = [
+  "durationMs",
+  "turns",
+  "toolCalls",
+  "toolErrors",
+  "tokens.input",
+  "tokens.output",
+  "tokens.cacheRead",
+  "tokens.cacheWrite",
+  "cost",
+  "cacheHitRate",
+  "peakContext",
+  "skillReads",
+  "skillReadTokens",
+];
+
 const DIRECTIONS = new Set(["higher", "lower"]);
 const DEFAULTS = { method: "sign-test", alpha: 0.05, min_cases: 10 };
 const VERDICT_TEXT = { beats: "beats", worse: "worse", "no-difference-shown": "no difference shown" };
@@ -45,6 +65,9 @@ export function validateDecision(value, fail) {
   if (typeof measure[kind] !== "string" || !MEASURE_NAME.test(measure[kind])) {
     fail(`suite.decision.measure.${kind} must be a name of letters, numbers, dots, underscores or hyphens`);
   }
+  if (kind === "metric" && !METRIC_NAMES.includes(measure.metric)) {
+    fail(`suite.decision.measure.metric must be one of ${METRIC_NAMES.join(", ")}`);
+  }
 
   const arms = value.arms;
   if (!Array.isArray(arms) || arms.length !== 2 || arms.some((arm) => typeof arm !== "string" || !ARM_NAME.test(arm))) {
@@ -75,6 +98,55 @@ export function validateDecision(value, fail) {
     rule.trials = { initial: trials.initial, max: trials.max, step: trials.step };
   }
   return rule;
+}
+
+/**
+ * Why a suite's decision could only exclude cases, decided by the definition alone, or null: a group without a
+ * decision arm; a group that records the measure in one decision arm but not the other; or a measure no group
+ * records in both. A group that records the measure in neither arm, such as a control case, stays in the suite
+ * and its case is excluded and counted. Checked when the suite loads, before any trial is paid for.
+ *
+ * @returns {{ group: any, message: string } | null} the group at fault, or null for the suite as a whole
+ */
+export function decisionProblem(rule, groups) {
+  const { kind, name } = measureOf(rule);
+  let recorded = false;
+  for (const group of groups) {
+    const missing = rule.arms.filter((arm) => !Object.hasOwn(group.variants ?? {}, arm));
+    if (missing.length > 0) {
+      return { group, message: `decision arm ${missing.join(", ")} is not an arm of group ${group.id}` };
+    }
+    const reporting = rule.arms.filter((arm) => recordsMeasure(group, arm, kind, name));
+    if (reporting.length === rule.arms.length) recorded = true;
+    else if (reporting.length > 0) {
+      const silent = rule.arms.filter((arm) => !reporting.includes(arm));
+      return {
+        group,
+        message: `group ${group.id} records ${kind} ${name} for arm ${reporting.join(", ")} but not ${silent.join(", ")}, so its case could only be excluded`,
+      };
+    }
+  }
+  if (recorded) return null;
+  return {
+    group: null,
+    message: `no group records ${kind} ${name} in both arms ${rule.arms.join(" and ")}, so every case would be excluded`,
+  };
+}
+
+/** Whether a loaded group records the measure for an arm: every run records metrics; the rest need a declaration. */
+function recordsMeasure(group, arm, kind, name) {
+  if (kind === "metric") return true;
+  if (kind === "judged") return (group.rubric ?? []).some((dimension) => dimension.id === name);
+  // A score is recorded per arm as `score.<id>` and `score.<comparison>`, from test-graded command checks only.
+  return (group.expectations ?? []).some(
+    (expectation) =>
+      expectation.variant === arm &&
+      (kind === "comparison"
+        ? expectation.comparison === name
+        : expectation.kind === "command" &&
+          expectation.pass?.tests !== undefined &&
+          (expectation.id === name || expectation.comparison === name)),
+  );
 }
 
 /** The rule's identity: sha256 over its JSON with sorted keys, so the same rule always hashes the same. */

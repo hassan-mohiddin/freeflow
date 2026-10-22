@@ -2,9 +2,9 @@
 // Lists every existing test file, fixture, snapshot and shared test setup file that changed, moved or was deleted
 // between a base and a head, with the changed hunks. It only lists; whether a change is justified is a judgment for
 // the agent and the user (references/test-design.md). A file that does not exist at the base is a new test, not a
-// changed one, and is not listed.
+// changed one, and is not listed; --new lists those instead (added, copied, or untracked in the working tree).
 // Usage: test-changes.mjs --base <ref> [--head <ref>] [--root <repository>] [--pattern <glob>]... [--only]
-//                         [--exclude <glob>]... [--json]
+//                         [--exclude <glob>]... [--new] [--json]
 // Without --head, the head is the working tree, staged and unstaged. Exit code 0 when it lists (even nothing),
 // 2 on a usage or Git error.
 import { execFileSync } from "node:child_process";
@@ -12,7 +12,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 const USAGE =
-  "Usage: test-changes.mjs --base <ref> [--head <ref>] [--root <repository>] [--pattern <glob>]... [--only] [--exclude <glob>]... [--json]";
+  "Usage: test-changes.mjs --base <ref> [--head <ref>] [--root <repository>] [--pattern <glob>]... [--only] [--exclude <glob>]... [--new] [--json]";
 
 // Common layouts for JavaScript, TypeScript, Python, Go, Ruby, Java, Kotlin, C#, Swift, C and C++, PHP, Elixir and
 // Dart. Matching is case-sensitive, so capitalised folders such as Swift's Tests/ are listed separately. --pattern adds
@@ -83,6 +83,7 @@ try {
       pattern: { type: "string", multiple: true, default: [] },
       only: { type: "boolean", default: false },
       exclude: { type: "string", multiple: true, default: [] },
+      new: { type: "boolean", default: false },
       json: { type: "boolean", default: false },
     },
   });
@@ -170,12 +171,14 @@ const range = head.commit ? [base.commit, head.commit] : [base.commit];
 
 const fields = gitOrFail(root, [...DIFF, "--name-status", "-z", ...range], "git diff failed").split("\0");
 const changes = [];
+const added = [];
 for (let index = 0; index < fields.length - 1;) {
   const code = fields[index][0];
   const paths = code === "R" || code === "C" ? [fields[index + 1], fields[index + 2]] : [fields[index + 1]];
   index += 1 + paths.length;
   const status = STATUS[code];
   const [path] = paths;
+  if ((code === "A" || code === "C") && included(paths.at(-1)) && !excluded(paths.at(-1))) added.push(paths.at(-1));
   // Only files that existed at the base: added and copied files are new.
   if (!status || !included(path) || excluded(path)) continue;
   const diff = gitOrFail(
@@ -199,7 +202,29 @@ for (let index = 0; index < fields.length - 1;) {
   });
 }
 
-if (values.json) {
+// New test files, for a check that each one fails on the base: committed additions, plus untracked files when the head
+// is the working tree.
+if (values.new) {
+  if (!head.commit)
+    for (const path of gitOrFail(root, ["ls-files", "-z", "--others", "--exclude-standard"], "git ls-files failed")
+      .split("\0")
+      .filter(Boolean))
+      if (included(path) && !excluded(path)) added.push(path);
+  const tests = [...new Set(added)].sort().map((path) => ({ status: "added", path, kind: kindOf(path) }));
+  if (values.json)
+    console.log(
+      JSON.stringify(
+        { command: "test-changes", mode: "new", root, base, head, patterns, exclude: values.exclude, tests },
+        null,
+        2,
+      ),
+    );
+  else if (!tests.length) console.log(`No new test, fixture, snapshot or test setup file since ${base.ref}.`);
+  else {
+    console.log(`${tests.length} new test, fixture, snapshot or test setup file(s) since ${base.ref}:`);
+    for (const each of tests) console.log(`added ${each.kind} ${each.path}`);
+  }
+} else if (values.json) {
   console.log(
     JSON.stringify({ command: "test-changes", root, base, head, patterns, exclude: values.exclude, changes }, null, 2),
   );

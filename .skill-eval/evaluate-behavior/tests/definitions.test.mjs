@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { access, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { loadDefinition, selectDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
 import { toV2 } from "./helpers/to-v2.mjs";
+
+const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
 
 async function withTempDirectory(run) {
   const directory = await mkdtemp(path.join(tmpdir(), "skill-eval-definitions-test-"));
@@ -179,7 +183,8 @@ test("schema 1 definitions fail with a pointer to schema 2", async () => {
     await writeFile(file, JSON.stringify(group("old", "description")));
     await assert.rejects(loadDefinition(file, { root }), {
       code: "unsupported-schema",
-      message: /group: schema 1 definitions are no longer supported; rewrite it as schema 2/,
+      message:
+        "group: schema 1 definitions are no longer supported; rewrite it as schema 2 (see Evaluate Behavior's references/authoring.md)",
     });
   });
 });
@@ -638,5 +643,201 @@ test("resume_before names later turns of a body group in a persistent Pi session
     definition.input = { turns: ["Start.", "Continue."], resume_before: [2] };
     definition.type = "description";
     await assert.rejects(loadDefinition(await write(), { root }), { message: /resume_before needs a body group/ });
+  });
+});
+
+test("an expectation kind in a group type that cannot grade it is refused at load", async () => {
+  await withTempDirectory(async (root) => {
+    const bodyOnly = [
+      { kind: "path", expect: "exists", path: "result.json" },
+      { kind: "changed-paths", expect: "equals", paths: ["result.json"] },
+      { kind: "file-text", expect: "contains", path: "result.json", value: "done" },
+      { kind: "json", expect: "valid", path: "result.json" },
+      { kind: "response-text", expect: "contains", value: "done" },
+      { kind: "tool-call", expect: "called", tool: "read" },
+      { kind: "context-text", expect: "contains", value: "guidance" },
+    ];
+    for (const fields of bodyOnly) {
+      const definition = group("kind-placement", "description");
+      definition.expectations = [{ id: "misplaced", variant: "candidate", ...fields }];
+      const file = await writeJson(root, `${fields.kind}-in-description.json`, definition);
+      await assert.rejects(
+        loadDefinition(file, { root }),
+        {
+          code: "invalid-definition",
+          message: `group.expectations[0] (misplaced): invalid ${fields.kind} expectation: it needs a body group`,
+        },
+        fields.kind,
+      );
+    }
+
+    const skillRead = group("kind-placement", "body");
+    skillRead.expectations = [{ id: "misplaced", kind: "skill-read", variant: "candidate", expect: "never" }];
+    await assert.rejects(loadDefinition(await writeJson(root, "skill-read-in-body.json", skillRead), { root }), {
+      message: "group.expectations[0] (misplaced): invalid skill-read expectation: it needs a description group",
+    });
+
+    // resource-read is graded in both group types.
+    for (const type of ["description", "body"]) {
+      const definition = group("kind-placement", type);
+      definition.expectations = [
+        {
+          id: "read-it",
+          kind: "resource-read",
+          variant: "candidate",
+          resource: "workspace",
+          path: "a.md",
+          expect: "read",
+        },
+      ];
+      await loadDefinition(await writeJson(root, `resource-read-in-${type}.json`, definition), { root });
+    }
+  });
+});
+
+test("what grading would refuse from the definition alone is refused at load; an unknown kind still loads", async () => {
+  await withTempDirectory(async (root) => {
+    const cases = [
+      [
+        "an arm the group lacks",
+        [{ id: "x", kind: "response-text", variant: "other", expect: "contains", value: "a" }],
+        'group.expectations[0] (x): invalid response-text expectation: its variant "other" is not an arm of the group',
+      ],
+      [
+        "a turn the input does not declare",
+        [{ id: "x", kind: "path", variant: "candidate", expect: "exists", path: "a", turn: 2 }],
+        "group.expectations[0] (x): invalid path expectation: its turn 2 is not a declared turn",
+      ],
+      [
+        "a value its grader rejects",
+        [{ id: "x", kind: "path", variant: "candidate", expect: "maybe", path: "a" }],
+        "group.expectations[0] (x): invalid path expectation",
+      ],
+      [
+        "comparison members that are not one check",
+        [
+          { id: "a", kind: "path", variant: "baseline", expect: "exists", path: "a", comparison: "same-file" },
+          { id: "b", kind: "path", variant: "candidate", expect: "exists", path: "b", comparison: "same-file" },
+        ],
+        "group.expectations comparison same-file: comparison expectations must describe the same deterministic check",
+      ],
+      [
+        "a comparison missing an arm",
+        [{ id: "a", kind: "path", variant: "baseline", expect: "exists", path: "a", comparison: "half" }],
+        "group.expectations comparison half: comparison requires one baseline and one candidate expectation",
+      ],
+    ];
+    for (const [name, expectations, message] of cases) {
+      const definition = group("graded-at-load", "body");
+      definition.expectations = expectations;
+      const file = await writeJson(root, `${name.replaceAll(" ", "-")}.json`, definition);
+      await assert.rejects(loadDefinition(file, { root }), { code: "invalid-definition", message }, name);
+    }
+
+    // An unknown kind is left to grading, where it is a grade error; so is a comparison it belongs to.
+    const unknown = group("graded-at-load", "body");
+    unknown.expectations = [
+      { id: "a", kind: "path", variant: "baseline", expect: "exists", path: "a", comparison: "future" },
+      { id: "b", kind: "path-exists", variant: "candidate", path: "a", comparison: "future" },
+    ];
+    await loadDefinition(await writeJson(root, "unknown-kind.json", unknown), { root });
+  });
+});
+
+test("a runtime may not name its own host", async () => {
+  await withTempDirectory(async (root) => {
+    const definition = {
+      schema_version: 2,
+      kind: "group",
+      id: "runtime-host",
+      type: "body",
+      input: { prompt: "Do the task." },
+      fixture: null,
+      tools: ["read"],
+      configuration: { host: { name: "pi" }, subject: { kind: "none" }, runtime: { host: "claude-code" } },
+      arms: { baseline: {} },
+      expectations: [],
+      review_questions: ["Was it done?"],
+    };
+    await assert.rejects(loadDefinition(await writeJson(root, "inline.json", definition), { root }), {
+      code: "invalid-definition",
+      message: "group.arms.baseline.runtime cannot set host; the host is configuration.host.name",
+    });
+    // Even the same host is refused: the host has one place.
+    definition.configuration.runtime = { host: "pi" };
+    await assert.rejects(loadDefinition(await writeJson(root, "same.json", definition), { root }), /cannot set host/);
+    // A shared configuration file cannot bring one in either.
+    await writeJson(root, "configuration.json", {
+      schema_version: 2,
+      kind: "configuration",
+      id: "shared",
+      configuration: { host: { name: "pi" }, runtime: { host: "claude-code" } },
+    });
+    definition.configuration = { extends: "configuration.json", subject: { kind: "none" } };
+    await assert.rejects(
+      loadDefinition(await writeJson(root, "extends.json", definition), { root }),
+      /cannot set host/,
+    );
+  });
+});
+
+test("a suite's refusal names the group and the file that failed", async () => {
+  await withTempDirectory(async (root) => {
+    await writeJson(root, "groups/fine.json", group("fine-group", "description"));
+    const broken = group("broken-group", "description");
+    broken.expectations = [{ id: "misplaced", kind: "path", variant: "candidate", expect: "exists", path: "a" }];
+    await writeJson(root, "groups/broken.json", broken);
+    await mkdir(path.join(root, "groups"), { recursive: true });
+    await writeFile(path.join(root, "groups/unparsed.json"), "{ not json");
+    const suite = (name, groups) =>
+      writeJson(root, `${name}.json`, { schema_version: 1, kind: "suite", id: name, groups });
+
+    await assert.rejects(
+      loadDefinition(await suite("misplaced", ["groups/fine.json", "groups/broken.json"]), { root }),
+      {
+        code: "invalid-definition",
+        message:
+          "group broken-group (groups/broken.json): group.expectations[0] (misplaced): invalid path expectation: it needs a body group",
+      },
+    );
+    await assert.rejects(
+      loadDefinition(await suite("unparsed", ["groups/fine.json", "groups/unparsed.json"]), { root }),
+      {
+        code: "invalid-json",
+        message: /^group groups\/unparsed\.json: Definition is not valid JSON/,
+      },
+    );
+    await assert.rejects(
+      loadDefinition(await suite("twice", ["groups/fine.json", "groups/../groups/fine.json"]), { root }),
+      {
+        message: "suite contains duplicate group ID fine-group (groups/fine.json)",
+      },
+    );
+  });
+});
+
+test("check-tasks and run refuse a misplaced expectation before anything starts, naming the group and file", async () => {
+  await withTempDirectory(async (root) => {
+    const broken = group("broken-group", "description");
+    broken.expectations = [{ id: "misplaced", kind: "path", variant: "candidate", expect: "exists", path: "a" }];
+    await writeJson(root, "groups/broken.json", broken);
+    await writeJson(root, "suite.json", { schema_version: 1, kind: "suite", id: "s", groups: ["groups/broken.json"] });
+    const expected =
+      "group broken-group (groups/broken.json): group.expectations[0] (misplaced): invalid path expectation: it needs a body group\n";
+    for (const args of [
+      ["check-tasks", "suite.json"],
+      ["run", "suite.json", "--yes", "--dry-run"],
+    ]) {
+      // No Pi on PATH: anything that tried to start a subject would fail differently.
+      const result = spawnSync(process.execPath, [entrypoint, ...args], {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...process.env, PATH: path.dirname(process.execPath) },
+      });
+      assert.equal(result.status, 1, args[0]);
+      assert.equal(result.stderr, expected, args[0]);
+      assert.equal(result.stdout, "", args[0]);
+    }
+    await assert.rejects(access(path.join(root, ".skill-eval")), { code: "ENOENT" });
   });
 });

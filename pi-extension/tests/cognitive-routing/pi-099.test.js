@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCodemodeExtension } from "@earendil-works/pi-coding-agent";
-import { fixture, readRoutingSkill, response } from "../fixtures/routing-native.js";
+import { fixture, readRouting, response } from "../fixtures/routing-native.js";
 
 // Cognitive Routing on Pi 0.99: runs started by extension messages, real codemode, retries, virtual models, holds
 // before the session file exists, and tools other extensions add. Coordinator is gpt-4o, Executor gpt-4.1-mini.
@@ -24,7 +24,7 @@ test("an exit notice after the unit closed starts a Coordinator turn", { timeout
     async (n) =>
       [
         [delegate],
-        [readRoutingSkill],
+        readRouting.worker,
         [{ name: "bash_background", args: { command: "sleep 0.8; echo done" } }],
         [submit],
         [close],
@@ -48,7 +48,7 @@ test("an exit notice while the worker runs reaches the worker's next request", {
   await fixture(
     async (n) => {
       if (n === 1) return [delegate];
-      if (n === 2) return [readRoutingSkill];
+      if (n === 2) return readRouting.worker;
       if (n === 3) return [{ name: "bash_background", args: { command: "sleep 0.2; echo done" } }];
       if (n === 4) {
         await wait(700);
@@ -79,7 +79,7 @@ test("an exit notice while the worker runs reaches the worker's next request", {
 test("a notice after a worker's run ended wakes Coordinator, not the worker", { timeout: 30000 }, async () => {
   await fixture(
     async (n) =>
-      [[delegate], [readRoutingSkill], [{ name: "bash_background", args: { command: "sleep 0.8; echo done" } }]][
+      [[delegate], readRouting.worker, [{ name: "bash_background", args: { command: "sleep 0.8; echo done" } }]][
         n - 1
       ] ?? [],
     false,
@@ -213,7 +213,7 @@ test(
       async (n) =>
         [
           [delegate],
-          [readRoutingSkill],
+          readRouting.worker,
           [{ name: "codemode", args: { code: script } }],
           [{ name: "codemode", args: { code: "return 'return_work' in tools;" } }],
           [submit],
@@ -221,7 +221,7 @@ test(
         ][n - 1] ?? [],
       false,
       async ({ manager }) => {
-        const [, , first, second] = results(manager);
+        const [, , , first, second] = results(manager);
         assert.equal(first.isError, false);
         assert.match(JSON.stringify(first.content), /EXACT_EVIDENCE_BODY_81\|nested\\n/);
         assert.deepEqual(
@@ -279,3 +279,40 @@ test("routing keeps the active-list place of tools another extension activates",
     },
   );
 });
+
+test(
+  "an explicit resume's run stays on the resumed worker though Pi 1.2+ fires before_agent_start for it",
+  { timeout: 30000 },
+  async () => {
+    // Pi 1.2.0 fires before_agent_start for a run an extension's message starts. Resume prepares its run itself;
+    // preparing it again there would return the worker to Coordinator before the resumed request.
+    const triggers = [];
+    const result = await fixture(
+      async (n) => {
+        if (n === 1) return [delegate];
+        if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
+        if (n === 4) return [submit];
+        return [];
+      },
+      false,
+      async ({ session, requests }) => {
+        await session.compact();
+        await session.reload();
+        await session.prompt("/freeflow resume");
+        await session.waitForIdle();
+        assert.deepEqual(triggers, ["user", "custom"], "Pi fired before_agent_start for the resume's message");
+        assert.deepEqual(
+          requests.map((body) => body.model),
+          [COORDINATOR, EXECUTOR, EXECUTOR, EXECUTOR, COORDINATOR],
+        );
+      },
+      true,
+      {
+        ...toolExecution,
+        maxRequests: 6,
+        extensions: [(pi) => pi.on("before_agent_start", (event) => void triggers.push(event.messageType))],
+      },
+    );
+    assert.equal([...result.state.assignments.values()][0].state, "returned");
+  },
+);

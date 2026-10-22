@@ -37,7 +37,8 @@ function shown(path: string, cwd: string): string {
   return path;
 }
 
-function withLines(content: readonly any[], lines: readonly string[]) {
+/** A tool result's content with lines appended to its text (before delivery: nothing already sent changes). */
+export function withLines(content: readonly any[], lines: readonly string[]) {
   const text = content.map((part) => (part?.type === "text" ? part.text : "")).join("");
   return [
     { type: "text", text: [text, ...lines].filter(Boolean).join("\n") },

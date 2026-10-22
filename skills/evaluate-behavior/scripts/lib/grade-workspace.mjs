@@ -4,16 +4,18 @@ import {
   compareText,
   completedCheck,
   hasOwn,
+  invalidExpectation,
   isSafeRelativePath,
+  placementProblem,
   readWorkspaceFile,
   RESPONSE_EXPECTATIONS,
   textMatches,
   unavailableCheck,
-  validBodyExpectation,
   validPathArray,
   workspaceEvidence,
 } from "./grade-support.mjs";
 
+const BODY = ["body"];
 const JSON_EXPECTATIONS = new Set([
   "available",
   "missing",
@@ -26,13 +28,14 @@ const JSON_EXPECTATIONS = new Set([
 
 export async function gradePath(group, runs, expectation) {
   const turn = expectation.turn ?? null;
+  const placement = placementProblem(group, expectation, turn, BODY);
   if (
-    !validBodyExpectation(group, expectation, turn) ||
+    placement !== null ||
     !["exists", "absent"].includes(expectation.expect) ||
     typeof expectation.path !== "string" ||
     !isSafeRelativePath(expectation.path)
   ) {
-    return { error: "invalid path expectation" };
+    return invalidExpectation(expectation, placement);
   }
   const expected = { expect: expectation.expect, path: expectation.path, turn };
   const run = runs[expectation.variant];
@@ -56,12 +59,13 @@ export async function gradePath(group, runs, expectation) {
 
 export async function gradeChangedPaths(group, runs, expectation) {
   const turn = expectation.turn ?? null;
+  const placement = placementProblem(group, expectation, turn, BODY);
   if (
-    !validBodyExpectation(group, expectation, turn) ||
+    placement !== null ||
     !["equals", "excludes"].includes(expectation.expect) ||
     !validPathArray(expectation.paths)
   ) {
-    return { error: "invalid changed-paths expectation" };
+    return invalidExpectation(expectation, placement);
   }
   const expectedPaths = [...expectation.paths].sort(compareText);
   const expected = { expect: expectation.expect, paths: expectedPaths, turn };
@@ -82,15 +86,16 @@ export async function gradeChangedPaths(group, runs, expectation) {
 export async function gradeFileText(group, runs, expectation) {
   const turn = expectation.turn ?? null;
   const line = expectation.line ?? null;
+  const placement = placementProblem(group, expectation, turn, BODY);
   if (
-    !validBodyExpectation(group, expectation, turn) ||
+    placement !== null ||
     !RESPONSE_EXPECTATIONS.has(expectation.expect) ||
     typeof expectation.value !== "string" ||
     typeof expectation.path !== "string" ||
     !isSafeRelativePath(expectation.path) ||
     (line !== null && !(Number.isInteger(line) && line >= 1))
   ) {
-    return { error: "invalid file-text expectation" };
+    return invalidExpectation(expectation, placement);
   }
   const expected = { expect: expectation.expect, path: expectation.path, value: expectation.value, turn };
   if (line !== null) expected.line = line;
@@ -119,7 +124,8 @@ export async function gradeFileText(group, runs, expectation) {
 
 export async function gradeJson(group, runs, expectation) {
   const turn = expectation.turn ?? null;
-  if (!validJsonExpectation(group, expectation, turn)) return { error: "invalid json expectation" };
+  const placement = placementProblem(group, expectation, turn, BODY);
+  if (placement !== null || !validJsonExpectation(expectation)) return invalidExpectation(expectation, placement);
 
   const expected = {
     expect: expectation.expect,
@@ -137,10 +143,9 @@ export async function gradeJson(group, runs, expectation) {
   return completedCheck(expectation, expected, observed, jsonMatches(expectation, observed));
 }
 
-function validJsonExpectation(group, expectation, turn) {
+function validJsonExpectation(expectation) {
   const fieldExpectation = ["field-present", "field-absent", "field-equals"].includes(expectation.expect);
   return (
-    validBodyExpectation(group, expectation, turn) &&
     typeof expectation.path === "string" &&
     isSafeRelativePath(expectation.path) &&
     JSON_EXPECTATIONS.has(expectation.expect) &&

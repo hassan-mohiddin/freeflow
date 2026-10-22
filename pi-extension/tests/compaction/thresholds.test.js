@@ -15,6 +15,18 @@ test("compact now comes 25k before Pi's trigger; the warning at 70%, and at leas
   assert.deepEqual(at(1_000_000), [700_000, 958_616, 983_616]);
 });
 
+test("a model's output limit moves neither the thresholds nor the carry budget", () => {
+  // From Pi 1.4.0 Pi's reserve only says when Pi compacts: its summarizer may write up to the model's output limit,
+  // which Pi itself reduces to what the window leaves. Freeflow's points stay window and reserve arithmetic, and an
+  // agent's summary stays under Freeflow's own limit, so a large-output model gets the same points as any other.
+  const model = (maxTokens) => ({ provider: "anthropic", id: "large", contextWindow: 200_000, maxTokens });
+  const small = strictest([model(16_384)], {});
+  const large = strictest([model(128_000)], {});
+  assert.deepEqual(large, small);
+  assert.deepEqual(large, { window: 200_000, trigger: 183_616, warning: 138_616, compactNow: 158_616 });
+  assert.equal(carryBudget(200_000, large.warning), carryBudget(200_000, small.warning));
+});
+
 test("Pi's reserve comes from the model override, then the ordinary setting, then Pi's default", () => {
   const model = { provider: "openai", id: "gpt-4o" };
   assert.equal(reserveTokens({}, model), 16_384);

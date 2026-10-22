@@ -18,7 +18,7 @@ export class RoutingSession {
   capability;
   token = randomUUID();
   turn;
-  /** The packaged routing skill the bootstrap read must cover; undefined when it cannot be read. */
+  /** The packaged routing skill and role references the bootstrap read must cover; undefined when the skill cannot be read. */
   routingSkill;
   messages = [];
   error;

@@ -280,3 +280,34 @@ test("usage and Git errors exit 2 without listing", async () => {
     await rm(outside, { recursive: true, force: true });
   }
 });
+
+test("--new lists added and untracked test files, which the default listing leaves out", async () => {
+  const root = await repository({ "src/a.js": "export const a = 1;\n", "src/a.test.js": "test('a', () => {});\n" });
+  try {
+    await write(root, {
+      "src/b.test.js": "test('b', () => {});\n",
+      "tests/fixtures/b.json": "{}\n",
+      "src/b.js": "1\n",
+    });
+    git(root, "add", "src/b.test.js");
+    const fresh = listed(root, "--base", "HEAD", "--new");
+    assert.equal(fresh.mode, "new");
+    assert.deepEqual(
+      fresh.tests.map((each) => [each.path, each.kind]),
+      [
+        ["src/b.test.js", "test"],
+        ["tests/fixtures/b.json", "fixture"],
+      ],
+    );
+    assert.deepEqual(listed(root, "--base", "HEAD").changes, []);
+    git(root, "add", "--all");
+    git(root, "commit", "--quiet", "-m", "more");
+    const committed = listed(root, "--base", "HEAD~1", "--head", "HEAD", "--new");
+    assert.deepEqual(
+      committed.tests.map((each) => each.path),
+      ["src/b.test.js", "tests/fixtures/b.json"],
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

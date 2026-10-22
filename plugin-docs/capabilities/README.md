@@ -1,6 +1,6 @@
 # Freeflow Capabilities
 
-Capabilities are optional Pi extensions outside the shared skill surface. They add bounded host or context behavior; they do not replace Workflow, change authority, or become a second agent.
+Capabilities are optional Pi extensions outside the shared skill surface. They add bounded host or context behavior; they do not replace the core cycle, change authority, or become a second agent.
 
 ## Common rules
 
@@ -8,7 +8,7 @@ Capabilities are optional Pi extensions outside the shared skill surface. They a
 - Cognitive Routing, Tool Execution, Compaction, Task Memory and Messaging are independently gated. Compaction and Tool Execution are on by default with Freeflow; the others are off by default.
 - One effective-state snapshot controls each capability’s prompt cue, discoverable skill, settings, and tools.
 - Runtime State reports current availability; it does not authorize work or prove behavioral readiness.
-- Capabilities preserve the ordinary Workflow owner and return evidence or state changes to that owner.
+- Capabilities leave the skill doing the work in charge and return evidence or state changes to it.
 - Deterministic assembly and delivery checks do not prove model behavior or universal readiness.
 
 ## Capability matrix
@@ -23,9 +23,9 @@ Capabilities are optional Pi extensions outside the shared skill surface. They a
 
 ## Composition
 
-The legacy Freeflow Context tool, Context Virtualization, and Conversation History were removed in a breaking change. Their source, guidance, tests, and evaluation definitions are archived under [`.deprecated/legacy-context/`](../../.deprecated/legacy-context/README.md). Context Control v2 is planned but unavailable; the archive does not define a replacement command or compatibility contract.
+The legacy Freeflow Context tool, Context Virtualization, and Conversation History were removed in a breaking change. Their source, guidance, tests, and evaluation definitions are archived under [`.deprecated/legacy-context/`](../../.deprecated/legacy-context/README.md). The archive defines no replacement command or compatibility contract.
 
-Cognitive Routing changes compute placement and selects eligible evidence for Coordinator's projected view around the active owner. It does not retrieve arbitrary history or decide whether a task is authorized. Selected canonical evidence is preserved for the active assessment, with explicit attention suspension. The removed context transforms are not part of the current runtime; future Context Control composition remains unspecified and unavailable.
+Cognitive Routing changes compute placement and selects eligible evidence for Coordinator's projected view around the active owner. It does not retrieve arbitrary history or decide whether a task is authorized. Selected canonical evidence is preserved for the active assessment, with explicit attention suspension. The removed context transforms are not part of the current runtime.
 
 Tool Execution adds to Pi's tools without changing who may act: routing still owns which profile works, and Pi's tools, permissions and file-mutation queue carry every effect.
 
@@ -41,4 +41,4 @@ Messaging composes with Task Memory: a child task's session reports to the sessi
 - [Pi integration](../integrations/pi.md)
 - [Task Memory](task-memory.md)
 - [Messaging](messaging.md)
-- [Workflow](../workflow.md)
+- [How Freeflow Works](../workflow.md)

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Runtime delivery amended by [ADR 0006: Prompt Fragments And Discoverable Skills](0006-prompt-fragments-and-discoverable-skills.md); the evals-before-enforcement decision remains, amended 2026-10-13 to allow measured gates.
+Accepted. Runtime delivery amended by [ADR 0006: Prompt Fragments And Discoverable Skills](0006-prompt-fragments-and-discoverable-skills.md); the evals-before-enforcement decision remains, amended 2026-10-13 to allow measured gates and 2026-10-22 for the Workflow removal and push notices.
 
 ## Decision
 
@@ -36,6 +36,10 @@ Evidence still comes before enforcement. An adapter may now refuse a tool call (
 
 | Gate | Refuses | Evidence | Retire when |
 | --- | --- | --- | --- |
-| Cognitive Routing bootstrap read (`pi-extension/src/cognitive-routing/gate.ts`) | Under automatic control, a profile's commands and edits (`bash`, `bash_background`, `monitor`, `edit`, `write`, `apply_patch`) until its own view holds a complete read of the routing skill | Live Pi runs on Haiku 5.5: Coordinators skipped the always-loaded prompt's bootstrap read and ran commands themselves, and after a compaction neither profile re-read it; with the skill in view the Coordinator delegated as the skill says (Task 008 S-005; [Cognitive Routing](../subsystems/cognitive-routing.md), Decisions). Live runs, not yet a baseline-against-guidance evaluation. | An evaluation on the models in use shows the read happens without the gate. |
+| Cognitive Routing bootstrap read (`pi-extension/src/cognitive-routing/gate.ts`) | Under automatic control, a profile's commands and edits (`bash`, `bash_background`, `monitor`, `edit`, `write`, `apply_patch`) until its own view holds a complete read of the routing skill and, since 2026-10-22, of its role's reference (`coordinator.md` or `worker.md`) | Live Pi runs on Haiku 5.5: Coordinators skipped the always-loaded prompt's bootstrap read and ran commands themselves, and after a compaction neither profile re-read it; with the skill in view the Coordinator delegated as the skill says (Task 008 S-005; [Cognitive Routing](../subsystems/cognitive-routing.md), Decisions). Live runs, not yet a baseline-against-guidance evaluation. | An evaluation on the models in use shows the read happens without the gate. |
 
 The first Consequence now reads: runtime adapters load context and grant no permissions or policy; they block a tool only through a gate listed here.
+
+## Amendment (2026-10-22): no Workflow skill; notices are not gates
+
+The Workflow skill is removed ([ADR 0014](0014-capability-skills-and-a-compact-core.md)): where this record names Workflow bodies or Workflow routing, read the cycle in the core prompt and the skill descriptions. On Pi, Tool Execution's guidance notices append a few lines of a skill to the result of a tool call that makes them relevant. They refuse nothing and grant nothing, so they are delivery, not a gate, and need no entry in the gate table; `toolExecution.guidanceNotices: false` turns them off. The Cognitive Routing gate now also waits for the profile's role reference, after the routing skill was split by role.

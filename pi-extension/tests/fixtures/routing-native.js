@@ -36,11 +36,27 @@ function capture(root, bodies) {
   );
 }
 
-/** The packaged routing skill, and the read a scripted profile makes before its first command or edit (`bootstrap.ts`). */
+/**
+ * The packaged routing skill and its role references, and the reads a scripted profile makes before its first command
+ * or edit (`bootstrap.ts`): the skill, then Coordinator's reference or the workers' one.
+ */
 export const ROUTING_SKILL = fileURLToPath(
   new URL("../../../capabilities/cognitive-routing/SKILL.md", import.meta.url),
 );
+export const ROUTING_COORDINATOR = fileURLToPath(
+  new URL("../../../capabilities/cognitive-routing/references/coordinator.md", import.meta.url),
+);
+export const ROUTING_WORKER = fileURLToPath(
+  new URL("../../../capabilities/cognitive-routing/references/worker.md", import.meta.url),
+);
 export const readRoutingSkill = { name: "read", args: { path: ROUTING_SKILL } };
+export const readCoordinatorReference = { name: "read", args: { path: ROUTING_COORDINATOR } };
+export const readWorkerReference = { name: "read", args: { path: ROUTING_WORKER } };
+/** One response's bootstrap reads for each role. */
+export const readRouting = {
+  coordinator: [readRoutingSkill, readCoordinatorReference],
+  worker: [readRoutingSkill, readWorkerReference],
+};
 
 /**
  * Call/result pairing problems in a provider request body. Anthropic Messages requires each tool result in the

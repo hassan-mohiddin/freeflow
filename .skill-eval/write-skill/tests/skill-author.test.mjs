@@ -406,3 +406,133 @@ test("validate follows recursive local Markdown links, terminates cycles, and ve
     assert.deepEqual(report.findings, []);
   });
 });
+
+test("validate reports link cycles among references, but not a link back to SKILL.md or a route between skills", async () => {
+  await withTempDirectory(async (root) => {
+    const packageRoot = path.join(root, "skills");
+    const skillDirectory = path.join(packageRoot, "target-skill");
+    await writeFixture(packageRoot, {
+      "target-skill/SKILL.md": `---\nname: target-skill\ndescription: Handles target work.\n---\n\n# Target Skill\n\nRead [design](references/design.md), [simplify](references/simplify.md), [notes](references/notes.md), and route to [other](../other-skill/SKILL.md).\n`,
+      "target-skill/references/design.md":
+        "# Design\n\nFor simplifying, read [simplify](simplify.md). The rules are in [Target Skill](../SKILL.md).\n",
+      "target-skill/references/simplify.md": "# Simplify\n\nFor a design change, read [design](design.md).\n",
+      "target-skill/references/notes.md":
+        "# Notes\n\nThe shared [glossary](../../other-skill/references/glossary.md) defines terms.\n",
+      "other-skill/SKILL.md": `---\nname: other-skill\ndescription: Handles other work.\n---\n\n# Other Skill\n\nRoute back to [target](../target-skill/SKILL.md).\n`,
+      "other-skill/references/glossary.md":
+        "# Glossary\n\nSee [notes](../../target-skill/references/notes.md) for usage.\n",
+    });
+
+    const result = runAuthor(["validate", skillDirectory, "--package-root", packageRoot]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = parseJsonOutput(result.stdout);
+    assert.equal(report.status, "valid");
+    assert.deepEqual(report.cycles, [
+      ["../other-skill/references/glossary.md", "references/notes.md"],
+      ["references/design.md", "references/simplify.md"],
+    ]);
+    assert.deepEqual(report.findings, []);
+  });
+});
+
+test("validate reports no cycles for a skill whose references only point back to SKILL.md", async () => {
+  await withTempDirectory(async (root) => {
+    const skillDirectory = path.join(root, "target-skill");
+    await writeFixture(root, {
+      "target-skill/SKILL.md": `---\nname: target-skill\ndescription: Handles target work.\n---\n\n# Target Skill\n\nRead [guide](references/guide.md).\n`,
+      "target-skill/references/guide.md": "# Guide\n\nThe rules are in [Target Skill](../SKILL.md).\n",
+    });
+
+    const report = parseJsonOutput(runAuthor(["validate", skillDirectory, "--package-root", root]).stdout);
+
+    assert.deepEqual(report.cycles, []);
+  });
+});
+
+async function routingFixture(root, row) {
+  await writeFixture(root, {
+    "skills/target-skill/SKILL.md": `---\nname: target-skill\ndescription: Handles target work.\n---\n\n# Target Skill\n\nRead [guide](references/guide.md) and the [contract](../../runtime/contract.md); hand over to [Other](../other-skill/SKILL.md).\n`,
+    "skills/target-skill/references/guide.md": "# Guide\n",
+    "skills/other-skill/SKILL.md": `---\nname: other-skill\ndescription: Handles other work.\n---\n\n# Other Skill\n`,
+    "skills/third-skill/SKILL.md": `---\nname: third-skill\ndescription: Handles third work.\n---\n\n# Third Skill\n`,
+    "runtime/contract.md": "# Contract\n",
+    "docs/routing.md": `# Routing\n\n| Skill | Owner | Routes | References |\n| --- | --- | --- | --- |\n${row}\n| [\`other-skill\`](../skills/other-skill/SKILL.md) | Other work | | |\n`,
+  });
+  return path.join(root, "skills", "target-skill");
+}
+
+const matchingRow =
+  "| [`target-skill`](../skills/target-skill/SKILL.md) | Target work | `other-skill` | [`guide`](../skills/target-skill/references/guide.md), [`contract`](../runtime/contract.md) |";
+
+test("validate --routing-map passes when the skill's row names its routes and resources", async () => {
+  await withTempDirectory(async (root) => {
+    const skillDirectory = await routingFixture(root, matchingRow);
+
+    const result = runAuthor([
+      "validate",
+      skillDirectory,
+      "--package-root",
+      root,
+      "--routing-map",
+      path.join(root, "docs/routing.md"),
+    ]);
+
+    assert.equal(result.status, 0, result.stdout);
+    assert.deepEqual(parseJsonOutput(result.stdout).findings, []);
+  });
+});
+
+test("validate --routing-map flags missing and extra routes and resources", async () => {
+  await withTempDirectory(async (root) => {
+    const skillDirectory = await routingFixture(
+      root,
+      "| [`target-skill`](../skills/target-skill/SKILL.md) | Target work | `third-skill` | [`guide`](../skills/target-skill/references/guide.md), [`other`](../docs/other.md) |",
+    );
+
+    const result = runAuthor([
+      "validate",
+      skillDirectory,
+      "--package-root",
+      root,
+      "--routing-map",
+      path.join(root, "docs/routing.md"),
+    ]);
+
+    assert.equal(result.status, 1, result.stdout);
+    const report = parseJsonOutput(result.stdout);
+    assert.equal(report.status, "invalid");
+    assert.deepEqual(
+      report.findings.map((finding) => `${finding.code}: ${finding.message}`),
+      [
+        "routing-map-missing-route: Routing map row does not name the linked skill: other-skill",
+        "routing-map-extra-route: Routing map row names a skill SKILL.md does not link: third-skill",
+        "routing-map-missing-resource: Routing map row does not link the resource: ../../runtime/contract.md",
+        "routing-map-extra-resource: Routing map row links a resource SKILL.md does not link: ../../docs/other.md",
+      ],
+    );
+    assert.ok(report.findings.every((finding) => finding.path === "../../docs/routing.md"));
+  });
+});
+
+test("validate --routing-map flags a missing or duplicated row and an unreadable map", async () => {
+  await withTempDirectory(async (root) => {
+    const map = path.join(root, "docs/routing.md");
+    const missing = await routingFixture(root, "| [`unrelated`](../skills/third-skill/SKILL.md) | Third | | |");
+    const codes = (args) => parseJsonOutput(runAuthor(args).stdout).findings.map((finding) => finding.code);
+
+    assert.deepEqual(codes(["validate", missing, "--package-root", root, "--routing-map", map]), [
+      "routing-map-missing-row",
+    ]);
+
+    await routingFixture(root, `${matchingRow}\n${matchingRow}`);
+    assert.deepEqual(codes(["validate", missing, "--package-root", root, "--routing-map", map]), [
+      "routing-map-duplicate-row",
+    ]);
+
+    assert.deepEqual(
+      codes(["validate", missing, "--package-root", root, "--routing-map", path.join(root, "docs/absent.md")]),
+      ["routing-map-unreadable"],
+    );
+  });
+});

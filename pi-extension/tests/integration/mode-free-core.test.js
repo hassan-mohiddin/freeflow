@@ -224,7 +224,7 @@ test("Pi exposes base skills without mode or Skills controls", async () => {
     assert.equal(resources.skillPaths.length, FREEFLOW_MODEL_SKILL_NAMES.length + 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/compaction/SKILL.md")));
     assert.ok(!resources.skillPaths.some((path) => /capabilities\/(cognitive-routing|task-memory)\//.test(path)));
-    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/agree-work/SKILL.md")));
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/discuss-work/SKILL.md")));
     assert.ok(
       !resources.skillPaths.some(
         (path) => path.includes("context-virtualization") || path.includes("conversation-history"),
@@ -278,9 +278,9 @@ test("mandatory prompt readiness gates Runtime State, discovery, and direct skil
     assert.equal(resources.skillPaths.length, 1);
     assert.ok(resources.skillPaths[0].endsWith("/skills/setup-freeflow/SKILL.md"));
 
-    const discuss = commands.find((command) => command.name === "discuss");
-    assert.ok(discuss);
-    await discuss.definition.handler(undefined, ctx);
+    const discussWork = commands.find((command) => command.name === "discuss-work");
+    assert.ok(discussWork);
+    await discussWork.definition.handler(undefined, ctx);
     assert.deepEqual(sentMessages, []);
     assert.match(ctx.notifications.at(-1).message, /Freeflow core prompts are unavailable/i);
 

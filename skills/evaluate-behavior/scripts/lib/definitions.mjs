@@ -2,9 +2,10 @@ import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { ARM_NAME, armNames, DEFAULT_REFERENCE } from "./arms.mjs";
-import { validateDecision } from "./decision.mjs";
+import { decisionProblem, validateDecision } from "./decision.mjs";
 import { isSourceExtension, sourceExtensionInputs, validateSourceExtension } from "./build-source.mjs";
 import { validateCommandExpectations } from "./grade-command.mjs";
+import { expectationProblems } from "./grade.mjs";
 import { containerShell, validateContainerEnvironment } from "./container.mjs";
 import { sealPaths, sealProblem, validateNetwork } from "./seal.mjs";
 import { validateShell, validateShellGroup } from "./shell.mjs";
@@ -377,7 +378,7 @@ function validateModel(value, label, definitionPath) {
 // configuration, and `component` names the only paths where an arm's effective configuration may differ from the
 // reference arm's.
 const SCHEMA_1_MESSAGE =
-  "schema 1 definitions are no longer supported; rewrite it as schema 2 (see the evaluation definition schema reference)";
+  "schema 1 definitions are no longer supported; rewrite it as schema 2 (see Evaluate Behavior's references/authoring.md)";
 // `participants` may be shared or differ between arms (one review against a pipeline of reviews); see participants.mjs.
 const CONFIGURATION_FIELDS = [
   "host",
@@ -475,13 +476,22 @@ function validateEffectiveConfiguration(value, label, definitionPath) {
   const environment = validateSubject(configuration.subject, `${label}.subject`, definitionPath);
   let runtime;
   if (Object.hasOwn(configuration, "runtime") && configuration.runtime !== null) {
+    const declared = requireObject(configuration.runtime, `${label}.runtime`, definitionPath);
+    // The host is the configuration's alone; a runtime host would let one group run on two.
+    if (Object.hasOwn(declared, "host")) {
+      fail(
+        "invalid-definition",
+        `${label}.runtime cannot set host; the host is configuration.host.name`,
+        definitionPath,
+      );
+    }
     // Undeclared runtime fields take their defaults, so a definition states only what it changes.
     runtime = {
       host: host.name,
       session: false,
       extensions: [],
       environment: { literal: {}, inherit: [] },
-      ...requireObject(configuration.runtime, `${label}.runtime`, definitionPath),
+      ...declared,
     };
     validateRuntime(runtime, definitionPath);
   }
@@ -779,6 +789,15 @@ async function validateGroup(value, definitionPath, root) {
       definitionPath,
     );
   }
+  // What grading would refuse that the definition alone decides is refused here, before anything is spent.
+  const [problem] = await expectationProblems({ ...group, variants });
+  if (problem !== undefined) {
+    const where =
+      problem.comparison !== undefined
+        ? `group.expectations comparison ${problem.comparison}`
+        : `group.expectations[${group.expectations.findIndex((entry) => entry.id === problem.expectation)}] (${problem.expectation})`;
+    fail("invalid-definition", `${where}: ${problem.reason}`, definitionPath);
+  }
 
   // The runner works on the resolved arms: each variant carries its subject and model, and the shared
   // runtime (which may not differ between arms) is the group's.
@@ -975,17 +994,40 @@ export async function loadDefinition(file, { root = process.cwd() } = {}) {
   const ids = new Set();
   for (const reference of suite.groups) {
     const groupFile = path.resolve(path.dirname(loaded.file), reference);
-    const groupLoaded = await readJsonFile(groupFile, definitionRoot);
-    const group = await validateGroup(groupLoaded.value, groupLoaded.file, definitionRoot);
-    if (ids.has(group.id)) fail("invalid-definition", `suite contains duplicate group ID ${group.id}`, loaded.file);
+    const group = await loadSuiteGroup(groupFile, definitionRoot);
+    const where = `${group.id} (${path.relative(definitionRoot, groupFile)})`;
+    if (ids.has(group.id)) fail("invalid-definition", `suite contains duplicate group ID ${where}`, loaded.file);
     ids.add(group.id);
     // A decision compares two arms, so a one-arm group in the suite has nothing for it to read.
     if (suite.decision !== undefined && Object.keys(group.variants).length === 1) {
-      fail("invalid-definition", `suite.decision compares arms, but group ${group.id} has one arm`, loaded.file);
+      fail("invalid-definition", `suite.decision compares arms, but group ${where} has one arm`, loaded.file);
     }
     groups.push(group);
   }
+  const problem = suite.decision === undefined ? null : decisionProblem(suite.decision, groups);
+  if (problem !== null) {
+    const file = problem.group === null ? "" : ` (${path.relative(definitionRoot, problem.group.files[0])})`;
+    fail("invalid-definition", `suite.decision: ${problem.message}${file}`, loaded.file);
+  }
   return { ...suite, groups };
+}
+
+/**
+ * One of a suite's groups. A refusal names the group and its file, so a suite with many groups shows which one
+ * failed: `group <id> (<file>): <reason>`, or the file alone when the group's ID was not read.
+ */
+async function loadSuiteGroup(groupFile, root) {
+  let id = null;
+  try {
+    const loaded = await readJsonFile(groupFile, root);
+    if (isPlainObject(loaded.value) && typeof loaded.value.id === "string") id = loaded.value.id;
+    return await validateGroup(loaded.value, loaded.file, root);
+  } catch (error) {
+    if (!(error instanceof DefinitionError)) throw error;
+    const where = `${path.relative(root, groupFile)}`;
+    const label = id === null ? `group ${where}` : `group ${id} (${where})`;
+    throw new DefinitionError(error.code, `${label}: ${error.message}`, error.definitionPath);
+  }
 }
 
 function variantSelection(group, selected) {

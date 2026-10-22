@@ -116,10 +116,11 @@ test("removed PiFlow support has no current install route and documents native P
   await assert.rejects(readFile(path.join(root, "plugin-docs/integrations/piflow.md"), "utf8"), { code: "ENOENT" });
 
   const changelog = await readFile(path.join(root, "CHANGELOG.md"), "utf8");
-  // The migration note sits under Unreleased until release preparation moves it into the version that ships it.
+  // The migration note sits under Unreleased until release preparation moves it into the version that ships it,
+  // and later releases add sections above it, so every section's Breaking Changes are searched.
   const breakingChanges = changelog
     .split(/^## /m)
-    .slice(1, 3)
+    .slice(1)
     .map((section) => section.split("### Breaking Changes")[1]?.split(/^### /m)[0] ?? "")
     .join("\n");
   assert.match(breakingChanges, /Removes Freeflow-owned PiFlow host integration/i);

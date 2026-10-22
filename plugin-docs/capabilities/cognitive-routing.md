@@ -1,6 +1,6 @@
 # Cognitive Routing
 
-Cognitive Routing places work across configured **Coordinator**, **Helper**, and **Executor** compute profiles inside one active Freeflow agent and one canonical Pi session. It is designed to balance task quality, reasoning continuity, responsiveness, and total cost without creating a second agent, a second Workflow, or a new source of authority.
+Cognitive Routing places work across configured **Coordinator**, **Helper**, and **Executor** compute profiles inside one active Freeflow agent and one canonical Pi session. It is designed to balance task quality, reasoning continuity, responsiveness, and total cost without creating a second agent, a second cycle, or a new source of authority.
 
 This page is the public operating reference for the current `cognitive-routing-v2` contract. It describes user-visible behavior, configuration, controls, evidence flow, continuity, and failure boundaries. Internal implementation sketches and historical design proposals are not part of this contract.
 
@@ -20,7 +20,7 @@ Installing Freeflow or writing a valid configuration does not prove that routing
 Cognitive Routing changes **where the next computation runs**. It does not change:
 
 - the user's authority over goals and consequential decisions;
-- the current Workflow owner or work agreement;
+- the skill doing the work or the work agreement;
 - repository instructions, host permissions, or tool safety;
 - the evidence required to support a result;
 - the distinction between verification, self-review, and independent review;
@@ -42,7 +42,7 @@ Coordinator, Helper, and Executor are sequential compute profiles, not independe
 | **Executor** | Producer commissioned for substantive or consequential work. |
 | **Delegation mode** | Which workers are enabled for automatic routing: `helper`, `executor`, or `both`. |
 | **Automatic control** | Coordinator receives new user direction and assigns bounded worker responsibilities. |
-| **Manual control** | One selected profile runs the ordinary unsplit Workflow until the user releases the hold. |
+| **Manual control** | One selected profile does all the work, unsplit, until the user releases the hold. |
 | **Unit** | One runtime outcome under Coordinator judgment. A unit may contain multiple sequential assignments. |
 | **Assignment** | One saved contract for one worker. Only one worker assignment executes at a time. |
 | **Handoff** | A saved assignment request, worker report, recovery request, or recovery supplement plus its transfer state. |
@@ -53,18 +53,17 @@ Coordinator, Helper, and Executor are sequential compute profiles, not independe
 ### Ownership nesting
 
 ```text
-Interaction Lifecycle
-└─ Workflow Feedback Loop
-   ├─ establishes authority, current owner, and required result
-   └─ Cognitive Routing — when effective
-      ├─ Coordinator selects the next producer
-      │  ├─ Helper: support, preparation, checks, settled mechanics
-      │  └─ Executor: substantive or consequential results
-      ├─ selected worker executes one bounded assignment
-      └─ Coordinator assesses evidence and continues, corrects, or closes
+The cycle (agree, build and verify, review and hand over)
+├─ the agreement establishes authority and the required result
+└─ Cognitive Routing — when effective
+   ├─ Coordinator selects the next producer
+   │  ├─ Helper: support, preparation, checks, settled mechanics
+   │  └─ Executor: substantive or consequential results
+   ├─ selected worker executes one bounded assignment
+   └─ Coordinator assesses evidence and continues, corrects, or closes
 ```
 
-Cognitive Routing operates inside the current Workflow owner. A routing unit is not a Track Work Slice. Closing a unit does not complete a Slice, task, commit, release, or launch.
+Cognitive Routing operates inside the cycle; the Coordinator keeps the agreement and the decision list. A routing unit is not a Track Work Slice. Closing a unit does not complete a Slice, task, commit, release, or launch.
 
 ## Profiles and responsibilities
 
@@ -274,13 +273,13 @@ Coordinator accepts new direction
 
 In `both`, every assignment identifies its worker. A unit may use Helper for preparation, Executor for production, and Helper for follow-through, but these are available routes rather than required phases.
 
-Each profile reads the Cognitive Routing skill before its first command or edit, and again after a compaction: until its view holds the skill, Freeflow refuses those calls and says what to read. Reading files and task memory are not held back.
+Each profile reads the Cognitive Routing skill and the reference for its role (`coordinator.md` for the Coordinator, `worker.md` for Helper and Executor) before its first command or edit, and again after a compaction: until its view holds both, Freeflow refuses those calls and says what to read. A worker reads about 2,200 words this way, where the single skill used to be 3,700. Reading files and task memory are not held back.
 
 New user input always belongs to Coordinator. If it reaches a worker request that was already prepared, the worker stops ordinary task tools and returns available partial state instead of adopting the new direction.
 
 ### Manual control
 
-A manual hold runs the ordinary unsplit Workflow in the selected profile. Automatic delegation and projection are bypassed. The held profile is not restricted to its automatic worker role, and the hold remains until the user releases it.
+A manual hold runs all work, unsplit, in the selected profile. Automatic delegation and projection are bypassed. The held profile is not restricted to its automatic worker role, and the hold remains until the user releases it.
 
 Manual control does not grant additional task authority or erase outstanding routing history. Returning to automatic control first reconciles current direction, saved responsibility, and partial effects.
 
@@ -313,7 +312,7 @@ With `projection: true` under automatic control:
 
 Projection is evidence selection, not an isolated security boundary, transcript deletion, or proof that a model understood the evidence.
 
-The legacy Context Virtualization and Conversation History transforms have been removed from the active runtime. Context Control v2 remains planned and unavailable; no current composition or compatibility contract is published.
+The legacy Context Virtualization and Conversation History transforms have been removed from the active runtime.
 
 ## Request planning and cache-aware reuse
 
@@ -416,7 +415,7 @@ Both mode does not require a Helper preparation assignment before every Executor
 
 ### Debugging with a manual hold
 
-Use a manual hold to run an unsplit Workflow in one enabled profile while inspecting behavior. Release it with `/freeflow profile auto`. A manual hold is not an alternative automatic policy and does not erase the saved assignment.
+Use a manual hold to run all work, unsplit, in one enabled profile while inspecting behavior. Release it with `/freeflow profile auto`. A manual hold is not an alternative automatic policy and does not erase the saved assignment.
 
 ## Troubleshooting
 
@@ -461,7 +460,7 @@ Request-prefix preservation and selected-GPT-6 effort-history adaptation are com
 ## Related documentation
 
 - [Capabilities](README.md)
-- [Workflow](../workflow.md)
+- [How Freeflow Works](../workflow.md)
 - [System prompt architecture](../../dev-docs/subsystems/prompt-assembly.md)
 - [Pi integration](../integrations/pi.md)
 - [Getting Started](../getting-started.md)

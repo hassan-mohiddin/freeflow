@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted. Amended 2026-10-05 (selectable runtime prompts). Its Workflow parts are superseded by [ADR 0014: Capability Skills And A Compact Core](0014-capability-skills-and-a-compact-core.md) (2026-10-22); see the amendment below.
 
 ## Decision
 
@@ -35,3 +35,6 @@ On hosts other than Pi, a `prompts` setting in `.freeflow/config.json` or `.free
 
 Hosts and the models they run differ in how much of this guidance they need, so the user chooses, with one default for every host.
 
+## Amendment (2026-10-22): no Workflow skill
+
+[ADR 0014](0014-capability-skills-and-a-compact-core.md) removes the Workflow skill. The second and fourth Decision bullets no longer hold as written: no skill chooses the owner; each skill's description says when it applies, and `runtime/prompts/core.md` carries the cycle (agree before building, build and verify, review and hand over), what authorizes work and where to stop, not Workflow or Action Selection cues. "One adaptive Workflow" now means that one cycle, scaled to the work. The rest of this decision stands: no user-selectable process modes, stronger pressure for high-risk work through the same cycle, the Interaction Contract as its own fragment, `enabled` as the only core switch, and the removed mode keys invalidating configuration.

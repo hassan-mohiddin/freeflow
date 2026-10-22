@@ -33,30 +33,38 @@ export class ModelControl {
     }
     return observed && !samePair(observed, expected) ? { profile: state.profile, expected, observed } : undefined;
   }
-  /** Set by a user prompt's before_agent_start; consumed by the run it starts. */
+  /** Set when a run is prepared before it starts (in beforeRun, or by routing itself); consumed by the run it starts. */
   promptRun = false;
-  /** A run that no user prompt prepared has started and its first message has not been seen yet. */
+  /** A run that nothing prepared has started and its first message has not been seen yet. */
   unpreparedRun = false;
   /** The next run is already prepared by routing itself (explicit resume sends the message that starts it). */
   preparedRun() {
     this.promptRun = true;
   }
-  /** Pi starts a run: from a user prompt (prepared in beforeRun), a message an extension sent, or a retry. */
+  /** Pi starts a run: from a user prompt or an extension's message (prepared in beforeRun), or a retry. */
   runStarted() {
     this.unpreparedRun = !this.promptRun;
     this.promptRun = false;
   }
   /**
-   * Whether this message starts a run an extension's message triggered. Pi skips before_agent_start for those runs,
-   * so routing prepares them here, before their first request. A retry's run starts with no message and is left as is.
+   * Whether this message starts a run an extension's message triggered that beforeRun did not prepare. Pi before 1.2.0
+   * skips before_agent_start for those runs, so routing prepares them here, before their first request; from 1.2.0 Pi
+   * fires it for them and this returns false. A retry's run starts with no message and is left as is.
    */
   startedByMessage(message) {
     if (!this.unpreparedRun) return false;
     this.unpreparedRun = false;
     return message?.role === "custom";
   }
-  async beforeRun(ctx, fromPrompt = true) {
-    if (fromPrompt) this.promptRun = true;
+  /**
+   * Prepare a run before its first request. `prompt` and `message` come from before_agent_start, which Pi 1.2.0 and
+   * later also fire for a run an extension's message starts; a run routing prepared itself (explicit resume) is not
+   * prepared again, so the resumed worker keeps its model. `late` comes from the first message of a run Pi started
+   * without before_agent_start.
+   */
+  async beforeRun(ctx, trigger = "prompt") {
+    if (trigger === "message" && this.promptRun) return;
+    if (trigger !== "late") this.promptRun = true;
     this.session.ctx = ctx;
     if (this.session.store && this.session.supported() && !this.session.store.blocked && !this.session.error) {
       if (this.session.stateData().control === "automatic" && isWorkerProfile(this.session.stateData().profile)) {

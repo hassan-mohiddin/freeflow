@@ -205,6 +205,9 @@ test("a three-arm A/A/B group loads with the reference first and refuses what it
 
     // An A/A/A group declares no component.
     const aaa = threeArmGroup({ arms: { baseline: {}, same: {}, again: {} }, component: [] });
+    aaa.expectations = aaa.expectations.map((entry) =>
+      entry.variant === "changed" ? { ...entry, id: "again-read", variant: "again" } : entry,
+    );
     const loadedAaa = await loadDefinition(await writeJson(path.join(root, "aaa.json"), aaa), { root });
     assert.deepEqual(Object.keys(loadedAaa.variants), ["baseline", "same", "again"]);
 

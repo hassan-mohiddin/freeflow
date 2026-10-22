@@ -6,9 +6,28 @@
 // with or without Workflow, so before and after the Workflow removal measure the same route.
 
 /** Every skill Freeflow ships to the model on main (FREEFLOW_MODEL_SKILL_NAMES); Workflow is the one the plan removes. */
-// Skills the suite still measures although Freeflow has removed them: the suite runs on the pinned base, where they exist,
-// and again on later builds, so before and after compare the same requests.
-export const RETIRED = ["workflow"];
+// Skills the suite still measures although Freeflow has removed them, each with the skill that took over its job:
+// the suite runs on the pinned base, where they exist, and again on later builds, so before and after compare the
+// same requests. A request whose skill was merged counts as routed when it opens the skill that took over.
+export const MERGED = {
+  "action-selection": null,
+  "agree-work": "discuss-work",
+  bypass: "discuss-work",
+  "commit-work": "deliver-work",
+  "design-for-depth": "execute-work",
+  "diagnose-failure": "execute-work",
+  discuss: "discuss-work",
+  "finish-branch": "deliver-work",
+  handoff: "track-work",
+  "launch-work": "deliver-work",
+  "migration-work": "execute-work",
+  "release-work": "deliver-work",
+  "simplify-code": "execute-work",
+  workflow: "execute-work",
+  "write-plan": "write-docs",
+  "write-spec": "write-docs",
+};
+export const RETIRED = Object.keys(MERGED);
 
 export const SKILLS = [
   "action-selection",

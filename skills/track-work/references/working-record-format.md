@@ -1,6 +1,6 @@
 # Working Record Format
 
-This reference owns the exact Schema 4 shape: sections, fields, states, lifecycle transitions, and the command contract. Read it before editing structure or preparing input for a command. It defines format, not what is worth recording; [Track Work](../SKILL.md) owns that judgment.
+This reference owns the exact Schema 4 shape: sections, fields, states, lifecycle transitions, and the command contract. It defines format, not what is worth recording; [Track Work](../SKILL.md) owns that judgment.
 
 ## Task Directory
 
@@ -100,7 +100,7 @@ Present understanding, as bullets under these seven headings, plus an optional W
 | Heading | Holds |
 | --- | --- |
 | Goal | The outcome or central question; not the current mechanism. |
-| Work agreement (optional) | The current Work Agreement, as far as it is known: what done looks like, what the agent does without asking, what needs the user's yes first, where it comes back, and how long it holds. |
+| Work agreement (optional) | The current work agreement, as far as it is known: what done looks like, what the agent does without asking, what needs the user's yes first, where it comes back, and how long it holds. |
 | What defines this task | Pointers to the artifacts that define the task, such as its Spec, Plan, issue, or user-supplied brief. Every entry is read on each recovery. |
 | Settled | Facts and accepted understanding that still affect the work. |
 | Tentative | Hypotheses and provisional approaches. |
@@ -237,13 +237,7 @@ A proposed Checkpoint has no ID in its heading (`### Checkpoint — <title>`). R
 
 An accepted Checkpoint leaves Future Work only through `checkpoint close`; never drop one by editing.
 
-| Type | Boundary | Earlier name, still read |
-| --- | --- | --- |
-| `preserve` | Save a recoverable point: commit, draft version, snapshot. | `local_commit` |
-| `publish` | Make work available beyond the workspace: push, pull request, publication, sending. | |
-| `review` | Independent judgment of the work. | `independent_review` |
-| `decision` | A user-owned choice that later work depends on. | `user_decision` |
-| `continuity` | A planned pause, handoff, or transfer. | |
+`Type` is one of the five in Track Work's Checkpoint table: `preserve`, `publish`, `review`, `decision`, `continuity`. Earlier names are still read: `local_commit` as `preserve`, `independent_review` as `review`, `user_decision` as `decision`.
 
 ## History
 
@@ -254,7 +248,7 @@ Three subsections in this order: Decisions, Checkpoints, Slices. History is appe
 ```markdown
 #### D-001 — Keep the Markdown record canonical
 - State: active
-- Decision: record.md remains the canonical task memory.
+- Decision: record.md remains the canonical task record.
 - Established by: The user's accepted direction on 2026-09-25.
 - Rationale: Agents need one readable recovery surface.
 - Consequences: Views project the same file.
@@ -368,17 +362,18 @@ Edit directly:
 
 Never edit directly: IDs, `State` fields, which section an entity is in, or any terminal History entry apart from Corrections. `validate` checks structure only; it cannot detect a hand-made state change or a deleted entry, so those edits are forbidden rather than checked.
 
-After editing headings, fields, or entity structure, run `validate --record <record.md>`. Prose-only edits need no validation.
+After editing headings, fields, or entity structure, run `validate --record <record.md>`. Prose-only edits need no validation. `validate` also lists Material updates pointers (paths from the repository root or the task folder, and commits) that do not resolve, as warnings, since a line may name a planned path or a commit not fetched yet; `--strict` fails on those an Evidence or Result line names. Pointers outside the repository are listed, not checked.
 
 ## Views
 
 Views are plain Markdown and change nothing.
 
-- `view resume` returns the header, Current Context, active Decisions, Current Work, Future Work, a History index, and Notes. The index has one line per closed History entry (superseded and retired Decisions, closed Checkpoints, closed Slices) in record order: ID, state, `by D-NNN` for a superseded Decision, `recorded retroactively` for a `slice record` entry, the title, and `(corrected)` when the entry has Corrections. It is the recovery view after context loss.
+- `view resume` returns the header, Current Context, active Decisions, Current Work, Future Work, a History index, and Notes. The index has one line per closed History entry (superseded and retired Decisions, closed Checkpoints, closed Slices) in record order: ID, state, `by D-NNN` for a superseded Decision, `recorded retroactively` for a `slice record` entry, the title, and `(corrected)` when the entry has Corrections. It is the view to use while the conversation is still in context.
+- `view recover` returns the `resume` view, then each `What defines this task` artifact and Recovery source with its trigger, whether its pointer resolves and its size, then live Git state (branch, HEAD, uncommitted paths, commits since `Last updated`) and where it disagrees with the record: a branch the record names that HEAD is not on, or a commit the Current Slice names that HEAD's history lacks. It is the recovery view after context loss.
 - `view entry <ID> [<ID> ...]` returns the named `S-NNN`, `C-NNN`, or `D-NNN` entries exactly as stored, in the order given. An unknown ID prints nothing and fails.
 - `view full` returns the file exactly as stored. It does not require the record to be valid, so use it to inspect malformed or unsupported records, after an uncertain write, or for an audit.
 
-`view resume` and `view entry` require a valid Schema 4 record.
+`view resume`, `view recover` and `view entry` require a valid Schema 4 record.
 
 ## Notes
 

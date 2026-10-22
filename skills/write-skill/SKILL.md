@@ -15,13 +15,25 @@ Smallest means behaviorally minimal, not shortest. A detailed skill is justified
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
+## Routes
+
+This body covers the common case: writing or revising one skill or one piece of instruction text. Open a reference only when its condition holds.
+
+| Situation | Go to |
+| --- | --- |
+| Deciding where an instruction lives (always-loaded text, a description, a body, a reference, a script, a tool's own text) or moving it between them; adding, merging, splitting or removing a reference, script or skill; changing links, shared terms, entry paths, capability cues or context-loss recovery cues between skills | [Placement And Dependencies](references/placement-and-dependencies.md) |
+| Writing a description whose missed read could cause an irreversible or costly action, or whose neighbour matches similar requests; evidence that a skill was read late, early, not at all, or on a neighbour's request, or that two descriptions match the same request; or evidence that a read skill was misread, ignored, or kept steering later work | [Activation And Wording](references/activation-and-wording.md) |
+| Measuring what a revision changes in behavior | Evaluate In One Loop, below |
+| Checking structure, copied passages, or what a revision lost | Check The Package, below |
+
 ## Rules
 
-- Before substantially revising an existing skill, preserve the complete current package (`SKILL.md`, references, scripts, assets) in a recoverable Git ref or in task evidence outside the package; for other instruction text, preserve the current text in a recoverable Git ref. A small correction needs no new snapshot when the exact previous state is already recoverable and behavior, activation, dependencies, and resources are unchanged. A baseline supports recovery and comparison; it does not show that either version behaves correctly.
-- If accepted behavior, public dependencies, safety, compatibility, or another user-owned boundary is unsettled, stop and resolve it before encoding it.
+- The baseline of a revision is the committed state before it. Before committing a substantial revision, such as a merge, a split, a move between files or a rewrite, run `skill-author compare --all-units` and settle every unit it reports unmatched: restore it, name the file and line that now owns it, or record why it is removed, in a verdicts file kept with the evidence outside the package. Then someone, you or a reviewer, reads every reworded and unmatched unit for meaning, since a rewording can keep the words and change what they ask. Outside Git only, copy the package to the task's scratch folder before editing and pass `--base <folder>`. A clean comparison shows that text survived, not that behavior did.
+- If accepted behavior, public dependencies, or another user-owned choice is unsettled, stop and resolve it before encoding it.
 - Never rely on an unread skill or reference to cause its own read. The first read must come from context the agent already has: a description, guaranteed base guidance, an already-loaded skill, a capability cue, or another declared route.
 - Rely only on context guaranteed on every valid activation path, never on an optional sibling, a common but unguaranteed route, or an accidental earlier read.
-- In a skill package, link every agent-facing reference, asset, script, and package dependency from the body, with the condition that requires it. The body and the resource state the same read condition.
+- In a skill package, link every agent-facing reference, asset, script, and package dependency from the body, with the condition that requires it. State the condition once, at the link; the resource opens with its content, not a restatement of its read condition.
+- When a skill is removed or merged into another, add no alias, shim or redirect under the old name: the description of the skill that now owns the job routes the work, every link and command naming the old skill is updated, and the removed name is reported as a breaking change.
 - Keep authoring status, evaluation summaries, evidence gaps, changelog notes, readiness claims, and author debate out of the executing package or text; they belong in the evaluation artifact, task record, or delivery report.
 - Claim only what the evidence observed. Structural checks prove structure. Explicit body delivery does not prove activation, one turn does not prove retained use, ambient context does not prove dependency behavior, prose review does not prove unchanged behavior, and one favorable example does not prove readiness.
 - For a skill package, run `validate` after any structural or dependency change and before claiming the package is valid. Never use deprecated authoring tooling.
@@ -40,7 +52,24 @@ When revising from evidence, such as observed failures, transcripts, review find
 
 Keep dropped candidates and their reasons with the evidence, outside the package.
 
-When the same workflow is rebuilt by hand across several tasks and no skill owns it, propose a new skill to the user, naming the tasks it recurred in.
+## Prefer A Capability To Prose
+
+Goal: the fact or check the agent needs is in front of it at the decision.
+
+Prose changes behavior only when it is in context at the decision, and a skill body often is not: in 30 of Freeflow's own evaluation runs, 3 read any skill file. A script, a tool's output or a structured artifact reaches the decision whether or not a body was read. Before writing an instruction, ask whether a capability can do its job:
+
+- **Replace mechanical prose:** a format, command list or check followed by hand becomes a script that does or checks it, such as `skill-author validate` for frontmatter and links.
+- **Enable the main work:** a script puts the decision's facts in front of the agent, such as Verify Work's `test-changes.mjs`, which lists every changed existing test so the agent and its reviewer judge each one.
+
+The prose then names the capability where it is used and keeps only the judgment a script cannot make. Add a script only for work the skill owns, never to make a package look complete.
+
+## Choose Skill Boundaries
+
+Goal: few skills, each owning one job in depth.
+
+Every skill's description is loaded on every request, and neighbours whose descriptions overlap confuse the choice between them. Prefer depth to width: when several skills do one job split by type, such as commit, push and release, merge them into one skill whose body routes to a reference per type. Keep a skill separate when its reader, trigger or job differs: another person or agent reads it, another request or situation calls for it, or it produces a different result.
+
+When the same workflow is rebuilt by hand across several tasks and no skill owns it, first check whether it is a branch of an existing skill; otherwise propose a new skill to the user, naming the tasks it recurred in.
 
 ## Establish The Behavioral Claim
 
@@ -59,13 +88,24 @@ Before writing, identify:
 
 Begin with the behavioral intervention, not with sections, wording, examples, or file layout.
 
+## Shape The Package
+
+Goal: the common case runs from `SKILL.md` alone, and the depth one situation needs sits in one place.
+
+- `SKILL.md` is enough to act correctly in the common case without opening a reference.
+- When the skill has references, a routing table comes first in the body: each row names a concrete, observable condition and the reference or section that serves it. "When unclear" is not a condition.
+- A reference holds one situation's method. Add one only when its condition is narrow, so that many activations never reach it, and its content is large, so that inlining it would bury the common route; otherwise keep it inline.
+- Merge references that are read together.
+- Give each rule one owner; everywhere else, point to it rather than restate it (Repeat Instructions Deliberately).
+- Declare only the dependencies the skill's normal and conditional routes need.
+
+Start with one `SKILL.md` and remove accidental complexity before splitting files. There is no universal body template, line limit, or reference count.
+
 ## Design The First Read
 
 Goal: the skill is read at the earliest decision it can improve, and reading it on a nearby case does no harm.
 
-Missing that decision is usually far more harmful than an unnecessary early read. A nearby case can pass by not loading the skill, or by loading it, recognizing that its method does not apply, and exiting without distorting later work. An early read is cheap only when the retained body stays safe; a skill that exits on the first turn but keeps distorting later work is not a safe read.
-
-Read [Activation Boundaries](references/activation-boundaries.md) when activation is unclear or evidence shows missed, late, early, task-hijacking, or retained-interference behavior.
+Missing that decision is usually far more harmful than an unnecessary early read. A nearby case can pass by not loading the skill, or by loading it, recognizing that its method does not apply, and exiting without distorting later work. An early read is cheap only when the retained body stays safe; a skill that exits on the first turn but keeps distorting later work is not a safe read. When a missed read is costly, give the skill an upstream activation or recovery edge, as Placement And Dependencies describes.
 
 ## Write The Description For Recall
 
@@ -93,8 +133,6 @@ Write for an agent seeing the skill for the first time with only guaranteed cont
 9. Use plain words. Every coined term is something the agent must decode before it can act, so coin one only when it marks a distinction the agent has to act on, define it once, and use it the same way throughout.
 
 Use discussion, research, and author reasoning to understand the behavior, then compile that understanding into runtime instructions. The conversation, rejected drafts, fixture narration, and any explanation whose only reader is the author stay out.
-
-Read [Agent-First Instructions](references/agent-first-instructions.md) when a concrete first-read or retained-use failure involves wording, placement, undeclared context, author explanation, or competing instructions.
 
 ## Separate Rules From Judgment
 
@@ -131,7 +169,7 @@ goal
 
 Examples inside judgment are illustrations, not triggers:
 
-> Delegate a unit when a cheaper profile can do it without significant quality loss and the handoff costs less than it saves. A separate record update across several entries often qualifies; a one-line update in the middle of your own work does not.
+> Delegate work when a cheaper profile can do it without significant quality loss and the handoff costs less than it saves. A separate record update across several entries often qualifies; a one-line update in the middle of your own work does not.
 
 When a skill contains both kinds, say so once near the top: which instructions are binding, and that everything else is judgment the agent may adapt to its goal. A skill may be mostly Rules, like a release protocol, or mostly judgment, like work placement; the label keeps each one from being read as the other.
 
@@ -142,19 +180,6 @@ References follow the same split. A reference that defines a contract, such as a
 Add a compact example when prose alone leaves a likely misclassification. Show the observable situation, the required action or judgment, and the relevant stop, exit, or return.
 
 Keep examples transferable; the body is not a transcript, fixture library, or scenario catalog. Inline examples teach the subject and are part of the candidate intervention, not independent evidence that the skill works.
-
-## Plan Terminology And Dependencies
-
-Goal: every term and dependency is available on every path that reaches the skill.
-
-For one self-contained skill, declare only the dependencies its normal and conditional routes need. Before creating or revising several related skills, shared terminology, cross-skill links, capability activation, direct or routed entry paths, or context-loss recovery, read [Skill Dependency Graphs](references/skill-dependency-graphs.md).
-
-- Identify every valid direct and routed activation path.
-- Place shared vocabulary in the nearest upstream context guaranteed before every consumer; keep leaf-specific terms local.
-- Distinguish owner routes, method composition, environment interactions, references, capability cues, and retained context.
-- Give critical skills an upstream activation or recovery edge.
-
-A Markdown link declares a package dependency. It does not select the target owner or execute the linked skill.
 
 ## Compact Without Erasing Behavior
 
@@ -186,28 +211,11 @@ Length is a diagnostic fact, not a quality verdict. A long skill may be minimal;
 
 Goal: each behavior has one owner, with a local guard wherever an agent could otherwise act without it.
 
-Repetition earns its place when local presence protects an independently activated skill, a distinct decision point, a context-loss or host path, a dangerous literal reading, a previously observed failure, or a required read condition. Keep the full definition or method with one canonical owner and repeat only the compact guard at the affected choice.
+Repetition earns its place when local presence protects an independently activated skill, a distinct decision point, a context-loss or host path, a dangerous literal reading, retained use after the method ends, a previously observed failure, or a required read condition. Keep the full definition or method with one canonical owner and repeat only the compact guard at the affected choice.
 
 > Repeat the behavioral invariant, not the owning skill's entire explanation.
 
 Repetition for emphasis, author reassurance, or stylistic consistency does not earn its place. Check that repeated wording keeps the same meaning and route. Removing, merging, moving, or rewording an instruction that protects measured behavior is a behavioral change; evaluate the affected boundary.
-
-## Add Resources Only When They Change Loading Or Ownership
-
-Read [Guidance Placement](references/guidance-placement.md) before deciding where an instruction lives: in always-loaded instructions, a skill description, a skill body, a reference, or a tool's own text.
-
-Before adding or reorganizing references, assets, or scripts, read [Progressive Disclosure](references/progressive-disclosure.md).
-
-Start with one `SKILL.md` and remove accidental complexity before splitting files.
-
-- Keep normal first-read behavior inline.
-- Add an activity-required reference when one named normal activity needs separately owned depth but the skill may exit before that activity.
-- Add a conditional reference when an observable branch needs depth that would obscure the normal route.
-- Use an entry-required reference only when separation has independent value, such as canonical reuse, separate ownership or lifecycle, generated contracts, compatibility, or host constraints; otherwise inline it.
-- Add a script when deterministic repeated work owned by the skill is safer, clearer, or materially less wasteful than model-generated operations.
-- Keep owned resources inside the package unless canonical cross-package ownership is required.
-
-There is no universal body template, line limit, reference count, or requirement that a script follow an earlier failure.
 
 ## Evaluate In One Loop
 
@@ -233,15 +241,17 @@ Use the bundled [skill author](scripts/skill-author.mjs) for deterministic packa
 
 ```text
 node <write-skill-directory>/scripts/skill-author.mjs init <directory> --name <name> --description <text>
-node <write-skill-directory>/scripts/skill-author.mjs validate <directory> [--package-root <directory>]
+node <write-skill-directory>/scripts/skill-author.mjs validate <directory> [--package-root <directory>] [--routing-map <file>]
 node <write-skill-directory>/scripts/skill-author.mjs inspect <directory> [--package-root <directory>]
 node <write-skill-directory>/scripts/skill-author.mjs similarity <directory> [--threshold <0-1>]
+node <write-skill-directory>/scripts/skill-author.mjs compare [<base-ref> [<new-ref>] | --base <folder> [<folder>]] [--all-units] [--verdicts <file>]
 ```
 
 - `init`: create a new minimal package; it never overwrites an existing one.
-- `validate`: check frontmatter, heading shape, recursive links, declared package dependencies, and containment.
+- `validate`: check frontmatter, heading shape, recursive links, declared package dependencies, and containment. It also lists link cycles among the Markdown files the skill reaches, leaving out links to any `SKILL.md`; Placement And Dependencies says what to do with one. With `--routing-map`, it checks that the map's row for the skill names the same sibling skills and resources that `SKILL.md` links.
 - `inspect`: report body sizes, resource classes, scripts, unlinked files, and validation findings, when factual inventory matters.
 - `similarity`: report Markdown files under a directory that share copied or lightly edited passages. Run it across related skills before keeping repetition; it cannot detect paraphrase, so a clean report does not prove an instruction is stated once.
+- `compare`: with no arguments, compare the model-facing Markdown changed since the branch left the default branch with the working tree, uncommitted edits included, and list each rule-like unit (under a Rules heading, a numbered step, or containing never, always, must, only, do not or stop, or a reason: because, so that, otherwise, why) that no longer appears; `--all-units`, for a substantial revision, lists every unmatched unit. It exits nonzero while one has no verdict in `--verdicts <file>`, a JSON object of `"file:line": "verdict"` that carries across runs. Read every reworded rule it lists as well: a rewording can keep the words and change the meaning. `--help` gives the other options.
 
 Commands emit JSON. Invalid structure still emits a report and exits nonzero; command errors emit structured error JSON. Package root defaults to the nearest `package.json` ancestor, then the skill directory's parent; use `--package-root` for a candidate in an overlay or another package context.
 
@@ -259,6 +269,6 @@ Stop when the requested package:
 - keeps its normal route executable on first read;
 - declares dependencies and resource conditions honestly;
 - contains no author-facing residue;
-- passes required structural checks.
+- passes required structural checks, and after a substantial revision has a verdict for every rule-like unit it no longer states.
 
-Stop and ask when accepted behavior, activation, dependencies, safety, compatibility, or another user-owned boundary cannot be settled from evidence. Do not add sections, references, examples, scripts, or procedure merely to make the package look complete.
+Stop and ask when accepted behavior, activation, dependencies, or another user-owned choice cannot be settled from evidence. Do not add sections, references, examples, scripts, or procedure merely to make the package look complete.

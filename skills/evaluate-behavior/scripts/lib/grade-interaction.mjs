@@ -5,14 +5,14 @@ import path from "node:path";
 import {
   completedCheck,
   hasOwn,
-  isArm,
+  invalidExpectation,
   isContained,
   isSafeRelativePath,
+  placementProblem,
   readPaths,
   RESPONSE_EXPECTATIONS,
   textMatches,
   unavailableCheck,
-  validBodyExpectation,
   validTurn,
 } from "./grade-support.mjs";
 
@@ -21,17 +21,19 @@ const TOOL_CALL_EXPECTATIONS = new Set(["called", "succeeded", "failed", "not-ca
 const CONTEXT_TEXT_EXPECTATIONS = new Set(["contains", "not-contains", "equals"]);
 const CONTEXT_SURFACES = new Set(["system-prompt", "provider-context"]);
 const CONTEXT_REQUEST_SELECTORS = new Set(["first", "last"]);
+const BODY = ["body"];
 
 export async function gradeSkillRead(group, runs, expectation) {
   const turn = expectation.turn ?? null;
   const timingExpectation = expectation.expect !== "never";
+  // The turn is checked here rather than as placement: a timing expectation needs one, and `never` takes none.
+  const placement = placementProblem(group, expectation, null, ["description"]);
   if (
-    group.type !== "description" ||
-    !isArm(group, expectation.variant) ||
+    placement !== null ||
     !ACTIVATION_EXPECTATIONS.has(expectation.expect) ||
     (timingExpectation ? turn === null || !validTurn(group, turn) : hasOwn(expectation, "turn"))
   ) {
-    return { error: "invalid skill-read expectation" };
+    return invalidExpectation(expectation, placement);
   }
 
   const expected = { read: expectation.expect, turn };
@@ -49,17 +51,17 @@ export async function gradeSkillRead(group, runs, expectation) {
 export async function gradeResourceRead(group, runs, expectation) {
   const turn = expectation.turn ?? null;
   const indexed = expectation.resource === "skill" || expectation.resource === "context";
+  const placement = placementProblem(group, expectation, turn, ["description", "body"]);
   if (
-    !isArm(group, expectation.variant) ||
+    placement !== null ||
     !["workspace", "skill", "context"].includes(expectation.resource) ||
     !["read", "not-read"].includes(expectation.expect) ||
     typeof expectation.path !== "string" ||
     !isSafeRelativePath(expectation.path) ||
-    !validTurn(group, turn) ||
     (indexed && (!Number.isInteger(expectation.index) || expectation.index < 0)) ||
     (!indexed && hasOwn(expectation, "index"))
   ) {
-    return { error: "invalid resource-read expectation" };
+    return invalidExpectation(expectation, placement);
   }
   const expected = {
     expect: expectation.expect,
@@ -109,15 +111,16 @@ export async function gradeContextText(group, runs, expectation) {
   const turn = expectation.turn ?? null;
   const surface = expectation.surface ?? "system-prompt";
   const request = expectation.request ?? "last";
+  const placement = placementProblem(group, expectation, turn, BODY);
   if (
-    !validBodyExpectation(group, expectation, turn) ||
+    placement !== null ||
     !CONTEXT_SURFACES.has(surface) ||
     (!CONTEXT_REQUEST_SELECTORS.has(request) && !Number.isInteger(request)) ||
     (Number.isInteger(request) && request < 1) ||
     !CONTEXT_TEXT_EXPECTATIONS.has(expectation.expect) ||
     typeof expectation.value !== "string"
   ) {
-    return { error: "invalid context-text expectation" };
+    return invalidExpectation(expectation, placement);
   }
 
   const expected = { expect: expectation.expect, value: expectation.value, surface, request, turn };
@@ -133,8 +136,9 @@ export async function gradeToolCall(group, runs, expectation) {
   const turn = expectation.turn ?? null;
   const contains = expectation.argumentContains ?? [];
   const notContains = expectation.argumentNotContains ?? [];
+  const placement = placementProblem(group, expectation, turn, BODY);
   if (
-    !validBodyExpectation(group, expectation, turn) ||
+    placement !== null ||
     typeof expectation.tool !== "string" ||
     expectation.tool.trim() === "" ||
     !TOOL_CALL_EXPECTATIONS.has(expectation.expect) ||
@@ -143,7 +147,7 @@ export async function gradeToolCall(group, runs, expectation) {
     !Array.isArray(notContains) ||
     !notContains.every((value) => typeof value === "string")
   ) {
-    return { error: "invalid tool-call expectation" };
+    return invalidExpectation(expectation, placement);
   }
 
   const expected = {
@@ -196,12 +200,9 @@ export async function gradeToolCall(group, runs, expectation) {
 
 export async function gradeResponseText(group, runs, expectation) {
   const turn = expectation.turn ?? null;
-  if (
-    !validBodyExpectation(group, expectation, turn) ||
-    !RESPONSE_EXPECTATIONS.has(expectation.expect) ||
-    typeof expectation.value !== "string"
-  ) {
-    return { error: "invalid response-text expectation" };
+  const placement = placementProblem(group, expectation, turn, BODY);
+  if (placement !== null || !RESPONSE_EXPECTATIONS.has(expectation.expect) || typeof expectation.value !== "string") {
+    return invalidExpectation(expectation, placement);
   }
 
   const expected = { expect: expectation.expect, value: expectation.value, turn };

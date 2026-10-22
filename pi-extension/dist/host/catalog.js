@@ -4,24 +4,13 @@ import { fileURLToPath } from "node:url";
  * their files live.
  */
 export const WORKFLOW_COMMANDS = [
-  { command: "discuss", skill: "discuss" },
-  { command: "action-selection", skill: "action-selection" },
+  { command: "discuss-work", skill: "discuss-work" },
   { command: "track-work", skill: "track-work" },
-  { command: "write-spec", skill: "write-spec" },
-  { command: "write-plan", skill: "write-plan" },
   { command: "write-docs", skill: "write-docs" },
   { command: "execute-work", skill: "execute-work" },
-  { command: "simplify-code", skill: "simplify-code" },
-  { command: "migration-work", skill: "migration-work" },
-  { command: "diagnose-failure", skill: "diagnose-failure" },
   { command: "verify-work", skill: "verify-work" },
   { command: "review-work", skill: "review-work" },
-  { command: "commit-work", skill: "commit-work" },
-  { command: "handoff", skill: "handoff" },
-  { command: "finish-branch", skill: "finish-branch" },
-  { command: "release-work", skill: "release-work" },
-  { command: "launch-work", skill: "launch-work" },
-  { command: "bypass", skill: "bypass" },
+  { command: "deliver-work", skill: "deliver-work" },
 ];
 export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-behavior"];
 /**
@@ -29,30 +18,17 @@ export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-
  * skills directory, the package and the coverage matrix against it instead of a fixed count.
  */
 export const FREEFLOW_MODEL_SKILL_NAMES = [
-  "action-selection",
-  "agree-work",
-  "bypass",
-  "commit-work",
-  "migration-work",
-  "design-for-depth",
-  "diagnose-failure",
-  "discuss",
+  "deliver-work",
+  "discuss-work",
   "evaluate-behavior",
   "execute-work",
-  "finish-branch",
-  "handoff",
-  "release-work",
   "review-work",
   "setup-freeflow",
-  "launch-work",
   "map-features",
-  "simplify-code",
   "track-work",
   "verify-work",
   "write-docs",
-  "write-plan",
   "write-skill",
-  "write-spec",
 ];
 export const STABLE_FREEFLOW_SURFACE = Object.freeze({
   enabled: true,

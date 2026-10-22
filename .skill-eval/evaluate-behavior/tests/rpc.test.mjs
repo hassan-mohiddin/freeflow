@@ -1206,7 +1206,7 @@ test("a failed body response check remains separate from the completed subject r
   });
 });
 
-test("a body response check outside the declared turn range becomes a grade error after run persistence", async () => {
+test("a body response check outside the declared turn range is refused before any subject runs", async () => {
   await withTempDirectory(async (root) => {
     const fakeLog = path.join(root, "fake-pi.jsonl");
     const bin = await installFakeRpcPi(root);
@@ -1236,20 +1236,48 @@ test("a body response check outside the declared turn range becomes a grade erro
     });
 
     assert.equal(result.status, 1, result.stderr);
+    assert.match(
+      result.stderr,
+      /group\.expectations\[0\] \(undeclared-second-turn\): invalid response-text expectation: its turn 2 is not a declared turn/,
+    );
+    assert.doesNotMatch(result.stdout, /^Path: /m, "no result is started");
+    await assert.rejects(stat(fakeLog), { code: "ENOENT" }, "no subject is started");
+  });
+});
+
+test("a context-text check fails the body subject when the observer artifact is missing", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-route");
+    const definitionValue = bodyGroup();
+    definitionValue.expectations = [
+      { id: "context-observed", kind: "context-text", variant: "candidate", expect: "contains", value: "context" },
+    ];
+    const definition = await writeJson(root, "groups/missing-context-observer.json", definitionValue);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 1, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     assert.ok(resultDirectory);
-    const groupDirectory = path.join(resultDirectory, "groups/body-behavior");
-    const candidateRunText = await readFile(path.join(groupDirectory, "candidate/run.json"), "utf8");
-    const candidate = parseJson(candidateRunText, "candidate body run");
-    const grade = parseJson(
-      await readFile(path.join(groupDirectory, "deterministic-grade.json"), "utf8"),
-      "body grade",
+    const run = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/candidate/run.json"), "utf8"),
+      "missing observer run",
     );
-    assert.equal(candidate.state, "complete");
-    assert.equal(grade.state, "grade-error");
-    assert.deepEqual(grade.checks, []);
-    assert.deepEqual(grade.errors, [{ id: "undeclared-second-turn", reason: "invalid response-text expectation" }]);
-    assert.equal(grade.evidence.candidate.sha256, createHash("sha256").update(candidateRunText).digest("hex"));
+    assert.equal(run.state, "infrastructure-failed");
+    // The process finished normally, so its evidence is kept rather than discarded.
+    assert.ok(run.transcript.length > 0);
+    assert.ok(run.process.protocolErrors.some((entry) => entry.reason === "context-observer-missing"));
   });
 });
 
@@ -1559,6 +1587,8 @@ test("an oversized incomplete RPC frame triggers the emergency transport safegua
     const group = multiTurnGroup();
     group.id = "incomplete-frame";
     group.input.turns = ["Return one response."];
+    // One turn: expectations about a second turn would be refused at load.
+    group.expectations = group.expectations.filter((expectation) => expectation.turn === undefined);
     const definition = await writeJson(root, "groups/incomplete-frame.json", group);
 
     const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {

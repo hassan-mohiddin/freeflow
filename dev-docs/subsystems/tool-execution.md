@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/tool-execution/`, `runtime/prompts/tool-execution.md`
 > **Tests:** `pi-extension/tests/tool-execution/`
-> **Verified at:** `1a21211c` (2026-10-21)
+> **Verified at:** `73b97595` (2026-10-22)
 > **User docs:** `plugin-docs/capabilities/tool-execution.md`
 
 For contributors changing Tool Execution on Pi: what Freeflow adds around Pi's own tools, how each part hooks into Pi, and which of its behaviors are deliberate.
@@ -55,7 +55,7 @@ It deliberately does not:
 In `before_agent_start` (`index.ts`), when effective:
 
 1. `toolExecutionSections()` replaces two of Pi's sections in place: `rules` (Pi's rendering minus `REMOVED_RULES`: "Use read to examine files instead of cat or sed", "Be concise in your responses", "Show file paths clearly when working with files") and `docs` (shortened to one line pointing at Pi's documentation).
-2. After `freeflow_guidance` (Freeflow's own fixed system section; see [Prompt assembly](prompt-assembly.md)), `toolExecutionTail()` appends `environment` (platform, OS release, the shell Pi's `bash` uses) and `tool_execution`, the text of `runtime/prompts/tool-execution.md` ("Working In The Environment": search and read, command output, running the code, editing with Pi's `edit` and `write`). When to use each Freeflow tool is in that tool's description, not here (see Decisions).
+2. After `freeflow_guidance` (Freeflow's own fixed system section; see [Prompt assembly](prompt-assembly.md)), `toolExecutionTail()` appends `environment` (platform, OS release, the shell Pi's `bash` uses) and `tool_execution`, the text of `runtime/prompts/tool-execution.md` ("Working In The Environment": search and read, running the code, editing with Pi's `edit` and `write`; capping command output and scratch files are the Working Method's). When to use each Freeflow tool is in that tool's description, not here (see Decisions).
 
 Every value comes from the configuration and the machine, so the system prompt is the same on every request.
 
@@ -124,6 +124,16 @@ A command stopped through `stop_background` or at session end sends no notice. `
 - **Stderr** goes to the output file only: the command runs as `{ command } 2>> <output>`, and both writers append.
 - **Its own end.** `timeout_ms` (default 5 minutes, at most 30) and the rate limit (more than 20 notices in a minute, `MONITOR_PER_MINUTE`) stop it through `halt()`, with one `freeflow-background` notice saying why and how to continue. An exit sends one notice with the code and the event count; a stop through `stop_background` or at session end sends none.
 
+### Guidance notices
+
+The push retriever (Task 004 D-003): a few lines of a skill's guidance reach the agent at the tool call that makes them relevant, whether or not it read the skill. In `tool_result`, after File tracking's own lines, `GuidanceNotices.toolResult()` appends a `<freeflow-notice type="guidance">` to the result of a top-level call:
+
+- a `bash` result for a `git commit`: Deliver Work's commit essentials (check what the commit holds; never commit Working Records, secrets or env files; no amend, no-verify, empty commit or push unless asked; inspect after a failed commit or hook), plus one line naming Write Skill's `skill-author compare --all-units` when the commit holds model-facing instruction text. Which paths the commit dealt with is read from Git at that result, once (`git diff-tree` of `HEAD` after success, `git diff --cached` after a failure). Once per run.
+- the second failure of the same test command (the command text, whitespace-normalized; npm, node --test, pytest, jest, vitest, go, cargo and others): diagnose's two key lines. A pass of that command clears its count; at most 32 commands are remembered.
+- a passing test command after the run changed a file (`edit`, `write`, `apply_patch`) and before it ran `self-review.mjs`: run Execute Work's self-review, with the script's path in this package. Once per run.
+
+`agent_start` resets the per-run state. `toolExecution.guidanceNotices: false` turns the notices off.
+
 ### Bash guard
 
 In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of which tools the current profile may call), `backgroundRefusal()` blocks a command ending in a single `&`, or a `sleep` of 10 seconds or more wherever a command starts: at the beginning or after `;`, `&`, `|`, `&&`, `||`, `(`, `{`, `then` or `do`. So `foo && sleep 30` is refused, and a long foreground `npm test` is not. The refusal points to `bash_background` and the until-loop.
@@ -137,7 +147,7 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | One switch for the whole layer. | Users get complete workflows without internal seams as settings. | Sub-switches per part. | `ca1cc90` |
 | Replace Pi's `rules` and `docs` sections in place, add `environment` and `tool_execution` after Freeflow's guidance; never touch Pi's preamble. | Three of Pi's generic lines contradict the taught working style (bash-first reading, full reports). The Claude subscription plugin shapes prompts only when Pi's preamble is present. Replacing the whole prompt would drop project context, skills and other extensions' guidelines. | Replacing Pi's whole prompt; removing the preamble. | `ccfe0be`, `f51aff6` |
 | Guidance is always present, in the system section and the tool descriptions, with no capability skill. | Nothing in it is needed only sometimes, and always-present, command-shaped text is the form that changes model behavior in Freeflow's research. | A Tool Execution skill or cue. | `f51aff6` |
-| The system section holds what an agent needs before choosing any tool, and the habits for Pi's own tools, whose descriptions are Pi's. When to use `apply_patch`, `bash_background`, `monitor` and `stop_background`, and when not, leads each one's own description, stated nowhere else. The choice between `edit` and `apply_patch` is stated once, in `apply_patch`'s description: several files, or adding, deleting or moving files with other changes, take `apply_patch`; one existing file takes `edit`. | The descriptions are sent whenever the section is, so a line in both is paid twice on every request, and the description is where the tool is chosen (Write Skill's Guidance Placement). The section said to use `edit` for one file while `apply_patch`'s description said to use it to edit files. | The when-to-use lines in the section as well; leaving the edit-tool choice split across the two. | Freeflow without Workflow spec, October 2026 |
+| The system section holds what an agent needs before choosing any tool, and the habits for Pi's own tools, whose descriptions are Pi's. When to use `apply_patch`, `bash_background`, `monitor` and `stop_background`, and when not, leads each one's own description, stated nowhere else. The choice between `edit` and `apply_patch` is stated once, in `apply_patch`'s description: several files, or adding, deleting or moving files with other changes, take `apply_patch`; one existing file takes `edit`. | The descriptions are sent whenever the section is, so a line in both is paid twice on every request, and the description is where the tool is chosen (Write Skill's Placement And Dependencies). The section said to use `edit` for one file while `apply_patch`'s description said to use it to edit files. | The when-to-use lines in the section as well; leaving the edit-tool choice split across the two. | Freeflow without Workflow spec, October 2026 |
 | Both edit tools stay visible to every model. | Each model does best in the edit format it was trained on: GPT models in Codex's patch format, others in search-and-replace. | Per-family exposure, to be decided by a comparison run that has not happened. | `e4d1a62` |
 | `apply_patch` plans the whole patch before writing. | A failed hunk then changes no file. A write failure after planning is reported as partial rather than hidden. | Applying section by section. | `e4d1a62` |
 | File state: fingerprint per file in memory, rebuilt from the branch; nothing persisted. | The lowest-coordination way to know what the model saw. It is rebuilt after resume and navigation without a store. | A persisted session store (retired with v2). | `48a9387` |
@@ -149,9 +159,11 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | The Runtime State's skills line changes only where the state refreshes anyway, and is left out under routing projection. | Each state change appends a whole state copy (about 100 to 200 tokens) after earlier input; a skill read is about 2,600 tokens. The state is shared by every profile, and the Coordinator's projected view lacks workers' reads. | Updating the line on every read; a line per profile. | Skill re-reads, October 2026 |
 | Messages state the fact and one next step, with no reassurance. | The wording was reviewed against Freeflow's Beyond the Weights research on model behavior. | — | `48a9387`, `3894a01` |
 | Settings of the retired v2 runtime still load and do nothing. | Existing configuration files stay valid. | Rejecting them. | `ca1cc90` |
-| The prompt section does not repeat habits the Working Method states, such as trying a new script on a case whose answer is known. | Pi sends the Working Method whenever Freeflow is on, so a repeated line is paid for twice on every request (Write Skill's Guidance Placement). The section keeps the mechanics of working in the environment. | Keeping both copies. | Context cut, October 2026 |
-| A monitor's guidance (when to use it instead of `bash_background`, flushing each pipe stage, matching failures as well as success) lives in its tool description, not in the prompt section or Verify Work. | It is needed only when choosing or writing a watch, where the description is read; Working Method already states the general rule that a check proves only what it could have caught (Write Skill's Guidance Placement). | A line in the always-sent prompt section; a Verify Work rule. | Task 002 |
+| The prompt section does not repeat habits the Working Method states, such as trying a new script on a case whose answer is known, or capping output, saying when it was cut, and saving long output to a scratch file (the Working Method's "Keep output small", since 0.9.0). | Pi sends the Working Method whenever Freeflow is on, so a repeated line is paid for twice on every request (Write Skill's Placement And Dependencies). The section keeps the mechanics of working in the environment. | Keeping both copies. | Context cut, October 2026 |
+| A monitor's guidance (when to use it instead of `bash_background`, flushing each pipe stage, matching failures as well as success) lives in its tool description, not in the prompt section or Verify Work. | It is needed only when choosing or writing a watch, where the description is read; Working Method already states the general rule that a check proves only what it could have caught (Write Skill's Placement And Dependencies). | A line in the always-sent prompt section; a Verify Work rule. | Task 002 |
 | Monitor notices wake an idle agent, bounded by 20 notices a minute and 40 lines a notice. | A watch that cannot wake the agent cannot report a failure while it waits (spec O-6); each wake is a model request, so the limit bounds the cost. | Holding idle events until the next turn. | Task 002 |
+| Guidance notices join the tool result that triggers them, not a separate message. | The result has not been delivered, so appending to it changes nothing the provider cached, the same path as the changed-files lines; a `sendMessage` steer would add a message and a turn boundary for a few lines. A notice at `tool_call` is impossible: Pi's handler can only block. | Request-history transient state (that is for per-request state, not one-off notices); a system-prompt section (fixed per configuration, and always loaded). | Task 004 D-003 |
+| The commit notice comes after the commit, not before it. | Pi gives no way to add context before a tool runs; after it, the notice still has the agent check what the commit holds before anything goes further, and it is in context for the next commit. | Blocking the first commit to deliver the notice (a refusal the agent did not cause). | Task 004 D-003 |
 
 ## Intended Behavior That Looks Wrong
 
@@ -171,7 +183,7 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 
 ## Surface
 
-**Configuration:** `toolExecution.enabled` (default `true`) in `.freeflow/config.json`, `.freeflow/local.json`, or session scope through `/freeflow settings`. Retired keys accepted and ignored without a warning: `capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`. Any other key fails validation.
+**Configuration:** `toolExecution.enabled` (default `true`) in `.freeflow/config.json`, `.freeflow/local.json`, or session scope through `/freeflow settings`; `toolExecution.guidanceNotices` (default `true`) in either file. Retired keys accepted and ignored without a warning: `capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`. Any other key fails validation.
 
 **Pi settings read:** `shellPath` (environment facts and background shell).
 
@@ -188,13 +200,13 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
 
 **Prompt sections:** `rules`, `docs` (replaced), `environment`, `tool_execution` (added after `freeflow_guidance`).
 
-**Messages:** `freeflow-files` (changed files at prompt start), `freeflow-background` (exit, expiry and limit notices and restatements) and `freeflow-monitor` (monitor events), each wrapped in the notice tag; and lines appended to tool results, without it.
+**Messages:** `freeflow-files` (changed files at prompt start), `freeflow-background` (exit, expiry and limit notices and restatements) and `freeflow-monitor` (monitor events), each wrapped in the notice tag; and lines appended to tool results: File tracking's without the tag, guidance notices with it (`type="guidance"`).
 
 **Status:** `/freeflow status` shows the number of running background commands and monitors.
 
 ## State
 
-- **Memory only:** `FileState` observations keyed by real path; `FileTracking.changed` (tool call id → path, cleared each turn) and `built`; `SkillReads` records keyed by the instruction file's path inside the package, and its `built`; `BackgroundJobs.jobs`.
+- **Memory only:** `FileState` observations keyed by real path; `FileTracking.changed` (tool call id → path, cleared each turn) and `built`; `SkillReads` records keyed by the instruction file's path inside the package, and its `built`; `BackgroundJobs.jobs`; `GuidanceNotices` per-run flags and its bounded map of failing test commands.
 - **On disk:** background output files under the OS temp directory, not cleaned up by Freeflow.
 - **Session:** nothing of Tool Execution's own. File state is rebuilt from the branch's tool calls and Freeflow compaction records (`details.freeflow.carried`).
 - **Reset:** `session_start` and `session_shutdown` reset file state; shutdown also stops all background commands, and nothing reports into the next session.
@@ -230,6 +242,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
 - `tool_result` for a non-tracked tool stats every observed file and hashes only files whose size or mtime moved. This grows with the number of files read in the session, not with session length.
 - `before_agent_start` does the same once per prompt, and only after state was built.
 - An instruction-file read compares its lines with that file's earlier records, with no file system access; a rebuild walks the branch once per navigation, resume or invalidation. `loadedSkills()` returns the recorded skill names.
+- A guidance notice costs a regular-expression test of the command per top-level `bash` result, and one Git call per `git commit` result; nothing per request.
 - Nothing runs in `context_with_system`. See [Performance](../guides/performance.md) for the request-path rules.
 - The prompt section is about 370 words of fixed text, and the four tool descriptions about 430, each written once and then read from the provider's cache.
 
@@ -245,6 +258,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
   - `edit-messages.ts`: `rewriteEditError()`, `closestMatch()`, `matchingLines()`, `normalizeForMatch()`, and every message text (`writeRefusal()`, `changedAfterEdit()`, `noNeedToReread()`, `changedFilesNotice()`).
   - `background.ts`: `BackgroundJobs` (`start()`, `monitor()`, `stop()`, `restate()`), `registerBackgroundTools()`, `freeflowNotice` (re-exported), `MAX_RUNNING`, the `MONITOR_*` limits.
   - `bash-guard.ts`: `backgroundRefusal()`, `LONGEST_FOREGROUND_SLEEP_S`.
+  - `guidance-notices.ts`: `GuidanceNotices` (`runStarted`, `toolResult`) and the notice texts.
   - `apply-patch/`: `grammar.ts`, `parser.ts`, `match.ts` (Codex ports), `plan.ts` (`applyPatch()`), `tool.ts` (`registerApplyPatch()`). Its [README](../../pi-extension/src/tool-execution/apply-patch/README.md) records the upstream commit and license.
 - `pi-extension/src/index.ts`: wiring. `before_agent_start` (prompt sections, prompt-time notice), `tool_call` (routing gate, bash guard, `FileTracking.toolCall()`), `tool_result`, `turn_end`, `session_tree`, `session_compact` (restatement), `session_shutdown`, and the background host's `send`, `event` and `endEvents`.
 - `runtime/prompts/tool-execution.md`: the guidance text.
@@ -252,7 +266,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
 
 ## Tests
 
-See [the tests README](../../pi-extension/tests/tool-execution/README.md). In short: `prompt-native.test.js` (sections on and off), `file-state.test.js` and `file-tracking-native.test.js` (observations, write refusal, changed-since-read, edit error rewrites against Pi's real `edit`), `changed-files-native.test.js` (notices after other tools), `skill-reads.test.js` and `skill-reads-native.test.js` (repeat reads answered, changed or partial text, truncation, nested calls, compactions, a Coordinator under projection, rebuild after resume, the Runtime State line), `apply-patch.test.js` and `apply-patch-native.test.js` (parser, matcher, declaration, grammar form), `background.test.js`, `monitor.test.js` and `background-native.test.js` (limits, exit codes, stop, shutdown, monitor events, batching, expiry and rate limit, notices in a real session), `bash-guard.test.js`.
+See [the tests README](../../pi-extension/tests/tool-execution/README.md). In short: `prompt-native.test.js` (sections on and off), `file-state.test.js` and `file-tracking-native.test.js` (observations, write refusal, changed-since-read, edit error rewrites against Pi's real `edit`), `changed-files-native.test.js` (notices after other tools), `skill-reads.test.js` and `skill-reads-native.test.js` (repeat reads answered, changed or partial text, truncation, nested calls, compactions, a Coordinator under projection, rebuild after resume, the Runtime State line), `apply-patch.test.js` and `apply-patch-native.test.js` (parser, matcher, declaration, grammar form), `background.test.js`, `monitor.test.js` and `background-native.test.js` (limits, exit codes, stop, shutdown, monitor events, batching, expiry and rate limit, notices in a real session), `bash-guard.test.js`, `guidance-notices-native.test.js` (commit, instruction text, second failure, self-review reminder, the setting off, and a later request extending the earlier one).
 
 ## Limits
 
@@ -264,6 +278,9 @@ See [the tests README](../../pi-extension/tests/tool-execution/README.md). In sh
 
 ## Changes
 
+- October 2026 (0.9.0): guidance notices, the push retriever (Task 004 D-003).
+
+- October 2026 (0.9.0): the prompt section's opening sentence and its "Command output" section moved to the Working Method's "Keep output small", which reaches every host; the section keeps searching, reading, running code and editing with Pi's tools.
 - October 2026 (Freeflow without Workflow): when to use each Freeflow tool moved from the prompt section into that tool's description, and the edit-tool choice is stated once, in `apply_patch`'s.
 - October 2026: repeat reads of Freeflow instruction files answered with one line; the skills line in the Runtime State.
 - Task 002 (2026-10-11): monitors.

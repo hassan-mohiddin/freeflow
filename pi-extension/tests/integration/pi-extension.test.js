@@ -372,7 +372,8 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
 
   assert.ok(commandNames.includes("freeflow"));
   assert.ok(!commandNames.includes("output-router"));
-  for (const command of ["discuss", "track-work", "execute-work"]) assert.ok(commandNames.includes(command));
+  for (const command of ["discuss-work", "track-work", "execute-work", "deliver-work"])
+    assert.ok(commandNames.includes(command));
   assert.ok(!commandNames.includes("discover"));
   assert.ok(!commandNames.includes("execute-plan"));
   assert.ok(!commandNames.includes("workflow"));
@@ -1063,14 +1064,28 @@ test("Pi statusline keeps an inactive Cognitive Routing runtime blocked", () => 
   assert.equal(ctx.statuses.at(-1).value, "freeflow: routing blocked · runtime_inactive");
 });
 
-test("Pi exposes bypass scope argument completions", () => {
+test("Pi registers each workflow skill under its own name, with no commands for removed or merged skills", () => {
   const { commands } = loadExtension();
-  const bypassCommand = commands.find((command) => command.name === "bypass");
-  assert.ok(bypassCommand);
-  assert.deepEqual(bypassCommand.definition.getArgumentCompletions(""), [
-    { value: "next", label: "next", description: "Skip one optional step" },
-    { value: "task", label: "task", description: "Reduce optional pressure for the current task" },
-  ]);
+  for (const name of ["discuss-work", "execute-work", "deliver-work"]) {
+    const command = commands.find((candidate) => candidate.name === name);
+    assert.ok(command, name);
+    assert.equal(command.definition.description, `Run Freeflow ${name}`);
+  }
+  for (const removed of [
+    "action-selection",
+    "bypass",
+    "discuss",
+    "agree-work",
+    "commit-work",
+    "finish-branch",
+    "release-work",
+    "launch-work",
+    "design-for-depth",
+    "simplify-code",
+    "diagnose-failure",
+    "migration-work",
+  ])
+    assert.ok(!commands.some((command) => command.name === removed), removed);
 });
 
 test("Pi describes the mode-free Freeflow argument surface and manual profile controls", () => {
@@ -1113,7 +1128,7 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), []);
 });
 
-test("Pi exposes the canonical base skills without TDD, a mode skill, or compatibility aliases", async () => {
+test("Pi exposes the canonical base skills without TDD, a mode skill, or removed skills", async () => {
   const cwd = await configuredRepo();
   try {
     const { handlers, commands, sentMessages, sentMessageOptions } = loadExtension();
@@ -1126,16 +1141,32 @@ test("Pi exposes the canonical base skills without TDD, a mode skill, or compati
         return match[1];
       });
     assert.deepEqual([...skillNames].sort(), [...FREEFLOW_MODEL_SKILL_NAMES].sort());
-    assert.ok(skillNames.includes("agree-work"));
+    assert.ok(skillNames.includes("discuss-work"));
     assert.ok(!skillNames.includes("workflow"));
     assert.ok(!skillNames.includes("tdd"));
     assert.ok(!skillNames.includes("mode-contract"));
     assert.ok(!skillNames.includes("discover"));
     assert.ok(!skillNames.includes("execute-plan"));
+    assert.ok(!skillNames.includes("action-selection"));
+    assert.ok(!skillNames.includes("bypass"));
+    assert.ok(skillNames.includes("deliver-work"));
+    for (const removed of [
+      "discuss",
+      "agree-work",
+      "commit-work",
+      "finish-branch",
+      "release-work",
+      "launch-work",
+      "design-for-depth",
+      "simplify-code",
+      "diagnose-failure",
+      "migration-work",
+    ])
+      assert.ok(!skillNames.includes(removed), removed);
 
     for (const [commandName, expectedSkill] of [
-      ["action-selection", "action-selection"],
-      ["discuss", "discuss"],
+      ["discuss-work", "discuss-work"],
+      ["deliver-work", "deliver-work"],
       ["track-work", "track-work"],
       ["execute-work", "execute-work"],
     ]) {
@@ -1143,7 +1174,7 @@ test("Pi exposes the canonical base skills without TDD, a mode skill, or compati
       assert.ok(command);
       await command.definition.handler(undefined, context(cwd));
       assert.equal(sentMessages.at(-1), `/skill:${expectedSkill}`);
-      assert.deepEqual(sentMessageOptions.at(-1), { expandPromptTemplates: true });
+      assert.deepEqual(sentMessageOptions.at(-1), { expandPromptTemplates: true, deliverAs: "followUp" });
     }
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -1160,7 +1191,7 @@ test("Pi expands setup-freeflow when dispatching its unconfigured skill command"
     await setup.definition.handler(undefined, context(cwd));
 
     assert.equal(sentMessages.at(-1), "/skill:setup-freeflow");
-    assert.deepEqual(sentMessageOptions.at(-1), { expandPromptTemplates: true });
+    assert.deepEqual(sentMessageOptions.at(-1), { expandPromptTemplates: true, deliverAs: "followUp" });
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

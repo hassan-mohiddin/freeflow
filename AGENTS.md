@@ -45,7 +45,7 @@ Commit intended Freeflow changes before refreshing; uncommitted and ignored file
 - Use ADRs sparingly for hard-to-reverse, surprising, tradeoff-driven decisions.
 - Do not hardcode volatile repo facts, directory inventories, or stack summaries into durable memory.
 - Do not add enforcement hooks until skill wording and evals prove the behavior needs mechanical enforcement.
-- Before editing a skill or other instruction text in this repository (a `SKILL.md`, its references, `AGENTS.md`, `runtime/prompts/`, or a tool's description), read and follow [Write Skill](skills/write-skill/SKILL.md). Its [Guidance Placement](skills/write-skill/references/guidance-placement.md) decides where each behavior lives: on the lowest rung that reaches the agent in time, with one owner.
+- Before editing a skill or other instruction text in this repository (a `SKILL.md`, its references, `AGENTS.md`, `runtime/prompts/`, or a tool's description), read and follow [Write Skill](skills/write-skill/SKILL.md). Its [Placement And Dependencies](skills/write-skill/references/placement-and-dependencies.md) decides where each behavior lives: on the lowest rung that reaches the agent in time, with one owner.
 
 ## Prompt Cache
 
@@ -80,7 +80,7 @@ Freeflow runs on every Pi turn and request, so its work delays every model call 
 
 ## Release And CI
 
-- Use `release-work` for version classification, release preparation, artifact checks, publication, recovery, and consumer-side verification.
+- Use `deliver-work`'s release route for version classification, release preparation, artifact checks, publication, recovery, and consumer-side verification.
 - `npm run check` is the deterministic local/CI gate. It does not run model-based skill evaluations or require publication credentials.
 - Release preparation may update version metadata and move verified `Unreleased` notes into a version section, but it must not commit, tag, push, publish, or create a GitHub Release by itself.
 - A Git tag in the form `vX.Y.Z` is the human-controlled release boundary; what the tag workflow does is in the [Release process](dev-docs/guides/release.md).

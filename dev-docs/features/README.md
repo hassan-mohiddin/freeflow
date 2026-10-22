@@ -18,7 +18,7 @@ Each feature file's `Covers` names the code behind what its user sees, so `npm r
 - Start every feature file from a fresh launch unless its preconditions say otherwise. A settings change reloads the session, so do not reuse a run across features that change settings.
 - Type slash commands with `cmd`. Move through full-screen lists with `keys`, and confirm the `›` row in the printed pane before `Enter`.
 - Read files and run CLI surfaces with `observe`; it runs in the fixture with the run's `FREEFLOW_HOME` and `FFV_REPO`.
-- Never type free text or a workflow command (`/verify-work`, `/discuss` and the rest) without a pinned cheap model and the user's yes: each is a model call. The helper refuses them by default.
+- Never type free text or a workflow command (`/verify-work`, `/discuss-work` and the rest) without a pinned cheap model and the user's yes: each is a model call. The helper refuses them by default.
 - Clean up after every run, failed ones included.
 
 ## Proof And Skip Reporting
@@ -38,6 +38,6 @@ An H1 title and one paragraph on what the user sees, then four sections in this 
 - [Activation and status](activation-status.md): the `.freeflow/config.json` boundary, the footer, and `/freeflow status`.
 - [Settings screen](settings.md): `/freeflow settings` in its three scopes, and the files each one writes.
 - [Task Memory commands](task-memory-commands.md): `/freeflow project` and `/freeflow task` creating a project, a Working Record, and attaching it.
-- [Workflow commands](workflow-commands.md): `/verify-work`, `/discuss` and the other skill commands. Each run is a model call; only completion is driven.
+- [Workflow commands](workflow-commands.md): `/verify-work`, `/discuss-work` and the other skill commands. Each run is a model call; only completion is driven.
 - [Track Work CLI](track-work-cli.md): `working-record.mjs`, the record surface on Claude Code, Codex and other hosts.
 - [Evaluator dry run](evaluator-dry-run.md): `skill-eval run`'s plan, the refusal of uncommitted inputs, and `--dry-run`.

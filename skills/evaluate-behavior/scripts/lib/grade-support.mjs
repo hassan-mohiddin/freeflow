@@ -15,8 +15,22 @@ export function isArm(group, name) {
   return typeof name === "string" && armNames(group).includes(name);
 }
 
-export function validBodyExpectation(group, expectation, turn) {
-  return group.type === "body" && isArm(group, expectation.variant) && validTurn(group, turn);
+/**
+ * Why an expectation cannot be graded in this group, decided by the group alone: its group type, its arm or its
+ * turn; null when it fits. Graders and definition loading share it, so a definition that loads is placed right.
+ */
+export function placementProblem(group, expectation, turn, types) {
+  if (!types.includes(group.type)) return `it needs a ${types.join(" or ")} group`;
+  if (!isArm(group, expectation.variant)) {
+    return `its variant ${JSON.stringify(expectation.variant ?? null)} is not an arm of the group`;
+  }
+  if (!validTurn(group, turn)) return `its turn ${JSON.stringify(turn)} is not a declared turn`;
+  return null;
+}
+
+/** A grader's refusal of an expectation: its kind, and the placement problem when there is one. */
+export function invalidExpectation(expectation, problem = null) {
+  return { error: `invalid ${expectation.kind} expectation${problem === null ? "" : `: ${problem}`}` };
 }
 
 export function validTurn(group, turn) {

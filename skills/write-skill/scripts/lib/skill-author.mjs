@@ -605,6 +605,7 @@ async function analyzeSkill(directory, packageDirectory) {
   });
 
   return {
+    readable: true,
     skillDirectory,
     packageRoot,
     frontmatter: document.frontmatter,
@@ -619,17 +620,210 @@ function emptyResources() {
   return { localReferences: [], packageDependencies: [], scripts: [], unlinkedFiles: [] };
 }
 
-export async function validateSkill({ directory, packageRoot }) {
+// Link cycles among the Markdown files a skill reaches: its own references and the package files they link to,
+// followed transitively inside the package root. A link to any SKILL.md is a route or a pointer back to an owner,
+// not an edge: routing between skills may be cyclic by design. A cycle is reported as a fact for the author, not as
+// a validation error.
+async function linkCycles(skillDirectory, packageRoot) {
+  const graph = new Map();
+  const queue = [path.join(skillDirectory, "SKILL.md")];
+  while (queue.length) {
+    const source = queue.shift();
+    if (graph.has(source)) continue;
+    let contents;
+    try {
+      contents = await readFile(source, "utf8");
+    } catch {
+      graph.set(source, []);
+      continue;
+    }
+    const targets = new Set();
+    for (const link of markdownLinks(contents)) {
+      const target = path.resolve(path.dirname(source), link);
+      if (target === source || path.basename(target) === "SKILL.md" || path.extname(target).toLowerCase() !== ".md")
+        continue;
+      if (!isContained(packageRoot, target)) continue;
+      try {
+        await access(target, fsConstants.R_OK);
+      } catch {
+        continue;
+      }
+      targets.add(target);
+      queue.push(target);
+    }
+    graph.set(source, [...targets]);
+  }
+
+  let counter = 0;
+  const stack = [];
+  const onStack = new Set();
+  const order = new Map();
+  const low = new Map();
+  const cycles = [];
+  const visit = (node) => {
+    order.set(node, counter);
+    low.set(node, counter);
+    counter += 1;
+    stack.push(node);
+    onStack.add(node);
+    for (const next of graph.get(node) ?? []) {
+      if (!order.has(next)) {
+        visit(next);
+        low.set(node, Math.min(low.get(node), low.get(next)));
+      } else if (onStack.has(next)) {
+        low.set(node, Math.min(low.get(node), order.get(next)));
+      }
+    }
+    if (low.get(node) !== order.get(node)) return;
+    const component = [];
+    let member;
+    do {
+      member = stack.pop();
+      onStack.delete(member);
+      component.push(member);
+    } while (member !== node);
+    if (component.length > 1 && component.some((file) => isContained(skillDirectory, file))) {
+      cycles.push(component.map((file) => relativePath(skillDirectory, file)).sort());
+    }
+  };
+  for (const node of graph.keys()) if (!order.has(node)) visit(node);
+  return cycles.sort((left, right) => left[0].localeCompare(right[0]));
+}
+
+function tableCells(line) {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+// Routing-map parity: the map's row for this skill names the same sibling routes and direct resources as the links
+// in its SKILL.md. A route is a link to another skill's SKILL.md; the row names it by directory name in backticks or
+// by a link. Every other direct link is a resource, named in the row by a link.
+async function checkRoutingMap({ skillDirectory, body, routingMap }) {
+  const mapFile = path.resolve(routingMap);
+  const mapPath = relativePath(skillDirectory, mapFile);
+  const findings = [];
+  let contents;
+  try {
+    contents = await readFile(mapFile, "utf8");
+  } catch {
+    return [errorFinding("routing-map-unreadable", mapPath, `Routing map is not a readable file: ${routingMap}`)];
+  }
+
+  const skillFile = path.join(skillDirectory, "SKILL.md");
+  const resolveFrom = (directory, link) => path.resolve(directory, link);
+  const rows = [];
+  let fence = null;
+  for (const line of contents.split(/\r?\n/)) {
+    if (fence) {
+      if (closesFence(line, fence)) fence = null;
+      continue;
+    }
+    fence = openingFence(line);
+    if (fence || !/^\s*\|.*\|\s*$/.test(line)) continue;
+    const [first, ...rest] = tableCells(line);
+    if (markdownLinks(first).some((link) => resolveFrom(path.dirname(mapFile), link) === skillFile))
+      rows.push(rest.join(" | "));
+  }
+  if (rows.length !== 1) {
+    const code = rows.length ? "routing-map-duplicate-row" : "routing-map-missing-row";
+    const message = rows.length
+      ? "Routing map has more than one row for this skill"
+      : "Routing map has no row for this skill";
+    return [errorFinding(code, mapPath, message)];
+  }
+
+  const isRoute = (target) => path.basename(target) === "SKILL.md" && path.dirname(target) !== skillDirectory;
+  const routeName = (target) => path.basename(path.dirname(target));
+  const expectedRoutes = new Set();
+  const expectedResources = new Set();
+  for (const link of markdownLinks(body)) {
+    const target = resolveFrom(skillDirectory, link);
+    if (isRoute(target)) expectedRoutes.add(routeName(target));
+    else if (target !== skillFile) expectedResources.add(target);
+  }
+
+  const siblings = new Set();
+  for (const entry of await readdir(path.dirname(skillDirectory), { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    try {
+      await access(path.join(path.dirname(skillDirectory), entry.name, "SKILL.md"), fsConstants.R_OK);
+      siblings.add(entry.name);
+    } catch {
+      // Not a skill directory.
+    }
+  }
+  const row = rows[0];
+  const documentedRoutes = new Set();
+  const documentedResources = new Set();
+  for (const link of markdownLinks(row)) {
+    const target = resolveFrom(path.dirname(mapFile), link);
+    if (isRoute(target)) documentedRoutes.add(routeName(target));
+    else if (target !== skillFile) documentedResources.add(target);
+  }
+  for (const match of maskInlineLinks(row).matchAll(/`([a-z0-9]+(?:-[a-z0-9]+)*)`/g)) {
+    if (expectedRoutes.has(match[1]) || siblings.has(match[1])) documentedRoutes.add(match[1]);
+  }
+
+  const display = (target) => relativePath(skillDirectory, target);
+  for (const name of [...expectedRoutes].filter((name) => !documentedRoutes.has(name)).sort()) {
+    findings.push(
+      errorFinding("routing-map-missing-route", mapPath, `Routing map row does not name the linked skill: ${name}`),
+    );
+  }
+  for (const name of [...documentedRoutes].filter((name) => !expectedRoutes.has(name)).sort()) {
+    findings.push(
+      errorFinding("routing-map-extra-route", mapPath, `Routing map row names a skill SKILL.md does not link: ${name}`),
+    );
+  }
+  for (const target of [...expectedResources]
+    .filter((target) => !documentedResources.has(target))
+    .map(display)
+    .sort()) {
+    findings.push(
+      errorFinding("routing-map-missing-resource", mapPath, `Routing map row does not link the resource: ${target}`),
+    );
+  }
+  for (const target of [...documentedResources]
+    .filter((target) => !expectedResources.has(target))
+    .map(display)
+    .sort()) {
+    findings.push(
+      errorFinding(
+        "routing-map-extra-resource",
+        mapPath,
+        `Routing map row links a resource SKILL.md does not link: ${target}`,
+      ),
+    );
+  }
+  return findings;
+}
+
+function maskInlineLinks(text) {
+  return text.replace(/\[[^\]]*\]\([^)]*\)/g, " ");
+}
+
+export async function validateSkill({ directory, packageRoot, routingMap }) {
   const analysis = await analyzeSkill(directory, packageRoot);
+  const findings = [...analysis.findings];
+  let cycles = [];
+  if (analysis.readable) {
+    cycles = await linkCycles(analysis.skillDirectory, analysis.packageRoot);
+    if (routingMap) findings.push(...(await checkRoutingMap({ ...analysis, routingMap })));
+  }
   return {
     command: "validate",
-    status: analysis.findings.some((finding) => finding.severity === "error") ? "invalid" : "valid",
+    status: findings.some((finding) => finding.severity === "error") ? "invalid" : "valid",
     skillDirectory: analysis.skillDirectory,
     packageRoot: analysis.packageRoot,
     frontmatter: analysis.frontmatter,
     heading: analysis.heading,
     resources: analysis.resources,
-    findings: analysis.findings,
+    cycles,
+    findings,
   };
 }
 

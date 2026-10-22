@@ -65,15 +65,26 @@ function lastRuntimeState(messages) {
 }
 
 test("re-entry recovery is stable and capability-neutral", async () => {
-  const [core, cognitiveRouting, routingSkill] = await Promise.all([
+  const routingDir = join(process.cwd(), "capabilities", "cognitive-routing");
+  const [core, cognitiveRouting, ...routingFiles] = await Promise.all([
     readFile(join(process.cwd(), "runtime", "prompts", "core.md"), "utf8"),
     readFile(join(process.cwd(), "runtime", "prompts", "cognitive-routing.md"), "utf8"),
-    readFile(join(process.cwd(), "capabilities", "cognitive-routing", "SKILL.md"), "utf8"),
+    readFile(join(routingDir, "SKILL.md"), "utf8"),
+    readFile(join(routingDir, "references", "coordinator.md"), "utf8"),
+    readFile(join(routingDir, "references", "worker.md"), "utf8"),
   ]);
+  // The skill holds what every profile shares; Coordinator's and the workers' methods are its role references.
+  const routingSkill = routingFiles.join("\n");
 
   assert.match(core, /## How Freeflow Works/);
-  assert.match(core, /read Agree Work, send its agreement and wait/);
-  assert.match(core, /Open a skill when the work's subject is its subject/);
+  assert.match(
+    core,
+    /send this and wait; skip it for a question, an exactly specified change, or when no one can answer/,
+  );
+  assert.match(core, /What I'll do: +<the outcome>/);
+  assert.match(core, /Discuss Work keeps the list/);
+  assert.match(core, /Open a reference only when its skill names the condition/);
+  assert.doesNotMatch(core, /not on a keyword/);
   assert.match(core, /stop at the agreed end, a real blocker, or a choice that is the user's/);
   assert.match(core, /## Recover After Context Loss/);
   assert.match(core, /latest Freeflow Runtime State/);
@@ -82,7 +93,7 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   // Core cues recovery; Track Work owns the order. The raw-file guard stays here (Task 001 E2).
   assert.match(
     core,
-    /load Track Work and recover the record that belongs to that work in its order, starting from its `resume` view, not the raw file/,
+    /load Track Work and recover the record that belongs to that work in its order, starting from its `recover` view, not the raw file/,
   );
   assert.doesNotMatch(core, /then the History entries the next action depends on/);
   assert.match(core, /Then continue the covered work toward the agreed end/);
@@ -90,7 +101,10 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   assert.match(core, /## Terms/);
   // Skills are cued by their descriptions, not by core (Task 003 audit B and D).
   assert.doesNotMatch(core, /## Cues/);
-  assert.match(cognitiveRouting, /Before relying on Automatic routing, read the complete cognitive-routing skill/);
+  assert.match(
+    cognitiveRouting,
+    /Before relying on Automatic routing, read the complete cognitive-routing skill if its body is absent, and the reference it names for your profile/,
+  );
   assert.match(cognitiveRouting, /This bootstrap read is the only environment call/);
   assert.match(cognitiveRouting, /If unavailable, stop and report the missing method/);
   // The approved compact cue keeps bootstrap/control boundaries; the loaded
@@ -146,7 +160,8 @@ test("composes the mandatory core fragments, current capabilities, discovery, an
       order,
       [...order].sort((a, b) => a - b),
     );
-    assert.match(prompt, /Open a skill when the work's subject is its subject/);
+    assert.match(prompt, /Open a reference only when its skill names the condition/);
+    assert.match(prompt, /## Keep output small/);
     assert.match(prompt, /Read the whole turn before acting/);
     assert.match(
       prompt,
@@ -175,7 +190,7 @@ test("composes the mandatory core fragments, current capabilities, discovery, an
     assert.doesNotMatch(runtimeState.content, /Default mode|Active mode|Interaction Contract|Skills/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/action-selection/SKILL.md")));
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/discuss-work/SKILL.md")));
     assert.ok(!resources.skillPaths.some((path) => /context-virtualization|conversation-history/.test(path)));
     assert.ok(!resources.skillPaths.some((path) => path.endsWith("/skills/mode-contract/SKILL.md")));
     assert.ok(!activeToolNames().includes("freeflow_context"));
@@ -207,7 +222,7 @@ test("subagents get the base guidance without capability skills, cues or tools",
     assert.doesNotMatch(before.renderedGuidance, /Context Virtualization|Conversation History/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/action-selection/SKILL.md")));
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/discuss-work/SKILL.md")));
     // Capability skills are listed only while their capability is effective, and every one is off in a subagent.
     assert.deepEqual(
       resources.skillPaths.filter((path) => path.includes("/capabilities/")),

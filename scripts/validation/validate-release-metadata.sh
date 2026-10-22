@@ -29,7 +29,7 @@ release_version=""
 format="text"
 product_description="Feedback-based control system for coding agents."
 short_description="Feedback-based control for coding agents."
-long_description="Freeflow gives coding agents an Interaction Contract, adaptive Workflow, focused methods, and durable task memory."
+long_description="Freeflow gives coding agents an Interaction Contract, one cycle (agree, build and verify, review and hand over), eleven skills with scripts, and durable task memory."
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
@@ -460,7 +460,7 @@ check_package_cleanliness() {
 	elif ! jq -e '
     .[0] as $pack
     | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith(".deprecated/") or startswith("plans/"))] | length) == 0
-      and ([$pack.files[].path | select(. == "skills/agree-work/SKILL.md")] | length) == 1
+      and ([$pack.files[].path | select(. == "skills/discuss-work/SKILL.md")] | length) == 1
       and ([$pack.files[].path | select(. == "runtime/prompts/interaction-contract.md")] | length) == 1
       and ([$pack.files[].path | select(. == "plugin.json")] | length) == 0
       and ([$pack.files[].path | select(. == ".codex-plugin/plugin.json" or . == "hooks/codex/hooks.json")] | length) == 2

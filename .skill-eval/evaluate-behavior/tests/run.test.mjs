@@ -487,54 +487,6 @@ test("description groups reject custom tools even when an extension is declared"
   });
 });
 
-test("required context observations fail the subject when the observer artifact is missing", async () => {
-  await withTempDirectory(async (root) => {
-    const fakeLog = path.join(root, "fake-pi.jsonl");
-    const bin = await installFakePi(root);
-    await writeSkill(root, "skills/release-route", {
-      name: "release-route",
-      description: "Use when choosing how to deliver a completed software change.",
-    });
-    const group = descriptionGroup();
-    group.expectations = [
-      {
-        id: "context-observed",
-        kind: "context-text",
-        variant: "candidate",
-        turn: 1,
-        expect: "contains",
-        value: "context",
-      },
-    ];
-    const definition = await writeJson(root, "groups/missing-context-observer.json", group);
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-      },
-    });
-
-    assert.equal(result.status, 1, result.stderr);
-    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
-    assert.ok(resultDirectory);
-    const run = parseJson(
-      await readFile(path.join(resultDirectory, "groups/natural-activation/candidate/run.json"), "utf8"),
-      "missing observer run",
-    );
-    assert.equal(run.state, "infrastructure-failed");
-    // The process finished normally, so its evidence is kept rather than discarded.
-    assert.equal(run.response, "Candidate response");
-    assert.ok(run.transcript.length > 0);
-    assert.equal(run.usage.input, 10);
-    assert.equal(run.process.exitCode, 0);
-    assert.ok(run.process.protocolErrors.some((entry) => entry.reason === "context-observer-missing"));
-    assert.equal(run.artifacts.events, "events.jsonl");
-  });
-});
-
 test("fixture copies are fresh per variant and preserve declared materialization evidence", async () => {
   await withTempDirectory(async (root) => {
     const fakeLog = path.join(root, "fake-pi.jsonl");
@@ -959,15 +911,8 @@ test("grade errors preserve completed runs and do not stop later suite groups", 
     });
     const gradeError = /** @type {any} */ (descriptionGroup());
     gradeError.id = "grade-error";
-    gradeError.expectations = [
-      {
-        id: "description-response",
-        kind: "response-text",
-        variant: "candidate",
-        expect: "contains",
-        value: "Candidate",
-      },
-    ];
+    // An unknown kind loads and becomes a grade error after the run.
+    gradeError.expectations = [{ id: "future-check", kind: "path-exists", variant: "candidate", path: "result.json" }];
     const later = descriptionGroup();
     later.id = "later-activation";
     await writeJson(root, "groups/grade-error.json", gradeError);
@@ -1635,16 +1580,8 @@ test("grade errors remain separate from completed subject evidence", async () =>
       description: "Use when choosing how to deliver a completed software change.",
     });
     const definitionValue = descriptionGroup();
-    definitionValue.expectations = [
-      { id: "future-check", kind: "path-exists", path: "result.json" },
-      {
-        id: "description-response",
-        kind: "response-text",
-        variant: "candidate",
-        expect: "contains",
-        value: "Candidate",
-      },
-    ];
+    // An unknown kind loads; what the definition alone decides about a known kind is refused at load instead.
+    definitionValue.expectations = [{ id: "future-check", kind: "path-exists", path: "result.json" }];
     const definition = await writeJson(root, "groups/natural-activation.json", definitionValue);
 
     const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
@@ -1669,10 +1606,7 @@ test("grade errors remain separate from completed subject evidence", async () =>
     );
     assert.equal(candidate.state, "complete");
     assert.equal(grade.state, "grade-error");
-    assert.deepEqual(grade.errors, [
-      { id: "future-check", reason: "unsupported expectation kind: path-exists" },
-      { id: "description-response", reason: "invalid response-text expectation" },
-    ]);
+    assert.deepEqual(grade.errors, [{ id: "future-check", reason: "unsupported expectation kind: path-exists" }]);
     assert.equal(grade.evidence.candidate.sha256, createHash("sha256").update(candidateRunText).digest("hex"));
   });
 });

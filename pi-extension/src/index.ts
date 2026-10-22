@@ -10,7 +10,8 @@ import { RoutingRuntime } from "./cognitive-routing/runtime.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing/tools.js";
 import { handleFreeflowCommand } from "./host/settings/freeflow-command.js";
 import { toolExecutionSections, toolExecutionTail } from "./tool-execution/prompt.js";
-import { FileTracking } from "./tool-execution/file-tracking.js";
+import { FileTracking, withLines } from "./tool-execution/file-tracking.js";
+import { GuidanceNotices } from "./tool-execution/guidance-notices.js";
 import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
 import {
@@ -86,6 +87,8 @@ function turnContextTokens(turn: TurnEnd | undefined): number | undefined {
 }
 
 /** Entry types that add no message to Pi's session projection. */
+/** The sections Freeflow sets: its own, and Pi's rules and docs, which Tool Execution changes. */
+const OWN_SECTION_NAMES = ["freeflow_guidance", "environment", "tool_execution", "rules", "docs"];
 const NO_MESSAGE = new Set(["custom", "label", "session_info", "model_change", "thinking_level_change"]);
 const historyEstimate = new WeakMap<object, { branch: readonly any[]; tokens: number }>();
 
@@ -124,10 +127,18 @@ function fullHistoryTokens(ctx: any): number {
   historyEstimate.set(manager, { branch, tokens: counted });
   return counted + system;
 }
+/**
+ * Send a skill command's prompt as the user's message. A command can run while Pi is busy, which from Pi 1.2.0 includes
+ * the start of a run (before_agent_start); Pi then refuses a user message without `deliverAs`, so it is queued to
+ * follow the current work instead.
+ */
+function sendSkillPrompt(pi: FreeflowAPI, skill: string, args?: string) {
+  pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true, deliverAs: "followUp" });
+}
 async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, skill: string, args?: string) {
   const state = await readCapabilityState(ctx.cwd, ctx);
   if (skill === "setup-freeflow" && !state.configured) {
-    pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
+    sendSkillPrompt(pi, skill, args);
     return;
   }
   if (!state.configured || !state.enabled) {
@@ -139,7 +150,7 @@ async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, s
     ctx.ui.notify("Freeflow core prompts are unavailable; the requested skill cannot be dispatched.", "warning");
     return;
   }
-  pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
+  sendSkillPrompt(pi, skill, args);
 }
 
 function freeflowCompletions(prefix: string | undefined, routingAvailable: boolean) {
@@ -228,17 +239,22 @@ export default function freeflow(pi: FreeflowAPI) {
   let ownSections: Record<string, string> | undefined;
   let ownSectionsVersion = 0;
   let ownHead: Record<string, string | null> | undefined;
-  // The sections Freeflow sets, and whether the current run is one a prompt started (so its requests carry them).
+  // The sections Freeflow sets, and whether the current run is one a prompt started (so its requests carry them), or
+  // one an extension's message started that Freeflow still set its sections for (Pi 1.2.0 and later).
   let ownNames: string[] = [];
   let promptRun = false;
-  // Whether the session has had a prompt. Pi builds the system prompt only for prompts, so until then a turn Freeflow
-  // started for a notice would reach the model with none: notices wait for the user's first prompt instead.
+  let messageRun = false;
+  // Whether the session has had a prompt. Pi before 1.2.0 builds the system prompt only for prompts, so until then a
+  // turn Freeflow started for a notice would reach the model with none: notices wait for the user's first prompt.
   let prompted = false;
   // A Coordinator under projection sees only part of the history, so earlier reads may not be in its view.
   const files = new FileTracking({
     selectiveView: () => routing.projectionEnabled && routing.state().activeProfile === "coordinator",
   });
   const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
+  const guidance = new GuidanceNotices(packageRoot);
+  const guidanceNoticesEffective = () =>
+    toolExecutionEffective() && capability?.toolExecution?.guidanceNotices !== false;
   const compactionEffective = () => capability?.compaction?.effective === true;
   const taskMemoryEffective = () => capability?.taskMemory?.effective === true;
   const askUserEffective = () => capability?.askUser?.effective === true;
@@ -711,8 +727,8 @@ export default function freeflow(pi: FreeflowAPI) {
       return;
     }
     compaction.requestByUser(ctx);
-    // Freeflow's message saying the user asked, not text in the user's name (Task 002 D-008); keepSections holds
-    // Freeflow's system sections on the run it starts (Pi #10267).
+    // Freeflow's message saying the user asked, not text in the user's name (Task 002 D-008); the run it starts keeps
+    // Freeflow's system sections (host/section-keeper.ts).
     const index = compaction.indexText(ctx);
     const text = freeflowNotice(
       "compaction",
@@ -753,6 +769,7 @@ export default function freeflow(pi: FreeflowAPI) {
     // Sections recorded for another session (after /new or /resume) are not this one's.
     forgetSections(ctx);
     promptRun = false;
+    messageRun = false;
     const generation = ++surfaceGeneration;
     resetHistory();
     // Where Pi has just parsed this session file, later checks read only the bytes appended since.
@@ -831,9 +848,11 @@ export default function freeflow(pi: FreeflowAPI) {
     prompts = undefined;
   });
   pi.on("before_agent_start", async (event, ctx) => {
+    // Pi 1.2.0 and later fire this for a run an extension's message starts too (messageType "custom").
+    const fromMessage = (event as any).messageType === "custom";
     await update(ctx);
     try {
-      await routing.beforeRun(ctx);
+      await routing.beforeRun(ctx, fromMessage ? "message" : "prompt");
     } finally {
       // Pi reports a handler error and still sends the prompt, so the fixed guidance section and the staged
       // control must never be skipped: a missing section would change the cached prompt head.
@@ -856,14 +875,12 @@ export default function freeflow(pi: FreeflowAPI) {
         });
       if (toolExecution)
         Object.assign(sections, toolExecutionTail(api.getSettings?.()?.shellPath, prompts?.toolExecutionPrompt));
-      // What Freeflow set, so requests of runs Pi starts itself keep it (host/section-keeper.ts, Pi #10267).
-      ownNames = [
-        "freeflow_guidance",
-        "environment",
-        "tool_execution",
-        ...(toolExecution ? ["rules", "docs"] : []),
-      ].filter((name) => typeof sections[name] === "string");
-      promptRun = true;
+      // What Freeflow set, so requests of runs an extension's message starts keep it (host/section-keeper.ts).
+      ownNames = OWN_SECTION_NAMES.filter(
+        (name) => (toolExecution || (name !== "rules" && name !== "docs")) && typeof sections[name] === "string",
+      );
+      promptRun = !fromMessage;
+      messageRun = fromMessage;
       prompted = true;
     }
     // Like Claude Code's next-turn reminder: files the model read that changed while it was not running a tool.
@@ -873,6 +890,7 @@ export default function freeflow(pi: FreeflowAPI) {
   });
   pi.on("agent_start", () => {
     routing.runStarted();
+    guidance.runStarted();
     agentRunning = true;
     if (messaging.running()) void messaging.setBusy(true).catch(() => {});
   });
@@ -901,10 +919,11 @@ export default function freeflow(pi: FreeflowAPI) {
     }
     routing.messageEnd((event as any).message);
     // A run started by an extension's message (a background notice, for one) gets the same preparation as a prompt.
+    // Pi 1.2.0 and later prepare it through before_agent_start; this covers earlier Pi, which skips that event there.
     if (routing.startedByMessage((event as any).message)) {
       await update(ctx);
       try {
-        await routing.beforeRun(ctx, false);
+        await routing.beforeRun(ctx, "late");
       } finally {
         writeStagedControl(ctx);
         status(ctx);
@@ -920,7 +939,13 @@ export default function freeflow(pi: FreeflowAPI) {
     if (refusal) return { block: true, reason: refusal };
     return (await files.toolCall(event, ctx)) ?? gate;
   });
-  pi.on("tool_result", async (event, ctx) => (toolExecutionEffective() ? files.toolResult(event, ctx) : undefined));
+  pi.on("tool_result", async (event, ctx) => {
+    if (!toolExecutionEffective()) return undefined;
+    const shaped = await files.toolResult(event, ctx);
+    // The push retriever's notice joins the result before it is delivered, after anything Tool Execution added.
+    const lines = guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd) : [];
+    return lines.length ? { content: withLines(shaped?.content ?? event.content ?? [], lines) } : shaped;
+  });
   pi.on("turn_end", async (event, ctx) => {
     await routing.turnEnd(event, ctx);
     files.clearPending();
@@ -956,6 +981,7 @@ export default function freeflow(pi: FreeflowAPI) {
   });
   pi.on("agent_settled", async (_event, ctx) => {
     promptRun = false;
+    messageRun = false;
     agentRunning = false;
     if (messaging.running()) await messaging.setBusy(false).catch(() => {});
     await routing.settled(ctx);
@@ -982,9 +1008,10 @@ export default function freeflow(pi: FreeflowAPI) {
       ctx.sessionManager?.buildSessionProjection?.(),
       cachedBranch(ctx.sessionManager) ?? [],
     );
-    // A run Pi starts itself keeps the prompt of the last prompt's run: every section, as Pi rendered it, so the
-    // sections other extensions set there (Pi's own MCP servers, for one) are not removed either (Pi #10267).
-    // Recorded only while Freeflow sets sections; with Freeflow off, Pi's prompt passes through unchanged.
+    // A run an extension's message starts keeps the prompt of the last prompt's run: every section, as Pi rendered it,
+    // so the sections other extensions set only for prompts (Pi's own MCP servers, for one) are not removed either; on
+    // Pi 1.2.0 and later Freeflow's own follow what it set for that run. Recorded only while Freeflow sets sections;
+    // with Freeflow off, Pi's prompt passes through unchanged.
     const strings = (current: Record<string, string | null>) =>
       Object.fromEntries(
         Object.entries(current).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
@@ -1000,6 +1027,21 @@ export default function freeflow(pi: FreeflowAPI) {
         ownSectionsVersion++;
       }
       ownHead = headSections(event.messages);
+    } else if (messageRun && ownSections) {
+      // Pi 1.2.0 and later give a run an extension's message starts the sections Freeflow set for it, so Freeflow's
+      // follow this run, while every other section keeps the last prompt's value (its extension may set it only for
+      // prompts). The head stays the one recorded, so a head Pi rebuilds here still gets the recorded sections.
+      const current = currentSections(event.messages);
+      const next: Record<string, string> = { ...ownSections };
+      for (const name of OWN_SECTION_NAMES) {
+        const value = current[name];
+        if (typeof value === "string") next[name] = value;
+        else delete next[name];
+      }
+      if (OWN_SECTION_NAMES.some((name) => next[name] !== ownSections![name])) {
+        ownSections = next;
+        ownSectionsVersion++;
+      }
     } else if (!ownSections) {
       // A run Pi started before any prompt of this process (a resumed session messaged while idle): the transcript
       // still carries the last prompt's sections, when Freeflow's guidance is among them.
@@ -1114,15 +1156,6 @@ export default function freeflow(pi: FreeflowAPI) {
   for (const { command, skill } of WORKFLOW_COMMANDS)
     pi.registerCommand(command, {
       description: command === skill ? `Run Freeflow ${skill}` : `Run Freeflow ${skill} via ${command}`,
-      ...(command === "bypass"
-        ? {
-            getArgumentCompletions: (prefix: string) =>
-              [
-                { value: "next", label: "next", description: "Skip one optional step" },
-                { value: "task", label: "task", description: "Reduce optional pressure for the current task" },
-              ].filter((item) => item.value.startsWith(prefix ?? "")),
-          }
-        : {}),
       handler: (args, ctx) => sendSkillCommand(pi, ctx, skill, args),
     });
   for (const skill of CONTRIBUTOR_COMMANDS)

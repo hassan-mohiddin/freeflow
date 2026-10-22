@@ -297,8 +297,8 @@ export class RoutingRuntime {
     }
     return true;
   }
-  beforeRun(ctx: any, fromPrompt = true) {
-    return this.models.beforeRun(ctx, fromPrompt);
+  beforeRun(ctx: any, trigger?: "prompt" | "message" | "late") {
+    return this.models.beforeRun(ctx, trigger);
   }
   runStarted() {
     this.models.runStarted();

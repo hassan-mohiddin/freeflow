@@ -460,8 +460,10 @@ async function checkTasks(operation) {
   const definitionPath = await realpath(path.resolve(root, operation.target));
   const selection = selectDefinition(await loadDefinition(definitionPath, { root }), operation.selectors);
   const results = await checkSelection(selection, { root });
-  for (const result of results) {
-    process.stdout.write(`${result.id}: ${result.state}${result.reason ? ` (${result.reason})` : ""}\n`);
+  for (const [index, result] of results.entries()) {
+    // Each group is named with its file, so a suite with many groups shows which one to fix.
+    const file = path.relative(root, selection.groups[index].group.files[0]);
+    process.stdout.write(`${result.id} (${file}): ${result.state}${result.reason ? ` (${result.reason})` : ""}\n`);
     for (const arm of result.arms ?? []) process.stdout.write(`  ${arm.arm}: ${arm.state}\n`);
     // What the task's copy lacks against its original setting; reported for the author to judge, never refused.
     for (const gap of result.copy?.gaps ?? []) process.stdout.write(`  copy lacks: ${gap}\n`);

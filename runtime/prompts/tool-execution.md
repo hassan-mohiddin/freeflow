@@ -1,6 +1,6 @@
 # Working In The Environment
 
-Every tool result stays in context and is sent again on every later turn. Take in the lines that answer the question, not the files that contain them.
+Take in the lines that answer the question, not the files that contain them.
 
 ## Search and read
 
@@ -11,12 +11,6 @@ Every tool result stays in context and is sent again on every later turn. Take i
 - Read the file that explains the symptom whole when it is the center of the problem; otherwise read the line range you need.
 - For documents, list the headings first (`grep -n '^#' file.md`), then read only the sections you need.
 - Send independent reads and searches in the same response.
-
-## Command output
-
-- Cap every command's output: `2>&1 | tail -40`, or a filter for the lines you need.
-- Put scratch files in the current task's `scratch/` when the task has a Working Record, otherwise under `${TMPDIR:-/tmp}`; never elsewhere in the repository.
-- Save long output to a scratch file and query the file instead of running the command again: `cmd > "$SCRATCH/run.log" 2>&1; echo "exit=$?"; grep -E 'FAIL|ERROR' "$SCRATCH/run.log" | head -20`, where `$SCRATCH` is that location.
 
 ## Running the code
 

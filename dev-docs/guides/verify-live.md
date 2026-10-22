@@ -84,7 +84,7 @@ Clean-up saves `final-pane.txt`, stops only this run's tmux server (`tmux -L ffv
 
 ## Paid Calls
 
-Free text and every slash command that hands a skill to Pi's agent (`/verify-work`, `/discuss` and the others in `WORKFLOW_COMMANDS` and `CONTRIBUTOR_COMMANDS` in `pi-extension/src/host/catalog.ts`) send a request to a model. So do `/freeflow compact` and anything else that starts a turn. `/freeflow status`, `/freeflow settings`, `/freeflow project`, `/freeflow task` and Pi's `/reload` run locally.
+Free text and every slash command that hands a skill to Pi's agent (`/verify-work`, `/discuss-work` and the others in `WORKFLOW_COMMANDS` and `CONTRIBUTOR_COMMANDS` in `pi-extension/src/host/catalog.ts`) send a request to a model. So do `/freeflow compact` and anything else that starts a turn. `/freeflow status`, `/freeflow settings`, `/freeflow project`, `/freeflow task` and Pi's `/reload` run locally.
 
 Two guards stand between a mistyped step and a paid request:
 

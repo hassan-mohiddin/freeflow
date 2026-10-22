@@ -1,0 +1,112 @@
+import assert from "node:assert/strict";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import test from "node:test";
+
+const script = resolve("skills/review-work/scripts/review-packet.mjs");
+const gitEnv = { ...process.env, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" };
+const git = (cwd, ...args) =>
+  execFileSync(
+    "git",
+    ["-c", "user.name=Test", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", ...args],
+    {
+      cwd,
+      env: gitEnv,
+      encoding: "utf8",
+    },
+  ).trim();
+const write = async (root, files) => {
+  for (const [path, text] of Object.entries(files)) {
+    await mkdir(dirname(join(root, path)), { recursive: true });
+    await writeFile(join(root, path), text);
+  }
+};
+const run = (cwd, args) => {
+  const result = spawnSync(process.execPath, [script, ...args], { cwd, env: gitEnv, encoding: "utf8" });
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+};
+
+async function project() {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "review-packet-")));
+  git(root, "init", "--quiet", "--initial-branch=main");
+  await write(root, {
+    ".gitignore": ".freeflow/\n",
+    "package.json": JSON.stringify({ name: "demo", scripts: { test: "node --test", lint: "eslint ." } }),
+    "src/auth/session.js": "export const ttl = 60;\n",
+    "dev-docs/README.md": "# Docs\n",
+    "dev-docs/auth.md": "# Auth\n\n> **Covers:** `src/auth/`\n> **Verified at:** `HEAD`\n",
+    "REVIEW.md": "# Review Rules\n",
+    ".freeflow/tasks/task-001-ttl/record.md": "# Working Record: TTL\n",
+  });
+  git(root, "add", "--all");
+  git(root, "commit", "--quiet", "-m", "base");
+  const base = git(root, "rev-parse", "HEAD");
+  await write(root, { "src/auth/session.js": "export const ttl = 30;\n", ".github/workflows/ci.yml": "on: push\n" });
+  git(root, "add", "--all");
+  git(root, "commit", "--quiet", "-m", "shorter ttl");
+  return { root, base, task: join(root, ".freeflow/tasks/task-001-ttl") };
+}
+
+test("review-packet prefills the brief, names the gate triggers and budget, and check-brief accepts it", async () => {
+  const { root, base, task } = await project();
+  try {
+    const result = run(root, [
+      "--review",
+      "1",
+      "--base",
+      base,
+      "--task",
+      task,
+      "--boundary",
+      "merge to main",
+      "--json",
+    ]);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const packet = JSON.parse(result.stdout);
+    assert.equal(packet.checkBrief.ok, true);
+    assert.deepEqual(
+      packet.gateTriggers.map((each) => each.trigger),
+      ["security, authentication, authorization or secrets", "CI or release files"],
+    );
+    assert.match(packet.budget, /^Review 1 of at most 3/);
+    const brief = await readFile(join(task, "scratch/reviews/R1-brief.md"), "utf8");
+    assert.match(brief, /^Review: 1\nBoundary: merge to main\nReviewed state: [0-9a-f]{12}\n/);
+    assert.match(brief, /\nAgreement: `\.freeflow\/tasks\/task-001-ttl\/record\.md`\n/);
+    assert.match(brief, /\nDocs: `dev-docs\/auth\.md`\n/);
+    assert.match(brief, /\nReview rules: `REVIEW\.md`\n/);
+    assert.match(brief, new RegExp(`\\nDiff: ${base.slice(0, 12)}\\.\\.[0-9a-f]{12}\\n`));
+    assert.match(brief, /\nMay run: the project's declared checks: `npm test`, `npm run lint`\n/);
+    assert.match(brief, /\nReport: `\.freeflow\/tasks\/task-001-ttl\/scratch\/reviews\/R1-report\.md`\n$/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("review-packet leaves the Boundary empty so check-brief refuses, and Review 2 starts at the last reviewed state", async () => {
+  const { root, base, task } = await project();
+  try {
+    const first = run(root, ["--review", "1", "--base", base, "--task", task]);
+    assert.equal(first.status, 1);
+    assert.match(first.stdout, /check-brief: refused[\s\S]*- Boundary: is empty/);
+
+    const reviewed = git(root, "rev-parse", "HEAD");
+    await write(root, { "src/auth/session.js": "export const ttl = 45;\n" });
+    git(root, "commit", "--quiet", "-am", "fix");
+    const noReport = run(root, ["--review", "2", "--base", base, "--task", task, "--boundary", "merge", "--json"]);
+    assert.equal(noReport.status, 1);
+    assert.match(JSON.parse(noReport.stdout).notes.join("\n"), /no previous report/);
+
+    await write(task, { "scratch/reviews/R1-report.md": "Judgment: Blocking\n" });
+    const second = run(root, ["--review", "2", "--base", base, "--task", task, "--boundary", "merge", "--json"]);
+    assert.equal(second.status, 0, second.stdout);
+    const brief = await readFile(join(task, "scratch/reviews/R2-brief.md"), "utf8");
+    assert.match(brief, new RegExp(`\\nDiff: ${reviewed.slice(0, 12)}\\.\\.`));
+    assert.match(brief, /\nPrevious report: `[^`]*R1-report\.md`\n/);
+    assert.match(JSON.parse(second.stdout).budget, /^Review 2 of at most 3/);
+    assert.equal(run(root, ["--review", "4", "--base", base, "--task", task]).status, 2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

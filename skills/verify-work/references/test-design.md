@@ -2,7 +2,7 @@
 
 Read this before designing or materially changing a behavior check, including regression or characterization coverage and a test's fixture or shared setup.
 
-This reference is judgment, with one Rule: before reporting work done, give each changed existing test, fixture, snapshot or shared test setup its reason: it preserves the property the test checked, or it follows a behavior change the user agreed. Return any other such change to the user. Choose a real observing boundary and an independent expected result. It does not prescribe test-first sequencing, a fixed unit/integration/end-to-end ratio, or a test-count target.
+This reference is judgment, with one Rule: before reporting work done, give each changed existing test, fixture, snapshot or shared test setup its reason: it preserves the property the test checked, or it follows a behavior change the user agreed. Return any other such change to the user. Choose a real observing boundary and an independent expected result. It does not prescribe a fixed unit/integration/end-to-end ratio or a test-count target.
 
 ## Start From Accepted Behavior
 
@@ -99,14 +99,12 @@ Keep fixture construction and cleanup in test utilities. Do not add public produ
 
 Prefer existing seams for clocks, randomness, scheduling, and external events. Do not expose new public test hooks merely for convenient assertions.
 
-Use observable synchronization, deterministic inputs, bounded eventual assertions, or the real diagnostic loop instead of arbitrary sleeps as proof. When timing or flakiness remains unexplained, use [Diagnose Failure](../../diagnose-failure/SKILL.md) before selecting a production correction.
-
-Test order does not establish correctness. A test written after code can be valid; an earlier test can still exercise the wrong path. Preserve evidence of which observations actually ran and never claim an unobserved earlier failure.
+Use observable synchronization, deterministic inputs, bounded eventual assertions, or the real diagnostic loop instead of arbitrary sleeps as proof. When timing or flakiness remains unexplained, use Execute Work's [diagnose](../../execute-work/references/diagnose.md) before selecting a production correction.
 
 ## Question Test Machinery Before Expanding It
 
 Reconsider the seam when setup becomes more conditional than the behavior, doubles reproduce internal orchestration, private states must be exposed, or integration fails despite isolated tests passing.
 
-A real integration check may be simpler than many mocks. When direct evidence shows caller coordination or unclear ownership, use [Design for Depth](../../design-for-depth/SKILL.md) to assess that boundary. Do not redesign production solely to satisfy a test framework or retain machinery that only its tests require.
+A real integration check may be simpler than many mocks. When direct evidence shows caller coordination or unclear ownership, use Execute Work's [design](../../execute-work/references/design.md#pressure-signals) to assess that boundary. Do not redesign production solely to satisfy a test framework or retain machinery that only its tests require.
 
 Stop designing checks when the required behavior has an adequate independent observer. More green tests do not justify broader requirements or stronger completion claims.

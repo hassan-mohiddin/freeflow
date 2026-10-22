@@ -44,6 +44,9 @@ export function registerRoutingTools(pi: any, runtime: RoutingRuntime): void {
       parameters: ROUTING_SCHEMAS[name],
       // Handoffs and evidence selection are assistant-issued boundaries: codemode scripts must not call them.
       exposure: "model-only",
+      // Declared only while routing is effective: hidden until applyRoutingToolVisibility adds them, like Freeflow's
+      // other tools, so no loadout before Freeflow's first update carries them (Pi 1.4.0 activates tools by default).
+      defaultActive: false,
       executionMode: "sequential",
       promptGuidelines: guidance[name],
       renderCall: (args: any, _theme: any, context: any) => renderRoutingCall(name, args, context),

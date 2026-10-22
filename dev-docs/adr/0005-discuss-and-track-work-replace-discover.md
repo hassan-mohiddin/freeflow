@@ -2,7 +2,7 @@
 
 ## Status
 
-Superseded in part by [ADR 0010: Remove Pi Compatibility Aliases](0010-remove-pi-compatibility-aliases.md). The owner split and canonical `discuss` decision remain accepted.
+Superseded in part by [ADR 0010: Remove Pi Compatibility Aliases](0010-remove-pi-compatibility-aliases.md). The owner split remains accepted. Amended 2026-10-22: `discuss` and Agree Work are merged into Discuss Work (`/discuss-work`), and `/discuss` is removed with no alias ([ADR 0014](0014-capability-skills-and-a-compact-core.md)); read `discuss` below as Discuss Work.
 
 ## Decision
 

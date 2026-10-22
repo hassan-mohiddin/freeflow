@@ -52,6 +52,7 @@ How it works and why, including behavior that looks wrong but is intended: [`dev
 | [`provenance.ts`](provenance.ts) | Notes that name each exchange's attributed sources. |
 | [`budget.ts`](budget.ts) | A local planning estimate of request size (not a provider token count). |
 | [`gate.ts`](gate.ts) | What each profile may do while it runs: which tools a worker may call, what an assessment permits, handoff batching. |
+| [`bootstrap.ts`](bootstrap.ts) | The read the gate requires before a profile's commands and edits: the routing skill and the reference for the profile's role, found at startup, and whether a view holds them. |
 | [`handlers.ts`](handlers.ts) | Runs the routing tools one at a time. Each accepted call is recorded once, so a repeated call returns the saved result. |
 | [`handoffs.ts`](handoffs.ts) | Finishes each routed turn and moves work between profiles, including resuming an assignment after an interruption. |
 

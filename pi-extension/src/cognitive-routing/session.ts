@@ -35,7 +35,7 @@ export interface Turn {
   sourceFingerprint?: string;
   opened?: boolean;
   pair: Pair;
-  /** Whether this turn's prepared view holds a complete read of the routing skill (`bootstrap.ts`). */
+  /** Whether this turn's prepared view holds a complete read of the routing skill and its profile's role reference (`bootstrap.ts`). */
   skillInView?: boolean;
 }
 export interface Subject {
@@ -59,7 +59,7 @@ export class RoutingSession {
   capability?: CognitiveRoutingCapabilityState;
   token = randomUUID();
   turn?: Turn;
-  /** The packaged routing skill the bootstrap read must cover; undefined when it cannot be read. */
+  /** The packaged routing skill and role references the bootstrap read must cover; undefined when the skill cannot be read. */
   routingSkill?: RoutingSkill;
   messages: any[] = [];
   error?: string;

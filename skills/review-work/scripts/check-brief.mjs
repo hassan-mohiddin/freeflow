@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Checks a work reviewer's pointer brief (references/reviewer-contract.md, "The Brief") before it is dispatched: every
+// Checks a work reviewer's pointer brief (references/work.md, "The Brief") before it is dispatched: every
 // required labelled line is present, every backticked path it points to exists, and every commit it names resolves.
 // It checks pointers only; whether they point to the right inputs is the initiator's judgment.
 // Usage: check-brief.mjs <brief> [--root <repository>] [--json]
