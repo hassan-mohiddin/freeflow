@@ -84,7 +84,7 @@ A body group may give its subject `bash` only through a host extension that runs
 }
 ```
 
-- `bash` in `tools` needs a body group whose every arm declares `shell`, and a declared `shell` needs `bash` in `tools`. A declared `shell` is checked when the definition loads; without one, `run` refuses `bash` before any subject starts, and the guard blocks it.
+- `bash` in `tools` needs a body group whose every arm declares `shell` or a [container environment](#container-environment), and a declared `shell` needs `bash` in `tools`. A declared `shell` is checked when the definition loads; without one, `run` refuses `bash` before any subject starts, and the guard blocks it.
 - `isolation` names one of the arm's `host.extensions` by its label: the package name, a working-tree `path`, or a Git source's `path`.
 - `network` must be `"none"`: the shell may not reach the network.
 - Optional `workspace` is where the isolation shows the workspace (a micro-VM often mounts it at `/workspace`). The guard checks a path under it as the same path in the host workspace, so `/workspace/src/a.js` is allowed and `/etc/hosts` is not.

@@ -294,7 +294,7 @@ test("a run refuses an unsolvable task before any subject starts", async () => {
       { "references/wrong/src/add.mjs": BUGGY },
     );
     await assert.rejects(runEvaluation(file, {}, { root, dryRun: true }), {
-      message: /does not solve the task.*--skip-reference-check/,
+      message: /reference solution for calc \(groups\/calc\.json\) does not solve the task.*--skip-reference-check/,
     });
     const [resultId] = await readdir(path.join(root, ".skill-eval/runs"));
     const resultDirectory = path.join(root, ".skill-eval/runs", resultId);
@@ -339,7 +339,7 @@ test("check-tasks reports each group and starts no subject or result", async () 
       encoding: "utf8",
     });
     assert.equal(run.status, 1, run.stderr);
-    assert.match(run.stdout, /^calc: unsolvable \(baseline: baseline-hidden: failed\)/m);
+    assert.match(run.stdout, /^calc \(groups\/calc\.json\): unsolvable \(baseline: baseline-hidden: failed\)/m);
     assert.match(run.stdout, /^ {2}baseline: unsolvable/m);
     assert.equal(await exists(path.join(root, ".skill-eval")), false);
   });
@@ -414,7 +414,7 @@ test("a task whose graders already pass on the unchanged fixture is already solv
     });
 
     await assert.rejects(runEvaluation(file, {}, { root, dryRun: true }), {
-      message: /task calc is already solved before any change.*--skip-reference-check/,
+      message: /task calc \(groups\/calc\.json\) is already solved before any change.*--skip-reference-check/,
     });
     const [resultId] = await readdir(path.join(root, ".skill-eval/runs"));
     const recorded = JSON.parse(
@@ -428,7 +428,7 @@ test("a task whose graders already pass on the unchanged fixture is already solv
       encoding: "utf8",
     });
     assert.equal(tasks.status, 1, tasks.stderr);
-    assert.match(tasks.stdout, /^calc: already-solved/m);
+    assert.match(tasks.stdout, /^calc \(groups\/calc\.json\): already-solved/m);
   });
 });
 

@@ -6,24 +6,12 @@ import { realpathSync } from "node:fs";
 import path from "node:path";
 
 import { measuredCost } from "./budget.mjs";
+import { METRIC_NAMES } from "./decision.mjs";
 import { registerAggregator, registerRunMetricsHook } from "./hooks.mjs";
 
-/** Metric names as decision rules and `perTrial` values name them; nested run.json fields use a dotted path. */
-export const METRIC_NAMES = [
-  "durationMs",
-  "turns",
-  "toolCalls",
-  "toolErrors",
-  "tokens.input",
-  "tokens.output",
-  "tokens.cacheRead",
-  "tokens.cacheWrite",
-  "cost",
-  "cacheHitRate",
-  "peakContext",
-  "skillReads",
-  "skillReadTokens",
-];
+// The names are kept with the decision rule, which checks them when a suite loads, so loading a definition
+// registers no metrics hook.
+export { METRIC_NAMES };
 
 // No tokenizer ships with the evaluator, so skill-read tokens are estimated from the bytes that entered the context.
 export const BYTES_PER_TOKEN = 4;

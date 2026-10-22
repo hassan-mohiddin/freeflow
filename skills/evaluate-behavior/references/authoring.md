@@ -1,6 +1,6 @@
 # Authoring Definitions
 
-This reference is a contract: the shapes and constraints below are binding as written, for schema-version-2 group, suite, and configuration JSON. Schema 1 definitions are not loaded; rewrite them in the shape below. Structural violations are rejected before any subject runs, including an expectation field its kind does not define and a group with no expectations and no review questions. An expectation of an unknown kind, or with invalid values for its fields, surfaces afterward as `grade-error` evidence.
+This reference is a contract: the shapes and constraints below are binding as written, for schema-version-2 group, suite, and configuration JSON. Schema 1 definitions are not loaded; rewrite them in the shape below. Violations are rejected when the definition loads, before any subject runs, by `run` and `check-tasks` alike, and a refusal names the group and its file. This includes an expectation field its kind does not define, an expectation its grader would refuse (see [Expectations](#expectations)), a decision a suite's groups could only exclude, and a group with no expectations and no review questions. Only an expectation of an unknown kind surfaces afterward, as `grade-error` evidence.
 
 Mode-specific fields are with their mode's guidance: [coding tasks](coding-tasks.md) (command graders, reference solutions, declared commands, shell, container, network, and the Claude Code host) and [conversations, pipelines and judges](conversations-pipelines-judges.md) (participants, rubric and judges, runtime profile). Commands, path resolution, run states, persistence, views, isolation, and safeguards are in [running and evidence](running-and-evidence.md).
 
@@ -82,6 +82,7 @@ A configuration has these fields; each arm's effective configuration is the shar
 | `shell` | no | A confined `bash` for the subject: `{ "isolation", "network": "none", "workspace", "requires" }`; see [Shell](coding-tasks.md#shell). |
 | `environment` | no | A container the subject's shell and the command graders run in: `{ "kind": "container", "image": "<name>@sha256:<digest>", "workdir", "network": "none" }`; see [Container Environment](coding-tasks.md#container-environment). |
 | `network` | no | What code the subject could have written may reach: `"none"` (sealed) or `"host"`; see [Network](coding-tasks.md#network). |
+| `participants` | no | More than one participant in each arm: a conversation with a simulated user, or a pipeline of stages; shared, or different per arm when `component` names it; see [Participants](conversations-pipelines-judges.md#participants). |
 | `freeflow` | no | Contributor-only (needs a Freeflow repository as the definition root): Freeflow as part of the environment: `{ "source": { "kind": "git", "ref": "<commit>" }, "repository": { ... }, "personal": { ... } }`; see [Freeflow](#freeflow). |
 
 Rules:
@@ -257,24 +258,24 @@ Every expectation has:
 - `kind`: one supported deterministic kind;
 - `variant`: the name of one of the group's arms, such as `baseline` or `candidate`;
 - optional `comparison`: shared by exactly one expectation for each arm, all describing the same expected check;
-- optional body `turn`: one-based declared prompt/turn number.
+- optional `turn`: one-based declared prompt/turn number.
 
 An expectation may contain only these common fields and the kind-specific fields in the table below. Any other field is rejected before any subject runs, because its grader would ignore it.
 
 Without `turn`, response checks use the final response and workspace checks use final state. Turn-scoped workspace checks cause an immutable workspace snapshot after each settled turn.
 
-| `kind` | Kind-specific fields | `expect` |
-| --- | --- | --- |
-| `skill-read` | timing `turn` except for `never` | `never`, `on-turn`, `by-turn`, `not-before-turn` |
-| `resource-read` | `resource`, optional `index`, `path`, optional body `turn` | `read`, `not-read` |
-| `path` | workspace `path`, optional body `turn` | `exists`, `absent` |
-| `changed-paths` | unique workspace `paths`, optional body `turn` | `equals`, `excludes` |
-| `file-text` | workspace `path`, string `value`, optional body `turn`, optional `line` | `contains`, `not-contains`, `equals` |
-| `json` | workspace `path`, optional body `turn`, conditional `pointer` and `value` | `available`, `missing`, `valid`, `malformed`, `field-present`, `field-absent`, `field-equals` |
-| `response-text` | string `value`, optional body `turn` | `contains`, `not-contains`, `equals` |
-| `tool-call` | string `tool`, optional body `turn`, optional `argumentContains`/`argumentNotContains` arrays | `called`, `succeeded`, `failed`, `not-called` |
-| `context-text` | string `value`, optional `surface` (`system-prompt` or `provider-context`), optional `request`, optional body `turn` | `contains`, `not-contains`, `equals` |
-| `command` | body only: `argv`, optional `files`, optional `timeout_seconds`, `pass`; no `turn` | none; see [command graders](coding-tasks.md#command-graders) |
+| `kind` | Group type | Kind-specific fields | `expect` |
+| --- | --- | --- | --- |
+| `skill-read` | description | timing `turn` except for `never` | `never`, `on-turn`, `by-turn`, `not-before-turn` |
+| `resource-read` | either | `resource`, optional `index`, `path`, optional `turn` | `read`, `not-read` |
+| `path` | body | workspace `path`, optional `turn` | `exists`, `absent` |
+| `changed-paths` | body | unique workspace `paths`, optional `turn` | `equals`, `excludes` |
+| `file-text` | body | workspace `path`, string `value`, optional `turn`, optional `line` | `contains`, `not-contains`, `equals` |
+| `json` | body | workspace `path`, optional `turn`, conditional `pointer` and `value` | `available`, `missing`, `valid`, `malformed`, `field-present`, `field-absent`, `field-equals` |
+| `response-text` | body | string `value`, optional `turn` | `contains`, `not-contains`, `equals` |
+| `tool-call` | body | string `tool`, optional `turn`, optional `argumentContains`/`argumentNotContains` arrays | `called`, `succeeded`, `failed`, `not-called` |
+| `context-text` | body | string `value`, optional `surface` (`system-prompt`, the default, or `provider-context`), optional `request` (`first`, `last`, the default, or a positive request number within the turn), optional `turn` | `contains`, `not-contains`, `equals` |
+| `command` | body | `argv`, optional `files`, optional `timeout_seconds`, `pass`; no `turn` | none; see [command graders](coding-tasks.md#command-graders) |
 
 With `line` (a positive integer, 1-based), a `file-text` expectation compares only that line, without its line ending. A line the file does not have fails every expectation, including `not-contains`, so an empty file cannot pass by having nothing to read. Use it to check one line, such as a review's first-line judgment, when the rest of the file may quote the same text.
 
@@ -337,7 +338,7 @@ A JSON Pointer is `""` for the complete value or begins with `/`; `~0` escapes `
 
 Expectations may share one comparison ID only when there is exactly one for each arm and all have the same kind and expected predicate. For each non-reference arm the report records a factual transition from the reference, such as `fail-to-pass`, never a quality verdict. A `baseline`/`candidate` group records it as `transition`; any other group records `reference`, each arm's check and state under `arms`, and each non-reference arm's transition under `transitions`.
 
-Definition loading validates common structure and unique IDs, and every field of a `command` expectation, because it runs a program. Other kind-specific expectation validation occurs during deterministic grading after run persistence. A malformed expectation therefore becomes separate `grade-error` evidence rather than changing the subject run. Use the documented shapes to avoid spending a subject run on an invalid check.
+Definition loading runs each known kind's own grader check on the definition alone, so a kind in a group type the table does not give it, a `variant` that is not an arm, a `turn` the input does not declare, a value its grader rejects, or comparison members that are not one check in every arm is refused before any subject runs. An unknown kind still loads and becomes separate `grade-error` evidence after the run, never a change to the subject run.
 
 ## Suite
 
@@ -371,8 +372,9 @@ A suite may declare the rule its trials are judged by, before any run. Without o
 }
 ```
 
-- `measure` names exactly one of: `comparison`, a comparison ID from the groups' expectations (a pass counts 1, a fail 0); `metric`, a name in the aggregate's `metrics` section; `judged`, a dimension ID in its `judged` section; or `score`, a test-graded command expectation's ID or, to compare arms, its comparison ID, read from the `scores` section. Section values are read from `perTrial` (`true` counts 1, `false` 0, numbers as given). Null and unavailable values are excluded and counted.
-- `arms` names two arms, the reference first; every selected group must have both, and `--variant` is refused.
+- `measure` names exactly one of: `comparison`, a comparison ID from the groups' expectations (a pass counts 1, a fail 0); `metric`, a name in the aggregate's `metrics` section; `judged`, a dimension ID in its `judged` section; or `score`, the comparison ID of test-graded command expectations, read from the `scores` section (an expectation's own ID scores its one arm only). Section values are read from `perTrial` (`true` counts 1, `false` 0, numbers as given). Null and unavailable values are excluded and counted.
+- `arms` names two arms, the reference first; every group must have both, and `--variant` is refused.
+- Loading the suite refuses a decision that could only exclude cases: a `metric` that is not a recorded metric, a group that records the measure in one decision arm but not the other, or a measure no group records in both arms. A group that records it in neither arm, such as a control case, loads; its case is excluded and counted.
 - `direction` says whether `higher` or `lower` is better. `measure`, `arms` and `direction` are required.
 - `method` is `sign-test` (default), `alpha` is between 0 and 1 (default 0.05), and `min_cases` is a positive integer (default 10).
 - The unit is the case. Each arm's values over a case's trials are averaged, and the second arm is better, worse or equal. An exact two-sided sign test over the better and worse cases (ties and excluded cases are counted, not tested) gives `beats` only with at least `min_cases` decided cases, p below `alpha`, and the split in the declared direction; the same evidence the other way gives `worse`; anything else is `no-difference-shown`.

@@ -6,7 +6,12 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { decide, signTest, validateDecision } from "../../../skills/evaluate-behavior/scripts/lib/decision.mjs";
+import {
+  decide,
+  decisionProblem,
+  signTest,
+  validateDecision,
+} from "../../../skills/evaluate-behavior/scripts/lib/decision.mjs";
 import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
 import { registerAggregator } from "../../../skills/evaluate-behavior/scripts/lib/hooks.mjs";
 import "../../../skills/evaluate-behavior/scripts/lib/metrics.mjs";
@@ -530,6 +535,68 @@ test("a decision run refuses a different trial count, a single arm, or a group w
     );
     assert.deepEqual(calls, []);
   });
+});
+
+test("a decision that could only exclude cases is refused when the suite loads", async () => {
+  await withTempDirectory(async (root) => {
+    const refused = async (decision, message) => {
+      const suite = await writeSuite(root, ["one", "two"], { ...RULE, ...decision });
+      await assert.rejects(loadDefinition(suite, { root }), { code: "invalid-definition", message }, message.source);
+    };
+    // A group without a decision arm is named with its file, at load, not when trials start.
+    await refused(
+      { arms: ["baseline", "other"] },
+      /^suite\.decision: decision arm other is not an arm of group one \(groups\/one\.json\)$/,
+    );
+    // A measure no group records in both arms: every case would be excluded.
+    await refused(
+      { measure: { comparison: "target-raed" } },
+      /^suite\.decision: no group records comparison target-raed in both arms baseline and candidate/,
+    );
+    await refused({ measure: { judged: "identified" } }, /no group records judged identified/);
+    await refused({ measure: { score: "hidden-tests" } }, /no group records score hidden-tests/);
+    await refused({ measure: { metric: "costs" } }, /suite\.decision\.measure\.metric must be one of durationMs, /);
+
+    // A control group that records the measure in neither arm stays; its case is excluded and counted.
+    const control = group("control");
+    control.expectations = control.expectations.map(({ comparison: _comparison, ...expectation }) => expectation);
+    await writeJson(path.join(root, "groups/control.json"), control);
+    const suite = await writeJson(path.join(root, "with-control.json"), {
+      schema_version: 2,
+      kind: "suite",
+      id: "with-control",
+      groups: ["groups/one.json", "groups/control.json"],
+      decision: RULE,
+    });
+    assert.deepEqual(
+      (await loadDefinition(suite, { root })).groups.map((entry) => entry.id),
+      ["one", "control"],
+    );
+  });
+});
+
+test("a group that records the decision's measure in only one of its arms is refused", () => {
+  const variants = { baseline: {}, candidate: {} };
+  const tests = { format: "node-test" };
+  const scored = (id, variant, comparison) => ({ id, kind: "command", variant, pass: { tests }, comparison });
+  const both = {
+    id: "both",
+    variants,
+    expectations: [scored("b", "baseline", "hidden"), scored("c", "candidate", "hidden")],
+  };
+  const rule = { ...RULE, measure: { score: "hidden" } };
+  assert.equal(decisionProblem(rule, [both]), null);
+  // A score named by one expectation's ID is recorded for that expectation's arm alone.
+  const byId = { ...RULE, measure: { score: "c" } };
+  assert.deepEqual(decisionProblem(byId, [both]), {
+    group: both,
+    message: "group both records score c for arm candidate but not baseline, so its case could only be excluded",
+  });
+  // A command check without tests has no score.
+  const untested = { ...both, expectations: both.expectations.map(({ pass: _pass, ...entry }) => entry) };
+  assert.match(decisionProblem(rule, [untested]).message, /no group records score hidden/);
+  // Every run records metrics.
+  assert.equal(decisionProblem({ ...RULE, measure: { metric: "cost" } }, [both]), null);
 });
 
 test("rebuildAggregate rereads every trial and reproduces aggregate.json exactly", async () => {

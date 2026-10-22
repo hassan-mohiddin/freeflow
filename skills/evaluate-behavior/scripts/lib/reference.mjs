@@ -262,10 +262,12 @@ export async function enforceReferenceChecks(selection, { root, resultDirectory,
       `${JSON.stringify({ ...result, skipped: skip && REFUSED.has(result.state) }, null, 2)}\n`,
     );
     if (REFUSED.has(result.state) && !skip) {
+      // Named with its file, so a suite with many groups shows which one to fix.
+      const task = `${group.id} (${path.relative(root, group.files[0])})`;
       const problem =
         result.state === "unsolvable"
-          ? `reference solution for ${group.id} does not solve the task`
-          : `task ${group.id} is already solved before any change, so it cannot show one`;
+          ? `reference solution for ${task} does not solve the task`
+          : `task ${task} is already solved before any change, so it cannot show one`;
       throw new Error(
         `${problem}: ${result.reason}; run skill-eval check-tasks for details, or pass --skip-reference-check`,
       );

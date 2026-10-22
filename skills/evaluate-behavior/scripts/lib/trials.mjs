@@ -255,8 +255,8 @@ export async function rebuildAggregate(aggregatePath, { root = process.cwd(), re
 }
 
 /**
- * The selection, and the suite's validated decision rule or null. A decision run must select both of its arms
- * in every group.
+ * The selection, and the suite's validated decision rule or null. A decision run must select both of its arms;
+ * loading the suite has already checked that every group has them and records the measure in both.
  */
 async function loadSelection(definitionFile, selectors, root) {
   const definitionPath = await realpath(path.resolve(root, definitionFile));
@@ -266,10 +266,6 @@ async function loadSelection(definitionFile, selectors, root) {
   if (rule === null) return { selection, rule };
   if (selectors?.variant !== null && selectors?.variant !== undefined) {
     throw new Error("the suite's decision compares two arms; --variant would run only one");
-  }
-  for (const { group } of selection.groups) {
-    const missing = rule.arms.filter((arm) => !Object.hasOwn(group.variants ?? {}, arm));
-    if (missing.length > 0) throw new Error(`decision arm ${missing.join(", ")} is not an arm of group ${group.id}`);
   }
   return { selection, rule };
 }
