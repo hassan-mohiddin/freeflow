@@ -65,10 +65,19 @@ function startUserModel(reply) {
 }
 
 /**
- * @param {{ suite: string, group: string, skills?: string[], rpcTools: any[], userReply?: string }} options `suite` is
- *   the suite folder under .skill-eval; `rpcTools` are the tool calls the fake Pi makes on each prompt.
+ * @param {{ suite: string, suiteFile?: string, group: string, skills?: string[], rpcTools: any[], userReply?: string }}
+ *   options `suite` is the suite folder under .skill-eval and `suiteFile` its suite file (suite.json by default);
+ *   `rpcTools` are the tool calls the fake Pi makes on each prompt; `args` are added to the run's command line.
  */
-export async function stubSuiteRun({ suite, group, skills = [], rpcTools, userReply = "THANKS, DONE" }) {
+export async function stubSuiteRun({
+  suite,
+  suiteFile = "suite.json",
+  group,
+  skills = [],
+  rpcTools,
+  userReply = "THANKS, DONE",
+  args: extra = [],
+}) {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), "skill-eval-suite-stub-")));
   const user = await startUserModel(userReply);
   try {
@@ -93,7 +102,16 @@ export async function stubSuiteRun({ suite, group, skills = [], rpcTools, userRe
     );
     const pi = await installFakePi(root, { rpcTools });
     const docker = await installFakeDocker(root);
-    const args = [entrypoint, "run", `.skill-eval/${suite}/suite.json`, "--group", group, "--dry-run", "--yes"];
+    const args = [
+      entrypoint,
+      "run",
+      `.skill-eval/${suite}/${suiteFile}`,
+      "--group",
+      group,
+      "--dry-run",
+      "--yes",
+      ...extra,
+    ];
     const { DOCKER_HOST: _host, ...inherited } = process.env;
     const result = await new Promise((resolve) => {
       const child = spawn(process.execPath, args, {

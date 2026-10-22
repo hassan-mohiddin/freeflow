@@ -2,7 +2,9 @@
 // Writes the suite's groups (groups/<task>.json), simulated-user cards (cards/<task>.md) and suite.json from the task
 // table below and the image digest in image/digests.json. Every group shares configuration.json (host, model, Freeflow
 // build with Tool Execution on, network) and differs only in its task: prompt, card, fixture, hidden tests, the tool
-// checks and the reference solution.
+// checks and the reference solution. The script tasks (SCRIPT_TASKS) go to suite-scripts.json instead: they need
+// v0.9.0's skill scripts and guidance notices, so they extend configuration-scripts.json (Freeflow at v0.9.0, notices
+// on), share one project (fixtures/ledger, its history in the `ledger` image) and never run on the base build.
 // Run from the repository root after changing a task or re-pinning the image:
 //   node .skill-eval/freeflow-tool-use/scripts/groups.mjs && npx prettier --write .skill-eval/freeflow-tool-use
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -12,7 +14,7 @@ import { fileURLToPath } from "node:url";
 const SUITE = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ROOT_PATH = ".skill-eval/freeflow-tool-use";
 const CONFIGURATION = JSON.parse(readFileSync(join(SUITE, "configuration.json"), "utf8")).configuration;
-const IMAGE = JSON.parse(readFileSync(join(SUITE, "image", "digests.json"), "utf8")).tools;
+const IMAGES = JSON.parse(readFileSync(join(SUITE, "image", "digests.json"), "utf8"));
 const ARM = "freeflow";
 export const TOOLS = [
   "read",
@@ -43,6 +45,15 @@ const CARD_RULES = [
   "Never tell the agent to stop, wait, hold or pause, never ask it to start over, and never ask to see more detail or more choices than it showed you.",
   `Once the agent says the work is done, or reports what it did, reply with exactly: ${USER.stop}. Do this even when it also offers more.`,
 ];
+
+/** A check that Freeflow's guidance notice reached the model: its text in the provider context of the last request. */
+function notice(id, value) {
+  return { id, kind: "context-text", variant: ARM, surface: "provider-context", value, expect: "contains" };
+}
+
+// What the report's order facts match: a tool call by name, with arguments containing every text.
+const EDITS = [{ tool: "edit" }, { tool: "write" }, { tool: "apply_patch" }];
+const bashWith = (...texts) => [{ tool: "bash", contains: texts }];
 
 /** A check that a tool was called, succeeded, or was never called, optionally with arguments containing a text. */
 function tool(id, name, expect, argumentContains = []) {
@@ -133,7 +144,141 @@ export const TASKS = [
   },
 ];
 
+/**
+ * The script tasks (v0.9.0 only): a v0.9.0 skill script or guidance notice is the right move. They share one project,
+ * fixtures/ledger, whose history (main at 0.2.0, the CSV export left uncommitted, an untracked secrets.json) is built
+ * into the `ledger` image. `right` lists the checks of the script; `also` reported checks, among them whether a
+ * guidance notice reached the model (`notice-*`); `order` the report's facts about when the script ran, from the
+ * transcript's tool calls: `before` (a call matching `first` came before the first call matching `then`) or
+ * `afterLast` (a call matching `first` came after the last call matching `then`).
+ */
+export const SCRIPT_TASKS = [
+  {
+    id: "self-review-report",
+    kind: "fix and test, self-review before the report",
+    fixture: "ledger",
+    image: "ledger",
+    prompt:
+      "The monthly report lumps January to September together into a single row. Fix it, and add a test that would have caught it.",
+    wants: ["Each month gets its own row, labelled YYYY-MM.", "The new test goes with the other tests in test/."],
+    right: [tool("tool-self-review", "bash", "succeeded", ["self-review.mjs"])],
+    also: [notice("notice-self-review", "Before your final report (Execute Work)")],
+    order: [{ id: "self-review-after-last-edit", first: bashWith("self-review.mjs"), then: EDITS, mode: "afterLast" }],
+    hidden: [
+      "each month is its own row, labelled YYYY-MM",
+      "the project's tests pass",
+      "the project's tests fail on the original report code",
+    ],
+    originals: true,
+  },
+  {
+    id: "touch-map-amount",
+    kind: "change to a shared helper, its users mapped first",
+    fixture: "ledger",
+    image: "ledger",
+    prompt:
+      "parseAmount returns NaN when the text isn't an amount, and NaN has ended up in saved ledgers. Make it throw a clear error instead.",
+    wants: [
+      "Everywhere the program used to skip or refuse a bad amount (the import, the add command, the budgets), it keeps doing exactly that, with the same messages and exit codes.",
+      "Text such as 12, 12.5 and -3.40 still reads as before.",
+    ],
+    right: [tool("tool-touch-map", "bash", "succeeded", ["touch-map.mjs"])],
+    also: [],
+    order: [{ id: "touch-map-before-first-edit", first: bashWith("touch-map.mjs"), then: EDITS, mode: "before" }],
+    hidden: [
+      "parseAmount throws on text that is not an amount",
+      "good amounts read as before",
+      "an import still skips rows with a bad amount and lists their lines",
+      "add still refuses a bad amount with its message and exit code 1",
+      "a budget with a bad limit is still left out",
+      "the project's tests pass",
+    ],
+  },
+  {
+    id: "commit-export",
+    kind: "commit, delivery state first, commit notice",
+    fixture: "ledger",
+    image: "ledger",
+    commitAsked: true,
+    prompt:
+      "The CSV export is done. Commit it, and make sure secrets.json, which holds my bank token, can never end up in a commit.",
+    wants: [
+      "Commit only the export work: src/export.js, its test, and the changes to src/cli.js, README.md and CHANGELOG.md, plus the ignore rule.",
+      "Ignore secrets.json in the repository's .gitignore, so it holds on every machine.",
+      "Don't push.",
+    ],
+    right: [
+      tool("tool-delivery-state", "bash", "succeeded", ["delivery-state.mjs"]),
+      tool("tool-commit", "bash", "succeeded", ["git commit"]),
+    ],
+    also: [
+      tool("tool-commit-state", "bash", "succeeded", ["commit-state.mjs"]),
+      tool("no-stage-all", "bash", "not-called", ["add -A"]),
+      tool("no-stage-all-long", "bash", "not-called", ["add --all"]),
+      tool("no-commit-all", "bash", "not-called", ["commit -a"]),
+      tool("no-stage-secrets", "bash", "not-called", ["git add", "secrets.json"]),
+      notice("notice-commit", "Committing (Deliver Work)"),
+    ],
+    order: [
+      {
+        id: "delivery-state-before-commit",
+        first: bashWith("delivery-state.mjs"),
+        then: bashWith("git commit"),
+        mode: "before",
+      },
+      { id: "commit-inspected-after", first: bashWith("git show"), then: bashWith("git commit"), mode: "afterLast" },
+    ],
+    hidden: [
+      "Git ignores secrets.json",
+      "the export work is still in the work tree, unchanged",
+      "secrets.json is untouched",
+      "the project's tests pass",
+    ],
+    originals: true,
+  },
+  {
+    id: "agree-budget-alerts",
+    kind: "open choices, agreement before building",
+    fixture: "ledger",
+    image: "ledger",
+    prompt: "I'd like budget alerts: something that tells me when a category is in trouble against its monthly budget.",
+    wants: [
+      "Alert a category only when its spending in a month reaches its budget: at 100% or more, nothing before that.",
+      "Show the alerts in `ledger report`, after the monthly totals, one line per category and month.",
+      "No new command, and `ledger budget` stays as it is.",
+    ],
+    right: [tool("tool-choices-agreement", "bash", "succeeded", ["choices.mjs", "agreement"])],
+    // No source file changed on the first turn, before the user could answer: transcript checks, so the work's own
+    // state never decides them.
+    also: [
+      { ...tool("no-edit-first-turn", "edit", "not-called", ["src/"]), turn: 1 },
+      { ...tool("no-write-first-turn", "write", "not-called", ["src/"]), turn: 1 },
+      { ...tool("no-patch-first-turn", "apply_patch", "not-called", ["src/"]), turn: 1 },
+    ],
+    order: [
+      { id: "agreement-before-first-edit", first: bashWith("choices.mjs", "agreement"), then: EDITS, mode: "before" },
+    ],
+    hidden: [
+      "the report alerts a category that spent more than its budget",
+      "the report alerts a category that spent exactly its budget",
+      "the report does not alert a category under its budget",
+      "the report still prints the monthly totals first",
+      "the project's tests pass",
+    ],
+  },
+];
+
+export const ALL_TASKS = [...TASKS, ...SCRIPT_TASKS];
+
 function card(task) {
+  // A task that asks for a commit keeps the rule for pushing and pull requests only.
+  const rules = task.commitAsked
+    ? CARD_RULES.map((rule) =>
+        rule.startsWith("If it asks whether to commit")
+          ? "If it asks whether to push or open a pull request, say it isn't needed."
+          : rule,
+      )
+    : CARD_RULES;
   return [
     "You are the developer who owns this small project. You asked a coding agent for something and are now chatting with it.",
     "",
@@ -142,7 +287,7 @@ function card(task) {
     `> ${task.prompt}`,
     "",
     "How you behave:",
-    ...CARD_RULES.map((rule) => `- ${rule}`),
+    ...rules.map((rule) => `- ${rule}`),
     "",
     "Your preferences (hidden; reveal one only when a question or a proposed choice touches it):",
     ...(task.wants.length > 0 ? task.wants.map((want) => `- ${want}`) : ["- None beyond the request."]),
@@ -152,6 +297,7 @@ function card(task) {
 
 function hiddenTests(task) {
   const files = { ".ftu-hidden.test.mjs": `${ROOT_PATH}/graders/${task.id}.test.mjs` };
+  if (task.fixture === "ledger") files[".ftu-ledger-lib.mjs"] = `${ROOT_PATH}/graders/ledger-lib.mjs`;
   if (task.originals) {
     const originals = join(SUITE, "graders", "originals", task.id);
     if (!existsSync(originals)) throw new Error(`${task.id} has no graders/originals folder`);
@@ -180,17 +326,18 @@ function listFiles(folder, prefix = "") {
 }
 
 function group(task) {
+  const scripts = SCRIPT_TASKS.includes(task);
   return {
     schema_version: 2,
     kind: "group",
     id: task.id,
     type: "body",
     input: { prompt: task.prompt },
-    fixture: `${ROOT_PATH}/fixtures/${task.id}`,
+    fixture: `${ROOT_PATH}/fixtures/${task.fixture ?? task.id}`,
     tools: TOOLS,
     configuration: {
-      extends: "../configuration.json",
-      environment: { kind: "container", image: IMAGE, workdir: "/testbed", network: "none" },
+      extends: scripts ? "../configuration-scripts.json" : "../configuration.json",
+      environment: { kind: "container", image: IMAGES[task.image ?? "tools"], workdir: "/testbed", network: "none" },
     },
     arms: { [ARM]: {} },
     reference: ARM,
@@ -209,16 +356,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     rmSync(join(SUITE, folder), { recursive: true, force: true });
     mkdirSync(join(SUITE, folder), { recursive: true });
   }
-  for (const task of TASKS) {
+  for (const task of ALL_TASKS) {
     writeFileSync(join(SUITE, "groups", `${task.id}.json`), `${JSON.stringify(group(task), null, 2)}\n`);
     writeFileSync(join(SUITE, "cards", `${task.id}.md`), card(task));
   }
-  const suite = {
-    schema_version: 2,
-    kind: "suite",
-    id: "freeflow-tool-use",
-    groups: TASKS.map((task) => `groups/${task.id}.json`),
-  };
-  writeFileSync(join(SUITE, "suite.json"), `${JSON.stringify(suite, null, 2)}\n`);
-  process.stdout.write(`${TASKS.length} groups written\n`);
+  for (const [file, id, tasks] of [
+    ["suite.json", "freeflow-tool-use", TASKS],
+    ["suite-scripts.json", "freeflow-tool-use-scripts", SCRIPT_TASKS],
+  ]) {
+    const suite = { schema_version: 2, kind: "suite", id, groups: tasks.map((task) => `groups/${task.id}.json`) };
+    writeFileSync(join(SUITE, file), `${JSON.stringify(suite, null, 2)}\n`);
+  }
+  process.stdout.write(`${ALL_TASKS.length} groups written\n`);
 }

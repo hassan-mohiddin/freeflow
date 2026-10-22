@@ -1,0 +1,13 @@
+{
+  "name": "ledger",
+  "version": "0.1.0",
+  "description": "A household expense ledger on the command line.",
+  "type": "module",
+  "bin": {
+    "ledger": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "MIT"
+}

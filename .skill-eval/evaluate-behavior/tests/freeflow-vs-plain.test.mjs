@@ -1,6 +1,7 @@
 // The freeflow-vs-plain standing suite: its two declared decisions (success, then cost) and the shape every group
 // must keep for them to mean anything: the same task and model in both arms, Freeflow the only difference.
 import assert from "node:assert/strict";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
@@ -9,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { decide } from "../../../skills/evaluate-behavior/scripts/lib/decision.mjs";
 import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
 import { aggregateMetrics } from "../../../skills/evaluate-behavior/scripts/lib/metrics.mjs";
+import { removeStub, stubSuiteRun } from "./helpers/suite-stub.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const suiteDirectory = path.join(root, ".skill-eval/freeflow-vs-plain");
@@ -123,4 +125,88 @@ test("cost: Freeflow costing more on nine of ten cases is worse; on six of ten i
   const mixed = decide(decision, six);
   assert.equal(mixed.verdict, "no-difference-shown");
   assert.deepEqual([mixed.better, mixed.worse], [4, 6]);
+});
+
+test("the v0.9.0 suites run the same tasks with three arms, and decide each Freeflow arm against plain Pi", async () => {
+  const fixed = { method: "sign-test", alpha: 0.05, min_cases: 6, trials: { initial: 3, max: 3, step: 1 } };
+  const decisions = {
+    "suite-v090.json": [{ comparison: "hidden-tests" }, ["plain", "freeflow"], "higher"],
+    "suite-v090-cost.json": [{ metric: "cost" }, ["plain", "freeflow"], "lower"],
+    "suite-v090-te.json": [{ comparison: "hidden-tests" }, ["plain", "freeflow-te"], "higher"],
+    "suite-v090-te-cost.json": [{ metric: "cost" }, ["plain", "freeflow-te"], "lower"],
+  };
+  const original = await load("suite.json");
+  for (const [file, [measure, arms, direction]] of Object.entries(decisions)) {
+    const suite = await load(file);
+    assert.deepEqual(suite.decision, { measure, arms, direction, ...fixed }, file);
+    // The same groups in every v0.9.0 suite, so --reuse takes every run of the first from the other three.
+    assert.deepEqual(
+      suite.groups.map((group) => group.id),
+      original.groups.map((group) => group.id),
+    );
+  }
+  const shared = JSON.parse(await readFile(path.join(suiteDirectory, "configuration.json"), "utf8")).configuration;
+  const v090 = JSON.parse(await readFile(path.join(suiteDirectory, "configuration-v090.json"), "utf8")).configuration;
+  // The 21 Oct configuration but the build.
+  assert.deepEqual(v090.freeflow.source, { kind: "git", ref: "51b9682fb44a9a68defd29e2ce3db64cae51581b" });
+  assert.deepEqual(
+    { ...v090, freeflow: { ...v090.freeflow, source: null } },
+    {
+      ...shared,
+      freeflow: { ...shared.freeflow, source: null },
+    },
+  );
+  const { groups } = await load("suite-v090.json");
+  for (const group of groups) {
+    const before = original.groups.find((entry) => entry.id === group.id);
+    // The 21 Oct task: prompt, fixture, image, user, hidden tests and markers; the tools add Tool Execution's.
+    assert.deepEqual(group.input, before.input);
+    assert.equal(group.fixture, before.fixture);
+    assert.deepEqual(group.participants, before.participants);
+    assert.equal(group.variants.freeflow.shell.container.image, before.variants.freeflow.shell.container.image);
+    assert.deepEqual(group.tools, [...before.tools, "bash_background", "monitor", "stop_background", "apply_patch"]);
+    assert.deepEqual(Object.keys(group.variants), ["plain", "freeflow", "freeflow-te"], group.id);
+    assert.equal(group.reference, "plain");
+    assert.deepEqual(group.component, ["freeflow"]);
+    assert.equal(group.variants.plain.freeflow ?? null, null);
+    assert.deepEqual(group.variants.freeflow.freeflow.repository, v090.freeflow.repository);
+    assert.deepEqual(group.variants["freeflow-te"].freeflow.repository, {
+      cognitiveRouting: { enabled: false },
+      toolExecution: { enabled: true, guidanceNotices: true },
+    });
+    for (const arm of ["plain", "freeflow", "freeflow-te"]) {
+      const hidden = group.expectations.find((expectation) => expectation.id === `${arm}-hidden-tests`);
+      assert.deepEqual(
+        hidden.pass,
+        before.expectations.find((expectation) => expectation.id === "plain-hidden-tests").pass,
+      );
+    }
+  }
+});
+
+test("a stub dry run of a v0.9.0 group runs all three arms, plain Pi with Tool Execution's tools declared", async () => {
+  const stub = await stubSuiteRun({
+    suite: "freeflow-vs-plain",
+    suiteFile: "suite-v090.json",
+    group: "contacts-csv",
+    rpcTools: [{ toolName: "bash", input: { command: "echo checked" } }],
+    // The fake Docker runs graders on the host, where the task's Git history is missing.
+    args: ["--skip-reference-check"],
+  });
+  try {
+    assert.equal(stub.result.status, 0, stub.result.stderr + stub.result.stdout);
+    // A decision suite runs as trials: three, each with every arm.
+    const runs = path.dirname(stub.resultDirectory);
+    const trials = readdirSync(runs).filter((entry) => existsSync(path.join(runs, entry, "groups/contacts-csv")));
+    assert.equal(trials.length, 3);
+    for (const trial of trials) {
+      for (const arm of ["plain", "freeflow", "freeflow-te"]) {
+        const file = path.join(runs, trial, "groups/contacts-csv", arm, "run.json");
+        const run = JSON.parse(readFileSync(file, "utf8"));
+        assert.equal(run.state, "complete", `${arm}: ${JSON.stringify(run.error ?? run.process, null, 2)}`);
+      }
+    }
+  } finally {
+    await removeStub(stub.root);
+  }
 });

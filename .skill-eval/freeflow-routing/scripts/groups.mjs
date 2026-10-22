@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // Writes the suite's groups (groups/<case>.json), simulated-user cards (cards/<case>.md) and suite.json from the case
 // table in cases.mjs and the image digest in image/digests.json. Every group shares configuration.json (host, model,
-// Freeflow build and settings, network) and differs only in its request, its card and its checks.
+// Freeflow build and settings, network) and differs only in its request, its card and its checks. The checks name the
+// base's skills and, for a merged skill, its owner too (cases.mjs, gradedSkills).
 // Run from the repository root after changing a case or re-pinning the image:
 //   node .skill-eval/freeflow-routing/scripts/groups.mjs && npx prettier --write .skill-eval/freeflow-routing
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { CASES } from "./cases.mjs";
+import { CASES, gradedSkills } from "./cases.mjs";
 
 const SUITE = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ROOT_PATH = ".skill-eval/freeflow-routing";
@@ -72,6 +73,7 @@ function skillRead(skill, expect) {
 }
 
 function group(entry) {
+  const { read, no } = gradedSkills(entry);
   return {
     schema_version: 2,
     kind: "group",
@@ -90,9 +92,10 @@ function group(entry) {
       protocol: "conversation",
       user: { model: CONFIGURATION.model.model, ...USER, card: `${ROOT_PATH}/cards/${entry.id}.md` },
     },
+    // The base's checks and the merged build's (gradedSkills): either build's route shows in the grade.
     expectations: [
-      ...entry.expect.map((skill) => skillRead(skill, "succeeded")),
-      ...entry.not.map((skill) => skillRead(skill, "not-called")),
+      ...read.map((skill) => skillRead(skill, "succeeded")),
+      ...no.map((skill) => skillRead(skill, "not-called")),
     ],
     review_questions: [],
   };

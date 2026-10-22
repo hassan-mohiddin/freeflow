@@ -59,6 +59,14 @@
       "tool": "read",
       "argumentContains": ["/skills/write-plan/SKILL.md"],
       "expect": "not-called"
+    },
+    {
+      "id": "no-write-docs",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/write-docs/SKILL.md"],
+      "expect": "not-called"
     }
   ],
   "review_questions": []
