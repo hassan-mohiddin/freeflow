@@ -37,3 +37,41 @@ test("with routing off a request carries neither routing's tools nor its cue", {
     { cognitiveRouting: { enabled: false } },
   );
 });
+
+test(
+  "routing's tools are inactive until Freeflow turns them on, and a resumed session gets them back",
+  { timeout: 30000 },
+  async () => {
+    // Pi 1.4.0 activates an extension tool the branch never added or removed unless it is registered with
+    // defaultActive: false, so another extension at session start would otherwise see them with routing off.
+    const seen = [];
+    const watch = (pi) => pi.on("session_start", () => void seen.push(pi.getActiveTools()));
+    await fixture(
+      async () => [],
+      false,
+      async () => {
+        for (const name of ROUTING) assert.ok(!seen[0].includes(name), name);
+      },
+      true,
+      { cognitiveRouting: { enabled: false }, beforeExtensions: [watch] },
+    );
+    seen.length = 0;
+    await fixture(
+      async () => [],
+      false,
+      async ({ session, requests }) => {
+        await session.reload();
+        await session.prompt("Again.");
+        await session.waitForIdle();
+        for (const body of requests) {
+          const names = (body.tools ?? []).map((tool) => tool.name);
+          for (const name of ROUTING) assert.ok(names.includes(name), name);
+        }
+        // After the reload Pi restores the loadout the branch recorded (Pi 1.3.0), routing's tools among it.
+        for (const name of ROUTING) assert.ok(seen.at(-1).includes(name), name);
+      },
+      true,
+      { beforeExtensions: [watch] },
+    );
+  },
+);

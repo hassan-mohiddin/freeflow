@@ -127,8 +127,8 @@
     "@earendil-works/pi-tui": ">=0.99.1"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.0.1",
-    "@earendil-works/pi-tui": "1.0.1",
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@earendil-works/pi-tui": "1.4.0",
     "@eslint/js": "10.0.1",
     "@types/node": "^22.15.30",
     "eslint": "10.12.0",

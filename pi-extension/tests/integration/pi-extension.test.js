@@ -1174,7 +1174,7 @@ test("Pi exposes the canonical base skills without TDD, a mode skill, or removed
       assert.ok(command);
       await command.definition.handler(undefined, context(cwd));
       assert.equal(sentMessages.at(-1), `/skill:${expectedSkill}`);
-      assert.deepEqual(sentMessageOptions.at(-1), { expandPromptTemplates: true });
+      assert.deepEqual(sentMessageOptions.at(-1), { expandPromptTemplates: true, deliverAs: "followUp" });
     }
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -1191,7 +1191,7 @@ test("Pi expands setup-freeflow when dispatching its unconfigured skill command"
     await setup.definition.handler(undefined, context(cwd));
 
     assert.equal(sentMessages.at(-1), "/skill:setup-freeflow");
-    assert.deepEqual(sentMessageOptions.at(-1), { expandPromptTemplates: true });
+    assert.deepEqual(sentMessageOptions.at(-1), { expandPromptTemplates: true, deliverAs: "followUp" });
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

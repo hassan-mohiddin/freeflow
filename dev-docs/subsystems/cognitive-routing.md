@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/cognitive-routing/`, `capabilities/cognitive-routing/`, `runtime/prompts/cognitive-routing.md`
 > **Tests:** `pi-extension/tests/cognitive-routing/`, `pi-extension/tests/cache-reuse/`
-> **Verified at:** `8965a80a` (2026-10-22)
+> **Verified at:** `3e50548c` (2026-10-22)
 > **User docs:** `plugin-docs/capabilities/cognitive-routing.md`
 
 For contributors changing Cognitive Routing on Pi: how routing moves work between profiles in one session, how it records and recovers its state, how the Coordinator's projected view is built, and which of its behaviors are deliberate. What routing is for users, how to configure it, and how to choose a mode are in the user guide.
@@ -53,7 +53,7 @@ Terms from other subsystems: the **Runtime State** is the message telling the mo
 
 Routing hooks into Pi's events (wired in `pi-extension/src/index.ts`, forwarded by `RoutingRuntime`):
 
-1. **`before_agent_start`**: `beforeRun()` applies control changes staged while idle (profile holds, presets) and sets Pi's model for the active profile. A run started by an extension message gets the same preparation at its first `message_end`.
+1. **`before_agent_start`**: `beforeRun()` applies control changes staged while idle (profile holds, presets) and sets Pi's model for the active profile. Pi 1.2.0 and later fire it for a run an extension message starts too (`messageType: "custom"`); earlier Pi does not, and such a run gets the same preparation at its first `message_end` (`startedByMessage()`). An explicit resume prepares its own run (`preparedRun()`) before sending the message that starts it, so `beforeRun()` leaves that run alone: preparing it again would return the resumed worker to the Coordinator.
 2. **`context_with_system`**: `routing.context()` (`ContextAssembler`) finds the latest delivered user input, opens an execution, and prepares the active profile's view (`prepareView()` in `projection.ts`). It adds routing's transient messages: routing state, attention, budget and communication. Request history then fixes their positions (see [Request history and prompt cache](request-history-and-cache.md)).
 3. **`tool_call`**: `preflight()` (`ToolGate`) checks every call. Routing tools must be called directly, never from a codemode script. Under automatic control every call must belong to the assistant message Pi persisted for this turn (its batch), and the batch must follow the handoff rule: a handoff call comes last, may be accompanied only by `select_evidence` calls, and never by ordinary task tools. A worker whose assignment has returned may make only the recovery reads it was granted. A profile's commands and edits are refused until its view holds the routing skill and the reference for its role (see Intended Behavior That Looks Wrong).
 4. **Tool execution**: `ToolHandlers` runs routing tools one at a time. Each accepted call appends its event once, so repeating a call returns the saved result.
@@ -227,7 +227,8 @@ The spec's invariants (Task 001 §3.3) that hold today. Most are guarded across 
 - A failed model switch records the handoff as blocked and tells the user. `handoffs.test.js`.
 - Manual holds survive navigation, and `/freeflow resume` cannot release them. `recovery.test.js`.
 - Image and failed-source limits stay explicit while error tool results remain evidence. `projection.test.js`.
-- Routing tools, their prompt guidelines and the routing cue are declared only while routing is effective (`applyRoutingToolVisibility`, `stableRuntimeContext`); turning routing on or off costs one cache write (Task 003 D-001, D-002). `tool-visibility.test.js`.
+- Routing tools, their prompt guidelines and the routing cue are declared only while routing is effective (`applyRoutingToolVisibility`, `stableRuntimeContext`); turning routing on or off costs one cache write (Task 003 D-001, D-002). The tools are registered with `defaultActive: false`, so Pi 1.4.0 does not activate them before Freeflow's first update. `tool-visibility.test.js`.
+- A run started by an extension message is prepared once, and an explicit resume's run stays on the resumed worker. `pi-099.test.js`, `delegation.test.js`, `recovery.test.js`.
 - Routing tools are declared to the model but not callable from scripts; nested ordinary calls are admitted with their issuing call. `nested-calls.test.js`.
 - The producing execution, not the profile live after a switch, determines attribution; unknown attribution stays unknown. Covered in the suite; no single named test.
 - Replay never invokes historical tools. By construction (replay reads events only); no single named test.
@@ -267,6 +268,7 @@ Deterministic source and fixture checks establish configuration and gating rules
 
 ## Changes
 
+- Pi 1.4.0 (2026-10-22): runs an extension message starts are prepared in `before_agent_start` on Pi 1.2.0 and later, leaving an explicit resume's run to the resumed worker; routing tools are inactive until routing turns them on.
 - 0.9.0 (2026-10-22): the routing skill is split by role into a shared `SKILL.md` and Coordinator and worker references (the three mode references merged into the Coordinator's), and the bootstrap gate requires the skill and the profile's role reference; a worker now reads about 2,200 words instead of 3,700.
 - 0.9.0 (2026-10-22): the Coordinator surfaces open contract choices to the user and records the user's own decisions directly; a worker no longer loads Action Selection, which is removed.
 - Task 004 (2026-10-11): placeholders say why a worker result is not shown, provenance names each call, the Coordinator is told its selected evidence is in view, and the return receipt no longer reads as undelivered.

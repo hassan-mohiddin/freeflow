@@ -20,7 +20,7 @@ Restart Pi or use `/reload` after installing or updating so its resources are re
 
 ## Supported Pi evidence
 
-The minimum supported native Pi version is 0.99.1 (peer range `>=0.99.1`); Pi 1.0 is supported and is the development dependency. Earlier Pi versions are unsupported. Native scripted fixtures exercise request assembly, routing, Tool Execution and compaction against Pi 1.0.0, and live sessions on Pi 1.0 with GPT-6 Luna and Sol 6.1 exercised routing, compaction and Tool Execution. These checks do not establish provider billing, model quality across models, or publication. The native entrypoint requires the host's public model registry/authentication lookup, session-scoped model and thinking controls, native session-entry append/readback, and session ancestry APIs.
+The minimum supported native Pi version is 0.99.1 (peer range `>=0.99.1`); Pi 1.0 and 1.4 are supported, and Pi 1.4.0 is the development dependency. Earlier Pi versions are unsupported. Native scripted fixtures exercise request assembly, routing, Tool Execution and compaction against Pi 1.4.0, and live sessions on Pi 1.0 with GPT-6 Luna and Sol 6.1 exercised routing, compaction and Tool Execution. These checks do not establish provider billing, model quality across models, or publication. The native entrypoint requires the host's public model registry/authentication lookup, session-scoped model and thinking controls, native session-entry append/readback, and session ancestry APIs.
 
 ## Activate Freeflow
 

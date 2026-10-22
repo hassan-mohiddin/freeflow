@@ -279,3 +279,40 @@ test("routing keeps the active-list place of tools another extension activates",
     },
   );
 });
+
+test(
+  "an explicit resume's run stays on the resumed worker though Pi 1.2+ fires before_agent_start for it",
+  { timeout: 30000 },
+  async () => {
+    // Pi 1.2.0 fires before_agent_start for a run an extension's message starts. Resume prepares its run itself;
+    // preparing it again there would return the worker to Coordinator before the resumed request.
+    const triggers = [];
+    const result = await fixture(
+      async (n) => {
+        if (n === 1) return [delegate];
+        if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
+        if (n === 4) return [submit];
+        return [];
+      },
+      false,
+      async ({ session, requests }) => {
+        await session.compact();
+        await session.reload();
+        await session.prompt("/freeflow resume");
+        await session.waitForIdle();
+        assert.deepEqual(triggers, ["user", "custom"], "Pi fired before_agent_start for the resume's message");
+        assert.deepEqual(
+          requests.map((body) => body.model),
+          [COORDINATOR, EXECUTOR, EXECUTOR, EXECUTOR, COORDINATOR],
+        );
+      },
+      true,
+      {
+        ...toolExecution,
+        maxRequests: 6,
+        extensions: [(pi) => pi.on("before_agent_start", (event) => void triggers.push(event.messageType))],
+      },
+    );
+    assert.equal([...result.state.assignments.values()][0].state, "returned");
+  },
+);

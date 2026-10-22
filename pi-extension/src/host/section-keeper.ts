@@ -1,14 +1,16 @@
 /**
- * Keep the last prompt's system sections on runs Pi starts itself (Pi #10267).
+ * Keep the last prompt's system sections on runs an extension's message starts.
  *
- * Pi applies the sections a `before_agent_start` handler sets only for a run a user prompt started. A run started by an
- * extension message (a background exit, a monitor event, a message from another session) rebuilds the sections from
- * Pi's base options, so Pi appends a system patch that removes those sections (Freeflow's, and other extensions' such
- * as Pi's own MCP servers), and puts them back with another patch at the next prompt. Both patches change the prompt the
- * provider caches, and in between the model loses the guidance it was given.
+ * A run started by an extension message (a background exit, a monitor event, a message from another session) rebuilds
+ * the sections from Pi's base options. Pi before 1.2.0 fires no `before_agent_start` for it, so Pi appends a system
+ * patch that removes every section handlers set (Freeflow's, and other extensions' such as Pi's own MCP servers; Pi
+ * #10267). From 1.2.0 Pi fires it there too: Freeflow sets its sections for that run, and the patch removes only the
+ * sections an extension sets for prompts alone. Either way Pi puts them back with another patch at the next prompt.
+ * Both patches change the prompt the provider caches, and in between the model loses the guidance it was given.
  *
  * `currentSections` reads the sections a request carries, as Pi renders them; the host records them from a request of
- * a run a prompt started, while Freeflow sets sections. `keepSections` removes exactly the reversals from the request:
+ * a run a prompt started, while Freeflow sets sections, and on Pi 1.2.0 and later updates Freeflow's own from a run a
+ * message started. `keepSections` removes exactly the reversals from the request:
  * a patch entry for a recorded section is dropped when it would move the section away from the recorded value while
  * the request still carries that value, or when it only restores the value the request already carries. Any other
  * change (a section the prompt's run did not have, a value the next prompt's run records) passes through. The stored

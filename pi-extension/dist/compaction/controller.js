@@ -427,8 +427,14 @@ export class CompactionController {
     return compacted;
   }
 }
-/** Freeflow's additions to Pi's own summarizer, written for a reader that summarizes someone else's conversation. */
+/**
+ * Freeflow's additions to Pi's own summarizer, written for a reader that summarizes someone else's conversation. From
+ * Pi 1.4.0 the summarizer's output is no longer capped at 80% of Pi's reserve but at the model's output limit (reduced
+ * to what the window leaves), so the length is asked for: the next cycle then starts within the room an agent's
+ * compaction leaves, whose summary Freeflow caps at the same limit.
+ */
 const FALLBACK_INSTRUCTIONS = [
+  `Keep the summary under ${SUMMARY_LIMIT_TOKENS.toLocaleString("en-US")} tokens; the next part of the conversation starts from it.`,
   "Write state, not a story: what is true now, each item marked as settled, tentative, superseded, or unverified.",
   "Keep exact paths, identifiers, commands, error text, numbers, and the user's words where wording matters; never paraphrase a decision or a constraint.",
   "Never record a requested, reported, or expected result as observed. Name partial or uncommitted changes, unverified results, running commands, and obligations with what triggers each.",

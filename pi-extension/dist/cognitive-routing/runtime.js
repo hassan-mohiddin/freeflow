@@ -282,8 +282,8 @@ export class RoutingRuntime {
     }
     return true;
   }
-  beforeRun(ctx, fromPrompt = true) {
-    return this.models.beforeRun(ctx, fromPrompt);
+  beforeRun(ctx, trigger) {
+    return this.models.beforeRun(ctx, trigger);
   }
   runStarted() {
     this.models.runStarted();

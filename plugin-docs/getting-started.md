@@ -104,7 +104,7 @@ pi install git:github.com/hassan-mohiddin/freeflow
 
 Restart Pi or use `/reload` after installing or updating the package.
 
-Native Pi 0.99.1 is the minimum supported version (peer range `>=0.99.1`); Pi 1.0 is supported and is the development dependency. Earlier Pi versions are unsupported. Scripted host checks and live sessions qualify the named behavior, not provider billing or model quality across models.
+Native Pi 0.99.1 is the minimum supported version (peer range `>=0.99.1`); Pi 1.0 and 1.4 are supported, and Pi 1.4.0 is the development dependency. Earlier Pi versions are unsupported. Scripted host checks and live sessions qualify the named behavior, not provider billing or model quality across models.
 
 ## Activate a repository
 
