@@ -18,7 +18,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 ## Rules
 
 - Before substantially revising an existing skill, preserve the complete current package (`SKILL.md`, references, scripts, assets) in a recoverable Git ref or in task evidence outside the package; for other instruction text, preserve the current text in a recoverable Git ref. A small correction needs no new snapshot when the exact previous state is already recoverable and behavior, activation, dependencies, and resources are unchanged. A baseline supports recovery and comparison; it does not show that either version behaves correctly.
-- If accepted behavior, public dependencies, safety, compatibility, or another user-owned boundary is unsettled, stop and resolve it before encoding it.
+- If accepted behavior, public dependencies, or another user-owned choice is unsettled, stop and resolve it before encoding it.
 - Never rely on an unread skill or reference to cause its own read. The first read must come from context the agent already has: a description, guaranteed base guidance, an already-loaded skill, a capability cue, or another declared route.
 - Rely only on context guaranteed on every valid activation path, never on an optional sibling, a common but unguaranteed route, or an accidental earlier read.
 - In a skill package, link every agent-facing reference, asset, script, and package dependency from the body, with the condition that requires it. The body and the resource state the same read condition.
@@ -131,7 +131,7 @@ goal
 
 Examples inside judgment are illustrations, not triggers:
 
-> Delegate a unit when a cheaper profile can do it without significant quality loss and the handoff costs less than it saves. A separate record update across several entries often qualifies; a one-line update in the middle of your own work does not.
+> Delegate work when a cheaper profile can do it without significant quality loss and the handoff costs less than it saves. A separate record update across several entries often qualifies; a one-line update in the middle of your own work does not.
 
 When a skill contains both kinds, say so once near the top: which instructions are binding, and that everything else is judgment the agent may adapt to its goal. A skill may be mostly Rules, like a release protocol, or mostly judgment, like work placement; the label keeps each one from being read as the other.
 
@@ -261,4 +261,4 @@ Stop when the requested package:
 - contains no author-facing residue;
 - passes required structural checks.
 
-Stop and ask when accepted behavior, activation, dependencies, safety, compatibility, or another user-owned boundary cannot be settled from evidence. Do not add sections, references, examples, scripts, or procedure merely to make the package look complete.
+Stop and ask when accepted behavior, activation, dependencies, or another user-owned choice cannot be settled from evidence. Do not add sections, references, examples, scripts, or procedure merely to make the package look complete.

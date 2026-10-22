@@ -108,7 +108,7 @@ The gate fires when the change touches:
 - CI or release files;
 - a public interface: anything users or other code depend on, such as CLI flags, config keys, exported APIs, and skill names and descriptions;
 - a path the project's Review Rules mark sensitive;
-- anything the Work Agreement names for review.
+- anything the work agreement names for review.
 
 Judge from the diff against the base, not from how the task was described. A trigger that fires is enough; a small diff does not cancel it.
 

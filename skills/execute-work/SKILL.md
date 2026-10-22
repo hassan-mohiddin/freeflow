@@ -32,7 +32,7 @@ Read a reference only when its situation arises.
 
 ## Rules
 
-- Stay inside the work agreement; an agreement to return a plan does not cover production edits. Take a new requirement, scope, compatibility, persistence or evidence boundary to Discuss Work before adopting it.
+- Stay inside the work agreement; an agreement to return a plan does not cover production edits. Take a new requirement, evidence boundary or other user-owned choice to Discuss Work before adopting it.
 - Never cross a selected Checkpoint while it is due and unresolved; Track Work names its owner.
 - Never rewrite a Spec, Plan, policy or acceptance criterion to make the implementation pass.
 - Never encode a guess for consequential behavior nobody defined: ask through Discuss Work, or, when no one can answer, take the Working Method's default and report it.
@@ -47,7 +47,7 @@ Goal: before the first effect, you know what is agreed, how you will get there, 
 - **Route:** the main steps, their order, and which depend on feedback. For substantial dependent work, forecast internally which changes belong together and the earliest observation that could invalidate the rest.
 - **Evidence:** the checks that could disagree with a wrong result, on the user's path.
 
-Before the first production change, gather what the route's predictable steps will use (sources, callers, contracts, conventions, code to copy), with the queries in the Working Method's "Find what the change touches"; never start substantial work from a guessed API, owner or cause. Stop when what remains can only be learned by doing the work, such as a test result or the user's reaction to a draft, and adapt the route to that feedback. Reading files no step needs, or collecting information because it may be useful later, is over-gathering; pausing for context the route could have predicted is under-gathering. When the unit needs unexpectedly large context, return that need to the user rather than reading the whole dependency tree, citing the host's usage figures, never invented token counts. A small, well-understood change needs no separate pass. You are ready when you can say what will change, why it should work, and how it will be checked.
+Before the first production change, gather what the route's predictable steps will use (sources, callers, contracts, conventions, code to copy), with the queries in the Working Method's "Find what the change touches"; never start substantial work from a guessed API, owner or cause. Stop when what remains can only be learned by doing the work, such as a test result or the user's reaction to a draft, and adapt the route to that feedback. Reading files no step needs, or collecting information because it may be useful later, is over-gathering; pausing for context the route could have predicted is under-gathering. When the work needs unexpectedly large context, return that need to the user rather than reading the whole dependency tree, citing the host's usage figures, never invented token counts. A small, well-understood change needs no separate pass. You are ready when you can say what will change, why it should work, and how it will be checked.
 
 An agreement to fix a bug covers investigation before the remedy is known. Domain guidance, such as a framework or security skill, supplies method, never authority; load it for the concrete technology or risk, not for a keyword.
 
@@ -55,7 +55,7 @@ An agreement to fix a bug covers investigation before the remedy is known. Domai
 
 Goal: the agreed result, by the simplest method that fits, with accepted behavior intact.
 
-Work in units that each produce one checkable result, not one per command or file; [Track Work](../track-work/SKILL.md) owns how Slices are sized and recorded. Use one primary method at a time: direct implementation when the outcome and mechanism are understood, one routed reference when its situation holds, or a bounded learning action when an empirical question must be answered first.
+Work in steps that each produce one checkable result, not one per command or file; [Track Work](../track-work/SKILL.md) owns how Slices are sized and recorded. Use one primary method at a time: direct implementation when the outcome and mechanism are understood, one routed reference when its situation holds, or a bounded learning action when an empirical question must be answered first.
 
 For one mechanical edit across many sites, edit the first site by hand, then write a script or codemod; run it on that site's original state and diff against your hand edit until they match, then run it everywhere. Keep the script in the task's scratch location and name it in the report. Edit by hand when the sites are few or each needs its own decision.
 

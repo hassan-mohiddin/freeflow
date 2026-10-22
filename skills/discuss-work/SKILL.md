@@ -7,7 +7,7 @@ description: "Use when what or how is still open: options, assumptions, revisiti
 
 Work out with the user what to do, and how, while that is still open; agree the work and every choice that is the user's before building; keep those choices in one decision list through the work; and account for them at the end.
 
-A **user-owned choice** changes something the user will see or live with: behavior, names or text the user meets, defaults, what happens on error, data written, scope, risk, or compatibility. Mechanics that change none of these are yours to choose. The [Interaction Contract](../../runtime/prompts/interaction-contract.md) governs what the user's turn asks for.
+A **user-owned choice** changes something the user will see or live with: behavior, names, text or public interfaces the user meets, defaults, what happens on error, data written or lost, scope, compatibility or migration, permissions, security, privacy, cost, or other risk. Mechanics that change none of these are yours to choose. The [Interaction Contract](../../runtime/prompts/interaction-contract.md) governs what the user's turn asks for.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
@@ -120,7 +120,7 @@ Goal: no choice is made silently, and the user is interrupted only when the work
 - A default that proves wrong: mark it `changed` with why; if it changes an `agreed` item, that needs the user's yes.
 - Several at once: ask the earliest one whose answer decides whether the others matter. Mid-work questions come one at a time; the agreement is the only list you send.
 - Work that turns out larger with the same outcome stays covered: continue without asking.
-- A remedy that changes behavior, compatibility, scope, or another user-owned boundary needs a new yes: explain its concrete consequence and the realistic alternatives, then ask.
+- A remedy that makes a user-owned choice needs a new yes: explain its concrete consequence and the realistic alternatives, then ask.
 - New evidence that reopens the direction itself, not one bounded choice: go back to Explore for what changed.
 
 When sources the work relies on disagree, state each one's exact claim, scope and status (current, accepted, draft, historical, generated) and apply the repository's own precedence; code is not right because it runs, and tests are not requirements because they fail. Ask only when precedence does not settle it and the answer changes the result.
@@ -131,7 +131,7 @@ Goal: the user decides from one look, knows what you recommend, and their answer
 
 When the host has a question tool (`ask_user` on Pi with Freeflow, `AskUserQuestion` on Claude Code), a bounded choice of two to four real options usually goes in its dialog, with what you found and why it matters in your reply. Ask in your reply when the choice needs more explanation, or no dialog can be shown.
 
-- The question is one full sentence about the outcome the user owns ("Ship task memory on or off by default?"), not the mechanics ("Which value for `taskMemory.enabled`?").
+- The question is one full sentence about the outcome the user owns ("Ship Task Memory on or off by default?"), not the mechanics ("Which value for `taskMemory.enabled`?").
 - Give two to four real options, each a few words with what choosing it does and costs; leave out dominated, unsafe, unavailable and hypothetical ones, and never add "Other".
 - Put your recommendation first, its label ending in "(Recommended)", when evidence supports one.
 - If the user closes the dialog, ask in your reply and do not act on the choice meanwhile.
@@ -142,4 +142,4 @@ Record the question and the user's answer in their words.
 
 Goal: before you claim done, the user sees every choice they have not seen.
 
-[Review Work](../review-work/SKILL.md)'s self-review runs the decision check against this list. Bring it each `agreed` item with the `file:line`, test or output that shows it was done as agreed, and each `changed` item with its reason; the check adds what the diff shows that no item covers as `new`. The hand-over (the pull request through [Deliver Work](../deliver-work/SKILL.md), or the final report) shows what done looks like against what was done, and only the `new`, `changed` and `default` items. Agreed items stay out.
+The decision check runs in [Review Work](../review-work/SKILL.md)'s self-review of work, against this list. Find the choices the work made that the agreement did not settle, such as names, behavior in cases nobody specified, defaults, and conventions copied from nearby code. Bring each `agreed` item with where the user agreed it (the work agreement, a Decision such as `D-003`, or their message) and the `file:line`, test or output that shows it was done as agreed, and each `changed` item with its reason; add each choice the diff shows that no item covers as `new`. Choices for the user stay in this list, never in a Decision, which holds only what the user accepted; building a choice does not settle it. The hand-over (the pull request through [Deliver Work](../deliver-work/SKILL.md), or the final report) shows what done looks like against what was done, and only the `new`, `changed` and `default` items. Agreed items stay out.

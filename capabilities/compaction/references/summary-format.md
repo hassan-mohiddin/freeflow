@@ -9,7 +9,7 @@ The shape depends on one fact: whether the work has a Working Record.
 | Work has a Working Record | Shape | Why |
 | --- | --- | --- |
 | Yes | **Record-backed**: `Task`, `Now`, `In flight`, `Next steps` | The record already holds the task. The summary holds only what sits below the record's granularity. |
-| No | **Record-shaped**: the record's headings | The summary is the only task memory for the next cycle, so it uses the record's structure. |
+| No | **Record-shaped**: the record's headings | The summary is the only record of the task for the next cycle, so it uses the record's structure. |
 
 Compaction never creates a record. Whether a task needs one is decided at its start or when facts change its scope.
 

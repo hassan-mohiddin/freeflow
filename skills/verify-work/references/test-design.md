@@ -2,7 +2,7 @@
 
 Read this before designing or materially changing a behavior check, including regression or characterization coverage and a test's fixture or shared setup.
 
-This reference is judgment, with one Rule: before reporting work done, give each changed existing test, fixture, snapshot or shared test setup its reason: it preserves the property the test checked, or it follows a behavior change the user agreed. Return any other such change to the user. Choose a real observing boundary and an independent expected result. It does not prescribe test-first sequencing, a fixed unit/integration/end-to-end ratio, or a test-count target.
+This reference is judgment, with one Rule: before reporting work done, give each changed existing test, fixture, snapshot or shared test setup its reason: it preserves the property the test checked, or it follows a behavior change the user agreed. Return any other such change to the user. Choose a real observing boundary and an independent expected result. It does not prescribe a fixed unit/integration/end-to-end ratio or a test-count target.
 
 ## Start From Accepted Behavior
 
@@ -100,8 +100,6 @@ Keep fixture construction and cleanup in test utilities. Do not add public produ
 Prefer existing seams for clocks, randomness, scheduling, and external events. Do not expose new public test hooks merely for convenient assertions.
 
 Use observable synchronization, deterministic inputs, bounded eventual assertions, or the real diagnostic loop instead of arbitrary sleeps as proof. When timing or flakiness remains unexplained, use Execute Work's [diagnose](../../execute-work/references/diagnose.md) before selecting a production correction.
-
-Test order does not establish correctness. A test written after code can be valid; an earlier test can still exercise the wrong path. Preserve evidence of which observations actually ran and never claim an unobserved earlier failure.
 
 ## Question Test Machinery Before Expanding It
 

@@ -198,7 +198,7 @@ Use only the slice fields needed to execute and check it; mention files, modules
 
 ### Keep Acceptance And Return Visible
 
-Tie each material outcome and final check to the accepted behavior it serves. Keep the agreed return condition visible: return a proposed strategy, implement one Slice, finish the task, or stop at a specified boundary. Internal delegation handbacks and context cycles are not user checkpoints. Before a new prerequisite becomes a planned obligation, determine whether it serves an accepted requirement or only preserves a particular approach.
+Tie each material outcome and final check to the accepted behavior it serves. Keep the agreed return condition visible: return a proposed strategy, implement one Slice, finish the task, or stop at a specified boundary. Internal delegation handbacks and context cycles are not user checkpoints.
 
 ### Select Checkpoints Without A Schedule Of Ceremonies
 

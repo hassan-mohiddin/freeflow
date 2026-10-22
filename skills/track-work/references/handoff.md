@@ -23,7 +23,7 @@ Identify the recipient, purpose, and available transfer mechanism before writing
 
 When a Working Record exists, make it sufficient first ([Prepare For A Context Boundary](../SKILL.md#prepare-for-a-context-boundary)). Then inspect only the relevant worktree, artifacts, processes, and evidence needed to describe what the recipient will encounter.
 
-Preserve the execution agreement separately from the immediate assignment: what outcome remains authorized, what this unit covers, what is excluded, and when the user expects a return. Identify the assignment's source and any superseded instruction whose reuse would misdirect continuation. A recommendation to continue is not approval to finish the remaining task.
+Preserve the work agreement separately from the immediate assignment: what outcome remains authorized, what this assignment covers, what is excluded, and when the user expects a return. Identify the assignment's source and any superseded instruction whose reuse would misdirect continuation. A recommendation to continue is not approval to finish the remaining task.
 
 Use the host's safe boundary for ongoing operations; do not infer an unobserved result or interrupt a mutation to make a cleaner handoff. Partial work is a valid transfer state: preserve unverified edits, failing checks, unresolved causes, and residual effects honestly.
 
@@ -165,7 +165,7 @@ Next accepted action and authority, or recommended route:
 
 ### Review-Continuity Addendum
 
-Include only when selected independent review state must survive the transfer. A new context or reviewer continues the existing review budget; local edits, renamed scope, or a different reviewer do not reset it.
+Include only when selected independent review state must survive the transfer. A new context or reviewer continues the existing review budget, as [Review Work](../../review-work/SKILL.md)'s Rules say.
 
 ```md
 Review number: 1 | 2 | 3

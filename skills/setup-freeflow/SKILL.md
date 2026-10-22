@@ -9,21 +9,28 @@ Create or repair the smallest valid layered setup. Keep repository activation, p
 
 - `.freeflow/config.json` is the required shared repository activation config.
 - `.freeflow/local.json` is an optional per-checkout personal override. It cannot activate Freeflow by itself.
-- Runtime delivery depends on the current host's installed and trusted adapter.
+- Runtime delivery depends on the current host's installed and trusted adapter. Configuration does not prove runtime delivery.
 
 Answer setup questions and delivery checks read-only. An explicit action request authorizes the smallest selected setup change under the state rules below. When repository config is missing, first activation authorizes minimal shared config; it does not authorize personal overrides, optional capabilities, replacement of invalid config, or edits to repo-owned host instructions.
 
-Read [the activation contract](references/activation-contract.md) before changing setup state. Read [host setup](references/host-setup.md) when runtime delivery, lifecycle, or host trust matters.
+## Routes
+
+| Situation | Go to |
+| --- | --- |
+| Activating, or changing shared or personal setup | Establish Mutation Authority, then Inspect The Layers, then the section for that layer |
+| Repository config invalid, or conflicting with accepted source truth or repository instructions | [Discuss Work](../discuss-work/SKILL.md), before replacing or reinterpreting it |
+| Whether the host delivers Freeflow, or which host action refreshes it | Hosts, below |
+| Cognitive Routing or Tool Execution values | Their explicit settings surface (on Pi, `/freeflow settings`), only when the user requests them |
 
 ## Establish Mutation Authority
 
 Classify the current state before editing:
 
-- **Unconfigured:** repository config is missing or invalid, so Freeflow is not effective. An explicit setup request may create minimal config when it is missing. Replacing or reinterpreting invalid config still requires the specific authority described below.
-- **Configured but ineffective:** valid repository activation exists, but Freeflow is disabled or an invalid local config blocks runtime. No Freeflow guidance is effective. An explicit request governs the selected enablement, configuration, or repair.
-- **Effective:** Freeflow core guidance, the Interaction Contract, and base skills are effective. An explicit setup or repair request may be carried out within its authority; optional capability behavior remains independently gated.
+- **Unconfigured:** repository config is missing or invalid, so repository activation is absent and Freeflow is not effective. An explicit setup request may create minimal config when it is missing. Replacing or reinterpreting invalid config requires specific authorization and resolving the source conflict.
+- **Configured but ineffective:** valid repository activation exists, but effective `enabled` is `false` or an invalid local config blocks runtime. No Freeflow guidance is effective. An explicit request governs the selected enablement, configuration, or repair.
+- **Effective:** Freeflow core guidance, the Interaction Contract, and base skills are effective; obey them. An explicit setup or repair request may be carried out within its authority; optional capability behavior remains independently gated.
 
-User-operated host settings are direct user actions, not agent-performed config edits. Prefer them when available and do not claim their state changed until the host reports it.
+User-operated host settings are direct user actions, not agent-performed config edits. Prefer them when available, do not claim their state changed until the host reports it, and verify the resulting source and effective state afterward.
 
 ## Inspect The Layers
 
@@ -36,6 +43,14 @@ Before editing:
 
 A valid repository config establishes activation. A missing local config inherits repository settings. An invalid existing local config blocks effective Freeflow instead of falling back silently.
 
+Resolve each configurable value in this order:
+
+```text
+host session override -> personal override -> repository value -> built-in default
+```
+
+Host session overrides are host state, not config, and cannot bypass missing or invalid repository activation. Pi may temporarily override Freeflow enablement, and Cognitive Routing has its own host-managed session control. Effective Freeflow requires a valid repository config, a missing or valid local config, session-resolved `enabled: true`, and the prompt files the host delivers (Hosts, below).
+
 If setup is already valid and no change was requested, preserve it and report the effective sources. Do not rewrite config merely to normalize formatting or materialize defaults.
 
 ## Configure Shared Activation
@@ -46,23 +61,53 @@ For a new setup, write the minimal activation boundary:
 {}
 ```
 
-Add `enabled: false` only when the user explicitly requests Freeflow to be disabled. Add optional capability configuration only when the user explicitly requests it.
+Missing core keys use the built-in default `enabled: true`. Add `enabled: false` only when the user explicitly requests Freeflow to be disabled. Add optional capability configuration only when the user explicitly requests it. Do not add task state, phase, file inventories, plans, version metadata, activation paths, empty optional sections, host instruction copies, or generated workflow text.
 
-If repository config is invalid or conflicts with accepted source truth, use [Discuss Work](../discuss-work/SKILL.md) before replacing or reinterpreting it.
+These keys are unsupported in either config file and make it invalid until repaired: `defaultMode`, `interactionContract`, `skills`, `contextVirtualization`, and `conversationHistory`. The user deletes them wherever present; setup never migrates or removes them automatically.
 
-Do not create or append Freeflow instructions in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, or another host-owned instruction surface.
+Do not create or append Freeflow instructions in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, or another host-owned instruction surface, including to compensate for unavailable or unconfirmed delivery. Existing repo instructions remain live source truth within host precedence. They are not activation markers, but they can conflict with Freeflow behavior: name a conflict and ask through Discuss Work before changing setup or behavior when it would alter the next action, rather than overwriting them to make Freeflow appear active. Do not install repo-local hooks, CLI commands, lint rules, global standards, documentation inventories, or state files during setup.
 
 ## Add Personal Overrides Only When Requested
 
-Use `.freeflow/local.json` for an explicitly selected per-checkout override of `enabled`. Omitted values inherit from repository config and built-in defaults. Configure optional Cognitive Routing values only through its explicit settings surface.
+Use `.freeflow/local.json` for an explicitly selected per-checkout override of `enabled`:
 
-The legacy context keys `contextVirtualization` and `conversationHistory` are no longer supported. Delete either key from `.freeflow/config.json` or `.freeflow/local.json` wherever present; the containing file is invalid until repaired. Setup never removes them automatically.
+```json
+{
+  "enabled": false
+}
+```
 
-In Pi, `/freeflow settings` edits personal overrides and `/freeflow settings repo` edits shared settings. Prefer those controls when available.
+Omitted values inherit from repository config and built-in defaults; local precedence is per property, not whole-file replacement. Configure optional Cognitive Routing values only through its explicit settings surface.
 
-Before writing local config in a Git checkout, verify it is untracked and ignored. Do not modify shared ignore policy merely to store a personal preference; use the host's safe settings path or local Git exclusion. Refuse to overwrite a tracked local config.
+Before writing local config in a Git checkout, verify it is untracked and ignored. Do not modify shared ignore policy merely to store a personal preference: prefer the host's safe settings path, `.git/info/exclude`, or an existing ignore rule. Refuse to overwrite a tracked local config.
 
 If local config is invalid, report that it blocks effective runtime. Repair or remove it only with authorization; never discard it and fall back silently.
+
+## Hosts
+
+When Freeflow is effective, host adapters deliver `runtime/prompts/core.md`, `interaction-contract.md` and `working-method.md`, the base Freeflow skill surface, and compact current capability state; on Pi also `tool-execution.md` and `cognitive-routing.md` while those capabilities are effective, with their skills and tools. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions. Context Virtualization and Conversation History are removed.
+
+### Pi
+
+The Pi extension reads both config layers before each agent turn. When Freeflow is enabled it always delivers the core prompt, Interaction Contract and Working Method together, keeping the existing system prompt. Runtime State is refreshed at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the provider context. Skill and capability bodies stay discoverable rather than delivered as hidden persistent messages.
+
+Settings scopes:
+
+```text
+/freeflow settings          personal overrides
+/freeflow settings session  temporary Freeflow and Cognitive Routing session controls
+/freeflow settings repo     shared repository settings
+```
+
+Session settings can temporarily inherit, enable, or disable Freeflow and override Cognitive Routing profiles and delegation; one reset action clears them. They persist in the active Pi session branch, never write either config file, and cannot bypass missing or invalid repository activation. The personal settings path uses omission to inherit, refuses to overwrite invalid or tracked local config, and establishes local Git exclusion when needed. These user-operated controls update state before the next model turn and reload Pi resources when supported.
+
+A config written during setup is visible to the adapter on the next agent turn. After first activation, tell the user to run `/reload` so Pi refreshes skills and resources fully; without it, core runtime context loads on the next turn but resource discovery waits. Confirm automatic delivery through current extension status or runtime evidence.
+
+### Codex And Claude Code
+
+The packaged runtime hook reads the same two layers. At supported `SessionStart` boundaries (startup, resume, clear, and compact) it loads `core.md`, `interaction-contract.md` and `working-method.md`, each unless `prompts` (`core`, `interactionContract`, `workingMethod`; each a boolean, on by default, personal overriding shared per prompt) turns it off, and emits a compact active Runtime State. It does not process submitted prompts, persist session controls, inject skill bodies, or inspect Pi-only capabilities.
+
+After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session or startup, as available. Name the exact control the current host supports; do not prescribe Pi's `/reload`.
 
 ## Establish Same-Turn Context
 
@@ -71,7 +116,7 @@ After successful verification, apply newly effective context directly for the re
 - read the [Interaction Contract](../../runtime/prompts/interaction-contract.md);
 - read the [core guidance](../../runtime/prompts/core.md) and the [Working Method](../../runtime/prompts/working-method.md) when Freeflow is effective.
 
-These direct reads establish same-turn guidance; they do not prove that a lifecycle adapter ran. After first activation, use [host setup](references/host-setup.md) to name the exact host-native lifecycle action for automatic delivery and resource refresh, state what applies before that boundary, and keep delivery confirmed, unavailable, or unconfirmed from evidence.
+These direct reads establish same-turn guidance; they do not prove that a lifecycle adapter ran, and no further adapter invocation has occurred yet. After first activation, name the exact host-native lifecycle action for automatic delivery and resource refresh (Hosts, above), and state what applies before that boundary.
 
 ## Verify And Report
 
@@ -80,9 +125,15 @@ Verify:
 - repository config parses and is the required activation boundary;
 - local config is missing or valid, personal, untracked, and ignored when applicable;
 - effective `enabled`, core guidance, and optional capability values have the expected sources;
-- no repo-owned host instructions or unrelated files changed.
+- no repo-owned host instructions or unrelated files changed, and running setup again would change nothing.
 
 After verification supports a setup result, silently self-review the final observed or changed state before accepting, reusing, or reporting it. Correct clear local issues within the existing setup authority and re-verify the affected boundary; stop on ambiguity, route change, or an out-of-envelope correction.
+
+Classify automatic runtime delivery from evidence:
+
+- **confirmed:** trustworthy evidence shows the current host adapter ran for the current lifecycle;
+- **unavailable:** the adapter, plugin or hook is absent, disabled, denied, untrusted, or unsupported;
+- **unconfirmed:** the adapter may be installed and trusted, but the host exposes no trustworthy evidence that it ran. Installed and trusted registration establishes availability for the next lifecycle action, not delivery.
 
 Report separately:
 

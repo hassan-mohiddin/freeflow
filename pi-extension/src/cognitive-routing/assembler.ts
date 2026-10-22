@@ -363,7 +363,11 @@ export class ContextAssembler {
       }
       check(prepared.ready, "context_unavailable", prepared.problems.map((p) => p.detail).join("; "));
       if (this.session.routingSkill)
-        this.session.turn.skillInView = viewHoldsSkill(prepared.messages, this.session.routingSkill);
+        this.session.turn.skillInView = viewHoldsSkill(
+          prepared.messages,
+          this.session.routingSkill,
+          this.session.turn.profile,
+        );
       // Only worker views record exposure; hashing every source for the Coordinator's view would be wasted.
       if (isWorkerProfile(this.session.turn.profile)) {
         const known = this.session.stateData().exposure;

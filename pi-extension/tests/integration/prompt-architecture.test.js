@@ -65,11 +65,16 @@ function lastRuntimeState(messages) {
 }
 
 test("re-entry recovery is stable and capability-neutral", async () => {
-  const [core, cognitiveRouting, routingSkill] = await Promise.all([
+  const routingDir = join(process.cwd(), "capabilities", "cognitive-routing");
+  const [core, cognitiveRouting, ...routingFiles] = await Promise.all([
     readFile(join(process.cwd(), "runtime", "prompts", "core.md"), "utf8"),
     readFile(join(process.cwd(), "runtime", "prompts", "cognitive-routing.md"), "utf8"),
-    readFile(join(process.cwd(), "capabilities", "cognitive-routing", "SKILL.md"), "utf8"),
+    readFile(join(routingDir, "SKILL.md"), "utf8"),
+    readFile(join(routingDir, "references", "coordinator.md"), "utf8"),
+    readFile(join(routingDir, "references", "worker.md"), "utf8"),
   ]);
+  // The skill holds what every profile shares; Coordinator's and the workers' methods are its role references.
+  const routingSkill = routingFiles.join("\n");
 
   assert.match(core, /## How Freeflow Works/);
   assert.match(
@@ -96,7 +101,10 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   assert.match(core, /## Terms/);
   // Skills are cued by their descriptions, not by core (Task 003 audit B and D).
   assert.doesNotMatch(core, /## Cues/);
-  assert.match(cognitiveRouting, /Before relying on Automatic routing, read the complete cognitive-routing skill/);
+  assert.match(
+    cognitiveRouting,
+    /Before relying on Automatic routing, read the complete cognitive-routing skill if its body is absent, and the reference it names for your profile/,
+  );
   assert.match(cognitiveRouting, /This bootstrap read is the only environment call/);
   assert.match(cognitiveRouting, /If unavailable, stop and report the missing method/);
   // The approved compact cue keeps bootstrap/control boundaries; the loaded

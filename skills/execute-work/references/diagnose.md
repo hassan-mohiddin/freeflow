@@ -13,7 +13,7 @@ Establish what fails and why before selecting a correction. A supported cause di
 - Preserve unfavorable evidence. Never rerun until a failure disappears, and never drop a contradicting observation.
 - Minimize and sanitize logs, traces, payloads, dumps, screenshots, and browser state; never expose credentials or unnecessary private data.
 - Report a mitigation as containment, not resolution; never claim fixed when only a mitigation succeeded or the reported boundary is unverified.
-- When a remedy changes scope, compatibility, public behavior, failure semantics, or another user-owned boundary, take its concrete consequence and alternatives to Discuss Work before adopting it.
+- When a remedy makes a user-owned choice, as Discuss Work defines it, take its concrete consequence and alternatives there before adopting it.
 
 ## Enter Only For An Unsettled Cause
 

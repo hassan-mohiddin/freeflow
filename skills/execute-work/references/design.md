@@ -10,7 +10,7 @@ Hide coherent, likely-changing decisions behind small, stable, outcome-level int
 
 - A design recommendation is not implementation authority, and this lens never enlarges a task by itself.
 - Never remove required correctness, trust, or safety to make a design smaller, and never turn hypothetical lifecycle completeness into a production requirement.
-- Never design around an invented product or failure policy. When a boundary changes product behavior, public interfaces, compatibility, permissions, security, privacy, billing, data loss, migration direction, or another user-owned outcome, take its concrete consequences and supported alternatives to [Discuss Work](../../discuss-work/SKILL.md).
+- Never design around an invented product or failure policy. When a boundary would settle a user-owned choice, as [Discuss Work](../../discuss-work/SKILL.md) defines it, take its concrete consequences and supported alternatives there.
 - Do not invent APIs, files, or stronger guarantees to make a design look complete; name the missing observation or choice instead.
 
 ## Start With The Required Outcome
@@ -44,7 +44,7 @@ Name the actual question, not a generic demand for more design. Deciding which o
 
 - **Evidence supports a mechanism:** select it and say why it fits.
 - **An environmental fact is missing:** find the observation that distinguishes the alternatives before dependent work.
-- **A user-owned boundary is unsettled:** take it to Discuss Work.
+- **A user-owned choice is unsettled:** take it to Discuss Work.
 - **Only ordinary mechanics remain:** leave them to implementation.
 
 Make explicit only what the question needs:
@@ -71,7 +71,7 @@ When materially different ownership choices remain viable, design two or three i
 
 Prefer the boundary that removes concepts and coordination over one that centralizes the same protocol behind new terminology or another helper. Do not centralize unrelated responsibilities to reduce interface count, or scatter an old protocol into callers while claiming an abstraction was removed.
 
-The intended interface should normally be the behavior and test surface. Question the design when callers or tests must bypass it, coordinate private lifecycle steps, replace many internals, or know dependency construction the module should own. An internal test inspecting internals is not itself a defect; the concern is callers needing hidden knowledge, or a fixture manufacturing the behavior it claims to observe. Tests that protect accidental machinery do not justify keeping it, production architecture should not imitate the test framework, and test order is not a design criterion.
+The intended interface should normally be the behavior and test surface. Question the design when callers or tests must bypass it, coordinate private lifecycle steps, replace many internals, or know dependency construction the module should own. An internal test inspecting internals is not itself a defect; the concern is callers needing hidden knowledge, or a fixture manufacturing the behavior it claims to observe. Tests that protect accidental machinery do not justify keeping it, and production architecture should not imitate the test framework.
 
 ## Modules And Dependencies
 
@@ -106,7 +106,7 @@ Complexity is coordination, not line count; a large implementation can be simple
 
 Do not escalate when stable repetition is small and local, broad edits are mechanical and source-backed, a one-off script needs no abstraction, a wrapper keeps a real compatibility contract, one condition is wrong but the interface is sound, an internal test deliberately checks an internal module, or resolving the pressure would exceed the user's goal without blocking it.
 
-Choose the narrowest supported route: continue (the boundary is sound); a local correction (the defect stays within one module and contract); diagnosis (the failure is repeated or unexplained); a Spec or Plan revision (behavior, acceptance, or the execution boundary is incomplete); a user decision (resolving it changes a user-owned outcome); learning (evidence cannot distinguish viable boundaries); deepening (a supported information-hiding improvement fits accepted scope); or deferred deepening (real but not worth resolving now).
+Choose the narrowest supported route: continue (the boundary is sound); a local correction (the defect stays within one module and contract); diagnosis (the failure is repeated or unexplained); a Spec or Plan revision (behavior, acceptance, or the execution boundary is incomplete); a user decision (resolving it makes a user-owned choice); learning (evidence cannot distinguish viable boundaries); deepening (a supported information-hiding improvement fits accepted scope); or deferred deepening (real but not worth resolving now).
 
 When pressure is supported, find the decision the module should hide. Organize modules around decisions likely to change, not processing steps: instead of exposing `parse -> validate -> retry -> send -> log -> clean up`, look for the policy those steps implement. A wrapper is not deep because it hides lines; it is deep when callers stop knowing concepts or coordinating protocol. Failure and recovery policy are often that decision. Keep one coherent model of the outcome, state, and failure behavior; pressure exists when a concept has different names or rules across callers, several modules partly own one decision, or callers translate between incompatible representations. Stop the current patch when it clearly spreads a likely-changing decision, adds caller protocol, exposes internal state, creates another required workaround, or makes the next accepted change materially harder. Name the boundary:
 
@@ -137,4 +137,4 @@ Discard-or-promote rule:
 Return condition:
 ```
 
-The experiment answers the design question; if its next prerequisite is future production infrastructure, reassess before building it, and one failed extension or technique does not prove every in-scope approach impossible. Working exploratory code is evidence, not production architecture. Compare alternatives only when they are real. Recommend the simplest supported boundary that preserves required behavior, with the structural evidence, the decision it hides, its caller contract and failure behavior, its principal cost, and what would invalidate it: keeping the existing design, a local correction, diagnosis, an artifact revision, a learning action, an accepted deepening, explicit deferral, or a stop for the user's direction. When the selected result is behavior-preserving reduction, use [simplify](simplify.md). Freeze a sufficiently supported boundary instead of pursuing architectural completeness.
+The experiment answers the design question. Working exploratory code is evidence, not production architecture. Compare alternatives only when they are real. Recommend the simplest supported boundary that preserves required behavior, with the structural evidence, the decision it hides, its caller contract and failure behavior, its principal cost, and what would invalidate it: keeping the existing design, a local correction, diagnosis, an artifact revision, a learning action, an accepted deepening, explicit deferral, or a stop for the user's direction. When the selected result is behavior-preserving reduction, use [simplify](simplify.md). Freeze a sufficiently supported boundary instead of pursuing architectural completeness.

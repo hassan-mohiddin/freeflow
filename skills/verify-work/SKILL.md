@@ -45,7 +45,7 @@ Distinguish required acceptance from an optional stronger assertion. If evidence
 
 Goal: the smallest observation that could actually disagree with the claim, at the right boundary.
 
-Use the smallest direct observation that can disagree with the claim. Before relying on an unfamiliar fixture for substantial dependent work, establish that it reaches the required observing stage and distinguishes the relevant wrong behavior. Reuse an adequate existing fixture; observer preparation is not a mandatory separate prototype.
+Use the smallest direct observation that can disagree with the claim. Before relying on an unfamiliar fixture for substantial dependent work, establish that it reaches the required observing stage and distinguishes the relevant wrong behavior. Reuse an adequate existing fixture.
 
 For saved evidence, identify what code or artifact, check, configuration, and environment it examined, using existing outputs and source identities where available. Compare relevant later changes, including new files and generated output; HEAD alone does not identify an uncommitted candidate. Keep two facts separate: the observation occurred, and it applies to the current state. A later edit does not erase an earlier pass, and uncertain applicability does not certify the new candidate. Report missing identity or output rather than building a new evidence store. Reuse results whose applicability remains supported; rerun only affected evidence, and do not repeat checks merely because another activity or context began.
 
@@ -102,26 +102,14 @@ When answering a review Needs evidence item, preserve its pointer, claim, requir
 
 ## Report And Stop
 
-For one straightforward Supported claim, report briefly:
+Report each claim in this shape:
 
 ```text
-Claim @ required boundary: Supported ([check result]) by [evidence].
-Proves:
-Does not prove:
-```
-
-Use fuller reporting when evidence is adverse, conflicting, consequential, multi-boundary, or returning to adjudication:
-
-```text
-Review item: [when applicable]
-Claim:
-Required boundary:
-Evidence:
-Check result:
-Claim result:
+Review item: [only when answering one]
+Claim @ required boundary: [claim result] ([check result]) by [evidence].
 Proves:
 Does not prove:
 Required next evidence: [only when unresolved]
 ```
 
-Do not manufacture empty fields or proof beyond the observation. When the result changes the work's direction or reaches its boundary, return it to the current owner. Stop once the claim is classified and the supported next route or missing evidence is explicit.
+One straightforward Supported claim needs only the middle three lines. When evidence is adverse, conflicting, consequential or multi-boundary, give each claim and boundary its own entry. Do not manufacture empty fields or proof beyond the observation. When the result changes the work's direction or reaches its boundary, return it to the current owner. Stop once the claim is classified and the supported next route or missing evidence is explicit.

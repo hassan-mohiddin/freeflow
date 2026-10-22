@@ -29,7 +29,7 @@ Goal: the user sees every choice nobody agreed, and no existing check was bent t
 
 When self-reviewing your own work, also run:
 
-- **Decision check:** list the choices the work made that the agreement did not settle, such as names, behavior in cases nobody specified, defaults, and conventions copied from nearby code. Mark each *agreed*, citing where the user agreed it (the Work Agreement, an existing Decision such as `D-003`, or the user's message), or *for the user*. Keep each choice for the user where the task keeps its open choices, and list them all in the hand-over report. With a Working Record, that place is [Discuss Work](../../../skills/discuss-work/SKILL.md)'s decision list, `sources/decisions.md`; never a Decision, which holds only what the user accepted. Building a choice does not settle it.
+- **Decision check:** run [Discuss Work](../../../skills/discuss-work/SKILL.md#account-at-the-end)'s decision check against its decision list (with a Working Record, `sources/decisions.md`).
 - **Test-integrity check:** run Verify Work's [test-changes](../../../skills/verify-work/scripts/test-changes.mjs) script from the work's base, and settle each listed change to an existing test, fixture, or shared setup as [Test Design](../../../skills/verify-work/references/test-design.md)'s Rule requires.
 
 ## Security Risk Lens

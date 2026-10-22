@@ -1,10 +1,10 @@
 # Discussion Continuity
 
-Read this when discussion state, an emerging route or its Checkpoints must outlast the conversation: before preserving discussion across context loss, creating or updating durable task memory from discussion, or carrying a proposed or selected Checkpoint beyond the current context.
+Read this when discussion state, an emerging route or its Checkpoints must outlast the conversation: before preserving discussion across context loss, creating or updating a Working Record or another durable source from discussion, or carrying a proposed or selected Checkpoint beyond the current context.
 
 This reference is judgment: adapt it to the discussion. Its binding statements restate [Discuss Work](../SKILL.md) or Track Work Rules.
 
-Discussion state is not automatically a Working Record, Spec, Plan, checkpoint, or authority. Preserve the required outcome separately from the current approach, and distinguish the user's execution agreement from proposals that have not been selected.
+Discussion state is not automatically a Working Record, Spec, Plan, checkpoint, or authority. Preserve the required outcome separately from the current approach, and distinguish the user's work agreement from proposals that have not been selected.
 
 ## Keep It In Conversation When Possible
 
@@ -27,7 +27,7 @@ Prefer natural prose. Use structured fields only when they prevent ambiguity or 
 
 Do not preserve a transcript, repeated rationale, rejected alternatives that no longer matter, or every discussion turn. Retain a rejected approach when losing its reason would cause the next context to repeat it.
 
-## Choose Durable Memory By Purpose
+## Choose A Durable Destination By Purpose
 
 Use a durable destination only when losing the state could cause later misalignment:
 
@@ -56,7 +56,7 @@ Preserve only supported state that could affect later interpretation or action. 
 
 When the initial record need arises from discussion, preserve the state that justified the record in the first authorized atomic update. Do not create an empty shell and lose the decisions, proposals, or uncertainty that made continuity necessary. Once a record exists, use it as working memory during the discussion, updating it at meaningful boundaries (accepted choices, open questions, options still considered, material the user supplies, the route as it emerges) as Track Work describes.
 
-When a rough route is useful, preserve provisional Slices, the Checkpoints between them, and their actual dependencies without pretending the later implementation is settled. Keep the current unit concrete and later work directional. Use the existing Current Context, Current Work, Future Work, and History fields; do not add a second phase or context-cycle ledger.
+When a rough route is useful, preserve provisional Slices, the Checkpoints between them, and their actual dependencies without pretending the later implementation is settled. Keep the current Slice concrete and later work directional. Use the existing Current Context, Current Work, Future Work, and History fields; do not add a second phase or context-cycle ledger.
 
 Preserve the agreed outcome, scope, and user-facing return condition when losing them could interrupt covered work or permit drift. Authorization to investigate or propose a design is not acceptance of its production consequences. When learning changes the approach, retain the question, strongest evidence and limits, remaining uncertainty, artifact disposition, and affected later work—not the prototype's construction history.
 

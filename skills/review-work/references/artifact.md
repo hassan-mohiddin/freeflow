@@ -29,7 +29,7 @@ Goal: ask of each artifact only what its job requires.
 - **Decision record or ADR:** the choice, owner, source, alternatives, rationale, consequences, and revisit or supersession conditions.
 - **Handoff:** enough truthful point-in-time context for its recipient to continue safely, without replacing the live record.
 - **Report:** every claim the reader may act on matches what happened, every evidence pointer resolves and shows what the claim says, no claim is stronger than its evidence, and unfinished, skipped, or failed work is stated.
-- **Working Record:** accurate current task memory, recoverable Slices, decisions and work, compact evidence pointers with their limits, a provisional remaining route, defining artifacts and Recovery sources sufficient for a fresh context to resume, and one next useful action.
+- **Working Record:** accurate current task state, recoverable Slices, decisions and work, compact evidence pointers with their limits, a provisional remaining route, defining artifacts and Recovery sources sufficient for a fresh context to resume, and one next useful action.
 - **Other artifact:** its declared purpose without taking over another artifact's job.
 
 A proposal can be fit for discussion without being implementation-ready. Do not block on an open question the artifact intentionally preserves and whose answer its current use does not need.

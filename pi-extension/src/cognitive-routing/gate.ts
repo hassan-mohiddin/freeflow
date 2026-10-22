@@ -3,6 +3,7 @@ import { relative, resolve as resolvePath } from "node:path";
 import { ROUTING_RECOVERY_HINT, RoutingSession } from "./session.js";
 
 export { ROUTING_RECOVERY_HINT };
+import { requiredReads } from "./bootstrap.js";
 import { bodyHash } from "./sources.js";
 import { initialState } from "./state.js";
 import {
@@ -236,14 +237,18 @@ export class ToolGate {
       check(!this.session.error && !this.session.store?.blocked, "routing_blocked");
       this.session.openTurn();
       const skill = this.session.routingSkill;
-      // Commands and edits wait for the bootstrap read; reads and controls do not (`bootstrap.ts`). A codemode
-      // script's calls reach this gate under their own names.
-      if (skill && BOOTSTRAP_GATED.has(name) && !state.recoveryId && this.session.turn?.skillInView === false)
+      // Commands and edits wait for the bootstrap read of the skill and the profile's role reference; reads and
+      // controls do not (`bootstrap.ts`). A codemode script's calls reach this gate under their own names.
+      if (skill && BOOTSTRAP_GATED.has(name) && !state.recoveryId && this.session.turn?.skillInView === false) {
+        const [path, reference] = requiredReads(skill, this.session.turn?.profile);
         check(
           false,
           "routing_skill_unread",
-          `Read the complete cognitive-routing skill first: ${skill.path}. Under automatic routing each profile needs it in view before commands or edits, and a compaction takes it out of view. Read it in a response of its own.`,
+          reference
+            ? `Read the complete cognitive-routing skill and the reference for your profile first: ${path} and ${reference}. Under automatic routing each profile needs both in view before commands or edits, and a compaction takes them out of view. Read them in a response of their own.`
+            : `Read the complete cognitive-routing skill first: ${path}. Under automatic routing each profile needs it in view before commands or edits, and a compaction takes it out of view. Read it in a response of their own.`,
         );
+      }
       if (isWorkerProfile(this.session.turn?.profile) && !isRouting) {
         const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
         const worker = a ? this.session.assignedWorker(state, a.id) : undefined;

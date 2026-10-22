@@ -100,7 +100,7 @@ Present understanding, as bullets under these seven headings, plus an optional W
 | Heading | Holds |
 | --- | --- |
 | Goal | The outcome or central question; not the current mechanism. |
-| Work agreement (optional) | The current Work Agreement, as far as it is known: what done looks like, what the agent does without asking, what needs the user's yes first, where it comes back, and how long it holds. |
+| Work agreement (optional) | The current work agreement, as far as it is known: what done looks like, what the agent does without asking, what needs the user's yes first, where it comes back, and how long it holds. |
 | What defines this task | Pointers to the artifacts that define the task, such as its Spec, Plan, issue, or user-supplied brief. Every entry is read on each recovery. |
 | Settled | Facts and accepted understanding that still affect the work. |
 | Tentative | Hypotheses and provisional approaches. |
@@ -248,7 +248,7 @@ Three subsections in this order: Decisions, Checkpoints, Slices. History is appe
 ```markdown
 #### D-001 — Keep the Markdown record canonical
 - State: active
-- Decision: record.md remains the canonical task memory.
+- Decision: record.md remains the canonical task record.
 - Established by: The user's accepted direction on 2026-09-25.
 - Rationale: Agents need one readable recovery surface.
 - Consequences: Views project the same file.
