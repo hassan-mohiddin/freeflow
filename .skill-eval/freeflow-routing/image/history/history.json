@@ -1,0 +1,64 @@
+{
+  "commits": [
+    {
+      "message": "Initial shelf: add, list and remove bookmarks",
+      "date": "2026-07-01T10:00:00Z",
+      "overlay": ["pretag", "oldsearch", "released"],
+      "remove": [
+        "src/search.js",
+        "test/search.test.js",
+        "src/export.js",
+        "test/export.test.js",
+        "src/server.js",
+        "docs",
+        "scripts",
+        "logs"
+      ]
+    },
+    {
+      "message": "Add search, ignoring case and accents, and list --tag",
+      "date": "2026-08-12T10:00:00Z",
+      "overlay": ["pretag", "oldsearch", "released"],
+      "remove": ["src/export.js", "test/export.test.js", "src/server.js", "docs", "scripts", "logs"]
+    },
+    {
+      "message": "Add export and the web view (shelf serve)",
+      "date": "2026-09-20T10:00:00Z",
+      "overlay": ["pretag", "pretsv", "oldsearch", "released"],
+      "remove": ["docs/PLAN-tags.md", "logs"]
+    },
+    {
+      "message": "Search: share URL normalization with the store",
+      "date": "2026-09-28T10:00:00Z",
+      "overlay": ["pretag", "pretsv", "released"],
+      "remove": ["docs/PLAN-tags.md", "logs"]
+    },
+    {
+      "message": "Release 1.4.0",
+      "date": "2026-09-30T10:00:00Z",
+      "overlay": ["pretag", "pretsv", "released"],
+      "remove": ["docs/PLAN-tags.md", "logs"]
+    },
+    {
+      "message": "Plan renaming tags",
+      "date": "2026-10-14T10:00:00Z",
+      "branch": "feature/tag-rename",
+      "overlay": ["pretag", "pretsv", "released"],
+      "remove": ["logs"]
+    },
+    {
+      "message": "Tags: trim and lower-case tag names on add (plan step 1)",
+      "date": "2026-10-16T10:00:00Z",
+      "branch": "feature/tag-rename",
+      "overlay": ["pretsv"],
+      "remove": ["logs"]
+    },
+    {
+      "message": "Keep the 20 October server log for the slow list page",
+      "date": "2026-10-21T10:00:00Z",
+      "branch": "feature/tag-rename",
+      "overlay": ["pretsv"]
+    }
+  ],
+  "uncommitted": ["src/export.js", "test/export.test.js"]
+}

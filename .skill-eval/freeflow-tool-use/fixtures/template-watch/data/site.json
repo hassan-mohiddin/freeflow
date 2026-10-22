@@ -1,0 +1,11 @@
+{
+  "title": "Bistro Lumière",
+  "tagline": "Small plates, late nights.",
+  "address": "12 Quai des Lanternes",
+  "phone": "+33 1 23 45 67 89",
+  "dishes": [
+    { "name": "Onion soup", "price": "9" },
+    { "name": "Duck confit", "price": "24" },
+    { "name": "Tarte tatin", "price": "8" }
+  ]
+}

@@ -208,9 +208,10 @@ test("the Claude Code guard hook allows declared calls, routes Bash into the con
     const bash = call("Bash", { command: "ls", description: "List" });
     assert.equal(bash.permissionDecision, "allow");
     assert.equal(bash.updatedInput.description, "List");
-    assert.equal(
+    // The docker client runs the command in the container through the lifetime wrapper, with a stdin that stays open.
+    assert.match(
       bash.updatedInput.command,
-      "docker --host 'unix:///fake.sock' exec --workdir '/testbed' 'box' sh -c 'ls'",
+      /^skill_eval_in=\$\(mktemp -d\) && mkfifo "\$skill_eval_in\/in" && \{ rm -rf "\$skill_eval_in"; docker --host 'unix:\/\/\/fake\.sock' exec -i --workdir '\/testbed' 'box' sh -c '[^]*' sh 'ls'; \} <>"\$skill_eval_in\/in"$/,
     );
     const { SKILL_EVAL_CONTAINER: _running, ...stopped } = environment;
     assert.match(

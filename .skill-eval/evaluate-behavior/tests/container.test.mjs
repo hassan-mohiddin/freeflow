@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { decideToolCall, guardState } from "../../../skills/evaluate-behavior/scripts/guard-rules.mjs";
+import registerSkillEvalContainerRoute from "../../../skills/evaluate-behavior/scripts/pi-container-route.mjs";
 import registerSkillEvalGuard from "../../../skills/evaluate-behavior/scripts/pi-guard.mjs";
 import { missingContainerPrerequisites } from "../../../skills/evaluate-behavior/scripts/lib/container.mjs";
 import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
@@ -154,51 +156,204 @@ test("a container environment needs a digest-pinned image and loads as the arms'
   });
 });
 
-test("the guard routes bash into the subject's container and blocks it when none is running", async () => {
-  const saved = { ...process.env };
-  try {
-    const workspace = await realpath(tmpdir());
-    Object.assign(process.env, {
-      SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify([workspace]),
-      SKILL_EVAL_WRITABLE_ROOT: workspace,
-      SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(["bash"]),
-      SKILL_EVAL_SHELL: JSON.stringify({
-        isolation: "container",
-        network: "none",
-        workspace: "/testbed",
-        container: { image: IMAGE, workdir: "/testbed", network: "none" },
-      }),
-    });
-    const install = () => {
-      const handlers = new Map();
-      registerSkillEvalGuard({ on: (event, handler) => handlers.set(event, handler) });
-      return handlers.get("tool_call");
-    };
-    delete process.env.SKILL_EVAL_CONTAINER;
-    assert.match(
-      install()({ toolName: "bash", input: { command: "ls" } }, { cwd: workspace }).reason,
-      /container for this evaluation is not running/,
-    );
+const CONTAINER_SHELL = {
+  isolation: "container",
+  network: "none",
+  workspace: "/testbed",
+  container: { image: IMAGE, workdir: "/testbed", network: "none" },
+};
+const ROUTE = Symbol.for("skill-eval.container-route");
 
-    process.env.SKILL_EVAL_CONTAINER = JSON.stringify({
-      name: "skill-eval-subject-1",
-      host: "unix:///x.sock",
-      workdir: "/testbed",
-    });
-    const input = { command: "echo 'hi' && pwd" };
-    assert.equal(install()({ toolName: "bash", input }, { cwd: workspace }), undefined);
-    assert.equal(
-      input.command,
-      `docker --host 'unix:///x.sock' exec --workdir '/testbed' 'skill-eval-subject-1' sh -c 'echo '\\''hi'\\'' && pwd'`,
-    );
-    const echoed = spawnSync("sh", ["-c", `printf '%s' ${input.command.slice(input.command.indexOf("sh -c ") + 6)}`], {
-      encoding: "utf8",
-    });
-    assert.equal(echoed.stdout, "echo 'hi' && pwd");
+/** Runs `body` with the guard's variables set, restoring the environment and the route flag afterwards. */
+async function withGuardEnvironment(variables, body) {
+  const saved = { ...process.env };
+  const routed = globalThis[ROUTE];
+  try {
+    Object.assign(process.env, variables);
+    await body();
   } finally {
     for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
     Object.assign(process.env, saved);
+    if (routed === undefined) delete globalThis[ROUTE];
+    else globalThis[ROUTE] = routed;
   }
+}
+
+/** A Pi extension's tool_call handler, registered against a minimal extension API. */
+function toolCallHandler(register) {
+  const handlers = new Map();
+  register({ on: (event, handler) => handlers.set(event, handler) });
+  return handlers.get("tool_call");
+}
+
+/** What a host shell runs for `command`, with a docker stand-in that prints its arguments as JSON. */
+async function dockerArguments(root, command) {
+  const bin = path.join(root, "argv-docker");
+  await write(
+    path.join(bin, "docker"),
+    `#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify(process.argv.slice(2)));\n`,
+  );
+  spawnSync("chmod", ["+x", path.join(bin, "docker")]);
+  const result = spawnSync("sh", ["-c", command], {
+    encoding: "utf8",
+    env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+test("the guard leaves a container shell command to the route, loaded last, which runs it in the container", async () => {
+  await withTempDirectory(async (root) => {
+    const workspace = await realpath(root);
+    await withGuardEnvironment(
+      {
+        SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify([workspace]),
+        SKILL_EVAL_WRITABLE_ROOT: workspace,
+        SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(["bash"]),
+        SKILL_EVAL_SHELL: JSON.stringify(CONTAINER_SHELL),
+      },
+      async () => {
+        delete globalThis[ROUTE];
+        delete process.env.SKILL_EVAL_CONTAINER;
+        const guard = toolCallHandler(registerSkillEvalGuard);
+        assert.match(
+          guard({ toolName: "bash", input: { command: "ls" } }, { cwd: workspace }).reason,
+          /container for this evaluation is not running/,
+        );
+
+        process.env.SKILL_EVAL_CONTAINER = JSON.stringify({
+          name: "skill-eval-subject-1",
+          host: "unix:///x.sock",
+          workdir: "/testbed",
+        });
+        // Without the route nothing would move the command into the container, so the guard refuses it.
+        assert.match(
+          guard({ toolName: "bash", input: { command: "ls" } }, { cwd: workspace }).reason,
+          /container route is not loaded/,
+        );
+
+        const route = toolCallHandler(registerSkillEvalContainerRoute);
+        const original = "echo 'hi' && pwd";
+        const input = { command: original };
+        // The guard allows the call and leaves the command as the model wrote it for the extensions after it.
+        assert.equal(guard({ toolName: "bash", input }, { cwd: workspace }), undefined);
+        assert.equal(input.command, original);
+        assert.equal(route({ toolName: "bash", input }, { cwd: workspace }), undefined);
+        const argv = await dockerArguments(root, input.command);
+        assert.deepEqual(argv.slice(0, 8), [
+          "--host",
+          "unix:///x.sock",
+          "exec",
+          "-i",
+          "--workdir",
+          "/testbed",
+          "skill-eval-subject-1",
+          "sh",
+        ]);
+        assert.equal(argv[8], "-c");
+        assert.equal(argv[10], "sh");
+        assert.equal(argv[11], original);
+        // The route leaves every other tool alone.
+        assert.equal(route({ toolName: "read", input: { path: "a" } }, { cwd: workspace }), undefined);
+      },
+    );
+  });
+});
+
+test("Freeflow's background commands and monitors run in the container like bash, and only there", async () => {
+  await withTempDirectory(async (root) => {
+    const workspace = await realpath(root);
+    const variables = (shell) => ({
+      SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify([workspace]),
+      SKILL_EVAL_WRITABLE_ROOT: workspace,
+      SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(["bash", "bash_background", "monitor", "stop_background"]),
+      ...(shell === null ? {} : { SKILL_EVAL_SHELL: JSON.stringify(shell) }),
+      SKILL_EVAL_CONTAINER: JSON.stringify({ name: "box", workdir: "/testbed" }),
+    });
+    const decide = (toolName, input) =>
+      decideToolCall(guardState(process.env), toolName, input, workspace, process.env);
+
+    await withGuardEnvironment(variables(CONTAINER_SHELL), async () => {
+      for (const tool of ["bash_background", "monitor"]) {
+        const decision = decide(tool, { command: "npm run dev", description: "dev server" });
+        const argv = await dockerArguments(root, decision.command);
+        assert.deepEqual(argv.slice(0, 5), ["exec", "-i", "--workdir", "/testbed", "box"], tool);
+        assert.equal(argv.at(-1), "npm run dev", tool);
+        assert.match(decide(tool, {}).reason, new RegExp(`${tool} needs a command`));
+      }
+      // Stopping one needs no confinement of its own: it ends the docker client, and the wrapper ends the command.
+      assert.equal(decide("stop_background", { id: "bg123456" }), undefined);
+      // Each route rewrites them, as it does bash.
+      globalThis[ROUTE] = true;
+      const route = toolCallHandler(registerSkillEvalContainerRoute);
+      const input = { command: "tail -f log | grep --line-buffered ERROR", description: "errors" };
+      assert.equal(route({ toolName: "monitor", input }, { cwd: workspace }), undefined);
+      assert.match(input.command, /^skill_eval_in=.* docker exec -i --workdir '\/testbed' 'box' sh -c /);
+    });
+
+    // A shell isolation extension confines only the bash it wraps; a background command would run on the host.
+    await withGuardEnvironment(variables({ isolation: "isolation/vm-shell", network: "none" }), async () => {
+      assert.match(decide("bash_background", { command: "sleep 1" }).reason, /runs only in a container environment/);
+      assert.match(decide("monitor", { command: "sleep 1", description: "x" }).reason, /only in a container/);
+      assert.equal(decide("bash", { command: "ls" }), undefined);
+    });
+    await withGuardEnvironment(variables(null), async () => {
+      assert.match(decide("bash_background", { command: "sleep 1" }).reason, /runs only in a declared shell/);
+    });
+  });
+});
+
+test("apply_patch writes only inside the workspace: every path its patch names must resolve there", async () => {
+  await withTempDirectory(async (root) => {
+    const workspace = path.join(root, "workspace");
+    await write(path.join(workspace, "src/a.js"), "export const a = 1;\n");
+    await mkdir(path.join(root, "outside"), { recursive: true });
+    await symlink(path.join(root, "outside"), path.join(workspace, "escape"));
+    const variables = {
+      SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify([workspace]),
+      SKILL_EVAL_WRITABLE_ROOT: workspace,
+      SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(["apply_patch", "write"]),
+    };
+    await withGuardEnvironment(variables, async () => {
+      const decide = (toolName, input) =>
+        decideToolCall(guardState(process.env), toolName, input, workspace, process.env);
+      const patch = (...lines) => ({ input: ["*** Begin Patch", ...lines, "*** End Patch"].join("\n") });
+      assert.equal(
+        decide(
+          "apply_patch",
+          patch(
+            "*** Update File: src/a.js",
+            "*** Move to: src/b.js",
+            "@@",
+            "-export const a = 1;",
+            "+export const b = 1;",
+            "*** Add File: src/new/c.js",
+            "+export const c = 1;",
+            "*** Delete File: @src/old.js",
+          ),
+        ),
+        undefined,
+      );
+      const refused = [
+        ["an absolute path outside", patch(`*** Add File: ${path.join(root, "outside", "x.js")}`, "+x")],
+        ["a climb out of the workspace", patch("*** Add File: ../x.js", "+x")],
+        ["the home directory", patch("*** Add File: ~/x.js", "+x")],
+        ["a move out of the workspace", patch("*** Update File: src/a.js", "*** Move to: ../a.js", "@@", "-a", "+a")],
+        ["an update outside, which reads the file", patch("*** Update File: /etc/hosts", "@@", "-a", "+a")],
+        ["a delete outside", patch("*** Delete File: ../../etc/x")],
+        ["a link that leads outside", patch("*** Add File: escape/x.js", "+x")],
+        ["a header indented in an add section", patch("*** Add File: ok.js", "+x", "   *** Add File: ../x.js", "+x")],
+        ["Windows line endings", { input: "*** Begin Patch\r\n*** Add File: ../x.js\r\n+x\r\n*** End Patch" }],
+      ];
+      for (const [label, input] of refused) {
+        assert.match(decide("apply_patch", input)?.reason ?? "allowed", /apply_patch path escapes/, label);
+      }
+      assert.match(decide("apply_patch", {}).reason, /apply_patch needs a patch/);
+      // Pi expands ~ the same way for its own file tools, so a write there is refused too.
+      assert.match(decide("write", { path: "~/x.txt" }).reason, /write path escapes/);
+      assert.equal(decide("write", { path: "@src/x.txt" }), undefined);
+    });
+  });
 });
 
 test("without a docker command line, the refusal says what to install and to ask first", async () => {
@@ -241,6 +396,74 @@ test("a workspace folder the engine does not share is refused by name, before an
     } finally {
       process.env.PATH = saved;
     }
+  });
+});
+
+test("a container subject with background tools loads the route last and can read their output folder", async () => {
+  await withTempDirectory(async (root) => {
+    const pi = await installFakePi(root, { rpcTools: [{ toolName: "bash", input: { command: "echo in-container" } }] });
+    const docker = await installFakeDocker(root);
+    await write(path.join(root, "extensions/tools.mjs"), "export default () => {};\n");
+    const tools = ["read", "bash", "bash_background", "monitor", "stop_background", "apply_patch"];
+    const runtime = { extensions: [{ entry: "extensions/tools.mjs", resources: ["extensions"] }] };
+    const definition = await write(
+      path.join(root, "groups/boxed.json"),
+      containerGroup(
+        { tools, arms: { baseline: {} }, component: undefined, expectations: [], review_questions: ["Ran?"] },
+        { runtime },
+      ),
+    );
+
+    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--dry-run"]);
+
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    const run = await readJson(path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed/baseline/run.json"));
+    assert.equal(run.state, "complete", JSON.stringify(run.process));
+    const extensions = run.process.args.flatMap((arg, index) =>
+      arg === "--extension" ? [run.process.args[index + 1]] : [],
+    );
+    assert.match(extensions[0], /pi-guard\.mjs$/);
+    assert.match(extensions.at(-1), /pi-container-route\.mjs$/);
+    // The subject's temp folder, where Freeflow saves background output, is readable and mounted read-only.
+    const temporary = run.resources.readableRoots.find((entry) => entry.endsWith(path.join("isolation", "tmp")));
+    assert.ok(temporary, JSON.stringify(run.resources.readableRoots));
+    const created = (await dockerCalls(docker.log)).filter((args) => args[0] === "create").at(-1);
+    assert.ok(created.includes(`${temporary}:${temporary}:ro`), JSON.stringify(created));
+    assert.equal(run.sealing.bash, "container");
+    // The fake Pi ran bash through the guard and the route: the command reached the container.
+    const calls = (await readFile(pi.tools, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.equal(calls[0].output.trim(), "in-container");
+    assert.equal(calls[0].isError, false);
+  });
+});
+
+test("background tools are refused before anything runs when an arm has no container environment", async () => {
+  await withTempDirectory(async (root) => {
+    const pi = await installFakePi(root);
+    const docker = await installFakeDocker(root);
+    await write(path.join(root, "extensions/tools.mjs"), "export default () => {};\n");
+    const runtime = { extensions: [{ entry: "extensions/tools.mjs", resources: ["extensions"] }] };
+    const group = containerGroup(
+      {
+        tools: ["read", "bash_background"],
+        arms: { baseline: {} },
+        component: undefined,
+        expectations: [],
+        review_questions: ["Ran?"],
+      },
+      { runtime },
+    );
+    delete group.configuration.environment;
+    const definition = await write(path.join(root, "groups/boxed.json"), group);
+
+    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--dry-run"]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr + result.stdout, /bash_background run only in a container environment/);
+    await assert.rejects(readFile(pi.log), { code: "ENOENT" });
   });
 });
 

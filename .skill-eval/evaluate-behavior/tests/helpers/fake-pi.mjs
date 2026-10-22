@@ -15,8 +15,9 @@ async function write(file, contents, mode) {
  * handlers, and runs it with an extension's tool or, failing that, the host shell, reporting Pi's JSON events.
  * In RPC mode it answers a body subject's prompt with a short reply, first running \`rpcTools\` (or \`rpcBash\`, one
  * bash call) through the extensions, as Pi would: bash with the host shell, and \`write\` and \`read\` as Pi's file tools
- * do, on the host path they are given. In every string input, \`{skill}\` becomes the first declared skill's directory
- * and \`{cwd}\` the working directory Pi reports. Each call and its output is appended to \`tools\`.
+ * do, on the host path they are given. In every string input, \`{skill}\` becomes the first declared skill's directory,
+ * \`{cwd}\` the working directory Pi reports and \`{freeflow}\` the loaded Freeflow package. Each call and its output is
+ * appended to \`tools\`. An --extension that is a package directory loads its package.json "main".
  */
 export async function installFakePi(root, { rpcBash = null, rpcTools = null } = {}) {
   const bin = path.join(root, "bin");
@@ -27,7 +28,7 @@ export async function installFakePi(root, { rpcBash = null, rpcTools = null } = 
     path.join(bin, "pi"),
     `#!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 const args = process.argv.slice(2);
@@ -42,7 +43,17 @@ const api = {
   registerTool: (tool) => tools.set(tool.name, tool),
   registerCommand: () => {},
 };
-for (const extension of flag("--extension")) (await import(pathToFileURL(extension).href)).default(api);
+// A package directory loads its package.json "main" (or index.js), as Pi loads an installed package.
+const entryOf = (extension) => {
+  try {
+    if (!statSync(extension).isDirectory()) return extension;
+  } catch {
+    return extension;
+  }
+  const manifest = JSON.parse(readFileSync(path.join(extension, "package.json"), "utf8"));
+  return path.join(extension, manifest.main ?? "index.js");
+};
+for (const extension of flag("--extension")) (await import(pathToFileURL(entryOf(extension)).href)).default(api);
 if (mode === "rpc") {
   let buffer = "";
   process.stdin.setEncoding("utf8");
@@ -67,9 +78,11 @@ if (mode === "rpc") {
       emit({ type: "agent_start" });
       const skill = flag("--skill")[0] ?? "";
       const cwd = process.cwd();
+      // The loaded Freeflow package: the readable root the evaluator gave its build.
+      const freeflow = JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS ?? "[]").find((root) => root.endsWith("/package")) ?? "";
       for (const [index, call] of ${JSON.stringify(calls)}.entries()) {
         const toolName = call.toolName;
-        const input = Object.fromEntries(Object.entries(call.input).map(([key, value]) => [key, typeof value === "string" ? value.replaceAll("{skill}", skill).replaceAll("{cwd}", cwd) : value]));
+        const input = Object.fromEntries(Object.entries(call.input).map(([key, value]) => [key, typeof value === "string" ? value.replaceAll("{skill}", skill).replaceAll("{cwd}", cwd).replaceAll("{freeflow}", freeflow) : value]));
         const toolCallId = index === 0 ? "b" : "b" + index;
         emit({ type: "tool_execution_start", toolCallId, toolName, args: { ...input } });
         const blocked = (handlers.get("tool_call") ?? []).map((handler) => handler({ toolName, input }, { cwd })).find((result) => result?.block);

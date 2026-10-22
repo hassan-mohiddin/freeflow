@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "nm-di-decided",
+  "type": "body",
+  "input": {
+    "prompt": "We've decided on folders. Add a `folder` field to bookmarks and a --folder option to `shelf add` and `shelf list`."
+  },
+  "fixture": ".skill-eval/freeflow-routing/fixtures/shelf",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-routing-shelf@sha256:6c4b251731fe13c9d22c077856d8221362a0e17acced3f01e6cccd2b10b1b064",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 2,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-routing/cards/nm-di-decided.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "no-discuss",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/discuss/SKILL.md"],
+      "expect": "not-called"
+    }
+  ],
+  "review_questions": []
+}

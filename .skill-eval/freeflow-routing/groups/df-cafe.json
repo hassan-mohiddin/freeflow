@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "df-cafe",
+  "type": "body",
+  "input": {
+    "prompt": "Searching for 'cafe' no longer finds my bookmark 'Café Culture in Vienna', but it used to. Why?"
+  },
+  "fixture": ".skill-eval/freeflow-routing/fixtures/shelf",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-routing-shelf@sha256:6c4b251731fe13c9d22c077856d8221362a0e17acced3f01e6cccd2b10b1b064",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 2,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-routing/cards/df-cafe.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "read-diagnose-failure",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/diagnose-failure/SKILL.md"],
+      "expect": "succeeded"
+    }
+  ],
+  "review_questions": []
+}
