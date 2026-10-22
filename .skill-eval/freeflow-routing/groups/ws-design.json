@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "ws-design",
+  "type": "body",
+  "input": {
+    "prompt": "Write a technical design document for how sync between devices should work."
+  },
+  "fixture": ".skill-eval/freeflow-routing/fixtures/shelf",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-routing-shelf@sha256:6c4b251731fe13c9d22c077856d8221362a0e17acced3f01e6cccd2b10b1b064",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 2,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-routing/cards/ws-design.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "read-write-spec",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/write-spec/SKILL.md"],
+      "expect": "succeeded"
+    },
+    {
+      "id": "no-write-plan",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/write-plan/SKILL.md"],
+      "expect": "not-called"
+    }
+  ],
+  "review_questions": []
+}

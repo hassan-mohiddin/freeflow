@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "mf-live-checks",
+  "type": "body",
+  "input": {
+    "prompt": "We have unit tests but nothing that checks the running app. Create live checks for the CLI and the web view, written down so future changes can be checked the same way."
+  },
+  "fixture": ".skill-eval/freeflow-routing/fixtures/shelf",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-routing-shelf@sha256:6c4b251731fe13c9d22c077856d8221362a0e17acced3f01e6cccd2b10b1b064",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 2,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-routing/cards/mf-live-checks.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "read-map-features",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/map-features/SKILL.md"],
+      "expect": "succeeded"
+    }
+  ],
+  "review_questions": []
+}

@@ -1,0 +1,9 @@
+{
+  "name": "stockroom",
+  "version": "2.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/"
+  }
+}

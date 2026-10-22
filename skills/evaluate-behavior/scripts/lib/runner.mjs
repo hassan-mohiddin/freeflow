@@ -27,6 +27,7 @@ const DESCRIPTION_TOOLS = new Set(["read"]);
 const BODY_TOOLS = new Set(["read", "write", "edit", "ls", "find", "grep"]);
 // Native tools must be separated from extension tools before CLI tool selection is built.
 const NATIVE_TOOLS = new Set(["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"]);
+const BACKGROUND_TOOLS = new Set(["bash_background", "monitor"]);
 const DEFAULT_RUNTIME = {
   session: false,
   prompt: "isolated",
@@ -276,6 +277,14 @@ function assertSupportedSelection(selection) {
     );
     if (group.type === "description" && customTools.length > 0) {
       throw new Error(`${group.type} execution does not support custom tools: ${customTools.join(", ")}`);
+    }
+    // Freeflow's background commands outlive the call that starts them, so they run only in a container, which the
+    // evaluator removes when the subject ends (guard-rules.mjs routes them there).
+    const background = group.tools.filter((tool) => BACKGROUND_TOOLS.has(tool));
+    if (background.length > 0 && !Object.values(group.variants).every((variant) => variant.shell?.container)) {
+      throw new Error(
+        `${background.join(" and ")} run only in a container environment: every arm needs configuration.environment`,
+      );
     }
     // Freeflow registers its own tools, so a Freeflow configuration also allows custom tool names.
     const freeflowLoaded = Object.values(group.variants).some((variant) => variant.freeflow);

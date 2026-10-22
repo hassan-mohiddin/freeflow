@@ -23,6 +23,12 @@ import {
 } from "./sandbox.mjs";
 
 const TURN_WORKSPACE_KINDS = new Set(["path", "changed-paths", "file-text", "json"]);
+// Tools whose commands run in the subject's container when it has one: bash, and Freeflow's background commands.
+const CONTAINER_SHELL_TOOLS = new Set(["bash", "bash_background", "monitor"]);
+// Freeflow's background commands save their output under the subject's temp directory and name that file to the
+// model, which reads it with read or from bash; with them declared, that directory is readable (and, in a container,
+// mounted read-only at its own path).
+const BACKGROUND_TOOLS = new Set(["bash_background", "monitor"]);
 
 export class VariantSetupError extends Error {
   constructor(message) {
@@ -69,7 +75,8 @@ export async function runBody({
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
   // A container environment runs the subject's bash and declared commands in a container of its own, removed even
   // when the run is cancelled. A group with neither needs no subject container; its graders still run in the image.
-  const usesContainer = group.tools.includes("bash") || (group.commands?.length ?? 0) > 0;
+  const usesContainer =
+    group.tools.some((tool) => CONTAINER_SHELL_TOOLS.has(tool)) || (group.commands?.length ?? 0) > 0;
   const declaredContainer = usesContainer ? group.variants[variant].shell?.container : undefined;
   let container = null;
   if (declaredContainer !== undefined) {
@@ -132,6 +139,8 @@ export async function runBody({
       settled: turn.settled,
       workspace: turn.workspace ?? null,
       ...(turn.resumed ? { resumed: turn.resumed } : {}),
+      // Runs Pi started on its own after this turn's prompt (an extension's notice), whose activity is part of it.
+      ...(turn.unpromptedRuns ? { unpromptedRuns: turn.unpromptedRuns } : {}),
     });
   }
 
@@ -365,6 +374,9 @@ async function prepareSubject(
     ...materializedRuntime.extensions.flatMap((bundle) => bundle.resources.map((resource) => resource.path)),
     // Freeflow points the subject at its own skills and references inside the package.
     ...(freeflow === null ? [] : [freeflow.packageRoot]),
+    ...(group.tools.some((tool) => BACKGROUND_TOOLS.has(tool)) && isolation.environment.TMPDIR
+      ? [isolation.environment.TMPDIR]
+      : []),
   ];
   let launch;
   try {

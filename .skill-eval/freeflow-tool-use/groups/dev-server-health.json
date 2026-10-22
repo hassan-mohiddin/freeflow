@@ -1,0 +1,89 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "dev-server-health",
+  "type": "body",
+  "input": {
+    "prompt": "Start the dev server and tell me what its /health endpoint reports. Save the JSON it returns to health.json, then shut the server down."
+  },
+  "fixture": ".skill-eval/freeflow-tool-use/fixtures/dev-server-health",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-tool-use@sha256:16a3f298e47de3cbe8b6b6939ac379cc258cb39cc906c06abd555dc907f35493",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 4,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-tool-use/cards/dev-server-health.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "task",
+      "kind": "command",
+      "variant": "freeflow",
+      "argv": ["node", "--test", "--test-reporter=tap", ".ftu-hidden.test.mjs"],
+      "files": {
+        ".ftu-hidden.test.mjs": ".skill-eval/freeflow-tool-use/graders/dev-server-health.test.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["ftu: health.json holds what /health returned"]
+        }
+      }
+    },
+    {
+      "id": "tool-background",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash_background",
+      "expect": "called"
+    },
+    {
+      "id": "tool-stop",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "stop_background",
+      "expect": "succeeded"
+    },
+    {
+      "id": "no-monitor",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "monitor",
+      "expect": "not-called"
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-tool-use/reference/dev-server-health"
+  }
+}

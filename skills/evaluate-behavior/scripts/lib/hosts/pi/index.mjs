@@ -32,6 +32,7 @@ export const piHost = Object.freeze({
   /** Pi's arguments and its own environment switches for one subject. */
   async prepareLaunch({
     group,
+    variant,
     environment,
     runtime,
     mode,
@@ -52,6 +53,7 @@ export const piHost = Object.freeze({
         model,
         freeflowEntry,
         hostExtensions,
+        group.variants[variant]?.shell?.container !== undefined,
       ),
       environment: { PI_SKIP_VERSION_CHECK: "1", PI_TELEMETRY: "0" },
     };

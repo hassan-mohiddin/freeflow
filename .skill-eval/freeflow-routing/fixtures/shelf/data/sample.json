@@ -1,0 +1,50 @@
+[
+  {
+    "url": "https://example.com/node-streams",
+    "title": "Node Streams Explained",
+    "tags": "node,reading",
+    "added": "2026-08-01T09:12:00.000Z"
+  },
+  {
+    "url": "https://example.org/cafe-culture",
+    "title": "Café Culture in Vienna",
+    "tags": "travel,food",
+    "added": "2026-08-03T18:40:00.000Z"
+  },
+  {
+    "url": "https://blog.example.net/tea",
+    "title": "A History of Tea",
+    "tags": "food,history",
+    "added": "2026-08-09T07:05:00.000Z"
+  },
+  {
+    "url": "https://example.com/csv-pitfalls",
+    "title": "CSV, Commas and Quotes",
+    "tags": "data,reading",
+    "added": "2026-08-15T12:00:00.000Z"
+  },
+  {
+    "url": "https://example.dev/http-caching",
+    "title": "HTTP Caching, Step by Step",
+    "tags": "web",
+    "added": "2026-08-21T16:30:00.000Z"
+  },
+  {
+    "url": "https://example.com/naming",
+    "title": "Naming Things",
+    "tags": "reading",
+    "added": "2026-09-02T08:00:00.000Z"
+  },
+  {
+    "url": "https://example.org/sqlite-files",
+    "title": "SQLite as an Application File Format",
+    "tags": "data",
+    "added": "2026-09-14T20:15:00.000Z"
+  },
+  {
+    "url": "https://example.net/resume",
+    "title": "Résumé Tips for Engineers",
+    "tags": "career",
+    "added": "2026-09-28T11:45:00.000Z"
+  }
+]
