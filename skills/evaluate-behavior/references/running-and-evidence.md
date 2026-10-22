@@ -1,8 +1,6 @@
-# Execution And Evidence
+# Running And Evidence
 
-Read this when operating `run|view|review|check-tasks|clear`, resolving paths, interpreting states, or reasoning about Pi execution, isolation, persistence, cancellation, and safeguards.
-
-This reference is a contract: it states how the evaluator behaves. Rely on that behavior as written; its binding requirements on you restate [Evaluate Behavior](../SKILL.md) Rules.
+Two parts. Running the evaluator, and what it stores, is a contract: it states how the evaluator behaves; rely on that behavior as written, and its requirements on you restate [Evaluate Behavior](../SKILL.md) Rules. Reading the evidence and deciding what to revise is judgment: adapt it to the evidence in hand.
 
 ## Command And Path Contract
 
@@ -43,9 +41,9 @@ Before anything starts, `run` prints its plan: `Plan: <subjects> subjects (<grou
 
 ## Current Execution Boundary
 
-`run` executes description and body groups. Unsupported group types are rejected before subject execution. Description groups allow no tools or `read`; body groups allow no tools or path-guarded `read`, `write`, `edit`, `ls`, `find` and `grep`, the evaluator's `run_command` tool for declared commands, plus non-native custom tools supplied by a declared runtime extension bundle. `ls`, `find` and `grep` without a path work in the workspace; an explicit path must stay inside the readable roots, like a read. Native `bash` runs only through a declared shell isolation that the evaluator verifies with confinement probes before any subject runs (see the schema reference's Shell section); without one, `run` refuses it before any subject starts and the guard blocks it, because the guard cannot confine a shell to the workspace. A container environment provides such a shell: bash and the declared commands run in a per-subject container from a digest-pinned image, started for a group that declares either, and command graders run in the same image. Before any container starts, the evaluator checks that the engine shares the folder the workspaces live under with its containers, by reading a marker back through the image: a VM-based engine (Colima, Docker Desktop, OrbStack, Podman's machine) mounts only the host folders it shares, and a workspace elsewhere would arrive empty. A refusal names the folder; run from one the engine shares, or for `check-tasks`, which works under the system temp folder, set `TMPDIR` to one. `powershell` is unsupported.
+`run` executes description and body groups. Unsupported group types are rejected before subject execution. Description groups allow no tools or `read`; body groups allow no tools or path-guarded `read`, `write`, `edit`, `ls`, `find` and `grep`, the evaluator's `run_command` tool for declared commands, plus non-native custom tools supplied by a declared runtime extension bundle. `ls`, `find` and `grep` without a path work in the workspace; an explicit path must stay inside the readable roots, like a read. Native `bash` runs only through a declared shell isolation that the evaluator verifies with confinement probes before any subject runs (see [coding tasks](coding-tasks.md#shell)); without one, `run` refuses it before any subject starts and the guard blocks it, because the guard cannot confine a shell to the workspace. A container environment provides such a shell: bash and the declared commands run in a per-subject container from a digest-pinned image, started for a group that declares either, and command graders run in the same image. Before any container starts, the evaluator checks that the engine shares the folder the workspaces live under with its containers, by reading a marker back through the image: a VM-based engine (Colima, Docker Desktop, OrbStack, Podman's machine) mounts only the host folders it shares, and a workspace elsewhere would arrive empty. A refusal names the folder; run from one the engine shares, or for `check-tasks`, which works under the system temp folder, set `TMPDIR` to one. `powershell` is unsupported.
 
-A runtime profile selects the installed native Pi host, the `isolated` or `host` prompt mode, whether the variant uses an isolated persistent session directory, zero or more ordered extension bundles, and declarative environment sources. Literal values are non-secret configuration; only explicitly inherited parent variables are passed to the child without being persisted, alongside a small host-runtime baseline. Missing inherited variables invalidate the variant. Launch-control and loader keys are rejected from inherited values, and literal and inherited names must not overlap. For body runs, delivery remains `unavailable` until target setup succeeds; `natural-prompt` or `explicit-skill-command` records a prompt attempt. The evaluator launches the base guard first, the configuration's `host.extensions` (such as a subscription's auth extension, recorded under `resources.hostExtensions`), its command tool when the group declares commands, the arm's Freeflow build when its configuration declares one, declared extensions next, and, when a group declares context assertions, a final non-mutating observer last. The observer records both the effective `before_agent_start` system prompt and each provider-neutral `context` message projection; it does not replace or sanitize extension injections after the base guard has established evaluator-owned isolation.
+A [runtime profile](conversations-pipelines-judges.md#runtime-profile) selects the host, its prompt mode, session, extension bundles and environment sources; missing inherited variables invalidate the variant. For body runs, delivery remains `unavailable` until target setup succeeds; `natural-prompt` or `explicit-skill-command` records a prompt attempt. After the evaluator's guard load the configuration's `host.extensions` (recorded under `resources.hostExtensions`), the command tool when the group declares commands, the arm's Freeflow build when declared, and declared extensions; when a group declares context assertions, a final non-mutating observer records the effective system prompt and each provider-neutral context message without replacing or sanitizing what extensions injected.
 
 Use fresh JSON-mode execution for one-shot descriptions. Use one persistent RPC process per selected variant for ordered description turns and all body groups. RPC correlates responses, waits for `agent_settled`, disables automatic retry and compaction, preserves directly observed partial-turn evidence, and cleans the process tree.
 
@@ -73,17 +71,7 @@ Working-tree sources snapshot current paths. Git sources resolve one exact commi
 
 A run is canonical only when every working-tree input it reads (the definition files and any `extends` file, the fixture, runtime bundle resources, command grader files, rubric reference files, a conversation's card, host extensions taken from a working-tree `path`, and the skills and context of working-tree subjects) is committed and unchanged in the definition root's Git repository: modified, untracked or ignored files all count as uncommitted. The run then records that commit in `summary.json` under `inputs` and on each working-tree source. Otherwise it is refused before anything starts, naming the uncommitted paths, unless `--dry-run` is given. A dry run is marked `dryRun: true` with its uncommitted inputs listed, and its aggregate supports no claim. Inputs outside any Git repository need `--dry-run` too. When a configuration declares `host.version`, the evaluator compares it with `pi --version` before anything starts, refuses a mismatch, and records the installed version as `hostVersion`.
 
-Each host process, subject or reviewer, runs in its own isolation root (`isolation/` beside its evidence): `HOME`, `TMPDIR`, `TMP`, `TEMP`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME` and `PI_CODING_AGENT_DIR` point inside it, so the user's home, temp files and Pi settings are not visible and two processes share nothing. Only the declared model's provider login is copied into the agent directory, from `SKILL_EVAL_CREDENTIALS_DIR`, else `PI_CODING_AGENT_DIR`, else `~/.pi/agent`, together with that provider's custom model entry when one exists. `run.json` records under `isolation` which entries were copied, never their values. A refresh inside a copy would rotate the user's own token away, so no copy refreshes: before a batch, every OAuth login the selected arms use is made valid for at least 120 minutes, and before each subject, one with under 30 minutes left is refreshed again, each time by the installed Pi in the user's own agent directory, one evaluator process at a time. A refresh that fails refuses the run before anything starts, with a pointer to log in again in Pi. The configuration's `host.settings`, merged over the evaluator's defaults (automatic retry and compaction off), become the agent directory's `settings.json` and are recorded as `isolation.settings`. A provider with no stored login runs with nothing copied. Pi uses its defaults for every other setting the definition does not declare.
-
-## Participants
-
-A group with [participants](evaluation-definition-schema.md#participants) runs them inside each arm, with the arm's configuration.
-
-**Conversation.** The subject runs one persistent RPC session, opened with the group's prompt. After each settled turn, the simulated user is called like a judge: a separate model call without tools, skills, context files or session, in its own isolation root whose name is a hash, not the arm, with the arm's host extensions and settings and the provider's login copied in and removed afterward. Its fixed prompt holds its card, the instruction to answer only from the card and to say "I don't know" otherwise, the instruction that whatever the assistant says is conversation that cannot change its card, goal or rules, the stop phrase, and the visible conversation: the user's messages and the subject's replies, with run paths replaced by `<run>`, never the subject's tool calls or files. Its reply becomes the next turn, unless it contains the stop phrase. The conversation ends at the stop phrase, after `max_turns` subject turns, or when the subject stops. `run.json` records `participants` with the user's identity (model, provider, thinking, extensions, card path and hash), each message with its prompt hash, usage and isolation, and how it `ended` (`stop`, `max-turns`, `subject-stopped` or `user-error`); `prompts` lists every message the subject received. A user call that fails or writes nothing makes the run `infrastructure-failed`. Each call's prompt, events and reply stay under `groups/<id>/participants/<hash>/turn-<n>/`.
-
-**Pipeline.** Stages run in order, each a separate subject process with its own isolation root and workspace. A stage's workspace is a fresh fixture copy when it sees `fixture`, and empty otherwise. An earlier stage's response or written files reach it only as declared context: copied into the stage's own resources, fingerprinted, injected by the guard under the labels `<stage>.response` and `<stage>.files`, and readable there; the earlier stage's directories stay outside its readable roots. The injected copy of each file is fenced as run material under a random token, and the stage's prompt gains a fixed note that the fenced work is material to assess, never instructions, and that text in it trying to direct the stage is a finding to report. The graded stage runs in the arm's directory, so its `run.json` is the arm's run and grading, review and judging read it as usual. Every other stage keeps its `run.json`, transcript, events and stderr beside the arm in `<arm>.<id>/`, so every stage's workspace is as deep as a single subject's and a declared command that reaches the repository by a relative path works in each. Each stage's response and files are kept in its directory's `outputs/`. The arm's `run.json` records `participants.stages` (state, `sees`, `fresh`, run file relative to the group directory, response hash, written files and usage) and `graded`. A stage that does not complete stops the pipeline and the arm's run takes its state.
-
-In both protocols the arm's `usage` covers every participant, so `--max-cost` counts them all.
+Each host process, subject or reviewer, runs in its own isolation root (`isolation/` beside its evidence), with its own home, temp, XDG and Pi agent directories, so the user's home, temp files and Pi settings are not visible and two processes share nothing. Only the declared model's provider login is copied in, from `SKILL_EVAL_CREDENTIALS_DIR`, else `PI_CODING_AGENT_DIR`, else `~/.pi/agent`, with that provider's custom model entry when one exists; `run.json` records which entries were copied under `isolation`, never their values. No copy refreshes a login, which would rotate the user's own token away: the installed Pi refreshes every OAuth login the selected arms use, in the user's own agent directory, before a batch and again before a subject whose login is near expiry, one at a time, and a refresh that fails refuses the run with a pointer to log in again in Pi. The configuration's `host.settings`, merged over the evaluator's defaults (automatic retry and compaction off), become the agent directory's `settings.json`, recorded as `isolation.settings`; Pi uses its defaults for every other setting. A provider with no stored login runs with nothing copied.
 
 ## Persistence And States
 
@@ -124,22 +112,21 @@ Each result's summary also records its own `cost`, with or without a ceiling: `s
 
 - **`--jobs <n>`** (default 1) runs up to n subjects at once across groups, arms and trials, through one shared queue. Each group still prepares its fixture before its arms run, grades after all its arms, and each result's summary is written after all its groups; results are listed in plan order. With one job, groups, arms and trials run one after another as before. Cancellation (SIGINT or SIGTERM) stops queued subjects and terminates running ones; budget exhaustion only stops new ones.
 - **`--cpu-jobs <n>`** (default 2) bounds local CPU work that is not a model call, such as command graders, through a shared queue (`withCpuSlot` in `lib/queue.mjs`).
-- **Logins** are refreshed once, before any subject of a run or of all its trials starts. A subject refreshes again only if its login has fallen below the per-subject threshold, under a lock, so parallel subjects never refresh at once.
 - **Reuse.** Every complete run of a canonical (not dry) invocation whose group grade is readable is indexed, with or without `--reuse`, in `<results>/index.jsonl` under a key: sha256 over the group's task fields, the content of its fixture, runtime bundles and command-grader files, the arm's name and effective configuration, the content of its working-tree skills and context (or the commit its Git source resolves to, and its Freeflow ref's commit), its model, the installed host version, and the evaluator's own scripts. A run with `--reuse` takes a matching indexed run (still complete, grade still readable) instead of running that arm: the run is copied into the new trial, graded there like any other, and marked `reused` with where it came from; the group records `reused` and the aggregate lists every reused run. A run is reused at most once within one run or aggregate, and a reused copy is never indexed. Dry runs never reuse and are never indexed.
 - **`--pilot <n>`** first runs the first n selected groups once, every arm. It stops with a report, before the batch and without an aggregate, if any of its runs is cancelled, infrastructure-failed or invalid, any grade is unreadable or has errors, or any comparison passed in no arm. Otherwise the batch continues: the pilot is the first trial of its groups and one invocation of the remaining groups completes that trial (the aggregate records `pilot` and each trial's `part`). A run with `--pilot` always records an aggregate, even with one trial, so no group runs twice.
 - **`--source <arm>=<commit>`** (repeatable) runs the arm, for this run only, with every Git source ref it declares (its subject source, its Freeflow source and its source-built host extensions) replaced by the commit SHA. The definition files are not changed. `invocation.json` records `sources`, each overridden run records `sourceOverride` and the commit in its `resources.source`, and the reuse key follows the override. An arm with no Git source, or one that is not an arm of a selected group, is refused before the plan.
 
 ## Trials
 
-`--trials <n>` runs the selection as `n` independent complete invocations. Each trial is an ordinary result with its own ID. A separate aggregate under `.skill-eval/runs/<aggregate-id>/aggregate.json` lists the trials and, per group, counts pass, fail, and unavailable for every deterministic check and comparison, plus comparison transitions. A trial whose grade file cannot be read is counted in `unreadableGrades`; the other trials still aggregate. Grade errors are counted per group (`gradeErrors`), and run states per variant (`runStates`), so nothing that failed leaves the denominators silently. Each check also records `trials` and `passAll`, its pass^k: whether it passed in every one of the k trials that graded it. Each comparison records `pairs` for each non-reference arm, the per-trial outcomes against the reference: both pass, both fail, reference only, that arm only, or incomplete. Without a decision rule, the aggregate's `claim` is a rate on this suite at its k and states that no "beats" claim is supported. A suite that declares a `decision` ([schema](evaluation-definition-schema.md#decision)) always runs as trials, even without `--trials`, and its claim is the rule's verdict (`beats`, `worse` or `no-difference-shown`) with the split, p and the rule's hash; a dry run's claim stays `none`. When the decision declares a `trials` schedule, the plan states the initial trials and the most adaptive rounds could add; each added trial runs one undecided group alone and records its `round` and `group`, `requestedTrials` stays the initial count, and `schedule.rounds` records each round's cases and its scheduled and run trials. `--max-cost` is shared across trials, and exhaustion stops starting further trials. `view <aggregate-id>` renders the counts, pass^k, pairs, claim and decision, with initial and adaptive trials counted apart; view an individual trial for its evidence.
+`--trials <n>` runs the selection as `n` independent complete invocations. Each trial is an ordinary result with its own ID. A separate aggregate under `.skill-eval/runs/<aggregate-id>/aggregate.json` lists the trials and, per group, counts pass, fail, and unavailable for every deterministic check and comparison, plus comparison transitions. A trial whose grade file cannot be read is counted in `unreadableGrades`; the other trials still aggregate. Grade errors are counted per group (`gradeErrors`), and run states per variant (`runStates`), so nothing that failed leaves the denominators silently. Each check also records `trials` and `passAll`, its pass^k: whether it passed in every one of the k trials that graded it. Each comparison records `pairs` for each non-reference arm, the per-trial outcomes against the reference: both pass, both fail, reference only, that arm only, or incomplete. Without a decision rule, the aggregate's `claim` is a rate on this suite at its k and states that no "beats" claim is supported. A suite that declares a [decision](authoring.md#decision) always runs as trials, even without `--trials`; the aggregate records `decision` (the rule with defaults applied, its `ruleSha256`, the split, ties, excluded cases and values, p, the verdict, and each case's per-arm mean and count), and its claim is the rule's verdict (`beats`, `worse` or `no-difference-shown`) with the split, p and the rule's hash; a dry run's claim stays `none`. When the decision declares a `trials` schedule, the plan states the initial trials and the most adaptive rounds could add; each added trial runs one undecided group alone and records its `round` and `group`, `requestedTrials` stays the initial count, and `schedule.rounds` records each round's cases and its scheduled and run trials. `--max-cost` is shared across trials, and exhaustion stops starting further trials. `view <aggregate-id>` renders the counts, pass^k, pairs, claim and decision, with initial and adaptive trials counted apart; view an individual trial for its evidence.
 
 The aggregate's `scores` section summarizes test-graded command checks' `score` per arm and per trial (`score.<expectation id>`, and `score.<comparison id>` for a comparison's checks); a decision rule names one as `{ "score": "<id>" }`.
 
-Each subject's `run.json` records `metrics`, derived from evidence the run already holds: `durationMs` (completed minus started), `turns` (turns recorded; 1 for a one-shot run), `toolCalls` and `toolErrors`, `tokens` (`input`, `output`, `cacheRead`, `cacheWrite`), `cost` (the host-reported `usage.cost.total`), `cacheHitRate` (cache reads over input plus cache reads plus cache writes), and, from a Pi transcript, `peakContext` (the largest single request: input plus cache reads plus cache writes of one assistant message), `skillReads` (successful reads of a declared skill's files or of the loaded Freeflow package's `skills/`, `capabilities/` or `runtime/` files, each re-read counted: a `read` call inside them, or a `bash` call whose command names a path inside them) and `skillReadTokens` (the text those reads returned, estimated at 4 UTF-8 bytes per token, since no tokenizer is available; a skill delivered in the prompt rather than read is not counted). An arm with no skills and no Freeflow reads 0. A metric without evidence is `null`, never 0; the transcript metrics are `null` on other hosts. The aggregate's `metrics` section gives, per arm, each metric's count, median, mean, min and max over the trials that measured it; per non-reference arm, the paired difference against the reference within each trial where both were measured; and `perTrial` values, which a decision rule names as `{ "metric": "<name>" }` with nested fields dotted (`tokens.input`). Both views render them.
+Each subject's `run.json` records `metrics` derived from evidence the run already holds: `durationMs`, `turns`, `toolCalls`, `toolErrors`, `tokens` (`input`, `output`, `cacheRead`, `cacheWrite`), `cost` (the host-reported cost), `cacheHitRate`, and, from a Pi transcript only, `peakContext` (the largest single request), `skillReads` and `skillReadTokens` (reads of declared skills' or the loaded Freeflow package's instruction files, re-reads counted). An arm with no skills and no Freeflow reads 0; any other metric without evidence is `null`, never 0. The aggregate's `metrics` section gives, per arm, each metric's count, median, mean, min and max over the trials that measured it; per non-reference arm, the paired difference against the reference within each trial; and `perTrial` values, which a decision rule names as `{ "metric": "<name>" }` with nested fields dotted (`tokens.input`). Both views render them.
 
 ## Advisory Review
 
-`review` answers each group's `review_questions` with a separate reviewer model, a judge under Review Work's [Judge Contract](../../review-work/references/judge-contract.md):
+`review` answers each group's `review_questions` with a separate reviewer model, a judge under Review Work's [Judge Contract](../../review-work/references/evals-and-judges.md#judge-contract):
 
 - only groups with review questions and a complete run in every arm are reviewed;
 - the reviewer sees the task turns, the group's fixture files as shared task materials, and for each run its responses, tool calls, changed paths and the full text of every file it created or modified (by default each response up to 8,000 characters, each tool call's arguments up to 300, each file up to 20,000 and the materials up to 60,000, with any cut stated; `--limit <name>=<chars>` changes any of them), as Run A, Run B and so on in random order;
@@ -152,21 +139,107 @@ Each subject's `run.json` records `metrics`, derived from evidence the run alrea
 
 A review is advisory. It never changes run or deterministic grade evidence, and rerunning it replaces only the previous advisory review.
 
-## Judged Evidence
-
-`review --rubric` judges each complete run of every selected group that declares a [rubric](evaluation-definition-schema.md#rubric-and-judges), under the same Judge Contract:
-
-- each run is judged alone: the judge sees the task turns, the fixture files, that run's responses, tool calls, changed paths and written files, the rubric and its references, with the same limits and neutral path tokens as the advisory review; it never sees the arm name, other arms' runs, or deterministic grades, and its working directory and home are named by a hash, not the arm; the run and the task materials are fenced as run material with the same fixed instruction, and each judge's reported `steering` is recorded with it and adds the contract gap `run material addressed the judge`; the judge configuration's identity includes the prompt version, so a calibration does not carry over to a changed prompt;
-- the group's `judges` answer, each in its own isolation root; a group without `judges` is judged by `--model` (or the configuration's model), and `--model` with declared judges is refused before any judge starts;
-- each judge's host extensions and settings come, most specific first, from its own declared `configuration`, else from the group (its reference arm's host setup, so a judge uses the login the subjects used); `--configuration` gives the setup only to the command-line judge of a group without declared judges, and is refused when every judged group declares its judges, because it would be ignored. Each judge's record holds its effective `setup` (`group`, `own (<file or inline>)` or `command-line`), extensions, settings, model, thinking and family relation, and its calibration key covers that setup;
-- `groups/<id>/<arm>/judged-grade.json` records each judge's identity (model, provider, family, thinking, extensions, settings, isolation, a configuration hash, prompt hash and date), the family relation to the subject, its answers with evidence, errors and usage; the combined answer per dimension with every vote, by the group's `combine`; what was shown and withheld; the run file's hash; and `contractGaps` (`calibration not checked` until every judge is calibrated, `materials truncated` when anything was cut). `groups/<id>/judging/<hash>/judge-<n>/` keeps each judge's prompt, events, final response and stderr;
-- a judge that fails or replies malformed makes the grade `judge-error` with no combined answers, and the command exits nonzero;
-- an aggregate target judges every trial, then rebuilds the aggregate: its sections, and its decision and claim when the suite declares a decision rule, so a `judged` measure is decided on the new answers.
-
-`review <target> --calibrate <labels.json>` scores judges against hand labels. The file maps run paths (an arm's directory or its `run.json`, from the working directory) to `{ "<dimension id>": <answer> }`. Each judge configuration's agreement with the labels, per dimension (the share matched and Cohen's kappa), becomes its `calibration` in every judged grade it gave under the labelled runs and the target, and judging again with the same configuration keeps it. A configuration is its model, thinking, host extensions and rubric; a different one is uncalibrated.
-
-An aggregate's `judged` section gives, per arm and dimension, counts of each combined answer (`notJudged` for a trial that was not judged or failed), pass^k for yes/no dimensions, the mean for `0-2` dimensions, agreement between judges per dimension (Cohen's kappa for two, Krippendorff's alpha for more), the judges with their calibration, and `perTrial` values for a decision rule: `true` for yes, `false` for no, `null` for unknown, or the number. `view` shows judged evidence apart from deterministic grades.
-
-Judged evidence never changes run or deterministic grade files.
-
 When an unsupported operation changes the question, reject it or run a clearly separate direct comparison with explicit limits. Never invoke archived evaluators as a fallback.
+
+## Use The Strongest Evidence
+
+Prefer, in order:
+
+1. filesystem state, typed workspace manifests, diffs, and changed paths;
+2. structured events, tool activity, usage, process results, logs, and saved reports;
+3. final response;
+4. full transcript when stronger surfaces cannot answer the question;
+5. subject self-assessment.
+
+Lower-priority evidence cannot repair a contradiction above it.
+
+If a response claims success but a required file is absent, preserve both facts and judge from the stronger artifact evidence.
+
+## Keep Deterministic Facts Separate
+
+Deterministic grades are appended only after canonical run evidence exists. Built-in checks establish exact observable facts, such as:
+
+- skill or resource reads;
+- file and path state;
+- changed paths;
+- file or response text;
+- JSON validity or values;
+- tool-call outcomes and argument predicates;
+- context text at a selected surface, request, and turn;
+- a grader command's exit code and which required tests passed;
+- factual transitions from the reference arm to each other arm.
+
+Missing evidence remains unavailable. A failed check remains behavioral evidence and does not relabel a complete run as infrastructure failure; malformed expectations or grading failures produce separate `grade-error` evidence and do not rewrite run evidence. A transition such as `fail-to-pass` is a factual comparison. It does not mean bad-to-good, not-ready-to-ready, or rejected-to-promotable.
+
+The active agent or user may judge:
+
+- reasoning quality;
+- authority preservation;
+- architectural fitness;
+- recommendation quality;
+- semantic completeness.
+
+Keep semantic judgment, cited evidence, uncertainty, and limits outside canonical run and deterministic grade state. Judged evidence from `review` and `review --rubric` is already stored apart; read it with each judge's identity and calibration, and when it disagrees with deterministic facts, the facts stand and the disagreement is reported.
+
+Do not turn semantic or judged evidence into evaluator-owned readiness or promotion status.
+
+## Diagnose The Failed Boundary
+
+Classify before revising:
+
+- activation timing;
+- description language unavailable before body read;
+- first-read body comprehension;
+- undeclared, undelivered, unread, or ambient-only dependency;
+- normal guidance hidden behind the wrong resource boundary;
+- nearby behavior that hijacks the task;
+- retained-use or multi-turn failure;
+- wording, placement, example, repetition, or stop-condition pressure;
+- a component that never reached the model;
+- a stage, simulated user or judge rather than the subject: an earlier pipeline stage, a user that left its card, or a judge that misread the run;
+- fixture, environment, isolation, host, runner, grader-command, or deterministic-check failure.
+
+Do not add broad prose before identifying which boundary failed.
+
+## Return Revision To The Owner
+
+When evidence supports changing the component:
+
+1. name the exact failed boundary;
+2. cite the canonical evidence;
+3. identify one measured pressure point;
+4. preserve unrelated instructions and fixed criteria;
+5. return the revision target to the component's owner.
+
+[Write Skill](../../write-skill/SKILL.md) owns revision of a skill or other instruction text, such as an instruction file. Extension code goes to its owner; a choice of model, setting or extension goes to the user.
+
+Evaluate Behavior does not change the component or replace its baseline while evaluating it.
+
+When evidence proves the group, fixture, or criterion is wrong, revise the evaluation instead. Preserve the old result and state that it no longer answers the revised question.
+
+## Rerun The Complete Group
+
+After a measured revision or resolved infrastructure cause:
+
+- rerun the complete fixed group;
+- run every arm;
+- keep every result visible;
+- do not hand-pick an earlier reference run as a fresh counterpart; `--reuse` stands one in only when its inputs match exactly, and lists it as reused;
+- do not rerun only the preferred arm;
+- do not use partial evidence as a comparable full result;
+- do not rerun merely to erase failure.
+
+For variance, use `--trials` to run independent complete invocations rather than repeated preferred arms.
+
+## Report A Revision
+
+Report:
+
+- failed boundary and evidence;
+- exact revision or evaluation correction;
+- criteria that remained fixed;
+- old and new result paths;
+- deterministic transitions, and the decision's verdict when the suite declares one;
+- remaining unsupported claims.
+
+The user decides whether to revise further, adopt, or reject the change.

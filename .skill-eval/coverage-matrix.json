@@ -65,7 +65,7 @@
       "case_concept": "Compare arms against a reference under a declared decision rule while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-behavior/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
       "source_path": "skills/evaluate-behavior/SKILL.md",
-      "source_sha256": "c5999fb54f75edc1fa20d79be4af89d74be6e00535dda8e5e4a5e1a693425901",
+      "source_sha256": "8b5e04aade7c31d27aa198e04ab07420295a1d1316dc3996d74fa9184d3ab05f",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -132,9 +132,9 @@
       "neighbours": ["discuss-work", "verify-work", "execute-work", "write-docs", "track-work"],
       "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
-      "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with this body (the 2026-10-22 description is not what the suite delivers or measures), 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified.",
+      "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with the body before the 2026-10-22 restructure (the description is not what the suite delivers or measures; the restructure moves and deduplicates that text and has not been rerun), 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "ffe1f874f5415d4dfb5a411625a8be6a1172adf9c365770822af22a963522a78",
+      "source_sha256": "788507aee3662f1ecfb62a8c0909c8fec024230da69ac52f16bb86e69c7618a2",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -203,7 +203,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. The test-changes script has its own tests (.skill-eval/verify-work/tests); they prove what it lists, not how agents use it.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "c8abb3662ac9ea4c979abf3e461f8bf981bafaa4a81e823796f23f42e16d8348",
+      "source_sha256": "c94a1d8d85762a55161dbe8e1fa0f25d88d2f7ba427b512882466983178257f4",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

@@ -9,11 +9,25 @@ Determine what fresh direct evidence establishes about a specific claim at the b
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
+## Routes
+
+Read the routed reference before designing or selecting evidence. Loading one does not expand the required claim.
+
+| Situation | Go to |
+| --- | --- |
+| Designing or materially changing a behavior check, including regression or characterization coverage and a test's fixture or shared setup | [Test Design](references/test-design.md); before reporting such a change, list it with [test-changes](scripts/test-changes.mjs) |
+| A claim that depends on a registered callback or executor, host lifecycle, producer invocation, fallback protocol, installed package, or absence counter | [Runtime Evidence: Integration](references/runtime-evidence.md#integration) |
+| Rendered UI, browser behavior, accessibility, client networking, console state, visual output, or browser runtime performance | [Runtime Evidence: Browser](references/runtime-evidence.md#browser) |
+| Latency, throughput, memory, CPU, bundle, query, rendering, capacity, or resource-regression claims | [Runtime Evidence: Performance](references/runtime-evidence.md#performance) |
+| A claim that needs the project's running software, launched and driven the way a user would, not one a unit or integration test settles | [Runtime Evidence: Project Recipe](references/runtime-evidence.md#project-recipe) |
+| Contradictions that are unexplained, or failure that repeats | Execute Work's [diagnose](../../skills/execute-work/references/diagnose.md) |
+| Expected behavior that is unsettled, or sources that conflict | [Discuss Work](../../skills/discuss-work/SKILL.md) |
+
 ## Rules
 
 - Verification establishes facts, not review judgment, authority, or permission to continue. A Supported claim permits judgment of the result; it does not establish a review Pass, close a Slice, or authorize delivery.
-- Never encode a guess as an expected result. When expected behavior is unsettled or sources conflict, return the issue through [Discuss Work](../../skills/discuss-work/SKILL.md). A test that pins a choice the user has not agreed says so.
-- Run active checks (tests, reproductions, benchmarks, instrumentation) only when the current agreement covers them. Otherwise propose the purpose, observer, expected evidence, and stop condition to the user and wait.
+- Never encode a guess as an expected result. When expected behavior is unsettled or sources conflict, return the issue through Discuss Work. A test that pins a choice the user has not agreed says so.
+- Run an active check (a test, build, reproduction, benchmark, or instrumentation) only when it is covered: a request or agreement covers the checks its work needs, and an independent review covers what its brief's `May run` line names. Otherwise propose the purpose, observer, expected evidence, and stop condition to the user and wait.
 - Never rerun until unfavorable evidence disappears, and never change valid tests, implementation, Specs, policy, or acceptance merely to make a signal green. Preserve failures, contradictions, and partial or reduced-fidelity results.
 - If a revised check establishes less than the original, the original claim stays Inconclusive unless other evidence establishes it at the required boundary; expose that limitation before acceptance rather than carry the stronger claim into the report.
 - Missing evidence is not zero, safe, passed, or probably correct. Never invent a receipt or an earlier failing run that was not observed. If the user skips a check, leave the corresponding claim unverified.
@@ -34,16 +48,6 @@ Goal: the smallest observation that could actually disagree with the claim, at t
 Use the smallest direct observation that can disagree with the claim. Before relying on an unfamiliar fixture for substantial dependent work, establish that it reaches the required observing stage and distinguishes the relevant wrong behavior. Reuse an adequate existing fixture; observer preparation is not a mandatory separate prototype.
 
 For saved evidence, identify what code or artifact, check, configuration, and environment it examined, using existing outputs and source identities where available. Compare relevant later changes, including new files and generated output; HEAD alone does not identify an uncommitted candidate. Keep two facts separate: the observation occurred, and it applies to the current state. A later edit does not erase an earlier pass, and uncertain applicability does not certify the new candidate. Report missing identity or output rather than building a new evidence store. Reuse results whose applicability remains supported; rerun only affected evidence, and do not repeat checks merely because another activity or context began.
-
-Read the relevant reference before designing or selecting evidence:
-
-- [Test Design](references/test-design.md) before designing or materially changing a behavior check, including regression or characterization coverage and a test's fixture or shared setup. Before reporting such a change, list it with [test-changes](scripts/test-changes.mjs).
-- [Integration Evidence](references/integration-evidence.md) when a claim depends on a registered callback or executor, host lifecycle, producer invocation, fallback protocol, installed package, or absence counter.
-- [Browser Runtime Evidence](references/browser-runtime-evidence.md) for rendered UI, browser behavior, accessibility, networking, console state, visual output, or browser runtime performance.
-- [Performance Evidence](references/performance-evidence.md) for latency, throughput, memory, CPU, bundle, query, rendering, capacity, or resource-regression claims.
-- [Project Recipe](references/project-recipe.md) when a claim needs the project's running software, launched and driven the way a user would, not for a claim that a unit or integration test settles.
-
-Browser-performance claims need both browser fidelity and performance methodology. Loading a reference does not expand the required claim.
 
 Passing tests do not prove behavior they do not exercise. Source inspection does not prove runtime execution; a helper call does not prove registration, native dispatch, or installed-package behavior; a happy path does not establish failure handling.
 
@@ -86,7 +90,7 @@ A check may Pass by observing an expected rejection or failure.
 - **Inconclusive:** available evidence cannot establish or refute it at that boundary.
 - **Unavailable:** required evidence cannot currently be obtained safely or reliably.
 
-A Passed check can leave the claim Inconclusive. A no-regression or parity claim without an observed baseline is Inconclusive. A Failed check can expose a defect, an invalid expectation, an environment problem, or a source conflict; classify only the supported conclusion. Use Execute Work's [diagnose](../../skills/execute-work/references/diagnose.md) when contradictions are unexplained or failure repeats.
+A Passed check can leave the claim Inconclusive. A no-regression or parity claim without an observed baseline is Inconclusive. A Failed check can expose a defect, an invalid expectation, an environment problem, or a source conflict; classify only the supported conclusion, and diagnose when contradictions are unexplained or failure repeats.
 
 ## Return Evidence To Its Owner
 
@@ -94,13 +98,7 @@ Goal: the activity using the claim gets the observation and its limits, and noth
 
 Return the observation and its limits to the activity using the claim. Distinguish implemented behavior, exercised checks, and supported claims, and list missing material cases even when the suite passes.
 
-When answering a review Needs evidence item, preserve its pointer, claim, required observing boundary, previous evidence limit, and why the gap mattered, and return the result to the receiving agent for adjudication:
-
-- Supported may settle the factual gap without settling the review.
-- Contradicted may establish or invalidate a finding or expose a source conflict.
-- Inconclusive or Unavailable leaves a material gap open.
-
-Do not revise the independent report, adjudicate its findings, authorize correction, or select another review from verification.
+When answering a review Needs evidence item, preserve its pointer, claim, required observing boundary, previous evidence limit, and why the gap mattered, and return the result to the receiving agent, whose [adjudication](../../skills/review-work/references/adjudication.md) decides what each claim result settles. Do not revise the independent report, adjudicate its findings, authorize correction, or select another review from verification.
 
 ## Report And Stop
 

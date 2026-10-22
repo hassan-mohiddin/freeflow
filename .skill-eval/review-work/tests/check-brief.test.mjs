@@ -57,8 +57,7 @@ const brief = ({ base, head }, overrides = {}) => {
     Review: "1",
     Boundary: "ready for the user's PR review",
     "Reviewed state": `\`${head}\``,
-    Method:
-      "`skills/review-work/SKILL.md`, its references/work.md, and the Work section of references/reviewer-contract.md",
+    Method: "`skills/review-work/SKILL.md` and its references/work.md",
     Agreement: "`.freeflow/tasks/task-001/record.md` (view resume)",
     Docs: "`dev-docs/subsystems/app.md`",
     "Review rules": "`dev-docs/README.md#review-rules`",
