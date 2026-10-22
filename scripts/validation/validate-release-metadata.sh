@@ -460,7 +460,7 @@ check_package_cleanliness() {
 	elif ! jq -e '
     .[0] as $pack
     | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith(".deprecated/") or startswith("plans/"))] | length) == 0
-      and ([$pack.files[].path | select(. == "skills/agree-work/SKILL.md")] | length) == 1
+      and ([$pack.files[].path | select(. == "skills/discuss-work/SKILL.md")] | length) == 1
       and ([$pack.files[].path | select(. == "runtime/prompts/interaction-contract.md")] | length) == 1
       and ([$pack.files[].path | select(. == "plugin.json")] | length) == 0
       and ([$pack.files[].path | select(. == ".codex-plugin/plugin.json" or . == "hooks/codex/hooks.json")] | length) == 2

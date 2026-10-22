@@ -86,7 +86,7 @@ When the agreement grows or changes, replace the lines it changes, as a direct e
 
 For a long or unattended run, or once the agreement has changed several times, also keep `sources/work-agreement-log.md`: one dated, numbered entry per exchange that set or changed the agreement, the proposal in one line and the user's reply verbatim, append-only. It holds only those exchanges, not discussion. List it under Recovery sources with the trigger "read when changing the Work agreement or when its wording is in question".
 
-[Agree Work](../agree-work/SKILL.md)'s decision list lives in `sources/decisions.md`, under Recovery sources. Only its items the user answered are Decisions; its defaults are what you assumed, never what the user accepted.
+[Discuss Work](../discuss-work/SKILL.md)'s decision list lives in `sources/decisions.md` in the task folder, listed under Recovery sources with the trigger "read when deciding, self-reviewing, or handing over"; update it directly as items change. Each item the user answered also becomes a Decision quoting their words; the rest are what you assumed, never what the user accepted.
 
 ## Use Slices For Work With Partial State
 
@@ -132,7 +132,7 @@ Not: a separate "Commit the parser" Slice.
 | `preserve` | local commit | save a draft version or snapshot | Deliver Work (commit) |
 | `publish` | push, pull request | publish, send to a client | Deliver Work (push, pull request or release) |
 | `review` | independent code review | editor or reviewer sign-off | Review Work |
-| `decision` | owner chooses a design | owner chooses between options | Agree Work |
+| `decision` | owner chooses a design | owner chooses between options | Discuss Work |
 | `continuity` | pause or handoff point | pause or handoff point | Handoff |
 
 When a pending Checkpoint is due, stop dependent work, use its owner, and continue from the result. Do not force a Checkpoint whose condition, evidence or protected boundary no longer holds; return the discrepancy for cancellation, replacement, deferral or revision.
@@ -200,6 +200,6 @@ Closing selects nothing. Set the Next useful action from the actual result.
 
 ## Return
 
-Return to the activity that asked for the update: [Discuss](../discuss/SKILL.md) for discussion, [Execute Work](../execute-work/SKILL.md) for Slice work. [Handoff](../handoff/SKILL.md) owns point-in-time transfer; [Write Spec](../write-spec/SKILL.md) and [Write Plan](../write-plan/SKILL.md) own the task's artifacts.
+Return to the activity that asked for the update: [Discuss Work](../discuss-work/SKILL.md) for discussion, [Execute Work](../execute-work/SKILL.md) for Slice work. [Handoff](../handoff/SKILL.md) owns point-in-time transfer; [Write Spec](../write-spec/SKILL.md) and [Write Plan](../write-plan/SKILL.md) own the task's artifacts.
 
 Stop when the record lets a fresh context continue correctly. Stop and report, rather than invent, when authority, structure, or the meaning of a transition is missing. A record update never completes the work it describes.

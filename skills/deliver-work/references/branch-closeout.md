@@ -20,7 +20,7 @@ Do not infer the base, remote destination, pull-request target or workspace owne
 
 The user decides whether to integrate locally and by which method, push or open a normal or draft pull request, keep the branch, worktree or dirty state, discard commits or uncommitted work, delete local or remote branches, rewrite or force-push history, and clean up a checkout or worktree.
 
-Present only the routes the observed state supports; drop a route that is impossible, unsafe or irrelevant rather than forcing a fixed menu. Ask as [Agree Work](../../agree-work/SKILL.md)'s "Ask One Question" describes, with the supported routes as the options. Approval of one route covers only the scope shown and accepted. When a route needs a local commit, use the trunk's Commit steps; do not commit merely to make the branch look finished.
+Present only the routes the observed state supports; drop a route that is impossible, unsafe or irrelevant rather than forcing a fixed menu. Ask as [Discuss Work](../../discuss-work/SKILL.md)'s "Ask One Question" describes, with the supported routes as the options. Approval of one route covers only the scope shown and accepted. When a route needs a local commit, use the trunk's Commit steps; do not commit merely to make the branch look finished.
 
 ## State Readiness Honestly
 
@@ -35,7 +35,7 @@ Goal: the user can accept or refuse the change from the hand-over alone, without
 The pull-request description, or the final report when there is no pull request, carries:
 
 - what done looks like, from the work agreement, against what was done, naming anything left out or changed on the way;
-- choices the user has not seen, from Agree Work's decision list: its `new`, `changed` and `default` items, each with where it shows;
+- choices the user has not seen, from Discuss Work's decision list: its `new`, `changed` and `default` items, each with where it shows;
 - the evidence: each check run on the final state and its result;
 - the review outcome: self-review only, or each independent review's judgment with every Rejected finding and why.
 
@@ -75,6 +75,6 @@ Do not remove a worktree, checkout, session or harness state you did not create 
 
 ## Return Conflicts And Failures
 
-Resolve a conflict locally only when both sides' intended behavior is settled and the resolution is mechanical. Stop and report the conflict with its evidence when resolving it would choose between competing product or API behavior, changed tests and changed implementation, incompatible migrations or data ownership, security, privacy, billing, permission or compatibility policies, or two architecture directions; the next route may be Agree Work, review, diagnosis, or a Spec or Plan revision, never "take ours" or "take theirs".
+Resolve a conflict locally only when both sides' intended behavior is settled and the resolution is mechanical. Stop and report the conflict with its evidence when resolving it would choose between competing product or API behavior, changed tests and changed implementation, incompatible migrations or data ownership, security, privacy, billing, permission or compatibility policies, or two architecture directions; the next route may be Discuss Work, review, diagnosis, or a Spec or Plan revision, never "take ours" or "take theirs".
 
 Use Execute Work's [diagnose](../../execute-work/references/diagnose.md) when integrated checks fail without a supported cause. Take mixed or unrelated branch contents back to the [commit](commit.md) staging decisions. Keep branch state before handing to another activity.

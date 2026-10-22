@@ -43,7 +43,7 @@ Goal: one commit that holds exactly the supported state.
    git ls-files --others --exclude-standard
    ```
    Staged does not mean yours. If the second Routes row matches, read [commit](references/commit.md) now.
-3. **Stage** only what the claim needs: explicit paths or hunks, with the tests, docs and generated output it requires; stage broadly only when every changed path was inspected and belongs. Then `git diff --cached --check`: conflict markers or whitespace damage stop the commit.
+3. **Stage** only what the claim needs: explicit paths or hunks, with the tests, docs and generated output it requires; stage broadly only when every changed path was inspected and belongs. Then `git diff --cached --check`: conflict markers or whitespace damage stop the commit; fix them in the content they belong to, never edit content just to silence the check.
 4. **Message** in the repository's style; otherwise a short imperative subject naming what this commit holds, and a body only for what the diff cannot show: why, trade-offs, residual risk, why incomplete work is kept. Invent no trailers.
 5. **Check** `git show --stat --oneline HEAD` and `git status --short --branch`: the claimed contents, nothing unexpected left.
 6. **Record** `commit:<sha>` in the Current Slice's Material updates and close the selected `preserve` Checkpoint through [Track Work](../track-work/SKILL.md), when a Working Record exists.
@@ -55,7 +55,7 @@ Rules for a commit:
 
 ## Other Owners
 
-A choice that is the user's goes to [Agree Work](../agree-work/SKILL.md), with the supported routes as options; what a check supports, to [Verify Work](../verify-work/SKILL.md); a failure without a known cause, to Execute Work's [diagnose](../execute-work/references/diagnose.md); a selected review not yet run, reported for [Review Work](../review-work/SKILL.md).
+A choice that is the user's goes to [Discuss Work](../discuss-work/SKILL.md), with the supported routes as options; what a check supports, to [Verify Work](../verify-work/SKILL.md); a failure without a known cause, to Execute Work's [diagnose](../execute-work/references/diagnose.md); a selected review not yet run, reported for [Review Work](../review-work/SKILL.md).
 
 ## Stop
 

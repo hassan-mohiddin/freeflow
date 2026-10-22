@@ -36,7 +36,7 @@ A combined dirty worktree passing does not show that the staged subset is suppor
 
 Include generated files, snapshots, lockfiles, formatter output or build artifacts only when repository convention or the agreed outcome requires them. Establish which command produced them, whether their change follows from the source change, whether they can be reviewed, and whether hand edits are prohibited. Do not include generated output merely because it changed, and do not hand-edit it unless the repository expects that.
 
-A Spec, Plan, ADR, policy, public documentation file or release artifact has its own authority and maintenance rules. Include it only when its change is covered, belongs to the same commit, describes the same agreed behavior, and its own policy permits the update. Do not edit a durable artifact to make the implementation look coherent; settle contradictions through [Agree Work](../../agree-work/SKILL.md).
+A Spec, Plan, ADR, policy, public documentation file or release artifact has its own authority and maintenance rules. Include it only when its change is covered, belongs to the same commit, describes the same agreed behavior, and its own policy permits the update. Do not edit a durable artifact to make the implementation look coherent; settle contradictions through [Discuss Work](../../discuss-work/SKILL.md).
 
 ## Reject Sensitive Or Suspicious Content
 

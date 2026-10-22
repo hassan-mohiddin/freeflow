@@ -77,7 +77,7 @@ test("re-entry recovery is stable and capability-neutral", async () => {
     /send this and wait; skip it for a question, an exactly specified change, or when no one can answer/,
   );
   assert.match(core, /What I'll do: +<the outcome>/);
-  assert.match(core, /Agree Work keeps the list/);
+  assert.match(core, /Discuss Work keeps the list/);
   assert.match(core, /Open a reference only when its skill names the condition/);
   assert.doesNotMatch(core, /not on a keyword/);
   assert.match(core, /stop at the agreed end, a real blocker, or a choice that is the user's/);
@@ -182,7 +182,7 @@ test("composes the mandatory core fragments, current capabilities, discovery, an
     assert.doesNotMatch(runtimeState.content, /Default mode|Active mode|Interaction Contract|Skills/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/agree-work/SKILL.md")));
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/discuss-work/SKILL.md")));
     assert.ok(!resources.skillPaths.some((path) => /context-virtualization|conversation-history/.test(path)));
     assert.ok(!resources.skillPaths.some((path) => path.endsWith("/skills/mode-contract/SKILL.md")));
     assert.ok(!activeToolNames().includes("freeflow_context"));
@@ -214,7 +214,7 @@ test("subagents get the base guidance without capability skills, cues or tools",
     assert.doesNotMatch(before.renderedGuidance, /Context Virtualization|Conversation History/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/agree-work/SKILL.md")));
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/discuss-work/SKILL.md")));
     // Capability skills are listed only while their capability is effective, and every one is off in a subagent.
     assert.deepEqual(
       resources.skillPaths.filter((path) => path.includes("/capabilities/")),

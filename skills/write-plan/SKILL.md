@@ -15,7 +15,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 - A Plan creates no authority. Accepting it as a strategy is not permission to execute it. Explicit approval to execute it may cover its listed work, checks, selected reviews, record maintenance, and local commits (still subject to fresh evidence and [Deliver Work](../deliver-work/SKILL.md) commit inspection); it never implies push, integration, migration, deprecation, release, or launch.
 - Never invent product behavior, compatibility, public interfaces, failure semantics, sensitive policy, migration, scale, retries, recovery, or extension machinery, and never replace agreed scope with an unapproved MVP or later-version split.
-- Never encode a hoped-for answer or an unsettled owner choice as a planning assumption. Use [Discuss](../discuss/SKILL.md) for unresolved direction or material alternatives, [Agree Work](../agree-work/SKILL.md) for a blocking owner choice or source conflict, and Execute Work's [diagnose](../execute-work/references/diagnose.md) for a fix whose cause is unsupported.
+- Never encode a hoped-for answer or an unsettled owner choice as a planning assumption. Use [Discuss Work](../discuss-work/SKILL.md) for unresolved direction, material alternatives, a blocking owner choice or a source conflict, and Execute Work's [diagnose](../execute-work/references/diagnose.md) for a fix whose cause is unsupported.
 - Never let available tests redefine acceptance, or claim whole-system completion from a narrow observer.
 - Writing or revising a Plan does not trigger independent review, and neither self-review nor independent review grants user acceptance or execution authority.
 

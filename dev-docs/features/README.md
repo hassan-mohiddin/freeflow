@@ -18,7 +18,7 @@ Each feature file's `Covers` names the code behind what its user sees, so `npm r
 - Start every feature file from a fresh launch unless its preconditions say otherwise. A settings change reloads the session, so do not reuse a run across features that change settings.
 - Type slash commands with `cmd`. Move through full-screen lists with `keys`, and confirm the `›` row in the printed pane before `Enter`.
 - Read files and run CLI surfaces with `observe`; it runs in the fixture with the run's `FREEFLOW_HOME` and `FFV_REPO`.
-- Never type free text or a workflow command (`/verify-work`, `/discuss` and the rest) without a pinned cheap model and the user's yes: each is a model call. The helper refuses them by default.
+- Never type free text or a workflow command (`/verify-work`, `/discuss-work` and the rest) without a pinned cheap model and the user's yes: each is a model call. The helper refuses them by default.
 - Clean up after every run, failed ones included.
 
 ## Proof And Skip Reporting

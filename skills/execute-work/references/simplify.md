@@ -15,9 +15,9 @@ Before editing, identify:
 - the complexity or coordination to remove;
 - why the current structure exists, including compatibility, platform, performance, migration, and recovery constraints.
 
-If expected behavior is unclear or should change, settle it through [Agree Work](../../agree-work/SKILL.md); if current behavior or a failure is unexplained, [diagnose](diagnose.md) first. Do not characterize an invented expectation. When protection is missing, establish the smallest useful observation of behavior before transforming it ([Test Design](../../verify-work/references/test-design.md) when you design that check). Characterization protects required stable behavior, not every accidental implementation detail.
+If expected behavior is unclear or should change, settle it through [Discuss Work](../../discuss-work/SKILL.md); if current behavior or a failure is unexplained, [diagnose](diagnose.md) first. Do not characterize an invented expectation. When protection is missing, establish the smallest useful observation of behavior before transforming it ([Test Design](../../verify-work/references/test-design.md) when you design that check). Characterization protects required stable behavior, not every accidental implementation detail.
 
-Take a change to interfaces, ownership, public state, or failure behavior to Agree Work, with [design](design.md) as the lens. Do not disguise a redesign as cleanup.
+Take a change to interfaces, ownership, public state, or failure behavior to Discuss Work, with [design](design.md) as the lens. Do not disguise a redesign as cleanup.
 
 ## Select One Coherent Transformation
 

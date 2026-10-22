@@ -16,7 +16,7 @@ Before adding behavior for an edge case, ask:
 Then act proportionately:
 
 - **Required or observed, with defined behavior:** implement the smallest complete behavior and test the relevant boundary.
-- **Material but undefined:** stop and settle the missing behavior through [Agree Work](../../agree-work/SKILL.md).
+- **Material but undefined:** stop and settle the missing behavior through [Discuss Work](../../discuss-work/SKILL.md).
 - **Plausible but unsupported:** gather evidence; do not add speculative handling.
 - **Useful but optional:** report or defer it as separate work.
 - **Purely hypothetical:** leave it alone.

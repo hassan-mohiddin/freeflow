@@ -1,6 +1,6 @@
 ---
 name: execute-work
-description: "Use when implementing, fixing, configuring, refactoring, simplifying or cleaning up code, designing modules or interfaces, finding why something fails, or migrating to a replacement and removing the old path. Not for open scope (Agree Work), checking (Verify Work), fitness (Review Work) or delivery (Deliver Work)."
+description: "Use when implementing, fixing, configuring, refactoring, simplifying or cleaning up code, designing modules or interfaces, finding why something fails, or migrating to a replacement and removing the old path. Not for open scope (Discuss Work), checking (Verify Work), fitness (Review Work) or delivery (Deliver Work)."
 ---
 
 # Execute Work
@@ -26,15 +26,16 @@ Read a reference only when its situation arises.
 | Adding edge-case handling, or a comment that explains why | [code practices](references/code-practices.md) |
 | Designing or changing a test | [Test Design](../verify-work/references/test-design.md) |
 | What a check shows, or a claim beyond its evidence | [Verify Work](../verify-work/SKILL.md) |
-| A choice that is the user's, or a step the agreement does not cover | [Agree Work](../agree-work/SKILL.md) |
+| An empirical question to answer before building on it | Discuss Work's [learning action](../discuss-work/references/learning-action.md) |
+| A choice that is the user's, or a step the agreement does not cover | [Discuss Work](../discuss-work/SKILL.md) |
 | Committing, pushing, merging, releasing or deploying | [Deliver Work](../deliver-work/SKILL.md) |
 
 ## Rules
 
-- Stay inside the work agreement; an agreement to return a plan does not cover production edits. Take a new requirement, scope, compatibility, persistence or evidence boundary to Agree Work before adopting it.
+- Stay inside the work agreement; an agreement to return a plan does not cover production edits. Take a new requirement, scope, compatibility, persistence or evidence boundary to Discuss Work before adopting it.
 - Never cross a selected Checkpoint while it is due and unresolved; Track Work names its owner.
 - Never rewrite a Spec, Plan, policy or acceptance criterion to make the implementation pass.
-- Never encode a guess for consequential behavior nobody defined: ask through Agree Work, or, when no one can answer, take the Working Method's default and report it.
+- Never encode a guess for consequential behavior nobody defined: ask through Discuss Work, or, when no one can answer, take the Working Method's default and report it.
 - When a Working Record exists, record the Current Slice through Track Work before its first effect.
 - Never promote exploratory code into production or invent acceptance.
 
@@ -58,8 +59,6 @@ Work in units that each produce one checkable result, not one per command or fil
 
 For one mechanical edit across many sites, edit the first site by hand, then write a script or codemod; run it on that site's original state and diff against your hand edit until they match, then run it everywhere. Keep the script in the task's scratch location and name it in the report. Edit by hand when the sites are few or each needs its own decision.
 
-A bounded learning action answers one declared question with the least building that can, within the limits whoever framed it set. Report a negative or inconclusive result as plainly as a positive one, and do not polish a prototype toward a favorable answer.
-
 ## Re-enter When The Basis Changes
 
 Goal: stop building on a basis that no longer holds, and go back only as far as the change requires.
@@ -71,7 +70,7 @@ Goal: stop building on a basis that no longer holds, and go back only as far as 
 | The cause is unclear, or a correction did not hold | [diagnose](references/diagnose.md), after the Working Method's "Diagnose before fixing" |
 | A claim exceeds its evidence | Verify Work, before fixing anything |
 | Accepted content, such as a Spec, Plan or Decision, changed | Its owner; reconcile the Working Record before dependent use |
-| A choice that is the user's | Agree Work |
+| A choice that is the user's | Discuss Work |
 
 Do not continue merely because implementation has begun. Before chasing a prerequisite, ask whether the agreed outcome needs it or only your current approach does; a failed approach does not prove a host change or stronger guarantee is necessary. Keep unaffected changes and contradicting evidence.
 

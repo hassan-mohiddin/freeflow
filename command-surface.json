@@ -7,8 +7,8 @@
   },
   "directSkillCalls": [
     {
-      "command": "/discuss",
-      "skill": "discuss"
+      "command": "/discuss-work",
+      "skill": "discuss-work"
     },
     {
       "command": "/track-work",
@@ -31,18 +31,6 @@
       "skill": "execute-work"
     },
     {
-      "command": "/simplify-code",
-      "skill": "execute-work"
-    },
-    {
-      "command": "/migration-work",
-      "skill": "execute-work"
-    },
-    {
-      "command": "/diagnose-failure",
-      "skill": "execute-work"
-    },
-    {
       "command": "/verify-work",
       "skill": "verify-work"
     },
@@ -51,28 +39,12 @@
       "skill": "review-work"
     },
     {
-      "command": "/commit-work",
+      "command": "/deliver-work",
       "skill": "deliver-work"
     },
     {
       "command": "/handoff",
       "skill": "handoff"
-    },
-    {
-      "command": "/finish-branch",
-      "skill": "deliver-work"
-    },
-    {
-      "command": "/release-work",
-      "skill": "deliver-work"
-    },
-    {
-      "command": "/launch-work",
-      "skill": "deliver-work"
-    },
-    {
-      "command": "/bypass",
-      "skill": "agree-work"
     }
   ],
   "piNativeCommands": [

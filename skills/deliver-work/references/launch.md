@@ -4,7 +4,7 @@ This reference is judgment about changing production deliberately and keeping a 
 
 ## Establish The Boundary
 
-Carry out only the stages explicitly requested or approved through an inspected launch contract or accepted operational policy. Take deployment, exposure, rollback, destructive migration, the launch window, acceptable degradation, user communication and recovery direction to [Agree Work](../../agree-work/SKILL.md) while they remain the user's choice.
+Carry out only the stages explicitly requested or approved through an inspected launch contract or accepted operational policy. Take deployment, exposure, rollback, destructive migration, the launch window, acceptable degradation, user communication and recovery direction to [Discuss Work](../../discuss-work/SKILL.md) while they remain the user's choice.
 
 Publish a versioned artifact first through [release](release.md) when one is needed. Use Execute Work's [migration](../../execute-work/references/migration.md) as well when the launch moves data, traffic, consumers, configuration or compatibility contracts from an old path to a replacement.
 

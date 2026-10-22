@@ -10,7 +10,7 @@ Hide coherent, likely-changing decisions behind small, stable, outcome-level int
 
 - A design recommendation is not implementation authority, and this lens never enlarges a task by itself.
 - Never remove required correctness, trust, or safety to make a design smaller, and never turn hypothetical lifecycle completeness into a production requirement.
-- Never design around an invented product or failure policy. When a boundary changes product behavior, public interfaces, compatibility, permissions, security, privacy, billing, data loss, migration direction, or another user-owned outcome, take its concrete consequences and supported alternatives to [Agree Work](../../agree-work/SKILL.md).
+- Never design around an invented product or failure policy. When a boundary changes product behavior, public interfaces, compatibility, permissions, security, privacy, billing, data loss, migration direction, or another user-owned outcome, take its concrete consequences and supported alternatives to [Discuss Work](../../discuss-work/SKILL.md).
 - Do not invent APIs, files, or stronger guarantees to make a design look complete; name the missing observation or choice instead.
 
 ## Start With The Required Outcome
@@ -44,7 +44,7 @@ Name the actual question, not a generic demand for more design. Deciding which o
 
 - **Evidence supports a mechanism:** select it and say why it fits.
 - **An environmental fact is missing:** find the observation that distinguishes the alternatives before dependent work.
-- **A user-owned boundary is unsettled:** take it to Agree Work.
+- **A user-owned boundary is unsettled:** take it to Discuss Work.
 - **Only ordinary mechanics remain:** leave them to implementation.
 
 Make explicit only what the question needs:

@@ -122,7 +122,7 @@ Prompt delivery describes what the model sees. Core's cycle and Cognitive Routin
 
 ```text
 Freeflow cycle (core): agree, build and verify, review and hand over
-├─ skills chosen by their descriptions; Agree Work owns the agreement, Track Work the Slices
+├─ skills chosen by their descriptions; Discuss Work owns the agreement, Track Work the Slices
 └─ Cognitive Routing — automatic control only
    ├─ Coordinator selects the responsible worker for the next result
    │  ├─ Helper: ordinary support, preparation, checks, and settled mechanics

@@ -63,4 +63,4 @@ Stop or downgrade the claim when:
 - only a nearby operation improved;
 - required production evidence is unavailable.
 
-Read Execute Work's [diagnose](../../../skills/execute-work/references/diagnose.md) for unexplained regressions. Read [Agree Work](../../../skills/agree-work/SKILL.md) when the next step depends on a product, SLO, cost, or resource tradeoff owned by the user.
+Read Execute Work's [diagnose](../../../skills/execute-work/references/diagnose.md) for unexplained regressions. Read [Discuss Work](../../../skills/discuss-work/SKILL.md) when the next step depends on a product, SLO, cost, or resource tradeoff owned by the user.

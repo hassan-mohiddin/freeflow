@@ -16,7 +16,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - A Spec grants no permission and does not begin implementation. Review establishes fitness, not user acceptance or execution authority; never label author self-review as independent review, or use an approval status without its source.
 - A drafted proposal is not accepted behavior; label proposed design as proposed. Authorization to investigate or draft an option is not acceptance of undisclosed production consequences.
 - Never add an obligation without an accepted source or a reason it is necessary for the stated outcome. Do not infer requirements from nearby code, existing tests, or available machinery, and do not reduce agreed scope into an unapproved MVP, roadmap, or later-version split.
-- Stop the affected writing when it would silently change behavior, scope, public interfaces, compatibility, sensitive policy, failure semantics, or hard-to-reverse design; never settle such a choice through normative prose, an unexplained assumption, or a polished placeholder; return the concrete effect and supported alternatives to its owner through [Agree Work](../agree-work/SKILL.md) or [Discuss](../discuss/SKILL.md).
+- Stop the affected writing when it would silently change behavior, scope, public interfaces, compatibility, sensitive policy, failure semantics, or hard-to-reverse design; never settle such a choice through normative prose, an unexplained assumption, or a polished placeholder; return the concrete effect and supported alternatives to its owner through [Discuss Work](../discuss-work/SKILL.md).
 - Never rewrite source truth to suit implementation, and never rewrite historical decisions as though they always contained the new choice.
 - Writing or revising a Spec does not trigger independent review.
 
@@ -26,7 +26,7 @@ Goal: know who will use the artifact and for what, before writing it.
 
 Identify the artifact type, intended reader or future action, accepted scope, destination, and the unresolved questions it must preserve.
 
-Answer questions about a Spec without editing it unless revision is requested. Use Discuss when direction or alternatives remain materially open and Agree Work for one blocking owner choice or source conflict; do not repeat discussion that already settled the artifact's purpose. An agreement to implement accepted work may include documenting its supported contract; do not manufacture another user approval because a document was produced.
+Answer questions about a Spec without editing it unless revision is requested. Use Discuss Work when direction or alternatives remain materially open, or for one blocking owner choice or source conflict; do not repeat discussion that already settled the artifact's purpose. An agreement to implement accepted work may include documenting its supported contract; do not manufacture another user approval because a document was produced.
 
 ## Establish The Current Source Basis
 

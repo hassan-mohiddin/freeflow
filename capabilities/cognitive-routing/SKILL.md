@@ -59,7 +59,7 @@ Delegate when the expected saving in cost or quality exceeds the handoff, the ra
 - missing facts about the environment: a worker observes;
 - an unresolved design or governing choice: Coordinator;
 - settled mechanics: a worker, or a script when the work is deterministic and repeated;
-- a decision the user owns: Coordinator asks, using [Agree Work](../../skills/agree-work/SKILL.md), and keeps its decision list; never a worker.
+- a decision the user owns: Coordinator asks, using [Discuss Work](../../skills/discuss-work/SKILL.md), and keeps its decision list; never a worker.
 
 Default: follow your mode reference. Keep a tightly coupled edit, check, and interpret loop with one producer; hand off results that can be separated from it. A separate multi-entry record update qualifies; a one-line update in the middle of your own work does not. A read-only check of the candidate against the Slice's acceptance requirements qualifies even mid-implementation, because it gives Coordinator a different result, not a repeat.
 

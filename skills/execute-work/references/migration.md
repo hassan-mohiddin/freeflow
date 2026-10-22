@@ -10,9 +10,9 @@ A replacement existing does not prove that consumers moved. A migration unit may
 
 Rule: loading this reference, discussing a migration, or approving a general implementation Plan does not authorize migration, deprecation, cutover, destructive cleanup, or removal. Carry out only the stages and units explicitly requested or separately approved.
 
-Take to [Agree Work](../../agree-work/SKILL.md) whatever remains unresolved among: maintaining, deprecating or removing the old behavior; advisory versus compulsory migration, deadlines or support windows; compatibility, public API, data conversion, downtime, permissions, billing, security, privacy or data-loss behavior; irreversible cutover, destructive cleanup or rollback limits.
+Take to [Discuss Work](../../discuss-work/SKILL.md) whatever remains unresolved among: maintaining, deprecating or removing the old behavior; advisory versus compulsory migration, deadlines or support windows; compatibility, public API, data conversion, downtime, permissions, billing, security, privacy or data-loss behavior; irreversible cutover, destructive cleanup or rollback limits.
 
-Do not manufacture a migration because code looks old: inspect ownership, supported consumers, runtime use, source truth, incidents, maintenance cost, and current value. When replacement behavior, interfaces, ownership or failure semantics remain unsettled, settle them first: Agree Work for a user-owned choice, [design](design.md) for a design-bearing boundary, [Write Spec](../../write-spec/SKILL.md) when the accepted migration behavior needs a durable contract.
+Do not manufacture a migration because code looks old: inspect ownership, supported consumers, runtime use, source truth, incidents, maintenance cost, and current value. When replacement behavior, interfaces, ownership or failure semantics remain unsettled, settle them first: Discuss Work for a user-owned choice, [design](design.md) for a design-bearing boundary, [Write Spec](../../write-spec/SKILL.md) when the accepted migration behavior needs a durable contract.
 
 ## Define The Migration Contract
 
@@ -84,7 +84,7 @@ Move one accepted consumer, cohort, traffic segment, configuration set, or data 
 
 Decide each next step by criteria set before the unit began, using the advance, hold and abort vocabulary in Deliver Work's [launch](../../deliver-work/references/launch.md); the owner decides consequential thresholds and acceptable degradation.
 
-Code search alone cannot prove completion when runtime, external, dormant, generated, offline, or independently deployed consumers may exist. Stop and report the evidence, taking any choice it leaves to the user through Agree Work, when replacement behavior diverges, unknown consumers appear, a new owner decision is needed, data cannot be reconciled, recovery assumptions fail, compatibility machinery spreads, or the next safe unit is unclear. Keep completed units; do not restart the whole migration.
+Code search alone cannot prove completion when runtime, external, dormant, generated, offline, or independently deployed consumers may exist. Stop and report the evidence, taking any choice it leaves to the user through Discuss Work, when replacement behavior diverges, unknown consumers appear, a new owner decision is needed, data cannot be reconciled, recovery assumptions fail, compatibility machinery spreads, or the next safe unit is unclear. Keep completed units; do not restart the whole migration.
 
 ## Remove The Old Path
 

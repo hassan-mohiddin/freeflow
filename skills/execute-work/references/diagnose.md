@@ -8,12 +8,12 @@ Establish what fails and why before selecting a correction. A supported cause di
 
 ## Rules
 
-- Never invent the expected behavior. When accepted behavior or source truth is unsettled, settle it through [Agree Work](../../agree-work/SKILL.md) before diagnosing against it.
+- Never invent the expected behavior. When accepted behavior or source truth is unsettled, settle it through [Discuss Work](../../discuss-work/SKILL.md) before diagnosing against it.
 - Before active evidence generation, confirm the work agreement covers its path, environment, repetition, instrumentation, cost, sensitive data, and cleanup. Covered bug investigation needs no extra permission; otherwise propose the observation and its stop condition to the user and wait.
 - Preserve unfavorable evidence. Never rerun until a failure disappears, and never drop a contradicting observation.
 - Minimize and sanitize logs, traces, payloads, dumps, screenshots, and browser state; never expose credentials or unnecessary private data.
 - Report a mitigation as containment, not resolution; never claim fixed when only a mitigation succeeded or the reported boundary is unverified.
-- When a remedy changes scope, compatibility, public behavior, failure semantics, or another user-owned boundary, take its concrete consequence and alternatives to Agree Work before adopting it.
+- When a remedy changes scope, compatibility, public behavior, failure semantics, or another user-owned boundary, take its concrete consequence and alternatives to Discuss Work before adopting it.
 
 ## Enter Only For An Unsettled Cause
 

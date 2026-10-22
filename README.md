@@ -220,24 +220,16 @@ Read [Using Freeflow Effectively](https://github.com/hassan-mohiddin/freeflow/bl
 Canonical Pi direct calls include:
 
 ```text
-/discuss
-/action-selection
+/discuss-work
 /track-work
 /write-spec
 /write-plan
 /write-docs
 /execute-work
-/simplify-code
-/migration-work
-/diagnose-failure
 /verify-work
 /review-work
-/commit-work
+/deliver-work
 /handoff
-/finish-branch
-/release-work
-/launch-work
-/bypass
 ```
 
 Contributor calls:

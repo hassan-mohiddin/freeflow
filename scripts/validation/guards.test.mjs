@@ -66,7 +66,7 @@ test("audit-command-surface fails when a command maps to a missing skill", () =>
   assert.equal(run(argv).status, 0, run(argv).output);
   withDefect(
     "command-surface.json",
-    (text) => text.replace('"skill": "discuss"', '"skill": "no-such-skill"'),
+    (text) => text.replace('"skill": "discuss-work"', '"skill": "no-such-skill"'),
     () => {
       const result = run(argv);
       assert.notEqual(result.status, 0, result.output);

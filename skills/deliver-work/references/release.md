@@ -6,7 +6,7 @@ This reference is judgment about preparing and publishing a versioned artifact w
 
 Carry out only the release stages explicitly requested or approved: preparing, tagging, publishing, deprecating, yanking or replacing are separate. Before editing, read the repository's release policy, versioning scheme, package metadata, changelog convention, release automation, supported branches, signing or provenance requirements, and the latest published versions.
 
-Take these to [Agree Work](../../agree-work/SKILL.md) when policy and evidence do not settle them:
+Take these to [Discuss Work](../../discuss-work/SKILL.md) when policy and evidence do not settle them:
 
 - whether to release, and which channel or audience receives it;
 - compatibility or breaking-change classification;
@@ -48,7 +48,7 @@ For approved preparation:
 - inspect the exact artifacts that would be published;
 - keep credentials and signing material out of prompts, logs, diffs and artifacts.
 
-Propose branch, commit, public-documentation or migration work the release needs through Agree Work unless the approved release scope includes it.
+Propose branch, commit, public-documentation or migration work the release needs through Discuss Work unless the approved release scope includes it.
 
 ## Preflight The Exact Release
 

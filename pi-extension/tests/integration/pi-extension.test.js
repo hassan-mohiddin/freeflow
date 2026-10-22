@@ -372,7 +372,8 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
 
   assert.ok(commandNames.includes("freeflow"));
   assert.ok(!commandNames.includes("output-router"));
-  for (const command of ["discuss", "track-work", "execute-work"]) assert.ok(commandNames.includes(command));
+  for (const command of ["discuss-work", "track-work", "execute-work", "deliver-work"])
+    assert.ok(commandNames.includes(command));
   assert.ok(!commandNames.includes("discover"));
   assert.ok(!commandNames.includes("execute-plan"));
   assert.ok(!commandNames.includes("workflow"));
@@ -1063,32 +1064,28 @@ test("Pi statusline keeps an inactive Cognitive Routing runtime blocked", () => 
   assert.equal(ctx.statuses.at(-1).value, "freeflow: routing blocked · runtime_inactive");
 });
 
-test("Pi keeps /bypass for one release as a command that opens Agree Work", () => {
+test("Pi registers each workflow skill under its own name, with no commands for removed or merged skills", () => {
   const { commands } = loadExtension();
-  const bypassCommand = commands.find((command) => command.name === "bypass");
-  assert.ok(bypassCommand);
-  assert.equal(bypassCommand.definition.description, "Run Freeflow agree-work via bypass");
-  assert.equal(bypassCommand.definition.getArgumentCompletions, undefined);
-  assert.ok(!commands.some((command) => command.name === "action-selection"));
-});
-
-test("Pi keeps the four delivery commands for one release as commands that open Deliver Work", () => {
-  const { commands } = loadExtension();
-  for (const name of ["commit-work", "finish-branch", "release-work", "launch-work"]) {
+  for (const name of ["discuss-work", "execute-work", "deliver-work"]) {
     const command = commands.find((candidate) => candidate.name === name);
     assert.ok(command, name);
-    assert.equal(command.definition.description, `Run Freeflow deliver-work via ${name}`);
+    assert.equal(command.definition.description, `Run Freeflow ${name}`);
   }
-});
-
-test("Pi keeps /simplify-code, /migration-work and /diagnose-failure for one release as commands that open Execute Work", () => {
-  const { commands } = loadExtension();
-  for (const name of ["simplify-code", "migration-work", "diagnose-failure"]) {
-    const command = commands.find((candidate) => candidate.name === name);
-    assert.ok(command, name);
-    assert.equal(command.definition.description, `Run Freeflow execute-work via ${name}`);
-  }
-  assert.ok(!commands.some((command) => command.name === "design-for-depth"));
+  for (const removed of [
+    "action-selection",
+    "bypass",
+    "discuss",
+    "agree-work",
+    "commit-work",
+    "finish-branch",
+    "release-work",
+    "launch-work",
+    "design-for-depth",
+    "simplify-code",
+    "diagnose-failure",
+    "migration-work",
+  ])
+    assert.ok(!commands.some((command) => command.name === removed), removed);
 });
 
 test("Pi describes the mode-free Freeflow argument surface and manual profile controls", () => {
@@ -1144,7 +1141,7 @@ test("Pi exposes the canonical base skills without TDD, a mode skill, or removed
         return match[1];
       });
     assert.deepEqual([...skillNames].sort(), [...FREEFLOW_MODEL_SKILL_NAMES].sort());
-    assert.ok(skillNames.includes("agree-work"));
+    assert.ok(skillNames.includes("discuss-work"));
     assert.ok(!skillNames.includes("workflow"));
     assert.ok(!skillNames.includes("tdd"));
     assert.ok(!skillNames.includes("mode-contract"));
@@ -1154,6 +1151,8 @@ test("Pi exposes the canonical base skills without TDD, a mode skill, or removed
     assert.ok(!skillNames.includes("bypass"));
     assert.ok(skillNames.includes("deliver-work"));
     for (const removed of [
+      "discuss",
+      "agree-work",
       "commit-work",
       "finish-branch",
       "release-work",
@@ -1166,11 +1165,8 @@ test("Pi exposes the canonical base skills without TDD, a mode skill, or removed
       assert.ok(!skillNames.includes(removed), removed);
 
     for (const [commandName, expectedSkill] of [
-      ["discuss", "discuss"],
-      ["bypass", "agree-work"],
-      ["commit-work", "deliver-work"],
-      ["migration-work", "execute-work"],
-      ["diagnose-failure", "execute-work"],
+      ["discuss-work", "discuss-work"],
+      ["deliver-work", "deliver-work"],
       ["track-work", "track-work"],
       ["execute-work", "execute-work"],
     ]) {

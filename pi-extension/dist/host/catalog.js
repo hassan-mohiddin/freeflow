@@ -4,29 +4,16 @@ import { fileURLToPath } from "node:url";
  * their files live.
  */
 export const WORKFLOW_COMMANDS = [
-  { command: "discuss", skill: "discuss" },
+  { command: "discuss-work", skill: "discuss-work" },
   { command: "track-work", skill: "track-work" },
   { command: "write-spec", skill: "write-spec" },
   { command: "write-plan", skill: "write-plan" },
   { command: "write-docs", skill: "write-docs" },
   { command: "execute-work", skill: "execute-work" },
-  // Simplify Code, Migration Work and Diagnose Failure became Execute Work references in 0.9.0, with Design for Depth;
-  // their commands open Execute Work for one release.
-  { command: "simplify-code", skill: "execute-work" },
-  { command: "migration-work", skill: "execute-work" },
-  { command: "diagnose-failure", skill: "execute-work" },
   { command: "verify-work", skill: "verify-work" },
   { command: "review-work", skill: "review-work" },
-  // Commit Work, Finish Branch, Release Work and Launch Work became Deliver Work in 0.9.0; their commands open it
-  // for one release.
-  { command: "commit-work", skill: "deliver-work" },
+  { command: "deliver-work", skill: "deliver-work" },
   { command: "handoff", skill: "handoff" },
-  { command: "finish-branch", skill: "deliver-work" },
-  { command: "release-work", skill: "deliver-work" },
-  { command: "launch-work", skill: "deliver-work" },
-  // The Bypass skill was removed in 0.9.0; its command opens Agree Work, which now owns skipping optional steps, for
-  // one release.
-  { command: "bypass", skill: "agree-work" },
 ];
 export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-behavior"];
 /**
@@ -34,9 +21,8 @@ export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-
  * skills directory, the package and the coverage matrix against it instead of a fixed count.
  */
 export const FREEFLOW_MODEL_SKILL_NAMES = [
-  "agree-work",
   "deliver-work",
-  "discuss",
+  "discuss-work",
   "evaluate-behavior",
   "execute-work",
   "handoff",

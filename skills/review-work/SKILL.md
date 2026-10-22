@@ -74,8 +74,7 @@ For one clear covered defect (for an artifact, one whose revision basis is settl
 Route by what changed:
 
 - the outcome remains settled but the implementation approach is invalidated: return for implementation preparation;
-- changed direction or strategy: [Discuss](../../skills/discuss/SKILL.md);
-- unsettled accepted behavior, a user-owned choice, a scope change, or a source conflict: [Agree Work](../../skills/agree-work/SKILL.md);
+- changed direction or strategy, unsettled accepted behavior, a user-owned choice, a scope change, or a source conflict: [Discuss Work](../../skills/discuss-work/SKILL.md);
 - an unclear, unsupported, or repeatedly failing cause: Execute Work's [diagnose](../../skills/execute-work/references/diagnose.md).
 
 Stop self-review when the supported state is accepted, the artifact is fit for its agreed use, or a material issue has a clear next route. Optional polish is not permission to continue editing, and self-review is not a reason to add independent review.

@@ -25,7 +25,7 @@ Work runs in a cycle:
    Where I stop:   <done when; what I won't touch>
    Your decisions: 1. <a choice the request leaves open, as the user meets it>. I'd go with <default>, because <reason>.
    ```
-   List every choice the request, code and docs leave open, technical ones too (names, messages, files); Agree Work keeps the list.
+   List every choice the request, code and docs leave open, technical ones too (names, messages, files); Discuss Work keeps the list.
 2. **Build** within the agreement; **verify** on the user's path.
 3. **Review** when Review Work's gate calls for it; **hand over** as in Report a finished change.
 
