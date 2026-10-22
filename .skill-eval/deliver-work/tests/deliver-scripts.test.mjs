@@ -40,6 +40,8 @@ async function clone() {
   const root = join(top, "work");
   git(top, "init", "--quiet", "--bare", "--initial-branch=main", remote);
   git(top, "clone", "--quiet", remote, root);
+  // An empty clone starts on the machine's default branch name; name it main as the remote does.
+  git(root, "symbolic-ref", "HEAD", "refs/heads/main");
   await write(root, {
     "package.json": JSON.stringify({ name: "demo", version: "1.2.0", files: ["index.js"], main: "index.js" }),
     "index.js": "export default 1;\n",
