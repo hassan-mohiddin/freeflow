@@ -15,7 +15,8 @@ Inspect the actual state and governing sources, not just the producer's summary 
 Goal: use only the lenses that can change the boundary judgment.
 
 - **Source alignment:** required behavior and accepted amendments are implemented without omission or invented obligations.
-- **Correctness and integration:** reachable paths, affected callers, states, and components work together without regressions. Name the one fact the change's safety rests on and grade how it is known, weakest first: asserted; cited at file:line; reasoned through; run in a script against the real code; reproduced in the running app. A text search stops where the code hands bytes to something it does not show: library source at the version the project pins, wire formats and stored columns, feature flags, and code in other languages that reads the same data. Look there before grading the fact above reasoned.
+- **Correctness and integration:** reachable paths, affected callers, states, and components work together without regressions.
+- **Safety evidence:** name the one fact the change's safety rests on and grade how it is known, weakest first: asserted; cited at file:line; reasoned through; scripted against the real code; reproduced in the running app. A text search for callers stops at dynamic dispatch, configuration and feature flags, generated code, library source at the pinned version, wire formats and stored columns, and code in other languages or repositories that reads the same data; look there before grading the fact above reasoned.
 - **Failure and risk:** material errors, recovery, permissions, data, and compatibility are handled safely, as required.
 - **Evidence and acceptance:** claims are supported at their required observing boundaries, not merely by green summaries.
 - **Scope and minimality:** complexity and coordination serve requirements or demonstrated needs rather than optional stronger guarantees.

@@ -27,7 +27,7 @@ A request spanning routes, such as "commit and push": take them in order, each w
 - Merging, a pull request, deleting or discarding a branch, worktree or uncommitted work, deploying, and every exposure stage need their own yes, like commit, push and release. Loading this skill, a readiness question or an approved plan gives none, and one route's success never authorizes the next.
 - Never use `--amend`, `--allow-empty`, `--no-verify`, a force push, a history rewrite, a moved release tag or an overwritten published version unless the user asked for that exact action; never bypass or blindly retry a failing hook or check.
 - Never stage or publish Working Records (`.freeflow/tasks/**`), secrets, credentials, private keys, local environment files or unexplained sensitive content.
-- Never absorb or unstage pre-existing staged changes, or remove a worktree, checkout or other state you did not create.
+- Never absorb or unstage pre-existing staged changes, or remove a worktree, checkout or other state you did not create. Never run a destructive reset, clean, branch or remote deletion, worktree removal or force push merely to produce a clean status.
 - After a commit, push, publication or deployment step fails or loses its acknowledgement, inspect what changed before retrying, and stop while it stays unknown; a network error does not mean nothing happened.
 
 ## Commit
@@ -65,7 +65,7 @@ Stop and return the smallest blocking fact when:
 - live state differs from what was verified, reviewed or approved: changes, source commit, version, artifact, configuration or target;
 - required evidence or a selected review is missing;
 - a destination is unclear: remote, branch, base, pull-request target, registry, channel or environment;
-- a conflict needs a behavior, source-of-truth or owner decision.
+- a conflict needs more than a mechanical resolution of both sides' settled intended behavior, such as a behavior, source-of-truth or owner decision; never end a conflict by taking ours or theirs.
 
 ## Report
 
@@ -75,7 +75,7 @@ End with the lines that apply:
 Route:      <route and stage, and what the yes covered>
 Identity:   <SHA and subject, branch and remote, pull-request URL, version and tag, artifact and target>
 Evidence:   <each check on the final state and what it shows; the selected review's outcome>
-Not shown:  <what this does not establish (pushed is not merged, merged not released, released not deployed); what went unverified>
+Not shown:  <what this does not establish (pushed is not merged, merged not released, a prepared release not published, published not deployed); what went unverified>
 Remaining:  <unpushed or uncommitted work, pending CI or review, observation windows left, temporary machinery with its owner and cleanup, partial failures and recovery>
 Next:       <the next route as a question, and whose call it is>
 ```

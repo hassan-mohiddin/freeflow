@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/`, `skills/map-features/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `.skill-eval/freeflow-vs-plain/`, `scripts/validation/check-eval-definitions.mjs`
 > **Tests:** `.skill-eval/evaluate-behavior/tests/`, `.skill-eval/verify-work/tests/`
-> **Verified at:** `7e906799` (2026-10-22)
+> **Verified at:** `d6e65ab6` (2026-10-22)
 
 For contributors changing how Freeflow reviews work, evaluates agent behavior, or verifies claims: what each part does, how they depend on each other, why they are shaped this way, and which of their behaviors are deliberate. It also covers the evaluator's code, the evidence it stores, and the contributor gate that measures Freeflow's own changes.
 
@@ -422,6 +422,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-22: Guidance the restructure dropped is stated again where it is read: Review Work's rule on a reviewer from another model family keeps its reason; the safety-fact grade becomes its own work lens and names dynamic dispatch, configuration, generated code and other repositories among the places a text search misses; the decision verdict conditions sit with the decision rule in `design-and-measurement.md`; reusing an existing group names what must still match; the login refresh thresholds (120 and 30 minutes) and the skill-read token estimate are stated again; Verify Work gives a result returning to adjudication its own entry.
 - 2026-10-22: Expectation and decision checks that the definition alone decides run at load, before any spend: each known kind's grader checks its group type, arm, turn and values, comparison members must be one check, and a decision that could only exclude cases is refused (a missing arm, a measure recorded in one arm only, an unknown metric, or a measure no group records). `runtime.host` is refused. A suite's refusal, `check-tasks` and a reference-check refusal name the group's file. `METRIC_NAMES` moves to `lib/decision.mjs` so loading registers no metrics hook.
 - 2026-10-22: Repeated guards keep one owner: the self-review decision check moves to Discuss Work, which owns the decision list (`work.md` points to it); Verify Work alone says test order is not evidence (Test Design and the design reference drop their copies); Verify Work's two report shapes become one.
 - 2026-10-22: Review Work, Verify Work and Evaluate Behavior keep one owner per rule and fewer, larger references, one per situation read together. Review Work: the review gate in the core; `work.md` holds the security lens and the work reviewer's brief and instructions, `artifact.md` the reports-and-records method and the prompt for any other independent review (a Working Record is reviewed as an artifact), `adjudication.md`, and `evals-and-judges.md`; `reviewer-contract.md` is split between them. Verify Work: one `runtime-evidence.md` with integration, browser, performance and project-recipe sections; an independent review's `May run` line counts as coverage for active checks. Evaluate Behavior: a shorter core with a routing table, and five references (`design-and-measurement.md`, `authoring.md`, `coding-tasks.md`, `conversations-pipelines-judges.md`, `running-and-evidence.md`).

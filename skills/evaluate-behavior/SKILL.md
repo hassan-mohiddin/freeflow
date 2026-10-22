@@ -47,7 +47,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 Goal: the arms differ only in the component, under pressure strong enough to show it, in a run no larger than the claim needs.
 
-Answer from saved evidence or an existing group when they still fit; for a draft-only request, use Write Skill. Do not rerun merely to demonstrate process. Name one behavioral question, its evidence class, and the strongest claim the result must support: can do X, a rate on this suite, or A beats B; readiness is beyond Evaluate Behavior. Activation, first-read body and nearby behavior are questions about skills; for other components, check delivery, behavior and artifact outcome first.
+Answer from saved evidence or an existing group when they still fit (the same question, pressure, arms and fixed criteria); for a draft-only request, use Write Skill. Do not rerun merely to demonstrate process. Name one behavioral question, its evidence class, and the strongest claim the result must support: can do X, a rate on this suite, or A beats B; readiness is beyond Evaluate Behavior. Activation, first-read body and nearby behavior are questions about skills; for other components, check delivery, behavior and artifact outcome first.
 
 Choose the component:
 

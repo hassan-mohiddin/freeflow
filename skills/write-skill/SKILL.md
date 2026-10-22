@@ -21,8 +21,8 @@ This body covers the common case: writing or revising one skill or one piece of 
 
 | Situation | Go to |
 | --- | --- |
-| Deciding where an instruction lives (always-loaded text, a description, a body, a reference, a script, a tool's own text) or moving it between them; adding, merging, splitting or removing a reference, script or skill; changing links, shared terms or entry paths between skills | [Placement And Dependencies](references/placement-and-dependencies.md) |
-| Evidence that a skill was read late, early, not at all, or on a neighbour's request, or that two descriptions match the same request; or evidence that a read skill was misread, ignored, or kept steering later work | [Activation And Wording](references/activation-and-wording.md) |
+| Deciding where an instruction lives (always-loaded text, a description, a body, a reference, a script, a tool's own text) or moving it between them; adding, merging, splitting or removing a reference, script or skill; changing links, shared terms, entry paths, capability cues or context-loss recovery cues between skills | [Placement And Dependencies](references/placement-and-dependencies.md) |
+| Writing a description whose missed read could cause an irreversible or costly action, or whose neighbour matches similar requests; evidence that a skill was read late, early, not at all, or on a neighbour's request, or that two descriptions match the same request; or evidence that a read skill was misread, ignored, or kept steering later work | [Activation And Wording](references/activation-and-wording.md) |
 | Measuring what a revision changes in behavior | Evaluate In One Loop, below |
 | Checking structure, copied passages, or what a revision lost | Check The Package, below |
 
@@ -105,7 +105,7 @@ Start with one `SKILL.md` and remove accidental complexity before splitting file
 
 Goal: the skill is read at the earliest decision it can improve, and reading it on a nearby case does no harm.
 
-Missing that decision is usually far more harmful than an unnecessary early read. A nearby case can pass by not loading the skill, or by loading it, recognizing that its method does not apply, and exiting without distorting later work. An early read is cheap only when the retained body stays safe; a skill that exits on the first turn but keeps distorting later work is not a safe read.
+Missing that decision is usually far more harmful than an unnecessary early read. A nearby case can pass by not loading the skill, or by loading it, recognizing that its method does not apply, and exiting without distorting later work. An early read is cheap only when the retained body stays safe; a skill that exits on the first turn but keeps distorting later work is not a safe read. When a missed read is costly, give the skill an upstream activation or recovery edge, as Placement And Dependencies describes.
 
 ## Write The Description For Recall
 
@@ -211,7 +211,7 @@ Length is a diagnostic fact, not a quality verdict. A long skill may be minimal;
 
 Goal: each behavior has one owner, with a local guard wherever an agent could otherwise act without it.
 
-Repetition earns its place when local presence protects an independently activated skill, a distinct decision point, a context-loss or host path, a dangerous literal reading, a previously observed failure, or a required read condition. Keep the full definition or method with one canonical owner and repeat only the compact guard at the affected choice.
+Repetition earns its place when local presence protects an independently activated skill, a distinct decision point, a context-loss or host path, a dangerous literal reading, retained use after the method ends, a previously observed failure, or a required read condition. Keep the full definition or method with one canonical owner and repeat only the compact guard at the affected choice.
 
 > Repeat the behavioral invariant, not the owning skill's entire explanation.
 

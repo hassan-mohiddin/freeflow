@@ -54,6 +54,8 @@ Build it from the Working Record ([Track Work](../../track-work/SKILL.md)) when 
 
 ### Pull Request
 
+Fits when review, CI, collaboration, protected branches or remote integration owns the next gate.
+
 - Inspect remote and upstream state, then push only the intended commits to the accepted destination, as [push](push.md) checks them.
 - Capture the target branch, commit range, residual risks, migrations, rollout or compatibility notes, and the reviewers or checks repository policy requires.
 - Create or update the pull request by repository convention, with the hand-over as its description; mark incomplete or failing work as draft when that is the approved route.
@@ -63,7 +65,7 @@ A pull-request URL proves creation, not readiness or merge.
 
 ### Keep For Later
 
-Report the trunk's lines plus why the branch is kept and what would end the wait. Read Track Work's [handoff](../../track-work/references/handoff.md) only when continuing needs durable transfer context.
+Fits when the work is valid but integration is deferred, feedback is expected, or environment ownership prevents cleanup. Report the trunk's lines plus why the branch is kept and what would end the wait. Read Track Work's [handoff](../../track-work/references/handoff.md) only when continuing needs durable transfer context.
 
 ### Discard
 
@@ -71,10 +73,10 @@ Classify what is recoverable before deleting anything: uncommitted changes may b
 
 ## Protect Workspace Ownership
 
-Do not remove a worktree, checkout, session or harness state you did not create or are not authorized to manage; if ownership is unclear, keep it and report the uncertainty. Do not assume a detached checkout is disposable: an IDE, CI system, coding harness or worktree manager may own it, so offer only routes that environment supports, such as creating a named branch, keeping the checkout, exporting a patch, or asking the harness to close it. Do not run a destructive reset, clean, branch deletion, worktree removal, remote deletion or force push to produce a clean status.
+Do not remove a worktree, checkout, session or harness state you did not create or are not authorized to manage; if ownership is unclear, keep it and report the uncertainty. Do not assume a detached checkout is disposable: an IDE, CI system, coding harness or worktree manager may own it, so offer only routes that environment supports, such as creating a named branch, keeping the checkout, exporting a patch, or asking the harness to close it.
 
 ## Return Conflicts And Failures
 
-Resolve a conflict locally only when both sides' intended behavior is settled and the resolution is mechanical. Stop and report the conflict with its evidence when resolving it would make a user-owned choice (Discuss Work), or choose between changed tests and changed implementation, incompatible migrations or data ownership, or two architecture directions; the next route may be Discuss Work, review, diagnosis, or a Spec or Plan revision, never "take ours" or "take theirs".
+Deliver Work's Stop list says when a conflict stops the route. Stop and report it with its evidence also when resolving it would make a user-owned choice (Discuss Work), or choose between changed tests and changed implementation, incompatible migrations or data ownership, or two architecture directions; the next route may be Discuss Work, review, diagnosis, or a Spec or Plan revision.
 
 Use Execute Work's [diagnose](../../execute-work/references/diagnose.md) when integrated checks fail without a supported cause. Take mixed or unrelated branch contents back to the [commit](commit.md) staging decisions. Keep branch state before handing to another activity.

@@ -46,4 +46,4 @@ If the push is rejected or fails, keep the complete result and check whether any
 
 ## Check The Result
 
-After a successful push, inspect `git status --short --branch` and `git branch -vv`. A push proves transfer to the observed destination, not a pull request, merge, release, deployment or passing remote CI.
+After a successful push, inspect `git status --short --branch` and `git branch -vv`, and report whether an upstream was set or changed. A push proves transfer to the observed destination, not a pull request, merge, release, deployment or passing remote CI.

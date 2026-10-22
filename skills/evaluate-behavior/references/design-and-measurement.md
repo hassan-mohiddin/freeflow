@@ -164,7 +164,7 @@ Declare the rule as the suite's `decision` before the run ([authoring](authoring
 - the two arms it compares, the reference first, and whether higher or lower is better;
 - the size: the minimum number of decided cases, the significance level, and optionally an adaptive trial schedule.
 
-The unit is the case: trials of one case are repeated draws of one question, so each arm's values are averaged per case and an exact sign test runs over the cases that differ; authoring's Decision gives the verdicts. For example, 19 better, 5 worse and 6 equal gives p ≈ 0.007. Report the verdict beside the pooled counts, and the split behind it.
+The unit is the case: trials of one case are repeated draws of one question, so each arm's values are averaged per case and an exact sign test runs over the cases that differ. The verdict is `beats` only with at least the minimum decided cases, p below the level, and the split in the declared direction; the same evidence the other way is `worse`; anything else is `no-difference-shown`. For example, 19 better, 5 worse and 6 equal gives p ≈ 0.007. Report the verdict beside the pooled counts, and the split behind it.
 
 The sign test ignores how much better a case was, so it is conservative for measures with large per-case differences, such as cost. A rule written after seeing results is not a decision rule: write a new suite and run it fresh.
 

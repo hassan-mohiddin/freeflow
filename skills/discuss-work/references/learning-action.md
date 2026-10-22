@@ -31,6 +31,6 @@ Answer the one declared question with the least building that can, within the li
 
 ## Assess What It Showed
 
-Assess returned evidence against the original question. Negative or inconclusive evidence is a valid result; one failed technique does not prove every alternative impossible.
+Assess returned evidence against the original question. Negative or inconclusive evidence is a valid result; one failed technique does not prove every alternative impossible. When it reports a new prerequisite, tell a limitation of the observer or chosen approach from a requirement of the intended outcome before recommending more work.
 
 Revise only the affected understanding. When continuity matters, preserve the consequence for the task, the remaining uncertainty, and what happens to the exploratory artifacts, as [discussion continuity](discussion-continuity.md) describes. Stop assessing when the supported next direction or the unresolved decision is clear.

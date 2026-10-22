@@ -37,7 +37,7 @@ Read the routed reference before designing or selecting evidence. Loading one do
 
 Goal: know exactly what is being claimed, where it must hold, and why it is expected, before choosing a check.
 
-Identify the behavior or property, the required observing boundary, and the source of its expectation. Keep this compact when obvious; do not let an available test silently narrow a broader claim. Claims may concern behavior, a reported failure, structural validity, interfaces, integration, host lifecycle, installed artifacts, failure or recovery semantics, performance, or repository state. A claim that a change is safe names the one fact it rests on, with a check that shows it, graded as [Work Review](../../skills/review-work/references/work.md)'s correctness lens describes.
+Identify the behavior or property, the required observing boundary, and the source of its expectation. Keep this compact when obvious; do not let an available test silently narrow a broader claim. Claims may concern behavior, a reported failure, structural validity, interfaces, integration, host lifecycle, installed artifacts, failure or recovery semantics, performance, or repository state. A claim that a change is safe names the one fact it rests on, with a check that shows it, graded as [Work Review](../../skills/review-work/references/work.md)'s safety-evidence lens describes.
 
 Distinguish required acceptance from an optional stronger assertion. If evidence for an optional claim is unavailable, qualify or withdraw that claim rather than automatically add implementation. A required guarantee remains unresolved until supported or explicitly changed by its owner.
 
@@ -112,4 +112,4 @@ Does not prove:
 Required next evidence: [only when unresolved]
 ```
 
-One straightforward Supported claim needs only the middle three lines. When evidence is adverse, conflicting, consequential or multi-boundary, give each claim and boundary its own entry. Do not manufacture empty fields or proof beyond the observation. When the result changes the work's direction or reaches its boundary, return it to the current owner. Stop once the claim is classified and the supported next route or missing evidence is explicit.
+One straightforward Supported claim needs only the middle three lines. When evidence is adverse, conflicting, consequential, multi-boundary or returning to adjudication, give each claim and boundary its own entry. Do not manufacture empty fields or proof beyond the observation. When the result changes the work's direction or reaches its boundary, return it to the current owner. Stop once the claim is classified and the supported next route or missing evidence is explicit.
