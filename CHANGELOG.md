@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.9.0 - 2026-10-22
+
 ### Breaking Changes
 
 - Freeflow has eleven skills instead of twenty-five, and the Workflow skill is gone: its body reached the agent only when the agent opened it, which it rarely did. Its cycle (agree before building, build and verify, review and hand over), what authorizes work, and where to stop are now in the always-present core guidance as "How Freeflow Works", and each skill's description says when to use it, so no skill routes the others; the line telling the agent to open a skill by its subject rather than a keyword is gone. Workflow's other parts moved to the skill open when they matter: route preparation, re-entry when the basis changes, and Domain Skill Composition to Execute Work; work that grows, remedies that change what you own, and its Asking The User reference to Discuss Work; questions and "stop" mid-work to the Interaction Contract. Every skill that said "return to Workflow" names the skill that takes over. No removed or merged skill or command below has an alias: update links, scripts and commands that name them, including `skills/workflow` and `skills/workflow/references/asking-the-user.md`. [How Freeflow Works](plugin-docs/workflow.md#what-changed-in-090) maps each removed name to where its job went.

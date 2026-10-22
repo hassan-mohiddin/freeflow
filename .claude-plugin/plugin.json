@@ -1,7 +1,7 @@
 {
   "name": "freeflow",
   "description": "Freeflow gives coding agents an Interaction Contract, one cycle (agree, build and verify, review and hand over), eleven skills with scripts, and durable task memory.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "author": {
     "name": "Hassan Mohiddin"
   },
