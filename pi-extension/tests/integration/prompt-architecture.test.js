@@ -93,7 +93,7 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   // Core cues recovery; Track Work owns the order. The raw-file guard stays here (Task 001 E2).
   assert.match(
     core,
-    /load Track Work and recover the record that belongs to that work in its order, starting from its `resume` view, not the raw file/,
+    /load Track Work and recover the record that belongs to that work in its order, starting from its `recover` view, not the raw file/,
   );
   assert.doesNotMatch(core, /then the History entries the next action depends on/);
   assert.match(core, /Then continue the covered work toward the agreed end/);

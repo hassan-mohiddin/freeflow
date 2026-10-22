@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/`, `skills/map-features/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `.skill-eval/freeflow-vs-plain/`, `scripts/validation/check-eval-definitions.mjs`
 > **Tests:** `.skill-eval/evaluate-behavior/tests/`, `.skill-eval/verify-work/tests/`
-> **Verified at:** `d6e65ab6` (2026-10-22)
+> **Verified at:** `ae8cffdd` (2026-10-22)
 
 For contributors changing how Freeflow reviews work, evaluates agent behavior, or verifies claims: what each part does, how they depend on each other, why they are shaped this way, and which of their behaviors are deliberate. It also covers the evaluator's code, the evidence it stores, and the contributor gate that measures Freeflow's own changes.
 
@@ -150,7 +150,9 @@ Verify Work determines what fresh direct evidence establishes about a specific c
 
 When a claim needs the project's running software, Verify Work's Project Recipe (a section of `skills/verify-work/references/runtime-evidence.md`) has the agent look for the project's saved steps: a feature map in its developer docs, found by the `Covers` header of each feature file, plus the shared guide and helper. It reads only those feature files, the guide and the helper, drives the steps through the helper (extending it when a step is missing), triages a failing step as drift, a gap or a product bug, and never edits the steps to make a failing product pass; corrected steps are saved through Write Docs in the same change, or proposed when the agreement does not cover docs. Write Docs owns the feature file and guide shapes. Map Features sets a recipe up, after an interview of the repository, and rechecks it feature by feature, driving every step it writes before moving `Verified at`; a failing step is drift, a harness gap or a product bug, and paid calls run only with the user's yes. Freeflow's own map is [Features](../features/README.md), driven with [Verify live](../guides/verify-live.md).
 
-Verify Work's one script, `skills/verify-work/scripts/test-changes.mjs`, lists every test file, fixture, snapshot and shared test setup file that existed at a base and changed, moved or was deleted by a head (the working tree by default), with the changed hunks. Test Design's one Rule has the agent give each listed change a reason (the property is preserved, or the user agreed the behavior change) or return it to the user before reporting the work done; Verify Work's body links the script from its Test Design route.
+Verify Work's script, `skills/verify-work/scripts/test-changes.mjs`, lists every test file, fixture, snapshot and shared test setup file that existed at a base and changed, moved or was deleted by a head (the working tree by default), with the changed hunks. Test Design's one Rule has the agent give each listed change a reason (the property is preserved, or the user agreed the behavior change) or return it to the user before reporting the work done; Verify Work's body links the script from its Test Design route. With `--new` it lists instead the test files added since the base (committed, or untracked in the working tree); Execute Work's `self-review.mjs` uses both lists and runs each new test on the base in a temporary worktree, so a new test that already passes there is shown.
+
+Review Work's `review-packet.mjs` writes the work reviewer's pointer brief: it fills every line it can from the repository and the task folder (the diff since the previous review's reviewed state for Review 2 or 3, the developer docs covering the changed files through Write Docs' `docs-check.mjs --covering`, a `REVIEW.md`, the declared npm checks), leaves the Boundary and anything it cannot find empty so `check-brief.mjs` refuses the brief until the initiator fills them, and reports the gate triggers the changed paths show and the round budget.
 
 ## Decisions
 
@@ -195,7 +197,7 @@ Verify Work's one script, `skills/verify-work/scripts/test-changes.mjs`, lists e
 - **A pairwise review is never calibrated.** It compares arms side by side for reading, not measuring; calibration applies to rubric judges.
 - **The isolated prompt replaces the host's system prompt.** It removes ambient instructions so only declared context reaches the subject. When the component is something the host prompt carries, such as Freeflow, the group declares `runtime.prompt: "host"`.
 - **A judge's answers count as one vote however many times it runs.** Repeated calls to one configuration are not independent judges.
-- **`test-changes.mjs` exits 0 when it lists changes, and never lists a new test file.** It reports and does not gate (see Decisions). A file that did not exist at the base is a new test, not a changed one; whether it asserts agreed behavior is Test Design's judgment. Against the working tree, a moved file that is not staged shows as deleted, because Git pairs renames only between tracked files.
+- **`test-changes.mjs` exits 0 when it lists changes, and lists a new test file only with `--new`.** It reports and does not gate (see Decisions). A file that did not exist at the base is a new test, not a changed one; whether it asserts agreed behavior is Test Design's judgment. Against the working tree, a moved file that is not staged shows as deleted, because Git pairs renames only between tracked files.
 
 ## Surface
 
@@ -234,10 +236,16 @@ check-brief.mjs <brief> [--root <repository>] [--json]
 
 It exits 0 when the brief passes, 1 when it has problems, and 2 on a usage error.
 
+```text
+review-packet.mjs --review <1|2|3> --base <ref> [--head <ref>] [--task <task folder>] [--out <brief.md>] [--boundary <text>] [--agreement <path>]... [--evidence <path>]... [--may-run <text>] [--root <repository>] [--json]
+```
+
+It exits with check-brief's code (0 or 1), and 2 on a usage or Git error.
+
 Verify Work's script:
 
 ```text
-test-changes.mjs --base <ref> [--head <ref>] [--root <repository>] [--pattern <glob>]... [--only] [--exclude <glob>]... [--json]
+test-changes.mjs --base <ref> [--head <ref>] [--root <repository>] [--pattern <glob>]... [--only] [--exclude <glob>]... [--new] [--json]
 ```
 
 It exits 0 whenever it lists, even nothing, and 2 on a usage or Git error.
@@ -376,7 +384,8 @@ The binding shape is `skills/evaluate-behavior/references/authoring.md`, with ea
 | `skills/review-work/SKILL.md`, `references/` | Review Rules, roles, classification, review gate, budget; work review (with the security lens and the work reviewer's brief), artifact review (with reports and records and the non-work reviewer prompt), adjudication, evals and judges |
 | `skills/verify-work/SKILL.md`, `references/` | Claim verification; `test-design.md` and `runtime-evidence.md` (integration, browser, performance, project recipe) |
 | `skills/review-work/scripts/check-brief.mjs` | Refuses a work reviewer's pointer brief missing a required line or naming a path or commit that does not exist |
-| `skills/verify-work/scripts/test-changes.mjs` | Lists changed, moved and deleted existing tests, fixtures, snapshots and test setup between a base and a head |
+| `skills/review-work/scripts/review-packet.mjs` | Prefills a work reviewer's pointer brief, reports gate triggers and the round budget, then runs `check-brief.mjs` |
+| `skills/verify-work/scripts/test-changes.mjs` | Lists changed, moved and deleted existing tests, fixtures, snapshots and test setup between a base and a head; with `--new`, the added ones |
 | `skills/map-features/SKILL.md`, `references/driving-surfaces.md` | Setting up and rechecking a project's live-verification recipe: feature map, shared guide and helper |
 | `.skill-eval/scripts/gate.mjs`, `gate.md`, `.skill-eval/gate.json`, `.skill-eval/gate/` | The contributor gate, its configuration and suites |
 | `.skill-eval/review-suite/` | The review suite: 25 cases, 50 groups (clean, seeded and real defects, a held-out third), the F3 and F7 suites, generators in `tools/`, results in `results/` |
@@ -400,6 +409,8 @@ The binding shape is `skills/evaluate-behavior/references/authoring.md`, with ea
 These prove the evaluator's mechanics with stand-in models. They do not prove behavior with real models, which only runs prove.
 
 `.skill-eval/review-work/tests/check-brief.test.mjs`, run by `npm run test:review-work`, checks in throwaway Git repositories that `check-brief.mjs` accepts a complete brief and refuses missing lines, paths and commits that do not exist, pasted text where a pointer belongs, a range that is not one, Review 2 or 3 without the previous report, and a report folder that does not exist. They prove what the script refuses, not that a brief points to the right inputs.
+
+`.skill-eval/review-work/tests/review-packet.test.mjs` checks that `review-packet.mjs` fills a brief `check-brief.mjs` accepts, leaves the Boundary empty so it refuses, takes Review 2's diff from the previous brief, and names the gate triggers.
 
 `.skill-eval/verify-work/tests/test-changes.test.mjs`, run by `npm run test:verify-work`, builds throwaway Git repositories and checks what `test-changes.mjs` lists and leaves out per kind, including a shared fixture edited to make a broken function's tests pass, head refs, patterns, paths with spaces, and errors. They prove what the script lists, not how agents use it.
 

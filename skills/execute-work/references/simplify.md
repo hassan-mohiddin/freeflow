@@ -52,7 +52,7 @@ Use [Verify Work](../../verify-work/SKILL.md) for what the observations establis
 
 ## Delete Only With Supported Absence
 
-Before removing code, establish its purpose and current consumers through source, runtime registration, configuration, generated callers, tests, history, and compatibility obligations. An empty local search does not establish the absence of external or dormant consumers.
+Before removing code, establish its purpose and current consumers through source, runtime registration, configuration, generated callers, tests, history, and compatibility obligations. Execute Work's [touch-map](../scripts/touch-map.mjs) lists the local ones for each symbol or file, with what it did not search. An empty local search does not establish the absence of external or dormant consumers.
 
 Truly dead local code may go within the agreed boundary. Supported legacy behavior, and compatibility, fallback, platform, migration, audit or recovery behavior that only looks redundant, needs consumer evidence first; read [migration](migration.md) when removal carries consumer, state or compatibility obligations. Historical docs and evidence are not dead code; do not delete them to make a search clean. Commented-out code normally belongs in version history, unless it is an intentional operational instruction.
 

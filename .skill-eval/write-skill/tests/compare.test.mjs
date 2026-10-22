@@ -325,3 +325,55 @@ test("compare --base checks text kept outside Git against a folder copy", async 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("compare counts a dropped reason as rule-like, so it needs a verdict like a rule", async () => {
+  await withRepository(async (root, base) => {
+    const reason = "Keep the checksum with the artifact, because a later publish compares against it.";
+    await write(root, { "skills/ship-it/SKILL.md": baseSkill.replace("Ship a release the user approved.", reason) });
+    git(root, "commit", "-q", "-am", "add reason");
+    const withReason = git(root, "rev-parse", "HEAD");
+    await write(root, {
+      "skills/ship-it/SKILL.md": baseSkill.replace("Ship a release the user approved.", "Ship it."),
+    });
+
+    const result = compare(root, withReason);
+
+    assert.equal(result.status, 1, result.stdout);
+    assert.deepEqual(
+      result.json.ruleLikeUnmatched.map((unit) => unit.text),
+      [reason],
+    );
+    void base;
+  });
+});
+
+test("compare --all-units needs a verdict for every unmatched unit, not only rule-like ones", async () => {
+  await withRepository(async (root, base) => {
+    const plain = "Write one line per user-visible change, grouped by category.";
+    await write(root, { "skills/ship-it/references/notes.md": "# Notes\n\nKeep a short summary at the top.\n" });
+
+    const ruleOnly = compare(root, base);
+    assert.equal(ruleOnly.status, 0, ruleOnly.stdout);
+    assert.equal(ruleOnly.json.otherUnmatched, undefined);
+
+    const all = compare(root, base, "--all-units");
+    assert.equal(all.status, 1, all.stdout);
+    assert.equal(all.json.allUnits, true);
+    assert.deepEqual(
+      all.json.otherUnmatched.map((unit) => unit.text),
+      [plain],
+    );
+    const key = all.json.otherUnmatched[0].key;
+    assert.deepEqual(all.json.unresolved, [key]);
+
+    await write(root, { "verdicts.json": JSON.stringify({ [key]: "deliberate: the notes guide was rewritten" }) });
+    const settled = compare(root, base, "--all-units", "--verdicts", "verdicts.json");
+    assert.equal(settled.status, 0, settled.stdout);
+    const markdown = spawnSync(
+      process.execPath,
+      [entrypoint, "compare", base, "--all-units", "--verdicts", "verdicts.json", "--markdown"],
+      { cwd: root, encoding: "utf8" },
+    );
+    assert.match(markdown.stdout, /## Other unmatched: read each for meaning \(1, 0 without a verdict\)/);
+  });
+});

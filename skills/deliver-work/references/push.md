@@ -10,6 +10,8 @@ Confirm which commits are intended, the local branch, the destination remote and
 
 ## Inspect The Route
 
+[push-route](../scripts/push-route.mjs) (`node <deliver-work-directory>/scripts/push-route.mjs [--remote <name>]`) reports the branch, upstream or destination, the commits it would send and the stop conditions below that local state shows, and prints the push command without running it. By hand:
+
 ```bash
 git branch --show-current
 git status --short --branch

@@ -20,6 +20,8 @@ The **Rules** are binding; if one cannot be met, stop and say why. Everything el
 | A version, release notes, tag or registry publication | [release](references/release.md) |
 | Deploying, exposing a change to users, rolling back or restoring production | [launch](references/launch.md) |
 
+Start every route with [delivery-state](scripts/delivery-state.mjs) (`node <deliver-work-directory>/scripts/delivery-state.mjs`): branch, upstream counts from local refs, staged, unstaged and untracked counts, a Git operation in progress, every worktree with the one holding this session's directory flagged, the latest tag, the version and the changelog's Unreleased entries. It reads only; what needs the network it reports unavailable.
+
 A request spanning routes, such as "commit and push": take them in order, each within its own yes, and stop at the first that fails.
 
 ## Rules
@@ -35,14 +37,7 @@ A request spanning routes, such as "commit and push": take them in order, each w
 Goal: one commit that holds exactly the supported state.
 
 1. **Boundary.** The user asked for this commit, or a `preserve` Checkpoint they selected is due; a Working Record can carry that selection, not create it. Fresh checks support the state, or the user asked to preserve incomplete work; a review they selected is done, its findings settled.
-2. **Inspect** before touching the index:
-   ```bash
-   git status --short --branch
-   git diff
-   git diff --cached
-   git ls-files --others --exclude-standard
-   ```
-   Staged does not mean yours. If the second Routes row matches, read [commit](references/commit.md) now.
+2. **Inspect** before touching the index: [commit-state](scripts/commit-state.mjs) lists every staged, unstaged and untracked path as yours, pre-existing or unknown (from a `snapshot` taken before your first edit, or `--mine <path>`), with partly staged files, sensitive-looking paths and Working Records flagged; then read `git diff` and `git diff --cached`. Staged does not mean yours. If the second Routes row matches, read [commit](references/commit.md) now.
 3. **Stage** only what the claim needs: explicit paths or hunks, with the tests, docs and generated output it requires; stage broadly only when every changed path was inspected and belongs. Then `git diff --cached --check`: conflict markers or whitespace damage stop the commit; fix them in the content they belong to, never edit content just to silence the check.
 4. **Message** in the repository's style; otherwise a short imperative subject naming what this commit holds, and a body only for what the diff cannot show: why, trade-offs, residual risk, why incomplete work is kept. Invent no trailers.
 5. **Check** `git show --stat --oneline HEAD` and `git status --short --branch`: the claimed contents, nothing unexpected left.

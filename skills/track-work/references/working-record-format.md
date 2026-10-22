@@ -362,17 +362,18 @@ Edit directly:
 
 Never edit directly: IDs, `State` fields, which section an entity is in, or any terminal History entry apart from Corrections. `validate` checks structure only; it cannot detect a hand-made state change or a deleted entry, so those edits are forbidden rather than checked.
 
-After editing headings, fields, or entity structure, run `validate --record <record.md>`. Prose-only edits need no validation.
+After editing headings, fields, or entity structure, run `validate --record <record.md>`. Prose-only edits need no validation. `validate` also lists Material updates pointers (paths from the repository root or the task folder, and commits) that do not resolve, as warnings, since a line may name a planned path or a commit not fetched yet; `--strict` fails on those an Evidence or Result line names. Pointers outside the repository are listed, not checked.
 
 ## Views
 
 Views are plain Markdown and change nothing.
 
-- `view resume` returns the header, Current Context, active Decisions, Current Work, Future Work, a History index, and Notes. The index has one line per closed History entry (superseded and retired Decisions, closed Checkpoints, closed Slices) in record order: ID, state, `by D-NNN` for a superseded Decision, `recorded retroactively` for a `slice record` entry, the title, and `(corrected)` when the entry has Corrections. It is the recovery view after context loss.
+- `view resume` returns the header, Current Context, active Decisions, Current Work, Future Work, a History index, and Notes. The index has one line per closed History entry (superseded and retired Decisions, closed Checkpoints, closed Slices) in record order: ID, state, `by D-NNN` for a superseded Decision, `recorded retroactively` for a `slice record` entry, the title, and `(corrected)` when the entry has Corrections. It is the view to use while the conversation is still in context.
+- `view recover` returns the `resume` view, then each `What defines this task` artifact and Recovery source with its trigger, whether its pointer resolves and its size, then live Git state (branch, HEAD, uncommitted paths, commits since `Last updated`) and where it disagrees with the record: a branch the record names that HEAD is not on, or a commit the Current Slice names that HEAD's history lacks. It is the recovery view after context loss.
 - `view entry <ID> [<ID> ...]` returns the named `S-NNN`, `C-NNN`, or `D-NNN` entries exactly as stored, in the order given. An unknown ID prints nothing and fails.
 - `view full` returns the file exactly as stored. It does not require the record to be valid, so use it to inspect malformed or unsupported records, after an uncertain write, or for an audit.
 
-`view resume` and `view entry` require a valid Schema 4 record.
+`view resume`, `view recover` and `view entry` require a valid Schema 4 record.
 
 ## Notes
 

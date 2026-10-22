@@ -44,7 +44,7 @@ Before changing or judging code, read the project's developer docs index, if it 
 When the conversation about the current work is no longer in your context (after compaction, a summary that replaces it, clear, a transfer into another context, or a session or branch that continues the work without it), pause task work and recover first, with only the reads recovery needs; recovery is not a bypass of authority, capabilities, or host permissions.
 
 - Reload the methods the current work needs.
-- When a Working Record exists or may exist for the current work, load Track Work and recover the record that belongs to that work in its order, starting from its `resume` view, not the raw file. A summary is not recovery. If recovery is incomplete, report that and stop affected work.
+- When a Working Record exists or may exist for the current work, load Track Work and recover the record that belongs to that work in its order, starting from its `recover` view, not the raw file. A summary is not recovery. If recovery is incomplete, report that and stop affected work.
 - Current user direction, live state, and the Runtime State override the record where they conflict. A record or summary may show prior approval; check that it still applies. Neither creates authority.
 
 Then continue the covered work toward the agreed end. Context loss is no reason to stop or ask again. With that conversation still in context, a new message, a pause or a resumed session is not context loss: keep using the skills already read.

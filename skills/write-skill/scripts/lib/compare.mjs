@@ -14,6 +14,9 @@ import { SkillAuthorError } from "./skill-author.mjs";
 // The two scores are reported separately: containment (share of the unit's 5-word shingles found in one file) and
 // Jaccard (content-word overlap with one unit or sentence). Both are text measures: they show what text survived, not
 // whether behavior did.
+// A unit is rule-like when it sits under a Rules heading, is a numbered step, or states a rule (never, must...) or the
+// reason behind one (because, so that, otherwise, why): a lost reason changes how an agent applies the rule it kept.
+// Rule-like unmatched units need a verdict; with allUnits, every unmatched unit does.
 
 const SHINGLE_WORDS = 5;
 const MIN_RULE_WORDS = 4;
@@ -21,6 +24,7 @@ const HIGH = 0.6;
 const LOW = 0.3;
 const CLASSES = ["kept", "edited", "moved", "reworded", "unmatched"];
 const RULE_WORDS = /\b(never|always|must|only|do not|don't|stop)\b/i;
+const REASON_WORDS = /\b(because|so that|otherwise|why)\b/i;
 const INSTRUCTION_FILES = new Set(["AGENTS.md", "CLAUDE.md"]);
 const WORKING_TREE = "working tree";
 const STOPWORDS = new Set(
@@ -257,7 +261,10 @@ export function isRuleLike(unit) {
   const words = tokens(unit.text).length;
   if (words < MIN_RULE_WORDS || /:\s*$/.test(unit.text)) return false;
   return (
-    unit.kind === "step" || unit.headings.some((heading) => /^rules$/i.test(heading)) || RULE_WORDS.test(unit.text)
+    unit.kind === "step" ||
+    unit.headings.some((heading) => /^rules$/i.test(heading)) ||
+    RULE_WORDS.test(unit.text) ||
+    REASON_WORDS.test(unit.text)
   );
 }
 
@@ -516,6 +523,7 @@ export async function compareGuidance({
   paths = null,
   deletedOnly = false,
   verdicts = null,
+  allUnits = false,
   cwd = process.cwd(),
 }) {
   let root;
@@ -611,8 +619,14 @@ export async function compareGuidance({
     .filter((unit) => unit.ruleLike && unit.match.class === "unmatched")
     .map((unit) => ({ ...detail(unit), verdict: judged.get(unit.key) ?? null }));
   const ruleLikeReworded = units.filter((unit) => unit.ruleLike && unit.match.class === "reworded").map(detail);
-  const unresolved = ruleLikeUnmatched.filter((unit) => unit.verdict === null).map((unit) => unit.key);
-  const used = new Set(ruleLikeUnmatched.map((unit) => unit.key));
+  const otherUnmatched = allUnits
+    ? units
+        .filter((unit) => !unit.ruleLike && unit.match.class === "unmatched")
+        .map((unit) => ({ ...detail(unit), verdict: judged.get(unit.key) ?? null }))
+    : [];
+  const needVerdicts = [...ruleLikeUnmatched, ...otherUnmatched];
+  const unresolved = needVerdicts.filter((unit) => unit.verdict === null).map((unit) => unit.key);
+  const used = new Set(needVerdicts.map((unit) => unit.key));
 
   return {
     command: "compare",
@@ -623,6 +637,7 @@ export async function compareGuidance({
     new: newLabel,
     paths,
     deletedOnly,
+    allUnits,
     files: {
       compared: baseTree.size,
       searched: searchTree.size,
@@ -632,6 +647,7 @@ export async function compareGuidance({
     counts: { all: tally(units), ruleLike: tally(units.filter((unit) => unit.ruleLike)) },
     ruleLikeUnmatched,
     ruleLikeReworded,
+    ...(allUnits ? { otherUnmatched } : {}),
     unresolved,
     unusedVerdicts: [...judged.keys()].filter((key) => !used.has(key)),
   };
@@ -665,6 +681,13 @@ export function compareMarkdown(result) {
     lines.push(`  - verdict: ${unit.verdict ?? "NONE"}`);
   }
   if (!result.ruleLikeUnmatched.length) lines.push("None.");
+  if (result.allUnits) {
+    const other = result.otherUnmatched;
+    const open = other.filter((unit) => unit.verdict === null).length;
+    lines.push("", `## Other unmatched: read each for meaning (${other.length}, ${open} without a verdict)`, "");
+    for (const unit of other) lines.push(`- \`${unit.key}\` ${unit.text}`, `  - verdict: ${unit.verdict ?? "NONE"}`);
+    if (!other.length) lines.push("None.");
+  }
   lines.push("", `## Rule-like reworded: confirm the meaning survived (${result.ruleLikeReworded.length})`, "");
   for (const unit of result.ruleLikeReworded) {
     lines.push(`- \`${unit.key}\` ${unit.text}`);

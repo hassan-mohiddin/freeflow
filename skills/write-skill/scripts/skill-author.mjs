@@ -8,7 +8,7 @@ const commands = new Set(["init", "validate", "inspect", "similarity", "compare"
 
 function printUsage() {
   process.stdout.write(
-    `Usage: skill-author <init|validate|inspect|similarity> [options]\n       skill-author compare [<base-ref> [<new-ref>] | --base <folder> [<folder>]] [options]\n\nCommands:\n  init <directory> --name <name> --description <text>\n      init creates a minimal SKILL.md and refuses to overwrite one\n  validate <directory> [--package-root <directory>] [--routing-map <file>]\n      validate checks structure and recursive resource containment, reports link cycles among\n      the Markdown files the skill reaches, and with --routing-map checks the skill's row\n  inspect <directory> [--package-root <directory>]\n      inspect reports factual inventory plus validation findings\n  similarity <directory> [--threshold <0-1>]\n      similarity reports near-duplicate Markdown files by shared word sequences (default ${DEFAULT_THRESHOLD})\n  compare [<base-ref> [<new-ref>]] [--paths <path>...] [--deleted-only] [--verdicts <file>] [--markdown]\n      compare reports what changed model-facing Markdown at <base-ref> (default: the merge-base with\n      the default branch) no longer says at <new-ref> (default: the working tree, uncommitted edits\n      included), and exits nonzero while a rule-like unmatched unit has no verdict\n  compare --base <folder> [<folder>] [options]\n      compare against a copy of the text kept outside Git (default: the current folder)\n\nOutput:\n  Commands emit JSON. Invalid structure still emits JSON and exits nonzero.\n  compare --markdown prints a readable report instead.\n  Command errors emit structured error JSON.\n  Package root defaults to the nearest package.json ancestor, then the skill parent.\n\nFrontmatter:\n  Validation supports flat plain-string or JSON-compatible double-quoted scalars.\n  Double-quote values when punctuation, numbers, booleans, or null-like text could be ambiguous.\n`,
+    `Usage: skill-author <init|validate|inspect|similarity> [options]\n       skill-author compare [<base-ref> [<new-ref>] | --base <folder> [<folder>]] [options]\n\nCommands:\n  init <directory> --name <name> --description <text>\n      init creates a minimal SKILL.md and refuses to overwrite one\n  validate <directory> [--package-root <directory>] [--routing-map <file>]\n      validate checks structure and recursive resource containment, reports link cycles among\n      the Markdown files the skill reaches, and with --routing-map checks the skill's row\n  inspect <directory> [--package-root <directory>]\n      inspect reports factual inventory plus validation findings\n  similarity <directory> [--threshold <0-1>]\n      similarity reports near-duplicate Markdown files by shared word sequences (default ${DEFAULT_THRESHOLD})\n  compare [<base-ref> [<new-ref>]] [--paths <path>...] [--deleted-only] [--all-units] [--verdicts <file>] [--markdown]\n      compare reports what changed model-facing Markdown at <base-ref> (default: the merge-base with\n      the default branch) no longer says at <new-ref> (default: the working tree, uncommitted edits\n      included), and exits nonzero while a rule-like unmatched unit (a rule, a numbered step, or a\n      reason: because, so that, otherwise, why) has no verdict; --all-units, for a substantial\n      revision (a merge, split, move or rewrite), needs a verdict for every unmatched unit\n  compare --base <folder> [<folder>] [options]\n      compare against a copy of the text kept outside Git (default: the current folder)\n\nOutput:\n  Commands emit JSON. Invalid structure still emits JSON and exits nonzero.\n  compare --markdown prints a readable report instead.\n  Command errors emit structured error JSON.\n  Package root defaults to the nearest package.json ancestor, then the skill parent.\n\nFrontmatter:\n  Validation supports flat plain-string or JSON-compatible double-quoted scalars.\n  Double-quote values when punctuation, numbers, booleans, or null-like text could be ambiguous.\n`,
   );
 }
 
@@ -102,7 +102,7 @@ async function run(command, args) {
 
   if (command === "compare") {
     const { positionals, options } = parseOptions(args, new Set(["--base", "--verdicts"]), {
-      flags: new Set(["--deleted-only", "--markdown"]),
+      flags: new Set(["--deleted-only", "--markdown", "--all-units"]),
       lists: new Set(["--paths"]),
     });
     const folder = options["--base"] ?? null;
@@ -122,6 +122,7 @@ async function run(command, args) {
       paths: options["--paths"] ?? null,
       deletedOnly: options["--deleted-only"] === true,
       verdicts: options["--verdicts"] ?? null,
+      allUnits: options["--all-units"] === true,
     });
     return options["--markdown"] ? { ...result, markdown: true } : result;
   }

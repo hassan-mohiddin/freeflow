@@ -52,7 +52,7 @@ Propose branch, commit, public-documentation or migration work the release needs
 
 ## Preflight The Exact Release
 
-Before any irreversible remote action, verify:
+Before any irreversible remote action, verify the following. [release-preflight](../scripts/release-preflight.mjs) (`node <deliver-work-directory>/scripts/release-preflight.mjs [--version <x.y.z>]`) checks the local part: the version is valid and not older than the latest tag, its tag does not already exist elsewhere, the changelog has its entries, the tree is clean, and for an npm package what `npm pack --dry-run` would publish; the registry and remote it reports unavailable.
 
 - source commit, branch and working-tree expectations;
 - the version is valid, unused and consistent with policy;

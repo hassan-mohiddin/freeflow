@@ -38,8 +38,18 @@ test("skill-author help lists compare and validate's routing map", () => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /skill-author compare \[<base-ref> \[<new-ref>\] \| --base <folder> \[<folder>\]\]/);
   assert.match(result.stdout, /default: the merge-base with\s+the default branch/);
-  assert.match(result.stdout, /--paths <path>\.\.\.\] \[--deleted-only\] \[--verdicts <file>\] \[--markdown\]/);
-  assert.match(result.stdout, /exits nonzero while a rule-like unmatched unit has no verdict/);
+  assert.match(
+    result.stdout,
+    /--paths <path>\.\.\.\] \[--deleted-only\] \[--all-units\] \[--verdicts <file>\] \[--markdown\]/,
+  );
+  assert.match(
+    result.stdout,
+    /exits nonzero while a rule-like unmatched unit \(a rule, a numbered step, or a\s+reason: because, so that, otherwise, why\) has no verdict/,
+  );
+  assert.match(
+    result.stdout,
+    /--all-units, for a substantial\s+revision \(a merge, split, move or rewrite\), needs a verdict for every unmatched unit/,
+  );
   assert.match(result.stdout, /validate <directory> \[--package-root <directory>\] \[--routing-map <file>\]/);
   assert.match(result.stdout, /reports link cycles/);
 });

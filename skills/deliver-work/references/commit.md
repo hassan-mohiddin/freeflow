@@ -17,7 +17,7 @@ Only commit content and required companions belong. "Commit everything" may auth
 
 ## Protect Existing Staged State
 
-Staged changes may belong to another workflow. Inspect them, but do not treat them as intended because they are staged. Do not silently absorb them, unstage or reset them, amend them into another commit, move them through a stash or temporary commit, or replace the index to get around the ambiguity.
+Staged changes may belong to another workflow. Inspect them, but do not treat them as intended because they are staged. [commit-state](../scripts/commit-state.mjs) tells them from yours when its `snapshot` ran before your first edit. Do not silently absorb them, unstage or reset them, amend them into another commit, move them through a stash or temporary commit, or replace the index to get around the ambiguity.
 
 When your changes and pre-existing staged work cannot be separated without touching ambiguous state, present the smallest safe options and ask which commit the user wants.
 

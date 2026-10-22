@@ -1,0 +1,157 @@
+import assert from "node:assert/strict";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import test from "node:test";
+
+const scriptPath = resolve("skills/track-work/scripts/working-record.mjs");
+const choicesPath = resolve("skills/discuss-work/scripts/choices.mjs");
+const choices = (cwd, args, input = "") => {
+  const result = spawnSync(process.execPath, [choicesPath, ...args], { cwd, env: gitEnv, encoding: "utf8", input });
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+};
+const gitEnv = {
+  ...process.env,
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null",
+  TRACK_WORK_TEST_MODE: "1",
+};
+const git = (cwd, ...args) =>
+  execFileSync(
+    "git",
+    ["-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", ...args],
+    {
+      cwd,
+      env: gitEnv,
+      encoding: "utf8",
+    },
+  ).trim();
+const run = (cwd, args, input = "") => {
+  const result = spawnSync(process.execPath, [scriptPath, ...args], { cwd, env: gitEnv, encoding: "utf8", input });
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+};
+
+// A repository on branch main with one commit, and a record whose Current Slice names a branch and a commit.
+async function workspace({ branchNamed = "main", commit = null, updates = [], sources = [], defines = [] } = {}) {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "track-work-recover-")));
+  git(root, "init", "--quiet", "--initial-branch=main");
+  await writeFile(join(root, ".gitignore"), ".freeflow/\n");
+  await mkdir(join(root, "docs"), { recursive: true });
+  await writeFile(join(root, "docs/spec.md"), "# Spec\n\nOne.\nTwo.\n");
+  git(root, "add", "--all");
+  git(root, "commit", "--quiet", "-m", "base");
+  const head = git(root, "rev-parse", "HEAD");
+  const init = run(
+    root,
+    ["init", "--root", root, "--name", "Queue", "--input", "-"],
+    `### Goal\n- Add a queue.\n\n### What defines this task\n${defines.map((each) => `- ${each}`).join("\n")}\n\n### Next useful action\n- Build it.\n`,
+  );
+  assert.equal(init.status, 0, init.stderr);
+  const record = init.stdout.trim().split("\n")[0];
+  const recordPath = resolve(root, record);
+  const start = run(
+    root,
+    [
+      "slice",
+      "start-direct",
+      "--record",
+      recordPath,
+      "--title",
+      "Build the queue",
+      "--next-action",
+      "Edit.",
+      "--input",
+      "-",
+    ],
+    `- Intended result: a queue.\n- Authority source: the user.\n- Scope: src/.\n- Expected evidence: tests.\n- Stop condition: done.\n- Starting state: on ${branchNamed} at ${commit ?? head.slice(0, 8)}.\n`,
+  );
+  assert.equal(start.status, 0, start.stderr);
+  let text = await readFile(recordPath, "utf8");
+  if (updates.length)
+    text = text.replace(
+      "\n### Recovery sources",
+      `\n##### Material updates\n\n${updates.map((each) => `- ${each.replace("{HEAD}", head.slice(0, 8))}`).join("\n")}\n\n### Recovery sources`,
+    );
+  if (sources.length)
+    text = text.replace(
+      "### Recovery sources\n",
+      `### Recovery sources\n\n${sources.map((each) => `- ${each}`).join("\n")}\n`,
+    );
+  await writeFile(recordPath, text);
+  return { root, recordPath, head, taskDir: dirname(recordPath) };
+}
+
+const LIST = `# Decisions
+
+- P1 [agreed] When jobs pile up, which runs first? -> oldest first (src/sched.ts:40). You: "go" (2026-10-20)
+- P2 [new] Text when the queue is full -> "Queue full, try later"
+- P3 [default] Retry count -> 3, because the client does
+- P4 [dropped] Priority lanes -> none
+- T1 [default] FIFO array in queue.ts -> serves P1
+`;
+
+test("choices validates a list and refuses a broken one", async () => {
+  const ok = choices(process.cwd(), ["validate", "--list", "-"], LIST);
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /Decision list valid: 5 item\(s\)/);
+  const broken = choices(
+    process.cwd(),
+    ["validate", "--list", "-"],
+    `- P1 [maybe] Order -> oldest\n- P1 [new] Text\n- T1 [default] Array -> serves P9\n- X2 [new] Odd -> yes\n- P3 [agreed] Count -> 3\n`,
+  );
+  assert.equal(broken.status, 1);
+  for (const expected of [
+    /line 1 P1: state "maybe"/,
+    /line 2 P1: duplicate ID/,
+    /line 2 P1: has no default/,
+    /line 3 T1: serves P9, which is not in the list/,
+    /line 4 X2: ID must be P<n> or T<n>/,
+    /warning: line 5 P3: agreed without the user's words/,
+  ])
+    assert.match(broken.stdout, expected);
+});
+
+test("choices renders the agreement, the hand-over filter and the catch-up from the record", async () => {
+  const agreement = choices(
+    process.cwd(),
+    ["agreement", "--list", "-", "--do", "Add a queue", "--stop", "the queue works"],
+    LIST,
+  );
+  assert.equal(agreement.status, 0, agreement.stderr);
+  assert.equal(
+    agreement.stdout,
+    [
+      "What I'll do:   Add a queue",
+      "Where I stop:   the queue works",
+      'Your decisions: 1. Text when the queue is full? I\'d go with "Queue full, try later"',
+      "                2. Retry count? I'd go with 3, because the client does",
+      'Technical:      1 more choice; say "show technical" to see them.',
+      "",
+    ].join("\n"),
+  );
+  const handover = choices(process.cwd(), ["handover", "--list", "-", "--json"], LIST);
+  assert.deepEqual(JSON.parse(handover.stdout).shown, ["P2", "P3", "T1"]);
+  assert.equal(choices(process.cwd(), ["agreement", "--list", "-"], LIST).status, 2);
+
+  const { root, recordPath } = await workspace({
+    updates: ["Evidence — claim: queue drains; result: supported", "Result — identity: abc1234"],
+  });
+  try {
+    const missing = choices(root, ["catch-up", "--record", recordPath]);
+    assert.equal(missing.status, 2);
+    assert.match(missing.stderr, /no decision list at .*sources\/decisions\.md/);
+    await mkdir(join(dirname(recordPath), "sources"), { recursive: true });
+    await writeFile(join(dirname(recordPath), "sources/decisions.md"), LIST);
+    const catchUp = choices(root, ["catch-up", "--record", recordPath]);
+    assert.equal(catchUp.status, 0, catchUp.stderr);
+    assert.match(catchUp.stdout, /Defaults taken \(2\):\n- P3 \[default\][^\n]*\n- T1 \[default\]/);
+    assert.match(catchUp.stdout, /Choices waiting for you \(1\):\n- P2 \[new\]/);
+    assert.match(
+      catchUp.stdout,
+      /What ran \(S-001 — Build the queue, Material updates: 2\):\n- Evidence — claim: queue drains/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

@@ -28,7 +28,7 @@ This body covers the common case: writing or revising one skill or one piece of 
 
 ## Rules
 
-- The baseline of a revision is the committed state before it. Before committing a substantial revision, such as a merge, a split, a move between files or a rewrite, run `skill-author compare` and settle every rule-like unit it reports unmatched: restore it, name the file and line that now owns it, or record why it is removed, in a verdicts file kept with the evidence outside the package. Outside Git only, copy the package to the task's scratch folder before editing and pass `--base <folder>`. A clean comparison shows that text survived, not that behavior did.
+- The baseline of a revision is the committed state before it. Before committing a substantial revision, such as a merge, a split, a move between files or a rewrite, run `skill-author compare --all-units` and settle every unit it reports unmatched: restore it, name the file and line that now owns it, or record why it is removed, in a verdicts file kept with the evidence outside the package. Then someone, you or a reviewer, reads every reworded and unmatched unit for meaning, since a rewording can keep the words and change what they ask. Outside Git only, copy the package to the task's scratch folder before editing and pass `--base <folder>`. A clean comparison shows that text survived, not that behavior did.
 - If accepted behavior, public dependencies, or another user-owned choice is unsettled, stop and resolve it before encoding it.
 - Never rely on an unread skill or reference to cause its own read. The first read must come from context the agent already has: a description, guaranteed base guidance, an already-loaded skill, a capability cue, or another declared route.
 - Rely only on context guaranteed on every valid activation path, never on an optional sibling, a common but unguaranteed route, or an accidental earlier read.
@@ -244,14 +244,14 @@ node <write-skill-directory>/scripts/skill-author.mjs init <directory> --name <n
 node <write-skill-directory>/scripts/skill-author.mjs validate <directory> [--package-root <directory>] [--routing-map <file>]
 node <write-skill-directory>/scripts/skill-author.mjs inspect <directory> [--package-root <directory>]
 node <write-skill-directory>/scripts/skill-author.mjs similarity <directory> [--threshold <0-1>]
-node <write-skill-directory>/scripts/skill-author.mjs compare [<base-ref> [<new-ref>] | --base <folder> [<folder>]] [--verdicts <file>]
+node <write-skill-directory>/scripts/skill-author.mjs compare [<base-ref> [<new-ref>] | --base <folder> [<folder>]] [--all-units] [--verdicts <file>]
 ```
 
 - `init`: create a new minimal package; it never overwrites an existing one.
 - `validate`: check frontmatter, heading shape, recursive links, declared package dependencies, and containment. It also lists link cycles among the Markdown files the skill reaches, leaving out links to any `SKILL.md`; Placement And Dependencies says what to do with one. With `--routing-map`, it checks that the map's row for the skill names the same sibling skills and resources that `SKILL.md` links.
 - `inspect`: report body sizes, resource classes, scripts, unlinked files, and validation findings, when factual inventory matters.
 - `similarity`: report Markdown files under a directory that share copied or lightly edited passages. Run it across related skills before keeping repetition; it cannot detect paraphrase, so a clean report does not prove an instruction is stated once.
-- `compare`: with no arguments, compare the model-facing Markdown changed since the branch left the default branch with the working tree, uncommitted edits included, and list each rule-like unit (under a Rules heading, a numbered step, or containing never, always, must, only, do not or stop) that no longer appears. It exits nonzero while one has no verdict in `--verdicts <file>`, a JSON object of `"file:line": "verdict"` that carries across runs. Read every reworded rule it lists as well: a rewording can keep the words and change the meaning. `--help` gives the other options.
+- `compare`: with no arguments, compare the model-facing Markdown changed since the branch left the default branch with the working tree, uncommitted edits included, and list each rule-like unit (under a Rules heading, a numbered step, or containing never, always, must, only, do not or stop, or a reason: because, so that, otherwise, why) that no longer appears; `--all-units`, for a substantial revision, lists every unmatched unit. It exits nonzero while one has no verdict in `--verdicts <file>`, a JSON object of `"file:line": "verdict"` that carries across runs. Read every reworded rule it lists as well: a rewording can keep the words and change the meaning. `--help` gives the other options.
 
 Commands emit JSON. Invalid structure still emits a report and exits nonzero; command errors emit structured error JSON. Package root defaults to the nearest `package.json` ancestor, then the skill directory's parent; use `--package-root` for a candidate in an overlay or another package context.
 

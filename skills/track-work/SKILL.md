@@ -35,7 +35,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Record a Slice before causing effects outside the record: edits, commands, generated files, sent messages, or changes to external systems.
 - Use [working-record.mjs](scripts/working-record.mjs) for every lifecycle change: IDs, states, and moves between sections. Edit only meaning directly.
 - Only the user changes task state.
-- After context loss, recover in this order before any task action: the record through `view resume` (not by opening `record.md`, which loads all of History), then every artifact listed under `What defines this task`, then `Recovery sources`, then the History entries the next action depends on through `view entry`. If any of them cannot be read completely, report that and stop affected work.
+- After context loss, recover in this order before any task action: the record through `view recover` (not by opening `record.md`, which loads all of History), then every artifact listed under `What defines this task`, then `Recovery sources`, then the History entries the next action depends on through `view entry`. If any of them cannot be read completely, report that and stop affected work.
 - Recover only a record that the context you still have ties to the current work, such as the user's direction, or a summary or handoff that names it. A recent change does not show that a record belongs to the current work. When a record's task and the current work disagree, report it instead of recovering the record.
 - Never record a requested, reported, or expected result as observed. Keep unverified work, failures, and contradictions visible.
 - Never claim that state will survive context loss unless it is written in the record or in a source the record points to.
@@ -155,7 +155,7 @@ On long tasks, a `preserve` Checkpoint every few Slices keeps a recoverable poin
 
 Context loss means the conversation about the current work is no longer in context: after compaction, a summary that replaces it, clear, a transfer to another context, or a session or branch that continues the work without it. Recover before task work (Rules), in order:
 
-1. `view resume`: the record's present state and a one-line index of closed History. If output is truncated, keep reading until complete. Do not open `record.md` itself for this: it loads the whole History, which the index lets you read only where needed. A summary is not recovery.
+1. `view recover`: the `resume` view (the record's present state and a one-line index of closed History), then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then where live Git state disagrees with the record. If output is truncated, keep reading until complete. Do not open `record.md` itself for this: it loads the whole History, which the index lets you read only where needed. A summary is not recovery.
 2. Every artifact listed under `What defines this task`, such as the task's Spec and Plan.
 3. Every entry under `Recovery sources`, except one whose stated trigger ("read when …") does not apply yet; read that one when it does.
 4. The History entries the next action depends on, through `view entry <ID>`: closed work on the same result or area, a blocked or abandoned attempt at what you are about to do, a superseded Decision behind a current one, and any entry the record or a source names by ID. Do not read entries just because they exist.
@@ -188,7 +188,7 @@ A context boundary is not a Slice transition or a Checkpoint. Pause the Slice on
 
 [Working Record Format](references/working-record-format.md) owns the exact shape, fields, states, and command contract; read it before editing structure or preparing input for a command.
 
-Edit meaning directly: Current Context bullets, optional fields, Material updates, Recovery sources, proposal order or removal, the Next useful action, and Notes. After a structural edit, run `validate`. It checks structure only; it cannot tell whether an edit changed history or skipped a lifecycle step, so never make those edits by hand.
+Edit meaning directly: Current Context bullets, optional fields, Material updates, Recovery sources, proposal order or removal, the Next useful action, and Notes. After a structural edit, run `validate`. It checks structure, and warns about Material updates pointers (files, commits) that do not resolve (`--strict` fails on those an Evidence or Result line names); it cannot tell whether an edit changed history or skipped a lifecycle step, so never make those edits by hand.
 
 Run `working-record.mjs <group> <operation> --help` before preparing a command's input; the help and the format reference are the contract, so read `scripts/lib/` only when diagnosing a defect. If a command exits with code 2, the write may have happened: read `view full` before retrying or editing. Never duplicate an entity to recover from an uncertain result.
 

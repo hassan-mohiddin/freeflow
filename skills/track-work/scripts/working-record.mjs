@@ -17,6 +17,7 @@ import {
   writeInitialAtomically,
 } from "./lib/store.mjs";
 import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
+import { checkEvidencePointers, renderRecover } from "./lib/recover.mjs";
 import { PROJECT_LINK, Registry, TASK_ID, removalText, startCommand } from "./lib/registry.mjs";
 import { searchRecords } from "./lib/search.mjs";
 
@@ -27,7 +28,7 @@ function usage() {
   return [
     "Usage:",
     "  working-record.mjs init --root <path> --name <task name> [--input <file|->]",
-    "  working-record.mjs view resume|full --record <record.md>",
+    "  working-record.mjs view resume|recover|full --record <record.md>",
     "  working-record.mjs view entry <ID> [<ID> ...] --record <record.md>",
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
@@ -81,9 +82,12 @@ const COMMAND_HELP = new Map([
   ],
   [
     "view",
-    "Usage: view resume|full --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\nresume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
+    "Usage: view resume|recover|full --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\nresume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
   ],
-  ["validate", "Usage: validate --record <record.md>"],
+  [
+    "validate",
+    "Usage: validate --record <record.md> [--strict]\nChecks the record's structure, and whether the pointers in Material updates resolve: files (from the repository root or the task folder) and commits. An unresolved pointer is a warning, since it may name a planned path or a commit not fetched yet; with --strict, one on an Evidence or Result line fails. Pointers outside the repository are listed, not checked.",
+  ],
   [
     "project",
     "Usage: working-record.mjs project <operation> ...\nOperations: project new, project link, project show, project list, project remove.\nA project groups tasks; its records live in a store under the Freeflow home (FREEFLOW_HOME, default ~/.freeflow), outside any repository. Create or link a project only when the user asks.",
@@ -215,7 +219,7 @@ function parseOptions(args) {
       continue;
     }
     if (options[token] !== undefined) throw new CliError(`Duplicate option: ${token}`);
-    if (token === "--help") {
+    if (token === "--help" || token === "--strict") {
       options[token] = true;
       continue;
     }
@@ -232,7 +236,7 @@ function allowedOptions(command, operation) {
   const withNextAction = new Set([...common, "--next-action"]);
   if (command === "init") return new Set(["--root", "--name", "--input", "--help"]);
   if (command === "view") return new Set(["--root", "--record", "--view", "--help"]);
-  if (command === "validate") return new Set(["--root", "--record", "--help"]);
+  if (command === "validate") return new Set(["--root", "--record", "--strict", "--help"]);
   if (command === "slice") {
     if (operation === "propose") return new Set([...common, "--title"]);
     if (operation === "start" || operation === "start-direct") return new Set([...withNextAction, "--title"]);
@@ -500,7 +504,8 @@ async function runCore(command, rest) {
   if (command === "init") return initialize(options);
   if (command === "view") {
     const view = positionals[0] ?? options["--view"];
-    if (!view || !["resume", "full", "entry"].includes(view)) throw new CliError("View must be resume, full, or entry");
+    if (!view || !["resume", "recover", "full", "entry"].includes(view))
+      throw new CliError("View must be resume, recover, full, or entry");
     const ids = positionals.slice(1);
     if (view === "entry") {
       if (!ids.length) throw new CliError("View entry needs at least one S-NNN, C-NNN, or D-NNN ID");
@@ -510,13 +515,28 @@ async function runCore(command, rest) {
     const loaded = await readExisting(options);
     if (view === "full") return renderFull(loaded.text);
     if (view === "entry") return renderEntries(loaded.text, ids);
+    if (view === "recover") return renderRecover(loaded.text, { root: loaded.root, recordPath: loaded.path });
     return renderResume(loaded.text);
   }
   if (command === "validate") {
     if (positionals.length) throw new CliError("Validate does not accept positional arguments");
     const loaded = await readExisting(options);
     validateDocument(parseDocument(loaded.text));
-    return `valid\n${displayPath(loaded.root, loaded.path)}\n`;
+    const pointers = checkEvidencePointers(loaded.text, { root: loaded.root, recordPath: loaded.path });
+    const outside = pointers.outside.length
+      ? `\n${pointers.outside.length} evidence pointer(s) outside the repository, not checked:\n${pointers.outside.map((each) => `- ${each}`).join("\n")}`
+      : "";
+    // Unresolved pointers warn: a record may name a planned path or a commit not fetched yet. --strict fails on those
+    // an Evidence or Result line claims exist.
+    const unresolved = options["--strict"] ? pointers.warnings : [...pointers.problems, ...pointers.warnings];
+    const warnings = unresolved.length
+      ? `\n${unresolved.length} pointer(s) in Material updates do not resolve here (a planned path, or a commit not fetched?):\n${unresolved.map((each) => `- ${each}`).join("\n")}`
+      : "";
+    if (options["--strict"] && pointers.problems.length)
+      throw new CliError(
+        `Evidence pointers on Evidence or Result lines do not resolve:\n${pointers.problems.map((each) => `- ${each}`).join("\n")}${warnings}${outside}`,
+      );
+    return `valid\n${displayPath(loaded.root, loaded.path)}\n${pointers.checked} evidence pointer(s) checked${warnings}${outside}\n`;
   }
   if (positionals.length !== 1) throw new CliError(`Expected one operation for ${command}`);
   const loaded = await readExisting(options);

@@ -43,7 +43,7 @@ Choose the smallest shape that preserves accepted compatibility, safety, and evi
 - **Dependency:** introduce the replacement, verify compatibility at owning seams, migrate packages or consumers, remove the old dependency and its transitive assumptions.
 - **Feature:** define replacement or removal behavior, migrate users and documentation, observe usage, then remove code and operational surfaces.
 
-Inventory consumers from static references and dependency graphs; runtime traffic, logs, metrics, traces or audit records; generated clients, plugins, scripts, jobs and configuration; external teams, independently deployed services, offline clients and dormant accounts; package download or version-support data; and owner attestations where observation is impossible. Classify unknowns: missing telemetry is unavailable evidence, not zero use.
+Inventory consumers from static references and dependency graphs; runtime traffic, logs, metrics, traces or audit records; generated clients, plugins, scripts, jobs and configuration; external teams, independently deployed services, offline clients and dormant accounts; package download or version-support data; and owner attestations where observation is impossible. Classify unknowns: missing telemetry is unavailable evidence, not zero use. For the static part, Execute Work's [touch-map](../scripts/touch-map.mjs) lists entry points, readers, writers and covering tests for each old symbol or file, and what it did not search.
 
 ## Prepare The Replacement
 

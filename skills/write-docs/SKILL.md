@@ -57,7 +57,7 @@ A record or summary cannot override contradictory current intent or accepted sou
 
 ## Specs And Plans
 
-A Spec describes content, behavior, constraints and uncertainty for its use; it is not an implementation sequence, a Working Record, a transcript or a permission grant. Useful technical depth is welcome; hypothetical completeness is not required. A Plan describes intended execution; the Working Record keeps actual work, evolving state and the next useful action. Keep ordered execution in a Plan and live progress in the record.
+A Spec describes content, behavior, constraints and uncertainty for its use; it is not an implementation sequence, a Working Record, a transcript or a permission grant. Useful technical depth is welcome; hypothetical completeness is not required. A Plan describes intended execution; the Working Record keeps actual work, evolving state and the next useful action. Keep ordered execution in a Plan and live progress in the record. After writing or revising a Plan, run [plan-lint](scripts/plan-lint.mjs) (`node <write-docs-directory>/scripts/plan-lint.mjs <plan.md>`): it lists each step that names no check.
 
 When a Working Record exists and the Spec or Plan is accepted for its task, list it under the record's `What defines this task` through Track Work, so every recovery reads it.
 
@@ -97,6 +97,8 @@ These apply to Specs, Plans and decision records; documentation uses the header 
 Writing or reviewing a document never makes it `Accepted`, and `Accepted` is not permission to execute it. Status reports the document's state; it does not replace review evidence or user authority.
 
 **Source trail.** Link stable sources that actually exist, such as `file:<path>#<section>`, `working-record:<task>/record.md#<section>`, `commit:<sha>`, `issue:<id>`, `output:<output-id>` or `session:<session-id>/turn:<turn-id>`, with concise quotations rather than copied inventories, logs, diffs or transcripts. The trail lets a later reader recover why the document says what it says, without preserving every turn: for a consequential choice, keep the proposal, its disclosed consequences and the acceptance source together rather than an isolated "proceed" or an agent's summary of approval, and keep accepted amendments apart from unselected experimental findings.
+
+Then run [artifact-check](scripts/artifact-check.mjs) (`node <write-docs-directory>/scripts/artifact-check.mjs <document.md> [--statuses <the repository's own>]`): it refuses a missing title or status, a status outside this vocabulary, an `Accepted` document with no Source, a `Superseded` one with no replacement, and a `file:` or `commit:` pointer that does not resolve.
 
 A Spec or Plan stays identifiable, source-backed and understandable without the original conversation, holding no information a Working Record, handoff or another canonical document owns.
 
