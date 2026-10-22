@@ -20,8 +20,10 @@ test("every skill has three requests and at least one near miss, and the skill l
   const catalog = readFileSync(path.join(root, "pi-extension/src/host/catalog.ts"), "utf8");
   const listed = [...catalog.matchAll(/^ {2}"([a-z-]+)",$/gm)].map((match) => match[1]);
   const owners = new Set(Object.values(MERGED).filter(Boolean));
-  for (const skill of listed) assert.ok(SKILLS.includes(skill) || owners.has(skill), `${skill} is neither measured nor a merged owner`);
-  for (const skill of SKILLS) assert.ok(listed.includes(skill) || RETIRED.includes(skill), `${skill} is neither Freeflow's nor retired`);
+  for (const skill of listed)
+    assert.ok(SKILLS.includes(skill) || owners.has(skill), `${skill} is neither measured nor a merged owner`);
+  for (const skill of SKILLS)
+    assert.ok(listed.includes(skill) || RETIRED.includes(skill), `${skill} is neither Freeflow's nor retired`);
   for (const skill of SKILLS) {
     assert.equal(CASES.filter((entry) => entry.hit === skill).length, 3, skill);
     assert.ok(
