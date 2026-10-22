@@ -77,6 +77,9 @@
 
 - Write Docs' docs check takes `--driven`: a covered change counts even when it was committed with the document, for feature files whose verified commit is the last live drive, so editing a feature file's text does not count as driving it.
 
+- `/freeflow settings` has a Runtime prompts row and a Skills row, each opening its own switches: Core, the Interaction Contract and the Working Method, and every skill but Setup Freeflow (`prompts.<name>`, `skills.<name>`). On Pi an off prompt is left out and an off skill is not loaded, and its command says it is off; Codex, Claude Code and the other hosts already read `prompts` and now also tell the agent which skills are off, since they load plugin skills themselves. This brings back, one skill and one prompt at a time, the switches 0.7.0 removed.
+- Every setting has a row in all three scopes of `/freeflow settings`: Session now also has Review, Reviewer model, Ask before delivering, Auto-approve, Runtime prompts and Skills, and a test fails when a setting is missing from any scope.
+
 ### Changed
 
 - On Pi, Freeflow is developed and tested against Pi 1.4.0 (was 1.0.1); Pi 0.99.1 or later is still supported. When Pi compacts on its own, Freeflow now asks Pi's summarizer to keep the summary under 8,000 tokens, the limit an agent's own summary has: from Pi 1.4.0 that summary is no longer capped by Pi's reserve. Cognitive Routing's tools stay inactive until routing turns them on, like Freeflow's other tools.

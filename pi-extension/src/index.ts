@@ -145,6 +145,10 @@ async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, s
     ctx.ui.notify("Run /setup-freeflow or enable Freeflow before dispatching this skill.", "warning");
     return;
   }
+  if ((state.skills?.off as readonly string[] | undefined)?.includes(skill)) {
+    ctx.ui.notify(`${skill} is turned off in /freeflow settings (Skills).`, "warning");
+    return;
+  }
   const prompts = await getRuntimeContext(state);
   if (!hasUsableMandatoryPrompts(prompts)) {
     ctx.ui.notify("Freeflow core prompts are unavailable; the requested skill cannot be dispatched.", "warning");
@@ -872,6 +876,7 @@ export default function freeflow(pi: FreeflowAPI) {
       if (capability?.enabled === true && hasUsableMandatoryPrompts(prompts))
         sections.freeflow_guidance = stableRuntimeContext(prompts, {
           routing: capability?.cognitiveRouting?.effective === true,
+          prompts: capability?.prompts,
         });
       if (toolExecution)
         Object.assign(sections, toolExecutionTail(api.getSettings?.()?.shellPath, prompts?.toolExecutionPrompt));

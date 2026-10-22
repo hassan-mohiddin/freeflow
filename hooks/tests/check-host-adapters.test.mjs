@@ -160,6 +160,21 @@ test("a hook host's Runtime State names the user's review choice, and only a cho
   assert.match(invalid, /\.freeflow\/config\.json is invalid: review\.mode must be one of auto, off, always/);
 });
 
+// A host that loads plugin skills itself cannot leave one out; the Runtime State tells the agent which are off.
+test("a hook host's Runtime State names the skills the user turned off, and drops an off prompt", () => {
+  const workspace = createWorkspace(
+    '{"skills":{"write-skill":false,"map-features":false}}\n',
+    '{"skills":{"map-features":true}}\n',
+  );
+  const context = contextOf(runAdapter(adapters.claude[0], workspace, inputFor("claude", workspace)));
+  assert.match(context, /\nSkills off: `write-skill`; do not open or follow them\.$/);
+  const noPrompt = createWorkspace('{"prompts":{"workingMethod":false}}\n');
+  const codex = contextOf(runAdapter(adapters.codex[0], noPrompt, inputFor("codex", noPrompt)));
+  assert.doesNotMatch(codex, /# Freeflow Working Method/);
+  const all = createWorkspace("{}\n");
+  assert.match(contextOf(runAdapter(adapters.codex[0], all, inputFor("codex", all))), /# Freeflow Working Method/);
+});
+
 test("the shared config validator imports nothing but Node and its own files", () => {
   const seen = new Set();
   const visit = (file) => {

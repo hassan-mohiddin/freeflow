@@ -2,15 +2,16 @@ import { validateCompactionConfig } from "../compaction/config.js";
 import { validateTaskMemoryConfig } from "../task-memory/config.js";
 import { validateMessagingConfig } from "../messaging/config.js";
 import { validateToolExecutionConfig } from "../tool-execution/config.js";
+import { FREEFLOW_MODEL_SKILL_NAMES } from "./catalog.js";
 /**
  * Whether a Freeflow config file is valid: one answer for Pi and for the session-start hooks of the other hosts, which
- * import the built file. Also how the settings every host reads, `prompts` and `review`, layer. Keep this module and its
+ * import the built file. Also how the settings every host reads, `prompts`, `review` and `skills`, layer. Keep this module and its
  * imports free of Pi packages; the hooks run in plain Node.
  */
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-/** The runtime prompts a hook host delivers, each on unless a config turns it off. Pi always delivers all of them. */
+/** The runtime prompts Freeflow delivers on every host, each on unless a config turns it off. */
 export const RUNTIME_PROMPTS = ["core", "interactionContract", "workingMethod"];
 function validatePromptsConfig(value) {
   if (!isRecord(value)) return "prompts must be an object";
@@ -20,13 +21,36 @@ function validatePromptsConfig(value) {
     if (value[key] !== undefined && typeof value[key] !== "boolean") return `prompts.${key} must be a boolean`;
   return null;
 }
-/** The prompts a hook host delivers for two valid config layers: the personal layer overrides the repository's. */
+/** The prompts Freeflow delivers for two valid config layers: the personal layer overrides the repository's. */
 export function selectedRuntimePrompts(repository, local) {
   const layer = (config) => (isRecord(config?.prompts) ? config.prompts : {});
   const [shared, personal] = [layer(repository), layer(local)];
   const selection = {};
   for (const key of RUNTIME_PROMPTS) selection[key] = (personal[key] ?? shared[key] ?? true) === true;
   return selection;
+}
+/**
+ * The skills a user can turn off. Setup Freeflow always stays, so a user can repair a configuration; the capability
+ * skills follow their capability's switch. On Pi an off skill is not loaded; other hosts load plugin skills themselves,
+ * so there the Runtime State only tells the agent not to use it.
+ */
+export const SWITCHABLE_SKILLS = FREEFLOW_MODEL_SKILL_NAMES.filter((name) => name !== "setup-freeflow").sort();
+function validateSkillsConfig(value) {
+  if (!isRecord(value)) return "skills must be an object";
+  const unknown = Object.keys(value).find((key) => !SWITCHABLE_SKILLS.includes(key));
+  if (unknown) return `skills has unsupported key: ${unknown}; use ${SWITCHABLE_SKILLS.join(", ")}`;
+  for (const [key, on] of Object.entries(value)) if (typeof on !== "boolean") return `skills.${key} must be a boolean`;
+  return null;
+}
+/** The skills turned off for two valid config layers: the personal layer overrides the repository's, skill by skill. */
+export function skillsOff(repository, local) {
+  const layer = (config) => (isRecord(config?.skills) ? config.skills : {});
+  const [shared, personal] = [layer(repository), layer(local)];
+  return SWITCHABLE_SKILLS.filter((name) => (personal[name] ?? shared[name] ?? true) === false);
+}
+/** The Runtime State line for skills the user turned off; none while every skill is on. */
+export function skillsStateLine(off) {
+  return off?.length ? `Skills off: ${off.map((name) => `\`${name}\``).join(", ")}; do not open or follow them.` : null;
 }
 /**
  * How Review Work reviews finished work. Without the key it runs `auto`, its own risk gate; `off` and `always` are the
@@ -86,6 +110,7 @@ export const CONFIG_SECTIONS = [
   "messaging",
   "prompts",
   "review",
+  "skills",
 ];
 // outputRouter, observedRouting, and scriptTransform belong to retired features; they are accepted and ignored so
 // existing configs keep loading.
@@ -129,6 +154,10 @@ export function validateRepositoryConfig(value) {
     const error = validateMessagingConfig(value.messaging);
     if (error) return error;
   }
+  if (value.skills !== undefined) {
+    const error = validateSkillsConfig(value.skills);
+    if (error) return error;
+  }
   if (value.review !== undefined) return validateReviewConfig(value.review);
   return null;
 }
@@ -149,6 +178,7 @@ export function validateLocalConfig(value) {
     "messaging",
     "prompts",
     "review",
+    "skills",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -175,6 +205,10 @@ export function validateLocalConfig(value) {
   }
   if (value.messaging !== undefined) {
     const error = validateMessagingConfig(value.messaging);
+    if (error) return error;
+  }
+  if (value.skills !== undefined) {
+    const error = validateSkillsConfig(value.skills);
     if (error) return error;
   }
   if (value.review !== undefined) return validateReviewConfig(value.review);

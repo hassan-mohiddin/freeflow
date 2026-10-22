@@ -7,6 +7,8 @@ import {
   resolveReviewSettings,
   reviewStateLine,
   selectedRuntimePrompts,
+  skillsOff,
+  skillsStateLine,
   validateLocalConfig,
   validateRepositoryConfig,
 } from "../../pi-extension/dist/host/config-validation.js";
@@ -100,6 +102,7 @@ export function readConfig(root) {
     enabled,
     prompts: selectedRuntimePrompts(repository.parsed, local.parsed),
     review: resolveReviewSettings(repository.parsed, local.parsed),
+    skillsOff: skillsOff(repository.parsed, local.parsed),
   };
 }
 
@@ -124,10 +127,11 @@ function loadRuntimeContext(selection, part) {
   return prompts;
 }
 
-// The review line is Pi's, and as on Pi only a choice the user made adds it.
+// The review and skills lines are Pi's, and as on Pi only a choice the user made adds them. This host loads plugin
+// skills itself, so the skills line is how an off skill reaches the agent here.
 function runtimeStateContext(config) {
-  const review = reviewStateLine(config.review);
-  return ["# Freeflow Runtime State", "", "Freeflow: active", ...(review ? [review] : [])].join("\n");
+  const lines = [reviewStateLine(config.review), skillsStateLine(config.skillsOff)].filter(Boolean);
+  return ["# Freeflow Runtime State", "", "Freeflow: active", ...lines].join("\n");
 }
 
 /**

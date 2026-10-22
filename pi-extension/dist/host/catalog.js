@@ -45,7 +45,11 @@ export function freeflowCapabilitySkillPath(skillName) {
   return fileURLToPath(new URL(`../../../capabilities/${skillName}/SKILL.md`, import.meta.url));
 }
 export function freeflowModelSkillPaths(capabilityState = undefined) {
-  const paths = FREEFLOW_MODEL_SKILL_NAMES.map((skillName) => freeflowSkillPath(skillName));
+  // A skill the user turned off is not loaded (config-validation.ts SWITCHABLE_SKILLS).
+  const off = capabilityState?.skills?.off ?? [];
+  const paths = FREEFLOW_MODEL_SKILL_NAMES.filter((skillName) => !off.includes(skillName)).map((skillName) =>
+    freeflowSkillPath(skillName),
+  );
   if (capabilityState?.cognitiveRouting?.effective === true)
     paths.push(freeflowCapabilitySkillPath("cognitive-routing"));
   if (capabilityState?.compaction?.effective === true) paths.push(freeflowCapabilitySkillPath("compaction"));

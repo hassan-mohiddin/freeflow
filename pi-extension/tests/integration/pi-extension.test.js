@@ -161,6 +161,32 @@ function choose(component, label, section) {
   throw new Error(`No settings row ${section ? `${section} › ` : ""}${label}`);
 }
 
+/**
+ * Every row of a settings screen: it scrolls the list to the end, and opens each row named in `nested` (one that opens
+ * a screen of its own) to read its rows as "Parent › Row". Moving and opening change nothing.
+ */
+function allSettingsRows(component, nested = new Set()) {
+  const rows = new Set();
+  const read = () => renderText(component, 200);
+  const rowsOf = (text) => [...text.matchAll(/^ {2}(?:› | {2})\s*(\S.*?)\s{2,}\S/gm)].map((match) => match[1]);
+  const count = Math.max(Number(/\((\d+)\/(\d+)\)/.exec(read())?.[2] ?? 0), rowsOf(read()).length);
+  for (let i = 0; i < count; i++) {
+    const text = read();
+    for (const row of rowsOf(text)) rows.add(row);
+    const selected = /^ {2}› \s*(\S.*?)\s{2,}\S/m.exec(text)?.[1];
+    if (selected && nested.has(selected)) {
+      component.handleInput(KEY.enter);
+      for (const child of rowsOf(read())) rows.add(`${selected} › ${child}`);
+      component.handleInput(KEY.escape);
+    }
+    component.handleInput(KEY.down);
+  }
+  return rows;
+}
+
+/** The rows plugin-docs/settings.md names as opening a screen of their own: "Auto-approve" from "Auto-approve › Attach". */
+const nestedRows = (doc) => new Set([...doc.matchAll(/^\| ([^|›]+?) › [^|]+ \|/gm)].map((match) => match[1]));
+
 /** Choose a row and press Enter, waiting for any write. */
 async function press(component, label, section) {
   choose(component, label, section);
@@ -607,7 +633,7 @@ test("plugin-docs/settings.md documents every row the settings screen shows and 
     "review.mode": "always",
     "review.model": "a-model",
   };
-  for (const [, key] of doc.matchAll(/^\| [^|]+ \| `([a-zA-Z.]+)` \|/gm)) {
+  for (const [, key] of doc.matchAll(/^\| [^|]+ \| `([a-zA-Z.-]+)` \|/gm)) {
     const config = {};
     let at = config;
     const parts = key.split(".");
@@ -629,11 +655,12 @@ test("plugin-docs/settings.md documents every row the settings screen shows and 
     for (const scope of ["session", "local", "repo"]) {
       const settingsCtx = context(cwd);
       settingsCtx.ui.custom = async (factory) => {
-        const text = renderText(
-          factory({ requestRender() {} }, testTheme, {}, () => {}),
-          200,
-        );
-        const rows = [...text.matchAll(/^ {2}(?:› | {2})\s*(\S.*?)\s{2,}\S/gm)].map((match) => match[1]);
+        const rows = [
+          ...allSettingsRows(
+            factory({ requestRender() {} }, testTheme, {}, () => {}),
+            nestedRows(doc),
+          ),
+        ];
         assert.ok(rows.length > 5, `${scope} rows`);
         for (const row of rows) assert.ok(doc.includes(`| ${row} |`), `settings.md lists the ${scope} row ${row}`);
         return undefined;
@@ -648,14 +675,11 @@ test("plugin-docs/settings.md documents every row the settings screen shows and 
 test("every config key Freeflow acts on has a /freeflow settings row, or a stated reason it has none", async () => {
   // A setting the user changes is changed on the screen (dev-docs/features/settings.md). A key with no row is listed
   // here with its reason, with the user's agreement, and its row in plugin-docs/settings.md names no screen row.
-  const FILE_ONLY = Object.fromEntries(
-    ["core", "interactionContract", "workingMethod"].map((prompt) => [
-      `prompts.${prompt}`,
-      "Only the hook hosts read it; Pi always delivers its runtime prompts.",
-    ]),
-  );
+  // Every setting has a row in all three scopes: Session, Personal and Repository.
+  const FILE_ONLY = {};
   const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
-  const { CONFIG_SECTIONS, REVIEW_KEYS, RUNTIME_PROMPTS } = await import("../../dist/host/config-validation.js");
+  const { CONFIG_SECTIONS, REVIEW_KEYS, RUNTIME_PROMPTS, SWITCHABLE_SKILLS } =
+    await import("../../dist/host/config-validation.js");
   const { COGNITIVE_ROUTING_KEYS } = await import("../../dist/cognitive-routing/config.js");
   const { TOOL_EXECUTION_KEYS } = await import("../../dist/tool-execution/config.js");
   const { COMPACTION_KEYS } = await import("../../dist/compaction/config.js");
@@ -669,6 +693,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     messaging: MESSAGING_KEYS,
     prompts: RUNTIME_PROMPTS,
     review: REVIEW_KEYS,
+    skills: SWITCHABLE_SKILLS,
   };
   const nested = {
     "taskMemory.autoApprove": Object.keys(AUTO_APPROVE_GROUPS),
@@ -683,7 +708,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     }
   }
 
-  const screenRows = new Set();
+  const screenRows = {};
   const cwd = await configuredRepo({});
   try {
     const { commands } = loadExtension(freeflowExtension, {
@@ -697,11 +722,10 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     for (const scope of ["session", "local", "repo"]) {
       const settingsCtx = context(cwd);
       settingsCtx.ui.custom = async (factory) => {
-        const text = renderText(
+        screenRows[scope] = allSettingsRows(
           factory({ requestRender() {} }, testTheme, {}, () => {}),
-          200,
+          nestedRows(doc),
         );
-        for (const [, row] of text.matchAll(/^ {2}(?:› | {2})\s*(\S.*?)\s{2,}\S/gm)) screenRows.add(row);
         return undefined;
       };
       await command.definition.handler(`settings ${scope}`, settingsCtx);
@@ -710,7 +734,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     await rm(cwd, { recursive: true, force: true });
   }
 
-  const docRow = new Map([...doc.matchAll(/^\| ([^|]+?) \| `([a-zA-Z.]+)` \|/gm)].map(([, row, key]) => [key, row]));
+  const docRow = new Map([...doc.matchAll(/^\| ([^|]+?) \| `([a-zA-Z.-]+)` \|/gm)].map(([, row, key]) => [key, row]));
   for (const key of keys) {
     const row = docRow.get(key);
     assert.ok(row, `plugin-docs/settings.md lists ${key}`);
@@ -719,7 +743,8 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
       continue;
     }
     assert.notEqual(row, "—", `${key} has a /freeflow settings row, or a reason in FILE_ONLY`);
-    assert.ok(screenRows.has(row.split(" › ")[0]), `the settings screen shows ${row} for ${key}`);
+    for (const scope of ["session", "local", "repo"])
+      assert.ok(screenRows[scope].has(row), `the ${scope} settings screen shows ${row} for ${key}`);
   }
 });
 
@@ -1291,14 +1316,70 @@ test("Pi keeps Freeflow inactive until repository activation exists", async () =
   }
 });
 
+test("Pi leaves out a skill and a runtime prompt the user turned off, and tells the agent", async () => {
+  const cwd = await configuredRepo({ skills: { "write-skill": false }, prompts: { workingMethod: false } });
+  try {
+    const { handlers, commands, sentMessages } = loadExtension();
+    const ctx = context(cwd);
+    await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.ok(!resources.skillPaths.some((path) => path.includes("/skills/write-skill/")));
+    assert.ok(resources.skillPaths.some((path) => path.includes("/skills/discuss-work/")));
+    assert.ok(resources.skillPaths.some((path) => path.includes("/skills/setup-freeflow/")));
+    const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.match(result.renderedGuidance, /## Freeflow core/);
+    assert.doesNotMatch(result.renderedGuidance, /## Working Method/);
+    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
+    const state = lastRuntimeState(providerContext.messages).content;
+    // Turned off is not missing: Freeflow stays active.
+    assert.match(state, /Freeflow: active\nSkills off: `write-skill`; do not open or follow them\.\n/);
+    const run = context(cwd);
+    await commands.find((command) => command.name === "write-skill").definition.handler("", run);
+    assert.match(run.notifications.at(-1).message, /write-skill is turned off in \/freeflow settings/);
+    assert.equal(sentMessages.length, 0);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi applies a session value over the files for a choice, a model name and a nested switch", async () => {
+  const cwd = await configuredRepo({ review: { mode: "off" }, taskMemory: { autoApprove: { create: true } } });
+  try {
+    const { setSessionCoreOverride, resetSessionOverrides } = await import("../../dist/host/config.js");
+    const ctx = context(cwd);
+    const pi = { appendEntry() {} };
+    await setSessionCoreOverride("review.mode", "always", ctx, pi);
+    await setSessionCoreOverride("review.model", "test/model-b", ctx, pi);
+    await setSessionCoreOverride("taskMemory.autoApprove.attach", true, ctx, pi);
+    await setSessionCoreOverride("skills.write-docs", false, ctx, pi);
+    const state = await readCapabilityState(cwd, ctx);
+    assert.deepEqual(state.review, { mode: "always", model: "test/model-b" });
+    assert.equal(state.taskMemory.autoApprove.attach, true);
+    assert.equal(state.taskMemory.autoApprove.create, true, "the file's other switches stay");
+    assert.deepEqual(state.skills.off, ["write-docs"]);
+    await assert.rejects(
+      setSessionCoreOverride("review.mode", "sometimes", ctx, pi),
+      /Invalid Freeflow session override value/,
+    );
+    await resetSessionOverrides(ctx, pi);
+    const after = await readCapabilityState(cwd, ctx);
+    assert.deepEqual(after.review, { mode: "off" });
+    assert.deepEqual(after.skills.off, []);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi rejects obsolete modes and removed core toggles in configuration", async () => {
+  // The removed toggles: one switch for every skill and a top-level Interaction Contract switch. Today each skill and
+  // each runtime prompt has its own switch (`skills.<name>`, `prompts.interactionContract`).
   for (const config of [{ defaultMode: "workflow" }, { interactionContract: false }, { skills: { enabled: false } }]) {
     const cwd = await configuredRepo(config);
     try {
       const layers = await readFreeflowConfigLayers(cwd);
       assert.equal(layers.configured, false);
       assert.equal(layers.repository.valid, false);
-      assert.match(layers.parseError, /unsupported top-level config key/);
+      assert.match(layers.parseError, /unsupported top-level config key|skills has unsupported key: enabled/);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -1364,7 +1445,7 @@ test("Pi resolves only the remaining layered core values", async () => {
     assert.deepEqual(layers.sources, { enabled: "local" });
     const state = await readCapabilityState(cwd);
     assert.equal(state.enabled, false);
-    assert.equal("skills" in state, false);
+    assert.deepEqual(state.skills, { off: [] });
     assert.equal("interactionContract" in state, false);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -1556,7 +1637,7 @@ test("Pi master Freeflow toggle makes features inactive and sends only Setup Fre
   }
 });
 
-test("Pi settings expose no mode, Skills, or Interaction Contract controls", async () => {
+test("Pi settings expose no mode or removed context controls", async () => {
   const cwd = await configuredRepo({ enabled: false });
   try {
     const { commands } = loadExtension();
@@ -1571,7 +1652,7 @@ test("Pi settings expose no mode, Skills, or Interaction Contract controls", asy
       const text = renderText(component);
       assert.match(text, /Freeflow settings/);
       assert.doesNotMatch(text, /Freeflow Context|Context Virtualization|Conversation History/);
-      assert.doesNotMatch(text, /Interaction Contract|Skills|Session mode|Default mode|Mode/);
+      assert.doesNotMatch(text, /Session mode|Default mode|Mode/);
       component.handleInput("\u001b");
       return result;
     };
@@ -1781,7 +1862,7 @@ test("Pi settings set Review Work's review mode and reviewer model in the files"
         result = value;
       });
       const text = renderText(component, 200);
-      assert.match(text, /Review\s+auto \(inherited\)\n\s+Reviewer model\s+claude-opus-4-5\n/);
+      assert.match(text, /Review\s+auto \(inherited\)\n/);
       // The mode is the section's row: auto, off, always.
       await press(component, "Review");
       await press(component, "Review");

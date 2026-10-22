@@ -1,4 +1,4 @@
-import { reviewStateLine } from "./config-validation.js";
+import { reviewStateLine, skillsStateLine } from "./config-validation.js";
 import { hasUsableMandatoryPrompts } from "./prompts.js";
 
 /**
@@ -139,6 +139,7 @@ export function freeflowRuntimeStateMessage(
       : "setup needed";
   // Only a choice the user made: the default adds nothing, so most users' state stays as it was.
   const review = freeflowStatus === "active" ? reviewStateLine(capabilityState?.review) : null;
+  const skillsOff = freeflowStatus === "active" ? skillsStateLine(capabilityState?.skills?.off) : null;
 
   return {
     role: "custom",
@@ -150,6 +151,7 @@ export function freeflowRuntimeStateMessage(
       "",
       `Freeflow: ${freeflowStatus}`,
       ...(review ? [review] : []),
+      ...(skillsOff ? [skillsOff] : []),
       "",
       "Capabilities:",
       `- Cognitive Routing: ${publicCognitiveRoutingStatus(capabilityState?.cognitiveRouting, cognitiveRoutingRuntime)}`,
