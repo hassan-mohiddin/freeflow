@@ -1,7 +1,7 @@
 # Activation and Status
 
 > **Covers:** `pi-extension/src/host/status.ts`, `pi-extension/src/host/config.ts`, `pi-extension/src/host/config-validation.ts`
-> **Verified at:** `81500268` (2026-10-22)
+> **Verified at:** `88f1e98d` (2026-10-22)
 > **User docs:** `plugin-docs/settings.md`
 
 Freeflow is active in a repository only when `.freeflow/config.json` exists and is valid. Pi's footer shows the effective state on every screen, and `/freeflow status` prints the effective capabilities. How configuration is read and validated: [Prompt assembly](../subsystems/prompt-assembly.md) and the overview's [Cross-Cutting Concerns](../README.md#cross-cutting-concerns). Neither the footer nor `/freeflow status` shows the `review`, `prompts` or `skills` settings, and a prompt turned off leaves Freeflow active; the agent gets it in the Runtime State, and an invalid `review` makes the file invalid like any other key.
