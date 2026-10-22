@@ -14,6 +14,7 @@ How it works and why, including behavior that looks wrong but is intended: [`dev
 | [`edit-messages.ts`](edit-messages.ts) | Messages around Pi's `edit` and `write`: rewritten edit errors that show the closest match, refusals, and the changed-files notice. Every error ends in one concrete next step. |
 | [`background.ts`](background.ts) | `bash_background`, `monitor` and `stop_background`: runs commands in the background, saves their output to a private temp file, and notifies the model when they exit; a monitor also delivers each line it prints. |
 | [`bash-guard.ts`](bash-guard.ts) | Refuses a trailing `&` and long foreground `sleep` in `bash`, pointing to background commands instead. |
+| [`guidance-notices.ts`](guidance-notices.ts) | The push retriever: a short skill-guidance notice appended to the result of a `git commit`, a test command's second failure, or a passing test after a change. |
 | [`config.ts`](config.ts) | Tool Execution settings. Keys of the retired v2 runtime still load and do nothing. |
 | [`apply-patch/`](apply-patch/README.md) | The `apply_patch` tool. |
 

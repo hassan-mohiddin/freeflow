@@ -9,7 +9,8 @@ import { RoutingRuntime } from "./cognitive-routing/runtime.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing/tools.js";
 import { handleFreeflowCommand } from "./host/settings/freeflow-command.js";
 import { toolExecutionSections, toolExecutionTail } from "./tool-execution/prompt.js";
-import { FileTracking } from "./tool-execution/file-tracking.js";
+import { FileTracking, withLines } from "./tool-execution/file-tracking.js";
+import { GuidanceNotices } from "./tool-execution/guidance-notices.js";
 import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
 import {
@@ -229,6 +230,9 @@ export default function freeflow(pi) {
     selectiveView: () => routing.projectionEnabled && routing.state().activeProfile === "coordinator",
   });
   const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
+  const guidance = new GuidanceNotices(packageRoot);
+  const guidanceNoticesEffective = () =>
+    toolExecutionEffective() && capability?.toolExecution?.guidanceNotices !== false;
   const compactionEffective = () => capability?.compaction?.effective === true;
   const taskMemoryEffective = () => capability?.taskMemory?.effective === true;
   const askUserEffective = () => capability?.askUser?.effective === true;
@@ -854,6 +858,7 @@ export default function freeflow(pi) {
   });
   pi.on("agent_start", () => {
     routing.runStarted();
+    guidance.runStarted();
     agentRunning = true;
     if (messaging.running()) void messaging.setBusy(true).catch(() => {});
   });
@@ -901,7 +906,13 @@ export default function freeflow(pi) {
     if (refusal) return { block: true, reason: refusal };
     return (await files.toolCall(event, ctx)) ?? gate;
   });
-  pi.on("tool_result", async (event, ctx) => (toolExecutionEffective() ? files.toolResult(event, ctx) : undefined));
+  pi.on("tool_result", async (event, ctx) => {
+    if (!toolExecutionEffective()) return undefined;
+    const shaped = await files.toolResult(event, ctx);
+    // The push retriever's notice joins the result before it is delivered, after anything Tool Execution added.
+    const lines = guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd) : [];
+    return lines.length ? { content: withLines(shaped?.content ?? event.content ?? [], lines) } : shaped;
+  });
   pi.on("turn_end", async (event, ctx) => {
     await routing.turnEnd(event, ctx);
     files.clearPending();
