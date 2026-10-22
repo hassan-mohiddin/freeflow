@@ -11,6 +11,7 @@ import {
   RUNTIME_PROMPTS,
   SWITCHABLE_SKILLS,
   resolveReviewSettings,
+  sectionEnabled,
   selectedRuntimePrompts,
   skillsOff,
   validateLocalConfig,
@@ -40,7 +41,9 @@ export const SESSION_OVERRIDE_KEYS = [
   "messaging.inbound",
   "review.mode",
   "review.model",
+  "prompts.enabled",
   ...RUNTIME_PROMPTS.map((prompt) => `prompts.${prompt}`),
+  "skills.enabled",
   ...SWITCHABLE_SKILLS.map((skill) => `skills.${skill}`),
 ];
 /** The overrides that hold a value rather than on or off, and the values each accepts (a model is any one-line name). */
@@ -246,7 +249,11 @@ export async function readCapabilityState(cwd, host = undefined) {
   // Not capabilities: the user's choices for Review Work, the runtime prompts and the skills, on every host.
   const review = resolveReviewSettings(repositoryConfig, sessionLocalConfig);
   const prompts = selectedRuntimePrompts(repositoryConfig, sessionLocalConfig);
-  const skills = { off: skillsOff(repositoryConfig, sessionLocalConfig) };
+  const skills = {
+    enabled: sectionEnabled(repositoryConfig, sessionLocalConfig, "skills"),
+    off: skillsOff(repositoryConfig, sessionLocalConfig),
+  };
+  const promptsEnabled = sectionEnabled(repositoryConfig, sessionLocalConfig, "prompts");
   const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -271,6 +278,7 @@ export async function readCapabilityState(cwd, host = undefined) {
     messaging,
     review,
     prompts,
+    promptsEnabled,
     skills,
     // ask_user: core, on whenever Freeflow is enabled (Task 002 D-001); off in subagents, which have no user.
     askUser: { enabled, effective: enabled },

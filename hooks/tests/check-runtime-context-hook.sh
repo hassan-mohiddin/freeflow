@@ -153,11 +153,12 @@ assert_contains "$cognitive_output" "# Freeflow Stable Guidance" "Pi-only capabi
 assert_not_contains "$cognitive_output" "Cognitive Routing" "non-Pi capability isolation"
 rm -rf "$cognitive_dir"
 
-# Old mode and core-toggle configuration is a breaking invalidation, not a compatibility path.
+# Old mode and core-toggle configuration is a breaking invalidation, not a compatibility path. `skills.enabled` is
+# valid again, as the master switch over the skills.
 for obsolete_config in \
   '{"defaultMode":"workflow"}' \
   '{"interactionContract":false}' \
-  '{"skills":{"enabled":false}}'; do
+  '{"skills":{"enabled":"no"}}'; do
   obsolete_dir="$(mktemp -d)"
   mkdir -p "$obsolete_dir/.freeflow"
   printf '%s\n' "$obsolete_config" >"$obsolete_dir/.freeflow/config.json"

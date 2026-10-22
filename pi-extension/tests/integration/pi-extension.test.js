@@ -678,7 +678,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
   // Every setting has a row in all three scopes: Session, Personal and Repository.
   const FILE_ONLY = {};
   const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
-  const { CONFIG_SECTIONS, REVIEW_KEYS, RUNTIME_PROMPTS, SWITCHABLE_SKILLS } =
+  const { CONFIG_SECTIONS, REVIEW_KEYS, PROMPTS_KEYS, SKILLS_KEYS } =
     await import("../../dist/host/config-validation.js");
   const { COGNITIVE_ROUTING_KEYS } = await import("../../dist/cognitive-routing/config.js");
   const { TOOL_EXECUTION_KEYS } = await import("../../dist/tool-execution/config.js");
@@ -691,9 +691,9 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     compaction: COMPACTION_KEYS,
     taskMemory: TASK_MEMORY_KEYS,
     messaging: MESSAGING_KEYS,
-    prompts: RUNTIME_PROMPTS,
+    prompts: PROMPTS_KEYS,
     review: REVIEW_KEYS,
-    skills: SWITCHABLE_SKILLS,
+    skills: SKILLS_KEYS,
   };
   const nested = {
     "taskMemory.autoApprove": Object.keys(AUTO_APPROVE_GROUPS),
@@ -962,10 +962,8 @@ test("both mode session settings expose Helper and both existing profile presets
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         result = value;
       });
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
+      // The list scrolls; the presets are near its end.
+      choose(component, "Helper preset", "Cognitive Routing");
       const presets = component.render(180).join("\n");
       assert.match(presets, /Coordinator preset/);
       assert.match(presets, /Helper preset/);
@@ -1365,21 +1363,26 @@ test("Pi applies a session value over the files for a choice, a model name and a
     const after = await readCapabilityState(cwd, ctx);
     assert.deepEqual(after.review, { mode: "off" });
     assert.deepEqual(after.skills.off, []);
+    // The master switch turns every skill but Setup Freeflow off.
+    await setSessionCoreOverride("skills.enabled", false, ctx, pi);
+    const off = await readCapabilityState(cwd, ctx);
+    assert.equal(off.skills.enabled, false);
+    assert.ok(off.skills.off.includes("discuss-work") && !off.skills.off.includes("setup-freeflow"));
+    await resetSessionOverrides(ctx, pi);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
 });
 
 test("Pi rejects obsolete modes and removed core toggles in configuration", async () => {
-  // The removed toggles: one switch for every skill and a top-level Interaction Contract switch. Today each skill and
-  // each runtime prompt has its own switch (`skills.<name>`, `prompts.interactionContract`).
-  for (const config of [{ defaultMode: "workflow" }, { interactionContract: false }, { skills: { enabled: false } }]) {
+  // The removed top-level Interaction Contract switch; today `prompts.interactionContract` and `prompts.enabled`.
+  for (const config of [{ defaultMode: "workflow" }, { interactionContract: false }]) {
     const cwd = await configuredRepo(config);
     try {
       const layers = await readFreeflowConfigLayers(cwd);
       assert.equal(layers.configured, false);
       assert.equal(layers.repository.valid, false);
-      assert.match(layers.parseError, /unsupported top-level config key|skills has unsupported key: enabled/);
+      assert.match(layers.parseError, /unsupported top-level config key/);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -1445,7 +1448,7 @@ test("Pi resolves only the remaining layered core values", async () => {
     assert.deepEqual(layers.sources, { enabled: "local" });
     const state = await readCapabilityState(cwd);
     assert.equal(state.enabled, false);
-    assert.deepEqual(state.skills, { off: [] });
+    assert.deepEqual(state.skills, { enabled: true, off: [] });
     assert.equal("interactionContract" in state, false);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -1861,6 +1864,7 @@ test("Pi settings set Review Work's review mode and reviewer model in the files"
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         result = value;
       });
+      choose(component, "Review");
       const text = renderText(component, 200);
       assert.match(text, /Review\s+auto \(inherited\)\n/);
       // The mode is the section's row: auto, off, always.
@@ -1919,8 +1923,9 @@ test("Pi session settings expose both routing preset wizards without changing co
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         result = value;
       });
-      // The session's presets are rows of the Cognitive Routing section, not a separate page.
-      const presetRendered = component.render(180).join("\\n");
+      // The session's presets are rows of the Cognitive Routing section, not a separate page; the list scrolls to them.
+      choose(component, "Helper preset", "Cognitive Routing");
+      const presetRendered = component.render(180).join("\n");
       assert.match(presetRendered, /Coordinator preset/);
       assert.match(presetRendered, /Helper preset/);
       assert.match(presetRendered, /Executor preset/);

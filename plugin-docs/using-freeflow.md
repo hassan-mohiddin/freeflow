@@ -410,9 +410,9 @@ On every host Freeflow delivers three runtime prompts: the core guidance, the In
 }
 ```
 
-The personal file overrides the shared one prompt by prompt. With all three off, Freeflow delivers none of them; its skills stay available. On Pi, `/freeflow settings` has the same switches under Runtime prompts, in the Session, Personal and Repository scopes.
+The personal file overrides the shared one prompt by prompt. With all three off, Freeflow delivers none of them; its skills stay available. On Pi, `/freeflow settings` has the same switches: Runtime prompts and Skills are each a switch for the whole set, with one row under each opening a switch per item, in the Session, Personal and Repository scopes.
 
-`skills` turns a skill off the same way, such as `{ "skills": { "write-skill": false } }`; Setup Freeflow always stays. On Pi an off skill is not loaded. Other hosts load plugin skills themselves, so there the agent is told not to use it. See [Settings](settings.md#all-settings).
+`skills` turns a skill off the same way, such as `{ "skills": { "write-skill": false } }`, and `"enabled": false` in either object turns all of them off; Setup Freeflow always stays. On Pi an off skill is not loaded. Other hosts load plugin skills themselves, so there the agent is told not to use it. See [Settings](settings.md#all-settings).
 
 ### Effective precedence
 

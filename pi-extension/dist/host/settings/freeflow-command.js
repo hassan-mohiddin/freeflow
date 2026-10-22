@@ -15,8 +15,7 @@ import {
   RUNTIME_PROMPTS,
   SWITCHABLE_SKILLS,
   resolveReviewSettings,
-  selectedRuntimePrompts,
-  skillsOff,
+  sectionEnabled,
 } from "../config-validation.js";
 import { freeflowStatusText } from "../status.js";
 import { PiSettingsComponent } from "./settings-view.js";
@@ -677,13 +676,29 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
     sessionValue: typeof sessionOverrides["review.model"] === "string" ? sessionOverrides["review.model"] : undefined,
   });
   reviewModelItem.inactive = freeflowInactive;
+  const promptsMaster = sessionSwitch(
+    "freeflow.prompts.enabled",
+    "Enabled",
+    "Add Freeflow's runtime prompts in this session. Off leaves all three out; Freeflow stays on.",
+    "prompts.enabled",
+    state.promptsEnabled ?? true,
+    true,
+  );
+  const skillsMaster = sessionSwitch(
+    "freeflow.skills.enabled",
+    "Enabled",
+    "Give the agent Freeflow's skills in this session. Off turns every skill but Setup Freeflow off.",
+    "skills.enabled",
+    state.skills?.enabled ?? true,
+    true,
+  );
   const promptItems = RUNTIME_PROMPTS.map((prompt) =>
     sessionSwitch(
       `freeflow.prompts.${prompt}`,
       PROMPT_LABELS[prompt][0],
       `${PROMPT_LABELS[prompt][1]} In this session.`,
       `prompts.${prompt}`,
-      state.prompts?.[prompt] ?? true,
+      configuredSetting(rawConfig, localConfig, ["prompts", prompt], true).value,
       true,
     ),
   );
@@ -693,7 +708,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       skillLabel(skill),
       `Give the agent ${skill} in this session.`,
       `skills.${skill}`,
-      !(state.skills?.off ?? []).includes(skill),
+      configuredSetting(rawConfig, localConfig, ["skills", skill], true).value,
       true,
     ),
   );
@@ -715,18 +730,14 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
   );
   const items = [
     freeflowItem,
-    nestedGroup(
-      "freeflow.prompts",
-      "Runtime prompts",
-      "The prompts Freeflow adds, in this session. Enter opens one switch per prompt; Esc returns.",
-      promptItems,
-    ),
-    nestedGroup(
-      "freeflow.skills",
-      "Skills",
-      "The skills Freeflow gives the agent in this session; Setup Freeflow always stays. Enter opens the list; Esc returns.",
-      skillItems,
-    ),
+    sectionItem("freeflow.prompts", "Runtime prompts", "Runtime prompts for this session.", "", [
+      promptsMaster,
+      nestedGroup("freeflow.prompts.each", "Each prompt", "One switch per prompt, in this session.", promptItems),
+    ]),
+    sectionItem("freeflow.skills", "Skills", "Skills for this session; Setup Freeflow always stays.", "", [
+      skillsMaster,
+      nestedGroup("freeflow.skills.each", "Each skill", "One switch per skill, in this session.", skillItems),
+    ]),
     ...(routing
       ? [
           sectionItem(
@@ -1412,11 +1423,24 @@ function freeflowItems(rawConfig, options = {}) {
     children: [messagingEnabledItem, messagingInboundItem],
   };
   // The runtime prompts and skills, on every host (config-validation.ts).
-  const promptSelection = selectedRuntimePrompts(rawConfig, localConfig);
-  const promptsGroup = nestedGroup(
-    "freeflow.prompts",
-    "Runtime prompts",
-    "The prompts Freeflow adds to every session. Enter opens one switch per prompt; Esc returns.",
+  // Each a section whose row is its master switch, with one row opening a switch per item.
+  const masterItem = (section, label, description) =>
+    createScopedBooleanItem({
+      scope,
+      rawConfig,
+      localConfig,
+      id: `freeflow.${section}.enabled`,
+      label,
+      description,
+      path: [section, "enabled"],
+      effectiveValue: sectionEnabled(rawConfig, localConfig, section),
+      effectiveSource: toolSource([section, "enabled"]),
+      defaultValue: true,
+    });
+  const eachPrompt = nestedGroup(
+    "freeflow.prompts.each",
+    "Each prompt",
+    "One switch per prompt. Enter opens them; Esc returns.",
     RUNTIME_PROMPTS.map((prompt) =>
       createScopedBooleanItem({
         scope,
@@ -1426,17 +1450,28 @@ function freeflowItems(rawConfig, options = {}) {
         label: PROMPT_LABELS[prompt][0],
         description: PROMPT_LABELS[prompt][1],
         path: ["prompts", prompt],
-        effectiveValue: promptSelection[prompt],
+        effectiveValue: configuredSetting(rawConfig, localConfig, ["prompts", prompt], true).value,
         effectiveSource: toolSource(["prompts", prompt]),
         defaultValue: true,
       }),
     ),
   );
-  const off = skillsOff(rawConfig, localConfig);
-  const skillsGroup = nestedGroup(
-    "freeflow.skills",
-    "Skills",
-    "The skills Freeflow gives the agent; Setup Freeflow always stays. Enter opens one switch per skill; Esc returns.",
+  const promptsGroup = {
+    id: "freeflow.prompts",
+    label: "Runtime prompts",
+    description: "The prompts Freeflow adds to every session: Core, the Interaction Contract and the Working Method.",
+    kind: "group",
+    value: true,
+    displaySuffix: "",
+    children: [
+      masterItem("prompts", "Enabled", "Add Freeflow's runtime prompts. Off leaves all three out; Freeflow stays on."),
+      eachPrompt,
+    ],
+  };
+  const eachSkill = nestedGroup(
+    "freeflow.skills.each",
+    "Each skill",
+    "One switch per skill. Enter opens them; Esc returns.",
     SWITCHABLE_SKILLS.map((skill) =>
       createScopedBooleanItem({
         scope,
@@ -1446,12 +1481,28 @@ function freeflowItems(rawConfig, options = {}) {
         label: skillLabel(skill),
         description: `Give the agent ${skill}. Off, Pi does not load it and its command refuses; other hosts load it themselves, so there the agent is told not to use it.`,
         path: ["skills", skill],
-        effectiveValue: !off.includes(skill),
+        effectiveValue: configuredSetting(rawConfig, localConfig, ["skills", skill], true).value,
         effectiveSource: toolSource(["skills", skill]),
         defaultValue: true,
       }),
     ),
   );
+  const skillsGroup = {
+    id: "freeflow.skills",
+    label: "Skills",
+    description: "The skills Freeflow gives the agent; Setup Freeflow always stays.",
+    kind: "group",
+    value: true,
+    displaySuffix: "",
+    children: [
+      masterItem(
+        "skills",
+        "Enabled",
+        "Give the agent Freeflow's skills. Off turns every skill but Setup Freeflow off.",
+      ),
+      eachSkill,
+    ],
+  };
   walkSettingsItems([promptsGroup, skillsGroup], (item) => {
     item.inactive = freeflowInactive;
   });
@@ -1520,7 +1571,9 @@ function pruneKnownDefaults(config) {
     })),
     { path: ["messaging", "enabled"], value: DEFAULT_MESSAGING_ENABLED },
     { path: ["messaging", "inbound"], value: DEFAULT_INBOUND_POLICY },
+    { path: ["prompts", "enabled"], value: true },
     ...RUNTIME_PROMPTS.map((prompt) => ({ path: ["prompts", prompt], value: true })),
+    { path: ["skills", "enabled"], value: true },
     ...SWITCHABLE_SKILLS.map((skill) => ({ path: ["skills", skill], value: true })),
   ];
   for (const item of defaultPaths) {

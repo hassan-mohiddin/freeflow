@@ -171,6 +171,10 @@ test("a hook host's Runtime State names the skills the user turned off, and drop
   const noPrompt = createWorkspace('{"prompts":{"workingMethod":false}}\n');
   const codex = contextOf(runAdapter(adapters.codex[0], noPrompt, inputFor("codex", noPrompt)));
   assert.doesNotMatch(codex, /# Freeflow Working Method/);
+  // The master switches: no prompt at all, and every skill but Setup Freeflow off.
+  const none = createWorkspace('{"prompts":{"enabled":false},"skills":{"enabled":false}}\n');
+  // With no prompt selected the hook renders nothing, as before.
+  assert.equal(contextOf(runAdapter(adapters.codex[0], none, inputFor("codex", none))), undefined);
   const all = createWorkspace("{}\n");
   assert.match(contextOf(runAdapter(adapters.codex[0], all, inputFor("codex", all))), /# Freeflow Working Method/);
 });

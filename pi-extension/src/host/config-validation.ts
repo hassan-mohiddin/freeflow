@@ -20,22 +20,34 @@ export type ConfigObject = Record<string, any>;
 /** The runtime prompts Freeflow delivers on every host, each on unless a config turns it off. */
 export const RUNTIME_PROMPTS = ["core", "interactionContract", "workingMethod"] as const;
 export type RuntimePromptSelection = Record<(typeof RUNTIME_PROMPTS)[number], boolean>;
+/** The keys `prompts` accepts: a master switch for all three, and one switch per prompt. */
+export const PROMPTS_KEYS = ["enabled", ...RUNTIME_PROMPTS] as const;
+
+/** A section's master switch (`prompts.enabled`, `skills.enabled`) for two valid layers; on unless a config turns it off. */
+export function sectionEnabled(repository: unknown, local: unknown, section: "prompts" | "skills"): boolean {
+  const layer = (config: any) => (isRecord(config?.[section]) ? config[section] : {});
+  return (layer(local).enabled ?? layer(repository).enabled ?? true) === true;
+}
 
 function validatePromptsConfig(value: unknown) {
   if (!isRecord(value)) return "prompts must be an object";
-  const unknown = Object.keys(value).find((key) => !(RUNTIME_PROMPTS as readonly string[]).includes(key));
+  const unknown = Object.keys(value).find((key) => !(PROMPTS_KEYS as readonly string[]).includes(key));
   if (unknown) return `prompts has unsupported key: ${unknown}`;
-  for (const key of RUNTIME_PROMPTS)
+  for (const key of PROMPTS_KEYS)
     if (value[key] !== undefined && typeof value[key] !== "boolean") return `prompts.${key} must be a boolean`;
   return null;
 }
 
-/** The prompts Freeflow delivers for two valid config layers: the personal layer overrides the repository's. */
+/**
+ * The prompts Freeflow delivers for two valid config layers: the personal layer overrides the repository's, and the
+ * master switch off turns all three off.
+ */
 export function selectedRuntimePrompts(repository: unknown, local: unknown): RuntimePromptSelection {
   const layer = (config: any) => (isRecord(config?.prompts) ? config.prompts : {});
   const [shared, personal] = [layer(repository), layer(local)];
+  const master = sectionEnabled(repository, local, "prompts");
   const selection = {} as RuntimePromptSelection;
-  for (const key of RUNTIME_PROMPTS) selection[key] = (personal[key] ?? shared[key] ?? true) === true;
+  for (const key of RUNTIME_PROMPTS) selection[key] = master && (personal[key] ?? shared[key] ?? true) === true;
   return selection;
 }
 
@@ -45,19 +57,25 @@ export function selectedRuntimePrompts(repository: unknown, local: unknown): Run
  * so there the Runtime State only tells the agent not to use it.
  */
 export const SWITCHABLE_SKILLS = FREEFLOW_MODEL_SKILL_NAMES.filter((name) => name !== "setup-freeflow").sort();
+/** The keys `skills` accepts: a master switch for every switchable skill, and one switch per skill. */
+export const SKILLS_KEYS = ["enabled", ...SWITCHABLE_SKILLS];
 
 function validateSkillsConfig(value: unknown) {
   if (!isRecord(value)) return "skills must be an object";
-  const unknown = Object.keys(value).find((key) => !(SWITCHABLE_SKILLS as readonly string[]).includes(key));
-  if (unknown) return `skills has unsupported key: ${unknown}; use ${SWITCHABLE_SKILLS.join(", ")}`;
+  const unknown = Object.keys(value).find((key) => !SKILLS_KEYS.includes(key));
+  if (unknown) return `skills has unsupported key: ${unknown}; use ${SKILLS_KEYS.join(", ")}`;
   for (const [key, on] of Object.entries(value)) if (typeof on !== "boolean") return `skills.${key} must be a boolean`;
   return null;
 }
 
-/** The skills turned off for two valid config layers: the personal layer overrides the repository's, skill by skill. */
+/**
+ * The skills turned off for two valid config layers: the personal layer overrides the repository's, skill by skill,
+ * and the master switch off turns every switchable skill off.
+ */
 export function skillsOff(repository: unknown, local: unknown): string[] {
   const layer = (config: any) => (isRecord(config?.skills) ? config.skills : {});
   const [shared, personal] = [layer(repository), layer(local)];
+  if (!sectionEnabled(repository, local, "skills")) return [...SWITCHABLE_SKILLS];
   return SWITCHABLE_SKILLS.filter((name) => (personal[name] ?? shared[name] ?? true) === false);
 }
 

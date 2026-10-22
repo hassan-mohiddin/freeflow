@@ -77,7 +77,7 @@
 
 - Write Docs' docs check takes `--driven`: a covered change counts even when it was committed with the document, for feature files whose verified commit is the last live drive, so editing a feature file's text does not count as driving it.
 
-- `/freeflow settings` has a Runtime prompts row and a Skills row, each opening its own switches: Core, the Interaction Contract and the Working Method, and every skill but Setup Freeflow (`prompts.<name>`, `skills.<name>`). On Pi an off prompt is left out and an off skill is not loaded, and its command says it is off; Codex, Claude Code and the other hosts already read `prompts` and now also tell the agent which skills are off, since they load plugin skills themselves. This brings back, one skill and one prompt at a time, the switches 0.7.0 removed.
+- `/freeflow settings` has Runtime prompts and Skills sections. Each row is a master switch (`prompts.enabled` for all three prompts, `skills.enabled` for every skill but Setup Freeflow), with Each prompt and Each skill under it opening a switch per item (`prompts.<name>`, `skills.<name>`). On Pi an off prompt is left out and an off skill is not loaded, and its command says it is off; Codex, Claude Code and the other hosts already read `prompts` and now also tell the agent which skills are off, since they load plugin skills themselves. This brings back the switches 0.7.0 removed, with `skills.enabled` valid again.
 - Every setting has a row in all three scopes of `/freeflow settings`: Session now also has Review, Reviewer model, Ask before delivering, Auto-approve, Runtime prompts and Skills, and a test fails when a setting is missing from any scope.
 
 ### Changed

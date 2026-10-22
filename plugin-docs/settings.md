@@ -36,8 +36,10 @@ Freeflow settings    Session  [Personal]  Repository
   .freeflow/local.json: only you, in this checkout. Overrides the repository.
 
   › Freeflow                 on (inherited)
-    Runtime prompts          all
-    Skills                   all
+    Runtime prompts          on (inherited)
+      Each prompt            all
+    Skills                   on (inherited)
+      Each skill             all
     Compaction               on (inherited)
       Context reuse          on (inherited)
     Tool Execution           on (inherited)
@@ -68,7 +70,7 @@ How to read it:
 - **The value comes first**, `on` in green and `off` in red. `(inherited)` means the tab you are looking at does not set it: the value comes from the tab below it, or is Freeflow's default. The line under the list says which ("Inherited from the repository's .freeflow/config.json."). No bracket means the value is set in this tab. In the Repository tab, `(personal: on)` means your personal file overrides it.
 - **Grey means it has no effect right now**, because a switch above it is off; the line under the list says which one ("Takes effect when Messaging is on."). You can still change it, so you can set up, say, routing presets before you turn routing on. Grey settings that the host cannot apply at all (Cognitive Routing on a Pi without model control) do not change.
 - **The bracket on a section's row** can also say `not active` (the switch is on but the capability is not running, for example while Freeflow is off) or `unavailable` (this host cannot run it).
-- **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level, Reviewer model opens a picker of your authenticated models, and Runtime prompts, Skills and Auto-approve open their switches on a screen of their own (`Esc` returns). The list scrolls when it is taller than the screen; `(5/21)` under it says where you are. In the Session and Personal tabs the values include `inherit`, which removes the setting from that tab so it follows the scope below.
+- **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level, Reviewer model opens a picker of your authenticated models, and Each prompt, Each skill and Auto-approve open their switches on a screen of their own (`Esc` returns). The list scrolls when it is taller than the screen; `(5/21)` under it says where you are. In the Session and Personal tabs the values include `inherit`, which removes the setting from that tab so it follows the scope below.
 - **When it is saved**: each change is written at once, one at a time ("Saving…" while it writes). Closing the screen after changing a file setting, or a Session switch (Freeflow or a capability), reloads the session so the change applies; other Session changes (routing presets, Delegation, Control) apply from the next prompt.
 
 ## The footer
@@ -97,21 +99,23 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Screen row | Key | Values | Default | Scopes |
 | --- | --- | --- | --- | --- |
 | Freeflow | `enabled` | `true`, `false` | `true` | Session, Personal, Repository |
-| Runtime prompts | — | opens the three switches below on their own screen, and names the ones that are on | all | Session, Personal, Repository |
-| Runtime prompts › Core | `prompts.core` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
-| Runtime prompts › Interaction Contract | `prompts.interactionContract` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
-| Runtime prompts › Working Method | `prompts.workingMethod` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
-| Skills | — | opens one switch per skill on its own screen, and names the ones that are off | all | Session, Personal, Repository |
-| Skills › Deliver Work | `skills.deliver-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
-| Skills › Discuss Work | `skills.discuss-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
-| Skills › Evaluate Behavior | `skills.evaluate-behavior` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
-| Skills › Execute Work | `skills.execute-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
-| Skills › Map Features | `skills.map-features` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
-| Skills › Review Work | `skills.review-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
-| Skills › Track Work | `skills.track-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
-| Skills › Verify Work | `skills.verify-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
-| Skills › Write Docs | `skills.write-docs` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
-| Skills › Write Skill | `skills.write-skill` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Runtime prompts | `prompts.enabled` | `true`, `false`: off leaves all three prompts out | `true` | Session, Personal, Repository (every host) |
+| Each prompt | — | opens the three switches below on their own screen, and names the ones that are on | all | Session, Personal, Repository |
+| Each prompt › Core | `prompts.core` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Each prompt › Interaction Contract | `prompts.interactionContract` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Each prompt › Working Method | `prompts.workingMethod` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Skills | `skills.enabled` | `true`, `false`: off turns every skill but Setup Freeflow off | `true` | Session, Personal, Repository (every host) |
+| Each skill | — | opens one switch per skill on its own screen, and names the ones that are off | all | Session, Personal, Repository |
+| Each skill › Deliver Work | `skills.deliver-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Each skill › Discuss Work | `skills.discuss-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Each skill › Evaluate Behavior | `skills.evaluate-behavior` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Each skill › Execute Work | `skills.execute-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Each skill › Map Features | `skills.map-features` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Each skill › Review Work | `skills.review-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Each skill › Track Work | `skills.track-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Each skill › Verify Work | `skills.verify-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Each skill › Write Docs | `skills.write-docs` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Each skill › Write Skill | `skills.write-skill` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
 | Compaction | `compaction.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
 | Context reuse | `compaction.carry` | `true`, `false` | `true` | Session, Personal, Repository |
 | Tool Execution | `toolExecution.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
@@ -143,8 +147,8 @@ What some of them mean:
 - **Delegation** chooses which workers automatic routing may use; each needs its preset. A preset's `thinking` is one of the model's thinking levels. See [Cognitive Routing](capabilities/cognitive-routing.md).
 - **Control** holds one profile for the session until you release it; it changes only while routing runs. `/freeflow profile` does the same.
 - **Guidance notices** turns off the few lines of skill guidance Tool Execution adds to a tool result that needs them, such as the commit essentials on a `git commit`. See [Tool Execution](capabilities/tool-execution.md#guidance-notices).
-- **Runtime prompts** turns each of Freeflow's always-present prompts on or off, on every host: Core (how Freeflow works: the cycle, what authorizes work, where it stops), the Interaction Contract (how the agent talks with you) and the Working Method (how it works). With one off, the agent works without that guidance; the rest of Freeflow stays on. The Cognitive Routing and Tool Execution prompts follow their capability's switch.
-- **Skills** turns each skill off or on; Setup Freeflow always stays, so you can repair a configuration. On Pi an off skill is not loaded and its command says it is off. Codex, Claude Code and the other hosts load plugin skills themselves, so there the agent is told, in its Runtime State, not to use an off skill (``Skills off: `write-skill`; do not open or follow them.``); use the host's own setting to remove it completely. The capability skills (Compaction, Task Memory, Cognitive Routing, Messaging) follow their capability's switch.
+- **Runtime prompts** is the switch for all of Freeflow's always-present prompts, and **Each prompt** turns them on or off one by one, on every host: Core (how Freeflow works: the cycle, what authorizes work, where it stops), the Interaction Contract (how the agent talks with you) and the Working Method (how it works). With one off, the agent works without that guidance; the rest of Freeflow stays on. The Cognitive Routing and Tool Execution prompts follow their capability's switch.
+- **Skills** is the switch for all of Freeflow's skills but Setup Freeflow, which always stays so you can repair a configuration; **Each skill** turns them off or on one by one. On Pi an off skill is not loaded and its command says it is off. Codex, Claude Code and the other hosts load plugin skills themselves, so there the agent is told, in its Runtime State, not to use an off skill (``Skills off: `write-skill`; do not open or follow them.``); use the host's own setting to remove it completely. The capability skills (Compaction, Task Memory, Cognitive Routing, Messaging) follow their capability's switch.
 - **Review** (`review.mode`) and **Reviewer model** (`review.model`) set when the agent has finished work independently reviewed, by a separate reviewer; the agent's own self-review always runs. `auto` lets Review Work's risk check decide; `off` never starts one on its own, and when the change looks risky the agent proposes a review with its reason and cost and runs it only on your yes; `always` reviews every finished task. `auto` in your personal file returns a shared `off` or `always` to the default. Reviewer model names the model a reviewer runs on, where the host lets the agent choose one; Freeflow passes the name on as written and does not check it. The screen offers this Pi's authenticated models; on another host, write the name that host uses into the file. A Session value applies on Pi only, to this session. A setting other than the default shows in the agent's Runtime State, such as ``Review: `always`, reviewer model `claude-opus-4-5` ``.
 
 A configuration file with a key Freeflow does not know is refused with an error naming the file. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting` and `scriptTransform` (with `processing` in the personal file). `contextVirtualization` and `conversationHistory` belong to removed context features: a file that still has either is invalid and keeps Freeflow off until you delete them.
