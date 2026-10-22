@@ -20,7 +20,7 @@ This reference holds the guidance and the definition fields for groups with more
 
 ## Participants
 
-A group may run more than one participant in each arm. `participants` declares a `protocol`; every participant uses the arm's configuration. Declare it on the group, shared by every arm, or in the configuration: shared in `configuration`, or per arm in an overlay, where arms may differ in it like any other path (`"component": ["participants"]`), for example one review against an adjudicated pair. An arm whose `participants` is absent, or `null` to clear a shared one, runs one ordinary subject. Not both on the group and in the configuration. Expectations, comparisons and review questions apply to each arm's graded run: its pipeline's graded stage, its conversation, or its single subject.
+A group may run more than one participant in each arm. `participants` declares a `protocol`; every participant uses the arm's configuration. Declare it on the group, shared by every arm, or in the configuration: shared in `configuration`, or per arm in an overlay, where arms may differ in it like any other path (`"component": ["participants"]`), for example one review against an adjudicated pair. An arm whose `participants` is absent, or `null` to clear a shared one, runs one ordinary subject. Expectations, comparisons and review questions apply to each arm's graded run: its pipeline's graded stage, its conversation, or its single subject.
 
 A **conversation** pairs the subject with a simulated user:
 
@@ -40,9 +40,11 @@ A **conversation** pairs the subject with a simulated user:
 ```
 
 - It needs a body group whose `input` is a `prompt`: the opening message.
-- `card` is a text file inside the definition root and outside the fixture: everything the simulated user knows. It is read in when the definition loads and is a run input that must be committed.
-- `max_turns` (1 to 50, default 10) caps the subject's turns, the opening included. `stop` is the phrase with which the user ends the conversation.
+- `card` is a text file, kept out of the fixture: everything the simulated user knows, read in when the definition loads.
+- `max_turns` (default 10) caps the subject's turns, the opening included. `stop` is the phrase with which the user ends the conversation.
 - `model` and optional `thinking` name the user's model.
+
+The loader checks these fields, and the pipeline's below, and names the one it refuses.
 
 A **pipeline** runs ordered stages, each a separate subject:
 
@@ -60,9 +62,9 @@ A **pipeline** runs ordered stages, each a separate subject:
 }
 ```
 
-- Stage `id`s follow the group ID pattern and are unique. `input` is a prompt or an array of turns, and defaults to the group's `input`.
+- A stage's `input` is a prompt or an array of turns, and defaults to the group's `input`.
 - `sees` lists exactly what the stage gets: `fixture` (a fresh copy, only when the group declares one), `<stage>.response` (that earlier stage's final response), `<stage>.files` (the files it created or modified, delivered as text to read; body groups only, and UTF-8 text only) or `<stage>.workspace` (the stage starts in a copy of that earlier stage's final workspace, every file and binary file kept, so it can run what the earlier stage wrote; body groups only). Anything not listed never reaches the stage. It defaults to nothing.
-- A stage starts from at most one workspace: `fixture` or one `<stage>.workspace`, never both. Without either it starts empty.
+- A stage starts from `fixture` or one `<stage>.workspace`; without either it starts empty.
 - `fresh: true` declares the stage independent: it may see the fixture but no earlier stage.
 - `graded` names the stage the group's expectations, comparisons and review questions apply to; it defaults to the last stage.
 
@@ -107,14 +109,14 @@ A rubric asks what deterministic checks cannot. Each run is judged alone, blind 
 }
 ```
 
-- `rubric` is a non-empty array of dimensions with unique `id`s (the group ID pattern) and a non-empty `question`. Dimensions are rendered only for judges and never sent to the subject.
-- `answers` is `["yes", "no", "unknown"]` (the default) or `"0-2"`. A judge may always answer `unknown`, and must cite the evidence for every answer.
-- `reference` is optional: inline text, or `{ "path": "<relative path>" }` to a file inside the definition root. It is shown to judges only. A path inside the fixture is refused, because the subject sees the fixture; keep the file out of the subject's declared `context` too, which the evaluator does not check. A file's text and hash are read in when the definition loads, so judging never depends on the working tree, and the file is a run input that must be committed like the definition.
-- Dimensions have no weights: each is counted and decided on its own, and a dimension that declares `weight` is refused.
-- `judges` is optional: one or more `{ model, thinking?, configuration? }`, each configuration once, because repeated calls to one configuration are one vote. Without `judges`, `review --rubric --model` names the single judge.
-- A judge runs on its group's host setup by default: the reference arm's `host.extensions` and `host.settings` (such as a subscription's auth extension), with its own model and thinking. `configuration` gives it its own setup instead, inline (`{ "host": { "name": "pi", "extensions": [...], "settings": {...} }, "model": {...} }`) or as `{ "extends": "<configuration file, relative to the group file>" }`; its extensions must be installed packages, a model it names is used when the judge entry names none, and an extended file is a run input. A group whose host extensions are built from source must give its judges their own configuration.
-- `combine` names how several judges' answers become one, before any verdict is seen; it is required with more than one judge. Taking yes as 1 and no as 0: `majority` gives the answer more than half the judges gave (otherwise `unknown`); `unanimous` gives the lowest answer, so yes only when every judge says yes; `any` gives the highest, so yes when any judge does; `mean` averages the known answers and needs every dimension to be `"0-2"`. An `unknown` answer makes the result `unknown` whenever it could change it.
-- `judges` and `combine` need a `rubric`.
+The loader checks the rubric, judges and combine fields and names the one it refuses. What it cannot teach:
+
+- Dimensions are rendered only for judges and never sent to the subject. `answers` defaults to yes, no or unknown; `"0-2"` scores instead. A judge may always answer `unknown`, and must cite the evidence for every answer.
+- `reference` is inline text or a file, shown to judges only and never kept in the fixture, because the subject sees the fixture; keep the file out of the subject's declared `context` too, which the evaluator does not check. A file's text and hash are read in when the definition loads, so judging never depends on the working tree.
+- Dimensions have no weights: each is counted and decided on its own.
+- Each judge configuration appears once, because repeated calls to one configuration are one vote. Without `judges`, `review --rubric --model` names the single judge.
+- A judge runs on its group's host setup by default: the reference arm's `host.extensions` and `host.settings` (such as a subscription's auth extension), with its own model and thinking. `configuration` gives it its own setup instead, inline or with `extends`; a model it names is used when the judge entry names none. A group whose host extensions are built from source must give its judges their own configuration (refused only at review time).
+- `combine` names how several judges' answers become one, before any verdict is seen. Taking yes as 1 and no as 0: `majority` gives the answer more than half the judges gave (otherwise `unknown`); `unanimous` gives the lowest answer, so yes only when every judge says yes; `any` gives the highest, so yes when any judge does; `mean` averages the known answers of `"0-2"` dimensions. An `unknown` answer makes the result `unknown` whenever it could change it.
 
 ### Judging With A Rubric
 
@@ -159,17 +161,17 @@ A runtime profile, under `configuration.runtime`, is shared by every arm, except
 }
 ```
 
-The host comes from `configuration.host.name` (`pi` or `claude-code`), and a runtime that declares `host` is refused; the evaluator maps it to the installed `pi` or `claude` command and records the selected host. Optional `prompt` is `isolated` (default) or `host`:
+The host comes from `configuration.host.name`; the evaluator maps it to the installed `pi` or `claude` command and records the selected host. Optional `prompt` is `isolated` (default) or `host`:
 
 - `isolated` replaces the host's system prompt with a minimal evaluator-owned prompt. Use it to isolate the target skill.
 - `host` keeps the host's own system prompt and whatever declared extensions compose onto it, appending declared context. Use it when evidence must reflect the production prompt, for example by declaring the Freeflow Pi extension bundle with a fixture containing `.freeflow/config.json`.
 
-Both modes enforce the same tool and path guards. A declared runtime states only what it changes: an omitted `session` is `false`, `extensions` is `[]`, `environment` is `{ "literal": {}, "inherit": [] }`, and `prompt` is `isolated`. `session` controls whether the variant receives an isolated persistent session directory; it defaults to `false` in omitted runtime profiles. A runtime may declare zero or more bundles. Each bundle has an entry file and one or more directory resources copied under their original relative paths, so sibling imports and multi-tree extensions remain intact. Bundle bytes are snapshotted once and copied identically to every arm.
+Both modes enforce the same tool and path guards. A declared runtime states only what it changes: an omitted `session` is `false`, `extensions` is `[]`, `environment` is `{ "literal": {}, "inherit": [] }`, and `prompt` is `isolated`. `session` controls whether the variant receives an isolated persistent session directory; it defaults to `false` in omitted runtime profiles. Each bundle's directory resources are copied under their original relative paths, so sibling imports and multi-tree extensions remain intact. Bundle bytes are snapshotted once and copied identically to every arm.
 
-`environment.literal` contains non-secret string configuration and is recorded in run evidence. Arms may differ in it when `component` names `runtime.environment.literal` or one key under it, such as `runtime.environment.literal.FEATURE_MODE`; each arm's subject then receives its own literals, recorded under `resources.runtime.environment`. Declare `environment` in the shared runtime so an arm's overlay changes only the literal. `environment.inherit` names parent-process variables whose values are passed to the child but never persisted; other parent variables are not passed. Missing inherited variables invalidate the variant. The evaluator supplies only a small host-runtime baseline such as `PATH` and `HOME`. Launch-control and loader keys are rejected from inherited values, literal and inherited names must not overlap, and secret-like literal keys are rejected.
+`environment.literal` contains non-secret string configuration and is recorded in run evidence. Arms may differ in it when `component` names `runtime.environment.literal` or one key under it, such as `runtime.environment.literal.FEATURE_MODE`; each arm's subject then receives its own literals, recorded under `resources.runtime.environment`. Declare `environment` in the shared runtime so an arm's overlay changes only the literal. `environment.inherit` names parent-process variables whose values are passed to the child but never persisted; other parent variables are not passed. Missing inherited variables invalidate the variant. The evaluator supplies only a small host-runtime baseline such as `PATH` and `HOME`. The loader refuses launch-control and loader keys, overlapping names and secret-like literal keys.
 
 Extensions are trusted executable inputs, not OS-sandboxed code. The evaluator proves declared identity and post-run immutability, but extension code retains its host permissions.
 
 When a group declares `context-text` expectations, a final non-mutating observer records two per-turn surfaces: the chained `before_agent_start` system prompt and each provider-neutral `context` message projection. `context-text` expectations select `surface: "system-prompt"` or `surface: "provider-context"` and may select `request: "first"`, `"last"`, or a positive request number. Groups without context assertions do not create context-observation artifacts.
 
-A custom tool name is allowed in `group.tools` only when the runtime declares an extension bundle. The evaluator remains extension-neutral: it does not interpret feature names or configuration schemas. Put feature configuration in the ordinary group fixture or runtime environment, and test combinations as separate suite groups.
+A custom tool in `group.tools` needs a runtime extension bundle. The evaluator remains extension-neutral: it does not interpret feature names or configuration schemas. Put feature configuration in the ordinary group fixture or runtime environment, and test combinations as separate suite groups.

@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/`, `skills/map-features/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `.skill-eval/freeflow-vs-plain/`, `scripts/validation/check-eval-definitions.mjs`
 > **Tests:** `.skill-eval/evaluate-behavior/tests/`, `.skill-eval/verify-work/tests/`
-> **Verified at:** `ae8cffdd` (2026-10-22)
+> **Verified at:** `07ecd68a` (2026-10-22)
 
 For contributors changing how Freeflow reviews work, evaluates agent behavior, or verifies claims: what each part does, how they depend on each other, why they are shaped this way, and which of their behaviors are deliberate. It also covers the evaluator's code, the evidence it stores, and the contributor gate that measures Freeflow's own changes.
 
@@ -258,7 +258,7 @@ It exits 0 whenever it lists, even nothing, and 2 on a usage or Git error.
 
 ### Definition keys
 
-The binding shape is `skills/evaluate-behavior/references/authoring.md`, with each mode's fields in its mode reference. In summary:
+The binding shape is `skills/evaluate-behavior/references/authoring.md`, with each mode's fields in its mode reference. Rules the loader enforces with an error that names the field are not restated there: the references point to `check-tasks` and keep only what its errors cannot teach (meanings, defaults, choices, and the few rules needed while designing a group). In summary:
 
 - **Suite:** `id`, `groups`, optional `decision` (`measure`, `arms`, `direction`, `method: "sign-test"`, `alpha`, `min_cases`, `trials`).
 - **Group:** `id`, `type` (`description` or `body`), `input` (`prompt` or `turns`, plus optional `resume_before` on Pi body groups with a persistent session: before each named turn the RPC session is closed and resumed from its own file through `switch_session`), `fixture`, `tools`, `configuration`, `arms`, `expectations`, `review_questions`; optional `component`, `commands`, `revision: "description-only"`, `reference`, `rubric`, `judges`, `combine`, `reference_solution`, `participants`.
