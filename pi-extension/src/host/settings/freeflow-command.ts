@@ -12,6 +12,7 @@ import {
   setSessionCoreOverride,
   type SessionCoreKey,
 } from "../config.js";
+import { REVIEW_MODES, resolveReviewSettings } from "../config-validation.js";
 import { freeflowStatusText } from "../status.js";
 import {
   PiSettingsComponent,
@@ -82,6 +83,8 @@ type SettingsItem = {
   runtimeInactive?: boolean;
   /** A group shown as one row that opens its settings on a screen of their own, as the routing presets do. */
   nested?: boolean;
+  /** The section's own row, as a capability's `.enabled` switch is, for a section without one (Review). */
+  heading?: boolean;
   /** Repository tab: the repository file does not set this, so its value is Freeflow's default. */
   repositoryUnset?: boolean;
   displaySuffix?: string;
@@ -550,6 +553,7 @@ const SECTION_ORDER = [
   "freeflow.taskMemory",
   "freeflow.messaging",
   "freeflow.cognitiveRouting",
+  "freeflow.review",
   "freeflow.session",
 ];
 
@@ -734,6 +738,14 @@ function sessionFreeflowItems(
     state.toolExecution?.enabled ?? DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
     DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
   );
+  const noticesItem = sessionSwitch(
+    "freeflow.toolExecution.guidanceNotices",
+    "Guidance notices",
+    "Add a skill's key lines to the result of the tool call that needs them, in this session.",
+    "toolExecution.guidanceNotices",
+    state.toolExecution?.guidanceNotices ?? DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices,
+    DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices,
+  );
   const compactionItem = sessionSwitch(
     "freeflow.compaction.enabled",
     "Enabled",
@@ -789,7 +801,7 @@ function sessionFreeflowItems(
       "Tool Execution",
       "Tool Execution for this session.",
       capabilityStatus(state.toolExecution),
-      [toolItem],
+      [toolItem, noticesItem],
     ),
     sectionItem(
       "freeflow.compaction",
@@ -961,6 +973,63 @@ function cognitiveRoutingConfirmStep(summary: string): SettingsWizardStep {
       { key: "__cancel__", value: "cancel", label: "Cancel", description: "Leave the previous preset unchanged." },
     ],
     selectedKey: "__save__",
+  };
+}
+
+/**
+ * The reviewer model: Freeflow passes the name on as written (Review Work), so the picker offers this host's
+ * authenticated models by `provider/id`, keeps a name set elsewhere, and clears the setting with None or inherit.
+ */
+function reviewerModelItem(options: {
+  scope: Exclude<ConfigScope, "session">;
+  rawConfig: Record<string, unknown>;
+  localConfig: Record<string, unknown>;
+  effectiveValue: string | undefined;
+  effectiveSource: ConfigSource;
+  ctx: any;
+}): SettingsItem {
+  const path = ["review", "model"];
+  const name = (value: unknown) => (typeof value === "string" ? value : undefined);
+  const repositoryModel = name(getPath(options.rawConfig, path));
+  const local = options.scope === "local";
+  const value = local ? name(getPath(options.localConfig, path)) : repositoryModel;
+  const clear = local
+    ? { label: "Inherit repository setting", description: "Remove your personal reviewer model.", summary: "inherit" }
+    : { label: "None", description: "Review Work chooses the reviewer's model.", summary: "none" };
+  const models = cognitiveRoutingModelOptions(options.ctx).map((model) => model.key);
+  const names = value && !models.includes(value) ? [value, ...models] : models;
+  return {
+    id: "freeflow.review.model",
+    label: "Reviewer model",
+    description: local
+      ? "The model a reviewer runs on, for you in this checkout."
+      : "The model a reviewer runs on, where the host lets the agent choose one. This edits shared .freeflow/config.json.",
+    path,
+    kind: "string",
+    value,
+    format: (current) => (typeof current === "string" ? current : "none"),
+    configScope: options.scope,
+    effectiveValue: options.effectiveValue,
+    effectiveSource: options.effectiveSource,
+    inheritedValue: local ? repositoryModel : undefined,
+    inheritedSource: local && repositoryModel ? "repository" : "builtin",
+    wizard: () => ({
+      firstStep: () => ({
+        title: "Choose reviewer model",
+        choices: [
+          { key: LOCAL_INHERIT, value: LOCAL_INHERIT, label: clear.label, description: clear.description },
+          ...names.map((key) => ({
+            key,
+            value: key,
+            label: key,
+            description: models.includes(key) ? "" : "Set in the file; not an authenticated model here.",
+          })),
+        ],
+        selectedKey: value ?? LOCAL_INHERIT,
+      }),
+      nextStep: () => undefined,
+      valueFromSelections: (selected) => (selected[0] === LOCAL_INHERIT ? undefined : selected[0]),
+    }),
   };
 }
 
@@ -1281,7 +1350,21 @@ function freeflowItems(
     defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
   });
 
-  const toolExecutionItems = [toolExecutionEnabledItem];
+  const guidanceNoticesItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.guidanceNotices",
+    label: "Guidance notices",
+    description:
+      "Add a skill's key lines to the result of the tool call that needs them, such as a commit or a failing test.",
+    path: ["toolExecution", "guidanceNotices"],
+    effectiveValue: toolExecutionState?.guidanceNotices ?? DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices,
+    effectiveSource: toolSource(["toolExecution", "guidanceNotices"]),
+    defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices,
+  });
+
+  const toolExecutionItems = [toolExecutionEnabledItem, guidanceNoticesItem];
   walkSettingsItems(toolExecutionItems, (item) => {
     item.inactive = freeflowInactive;
   });
@@ -1446,6 +1529,49 @@ function freeflowItems(
     children: [messagingEnabledItem, messagingInboundItem],
   };
 
+  // Review Work's choice on every host (config-validation.ts): read from the files, so no Session scope.
+  const review = resolveReviewSettings(rawConfig, localConfig);
+  const reviewModeItem = createScopedChoiceItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.review.mode",
+    label: "Independent review",
+    description: "When finished work is reviewed by a separate reviewer; the agent's own self-review always runs.",
+    path: ["review", "mode"],
+    values: REVIEW_MODES,
+    valueLabels: { auto: "auto", off: "off", always: "always" },
+    valueDescriptions: {
+      auto: "Review Work's risk check decides.",
+      off: "Never on its own; for a risky change the agent proposes a review, with its reason and cost, and waits for you.",
+      always: "Review every finished task.",
+    },
+    defaultValue: "auto",
+    effectiveValue: review.mode,
+    effectiveSource: toolSource(["review", "mode"]),
+  });
+  reviewModeItem.inactive = freeflowInactive;
+  reviewModeItem.heading = true;
+  const reviewModelItem = reviewerModelItem({
+    scope,
+    rawConfig,
+    localConfig,
+    effectiveValue: review.model,
+    effectiveSource: toolSource(["review", "model"]),
+    ctx: options.ctx,
+  });
+  reviewModelItem.inactive = freeflowInactive;
+  const reviewGroup: SettingsItem = {
+    id: "freeflow.review",
+    label: "Review",
+    description: "Configure Review Work's independent review, on every host that reads these files.",
+    kind: "group",
+    value: true,
+    inactive: freeflowInactive,
+    displaySuffix: "",
+    children: [reviewModeItem, reviewModelItem],
+  };
+
   return inSectionOrder([
     freeflowItem,
     ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
@@ -1453,6 +1579,7 @@ function freeflowItems(
     compactionGroup,
     taskMemoryGroup,
     messagingGroup,
+    reviewGroup,
   ]);
 }
 
@@ -1461,6 +1588,7 @@ function pruneKnownDefaults(config: Record<string, unknown>) {
     { path: ["enabled"], value: DEFAULT_FREEFLOW_ENABLED },
     { path: ["cognitiveRouting", "delegation"], value: "executor" },
     { path: ["toolExecution", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.enabled },
+    { path: ["toolExecution", "guidanceNotices"], value: DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices },
     { path: ["compaction", "enabled"], value: DEFAULT_COMPACTION_ENABLED },
     { path: ["compaction", "carry"], value: DEFAULT_COMPACTION_CARRY },
     { path: ["taskMemory", "enabled"], value: DEFAULT_TASK_MEMORY_ENABLED },
@@ -1806,7 +1934,7 @@ function settingsEntries(
     }
     if (item.kind === "group" && item.children) {
       // A capability's own switch is its section's row; while it is off, the section's other settings are locked.
-      const toggle = item.children.find((child) => child.id === `${item.id}.enabled`);
+      const toggle = item.children.find((child) => child.id === `${item.id}.enabled` || child.heading);
       if (toggle) {
         const header = settingEntry(toggle, rootItems, onChange, depth, lockedBy);
         // The section's status adds what the switch alone does not say: not active, unavailable, the routing control.

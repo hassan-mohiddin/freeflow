@@ -39,6 +39,7 @@ Freeflow settings    Session  [Personal]  Repository
     Compaction               on (inherited)
       Context reuse          on (inherited)
     Tool Execution           on (inherited)
+      Guidance notices       on (inherited)
     Task Memory              off (inherited)
       Auto-approve           none
     Messaging                off (inherited)
@@ -49,6 +50,8 @@ Freeflow settings    Session  [Personal]  Repository
       Helper preset          not configured
       Executor preset        not configured
       Context projection     on (inherited)
+    Review                   auto (inherited)
+      Reviewer model         not configured
 
   Master switch for Freeflow's core guidance, skills, and optional capabilities in this checkout.
   Inherited: not set in any file, so Freeflow's default applies.
@@ -63,7 +66,7 @@ How to read it:
 - **The value comes first**, `on` in green and `off` in red. `(inherited)` means the tab you are looking at does not set it: the value comes from the tab below it, or is Freeflow's default. The line under the list says which ("Inherited from the repository's .freeflow/config.json."). No bracket means the value is set in this tab. In the Repository tab, `(personal: on)` means your personal file overrides it.
 - **Grey means it has no effect right now**, because a switch above it is off; the line under the list says which one ("Takes effect when Messaging is on."). You can still change it, so you can set up, say, routing presets before you turn routing on. Grey settings that the host cannot apply at all (Cognitive Routing on a Pi without model control) do not change.
 - **The bracket on a section's row** can also say `not active` (the switch is on but the capability is not running, for example while Freeflow is off) or `unavailable` (this host cannot run it).
-- **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level, and Auto-approve opens its five switches on a screen of their own (`Esc` returns). In the Session and Personal tabs the values include `inherit`, which removes the setting from that tab so it follows the scope below.
+- **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level, Reviewer model opens a picker of your authenticated models, and Auto-approve opens its five switches on a screen of their own (`Esc` returns). In the Session and Personal tabs the values include `inherit`, which removes the setting from that tab so it follows the scope below.
 - **When it is saved**: each change is written at once, one at a time ("Saving…" while it writes). Closing the screen after changing a file setting, or a Session switch (Freeflow or a capability), reloads the session so the change applies; other Session changes (routing presets, Delegation, Control) apply from the next prompt.
 
 ## The footer
@@ -95,7 +98,7 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Compaction | `compaction.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
 | Context reuse | `compaction.carry` | `true`, `false` | `true` | Session, Personal, Repository |
 | Tool Execution | `toolExecution.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
-| — | `toolExecution.guidanceNotices` | `true`, `false` | `true` | Personal, Repository (files only) |
+| Guidance notices | `toolExecution.guidanceNotices` | `true`, `false` | `true` | Session, Personal, Repository |
 | Task Memory | `taskMemory.enabled` | `true`, `false` | `false` | Session, Personal, Repository |
 | Auto-approve | — | opens the five switches below on their own screen, and names the ones that are on | none | Personal, Repository |
 | Auto-approve › Attach | `taskMemory.autoApprove.attach` | `true`, `false` | `false` | Personal, Repository |
@@ -116,8 +119,8 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | — | `prompts.core` | `true`, `false` | `true` | Personal, Repository (Codex, Claude Code, Gemini CLI, Cursor, Copilot) |
 | — | `prompts.interactionContract` | `true`, `false` | `true` | Personal, Repository (same hosts) |
 | — | `prompts.workingMethod` | `true`, `false` | `true` | Personal, Repository (same hosts) |
-| — | `review.mode` | `auto`, `off`, `always` | `auto` | Personal, Repository (every host) |
-| — | `review.model` | a model name, such as `claude-opus-4-5` | none | Personal, Repository (every host) |
+| Review | `review.mode` | `auto`, `off`, `always` | `auto` | Personal, Repository (every host) |
+| Reviewer model | `review.model` | a model name, such as `claude-opus-4-5` | none | Personal, Repository (every host) |
 
 What some of them mean:
 
@@ -125,9 +128,9 @@ What some of them mean:
 - **Ask before delivering** decides whether a message from another session waits for you; `project` delivers messages from sessions in this repository's Task Memory project and asks about the rest. See [Messaging](capabilities/messaging.md#ask-before-delivering).
 - **Delegation** chooses which workers automatic routing may use; each needs its preset. A preset's `thinking` is one of the model's thinking levels. See [Cognitive Routing](capabilities/cognitive-routing.md).
 - **Control** holds one profile for the session until you release it; it changes only while routing runs. `/freeflow profile` does the same.
-- **`toolExecution.guidanceNotices`** turns off the few lines of skill guidance Tool Execution adds to a tool result that needs them, such as the commit essentials on a `git commit`. See [Tool Execution](capabilities/tool-execution.md#guidance-notices).
+- **Guidance notices** turns off the few lines of skill guidance Tool Execution adds to a tool result that needs them, such as the commit essentials on a `git commit`. See [Tool Execution](capabilities/tool-execution.md#guidance-notices).
 - **`prompts`** turns each of Freeflow's session-start prompts on or off on hosts other than Pi; Pi always delivers all of them.
-- **`review`** sets when the agent has finished work independently reviewed, by a separate reviewer; the agent's own self-review always runs. `auto` lets Review Work's risk check decide; `off` never starts one on its own, and when the change looks risky the agent proposes a review with its reason and cost and runs it only on your yes; `always` reviews every finished task. `auto` in your personal file returns a shared `off` or `always` to the default. `model` names the model a reviewer runs on, where the host lets the agent choose one; Freeflow passes the name on as written and does not check it. A setting other than the default shows in the agent's Runtime State, such as ``Review: `always`, reviewer model `claude-opus-4-5` ``.
+- **Review** (`review.mode`) and **Reviewer model** (`review.model`) set when the agent has finished work independently reviewed, by a separate reviewer; the agent's own self-review always runs. `auto` lets Review Work's risk check decide; `off` never starts one on its own, and when the change looks risky the agent proposes a review with its reason and cost and runs it only on your yes; `always` reviews every finished task. `auto` in your personal file returns a shared `off` or `always` to the default. Reviewer model names the model a reviewer runs on, where the host lets the agent choose one; Freeflow passes the name on as written and does not check it. The screen offers this Pi's authenticated models; on another host, write the name that host uses into the file. Neither has a Session value, because every host reads them from the files. A setting other than the default shows in the agent's Runtime State, such as ``Review: `always`, reviewer model `claude-opus-4-5` ``.
 
 A configuration file with a key Freeflow does not know is refused with an error naming the file. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting` and `scriptTransform` (with `processing` in the personal file). `contextVirtualization` and `conversationHistory` belong to removed context features: a file that still has either is invalid and keeps Freeflow off until you delete them.
 

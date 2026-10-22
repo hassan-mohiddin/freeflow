@@ -58,7 +58,7 @@ Release preparation is an authorized local preparation step, not publication:
    npm run release:prepare -- 0.6.0
    ```
 
-The preparation script requires a clean worktree, updates version metadata and the changelog, and does not commit, tag, push, publish, or create a GitHub Release.
+The preparation script requires a clean worktree and a feature map driven live since its covered code last changed (`docs-check.mjs dev-docs/features --strict --driven`: a feature file whose text changed with the code but was not driven again counts as not driven). It updates version metadata and the changelog, and does not commit, tag, push, publish, or create a GitHub Release.
 
 Release preparation updates every version-bearing manifest, including `package.json`, `plugin.json`, `gemini-extension.json`, `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `package-lock.json`. The current post-v0.7.0 implementation keeps `CHANGELOG.md` under `## Unreleased`; its next versioned evidence record is created only when a release target is selected.
 

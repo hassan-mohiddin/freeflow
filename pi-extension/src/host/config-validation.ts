@@ -45,10 +45,11 @@ export function selectedRuntimePrompts(repository: unknown, local: unknown): Run
  */
 export const REVIEW_MODES = ["auto", "off", "always"] as const;
 export type ReviewSettings = { mode: (typeof REVIEW_MODES)[number]; model?: string };
+export const REVIEW_KEYS = ["mode", "model"] as const;
 
 function validateReviewConfig(value: unknown) {
   if (!isRecord(value)) return "review must be an object";
-  const unknown = Object.keys(value).find((key) => key !== "mode" && key !== "model");
+  const unknown = Object.keys(value).find((key) => !(REVIEW_KEYS as readonly string[]).includes(key));
   if (unknown) return `review has unsupported key: ${unknown}`;
   if (value.mode !== undefined && !(REVIEW_MODES as readonly unknown[]).includes(value.mode))
     return `review.mode must be one of ${REVIEW_MODES.join(", ")}`;
@@ -93,6 +94,22 @@ function validateCoreConfigFields(value: ConfigObject) {
   return null;
 }
 
+/** The top-level keys Freeflow acts on; the settings test checks that every key under them has a settings row. */
+export const CONFIG_SECTIONS = [
+  "enabled",
+  "cognitiveRouting",
+  "toolExecution",
+  "compaction",
+  "taskMemory",
+  "messaging",
+  "prompts",
+  "review",
+] as const;
+
+// outputRouter, observedRouting, and scriptTransform belong to retired features; they are accepted and ignored so
+// existing configs keep loading.
+const RETIRED_SECTIONS = ["outputRouter", "observedRouting", "scriptTransform"];
+
 export function validateRepositoryConfig(value: unknown): string | null {
   if (!isRecord(value)) {
     return "config must be a JSON object";
@@ -101,21 +118,7 @@ export function validateRepositoryConfig(value: unknown): string | null {
   const removedContextError = removedContextConfigError(value, ".freeflow/config.json");
   if (removedContextError) return removedContextError;
 
-  // outputRouter, observedRouting, and scriptTransform belong to retired features; they are accepted and ignored so
-  // existing configs keep loading.
-  const allowedKeys = new Set([
-    "enabled",
-    "outputRouter",
-    "observedRouting",
-    "scriptTransform",
-    "cognitiveRouting",
-    "toolExecution",
-    "compaction",
-    "taskMemory",
-    "messaging",
-    "prompts",
-    "review",
-  ]);
+  const allowedKeys = new Set<string>([...CONFIG_SECTIONS, ...RETIRED_SECTIONS]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return `unsupported top-level config key: ${key}`;

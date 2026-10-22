@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { prepareChangelog, resolveReleaseVersion } from "./release-utils.mjs";
@@ -56,6 +56,22 @@ function assertCleanWorktree() {
   }
 }
 
+// Every feature file was driven live since its covered code last changed (AGENTS.md, Release And CI). --driven counts a
+// change committed with the file's text too: editing a feature file is not driving it.
+function assertFeatureMapDriven(root) {
+  const check = spawnSync(
+    process.execPath,
+    [resolve(root, "skills/write-docs/scripts/docs-check.mjs"), "dev-docs/features", "--strict", "--driven"],
+    { cwd: root, encoding: "utf8" },
+  );
+  if (check.status !== 0) {
+    throw new Error(
+      `Feature files not driven live since their covered code changed:\n${check.stdout}${check.stderr}` +
+        "Drive each through dev-docs/guides/verify-live.md and move its Verified at, then prepare again.",
+    );
+  }
+}
+
 function parseJson(path) {
   try {
     return JSON.parse(readFileSync(path, "utf8"));
@@ -101,6 +117,7 @@ try {
   const root = repoRoot();
   process.chdir(root);
   assertCleanWorktree();
+  assertFeatureMapDriven(root);
 
   const packagePath = resolve(root, "package.json");
   const currentVersion = parseJson(packagePath).version;

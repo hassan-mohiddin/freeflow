@@ -188,7 +188,7 @@ Freeflow's and Pi's compaction may remove active user or evidence bodies while t
 
 ## Surface
 
-**Configuration** (`cognitiveRouting` in `.freeflow/config.json`, overridden by `.freeflow/local.json`, overridden by session scope; validated in `config.ts`). Only the profiles the delegation mode needs must resolve to available models; a missing one makes routing unavailable with the reason in status:
+**Configuration** (`cognitiveRouting` in `.freeflow/config.json`, overridden by `.freeflow/local.json`, overridden by session scope; validated in `config.ts`, whose `COGNITIVE_ROUTING_KEYS` the settings test checks for screen rows). Only the profiles the delegation mode needs must resolve to available models; a missing one makes routing unavailable with the reason in status:
 
 | Key | Default | Notes |
 | --- | --- | --- |

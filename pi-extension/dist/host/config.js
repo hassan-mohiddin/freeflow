@@ -21,6 +21,7 @@ export const SESSION_OVERRIDE_KEYS = [
   "cognitiveRouting.enabled",
   "cognitiveRouting.projection",
   "toolExecution.enabled",
+  "toolExecution.guidanceNotices",
   "compaction.enabled",
   "compaction.carry",
   "taskMemory.enabled",

@@ -183,7 +183,7 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 
 ## Surface
 
-**Configuration:** `toolExecution.enabled` (default `true`) in `.freeflow/config.json`, `.freeflow/local.json`, or session scope through `/freeflow settings`; `toolExecution.guidanceNotices` (default `true`) in either file. Retired keys accepted and ignored without a warning: `capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`. Any other key fails validation.
+**Configuration:** `toolExecution.enabled` (default `true`) in `.freeflow/config.json`, `.freeflow/local.json`, or session scope through `/freeflow settings`; `toolExecution.guidanceNotices` (default `true`) the same way, as the Guidance notices row under Tool Execution. Retired keys accepted and ignored without a warning: `capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`. Any other key fails validation.
 
 **Pi settings read:** `shellPath` (environment facts and background shell).
 

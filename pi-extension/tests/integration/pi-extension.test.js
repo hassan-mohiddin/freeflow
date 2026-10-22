@@ -645,6 +645,84 @@ test("plugin-docs/settings.md documents every row the settings screen shows and 
   }
 });
 
+test("every config key Freeflow acts on has a /freeflow settings row, or a stated reason it has none", async () => {
+  // A setting the user changes is changed on the screen (dev-docs/features/settings.md). A key with no row is listed
+  // here with its reason, with the user's agreement, and its row in plugin-docs/settings.md names no screen row.
+  const FILE_ONLY = Object.fromEntries(
+    ["core", "interactionContract", "workingMethod"].map((prompt) => [
+      `prompts.${prompt}`,
+      "Only the hook hosts read it; Pi always delivers its runtime prompts.",
+    ]),
+  );
+  const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
+  const { CONFIG_SECTIONS, REVIEW_KEYS, RUNTIME_PROMPTS } = await import("../../dist/host/config-validation.js");
+  const { COGNITIVE_ROUTING_KEYS } = await import("../../dist/cognitive-routing/config.js");
+  const { TOOL_EXECUTION_KEYS } = await import("../../dist/tool-execution/config.js");
+  const { COMPACTION_KEYS } = await import("../../dist/compaction/config.js");
+  const { AUTO_APPROVE_GROUPS, TASK_MEMORY_KEYS } = await import("../../dist/task-memory/config.js");
+  const { MESSAGING_KEYS } = await import("../../dist/messaging/config.js");
+  const sections = {
+    cognitiveRouting: COGNITIVE_ROUTING_KEYS,
+    toolExecution: TOOL_EXECUTION_KEYS,
+    compaction: COMPACTION_KEYS,
+    taskMemory: TASK_MEMORY_KEYS,
+    messaging: MESSAGING_KEYS,
+    prompts: RUNTIME_PROMPTS,
+    review: REVIEW_KEYS,
+  };
+  const nested = {
+    "taskMemory.autoApprove": Object.keys(AUTO_APPROVE_GROUPS),
+    "cognitiveRouting.profiles": ["coordinator", "helper", "executor"],
+  };
+  const keys = ["enabled"];
+  for (const section of CONFIG_SECTIONS.filter((name) => name !== "enabled")) {
+    assert.ok(sections[section], `this test knows the keys of ${section}`);
+    for (const key of sections[section]) {
+      const path = `${section}.${key}`;
+      keys.push(...(nested[path] ? nested[path].map((child) => `${path}.${child}`) : [path]));
+    }
+  }
+
+  const screenRows = new Set();
+  const cwd = await configuredRepo({});
+  try {
+    const { commands } = loadExtension(freeflowExtension, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    for (const scope of ["session", "local", "repo"]) {
+      const settingsCtx = context(cwd);
+      settingsCtx.ui.custom = async (factory) => {
+        const text = renderText(
+          factory({ requestRender() {} }, testTheme, {}, () => {}),
+          200,
+        );
+        for (const [, row] of text.matchAll(/^ {2}(?:› | {2})\s*(\S.*?)\s{2,}\S/gm)) screenRows.add(row);
+        return undefined;
+      };
+      await command.definition.handler(`settings ${scope}`, settingsCtx);
+    }
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+
+  const docRow = new Map([...doc.matchAll(/^\| ([^|]+?) \| `([a-zA-Z.]+)` \|/gm)].map(([, row, key]) => [key, row]));
+  for (const key of keys) {
+    const row = docRow.get(key);
+    assert.ok(row, `plugin-docs/settings.md lists ${key}`);
+    if (FILE_ONLY[key]) {
+      assert.equal(row, "—", `${key} is file-only: ${FILE_ONLY[key]}`);
+      continue;
+    }
+    assert.notEqual(row, "—", `${key} has a /freeflow settings row, or a reason in FILE_ONLY`);
+    assert.ok(screenRows.has(row.split(" › ")[0]), `the settings screen shows ${row} for ${key}`);
+  }
+});
+
 test("/freeflow trash lists removed items, and only /freeflow trash empty deletes them, after asking", async () => {
   // Task 006: the trash is emptied only by the user's command.
   const before = process.env.FREEFLOW_HOME;
@@ -1677,6 +1755,52 @@ test("Pi Cognitive Routing settings preserve complete presets", async () => {
       model: "model-b",
       thinking: "max",
     });
+    assert.equal(settingsCtx.reloads.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi settings set Review Work's review mode and reviewer model in the files", async () => {
+  const cwd = await configuredRepo({ review: { model: "claude-opus-4-5" } });
+  try {
+    const { commands } = loadExtension(freeflowExtension, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
+    settingsCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      const text = renderText(component, 200);
+      assert.match(text, /Review\s+auto \(inherited\)\n\s+Reviewer model\s+claude-opus-4-5\n/);
+      // The mode is the section's row: auto, off, always.
+      await press(component, "Review");
+      await press(component, "Review");
+      // A name set in the file stays offered beside this host's models; the picker starts on it.
+      choose(component, "Reviewer model", "Review");
+      component.handleInput(KEY.enter);
+      const picker = renderText(component, 200);
+      assert.match(picker, /None\s+Review Work chooses/);
+      assert.match(picker, /→ claude-opus-4-5\s+Set in the file; not an authenticated model here\./);
+      assert.match(picker, /test\/model-a[\s\S]*test\/model-b/);
+      component.handleInput(KEY.down);
+      component.handleInput(KEY.down);
+      component.handleInput(KEY.enter);
+      await component.waitForWrites();
+      return result;
+    };
+    await freeflowCommand.definition.handler("settings repo", settingsCtx);
+    const saved = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
+    assert.deepEqual(saved.review, { mode: "always", model: "test/model-b" });
     assert.equal(settingsCtx.reloads.length, 1);
   } finally {
     await rm(cwd, { recursive: true, force: true });

@@ -226,7 +226,7 @@
       "case_concept": "After a behavior change, the stale subsystem doc is corrected in the same change and an intended-but-surprising behavior is recorded rather than 'fixed'; a spec preserves settled invitation behavior but marks unresolved billing semantics blocked.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-docs/SKILL.md",
-      "source_sha256": "949f0c93d500aa271e8f64888364e389a506779b3e230670677d9e0f7df55ff0",
+      "source_sha256": "2c11490af7bc3e4963416402ac3d95acbdde7867956837868a5e185c6277b536",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

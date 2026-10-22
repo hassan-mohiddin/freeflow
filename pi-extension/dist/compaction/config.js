@@ -1,14 +1,16 @@
 /** Freeflow compaction is on whenever Freeflow is, unless a config turns it off. */
 export const DEFAULT_COMPACTION_ENABLED = true;
 export const DEFAULT_COMPACTION_CARRY = true;
+/** The keys `compaction` accepts; the settings test checks each has a /freeflow settings row. */
+export const COMPACTION_KEYS = ["enabled", "carry"];
 function record(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 export function validateCompactionConfig(value) {
   if (!record(value)) return "compaction must be an object";
-  const unknown = Object.keys(value).find((key) => key !== "enabled" && key !== "carry");
+  const unknown = Object.keys(value).find((key) => !COMPACTION_KEYS.includes(key));
   if (unknown) return `compaction has unsupported key: ${unknown}`;
-  for (const key of ["enabled", "carry"])
+  for (const key of COMPACTION_KEYS)
     if (value[key] !== undefined && typeof value[key] !== "boolean") return `compaction.${key} must be a boolean`;
   return null;
 }

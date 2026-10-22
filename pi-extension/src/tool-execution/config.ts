@@ -7,6 +7,9 @@ export const DEFAULT_TOOL_EXECUTION_CONFIG: ToolExecutionConfig = Object.freeze(
   guidanceNotices: true,
 });
 
+/** The keys `toolExecution` acts on; the settings test checks each has a /freeflow settings row. */
+export const TOOL_EXECUTION_KEYS = ["enabled", "guidanceNotices"] as const;
+
 // Settings of the retired v2 runtime (.deprecated/tool-execution-v2). Existing configuration files keep loading;
 // the values no longer do anything.
 const RETIRED_KEYS = ["capture", "programs", "workspace", "discovery", "adapters", "accounting"];
@@ -18,7 +21,7 @@ function record(value: unknown): value is Record<string, unknown> {
 export function validateToolExecutionConfig(value: unknown): string | null {
   if (!record(value)) return "toolExecution must be an object";
   const unknown = Object.keys(value).find(
-    (key) => key !== "enabled" && key !== "guidanceNotices" && !RETIRED_KEYS.includes(key),
+    (key) => !(TOOL_EXECUTION_KEYS as readonly string[]).includes(key) && !RETIRED_KEYS.includes(key),
   );
   if (unknown) return `toolExecution has unsupported key: ${unknown}`;
   if (value.enabled !== undefined && typeof value.enabled !== "boolean")

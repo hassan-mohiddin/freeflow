@@ -132,3 +132,25 @@ test("--covering exits 2 when the project has no docs index and none are given",
   assert.equal(result.status, 2);
   assert.match(result.stderr, /no developer docs found/);
 });
+
+test("--driven counts a covered change committed together with its doc, which the default treats as reviewed", async (t) => {
+  const { root } = await repository();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  // The doc's Verified at stays at the first commit; the code and the doc's text change together.
+  const base = git(root, "rev-parse", "--short", "HEAD~2");
+  await write(root, {
+    "src/a.js": "export const a = 2;\n",
+    "dev-docs/subsystems/a.md": `${doc("A", ["src/a.js"], base)}Edited with the code.\n`,
+  });
+  git(root, "commit", "--quiet", "-am", "change a with its doc");
+  const run = (...args) =>
+    spawnSync(process.execPath, [scriptPath, "dev-docs/subsystems/a.md", "--strict", ...args], {
+      cwd: root,
+      env: gitEnv,
+      encoding: "utf8",
+    });
+  assert.equal(run().status, 0);
+  const driven = run("--driven");
+  assert.equal(driven.status, 1);
+  assert.match(driven.stdout, /covered code changed since [0-9a-f]+:\n {4}src\/a\.js/);
+});

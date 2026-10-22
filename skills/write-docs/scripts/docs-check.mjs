@@ -7,7 +7,9 @@
 // covered directory holding it), with their Verified at and whether they are stale, and how many searched documents
 // have no Covers line. Without document arguments it searches the project's docs index: the first of `dev-docs/`
 // (holding README.md), `ARCHITECTURE.md`, and `docs/` (holding README.md).
-// Usage: docs-check.mjs <file-or-directory>... [--root <repository>] [--strict] [--json]
+// With --driven, a covered change counts even when it was made together with the document: for a feature file, whose
+// Verified at is the last commit it was driven live at, editing its text is not driving it.
+// Usage: docs-check.mjs <file-or-directory>... [--root <repository>] [--strict] [--driven] [--json]
 //        docs-check.mjs [<file-or-directory>...] --covering <path> [--covering <path>]... [--root <repository>] [--json]
 // Exit code 1 when a named path is missing, a header is invalid, or (with --strict) covered code changed. A --covering
 // lookup reports and exits 0, or 2 when no documents can be found.
@@ -21,13 +23,14 @@ const { values, positionals } = parseArgs({
   options: {
     root: { type: "string" },
     strict: { type: "boolean", default: false },
+    driven: { type: "boolean", default: false },
     json: { type: "boolean", default: false },
     covering: { type: "string", multiple: true },
   },
 });
 const usage = () => {
   console.error(
-    "Usage: docs-check.mjs <file-or-directory>... [--root <repository>] [--strict] [--json]\n" +
+    "Usage: docs-check.mjs <file-or-directory>... [--root <repository>] [--strict] [--driven] [--json]\n" +
       "       docs-check.mjs [<file-or-directory>...] --covering <path> [--covering <path>]... [--root <repository>] [--json]",
   );
   process.exit(2);
@@ -103,6 +106,7 @@ function check(file) {
         const docDirty = lines(["status", "--porcelain", "--", self]).length > 0;
         const changed = lines(["diff", "--name-only", commit, "--", ...covers]).filter(
           (path) =>
+            values.driven ||
             lines(["log", "--format=%H", `${commit}..HEAD`, "--", path]).some((each) => !withDoc.has(each)) ||
             (!docDirty && lines(["status", "--porcelain", "--", path]).length > 0),
         );
