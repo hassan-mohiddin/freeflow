@@ -88,7 +88,7 @@
       "case_concept": "Complete one accepted local correction, then change route when repeated evidence exposes a shared failure unit; discriminate cache-key from invalidation hypotheses before fixing a stale read; keep v1 until a dormant consumer is observed.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "e29f5a61dc9cfddc9750b7e3ca4e90ae8f4ca94af67bf7d178d04d17930c005d",
+      "source_sha256": "491356a86a3cdd89e03a8980666ec97d2dfe6ff205070fd2a6ea4ec56c23ee64",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -203,7 +203,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. The test-changes script has its own tests (.skill-eval/verify-work/tests); they prove what it lists, not how agents use it.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "b320869c841cc5ef79dc9faf42079f8b2a653d8e772f02208eecaee5c4d8cc9a",
+      "source_sha256": "b8f518d1c825298d54fcf73ed1d8ae137e405ede512f8b66974e0c88ca3658fe",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

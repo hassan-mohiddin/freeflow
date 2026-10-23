@@ -80,6 +80,8 @@
 - `/freeflow settings` has Runtime prompts and Skills sections. Each row is a master switch (`prompts.enabled` for all three prompts, `skills.enabled` for every skill but Setup Freeflow), with Each prompt and Each skill under it opening a switch per item (`prompts.<name>`, `skills.<name>`). On Pi an off prompt is left out and an off skill is not loaded, and its command says it is off; Codex, Claude Code and the other hosts already read `prompts` and now also tell the agent which skills are off, since they load plugin skills themselves. This brings back the switches 0.7.0 removed, with `skills.enabled` valid again.
 - Every setting has a row in all three scopes of `/freeflow settings`: Session now also has Review, Reviewer model, Ask before delivering, Auto-approve, Runtime prompts and Skills, and a test fails when a setting is missing from any scope.
 
+- Verify Work points at the project's feature map: a claim about what a user sees in a feature a feature file covers is checked by driving that file's steps, found with `docs-check.mjs --covering <path> --driven`. Execute Work's self-review report lists the feature files covering the change and whether each was driven live since its code changed.
+
 ### Changed
 
 - On Pi, Freeflow is developed and tested against Pi 1.4.0 (was 1.0.1); Pi 0.99.1 or later is still supported. When Pi compacts on its own, Freeflow now asks Pi's summarizer to keep the summary under 8,000 tokens, the limit an agent's own summary has: from Pi 1.4.0 that summary is no longer capped by Pi's reserve. Cognitive Routing's tools stay inactive until routing turns them on, like Freeflow's other tools.

@@ -19,7 +19,7 @@ Read the routed reference before designing or selecting evidence. Loading one do
 | A claim that depends on a registered callback or executor, host lifecycle, producer invocation, fallback protocol, installed package, or absence counter | [Runtime Evidence: Integration](references/runtime-evidence.md#integration) |
 | Rendered UI, browser behavior, accessibility, client networking, console state, visual output, or browser runtime performance | [Runtime Evidence: Browser](references/runtime-evidence.md#browser) |
 | Latency, throughput, memory, CPU, bundle, query, rendering, capacity, or resource-regression claims | [Runtime Evidence: Performance](references/runtime-evidence.md#performance) |
-| A claim that needs the project's running software, launched and driven the way a user would, not one a unit or integration test settles | [Runtime Evidence: Project Recipe](references/runtime-evidence.md#project-recipe) |
+| A claim about what a user sees or does in the running software, or a change to code a feature file covers | [Runtime Evidence: Project Recipe](references/runtime-evidence.md#project-recipe) |
 | Contradictions that are unexplained, or failure that repeats | Execute Work's [diagnose](../../skills/execute-work/references/diagnose.md) |
 | Expected behavior that is unsettled, or sources that conflict | [Discuss Work](../../skills/discuss-work/SKILL.md) |
 
@@ -48,6 +48,8 @@ Goal: the smallest observation that could actually disagree with the claim, at t
 Use the smallest direct observation that can disagree with the claim. Before relying on an unfamiliar fixture for substantial dependent work, establish that it reaches the required observing stage and distinguishes the relevant wrong behavior. Reuse an adequate existing fixture.
 
 For saved evidence, identify what code or artifact, check, configuration, and environment it examined, using existing outputs and source identities where available. Compare relevant later changes, including new files and generated output; HEAD alone does not identify an uncommitted candidate. Keep two facts separate: the observation occurred, and it applies to the current state. A later edit does not erase an earlier pass, and uncertain applicability does not certify the new candidate. Report missing identity or output rather than building a new evidence store. Reuse results whose applicability remains supported; rerun only affected evidence, and do not repeat checks merely because another activity or context began.
+
+When the project keeps a feature map (feature files in its developer docs that drive the software as a user would, set up and kept by [Map Features](../map-features/SKILL.md)), find the feature files covering the changed code with Write Docs' docs check, `docs-check.mjs --covering <path> --driven`, or in Execute Work's self-review report. A claim about what a user sees in a feature such a file covers needs its steps driven through the Project Recipe route; tests settle it only where they exercise that same path. A file marked stale was not driven since its code changed.
 
 Passing tests do not prove behavior they do not exercise. Source inspection does not prove runtime execution; a helper call does not prove registration, native dispatch, or installed-package behavior; a happy path does not establish failure handling.
 

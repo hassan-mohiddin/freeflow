@@ -107,7 +107,7 @@ The agent runs these itself; you see their output in its report. They are under 
 | Script | What it answers |
 | --- | --- |
 | Execute Work `touch-map.mjs` | What a change touches: entry points, readers, writers, scheduled code, covering tests and developer docs, each block saying what it did not search. |
-| Execute Work `self-review.mjs` | One report before handing over: status, diff stat, every changed existing test or fixture with its hunk, each new test and whether it fails on the base, and whether each requirement's check ran after the last edit. |
+| Execute Work `self-review.mjs` | One report before handing over: status, diff stat, every changed existing test or fixture with its hunk, each new test and whether it fails on the base, whether each requirement's check ran after the last edit, and the feature files covering the change with whether each was driven live since. |
 | Verify Work `test-changes.mjs` | Every test, fixture or test setup file changed since a base commit, with its hunks; `--new` lists added test files. |
 | Discuss Work `choices.mjs` | Checks the decision list and renders the agreement, the hand-over's unseen choices, and a catch-up after an unattended run. |
 | Review Work `review-packet.mjs`, `check-brief.mjs` | Prefills an independent reviewer's brief, names the review gate's triggers and round budget, and refuses a brief with a missing line or a path that does not exist. |
@@ -116,7 +116,7 @@ The agent runs these itself; you see their output in its report. They are under 
 | Write Docs `docs-check.mjs`, `plan-lint.mjs`, `artifact-check.mjs` | Paths a document names that do not exist and docs whose code changed; Plan steps that name no check; a Spec, Plan or decision record's status and source trail. |
 | Write Skill `skill-author.mjs compare` | What a revision of a skill or instruction file no longer says, and which dropped rules still need a verdict. |
 
-On Pi with Tool Execution on, a few of these lines also arrive at the tool call that needs them: the commit essentials on a `git commit` result, the diagnose method's key lines when the same test fails twice, and a reminder to run `self-review.mjs` when a test passes after a change. `toolExecution.guidanceNotices: false` turns them off ([Tool Execution](capabilities/tool-execution.md#guidance-notices)).
+On Pi with Tool Execution on, a few of these lines also arrive at the tool call that needs them: the commit essentials on a `git commit` result, the diagnose method's key lines when the same test fails twice, and a reminder to run `self-review.mjs` when a test passes after a change. The Guidance notices row in `/freeflow settings` turns them off ([Tool Execution](capabilities/tool-execution.md#guidance-notices)).
 
 ### What changed in 0.9.0
 

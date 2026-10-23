@@ -2,8 +2,10 @@
 // Puts the facts a self-review needs in one scratch report, so the agent reads its actual change rather than its
 // memory of it: Git status, the diff stat against a base, every changed existing test, fixture, snapshot or shared
 // test setup with its hunk (Verify Work's test-changes.mjs), each new test and whether it fails on the base, added lines
-// that look like leftover debug output, and per requirement the last recorded check and whether it ran after the last
-// edit. It lists; judging each item is the agent's and the user's.
+// that look like leftover debug output, per requirement the last recorded check and whether it ran after the last
+// edit, and the feature files (Map Features' feature map) that cover a changed file, each with whether it was driven
+// live since that code last changed (Write Docs' docs-check --covering --driven). It lists; judging each item is the
+// agent's and the user's.
 //
 // A check is recorded with `check`, which runs it and stamps it with the state it ran on: HEAD plus a hash of every
 // uncommitted change, untracked files included. A requirement's check "ran after the last edit" when its stamp equals
@@ -30,6 +32,7 @@ const USAGE = [
   "       self-review.mjs check --id <R1> [--root <repository>] [--scratch <dir>] (--command <shell command> | -- <argv>)",
 ].join("\n");
 const TEST_CHANGES = resolve(dirname(fileURLToPath(import.meta.url)), "../../verify-work/scripts/test-changes.mjs");
+const DOCS_CHECK = resolve(dirname(fileURLToPath(import.meta.url)), "../../write-docs/scripts/docs-check.mjs");
 const CAP = 40;
 const LEFTOVER =
   /\b(console\.(log|debug|trace)|debugger|print\(|println!|dbg!|fmt\.Print|var_dump|binding\.pry|breakpoint\(\)|pdb\.set_trace)|\b(TODO|FIXME|XXX)\b/;
@@ -182,6 +185,37 @@ const untracked = git(root, ["ls-files", "-z", "--others", "--exclude-standard"]
   .filter(Boolean)
   .filter((path) => relative(scratch, join(root, path)).startsWith(".."));
 
+// Feature files covering a changed path: documents with a "Driving it" section, the Write Docs feature file shape.
+// A file is "stale" when its covered code changed after its Verified at, even with its text edited alongside.
+const featureFiles = (() => {
+  const changed = [
+    ...git(root, ["-c", "core.quotePath=false", "diff", "--name-only", baseCommit]).split("\n").filter(Boolean),
+    ...untracked,
+  ];
+  if (!changed.length) return [];
+  const result = spawnSync(
+    process.execPath,
+    [DOCS_CHECK, ...changed.flatMap((path) => ["--covering", path]), "--driven", "--root", root, "--json"],
+    { cwd: root, encoding: "utf8" },
+  );
+  if (result.status !== 0) return [];
+  const found = new Map();
+  for (const { path, documents } of JSON.parse(result.stdout).paths)
+    for (const doc of documents) {
+      let text = "";
+      try {
+        text = readFileSync(join(root, doc.path), "utf8");
+      } catch {
+        continue;
+      }
+      if (!/^## Driving it\b/m.test(text)) continue;
+      const entry = found.get(doc.path) ?? { path: doc.path, verifiedAt: doc.verifiedAt, state: doc.state, covers: [] };
+      entry.covers.push(path);
+      found.set(doc.path, entry);
+    }
+  return [...found.values()];
+})();
+
 const testChanges = (extra) => {
   const result = spawnSync(process.execPath, [TEST_CHANGES, "--base", baseCommit, "--root", root, "--json", ...extra], {
     encoding: "utf8",
@@ -314,6 +348,7 @@ const report = {
   changedTests,
   newTests,
   requirements,
+  featureFiles,
   leftovers: leftovers.slice(0, 20),
   leftoversCut: Math.max(0, leftovers.length - 20),
   notChecked: [
@@ -357,6 +392,15 @@ for (const requirement of requirements) {
   else if (requirement.check)
     md.push(`  - record one: self-review.mjs check --id ${requirement.id} --command "${requirement.check}"`);
 }
+md.push("", `## Feature files covering the change (${featureFiles.length})`, "");
+if (!featureFiles.length) md.push("None found.");
+else
+  md.push(
+    "A claim about what a user sees here is checked by driving these files' steps (Verify Work's Project Recipe). Stale: covered code changed since the file was last driven.",
+    "",
+  );
+for (const each of featureFiles)
+  md.push(`- ${each.path}: ${each.state}, verified at ${each.verifiedAt ?? "none"} (covers ${each.covers.join(", ")})`);
 md.push("", `## Possible leftovers (${leftovers.length})`, "");
 if (!leftovers.length) md.push("None found.");
 for (const each of report.leftovers) md.push(`- ${each.at}: ${each.text}`);
@@ -372,7 +416,7 @@ else {
   const passingOnBase = newTests.filter((each) => each.onBase?.exit === 0).length;
   console.log(`Self-review report: ${reportPath}`);
   console.log(
-    `${stat.length ? stat.at(-1).trim() : "no tracked changes"}; ${untracked.length} untracked; ${changedTests.length} changed existing test file(s); ${newTests.length} new; ${passingOnBase} new test(s) pass on the base; ${requirements.length} requirement(s), ${stale} without a check after the last edit; ${leftovers.length} possible leftover(s).`,
+    `${stat.length ? stat.at(-1).trim() : "no tracked changes"}; ${untracked.length} untracked; ${changedTests.length} changed existing test file(s); ${newTests.length} new; ${passingOnBase} new test(s) pass on the base; ${requirements.length} requirement(s), ${stale} without a check after the last edit; ${featureFiles.length} feature file(s) cover the change, ${featureFiles.filter((each) => each.state !== "current").length} not driven since; ${leftovers.length} possible leftover(s).`,
   );
   console.log("Read the report before you report the change.");
 }
