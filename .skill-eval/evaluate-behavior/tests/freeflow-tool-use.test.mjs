@@ -99,8 +99,12 @@ test("the script tasks run v0.9.0 with notices on, in the ledger image, checked 
       ["notice-commit", "provider-context", "Committing (Deliver Work)"],
     ],
   );
-  // The notices' texts are the ones the build sends.
-  const source = readFileSync(path.join(root, "pi-extension/src/tool-execution/guidance-notices.ts"), "utf8");
+  // The notices' texts are the ones the pinned build sends; later builds may word them differently.
+  const source = execFileSync(
+    "git",
+    ["show", `${scripts.configuration.freeflow.source.ref}:pi-extension/src/tool-execution/guidance-notices.ts`],
+    { cwd: root, encoding: "utf8" },
+  );
   for (const check of notices) assert.ok(source.includes(check.value), check.value);
   // The tool tasks' suite never runs them: the base build has no scripts and refuses the notices setting.
   const tools = JSON.parse(readFileSync(path.join(suiteDirectory, "suite.json"), "utf8")).groups;
