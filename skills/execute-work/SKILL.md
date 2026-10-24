@@ -1,6 +1,6 @@
 ---
 name: execute-work
-description: "Use when implementing, fixing, configuring, refactoring, simplifying or cleaning up code, designing modules or interfaces, finding why something fails, or migrating to a replacement and removing the old path. Not for open scope (Discuss Work), checking (Verify Work), fitness (Review Work) or delivery (Deliver Work)."
+description: "Use for any work that changes code, files or settings: implementing a feature, fixing a bug, adding or changing behavior, configuring, prototyping, refactoring, simplifying or cleaning up code, deleting dead code, or maintaining a project. Also use when designing or changing modules, interfaces, data models, state, error handling or dependencies; when something fails, breaks, regresses or slows down and the cause is unknown, or a fix did not hold; when migrating users, data, a schema, a service or traffic to a replacement and removing the old path; and when adding edge-case handling or code comments. Read it before the first edit, even for a small change: it finds what the change touches before you edit and checks the result before you report it."
 ---
 
 # Execute Work
@@ -15,6 +15,8 @@ Read a reference only when its situation arises.
 
 | Situation | Read |
 | --- | --- |
+| Before the first production change: finding the callers, readers, writers, tests and docs a change touches | Run [touch-map](scripts/touch-map.mjs), as Establish The Execution Basis says |
+| Before reporting a change as done | Run [self-review](scripts/self-review.mjs), as Check, Then Continue Or Return says |
 | A change, even one line, to permissions, public behavior, canonical state or failure semantics, or one that spreads a policy across callers | [design: Start With The Required Outcome](references/design.md#start-with-the-required-outcome) |
 | Building on a representation, identity, ownership or algorithm choice that dependent work would redo if wrong | [design: Settle The Choices](references/design.md#settle-the-choices) |
 | A new or changed interface between parts, or choosing which part owns a decision | [design: Interfaces](references/design.md#interfaces) |

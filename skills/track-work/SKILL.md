@@ -1,6 +1,6 @@
 ---
 name: track-work
-description: "Use when a task needs memory beyond the conversation: starting, updating or recovering its Working Record, before a compaction, or to pause, hand off or transfer work to another session or person (a handover). Decides what the record says."
+description: "Use when a task needs memory beyond the conversation: starting, updating or recovering its Working Record; after a compaction, a summary, a clear or a move into a new session; when the context limit is near; before pausing, handing off or transferring work to a later session or another person; when a task ID, a project of tasks, child records or parallel sessions are involved; and when editing a record or running its working-record script. It decides what the record says, and every lifecycle change goes through its script."
 ---
 
 # Track Work

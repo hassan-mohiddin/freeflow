@@ -1,6 +1,6 @@
 ---
 name: "map-features"
-description: "Use when setting up or rechecking a reusable way to check a project's software live: a feature map and helper that drive each feature as a user would."
+description: "Use when a project needs a saved, tested way to check its software live, or that way is out of date: setting up a feature map, feature files, a live-verification guide and the helper that launches the software and drives each feature as a user would; or rechecking them after the software changed, a feature was added, or a feature file is marked stale."
 ---
 
 # Map Features

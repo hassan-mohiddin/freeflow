@@ -1,6 +1,6 @@
 ---
 name: evaluate-behavior
-description: "Use when testing or comparing how an agent behaves, such as whether a skill triggers or a setup change changes outcomes. Not for testing code (Verify Work)."
+description: "Use when testing, evaluating or comparing how an agent behaves: whether a skill triggers, whether a change to a prompt, skill, model, setting or extension changes outcomes, measuring a reviewer or checker, or benchmarking agents on coding tasks, conversations or pipelines. Also use when writing or checking eval group, suite or configuration JSON, running the skill evaluator and reading its results, and deciding what a result can claim, how many cases and trials it needs and what it costs."
 ---
 
 # Evaluate Behavior

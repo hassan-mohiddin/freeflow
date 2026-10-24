@@ -1,6 +1,6 @@
 ---
 name: setup-freeflow
-description: Use when activating Freeflow in a repository, repairing its repository or personal configuration, or checking whether the current host is delivering Freeflow context.
+description: "Use when installing, activating or turning off Freeflow in a repository, changing or repairing its repository or personal configuration (.freeflow/config.json, .freeflow/local.json), or checking whether the current host is loading Freeflow's guidance and skills."
 ---
 
 # Setup Freeflow

@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: "Use when writing or revising a document for a reader: a spec, PRD, issue, API contract, technical design, decision record or ADR; an implementation, remediation or migration plan; user or developer docs or a README; or when a change makes docs wrong."
+description: "Use when writing, updating or reviewing a document someone will act on: a spec, PRD, issue, requirements, API or interface contract, technical design, decision record or ADR; an implementation, remediation, migration or operations plan; a README, user guide, developer docs, subsystem doc, overview, folder README or feature file; or when a code change makes existing docs wrong, or a project has no developer docs yet. It covers where a document goes, its header and status, and the checks to run after writing it."
 ---
 
 # Write Docs
@@ -24,6 +24,8 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | Preserving a decision and its rationale: a decision note or ADR | [decision records](references/decision-records.md) |
 | Where a Spec, Plan or decision record goes, its header, status and source trail | Header, Status And Sources, below |
 | Finding a project's developer docs or proposing them; the structure of an overview, subsystem doc, folder README, feature file or live-verification guide; a new or rewritten subsystem doc or overview | [documentation shapes](references/documentation-shapes.md) |
+| After writing or revising a Spec, Plan or decision record | Run [artifact-check](scripts/artifact-check.mjs), and [plan-lint](scripts/plan-lint.mjs) for a Plan, as Specs And Plans says |
+| After writing or changing documentation, or to find the docs and feature files covering a changed file | Run the [docs check](scripts/docs-check.mjs), as Check It says |
 | A design whose open representation, identity, ownership, algorithm or failure choices could invalidate dependent work | Execute Work's [design](../execute-work/references/design.md) |
 | Direction or alternatives still open, a user-owned choice, or conflicting sources | [Discuss Work](../discuss-work/SKILL.md) |
 | Planning a fix whose cause is not supported | Execute Work's [diagnose](../execute-work/references/diagnose.md) |

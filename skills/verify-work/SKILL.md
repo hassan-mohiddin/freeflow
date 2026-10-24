@@ -1,6 +1,6 @@
 ---
 name: verify-work
-description: "Use when checking whether work or a claim holds: running tests, builds or the real path and reading the evidence. Not for finding causes (Execute Work) or judging fitness (Review Work)."
+description: "Use whenever you need to know whether something works or a claim is true: running tests, builds, linters or type checks; reproducing a bug or checking a fix; trying the real path in the running software, a browser or a CLI; measuring performance; and reading what the output actually shows, including failures and conflicting results. Read it before saying a change works, is fixed or is done. Also use when writing, designing or changing a test, fixture or regression check; when a claim depends on an integration, host lifecycle, an installed package, rendered UI or browser behavior, or performance; and when a change touches a feature the project's feature map covers."
 ---
 
 # Verify Work
