@@ -1,6 +1,6 @@
 ---
 name: deliver-work
-description: "Use when committing, pushing, merging or opening a pull request, cleaning up a branch or worktree, releasing (version, changelog, tag, publish), or a deploy, rollout or rollback. Not for judging readiness (Review Work) or moving users or data to a replacement (Execute Work)."
+description: "Use whenever work leaves your working tree: staging and committing, writing a commit message, pushing, opening, updating or merging a pull request, finishing, keeping or deleting a branch or worktree; preparing or publishing a release (version bump, changelog, release notes, tag, package publish); and deploying, rolling out, rolling back or restoring production. Read it before running git commit, git push, a merge, a tag or a publish command, even when the user only says commit or ship. It checks the branch, the staged files and the remote before each step, and exactly what each step includes."
 ---
 
 # Deliver Work
@@ -15,7 +15,7 @@ The **Rules** are binding; if one cannot be met, stop and say why. Everything el
 | --- | --- |
 | An ordinary commit of your own changes | Commit, below |
 | Committing with mixed owners or concerns, a file holding included and excluded changes, or generated, sensitive or unexplained files; Git mid-operation, unmerged, detached or with a changed submodule; nothing to commit; amend, empty commit or skipped hooks asked for; a failed commit or hook | [commit](references/commit.md) |
-| Pushing to a remote branch | [push](references/push.md) |
+| Pushing to a remote branch | [branch closeout: Simple Push](references/branch-closeout.md#simple-push) |
 | Merging, a pull request, or keeping, discarding or deleting a branch or worktree | [branch closeout](references/branch-closeout.md) |
 | A version, release notes, tag or registry publication | [release](references/release.md) |
 | Deploying, exposing a change to users, rolling back or restoring production | [launch](references/launch.md) |

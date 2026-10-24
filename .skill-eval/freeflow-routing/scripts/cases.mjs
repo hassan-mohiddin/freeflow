@@ -20,6 +20,7 @@ export const MERGED = {
   "finish-branch": "deliver-work",
   handoff: "track-work",
   "launch-work": "deliver-work",
+  "map-features": "verify-work",
   "migration-work": "execute-work",
   "release-work": "deliver-work",
   "simplify-code": "execute-work",

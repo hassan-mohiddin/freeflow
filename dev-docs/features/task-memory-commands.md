@@ -1,7 +1,7 @@
 # Task Memory Commands
 
 > **Covers:** `pi-extension/src/task-memory/`, `skills/track-work/scripts/lib/registry.mjs`
-> **Verified at:** `608c48d2` (2026-10-23)
+> **Verified at:** `9b97f425` (2026-10-24)
 > **User docs:** `plugin-docs/capabilities/task-memory.md`
 
 With Task Memory on, a Pi user links the repository to a project, creates tasks whose Working Records live in the project's store under `FREEFLOW_HOME`, and attaches them to the session. All of this runs from `/freeflow project` and `/freeflow task` with no model call. How attachment, delivery and the write gate work: [Task memory](../subsystems/task-memory.md).

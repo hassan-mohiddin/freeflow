@@ -1,6 +1,6 @@
 ---
 name: discuss-work
-description: "Use when what or how is still open: options, assumptions, revisiting a direction. Before building or changing behavior: agree what you'll do, where you stop, the user's choices. Also mid-work choices or conflicting sources, and skipping optional steps. Not for plain questions or exact edits."
+description: "Use whenever what to do, or how, is not settled yet: exploring a problem, comparing options or approaches, questioning assumptions, brainstorming, planning an approach, or revisiting a direction after new evidence. Read it before the first edit of any task that builds, fixes or changes behavior, to agree with the user what you will do, where you stop and which choices are theirs. Also use mid-work when a choice the user owns comes up (behavior, names, defaults, scope, cost, risk) or sources conflict; when a question needs a quick experiment before building on it; when a discussion or its decisions must outlast the conversation; and when the user asks to skip or lighten optional steps such as a plan, a review or a record."
 ---
 
 # Discuss Work
@@ -18,6 +18,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | What to do, or how, is still open | Explore, below |
 | A task that builds or changes behavior, before the first edit | Agree Before Building, below |
 | A user-owned choice or conflicting sources mid-work | Choices During The Work, below |
+| Writing or checking the decision list, or the agreement, handover or catch-up built from it | Run [choices](scripts/choices.mjs), as Build The Decision List says |
 | A question existing evidence cannot settle but running something could | [learning action](references/learning-action.md) |
 | Discussion state, an emerging route or its Checkpoints must outlast the conversation | [discussion continuity](references/discussion-continuity.md) |
 | Representation, interfaces, ownership, state or failure behavior could materially change a technical recommendation | Execute Work's [design](../execute-work/references/design.md) |
@@ -54,7 +55,7 @@ When the likely work is clear, propose coherent outcomes and their dependencies,
 
 Goal: before editing, every place where the request, the repository and the developer docs leave a user-owned choice open is written down with your default.
 
-Read the request in the Working Method's layers and find what the change touches; each open choice becomes one item, and what those sources settle is not listed. Write technical items too (names, files, data structures, the code you will copy, exact messages): listing them is how you notice choices you would otherwise make unseen.
+Read the request in the layers Execute Work's [Read The Request](../execute-work/SKILL.md#read-the-request) lists, and find what the change touches; each open choice becomes one item, and what those sources settle is not listed. Write technical items too (names, files, data structures, the code you will copy, exact messages): listing them is how you notice choices you would otherwise make unseen.
 
 Each item has:
 

@@ -4,10 +4,9 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { fixture } from "../fixtures/routing-native.js";
 
-// Real Pi reads of a shipped skill: a repeat read in the same context returns one line, the Runtime State names the
-// skill from the next prompt on, and a compaction or a Coordinator's selective view lets the text through again.
+// Real Pi reads of a shipped skill: every read returns the whole text, the Runtime State names the skill from the
+// next prompt on, and a compaction clears that list.
 const SKILL = fileURLToPath(new URL("../../../skills/track-work/SKILL.md", import.meta.url));
-const ONE_LINE = `${SKILL} is unchanged since you read it earlier in this conversation, and that read showed the whole file. Use that copy.`;
 const STATE_LINE = "Freeflow skills read in this context: track-work";
 const toolExecution = { freeflowConfig: { toolExecution: { enabled: true } }, cognitiveRouting: { enabled: false } };
 
@@ -22,14 +21,13 @@ const firstPrompt = async ({ session }) => {
   await session.waitForIdle();
 };
 
-test("a repeat read of a skill in the same context returns one line", { timeout: 30000 }, async () => {
+test("a repeat read of a skill in the same context returns its whole text again", { timeout: 30000 }, async () => {
   const body = await readFile(SKILL, "utf8");
   await fixture(
     async (n) => [readSkill, readSkill, [], readSkill][n - 1] ?? [],
     false,
     async ({ manager, requests }) => {
-      assert.deepEqual(readResults(manager), [body, ONE_LINE, ONE_LINE]);
-      assert.ok(JSON.stringify(requests[2]).includes(JSON.stringify(ONE_LINE).slice(1, -1)), "the model gets the line");
+      assert.deepEqual(readResults(manager), [body, body, body]);
       assert.ok(!JSON.stringify(requests.slice(0, 3)).includes(STATE_LINE), "no state message mid-run");
       assert.ok(JSON.stringify(requests[3]).includes(STATE_LINE), "the next prompt's state names the skill");
     },
@@ -78,13 +76,3 @@ test(
     );
   },
 );
-
-test("with projection off, a Coordinator's repeat read returns one line", { timeout: 30000 }, async () => {
-  await fixture(
-    async (n) => [readSkill, readSkill][n - 1] ?? [],
-    false,
-    async ({ manager }) => assert.equal(readResults(manager)[1], ONE_LINE),
-    true,
-    { freeflowConfig: { toolExecution: { enabled: true } } },
-  );
-});

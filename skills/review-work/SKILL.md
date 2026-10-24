@@ -1,6 +1,6 @@
 ---
 name: review-work
-description: "Use when reviewing whether finished work or a spec, plan, skill, eval or report is fit to use: your own before handing over, another's, or a review report. Not for running checks (Verify Work)."
+description: "Use whenever finished work or a document is judged fit to use: reviewing code, a diff, a commit or a pull request; checking your own change before reporting it done; reviewing a spec, plan, design, ADR, handoff, skill, final report, status note or Working Record; reviewing changes to authentication, permissions, secrets, untrusted input or other security boundaries; reviewing an eval case, suite, grader or rubric before paying for its runs; preparing, dispatching or skipping an independent review; choosing a model as judge or relying on its verdict; and weighing a review report that came back."
 ---
 
 # Review Work
@@ -30,6 +30,7 @@ Read the reference for what is under review before reviewing it; each names what
 | An eval case, suite, fixture, grader, or rubric that will be run to measure behavior, before spending on its runs | [Eval Definition Review](references/evals-and-judges.md#eval-definition-review) |
 | A hand-over: dispatching, proposing, or skipping an independent review of the work | The Review Gate, below |
 | Preparing or performing an independent review | Independent Review in [Work Review](references/work.md#independent-review) for work; in [Artifact Review](references/artifact.md#independent-review) for anything else |
+| Writing or dispatching an independent reviewer's brief | Prefill it with [review-packet](scripts/review-packet.mjs) and check it with [check-brief](scripts/check-brief.mjs), as Perform A Selected Independent Review says |
 | A model's verdict on another agent's output will be used as evidence: an independent reviewer, an eval's advisory reviewer, or a grading judge | The [Judge Contract](references/evals-and-judges.md#judge-contract), before selecting the judge or using its verdict |
 | An independent review's report has returned | [Adjudicate A Returned Review](references/adjudication.md), before acting on it |
 

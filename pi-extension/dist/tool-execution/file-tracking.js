@@ -49,15 +49,10 @@ export function withLines(content, lines) {
  * direct ones, except that a nested read is never answered for the model: the script consumes its text.
  */
 export class FileTracking {
-  options;
   state = new FileState();
   changed = new Map();
   skillReads = new SkillReads();
   built = false;
-  /** `selectiveView`: whether the model's request shows only part of the history (a Coordinator under projection). */
-  constructor(options = {}) {
-    this.options = options;
-  }
   reset() {
     this.state.reset();
     this.changed.clear();
@@ -153,7 +148,10 @@ export class FileTracking {
       return rewritten === undefined ? undefined : { content: [{ type: "text", text: rewritten }] };
     }
     await this.state.observe(path, ctx.cwd, name);
-    if (name === "read") return this.skillReads.result(event, ctx.cwd, this.options.selectiveView?.() !== true);
+    if (name === "read") {
+      this.skillReads.observe(event, ctx.cwd);
+      return undefined;
+    }
     const lines =
       name === "edit"
         ? [...(changed ? [changedAfterEdit(path)] : []), noNeedToReread(path)]

@@ -19,7 +19,7 @@
       "case_concept": "Commit only an owned fix while preserving unrelated staged work, then refuse to push or release until each is approved; hold a rollout when metrics ingestion is broken.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/deliver-work/SKILL.md",
-      "source_sha256": "e81a1aab4cc68d589db52cf928703833264590bd27fcf5ae933fde470755d592",
+      "source_sha256": "38d97ba7d89f1b8a32de33db968352e54eaae64666f2a3b4342e6d9b6ece3c95",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -42,7 +42,7 @@
       "case_concept": "Explore a materially open direction without treating discussion as authority, then refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss-work/SKILL.md",
-      "source_sha256": "a279d058ff981951fe0ecabc1358649e3d5c77596031b1080839c41120924b93",
+      "source_sha256": "e397a835b70e7f5b9ffc23cd9b7a615c6cca82c2de4d17d3384d8a6985bbcad6",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -65,7 +65,7 @@
       "case_concept": "Compare arms against a reference under a declared decision rule while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-behavior/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
       "source_path": "skills/evaluate-behavior/SKILL.md",
-      "source_sha256": "c8f2be6250ad83b26ab0078d87a57cccc018f87b45962b20c0eee8c83f3f9c11",
+      "source_sha256": "43de14d12c8b329f62bbdbd3301203b0783ae1f808dd410db3d17c7564f3f9c4",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -88,30 +88,7 @@
       "case_concept": "Complete one accepted local correction, then change route when repeated evidence exposes a shared failure unit; discriminate cache-key from invalidation hypotheses before fixing a stale read; keep v1 until a dormant consumer is observed.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "491356a86a3cdd89e03a8980666ec97d2dfe6ff205070fd2a6ea4ec56c23ee64",
-      "evidence_status": "unverified",
-      "supported_configuration": null,
-      "intended_evaluation_configuration": {
-        "host": "pi",
-        "mode": "one-shot or declared multi-turn groups",
-        "variants": ["baseline", "candidate"],
-        "source": "exact declared immutable resources",
-        "ambient_discovery": false
-      }
-    },
-    "map-features": {
-      "job": "Set up and keep honest a project's live-verification recipe: a feature map, a shared guide and a helper that launch the software and drive each feature as a user would.",
-      "positive_trigger": "The user asks for a tested way to check the software live, accepts Verify Work's proposal when no recipe exists, or asks to recheck a stale feature map.",
-      "near_miss": "Checking one claim against an existing recipe, which Verify Work owns, or writing a subsystem doc, which Write Docs owns.",
-      "pressure": "Under time pressure, write feature files from source reading alone and call them verified, or edit a failing step until it passes when the product is wrong.",
-      "observable": "Feature files are driven end to end before Verified at moves; undriven steps are marked unverified; a product bug is reported, not written into the steps; no paid call runs without the user's yes.",
-      "stop_edge": "No developer docs, a paid call, or an unreachable prerequisite routes to the user; a library with nothing to run gets no map.",
-      "neighbours": ["verify-work", "write-docs", "execute-work", "discuss-work"],
-      "evidence_class": ["native-activation", "artifact-outcome"],
-      "case_concept": "On a small CLI or HTTP fixture, set-up mode writes a guide, helper and feature file that a fresh agent can follow to launch, drive and clean up (SPEC-verification V0).",
-      "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
-      "source_path": "skills/map-features/SKILL.md",
-      "source_sha256": "d593952dd21d92f569ec7a602c22b37e9d58b88bc967b8c56c2ff84f2e2d24c4",
+      "source_sha256": "5b2810b2061504d65093fc51c960189e86d8b71465c0da0ff5a6f96e5774e78e",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -134,7 +111,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with the body before the 2026-10-22 restructure (the description is not what the suite delivers or measures; the restructure moves and deduplicates that text and has not been rerun), 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "60cbf45bf71ca41eaa8f9fdb21a324cc14527e4250b1be7029cab8dd529ea3b1",
+      "source_sha256": "1c3b3a164006f8639063c2c8c3028542bf714c17c03f2f8ca8290b13c3af83a9",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -157,7 +134,7 @@
       "case_concept": "Refuse activation with a removed context key in either config layer, tell the user which key/file to delete without rewriting config, and preserve the valid empty-config activation path.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/setup-freeflow/SKILL.md",
-      "source_sha256": "f145534dcc108116d38c8c8576fd57c7a2e7b75c7e0a7198136b6e25b8eed24a",
+      "source_sha256": "c4e0282ad356e8b1fae21598d7c616c7fcbaad7f00f1ca3af37fa84f8fdbdb22",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -180,7 +157,7 @@
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current Schema 4 Track Work skill has not been behaviorally evaluated at this snapshot; Unverified. Work Agreement guidance measured on 2026-10-13 (.skill-eval/work-agreement, baseline 5a7db0e6, candidate 522903b7, anthropic/claude-haiku-5-5 medium, 3 trials; aggregates 20261012212234-b38e8191 natural and 20261012212240-5af3ab7e explicit): agreement updated on a change of direction 3/3 vs 0/3; next step proposed at the agreement's edge 3/3 vs 1/3 and scope proposed 3/3 vs 2/3 (advisory Haiku judge); ask-first, unanswered-proposal and no-push/PR checks equal on both arms. Workflow's body was read in no natural run. This entry's own claim is not what that suite measures and stays unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "e8eb4595972be444a02a17898c2a6a5545ee74fa75ec5a76a996db5dd040856d",
+      "source_sha256": "940c088c94e7fe601dcdbcdf081c636f62455f994057eebfd2c76eb99da09c77",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -203,7 +180,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. The test-changes script has its own tests (.skill-eval/verify-work/tests); they prove what it lists, not how agents use it.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "b8f518d1c825298d54fcf73ed1d8ae137e405ede512f8b66974e0c88ca3658fe",
+      "source_sha256": "2bcb22385a412b2f7b3e820c7e99fcd7f91a475c2b7ed2090580ab3dec5d06bf",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -226,7 +203,7 @@
       "case_concept": "After a behavior change, the stale subsystem doc is corrected in the same change and an intended-but-surprising behavior is recorded rather than 'fixed'; a spec preserves settled invitation behavior but marks unresolved billing semantics blocked.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-docs/SKILL.md",
-      "source_sha256": "2c11490af7bc3e4963416402ac3d95acbdde7867956837868a5e185c6277b536",
+      "source_sha256": "3fc7d6492e3f784536a4f0948fb0ec427db266ee8859784f9cad2b31e2dc4d9c",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -249,7 +226,7 @@
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
       "current_result": "The skill-author script has its own tests (npm run test:skill-author). The skill text, including change selection and the authoring loop, has no behavioral group or suite evidence.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "1a77d649806205ce401a9b41bb82dd02e6498ae564cf99435c97938028e22085",
+      "source_sha256": "b5f8fdd59a66ee91283b30d449e7a162a55019f438a1eec82531a000a004da61",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

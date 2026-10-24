@@ -3,7 +3,7 @@
 // memory of it: Git status, the diff stat against a base, every changed existing test, fixture, snapshot or shared
 // test setup with its hunk (Verify Work's test-changes.mjs), each new test and whether it fails on the base, added lines
 // that look like leftover debug output, per requirement the last recorded check and whether it ran after the last
-// edit, and the feature files (Map Features' feature map) that cover a changed file, each with whether it was driven
+// edit, and the feature files (Verify Work's feature map) that cover a changed file, each with whether it was driven
 // live since that code last changed (Write Docs' docs-check --covering --driven). It lists; judging each item is the
 // agent's and the user's.
 //

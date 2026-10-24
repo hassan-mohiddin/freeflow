@@ -1,6 +1,6 @@
 # How Freeflow Works
 
-Freeflow is guidance for the agent you already use, not a new agent. The agent owns understanding your request, doing the work, checking it and reporting. Freeflow gives it three always-present prompts and eleven skills:
+Freeflow is guidance for the agent you already use, not a new agent. The agent owns understanding your request, doing the work, checking it and reporting. Freeflow gives it three always-present prompts and ten skills:
 
 - **Core guidance** carries the cycle below, what authorizes work, and how to recover after context loss.
 - **The Interaction Contract** tells a question or an idea apart from a request to act.
@@ -86,12 +86,11 @@ Each skill is one capability. Its first page covers the common case and a table 
 | --- | --- | --- |
 | [Discuss Work](../skills/discuss-work/SKILL.md) | What to do or how is still open; agreeing before building; a choice or conflicting sources mid-work; skipping an optional step | `/discuss-work` |
 | [Execute Work](../skills/execute-work/SKILL.md) | Implementing, fixing, refactoring or simplifying; designing modules or interfaces; finding why something fails; migrating to a replacement | `/execute-work` |
-| [Verify Work](../skills/verify-work/SKILL.md) | Checking whether work or a claim holds: tests, builds, the real path | `/verify-work` |
+| [Verify Work](../skills/verify-work/SKILL.md) | Checking whether work or a claim holds: tests, builds, the real path; setting up or rechecking saved live checks of your software | `/verify-work` |
 | [Review Work](../skills/review-work/SKILL.md) | Judging whether work, a spec, plan, skill, eval or report is fit to use; your own before handing over, or another's | `/review-work` |
 | [Deliver Work](../skills/deliver-work/SKILL.md) | Committing, pushing, merging or opening a pull request, cleaning up a branch, releasing, deploying | `/deliver-work` |
 | [Track Work](../skills/track-work/SKILL.md) | A task that needs memory beyond the conversation: its Working Record, recovery after context loss, a handoff to another session or person | `/track-work` |
 | [Write Docs](../skills/write-docs/SKILL.md) | A spec, plan, decision record or ADR; user or developer docs; docs a change made wrong | `/write-docs` |
-| [Map Features](../skills/map-features/SKILL.md) | Setting up or rechecking a tested way to check your software live | none |
 | [Setup Freeflow](../skills/setup-freeflow/SKILL.md) | Activating Freeflow in a repository, repairing its configuration, checking delivery | `/setup-freeflow` |
 | [Write Skill](../skills/write-skill/SKILL.md) | Writing or revising a skill or other text an agent acts on, such as `AGENTS.md` | `/write-skill` |
 | [Evaluate Behavior](../skills/evaluate-behavior/SKILL.md) | Testing or comparing how an agent behaves with a skill or setup change | `/evaluate-behavior` |
@@ -120,7 +119,7 @@ On Pi with Tool Execution on, a few of these lines also arrive at the tool call 
 
 ### What changed in 0.9.0
 
-Freeflow 0.9.0 has eleven skills instead of twenty-five. The removed names have no aliases; their methods moved here:
+Freeflow 0.9.0 has ten skills instead of twenty-five. The removed names have no aliases; their methods moved here:
 
 | Removed | Now |
 | --- | --- |
@@ -132,6 +131,7 @@ Freeflow 0.9.0 has eleven skills instead of twenty-five. The removed names have 
 | Design for Depth, Simplify Code, Diagnose Failure, Migration Work | Execute Work (`/execute-work`) and its references |
 | Handoff | Track Work's handoff reference |
 | Write Spec, Write Plan | Write Docs (`/write-docs`) |
+| Map Features | Verify Work's feature map reference (`/verify-work`) |
 
 ## Activation And Configuration
 

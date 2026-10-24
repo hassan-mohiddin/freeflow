@@ -1,6 +1,6 @@
 # Freeflow Feature Map
 
-How a user meets Freeflow, one file per feature, with the exact steps that show each feature working in the running software. Subsystem docs explain how the code works and why; these files say what the user sees and how to check it live. Read this index first, then use the matching feature file. Launching, the health check, evidence, clean-up and model cost are in the shared guide, [Verify live](../guides/verify-live.md). The [Map Features](../../skills/map-features/SKILL.md) skill sets the map up and rechecks it.
+How a user meets Freeflow, one file per feature, with the exact steps that show each feature working in the running software. Subsystem docs explain how the code works and why; these files say what the user sees and how to check it live. Read this index first, then use the matching feature file. Launching, the health check, evidence, clean-up and model cost are in the shared guide, [Verify live](../guides/verify-live.md). Verify Work's [feature map](../../skills/verify-work/references/feature-map.md) reference sets the map up and rechecks it.
 
 Each feature file's `Covers` names the code behind what its user sees, so `npm run check:dev-docs` flags the file when that code changes, and its `Verified at` is the commit at which every step not marked unverified was last driven, not only read.
 

@@ -241,10 +241,7 @@ export default function freeflow(pi) {
   // Whether the session has had a prompt. Pi before 1.2.0 builds the system prompt only for prompts, so until then a
   // turn Freeflow started for a notice would reach the model with none: notices wait for the user's first prompt.
   let prompted = false;
-  // A Coordinator under projection sees only part of the history, so earlier reads may not be in its view.
-  const files = new FileTracking({
-    selectiveView: () => routing.projectionEnabled && routing.state().activeProfile === "coordinator",
-  });
+  const files = new FileTracking();
   const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
   const guidance = new GuidanceNotices(packageRoot);
   const guidanceNoticesEffective = () =>

@@ -1,6 +1,6 @@
 ---
 name: write-skill
-description: "Use when creating or revising a skill or other text an agent acts on: AGENTS.md, CLAUDE.md, system or runtime prompts, tool descriptions, subagent briefs or judge prompts."
+description: "Use when creating, revising, merging or splitting a skill or any other text an agent acts on: a SKILL.md and its description, the references and scripts in a skill, AGENTS.md, CLAUDE.md, system or runtime prompts, tool descriptions, subagent briefs or judge prompts. Also use when deciding where an instruction should live, and when a skill is read at the wrong time, not read at all, or read but not followed."
 ---
 
 # Write Skill
@@ -113,10 +113,12 @@ The description is a routing interface, not a summary of the body.
 
 - State the broad core job in plain language, with natural user verbs or task conditions visible before activation.
 - Avoid terminology or classifications introduced only inside the skill or an optional dependency.
-- Avoid future-duration guesses, named internal phases, exhaustive trigger catalogs, marketing claims, and compressed copies of the body.
+- Name the situations each reference and script serves, in the words a request would use. A reference is reached only through its skill, so when skills merge, the owner's description keeps the triggers of every job it absorbed.
+- Make it as long as recall needs, up to the host's limit (1,024 characters in the Agent Skills format). Every description is loaded on every request, but a missed read costs the decision the skill exists to change.
+- Avoid future-duration guesses, named internal phases, marketing claims, and compressed copies of the body.
 - "Use when…" is useful wording, not mandatory grammar.
 
-Favor recall when nearby reads are safe and a missed read is materially worse. Narrow the description when retained guidance routinely overrides another owner or method, not merely to prevent harmless reads.
+Favor recall: an unneeded read is cheap when the body exits safely, and a missed read is not. Add a "not for" exclusion only when reading the skill on that request would do harm, such as retained guidance that routinely overrides another owner or method, never merely to prevent harmless reads.
 
 ## Write For The Executing Agent
 

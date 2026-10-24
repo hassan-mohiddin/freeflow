@@ -1,6 +1,6 @@
 ---
 name: track-work
-description: "Use when a task needs memory beyond the conversation: starting, updating or recovering its Working Record, before a compaction, or to pause, hand off or transfer work to another session or person (a handover). Decides what the record says."
+description: "Use when a task needs memory beyond the conversation: starting, updating or recovering its Working Record; after a compaction, a summary, a clear or a move into a new session; when the context limit is near; before pausing, handing off or transferring work to a later session or another person; when a task ID, a project of tasks, child records or parallel sessions are involved; and when editing a record or running its working-record script. It decides what the record says, and every lifecycle change goes through its script."
 ---
 
 # Track Work
@@ -28,6 +28,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | Handing work to a later session or someone else, or a pause | Prepare For A Context Boundary, then [handoff](references/handoff.md) |
 | A registered task (a task ID such as `my-project/task-003`), a child record, a project, or the user asking to group tasks, split a task across parallel sessions, or move a record out of a repository | [projects](references/projects.md) |
 | Editing record structure or preparing input for a command | [working record format](references/working-record-format.md) |
+| On Pi with Task Memory on: attaching, creating, focusing or switching records, or a refused record write | The `task_memory` tool; the task-memory skill says how |
 
 ## Rules
 

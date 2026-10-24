@@ -163,8 +163,8 @@ test("a hook host's Runtime State names the user's review choice, and only a cho
 // A host that loads plugin skills itself cannot leave one out; the Runtime State tells the agent which are off.
 test("a hook host's Runtime State names the skills the user turned off, and drops an off prompt", () => {
   const workspace = createWorkspace(
-    '{"skills":{"write-skill":false,"map-features":false}}\n',
-    '{"skills":{"map-features":true}}\n',
+    '{"skills":{"write-skill":false,"write-docs":false}}\n',
+    '{"skills":{"write-docs":true}}\n',
   );
   const context = contextOf(runAdapter(adapters.claude[0], workspace, inputFor("claude", workspace)));
   assert.match(context, /\nSkills off: `write-skill`; do not open or follow them\.$/);

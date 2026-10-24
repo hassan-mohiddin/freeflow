@@ -3,7 +3,7 @@
 // front of the agent before its first edit: entry points, readers of the state, writers (where old data comes from),
 // scheduled or concurrent code, the tests that cover it, and the developer docs that cover each touched file. Each
 // block gives its count, the first results, and what it did not search. It is a query, not a verdict: the agent writes
-// a decision next to each result (Working Method, "Find what the change touches").
+// a decision next to each result (Execute Work, "Find What The Change Touches").
 // Usage: touch-map.mjs (--symbol <name> | --file <path>)... [--root <repository>] [--cap <n>] [--json]
 // Searches files Git tracks and untracked files it does not ignore. Developer docs come from Write Docs'
 // docs-check.mjs --covering; when no document has a Covers line, a capped search of the docs folder stands in.

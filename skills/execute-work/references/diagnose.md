@@ -2,7 +2,7 @@
 
 Read this when a failure has no known cause, or two fixes did not hold: an unexplained bug, failed check, regression, slowdown, flaky or environmental behavior, or contradictory observations.
 
-This reference is judgment, with the Rules below and one more under Flaky And Performance Failures. It adds the loop and its routing to the Working Method's "Diagnose before fixing", which already holds the essentials: a plausible line is a hypothesis, the explanation must cover the whole symptom, and two failed fixes mean the diagnosis is wrong.
+This reference is judgment, with the Rules below and one more under Flaky And Performance Failures. It adds the loop and its routing to Execute Work's [Diagnose Before Fixing](../SKILL.md#diagnose-before-fixing), which already holds the essentials: a plausible line is a hypothesis, the explanation must cover the whole symptom, and two failed fixes mean the diagnosis is wrong.
 
 Establish what fails and why before selecting a correction. A supported cause distinguishes the meaningful alternatives well enough to bound the next action; it does not require impossible certainty. A requested patch, a reviewer's theory or a favorable rerun is not a supported cause.
 

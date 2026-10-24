@@ -26,7 +26,6 @@ const read = (input, text, extra = {}) => ({
   content: [{ type: "text", text }],
   ...extra,
 });
-const replaced = (outcome) => outcome?.content?.[0]?.text;
 
 test("instruction files are named by their path inside the package, however the path is written", () => {
   assert.equal(instructionPath(SKILL, cwd), "skills/track-work/SKILL.md");
@@ -42,94 +41,32 @@ test("instruction files are named by their path inside the package, however the 
   assert.equal(skillName(REFERENCE, cwd), undefined, "a reference is not a skill");
 });
 
-test("a repeat read of the same text returns one line; changed text passes through and is then known", () => {
+test("a repeat read passes through with its full text, and the skill is listed once", () => {
   const reads = new SkillReads();
-  assert.equal(reads.result(read({ path: SKILL }, BODY), cwd), undefined, "a first read passes through");
-  const repeat = reads.result(read({ path: `@${SKILL}` }, BODY), cwd);
-  assert.equal(
-    replaced(repeat),
-    `@${SKILL} is unchanged since you read it earlier in this conversation, and that read showed the whole file. Use that copy.`,
+  reads.observe(read({ path: SKILL }, BODY), cwd);
+  reads.observe(read({ path: `@${SKILL}` }, BODY), cwd);
+  reads.observe(
+    read(
+      { path: SKILL, offset: 3, limit: 2 },
+      "Line three.\nLine four.\n\n[1 more lines in file. Use offset=5 to continue.]",
+    ),
+    cwd,
   );
-  assert.equal(repeat.details.freeflowSkillRead, true);
-
-  const changed = BODY.replace("Line four.", "Line four, changed.");
-  assert.equal(reads.result(read({ path: SKILL }, changed), cwd), undefined, "changed text passes through");
-  assert.ok(replaced(reads.result(read({ path: SKILL }, changed), cwd)), "the changed text is now known");
-  assert.ok(replaced(reads.result(read({ path: SKILL }, BODY), cwd)), "and so is the earlier text");
-
-  assert.equal(reads.skills().join(), "track-work");
+  reads.observe(read({ path: REFERENCE }, "a\nb"), cwd);
+  assert.deepEqual(reads.skills(), ["track-work"], "a reference is not a skill");
 });
 
-test("a partial read inside an earlier read is answered with its lines; outside, it passes through", () => {
+test("truncated, failed, nested, image and non-instruction reads are not listed", () => {
   const reads = new SkillReads();
-  reads.result(read({ path: SKILL }, BODY), cwd);
-  assert.equal(
-    replaced(
-      reads.result(
-        read(
-          { path: SKILL, offset: 3, limit: 2 },
-          "Line three.\nLine four.\n\n[1 more lines in file. Use offset=5 to continue.]",
-        ),
-        cwd,
-      ),
-    ),
-    `Lines 3-4 of ${SKILL} are unchanged since you read them earlier in this conversation. Use that copy.\n\n[1 more lines in file. Use offset=5 to continue.]`,
-    "Pi's note on where to continue is kept",
+  reads.observe(
+    read({ path: SKILL }, BODY, { details: { truncation: { truncated: true, truncatedBy: "lines" } } }),
+    cwd,
   );
-  assert.ok(replaced(reads.result(read({ path: SKILL, offset: 3 }, "Line three.\nLine four.\n"), cwd)), "to the end");
-  assert.equal(
-    reads.result(
-      read(
-        { path: SKILL, offset: 2, limit: 2 },
-        "Line three.\nLine four.\n\n[1 more lines in file. Use offset=4 to continue.]",
-      ),
-      cwd,
-    ),
-    undefined,
-    "the same text at other line numbers passes through",
-  );
-
-  // A file that lost its last lines: the earlier copy would show lines that are gone.
-  assert.equal(reads.result(read({ path: SKILL }, "# Track Work\n\nLine three."), cwd), undefined);
-
-  // An earlier partial read covers only its own lines, and never the end of a file it did not reach.
-  const partial = new SkillReads();
-  partial.result(read({ path: REFERENCE, limit: 2 }, "a\nb\n\n[3 more lines in file. Use offset=3 to continue.]"), cwd);
-  assert.ok(
-    replaced(
-      partial.result(
-        read({ path: REFERENCE, limit: 1 }, "a\n\n[4 more lines in file. Use offset=2 to continue.]"),
-        cwd,
-      ),
-    ),
-  );
-  assert.equal(partial.result(read({ path: REFERENCE }, "a\nb\nc"), cwd), undefined, "past the earlier read");
-  assert.equal(partial.result(read({ path: REFERENCE }, "a\nb"), cwd), undefined, "the earlier read did not end there");
-  assert.deepEqual(partial.skills(), [], "a reference is not a skill");
-});
-
-test("truncated, failed, nested, image and non-instruction reads neither count nor get answered", () => {
-  const reads = new SkillReads();
-  const truncated = { truncation: { truncated: true, truncatedBy: "lines" } };
-  reads.result(read({ path: SKILL }, BODY, { details: truncated }), cwd);
-  assert.equal(reads.result(read({ path: SKILL }, BODY), cwd), undefined, "a truncated earlier read does not count");
-  assert.equal(reads.result(read({ path: SKILL }, BODY, { details: truncated }), cwd), undefined);
-
-  const known = new SkillReads();
-  known.result(read({ path: SKILL }, BODY), cwd);
-  assert.equal(known.result(read({ path: SKILL }, BODY, { parentToolCallId: "script" }), cwd), undefined, "nested");
-  assert.equal(known.result(read({ path: SKILL }, BODY, { isError: true }), cwd), undefined, "failed");
-  assert.equal(known.result(read({ path: SKILL }, BODY), cwd, false), undefined, "the view may lack earlier reads");
-  assert.equal(
-    known.result(
-      { ...read({ path: SKILL }, BODY), content: [{ type: "image", data: "", mimeType: "image/png" }] },
-      cwd,
-    ),
-    undefined,
-  );
-  const other = join(ROOT, "package.json");
-  known.result(read({ path: other }, "{}"), cwd);
-  assert.equal(known.result(read({ path: other }, "{}"), cwd), undefined, "only Freeflow's instruction files");
+  reads.observe(read({ path: SKILL }, BODY, { parentToolCallId: "script" }), cwd);
+  reads.observe(read({ path: SKILL }, BODY, { isError: true }), cwd);
+  reads.observe({ ...read({ path: SKILL }, BODY), content: [{ type: "image", data: "", mimeType: "image/png" }] }, cwd);
+  reads.observe(read({ path: join(ROOT, "package.json") }, "{}"), cwd);
+  assert.deepEqual(reads.skills(), []);
 });
 
 const call = (id, args) => ({
@@ -141,64 +78,44 @@ const result = (id, text, extra = {}) => ({
   message: { role: "toolResult", toolCallId: id, toolName: "read", content: [{ type: "text", text }], ...extra },
 });
 
-test("rebuilt from the branch: reads since the latest compaction of any kind, not Freeflow's replacements", () => {
+test("rebuilt from the branch: reads since the latest compaction of any kind, not an earlier version's one-line results", () => {
   const reads = new SkillReads();
   const capabilitySkill = join(ROOT, "capabilities/compaction/SKILL.md");
+  const writeDocs = join(ROOT, "skills/write-docs/SKILL.md");
   const branch = [
     call("1", { path: capabilitySkill }),
     result("1", "compaction body"),
     { type: "compaction", summary: "Pi's own", firstKeptEntryId: "x" },
     call("2", { path: SKILL }),
     result("2", "one line", { details: { freeflowSkillRead: true } }),
-    call("3", { path: REFERENCE }),
-    result("3", "a\nb"),
+    call("3", { path: writeDocs }),
+    result("3", "write-docs body"),
     call("4", { path: SKILL }),
     result("4", "failed", { isError: true }),
   ];
   reads.rebuild(branch, cwd);
-  assert.equal(reads.result(read({ path: capabilitySkill }, "compaction body"), cwd), undefined, "before compaction");
-  assert.equal(reads.result(read({ path: SKILL }, "one line"), cwd), undefined, "a replacement is not the file");
-  assert.ok(replaced(reads.result(read({ path: REFERENCE }, "a\nb"), cwd)));
-  assert.deepEqual(skillsRead(branch, cwd), ["compaction", "track-work"], "successful reads, by skill");
-  assert.deepEqual(skillsRead(branch.slice(3), cwd), ["track-work"]);
+  assert.deepEqual(reads.skills(), ["write-docs"], "before compaction, a replacement and a failure are not listed");
+  assert.deepEqual(skillsRead(branch, cwd), ["compaction", "track-work", "write-docs"], "successful reads, by skill");
+  assert.deepEqual(skillsRead(branch.slice(3), cwd), ["track-work", "write-docs"]);
 });
 
-function tracking(branch, options) {
-  const files = new FileTracking(options);
+test("file tracking passes every skill read through, and lists the skills read until a compaction", async () => {
+  const branch = [call("1", { path: SKILL }), result("1", BODY)];
+  const files = new FileTracking();
   const ctx = { cwd, sessionManager: { getBranch: () => branch } };
-  return { files, ctx, read: (text, extra) => files.toolResult(read({ path: SKILL }, text, extra), ctx) };
-}
-
-test("file tracking answers a repeat read, rebuilt after resume, until a compaction or a selective view", async () => {
-  // Resume: the earlier read is on the branch.
-  const resumed = tracking([call("1", { path: SKILL }), result("1", BODY)]);
-  assert.ok(replaced(await resumed.read(BODY)));
-  assert.deepEqual(resumed.files.loadedSkills(resumed.ctx), ["track-work"]);
-
-  const live = tracking([]);
-  assert.equal(await live.read(BODY), undefined);
-  assert.ok(replaced(await live.read(BODY)));
-  await live.files.compacted([], live.ctx);
-  assert.equal(await live.read(BODY), undefined, "after a Freeflow compaction");
-  assert.ok(replaced(await live.read(BODY)));
-  live.files.piCompacted();
-  assert.deepEqual(live.files.loadedSkills(live.ctx), []);
-  assert.equal(await live.read(BODY), undefined, "after Pi's own compaction");
-
-  let selective = true;
-  const coordinator = tracking([], { selectiveView: () => selective });
-  assert.equal(await coordinator.read(BODY), undefined);
-  assert.equal(await coordinator.read(BODY), undefined, "a Coordinator under projection reads again");
-  selective = false;
-  assert.ok(replaced(await coordinator.read(BODY)), "its reads still count for the full history");
+  assert.equal(await files.toolResult(read({ path: SKILL }, BODY), ctx), undefined, "a repeat read after resume");
+  assert.deepEqual(files.loadedSkills(ctx), ["track-work"]);
+  assert.equal(await files.toolResult(read({ path: SKILL }, BODY), ctx), undefined, "and again");
+  files.piCompacted();
+  assert.deepEqual(files.loadedSkills(ctx), []);
 });
 
 test("the skills read are listed in one order, whether recorded live or rebuilt after a resume", () => {
   const writeDocs = join(ROOT, "skills/write-docs/SKILL.md");
   // Parallel reads: the results complete in one order live, and the branch keeps them in another.
   const live = new SkillReads();
-  live.result(read({ path: writeDocs }, "write-docs body"), cwd);
-  live.result(read({ path: SKILL }, BODY), cwd);
+  live.observe(read({ path: writeDocs }, "write-docs body"), cwd);
+  live.observe(read({ path: SKILL }, BODY), cwd);
   const rebuilt = new SkillReads();
   rebuilt.rebuild(
     [

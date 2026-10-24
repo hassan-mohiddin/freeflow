@@ -25,7 +25,7 @@
   "interface": {
     "displayName": "Freeflow",
     "shortDescription": "Feedback-based control for coding agents.",
-    "longDescription": "Freeflow gives coding agents an Interaction Contract, one cycle (agree, build and verify, review and hand over), eleven skills with scripts, and durable task memory.",
+    "longDescription": "Freeflow gives coding agents an Interaction Contract, one cycle (agree, build and verify, review and hand over), ten skills with scripts, and durable task memory.",
     "developerName": "Hassan Mohiddin",
     "category": "Coding",
     "capabilities": ["Interactive", "Read", "Write"],

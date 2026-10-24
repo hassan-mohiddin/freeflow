@@ -17,23 +17,20 @@ Use the latest Freeflow Runtime State and only the guidance, skills, and tools e
 
 ## How Freeflow Works
 
-Work runs in a cycle:
+Work runs in a cycle, and each step names the skill that holds its method. When a step comes, read that skill's whole body before acting, even for a small change: these lines name the moment, and the skill says how. A description selects a skill but is not its method.
 
-1. **Agree:** before the first edit on a task that builds or changes behavior, send this and wait; skip it for a question, an exactly specified change, or when no one can answer.
-   ```text
-   What I'll do:   <the outcome>
-   Where I stop:   <done when; what I won't touch>
-   Your decisions: 1. <a choice the request leaves open, as the user meets it>. I'd go with <default>, because <reason>.
-   ```
-   List every choice the request, code and docs leave open, technical ones too (names, messages, files); Discuss Work keeps the list.
-2. **Build** within the agreement; **verify** on the user's path.
-3. **Review** when Review Work's gate calls for it; **hand over** as in Report a finished change.
+1. **Agree, with Discuss Work:** before the first edit of a task that builds, fixes or changes behavior, send the user what you will do, where you stop and which choices are theirs, and wait for the answer. Read it too when what to do, or how, is not settled yet, and when a choice the user owns comes up mid-work. A question needs no agreement. An exactly specified change counts as the agreement only when the request already fixes every choice, so nothing is left for you to decide; a run no one can answer counts too. When the user asks to skip or lighten optional steps (a plan, a review, the checks, "keep it light"), read Discuss Work: it says what that skips and what it does not. None of these skips reading the skills.
+2. **Build, with Execute Work:** read it before the first edit, even for a small change. It reads the request for its asks and implied requirements, finds what the change touches, diagnoses a failure whose cause is unknown, and reviews and reports the result. Then read its reference for the moment: design for a new or changed interface, a module boundary, or state that must survive a failure; simplify for behavior-preserving cleanup, refactoring or deletion; migration for moving users, data or traffic to a replacement, or removing an old path.
+3. **Verify, with Verify Work:** read it before running tests, builds or checks to learn whether something works, when asked to start, try or check something, before reproducing a bug or trying the real path, and before saying a change works, is fixed or is done. Then read its test-design reference when designing or changing a test, and its runtime-evidence reference for a claim about what a user sees or does in the running software.
+4. **Review and hand over:** Review Work when its gate calls for review, and when judging a diff, a plan or a document, then its work reference for code, a diff or a commit and its artifact reference for a spec, plan, design, handoff or report; Deliver Work before a commit, push, merge, release or deploy, and when finishing, keeping or deleting a branch, starting with its delivery-state script, then its branch-closeout reference for a push, a pull request or a branch; Write Docs when a change makes docs wrong or a document is asked for, including a plan or a spec, and its docs check after writing; Write Skill before creating or revising any text an agent acts on: a skill, AGENTS.md, CLAUDE.md or a prompt.
+
+Outside the cycle, read a skill when its situation comes up, at any step: **Track Work** when a task needs memory beyond the conversation: start or update its Working Record when work will span sessions, a compaction or a handoff, or the user asks, and read its handoff reference when handing work to a later session or someone else, or pausing. **Evaluate Behavior** when testing whether a change to a skill, prompt, model or setting changes how an agent behaves, before writing or running an eval.
 
 When evidence changes the picture, go back only to the step it affects.
 
 Only the user's request or still-valid approval authorizes work. A request covers its tools, checks and reversible local choices; commit, push and release need their own yes. Continue through covered work without asking again; stop at the agreed end, a real blocker, or a choice that is the user's.
 
-Open a reference only when its skill names the condition, and reuse what is still in context.
+When a skill's table names your situation, read that reference or run that script before acting: the row names the moment, and the reference holds the method. A reference relies on its skill's body, so read the skill first.
 
 ## Project Memory
 
@@ -47,4 +44,4 @@ When the conversation about the current work is no longer in your context (after
 - When a Working Record exists or may exist for the current work, load Track Work and recover the record that belongs to that work in its order, starting from its `recover` view, not the raw file. A summary is not recovery. If recovery is incomplete, report that and stop affected work.
 - Current user direction, live state, and the Runtime State override the record where they conflict. A record or summary may show prior approval; check that it still applies. Neither creates authority.
 
-Then continue the covered work toward the agreed end. Context loss is no reason to stop or ask again. With that conversation still in context, a new message, a pause or a resumed session is not context loss: keep using the skills already read.
+Then continue the covered work toward the agreed end. Context loss is no reason to stop or ask again. With that conversation still in context, a new message, a pause or a resumed session is not context loss.

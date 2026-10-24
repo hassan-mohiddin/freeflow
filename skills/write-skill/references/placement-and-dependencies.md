@@ -8,7 +8,7 @@ Goal: each behavior reaches the agent before the decision it affects, at the low
 
 | Rung | The agent sees it | It costs | It holds |
 | --- | --- | --- | --- |
-| 0. Always-loaded instructions (system prompt, runtime prompts) | every request | every request, every session | what an ordinary turn needs before any skill could be read: authority, honesty, reading the request, everyday engineering habits, recovery after context loss, shared terms |
+| 0. Always-loaded instructions (system prompt, runtime prompts) | every request | every request, every session | what an ordinary turn needs before any skill could be read: authority, honesty, the rules every task keeps, the moment each skill's activity starts with the skill's name, recovery after context loss, shared terms |
 | 1. Skill description | every request | one line per skill | the job and the situations that call for the skill, in the words a user would use; where a neighbor takes over when two would trigger on the same request |
 | 2. Skill body | when its activity starts | only when used | the activity's normal route, Rules and judgment |
 | 3. Reference | at a named step or observable branch | only when reached | depth for one step or condition |
@@ -18,7 +18,9 @@ Place each behavior on the lowest rung that still reaches the agent before the d
 
 ## Rung 0 Is For Ordinary Turns
 
-Ask: **would a capable agent get this wrong on an ordinary turn, before it had any reason to load a skill?** If yes, it belongs at rung 0. If it matters only once an activity has started, it belongs in that activity's skill; rung 0 needs a cue for it only when the description alone would not get the skill read.
+Ask: **would a capable agent get this wrong on an ordinary turn, before it had any reason to load a skill?** If yes, it belongs at rung 0. If it matters only once an activity has started, it belongs in that activity's skill. Rung 0 then names the moment the activity starts and the skill to read there, in the words the skill's description uses, so the always-loaded text and the description point at the same skill.
+
+Keep an activity's method out of rung 0. An agent that already has the method in context sees no reason to read the skill, follows the always-loaded copy, and never reaches what only the skill holds: its scripts, its references and its formats. Rung 0 keeps a rule as a one-line guard when breaking it on any turn would do harm.
 
 Recovery after context loss stays at rung 0 as a cue: after a compaction no skill is in context, so the cue must say which skill to reload; the method itself stays in that skill.
 
