@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `.skill-eval/freeflow-vs-plain/`, `.skill-eval/freeflow-routing/`, `.skill-eval/freeflow-tool-use/`, `scripts/validation/check-eval-definitions.mjs`
 > **Tests:** `.skill-eval/evaluate-behavior/tests/`, `.skill-eval/verify-work/tests/`
-> **Verified at:** `d3694df6` (2026-10-24)
+> **Verified at:** `a5a354df` (2026-10-24)
 
 For contributors changing how Freeflow reviews work, evaluates agent behavior, or verifies claims: what each part does, how they depend on each other, why they are shaped this way, and which of their behaviors are deliberate. It also covers the evaluator's code, the evidence it stores, and the contributor gate that measures Freeflow's own changes.
 
@@ -475,6 +475,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 - 2026-10-19: Verify Work reads only the feature files, guide and helper a claim needs and drives the steps through the helper; V1 to V3 measure the recipe guidance and the test-integrity rule (`.skill-eval/verify-work-v1/` to `-v3/`).
 - 2026-10-19: A pipeline stage can start from an earlier stage's workspace (`<stage>.workspace`), and the container preflight refuses a workspace folder the engine does not share.
 - 2026-10-19: Map Features sets up and rechecks a project's feature map, guide and helper; Verify Work's Project Recipe reference proposes it when no recipe exists.
+- 2026-10-24: Verify Work takes the evidence method the Working Method held: checking on the user's path, what a check can show (with running the existing tests before and after, and a baseline in a worktree), and predict, observe, compare. Execute Work routes to it for choosing the checks.
 - 2026-10-24: Map Features merged into Verify Work as its feature map reference (`references/feature-map.md`, with `driving-surfaces.md`); Verify Work's description carries its triggers.
 - 2026-10-19: Verify Work gains the Project Recipe reference, which finds, uses and triages a project's feature map.
 - 2026-10-19: Verify Work gains `test-changes.mjs` and Test Design's Rule for changed tests, fixtures and setup, plus agreed-behavior assertions, weak-test signs, regression checks on the pre-fix code, performance limits, saved browser evidence, and one-line guidance on safety claims, baselines and keeping check scripts.

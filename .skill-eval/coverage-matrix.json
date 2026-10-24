@@ -42,7 +42,7 @@
       "case_concept": "Explore a materially open direction without treating discussion as authority, then refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss-work/SKILL.md",
-      "source_sha256": "af16faebe8b4d1e31e0c5537ac3fb0e7623d5922f382ac1d31d1467d8de93ca3",
+      "source_sha256": "e397a835b70e7f5b9ffc23cd9b7a615c6cca82c2de4d17d3384d8a6985bbcad6",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -88,7 +88,7 @@
       "case_concept": "Complete one accepted local correction, then change route when repeated evidence exposes a shared failure unit; discriminate cache-key from invalidation hypotheses before fixing a stale read; keep v1 until a dormant consumer is observed.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "dbcab208c8c26be941900aff233fafc8d95a95505c6d3880d6937df02368f120",
+      "source_sha256": "93f025995527d9330240ab7074b30868637839d70fddd2155b915e22bd9b23ad",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -180,7 +180,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. The test-changes script has its own tests (.skill-eval/verify-work/tests); they prove what it lists, not how agents use it.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "953dca2a090a6393dace55aee6b0f7346ac9f5e5f8f722539e43b09eba0297fb",
+      "source_sha256": "2bcb22385a412b2f7b3e820c7e99fcd7f91a475c2b7ed2090580ab3dec5d06bf",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

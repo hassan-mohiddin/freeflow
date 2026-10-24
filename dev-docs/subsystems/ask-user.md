@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/ask-user/`, `pi-extension/src/host/inbound.ts`, `skills/discuss-work/SKILL.md` (Ask One Question)
 > **Tests:** `pi-extension/tests/ask-user/`, `pi-extension/tests/host/inbound.test.js`
-> **Verified at:** `d3694df6` (2026-10-24)
+> **Verified at:** `a5a354df` (2026-10-24)
 
 For contributors changing how Freeflow on Pi asks the user a question, or how content from outside the turn reaches the model. Design and decisions: Task 002's spec (`.freeflow/tasks/task-002-*/specs/ask-user-monitor-messaging.md`, local to the developer's checkout).
 
@@ -44,7 +44,7 @@ Closing any dialog dismisses the whole question.
 
 1. The tool description (shape and mechanics) and one `promptGuidelines` line, which Pi adds to the system prompt's rules while the tool is active. Tool Execution's rules rewrite (`tool-execution/prompt.ts`) removes only three of Pi's generic lines, so the guideline survives.
 2. One host-neutral bullet in `runtime/prompts/interaction-contract.md`: a question tool usually fits a bounded choice that is the user's; ask in the reply when the choice needs explaining or is open. It reaches Claude Code and the other hook hosts too.
-3. Discuss Work's "Ask One Question" section with the full method, read with the skill. Where no dialog can be shown it says to ask in the reply; where no one will read the reply in time (a routed assignment, an unattended run) the Working Method owns that case: take what matches existing behavior and is easiest to reverse, and report it in the decision list. Deliver Work's branch closeout points to the same section. The agreement before building is one reply, not a dialog: a decision list doesn't fit 2–4 options.
+3. Discuss Work's "Ask One Question" section with the full method, read with the skill. Where no dialog can be shown it says to ask in the reply; where no one will read the reply in time (a routed assignment, an unattended run) Execute Work's Read The Request owns that case: take what matches existing behavior and is easiest to reverse, and report it in the decision list. Deliver Work's branch closeout points to the same section. The agreement before building is one reply, not a dialog: a decision list doesn't fit 2–4 options.
 
 **Task memory's confirmations** use `confirmWithUser()`: in the terminal a one-question `QuestionForm` with the options Yes and No and without an own-answer row or notes, elsewhere Pi's `confirm` as before.
 

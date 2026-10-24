@@ -59,6 +59,6 @@ Runtime behavior still depends on:
 2. skill descriptions selecting the narrowest owner without requiring a fixed phase or artifact sequence;
 3. the strongest cumulative effect and any controlled boundary being covered by the current authority envelope;
 4. the selected skill deciding whether a linked route or reference applies;
-5. evidence going back only to the step it affects (Execute Work's re-entry list), and the hand-over as the Working Method's report describes.
+5. evidence going back only to the step it affects (Execute Work's re-entry list), and the hand-over as Execute Work's Report A Finished Change describes.
 
 `npm run check` runs `node scripts/validation/check-skill-routing-doc.mjs` (`npm run check:skill-routing`); run it directly after changing skill dependencies. It counts a sibling link as a route whether it is written `../name/SKILL.md` or `../../skills/name/SKILL.md`. It compares every shared cross-host row (one per skill in the catalog's canonical list) with declared sibling routes and direct resource links. Gated capability packages are listed separately and are not counted as always-active rows. `skill-author validate <skill> --routing-map dev-docs/subsystems/skill-routing.md` checks one package's row the same way, capability packages included, counting a link to any other skill's `SKILL.md` as a route. Update this map only when ownership, a declared route, or a reference boundary changes—not after ordinary implementation progress.
