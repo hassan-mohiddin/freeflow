@@ -1,5 +1,6 @@
 import { estimateTokens } from "./carry.js";
 import { currentCycle } from "./harness.js";
+import { withoutGuidanceNotices } from "../tool-execution/guidance-notices.js";
 import { isFreeflowInstruction } from "../tool-execution/skill-reads.js";
 /**
  * The result index: this cycle's larger tool results, each with an id the agent can carry by. Ids number tool results
@@ -27,10 +28,13 @@ const CONTROL_TOOLS = new Set([
   "freeflow_unit",
   "freeflow_compact",
 ]);
+/** A result's text without the guidance notices that joined it. */
 const resultText = (message) =>
-  (message?.content ?? [])
-    .map((part) => (part?.type === "text" ? part.text : part?.type === "image" ? "[image]" : ""))
-    .join("");
+  withoutGuidanceNotices(
+    (message?.content ?? [])
+      .map((part) => (part?.type === "text" ? part.text : part?.type === "image" ? "[image]" : ""))
+      .join(""),
+  );
 function label(name, input) {
   const firstLine = (text) =>
     text

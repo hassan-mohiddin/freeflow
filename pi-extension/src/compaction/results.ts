@@ -1,5 +1,6 @@
 import { estimateTokens } from "./carry.js";
 import { currentCycle } from "./harness.js";
+import { withoutGuidanceNotices } from "../tool-execution/guidance-notices.js";
 import { isFreeflowInstruction } from "../tool-execution/skill-reads.js";
 
 /**
@@ -45,10 +46,13 @@ export interface Result extends ResultRow {
   firstLine?: number;
 }
 
+/** A result's text without the guidance notices that joined it. */
 const resultText = (message: any): string =>
-  (message?.content ?? [])
-    .map((part: any) => (part?.type === "text" ? part.text : part?.type === "image" ? "[image]" : ""))
-    .join("");
+  withoutGuidanceNotices(
+    (message?.content ?? [])
+      .map((part: any) => (part?.type === "text" ? part.text : part?.type === "image" ? "[image]" : ""))
+      .join(""),
+  );
 
 function label(name: string, input: any): string {
   const firstLine = (text: string) =>

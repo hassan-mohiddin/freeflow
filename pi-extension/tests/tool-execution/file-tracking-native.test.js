@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fixture } from "../fixtures/routing-native.js";
+import { withoutGuidanceNotices } from "../../dist/tool-execution/guidance-notices.js";
 
 const on = { freeflowConfig: { toolExecution: { enabled: true } }, cognitiveRouting: { enabled: false } };
 
@@ -117,8 +118,9 @@ test("edit errors become one next action", { timeout: 30000 }, async () => {
     false,
     async ({ manager }) => {
       const [similar, second, unrelated, duplicate, overlap, crlf] = results(manager);
+      // The run's first result also carries the Execute Work notice (guidance-notices-native.test.js).
       assert.equal(
-        similar.text,
+        withoutGuidanceNotices(similar.text),
         [
           "code.py: old text not found. Closest match, lines 2–2 (current file contents):",
           "    message = 'hello ' + name",

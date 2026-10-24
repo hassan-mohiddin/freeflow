@@ -945,7 +945,9 @@ export default function freeflow(pi: FreeflowAPI) {
     if (!toolExecutionEffective()) return undefined;
     const shaped = await files.toolResult(event, ctx);
     // The push retriever's notice joins the result before it is delivered, after anything Tool Execution added.
-    const lines = guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd) : [];
+    const executeWorkUnread = () =>
+      !(capability?.skills?.off ?? []).includes("execute-work") && !files.loadedSkills(ctx).includes("execute-work");
+    const lines = guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd, executeWorkUnread) : [];
     return lines.length ? { content: withLines(shaped?.content ?? event.content ?? [], lines) } : shaped;
   });
   pi.on("turn_end", async (event, ctx) => {
