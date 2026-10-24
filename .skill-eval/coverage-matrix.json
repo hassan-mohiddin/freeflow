@@ -19,7 +19,7 @@
       "case_concept": "Commit only an owned fix while preserving unrelated staged work, then refuse to push or release until each is approved; hold a rollout when metrics ingestion is broken.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/deliver-work/SKILL.md",
-      "source_sha256": "217370dea7464bcbf68f7b29bd10ea2cc3fa6376cf459ee92397d973658c0a30",
+      "source_sha256": "38d97ba7d89f1b8a32de33db968352e54eaae64666f2a3b4342e6d9b6ece3c95",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -88,7 +88,7 @@
       "case_concept": "Complete one accepted local correction, then change route when repeated evidence exposes a shared failure unit; discriminate cache-key from invalidation hypotheses before fixing a stale read; keep v1 until a dormant consumer is observed.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "93f025995527d9330240ab7074b30868637839d70fddd2155b915e22bd9b23ad",
+      "source_sha256": "5b2810b2061504d65093fc51c960189e86d8b71465c0da0ff5a6f96e5774e78e",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -203,7 +203,7 @@
       "case_concept": "After a behavior change, the stale subsystem doc is corrected in the same change and an intended-but-surprising behavior is recorded rather than 'fixed'; a spec preserves settled invitation behavior but marks unresolved billing semantics blocked.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-docs/SKILL.md",
-      "source_sha256": "3733be5e887bcbaad7bf82f70beaf5194070eeeaaae26d48ca1bccf967a3a559",
+      "source_sha256": "3fc7d6492e3f784536a4f0948fb0ec427db266ee8859784f9cad2b31e2dc4d9c",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

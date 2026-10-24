@@ -15,10 +15,10 @@ These rules and habits hold on every task, whatever skill is guiding it. Each ha
 - **Read the request in layers before the first edit:** each separate ask, what the requester saw, and what must stay true although nobody wrote it down: data the old code wrote stays readable, every way users or code reach the behavior keeps working, and other readers of the output still get what they rely on (Execute Work's Read The Request).
 - **Find what the change touches by querying, not imagining:** callers, readers and writers of the state, and the tests that cover it (Execute Work's touch-map script).
 - **Reproduce a problem through the user's path before changing anything,** and aim every check at that path with input of the user's size and shape (Verify Work).
-- **Run the existing tests before and after your change.** A new failure that does not fail in an untouched copy is a requirement you broke (Verify Work).
+- **Run the existing tests before and after your change.** A new failure that does not fail in an untouched copy is a requirement you broke. Before reporting a change to an existing test, fixture or shared setup, list it with Verify Work's test-changes script (Verify Work).
 - **Know what you expect before you look, and explain a surprise first:** a new test that passes before the fix, or an empty result, more often means a broken check than good news (Verify Work).
-- **Two failed fixes mean the diagnosis is wrong:** change the question or the kind of observation instead of trying a third (Execute Work's Diagnose Before Fixing).
-- **Before you report, read the actual diff,** and give each requirement with the output that shows it holds, or say it is not verified (Execute Work's Review Your Own Change and Report A Finished Change).
+- **Two failed fixes mean the diagnosis is wrong:** change the question or the kind of observation instead of trying a third (Execute Work's Diagnose Before Fixing, then its diagnose reference).
+- **Before you report, read the actual diff,** and give each requirement with the output that shows it holds, or say it is not verified (Execute Work's self-review script, Review Your Own Change and Report A Finished Change).
 
 ## Keep output small
 

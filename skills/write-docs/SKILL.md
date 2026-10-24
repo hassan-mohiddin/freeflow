@@ -21,7 +21,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | Situation | Read |
 | --- | --- |
 | A spec, PRD, issue, requirements, technical design, API or interface contract, or migration contract; an ordered plan for implementation, remediation, migration or operations | [spec and plan shapes](references/spec-and-plan-shapes.md) |
-| Preserving a decision and its rationale: a decision note or ADR | [decision records](references/decision-records.md) |
+| Preserving a decision and its rationale: a decision note or ADR | [spec and plan shapes: Decision Records](references/spec-and-plan-shapes.md#decision-records) |
 | Where a Spec, Plan or decision record goes, its header, status and source trail | Header, Status And Sources, below |
 | Finding a project's developer docs or proposing them; the structure of an overview, subsystem doc, folder README, feature file or live-verification guide; a new or rewritten subsystem doc or overview | [documentation shapes](references/documentation-shapes.md) |
 | After writing or revising a Spec, Plan or decision record | Run [artifact-check](scripts/artifact-check.mjs), and [plan-lint](scripts/plan-lint.mjs) for a Plan, as Specs And Plans says |
@@ -117,7 +117,7 @@ Goal: each fact lives in one place, written for the reader who needs it.
 | Someone changing one subsystem | Subsystem doc | How the subsystem works and why: its surface, state, invariants, decisions, failure behavior, code map, and tests. |
 | Someone editing files in one folder | Folder `README.md` | What each file owns, local rules, and a pointer to its subsystem doc. |
 | Someone checking a feature in the running software | Feature file, plus a shared live-verification guide | What the user sees and the exact steps that show it works. |
-| Anyone revisiting a hard-to-reverse choice | Decision record | The decision and why, in the [decision records](references/decision-records.md) shape. |
+| Anyone revisiting a hard-to-reverse choice | Decision record | The decision and why, in the [Decision Records](references/spec-and-plan-shapes.md#decision-records) shape. |
 
 Prefer extending an existing document to creating a new one: a small set of current documents serves readers better than many partly current ones. A subsystem earns its own doc when the reasons behind it cannot be read from the code and readers keep needing them: agents re-derive the same design, or mistake a deliberate behavior for a bug. A user guide and a subsystem doc about the same feature are different documents for different readers; link them rather than merging them.
 

@@ -15,7 +15,7 @@ The **Rules** are binding; if one cannot be met, stop and say why. Everything el
 | --- | --- |
 | An ordinary commit of your own changes | Commit, below |
 | Committing with mixed owners or concerns, a file holding included and excluded changes, or generated, sensitive or unexplained files; Git mid-operation, unmerged, detached or with a changed submodule; nothing to commit; amend, empty commit or skipped hooks asked for; a failed commit or hook | [commit](references/commit.md) |
-| Pushing to a remote branch | [push](references/push.md) |
+| Pushing to a remote branch | [branch closeout: Simple Push](references/branch-closeout.md#simple-push) |
 | Merging, a pull request, or keeping, discarding or deleting a branch or worktree | [branch closeout](references/branch-closeout.md) |
 | A version, release notes, tag or registry publication | [release](references/release.md) |
 | Deploying, exposing a change to users, rolling back or restoring production | [launch](references/launch.md) |

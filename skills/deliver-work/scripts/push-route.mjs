@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The route for a simple push (references/push.md): the current branch, its upstream or the remote it would go to, the
+// The route for a simple push (references/branch-closeout.md, Simple Push): the current branch, its upstream or the remote it would go to, the
 // commits it would send from local refs, and the stop conditions the local state shows. It prints the push command it
 // would use and never runs it.
 // Usage: push-route.mjs [--remote <name>] [--root <repository>] [--json]

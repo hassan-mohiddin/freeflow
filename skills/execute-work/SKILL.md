@@ -20,7 +20,7 @@ Read a reference only when its situation arises.
 | A change, even one line, to permissions, public behavior, canonical state or failure semantics, or one that spreads a policy across callers | [design: Start With The Required Outcome](references/design.md#start-with-the-required-outcome) |
 | Building on a representation, identity, ownership or algorithm choice that dependent work would redo if wrong | [design: Settle The Choices](references/design.md#settle-the-choices) |
 | A new or changed interface between parts, or choosing which part owns a decision | [design: Interfaces](references/design.md#interfaces) |
-| State that must survive a failure: partial effects, retries, concurrent writers, recovery | [design state and failure](references/design-state-and-failure.md) |
+| State that must survive a failure: partial effects, retries, concurrent writers, recovery | [design: State And Failure](references/design.md#state-and-failure) |
 | Module cycles, layering, dependency direction, or extracting shared code | [design: Modules And Dependencies](references/design.md#modules-and-dependencies) |
 | The same change keeps touching many places, or each fix adds another flag, state or caller rule | [design: Pressure Signals](references/design.md#pressure-signals) |
 | Behavior-preserving cleanup, refactoring or deletion is the agreed result | [simplify](references/simplify.md) |
@@ -104,7 +104,7 @@ Goal: stop building on a basis that no longer holds, and go back only as far as 
 | --- | --- |
 | A clear local defect with a supported remedy | Correct it in the same action |
 | The mechanism is invalidated, the outcome is not | Stop dependent edits; re-establish the approach |
-| The cause is unclear, or a correction did not hold | [diagnose](references/diagnose.md), after Diagnose Before Fixing, below |
+| A failure with no known cause, or two fixes that did not hold | [diagnose](references/diagnose.md), after Diagnose Before Fixing, below |
 | A claim exceeds its evidence | Verify Work, before fixing anything |
 | Accepted content, such as a Spec, Plan or Decision, changed | Its owner; reconcile the Working Record before dependent use |
 | A choice that is the user's | Discuss Work |

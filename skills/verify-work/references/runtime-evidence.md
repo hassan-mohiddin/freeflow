@@ -173,7 +173,7 @@ Look for the feature files whose `Covers` header names the code the claim concer
 
 ### Use It
 
-Follow the shared guide's launch, health check and clean-up, and the feature file's steps that reach the claim. Run them through the saved helper; when a step the claim needs is missing, extend the helper or drive that step with it rather than writing a separate check script. Record evidence and claim results as Verify Work describes. A step marked as calling a model or another paid service runs only when the current agreement covers it.
+Follow the shared guide's launch, health check and clean-up, and the feature file's steps that reach the claim. Run them through the saved helper; when a step the claim needs is missing, extend the helper or drive that step with it rather than writing a separate check script, as Feature Map's [Driving Surfaces](feature-map.md#driving-surfaces) describes. Record evidence and claim results as Verify Work describes. A step marked as calling a model or another paid service runs only when the current agreement covers it.
 
 ### Triage A Failing Step Before Fixing Anything
 
@@ -196,7 +196,7 @@ When you had to correct or work out steps, save them through [Write Docs](../../
 - **The project has no developer docs:** propose creating them through Write Docs before a feature map. Do not put the steps in `AGENTS.md` or another instruction file loaded on every turn.
 - **The software has nothing to run, such as a pure library:** its tests are the live check; there is no recipe to find.
 
-Read Feature Map or Write Docs only when you are about to write a feature file or the docs; a proposal needs neither.
+When you work out steps and drive them live with no saved recipe, launch, isolate, drive and observe as Feature Map's [Driving Surfaces](feature-map.md#driving-surfaces) describes. Read the rest of Feature Map, or Write Docs, only when you are about to write a feature file or the docs; a proposal needs neither.
 
 ## When Evidence Disagrees
 

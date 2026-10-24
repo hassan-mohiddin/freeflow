@@ -1,6 +1,6 @@
 # Design
 
-Read this when a design choice could make later work wrong or harder, at the section the situation names: building on a representation, identity, ownership or algorithm choice that dependent work would redo if wrong, or writing one into a Spec, recommendation or delegation contract (Settle The Choices); a new or changed interface between parts, or choosing which part owns a decision (Interfaces); module cycles, layering, dependency direction, or extracting shared code (Modules And Dependencies); the same change keeps touching many places, or each fix adds another flag, state or caller rule (Pressure Signals). State that must survive a failure has its own reference, [design state and failure](design-state-and-failure.md).
+Read this when a design choice could make later work wrong or harder, at the section the situation names: building on a representation, identity, ownership or algorithm choice that dependent work would redo if wrong, or writing one into a Spec, recommendation or delegation contract (Settle The Choices); a new or changed interface between parts, or choosing which part owns a decision (Interfaces); module cycles, layering, dependency direction, or extracting shared code (Modules And Dependencies); the same change keeps touching many places, or each fix adds another flag, state or caller rule (Pressure Signals); state that must survive a failure: partial effects, retries, concurrent writers, recovery (State And Failure).
 
 This reference is judgment, with four Rules of its own below. It is a lens under the current activity, not a mandatory phase, an architecture owner, or permission to refactor. Read the section you need; the first three sections apply to all of them. Do not turn its lists into obligations unrelated to the accepted result.
 
@@ -32,7 +32,7 @@ Once a boundary is supported, do not reopen it because this lens is still in con
 
 Goal: the failure behavior that matters is owned, and nothing more is built.
 
-Before choosing classes, services, packages, flags, or states, name the caller and complete accepted outcome; caller-owned decisions and observable success and failure; the likely-changing coordination the module could hide; and the **failure unit**: what must succeed, fail, and recover as one coherent boundary, including whether partial reuse is required or merely an optimization. Where effects or partial state are consequential, establish the failure contract (observer, canonical and diagnostic state, forbidden outcomes, stop, degrade, fail or retry behavior, and supported recovery) with [design state and failure](design-state-and-failure.md). Include cancellation, concurrency, or reconciliation only where required behavior or observed reachability makes them material.
+Before choosing classes, services, packages, flags, or states, name the caller and complete accepted outcome; caller-owned decisions and observable success and failure; the likely-changing coordination the module could hide; and the **failure unit**: what must succeed, fail, and recover as one coherent boundary, including whether partial reuse is required or merely an optimization. Where effects or partial state are consequential, establish the failure contract (observer, canonical and diagnostic state, forbidden outcomes, stop, degrade, fail or retry behavior, and supported recovery) with [State And Failure](#state-and-failure). Include cancellation, concurrency, or reconciliation only where required behavior or observed reachability makes them material.
 
 Classify each proposed mechanism by what it is for: **trust** (knowing the result is valid), **safety** (preventing damage, leakage, or runaway behavior), **efficiency**, **scale**, or **portability**. Trust and safety cannot be deferred to simplify a design; efficiency, scale, and portability need an accepted requirement or observed pressure before they shape it. A module owning a failure unit does not automatically need durable replay, rollback, universal provenance, or every recovery mechanism.
 
@@ -127,6 +127,132 @@ Evidence still missing:
 ```
 
 If the decision cannot yet be named, define one bounded learning question rather than a generic abstraction.
+
+## State And Failure
+
+Use this section when state must survive a failure: correctness materially depends on canonical state, partial effects, atomic visibility, concurrent writers, cancellation, retries, recovery, reconciliation, or evidence of the final outcome. Do not apply it to a simple local value change whose state owner and failure behavior are already sound.
+
+### Name Canonical State
+
+Identify:
+
+- canonical source of truth;
+- who may create, replace, or invalidate it;
+- visible states and invariants;
+- commit or visibility point;
+- diagnostic versus authoritative records;
+- what callers may safely cache or infer.
+
+Do not let several modules each behave as the source of truth.
+
+A log, cache, temporary file, UI projection, or recovery marker is not canonical merely because it is observable.
+
+### Define State Transitions
+
+For every material transition, establish:
+
+```text
+precondition
+-> accepted operation
+-> commit or visibility point
+-> resulting canonical state
+-> evidence
+```
+
+Name forbidden transitions and partial states.
+
+Prefer one owner for transition policy. Callers should not reproduce state-machine rules independently.
+
+### Bound Partial Effects
+
+When an operation affects several resources or can fail midway, establish:
+
+- which effects may occur before commitment;
+- which effects are forbidden before commitment;
+- what must be rolled back, reconciled, or retained;
+- what prior accepted state must survive;
+- how partial outcomes are detected;
+- what result is safe to expose.
+
+Atomicity may come from transactions, staging, replacement, versioning, or explicit reconciliation. Do not claim atomic behavior from intention alone.
+
+### Separate Retry, Resume, And Replay
+
+These are different capabilities:
+
+- **Retry:** attempt the same operation again.
+- **Resume:** continue incomplete work from preserved state.
+- **Replay:** apply an event or request again.
+- **Idempotency:** repeated application has one supported effect.
+- **Recovery:** restore a safe supported state.
+- **Reconciliation:** compare and resolve divergent state.
+
+Supporting one does not imply the others.
+
+Expose them only when required by accepted behavior or observed failure.
+
+### Design Concurrency Deliberately
+
+When operations can overlap, identify:
+
+- shared state;
+- ordering and visibility;
+- lost-update or duplicate-effect risk;
+- serialization or conflict rule;
+- cancellation behavior;
+- stale-read policy;
+- observer capable of proving the required outcome.
+
+Before serializing writers, ask whether they need one shared target at all. When each publishes its own facts, give each its own file, key, or record and combine them where they are read; two workers updating different fields of one state file still share it. Serialize, with a lock, a queue, or a single writer, only when one shared target is itself required.
+
+Do not add locks, queues, retries, or optimistic versions without naming the invariant they protect.
+
+### Define Failure And Recovery
+
+For the failure unit, state:
+
+- who observes failure;
+- canonical state after failure;
+- diagnostic evidence;
+- forbidden partial effects;
+- fail-open, fail-closed, degrade, stop, retry, or escalation behavior;
+- safe restart or recovery operation;
+- evidence proving recovery.
+
+A graceful error response does not prove graceful state handling.
+
+### Keep Recovery Out Of Ordinary Callers
+
+Callers should normally request an outcome and receive supported success or failure.
+
+Do not require every caller to know:
+
+- cleanup order;
+- retry schedule;
+- temporary paths;
+- partial-state markers;
+- provider error translation;
+- reconciliation commands.
+
+Publish diagnostics without exposing recovery choreography unless callers genuinely own recovery.
+
+### Test State And Failure Through Observable Invariants
+
+Tests should verify:
+
+- accepted final state;
+- preserved prior state;
+- forbidden writes;
+- composed failures;
+- retry or replay behavior when required;
+- cancellation and recovery;
+- evidence at the real observing boundary.
+
+A passing happy-path test does not prove partial-failure safety.
+
+### Return For State And Failure
+
+Return the canonical state and owner, material invariants, the failure unit and its forbidden partial outcomes, the retry, resume, replay, and recovery capabilities actually required, and remaining uncertainty. Stop when state and failure ownership are sufficient for the current decision; do not design every theoretical failure mode.
 
 ## Return The Smallest Supported Change
 
