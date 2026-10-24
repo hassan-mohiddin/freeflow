@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/tool-execution/`, `runtime/prompts/tool-execution.md`
 > **Tests:** `pi-extension/tests/tool-execution/`
-> **Verified at:** `a5a354df` (2026-10-24)
+> **Verified at:** `eb4a7af7` (2026-10-24)
 > **User docs:** `plugin-docs/capabilities/tool-execution.md`
 
 For contributors changing Tool Execution on Pi: what Freeflow adds around Pi's own tools, how each part hooks into Pi, and which of its behaviors are deliberate.
@@ -129,6 +129,9 @@ The push retriever (Task 004 D-003): a few lines of a skill's guidance reach the
 - a `bash` result for a `git commit`: Deliver Work's commit essentials (check what the commit holds; never commit Working Records, secrets or env files; no amend, no-verify, empty commit or push unless asked; inspect after a failed commit or hook), plus one line naming Write Skill's `skill-author compare --all-units` when the commit holds model-facing instruction text. Which paths the commit dealt with is read from Git at that result, once (`git diff-tree` of `HEAD` after success, `git diff --cached` after a failure). Once per run.
 - the second failure of the same test command (the command text, whitespace-normalized; npm, node --test, pytest, jest, vitest, go, cargo and others): diagnose's two key lines, naming Execute Work's Diagnose Before Fixing and its diagnose reference. A pass of that command clears its count; at most 32 commands are remembered.
 - a passing test command after the run changed a file (`edit`, `write`, `apply_patch`) and before it ran `self-review.mjs`: run Execute Work's self-review, with the script's path in this package, saying to read Execute Work if its body is not in context. Once per run.
+- any result while Execute Work is listed and its `SKILL.md` text is not in context (`FileTracking.loadedSkills()`: never read, or dropped by a compaction): read Execute Work, with its path in this package, before more tool calls. Once per run, and not on a read of one of Freeflow's own instruction files, so a read of Discuss Work first is not interrupted. Off while Execute Work is turned off in Skills.
+
+Compaction's carried tool results leave guidance notices out (`withoutGuidanceNotices()`): they are guidance for the moment, not evidence, and a notice inside a carried read would be numbered as file lines.
 
 `agent_start` resets the per-run state. `toolExecution.guidanceNotices: false` turns the notices off.
 
@@ -161,6 +164,7 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | A monitor's guidance (when to use it instead of `bash_background`, flushing each pipe stage, matching failures as well as success) lives in its tool description, not in the prompt section or Verify Work. | It is needed only when choosing or writing a watch, where the description is read; Working Method already states the general rule that a check proves only what it could have caught (Write Skill's Placement And Dependencies). | A line in the always-sent prompt section; a Verify Work rule. | Task 002 |
 | Monitor notices wake an idle agent, bounded by 20 notices a minute and 40 lines a notice. | A watch that cannot wake the agent cannot report a failure while it waits (spec O-6); each wake is a model request, so the limit bounds the cost. | Holding idle events until the next turn. | Task 002 |
 | Guidance notices join the tool result that triggers them, not a separate message. | The result has not been delivered, so appending to it changes nothing the provider cached, the same path as the changed-files lines; a `sendMessage` steer would add a message and a turn boundary for a few lines. A notice at `tool_call` is impossible: Pi's handler can only block. | Request-history transient state (that is for per-request state, not one-off notices); a system-prompt section (fixed per configuration, and always loaded). | Task 004 D-003 |
+| Any result while Execute Work is not in context asks for it, once per run, after the first read of a Freeflow instruction file if that came first. | Core says to read it before the first tool call, but a Pi session diagnosed a failure and ran a check without reading any skill; a notice on the result reaches the agent at that moment. Skipping instruction reads lets the agent read Discuss Work first. | Blocking tool calls until it is read; a notice on every result. | User, 2026-10-24 |
 | The commit notice comes after the commit, not before it. | Pi gives no way to add context before a tool runs; after it, the notice still has the agent check what the commit holds before anything goes further, and it is in context for the next commit. | Blocking the first commit to deliver the notice (a refusal the agent did not cause). | Task 004 D-003 |
 
 ## Intended Behavior That Looks Wrong
@@ -238,7 +242,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
 - `tool_result` for a non-tracked tool stats every observed file and hashes only files whose size or mtime moved. This grows with the number of files read in the session, not with session length.
 - `before_agent_start` does the same once per prompt, and only after state was built.
 - An instruction-file read compares its lines with that file's earlier records, with no file system access; a rebuild walks the branch once per navigation, resume or invalidation. `loadedSkills()` returns the recorded skill names.
-- A guidance notice costs a regular-expression test of the command per top-level `bash` result, and one Git call per `git commit` result; nothing per request.
+- A guidance notice costs a regular-expression test of the command per top-level `bash` result, and one Git call per `git commit` result; until the Execute Work notice has shown in a run, each top-level result also looks up the skills read in this context (a branch rebuild only when that list was invalidated); nothing per request.
 - Nothing runs in `context_with_system`. See [Performance](../guides/performance.md) for the request-path rules.
 - The prompt section is about 370 words of fixed text, and the four tool descriptions about 430, each written once and then read from the provider's cache.
 
@@ -262,7 +266,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
 
 ## Tests
 
-See [the tests README](../../pi-extension/tests/tool-execution/README.md). In short: `prompt-native.test.js` (sections on and off), `file-state.test.js` and `file-tracking-native.test.js` (observations, write refusal, changed-since-read, edit error rewrites against Pi's real `edit`), `changed-files-native.test.js` (notices after other tools), `skill-reads.test.js` and `skill-reads-native.test.js` (repeat reads answered, changed or partial text, truncation, nested calls, compactions, a Coordinator under projection, rebuild after resume, the Runtime State line), `apply-patch.test.js` and `apply-patch-native.test.js` (parser, matcher, declaration, grammar form), `background.test.js`, `monitor.test.js` and `background-native.test.js` (limits, exit codes, stop, shutdown, monitor events, batching, expiry and rate limit, notices in a real session), `bash-guard.test.js`, `guidance-notices-native.test.js` (commit, instruction text, second failure, self-review reminder, the setting off, and a later request extending the earlier one).
+See [the tests README](../../pi-extension/tests/tool-execution/README.md). In short: `prompt-native.test.js` (sections on and off), `file-state.test.js` and `file-tracking-native.test.js` (observations, write refusal, changed-since-read, edit error rewrites against Pi's real `edit`), `changed-files-native.test.js` (notices after other tools), `skill-reads.test.js` and `skill-reads-native.test.js` (repeat reads answered, changed or partial text, truncation, nested calls, compactions, a Coordinator under projection, rebuild after resume, the Runtime State line), `apply-patch.test.js` and `apply-patch-native.test.js` (parser, matcher, declaration, grammar form), `background.test.js`, `monitor.test.js` and `background-native.test.js` (limits, exit codes, stop, shutdown, monitor events, batching, expiry and rate limit, notices in a real session), `bash-guard.test.js`, `guidance-notices-native.test.js` (commit, instruction text, second failure, self-review reminder, the Execute Work notice and Execute Work turned off, the setting off, and a later request extending the earlier one).
 
 ## Limits
 

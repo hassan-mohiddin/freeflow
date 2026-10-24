@@ -137,10 +137,27 @@ The measures come from `scripts/report.mjs`, which reads the stored runs and cou
 
 The same measures follow per skill of the merged build (`owner (merged)`), over the requests and near misses of every
 skill merged into it, on both builds: Deliver Work's row adds Commit Work, Finish Branch, Launch Work and Release Work,
-so before and after of one v0.9.0 skill read side by side. Overall it gives the hit rate over the requests with an
-owner (75 on the base, 72 on v0.9.0), the false-trigger rate over the near-miss checks the build keeps, and skills
-opened per run. `--cases` lists every run's opened skills with the turn; `--json` writes everything, including the runs it
-left out (not complete, or held for uncleared transcript flags).
+so before and after of one v0.9.0 skill read side by side.
+
+**Read first.** On a build whose core says to read Execute Work before the first tool call (and Discuss Work at a
+task's first request), opening either on a near miss is what the build asks for, so the report drops near-miss checks on
+those two skills (`READ_FIRST` in `cases.mjs`) for that build's groups, with the reason "read first on this build". It
+reads the build's `runtime/prompts/core.md` from the package the evaluator built for the group.
+
+**Parts.** Where a request's moment is one its skill's routing table sends to a reference or a script, the case names
+that file in `parts` (55 cases, 70 files; a code change names `touch-map` and `self-review`, a pull request
+`branch-closeout`, a plan `spec-and-plan-shapes` and `plan-lint`). The report counts a reference as used when it was
+read the same way as a skill, and a script when a `bash` command segment that names it also runs `node`; reading a
+script's source is not running it. A file that moved (`MOVED_PARTS`: the four references merged into a sibling, and Map
+Features' body, now Verify Work's feature map) counts as the file that holds its text now, so earlier builds' runs grade
+the same way. The parts table gives each file's share of the cases that name it. Parts are graded by the report only,
+not by the groups' checks, so adding them changes no group and stored runs can be graded again.
+
+Overall it gives the hit rate over the requests with an owner (75 on the base, 72 on v0.9.0), the false-trigger rate
+over the near-miss checks the build keeps, skills opened per run, the share of named parts used, and how many runs read
+any reference or ran any skill script. `--cases` lists every run's opened skills with the turn, and the named parts it
+did not use; `--json` writes everything, including each run's used parts and the runs it left out (not complete, or
+held for uncleared transcript flags).
 
 ## Build and pin the image
 

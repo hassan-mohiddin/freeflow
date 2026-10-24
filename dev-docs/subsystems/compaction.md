@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/compaction/`, `capabilities/compaction/`
 > **Tests:** `pi-extension/tests/compaction/`, `pi-extension/tests/integration/request-path-budget.test.js`
-> **Verified at:** `3e50548c` (2026-10-22)
+> **Verified at:** `eb4a7af7` (2026-10-24)
 > **User docs:** `plugin-docs/capabilities/compaction.md`
 
 For contributors changing Freeflow compaction on Pi: how it decides when compaction is due, what it writes into the session, how it works with Cognitive Routing and with Pi's own compaction, and which of its behaviors are deliberate.
@@ -62,7 +62,7 @@ Worked example, 200k window with Pi's default reserve: trigger 200,000 − 16,38
 
 ### Carry
 
-The carried context holds, in order: the user's latest messages, each in a `<user-message index="…">` tag (up to 3, 8,000 tokens, outside the budget; the `/freeflow compact` request is a custom message, so it is never among them), the agent's files read fresh at compaction and numbered by file line, the agent's picked results, the automatic fill, and a list of the work's other results by ref.
+The carried context holds, in order: the user's latest messages, each in a `<user-message index="…">` tag (up to 3, 8,000 tokens, outside the budget; the `/freeflow compact` request is a custom message, so it is never among them), the agent's files read fresh at compaction and numbered by file line, the agent's picked results, the automatic fill, and a list of the work's other results by ref. A carried or listed result leaves out the guidance notices Tool Execution joined to it (`results.ts`), so its size and text are the tool's own.
 
 The automatic fill takes the newest results of the work in progress (the current assignment under routing, otherwise the cycle) into the room the picks left, skipping any that does not fit. Freeflow's control calls and reads of its own instructions (`capabilities/`, `skills/`, `runtime/`) are excluded, as are earlier `read` results of a file the agent carries fresh. Up to 60 of the rest are listed by ref.
 
