@@ -96,7 +96,8 @@ The measures come from `scripts/report.mjs`, which reads the stored runs and cou
 
 - **hit**: share of its own requests on which an expected skill opened, within the turn cap; **1st**: on the first turn;
   **self**: on which the skill itself opened;
-- **false**: share of its near misses on which it opened anyway;
+- **false**: share of its near misses on which it opened anyway on the first turn. A later open is not counted: the
+  simulated user's "go" can ask for the very work the near miss left out, and reading the skill is then right;
 - **instead**: what opened on a miss (`(none)` when nothing did).
 
 Overall it gives the hit rate over all 75 requests, the false-trigger rate over all near-miss checks, and skills opened

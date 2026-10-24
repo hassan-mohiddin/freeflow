@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Reads one or more freeflow-routing results and reports, per skill: how often its own requests opened it (hit rate,
 // and on the first turn), how often its near misses opened it anyway (false-trigger rate), and what was opened instead
-// when it was missed. With two results (before and after), it prints them side by side.
+// when it was missed. With two results (before and after), it prints them side by side. A near miss counts only an
+// open on the first turn: the simulated user's "go" on the second turn can ask for the work the near miss left out.
 //
 //   node .skill-eval/freeflow-routing/scripts/report.mjs <result> [<result>] [--results <dir>] [--cases] [--json]
 //
@@ -87,6 +88,9 @@ export async function collect(results, resultsDirectory) {
   return { runs, skipped };
 }
 
+/** Whether a run opened a near-miss skill on its first turn, the turn its request alone decides. */
+const nearOpened = (run, skill) => run.opened.get(skill) === 1;
+
 const share = (count, total) => (total === 0 ? null : { count, total, rate: count / total });
 
 /** The per-skill measures over a set of runs. */
@@ -112,7 +116,7 @@ export function summarize(runs) {
       hit: share(hits.length, own.length),
       hitFirstTurn: share(firstTurn.length, own.length),
       opensItself: share(itself.length, own.length),
-      falseTrigger: share(near.filter((run) => run.opened.has(skill)).length, near.length),
+      falseTrigger: share(near.filter((run) => nearOpened(run, skill)).length, near.length),
       openedElsewhere: share(elsewhere.filter((run) => run.opened.has(skill)).length, elsewhere.length),
       instead: Object.fromEntries(Object.entries(instead).sort(([, a], [, b]) => b - a)),
     };
@@ -127,7 +131,7 @@ export function summarize(runs) {
         runs.filter((run) => run.case.hit !== null).length,
       ),
       falseTrigger: share(
-        runs.reduce((total, run) => total + run.case.not.filter((skill) => run.opened.has(skill)).length, 0),
+        runs.reduce((total, run) => total + run.case.not.filter((skill) => nearOpened(run, skill)).length, 0),
         runs.reduce((total, run) => total + run.case.not.length, 0),
       ),
       opensPerRun: all === 0 ? null : runs.reduce((total, run) => total + run.opened.size, 0) / all,
@@ -188,7 +192,7 @@ function caseLines(label, runs) {
   return runs.map((run) => {
     const opened = [...run.opened.entries()].map(([skill, turn]) => `${skill}@${turn}`).join(" ") || "(none)";
     const ok = run.case.hit === null || run.case.expect.some((skill) => run.opened.has(skill));
-    const wrong = run.case.not.filter((skill) => run.opened.has(skill));
+    const wrong = run.case.not.filter((skill) => nearOpened(run, skill));
     return `${label} ${run.case.id.padEnd(22)} ${ok && wrong.length === 0 ? "ok  " : "MISS"} opened: ${opened}${wrong.length > 0 ? `; near miss opened: ${wrong.join(", ")}` : ""}`;
   });
 }
