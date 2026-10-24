@@ -49,9 +49,14 @@ export function releasedSectionsEqual(current, base, tags) {
       .split(/\r?\n/, 1)[0]
       .replace(/^##\s+/, "")
       .trim();
+  // A version section is matched by its version alone, so an untagged section's date can change with its notes.
+  const sectionKey = (section) => {
+    const title = sectionTitle(section);
+    return /^(\d+\.\d+\.\d+)(?=\s|$)/.exec(title)?.[1] ?? title;
+  };
   const sectionsByTitle = (markdown) => {
     const sections = extractReleasedSections(String(markdown).replace(/\r?\n$/, ""));
-    const result = new Map(sections.map((section) => [sectionTitle(section), section]));
+    const result = new Map(sections.map((section) => [sectionKey(section), section]));
     return result.size === sections.length ? result : null;
   };
 
