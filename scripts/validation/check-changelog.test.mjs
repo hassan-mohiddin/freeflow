@@ -187,6 +187,21 @@ test("lets a version section change until its tag exists", () => {
   assert.match(tagged.errors.join("\n"), /released changelog sections are immutable/i);
 });
 
+test("lets an untagged version section's date change, but not a tagged one's", () => {
+  const redated = preparedChangelog.replace("## 0.9.0 - 2026-10-22", "## 0.9.0 - 2026-10-24");
+  assert.notEqual(redated, preparedChangelog);
+  const check = (tags) =>
+    validateChangelogDeclaration({
+      body: internalBody,
+      changedPaths: ["CHANGELOG.md"],
+      currentChangelog: redated,
+      baseChangelog: preparedChangelog,
+      tags,
+    });
+  assert.deepEqual(check(["v0.8.0"]), { declaration: "internal", errors: [] });
+  assert.match(check(["v0.8.0", "v0.9.0"]).errors.join("\n"), /released changelog sections are immutable/i);
+});
+
 test("keeps an untagged version section from being removed or renamed", () => {
   const removed = preparedChangelog.replace("## 0.9.0 - 2026-10-22\n\n### Added\n\n- Prepared note.\n\n", "");
   const renamed = preparedChangelog.replace("## 0.9.0 - 2026-10-22", "## 0.9.1 - 2026-10-22");

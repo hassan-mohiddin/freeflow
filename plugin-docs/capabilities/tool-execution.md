@@ -47,9 +47,10 @@ The settings of the retired v2 runtime (`capture`, `programs`, `workspace`, `dis
 
 - a `git commit` result: Deliver Work's commit essentials (check what the commit holds; never commit Working Records, secrets or env files; no amend, no-verify, empty commit or push unless you asked; inspect after a failed commit or hook), plus a reminder of Write Skill's loss check when the commit holds instruction text such as a skill or `AGENTS.md`;
 - the second failure of the same test command: the two key lines of Execute Work's diagnose method;
-- a passing test command after the agent changed a file: a reminder to run Execute Work's `self-review.mjs` before reporting.
+- a passing test command after the agent changed a file: a reminder to run Execute Work's `self-review.mjs` before reporting;
+- any tool result while Execute Work is not in the agent's context (never read, or dropped by a compaction): read it before more tool calls. A read of one of Freeflow's skills does not trigger it, so reading Discuss Work first is not interrupted, and it stays off while Execute Work is turned off under Skills.
 
-The commit and self-review notices come at most once per run. They are added to a result not yet sent, so they do not change anything the provider has cached. Turn them off with the Guidance notices row under Tool Execution in `/freeflow settings`, for this session, for you, or for the repository (`toolExecution.guidanceNotices`).
+The commit, self-review and Execute Work notices come at most once per run. They are added to a result not yet sent, so they do not change anything the provider has cached. Turn them off with the Guidance notices row under Tool Execution in `/freeflow settings`, for this session, for you, or for the repository (`toolExecution.guidanceNotices`).
 
 **Shell habits.** `bash` refuses a command ending in `&` (it would keep running with no exit notice and no saved output) and a foreground `sleep` of 10 seconds or more, and points to `bash_background`.
 
