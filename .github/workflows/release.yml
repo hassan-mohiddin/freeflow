@@ -39,6 +39,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.RELEASE_TAG }}
+          # The docs check resolves each doc's Verified at commit, so the release needs history, as CI does.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
