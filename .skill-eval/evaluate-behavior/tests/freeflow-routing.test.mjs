@@ -13,13 +13,14 @@ import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/de
 import {
   CASES,
   MERGED,
+  MOVED_PARTS,
   OWNERS,
   RETIRED,
   SKILLS,
   gradedSkills,
   routeCase,
 } from "../../freeflow-routing/scripts/cases.mjs";
-import { measuredRun, openedSkills, summarize } from "../../freeflow-routing/scripts/report.mjs";
+import { measuredRun, openedSkills, summarize, usedParts } from "../../freeflow-routing/scripts/report.mjs";
 import { removeStub, stubSuiteRun } from "./helpers/suite-stub.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -48,6 +49,14 @@ test("every skill has three requests and at least one near miss, and the skill l
     if (entry.hit !== null) assert.ok(entry.expect.includes(entry.hit), entry.id);
     else assert.deepEqual(entry.expect, [], entry.id);
     for (const skill of entry.route ?? []) assert.ok(OWNERS.includes(skill), `${entry.id}: route ${skill}`);
+    for (const part of entry.parts ?? []) {
+      assert.ok(existsSync(path.join(root, "skills", part)), `${entry.id}: ${part} is not a file under skills/`);
+      assert.match(part, /^[a-z-]+\/(references\/[a-z0-9-]+\.md|scripts\/[a-z0-9-]+\.mjs)$/, entry.id);
+    }
+  }
+  for (const [moved, current] of Object.entries(MOVED_PARTS)) {
+    assert.ok(!existsSync(path.join(root, "skills", moved)), `${moved} still exists`);
+    assert.ok(existsSync(path.join(root, "skills", current)), `${current} does not exist`);
   }
 });
 
@@ -160,18 +169,23 @@ test("the fixture's history leaves the TSV export uncommitted on the tag-rename 
   assert.match(output, /main Release 1\.4\.0/);
 });
 
-const run = (id, calls, present = BASE) =>
-  measuredRun(
-    CASES.find((entry) => entry.id === id),
-    openedSkills({
-      state: "complete",
-      turns: calls.map((group, index) => ({
-        turn: index + 1,
-        toolActivity: group.map(([toolName, args, isError = false]) => ({ toolName, args, completed: true, isError })),
-      })),
-    }),
-    present,
-  );
+const run = (id, calls, present = BASE) => {
+  const stored = {
+    state: "complete",
+    turns: calls.map((group, index) => ({
+      turn: index + 1,
+      toolActivity: group.map(([toolName, args, isError = false]) => ({ toolName, args, completed: true, isError })),
+    })),
+  };
+  return {
+    ...measuredRun(
+      CASES.find((entry) => entry.id === id),
+      openedSkills(stored),
+      present,
+    ),
+    used: usedParts(stored),
+  };
+};
 
 test("the report counts a skill opened by read or by a bash command, and splits hits, near misses and the rest", () => {
   const skill = (name) => `/runs/x/resources/freeflow/0/package/skills/${name}/SKILL.md`;
@@ -265,6 +279,62 @@ const reportJson = (resultDirectory) =>
     }),
   );
 
+test("the report counts a reference read or named, a script run with node, and a moved file as its new home", () => {
+  const file = (part) => `/runs/x/resources/freeflow/0/package/skills/${part}`;
+  const runs = [
+    // Both parts: touch-map run on turn 1, self-review run on turn 2 after a cd.
+    run("ew-plan-step-2", [
+      [["bash", { command: `node ${file("execute-work/scripts/touch-map.mjs")} --files src/store.js` }]],
+      [["bash", { command: `cd /workspace && node ${file("execute-work/scripts/self-review.mjs")}` }]],
+    ]),
+    // Reading a script's source is not running it; a failed run does not count.
+    run("ew-agreed-json", [
+      [
+        ["bash", { command: `sed -n 1,40p ${file("execute-work/scripts/touch-map.mjs")}` }],
+        ["bash", { command: `node ${file("execute-work/scripts/self-review.mjs")}` }, true],
+      ],
+    ]),
+    // A reference read with cat counts; one read with read counts.
+    run("ho-stop-today", [[["bash", { command: `cat ${file("track-work/references/handoff.md")} | head -80` }]]]),
+    run("rv-plan", [[["read", { path: file("review-work/references/artifact.md") }]]]),
+    // An earlier build's push reference counts as branch closeout, which holds its text now.
+    run("fb-done", [[["read", { path: file("deliver-work/references/push.md") }]]]),
+    // An earlier build's Map Features skill counts as the feature map reference.
+    run("mf-setup", [[["read", { path: file("map-features/SKILL.md") }]]]),
+    // No parts named: still counted in the totals.
+    run("nm-as-obvious", [[["read", { path: file("write-docs/references/documentation-shapes.md") }]]]),
+  ];
+  assert.deepEqual(
+    [...runs[0].used.entries()],
+    [
+      ["execute-work/scripts/touch-map.mjs", 1],
+      ["execute-work/scripts/self-review.mjs", 2],
+    ],
+  );
+  assert.equal(runs[1].used.size, 0);
+  const { parts, overall } = summarize(runs);
+  assert.deepEqual(parts["execute-work/scripts/touch-map.mjs"], { count: 1, total: 2, rate: 1 / 2 });
+  assert.deepEqual(parts["track-work/references/handoff.md"], { count: 1, total: 1, rate: 1 });
+  assert.deepEqual(parts["review-work/references/artifact.md"], { count: 1, total: 1, rate: 1 });
+  assert.deepEqual(parts["deliver-work/references/branch-closeout.md"], { count: 1, total: 1, rate: 1 });
+  assert.deepEqual(parts["verify-work/references/feature-map.md"], { count: 1, total: 1, rate: 1 });
+  assert.deepEqual(overall.parts, { count: 6, total: 8, rate: 6 / 8 });
+  assert.equal(overall.runsReadingAReference, 5);
+  assert.equal(overall.runsRunningAScript, 1);
+});
+
+test("a near miss counts an open on its first turn only", () => {
+  const skill = (name) => `/runs/x/resources/freeflow/0/package/skills/${name}/SKILL.md`;
+  // The user's "go" on turn 2 asks for the work: opening Execute Work then is right.
+  const later = run("nm-ew-explain", [
+    [["bash", { command: "cat src/server.js" }]],
+    [["read", { path: skill("execute-work") }]],
+  ]);
+  const first = run("nm-ew-explain", [[["read", { path: skill("execute-work") }]]]);
+  assert.equal(summarize([later]).skills["execute-work"].falseTrigger.count, 0);
+  assert.equal(summarize([first]).skills["execute-work"].falseTrigger.count, 1);
+});
+
 test("a stub dry run of one group grades the skill reads and reports a hit", async () => {
   const stub = await stubRun(SKILLS, "commit-work");
   try {
@@ -291,6 +361,7 @@ test("a stub dry run of one group grades the skill reads and reports a hit", asy
         expect: ["commit-work"],
         nearMisses: ["finish-branch"],
         dropped: [],
+        used: {},
       },
     ]);
   } finally {

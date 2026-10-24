@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Reads one or more freeflow-routing results and reports, per skill: how often its own requests opened it (hit rate,
 // and on the first turn), how often its near misses opened it anyway (false-trigger rate), and what was opened instead
-// when it was missed. With two results (before and after), it prints them side by side, once per skill the suite
+// when it was missed; and, for cases that name the references and scripts their moment calls for, how often each was
+// used. With two results (before and after), it prints them side by side, once per skill the suite
 // measures (the base's 25) and once per skill of the merged build (v0.9.0's 11, each with the skills merged into it).
 // A near miss counts only an open on the first turn: the simulated user's "go" on the second turn can ask for the
 // work the near miss left out.
@@ -10,8 +11,9 @@
 //
 // A result is a result ID under <dir> (default .skill-eval/runs), or a path to a result or aggregate folder. An
 // aggregate's trials are all read. A skill counts as opened when the run read its SKILL.md: with `read`, or with a bash
-// command that names the file (cat, sed, head). Runs that did not complete, and runs held for transcript flags no one
-// has cleared, are left out and counted.
+// command that names the file (cat, sed, head). A reference counts as used the same way; a script when a bash command
+// runs it with node. Runs that did not complete, and runs held for transcript flags no one has cleared, are left out
+// and counted.
 //
 // Each run is measured on its own build: the skills Freeflow shipped are read from the package the evaluator built
 // for the group (resources/freeflow/<n>/package/skills). On a build without a measured skill, its owner counts in its
@@ -22,9 +24,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { unclearedFlags } from "../../../skills/evaluate-behavior/scripts/lib/scan.mjs";
-import { CASES, OWNERS, SKILLS, ownerOf, routeCase } from "./cases.mjs";
+import { CASES, MOVED_PARTS, OWNERS, SKILLS, ownerOf, routeCase } from "./cases.mjs";
 
 const SKILL_FILE = /\/skills\/([a-z0-9-]+)\/SKILL\.md\b/g;
+const PART_FILE = /\bskills\/([a-z0-9-]+\/(?:SKILL\.md|references\/[a-z0-9-]+\.md|scripts\/[a-z0-9-]+\.mjs))\b/g;
+const SEGMENT = /;|&&|\|\||\||\n/;
 const ARM = "freeflow";
 
 async function readJson(file) {
@@ -87,6 +91,32 @@ export async function buildSkills(groupDirectory) {
   return skills;
 }
 
+/**
+ * References and scripts a run used, each with the first turn: a reference read with `read` or named in a bash command,
+ * a script named in a bash command segment that runs node. A file that moved counts as the file that holds it now.
+ */
+export function usedParts(run) {
+  const used = new Map();
+  const note = (part, turn) => {
+    const current = MOVED_PARTS[part] ?? part;
+    if (current.endsWith("/SKILL.md")) return;
+    if (!used.has(current) || used.get(current) > turn) used.set(current, turn);
+  };
+  for (const call of toolCalls(run)) {
+    if (call.completed !== true || call.isError === true) continue;
+    if (call.toolName === "read" && typeof call.args?.path === "string") {
+      for (const [, part] of call.args.path.matchAll(PART_FILE)) if (!part.includes("/scripts/")) note(part, call.turn);
+    } else if (call.toolName === "bash" && typeof call.args?.command === "string") {
+      for (const segment of call.args.command.split(SEGMENT)) {
+        for (const [, part] of segment.matchAll(PART_FILE)) {
+          if (!part.includes("/scripts/") || /\bnode\b/.test(segment)) note(part, call.turn);
+        }
+      }
+    }
+  }
+  return used;
+}
+
 /** One run as its build measures it: the case routed for the build's skills (the base's when unknown). */
 export function measuredRun(entry, opened, present) {
   return { case: routeCase(entry, present ?? new Set(SKILLS)), opened, unknownBuild: present === null };
@@ -112,7 +142,7 @@ export async function collect(results, resultsDirectory) {
           continue;
         }
         const present = await buildSkills(path.join(trial, "groups", entry.id));
-        runs.push({ ...measuredRun(entry, openedSkills(run), present), trial });
+        runs.push({ ...measuredRun(entry, openedSkills(run), present), used: usedParts(run), trial });
       }
     }
   }
@@ -183,11 +213,19 @@ export function summarize(runs) {
       ),
     };
   }
+  const parts = {};
+  for (const part of [...new Set(runs.flatMap((run) => run.case.parts ?? []))].sort()) {
+    const own = runs.filter((run) => run.case.parts?.includes(part));
+    parts[part] = share(own.filter((run) => run.used.has(part)).length, own.length);
+  }
+  const pairs = runs.flatMap((run) => (run.case.parts ?? []).map((part) => run.used.has(part)));
+  const usedKind = (kind) => runs.filter((run) => [...run.used.keys()].some((part) => part.includes(kind))).length;
   const all = runs.length;
   return {
     runs: all,
     skills,
     owners,
+    parts,
     overall: {
       hit: share(
         counted.filter((run) => run.case.expect.some((skill) => run.opened.has(skill))).length,
@@ -198,6 +236,9 @@ export function summarize(runs) {
       unowned: runs.filter((run) => run.case.hit !== null && !run.case.owned).length,
       droppedChecks: runs.reduce((total, run) => total + run.case.dropped.length, 0),
       unknownBuild: runs.filter((run) => run.unknownBuild).length,
+      parts: share(pairs.filter(Boolean).length, pairs.length),
+      runsReadingAReference: usedKind("/references/"),
+      runsRunningAScript: usedKind("/scripts/"),
     },
   };
 }
@@ -246,6 +287,21 @@ function table(labels, summaries, section, names, heading) {
   return lines.join("\n");
 }
 
+/** One row per reference or script a case names: its share of those cases that used it, per result. */
+function partsTable(labels, summaries) {
+  const parts = [...new Set(summaries.flatMap((summary) => Object.keys(summary.parts)))].sort();
+  const lines = [["part".padEnd(56), ...labels.map((label) => `used (${label})`.padEnd(16))].join(" | ").trimEnd()];
+  for (const part of parts) {
+    const row = [part.padEnd(56)];
+    for (const summary of summaries) {
+      const entry = summary.parts[part] ?? null;
+      row.push(`${percent(entry)} ${fraction(entry).padStart(5)}`.padEnd(16));
+    }
+    lines.push(row.join(" | ").trimEnd());
+  }
+  return lines.join("\n");
+}
+
 function overallLines(labels, summaries) {
   return summaries.map((summary, index) => {
     const { overall } = summary;
@@ -254,7 +310,7 @@ function overallLines(labels, summaries) {
       overall.droppedChecks > 0 ? `${overall.droppedChecks} near-miss checks dropped for this build` : null,
       overall.unknownBuild > 0 ? `${overall.unknownBuild} runs whose build was unreadable, measured as the base` : null,
     ].filter(Boolean);
-    return `${labels[index]}: ${summary.runs} runs; hit ${percent(overall.hit).trim()} (${fraction(overall.hit)}), false triggers ${percent(overall.falseTrigger).trim()} (${fraction(overall.falseTrigger)}), ${overall.opensPerRun?.toFixed(2) ?? "-"} skills opened per run${notes.length > 0 ? `; ${notes.join("; ")}` : ""}`;
+    return `${labels[index]}: ${summary.runs} runs; hit ${percent(overall.hit).trim()} (${fraction(overall.hit)}), false triggers ${percent(overall.falseTrigger).trim()} (${fraction(overall.falseTrigger)}), ${overall.opensPerRun?.toFixed(2) ?? "-"} skills opened per run; parts used ${percent(overall.parts).trim()} (${fraction(overall.parts)}); ${overall.runsReadingAReference} runs read a reference, ${overall.runsRunningAScript} ran a script${notes.length > 0 ? `; ${notes.join("; ")}` : ""}`;
   });
 }
 
@@ -263,7 +319,8 @@ function caseLines(label, runs) {
     const opened = [...run.opened.entries()].map(([skill, turn]) => `${skill}@${turn}`).join(" ") || "(none)";
     const ok = run.case.hit === null || !run.case.owned || run.case.expect.some((skill) => run.opened.has(skill));
     const wrong = run.case.checks.map((check) => check.target).filter((skill) => nearOpened(run, skill));
-    return `${label} ${run.case.id.padEnd(22)} ${ok && wrong.length === 0 ? "ok  " : "MISS"} opened: ${opened}${wrong.length > 0 ? `; near miss opened: ${wrong.join(", ")}` : ""}`;
+    const missing = (run.case.parts ?? []).filter((part) => !run.used.has(part));
+    return `${label} ${run.case.id.padEnd(22)} ${ok && wrong.length === 0 ? "ok  " : "MISS"} opened: ${opened}${wrong.length > 0 ? `; near miss opened: ${wrong.join(", ")}` : ""}${missing.length > 0 ? `; parts not used: ${missing.join(", ")}` : ""}`;
   });
 }
 
@@ -299,6 +356,7 @@ async function main(argv) {
         expect: run.case.expect,
         nearMisses: run.case.checks.map((check) => check.target),
         dropped: run.case.dropped,
+        used: Object.fromEntries(run.used),
       })),
     }));
     process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
@@ -311,6 +369,8 @@ async function main(argv) {
     ...OWNERS.filter((owner) => summaries[0].owners[owner].merged.length > 0).map(
       (owner) => `  ${owner} takes ${summaries[0].owners[owner].merged.join(", ")}`,
     ),
+    "",
+    partsTable(labels, summaries),
     "",
     ...overallLines(labels, summaries),
   ];

@@ -6,6 +6,9 @@
 // with or without Workflow, so before and after the Workflow removal measure the same route. `route` (optional) names
 // skills of a merged build that also do the request's job without counting toward its hit (a code change is Execute
 // Work's job on v0.9.0); see routeCase.
+//
+// A case may also name the references and scripts its moment calls for (`parts`, paths under skills/), where its
+// skill's routing table names that moment: the report grades each one as used or not, beside the skill.
 
 // Skills the suite still measures although Freeflow has removed them, each with the skill that took over its job
 // (null: none did). The suite runs on the pinned base, where they exist, and again on later builds, so before and
@@ -30,6 +33,17 @@ export const MERGED = {
   "write-spec": "write-docs",
 };
 export const RETIRED = Object.keys(MERGED);
+
+// References that became sections of another file, and the Map Features skill whose body became Verify Work's feature
+// map reference: reading the old file on an earlier build counts as using the file that holds its text now.
+export const MOVED_PARTS = {
+  "deliver-work/references/push.md": "deliver-work/references/branch-closeout.md",
+  "execute-work/references/design-state-and-failure.md": "execute-work/references/design.md",
+  "map-features/SKILL.md": "verify-work/references/feature-map.md",
+  "map-features/references/driving-surfaces.md": "verify-work/references/feature-map.md",
+  "verify-work/references/driving-surfaces.md": "verify-work/references/feature-map.md",
+  "write-docs/references/decision-records.md": "write-docs/references/spec-and-plan-shapes.md",
+};
 
 /** Every skill Freeflow shipped to the model at the pinned base (1a21211c): the skills the suite's cases name. */
 export const SKILLS = [
@@ -174,6 +188,7 @@ export const CASES = [
     hit: "commit-work",
     expect: ["commit-work"],
     not: ["finish-branch"],
+    parts: ["deliver-work/scripts/delivery-state.mjs"],
     prompt: "Commit the TSV export work I did (src/export.js and its test) with a good message.",
   },
   {
@@ -181,6 +196,7 @@ export const CASES = [
     hit: "commit-work",
     expect: ["commit-work"],
     not: [],
+    parts: ["deliver-work/scripts/delivery-state.mjs"],
     prompt: "Please commit what's currently changed in the working tree.",
   },
   {
@@ -188,6 +204,7 @@ export const CASES = [
     hit: "commit-work",
     expect: ["commit-work"],
     not: ["release-work"],
+    parts: ["deliver-work/scripts/delivery-state.mjs", "deliver-work/references/branch-closeout.md"],
     prompt: "Commit the export changes and push them.",
   },
 
@@ -197,6 +214,7 @@ export const CASES = [
     hit: "design-for-depth",
     expect: ["design-for-depth"],
     not: ["migration-work"],
+    parts: ["execute-work/references/design.md"],
     prompt:
       "Later I want shelf to be able to keep bookmarks in SQLite as well as the JSON file. How should the storage code be structured so a second backend is easy to add? Work out the design before changing anything.",
   },
@@ -205,6 +223,7 @@ export const CASES = [
     hit: "design-for-depth",
     expect: ["design-for-depth"],
     not: [],
+    parts: ["execute-work/references/design.md"],
     prompt:
       "Export formats are one big switch in src/export.js. Restructure it so a new format can be added without touching the core, and design the interface first.",
   },
@@ -213,6 +232,7 @@ export const CASES = [
     hit: "design-for-depth",
     expect: ["design-for-depth"],
     not: [],
+    parts: ["execute-work/references/design.md"],
     prompt:
       "Errors are handled differently all over this codebase: some functions throw, some print and exit, some return nothing. Design one consistent way to handle errors.",
   },
@@ -231,6 +251,7 @@ export const CASES = [
     hit: "diagnose-failure",
     expect: ["diagnose-failure"],
     not: [],
+    parts: ["execute-work/references/diagnose.md"],
     prompt: "Searching for 'cafe' no longer finds my bookmark 'Café Culture in Vienna', but it used to. Why?",
   },
   {
@@ -238,6 +259,7 @@ export const CASES = [
     hit: "diagnose-failure",
     expect: ["diagnose-failure"],
     not: [],
+    parts: ["execute-work/references/diagnose.md"],
     prompt:
       "npm test fails in test/store.test.js and I have no idea why. Can you find out what's going on before anyone changes the test?",
   },
@@ -246,6 +268,7 @@ export const CASES = [
     hit: "diagnose-failure",
     expect: ["diagnose-failure"],
     not: [],
+    parts: ["execute-work/references/diagnose.md"],
     prompt:
       "For people with big shelves, the list page of `shelf serve` takes seconds to load. Something is slow and I don't know what.",
   },
@@ -300,6 +323,7 @@ export const CASES = [
     hit: "evaluate-behavior",
     expect: ["evaluate-behavior"],
     not: [],
+    parts: ["evaluate-behavior/references/design-and-measurement.md"],
     prompt:
       "AGENTS.md tells agents to run npm test before saying a change works. How can I test whether coding agents actually follow that? Set up an evaluation.",
   },
@@ -308,6 +332,7 @@ export const CASES = [
     hit: "evaluate-behavior",
     expect: ["evaluate-behavior"],
     not: [],
+    parts: ["evaluate-behavior/references/design-and-measurement.md"],
     prompt:
       "I want to compare how a small model and a large model handle fixing the CSV quoting bug in this repo, with numbers rather than anecdotes. How do we do that?",
   },
@@ -316,6 +341,7 @@ export const CASES = [
     hit: "evaluate-behavior",
     expect: ["evaluate-behavior"],
     not: [],
+    parts: ["evaluate-behavior/references/design-and-measurement.md"],
     prompt:
       "If I reword the changelog rule in AGENTS.md, will agents follow it more often? I want to measure the old wording against a new one.",
   },
@@ -326,6 +352,7 @@ export const CASES = [
     hit: "execute-work",
     expect: ["execute-work"],
     not: ["write-plan"],
+    parts: ["execute-work/scripts/touch-map.mjs", "execute-work/scripts/self-review.mjs"],
     prompt: "The tags plan in docs/PLAN-tags.md is agreed. Go ahead and implement step 2.",
   },
   {
@@ -333,6 +360,7 @@ export const CASES = [
     hit: "execute-work",
     expect: ["execute-work"],
     not: [],
+    parts: ["execute-work/scripts/touch-map.mjs", "execute-work/scripts/self-review.mjs"],
     prompt:
       "As we agreed yesterday: make `shelf list --json` print one JSON array instead of one object per line, and update the test. Go ahead.",
   },
@@ -341,6 +369,7 @@ export const CASES = [
     hit: "execute-work",
     expect: ["execute-work"],
     not: [],
+    parts: ["execute-work/scripts/touch-map.mjs", "execute-work/scripts/self-review.mjs"],
     prompt:
       "Add a lint script to package.json that runs `node --check` on every file in src/ and bin/, and make sure it passes.",
   },
@@ -358,6 +387,7 @@ export const CASES = [
     hit: "finish-branch",
     expect: ["finish-branch"],
     not: [],
+    parts: ["deliver-work/references/branch-closeout.md"],
     prompt: "I'm done with the feature/tag-rename branch. What should we do with it now? Merge it?",
   },
   {
@@ -365,6 +395,7 @@ export const CASES = [
     hit: "finish-branch",
     expect: ["finish-branch"],
     not: ["commit-work"],
+    parts: ["deliver-work/scripts/delivery-state.mjs", "deliver-work/references/branch-closeout.md"],
     prompt: "Open a pull request for the tag-rename branch.",
   },
   {
@@ -372,6 +403,7 @@ export const CASES = [
     hit: "finish-branch",
     expect: ["finish-branch"],
     not: [],
+    parts: ["deliver-work/references/branch-closeout.md"],
     prompt: "I don't think the tag-rename branch is worth finishing. Should we throw it away or park it somewhere?",
   },
 
@@ -381,6 +413,7 @@ export const CASES = [
     hit: "handoff",
     expect: ["handoff"],
     not: [],
+    parts: ["track-work/references/handoff.md"],
     prompt:
       "I have to stop for today. Write things up so I, or someone else, can pick up the tag-rename work tomorrow.",
   },
@@ -389,6 +422,7 @@ export const CASES = [
     hit: "handoff",
     expect: ["handoff"],
     not: [],
+    parts: ["track-work/references/handoff.md"],
     prompt: "My colleague Priya is taking over the tag-rename work from here. Prepare what she needs to continue.",
   },
   {
@@ -396,6 +430,7 @@ export const CASES = [
     hit: "handoff",
     expect: ["handoff"],
     not: [],
+    parts: ["track-work/references/handoff.md"],
     prompt: "This session is getting long. Let's move the tag-rename work to a fresh session; prepare the handover.",
   },
   {
@@ -412,6 +447,7 @@ export const CASES = [
     hit: "launch-work",
     expect: ["launch-work"],
     not: ["release-work"],
+    parts: ["deliver-work/references/launch.md"],
     prompt: "Deploy the current version of shelf to production.",
   },
   {
@@ -419,6 +455,7 @@ export const CASES = [
     hit: "launch-work",
     expect: ["launch-work"],
     not: [],
+    parts: ["deliver-work/references/launch.md"],
     prompt: "Production has been broken since this morning's deploy: users get 500s on the list page. Roll it back.",
   },
   {
@@ -426,6 +463,7 @@ export const CASES = [
     hit: "launch-work",
     expect: ["launch-work"],
     not: [],
+    parts: ["deliver-work/references/launch.md"],
     prompt:
       "Yesterday's failed release wiped the production data volume. We need to get the service back from last night's snapshot; docs/deploy.md says how it's set up.",
   },
@@ -436,6 +474,7 @@ export const CASES = [
     hit: "map-features",
     expect: ["map-features"],
     not: [],
+    parts: ["verify-work/references/feature-map.md"],
     prompt:
       "I want a repeatable way to check that shelf really works end to end: start it and try each feature the way a user would. Set that up so we can rerun it.",
   },
@@ -444,6 +483,7 @@ export const CASES = [
     hit: "map-features",
     expect: ["map-features"],
     not: [],
+    parts: ["verify-work/references/feature-map.md"],
     prompt:
       "Before each release I click through the web view and try the CLI commands by hand. Turn that into saved steps we can run every time.",
   },
@@ -452,6 +492,7 @@ export const CASES = [
     hit: "map-features",
     expect: ["map-features"],
     not: [],
+    parts: ["verify-work/references/feature-map.md"],
     prompt:
       "We have unit tests but nothing that checks the running app. Create live checks for the CLI and the web view, written down so future changes can be checked the same way.",
   },
@@ -462,6 +503,7 @@ export const CASES = [
     hit: "migration-work",
     expect: ["migration-work"],
     not: [],
+    parts: ["execute-work/references/migration.md"],
     prompt:
       "Move bookmark storage from the JSON file to SQLite. People already have years of bookmarks in their JSON files, and nobody can lose any.",
   },
@@ -470,6 +512,7 @@ export const CASES = [
     hit: "migration-work",
     expect: ["migration-work"],
     not: [],
+    parts: ["execute-work/references/migration.md"],
     prompt:
       "Tags are stored as a comma-separated string. Change them to a real array, and make sure every existing user's bookmarks.json still loads afterwards.",
   },
@@ -478,6 +521,7 @@ export const CASES = [
     hit: "migration-work",
     expect: ["migration-work"],
     not: [],
+    parts: ["execute-work/references/migration.md"],
     prompt:
       "We're moving the hosted web view off fly.io onto our own server next week, without losing anyone's data or taking it down. Prepare the move.",
   },
@@ -496,6 +540,7 @@ export const CASES = [
     hit: "release-work",
     expect: ["release-work"],
     not: ["launch-work"],
+    parts: ["deliver-work/references/release.md"],
     prompt: "Cut the 1.5.0 release: update the version and the changelog, and tag it.",
   },
   {
@@ -503,6 +548,7 @@ export const CASES = [
     hit: "release-work",
     expect: ["release-work"],
     not: [],
+    parts: ["deliver-work/references/release.md"],
     prompt: "Get things ready for the next release. What should the version number be, and what goes in the changelog?",
   },
   {
@@ -510,6 +556,7 @@ export const CASES = [
     hit: "release-work",
     expect: ["release-work"],
     not: [],
+    parts: ["deliver-work/references/release.md"],
     prompt: "We published shelf 1.4.0 to npm yesterday. Check that the published package is actually right.",
   },
 
@@ -519,6 +566,7 @@ export const CASES = [
     hit: "review-work",
     expect: ["review-work"],
     not: ["verify-work"],
+    parts: ["review-work/references/work.md"],
     prompt: "Review the changes on the tag-rename branch before I merge them.",
   },
   {
@@ -526,6 +574,7 @@ export const CASES = [
     hit: "review-work",
     expect: ["review-work"],
     not: ["verify-work", "write-plan"],
+    parts: ["review-work/references/artifact.md"],
     prompt: "Take a critical look at docs/PLAN-tags.md. Is it complete enough to build from?",
   },
   {
@@ -533,6 +582,7 @@ export const CASES = [
     hit: "review-work",
     expect: ["review-work"],
     not: [],
+    parts: ["review-work/references/work.md"],
     prompt: "A teammate wrote the TSV export that's sitting uncommitted in src/export.js. Review it for me.",
   },
 
@@ -572,6 +622,7 @@ export const CASES = [
     hit: "simplify-code",
     expect: ["simplify-code"],
     not: [],
+    parts: ["execute-work/references/simplify.md"],
     prompt: "src/format.js works, but it's a mess. Clean it up without changing what it prints.",
   },
   {
@@ -579,6 +630,7 @@ export const CASES = [
     hit: "simplify-code",
     expect: ["simplify-code"],
     not: [],
+    parts: ["execute-work/references/simplify.md"],
     prompt:
       "URL normalizing is duplicated in src/store.js and src/search.js. Refactor it into one place; behavior stays the same.",
   },
@@ -587,6 +639,7 @@ export const CASES = [
     hit: "simplify-code",
     expect: ["simplify-code"],
     not: [],
+    parts: ["execute-work/references/simplify.md"],
     prompt:
       "The argument parsing in bin/shelf.js is far more complicated than it needs to be. Simplify it, keeping the behavior identical.",
   },
@@ -605,6 +658,7 @@ export const CASES = [
     hit: "track-work",
     expect: ["track-work"],
     not: [],
+    parts: ["track-work/scripts/working-record.mjs"],
     prompt:
       "The tag-rename work will take a few days across several sessions. Start a working record for it so nothing gets lost.",
   },
@@ -613,6 +667,7 @@ export const CASES = [
     hit: "track-work",
     expect: ["track-work"],
     not: [],
+    parts: ["track-work/scripts/working-record.mjs"],
     prompt: "I'm back after a week away. Where did we leave the tag-rename work? Pick it up from the task record.",
   },
   {
@@ -620,6 +675,7 @@ export const CASES = [
     hit: "track-work",
     expect: ["track-work"],
     not: [],
+    parts: ["track-work/scripts/working-record.mjs"],
     prompt:
       "Put it in the task record: we decided tags are case-insensitive, and step 2 of the plan is what comes next.",
   },
@@ -651,6 +707,7 @@ export const CASES = [
     hit: "verify-work",
     expect: ["verify-work"],
     not: ["map-features"],
+    parts: ["verify-work/references/runtime-evidence.md"],
     prompt:
       "Start `shelf serve` with SHELF_HOME pointing at a copy of data/sample.json and check that the list page shows all the sample bookmarks.",
   },
@@ -661,6 +718,11 @@ export const CASES = [
     hit: "workflow",
     expect: BUILD,
     not: [],
+    parts: [
+      "execute-work/scripts/touch-map.mjs",
+      "execute-work/scripts/self-review.mjs",
+      "verify-work/references/test-design.md",
+    ],
     prompt: "Make the CSV export quote titles that contain commas, and add a test for it.",
   },
   {
@@ -668,6 +730,7 @@ export const CASES = [
     hit: "workflow",
     expect: BUILD,
     not: [],
+    parts: ["execute-work/scripts/touch-map.mjs", "execute-work/scripts/self-review.mjs"],
     prompt:
       "Add an import command that reads a browser's exported bookmarks HTML file into the shelf, then document it in the README.",
   },
@@ -676,6 +739,7 @@ export const CASES = [
     hit: "workflow",
     expect: BUILD,
     not: [],
+    parts: ["execute-work/scripts/touch-map.mjs", "execute-work/scripts/self-review.mjs"],
     prompt: "Rename the data/ folder to fixtures/ and update everything that refers to it.",
   },
   {
@@ -692,6 +756,7 @@ export const CASES = [
     hit: "write-docs",
     expect: ["write-docs"],
     not: [],
+    parts: ["write-docs/references/documentation-shapes.md", "write-docs/scripts/docs-check.mjs"],
     prompt:
       "New contributors keep asking how shelf is put together. Write developer docs explaining how storage, search, export and the web view fit together.",
   },
@@ -700,6 +765,7 @@ export const CASES = [
     hit: "write-docs",
     expect: ["write-docs"],
     not: [],
+    parts: ["write-docs/scripts/docs-check.mjs"],
     prompt: "The README's export section is out of date now that TSV exists. Update the docs.",
   },
   {
@@ -707,6 +773,7 @@ export const CASES = [
     hit: "write-docs",
     expect: ["write-docs"],
     not: [],
+    parts: ["write-docs/references/documentation-shapes.md"],
     prompt: "This project has no developer documentation at all. Fix that.",
   },
 
@@ -716,6 +783,7 @@ export const CASES = [
     hit: "write-plan",
     expect: ["write-plan"],
     not: ["write-spec"],
+    parts: ["write-docs/references/spec-and-plan-shapes.md", "write-docs/scripts/plan-lint.mjs"],
     prompt:
       "Write an implementation plan for the bookmark import feature, step by step, so it's ready before anyone starts coding.",
   },
@@ -724,6 +792,7 @@ export const CASES = [
     hit: "write-plan",
     expect: ["write-plan"],
     not: [],
+    parts: ["write-docs/scripts/plan-lint.mjs"],
     prompt:
       "Update docs/PLAN-tags.md: step 3 has to come before step 2 now, and there needs to be a step for converting existing tags.",
   },
@@ -732,6 +801,7 @@ export const CASES = [
     hit: "write-plan",
     expect: ["write-plan"],
     not: [],
+    parts: ["write-docs/references/spec-and-plan-shapes.md", "write-docs/scripts/plan-lint.mjs"],
     prompt:
       "Search has a pile of known problems: accents, case, and it's slow on big shelves. Write a plan for fixing them in a sensible order.",
   },
@@ -772,6 +842,7 @@ export const CASES = [
     hit: "write-spec",
     expect: ["write-spec"],
     not: ["write-docs"],
+    parts: ["write-docs/references/spec-and-plan-shapes.md", "write-docs/scripts/artifact-check.mjs"],
     prompt: "Write a spec for syncing shelves between devices: what it must do, for whom, and what's out of scope.",
   },
   {
@@ -779,6 +850,7 @@ export const CASES = [
     hit: "write-spec",
     expect: ["write-spec"],
     not: [],
+    parts: ["write-docs/references/spec-and-plan-shapes.md", "write-docs/scripts/artifact-check.mjs"],
     prompt:
       "We decided to keep the JSON file instead of moving to SQLite. Write that up as a decision record with the reasons.",
   },
@@ -787,6 +859,7 @@ export const CASES = [
     hit: "write-spec",
     expect: ["write-spec"],
     not: ["write-plan"],
+    parts: ["write-docs/references/spec-and-plan-shapes.md", "write-docs/scripts/artifact-check.mjs"],
     prompt: "Write a technical design document for how sync between devices should work.",
   },
 ];
