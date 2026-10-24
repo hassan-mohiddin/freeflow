@@ -28,6 +28,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | Handing work to a later session or someone else, or a pause | Prepare For A Context Boundary, then [handoff](references/handoff.md) |
 | A registered task (a task ID such as `my-project/task-003`), a child record, a project, or the user asking to group tasks, split a task across parallel sessions, or move a record out of a repository | [projects](references/projects.md) |
 | Editing record structure or preparing input for a command | [working record format](references/working-record-format.md) |
+| On Pi with Task Memory on: attaching, creating, focusing or switching records, or a refused record write | The `task_memory` tool; the task-memory skill says how |
 
 ## Rules
 
