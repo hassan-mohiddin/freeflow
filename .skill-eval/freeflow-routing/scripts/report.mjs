@@ -3,6 +3,8 @@
 // and on the first turn), how often its near misses opened it anyway (false-trigger rate), and what was opened instead
 // when it was missed. With two results (before and after), it prints them side by side, once per skill the suite
 // measures (the base's 25) and once per skill of the merged build (v0.9.0's 11, each with the skills merged into it).
+// A near miss counts only an open on the first turn: the simulated user's "go" on the second turn can ask for the
+// work the near miss left out.
 //
 //   node .skill-eval/freeflow-routing/scripts/report.mjs <result> [<result>] [--results <dir>] [--cases] [--json]
 //
@@ -117,6 +119,9 @@ export async function collect(results, resultsDirectory) {
   return { runs, skipped };
 }
 
+/** Whether a run opened a near-miss skill on its first turn, the turn its request alone decides. */
+const nearOpened = (run, skill) => run.opened.get(skill) === 1;
+
 const share = (count, total) => (total === 0 ? null : { count, total, rate: count / total });
 
 /** The measures of one row: its requests (`own`), the skill whose opening is "itself", and its near-miss checks. */
@@ -135,7 +140,7 @@ function row(own, itself, near) {
       own.length,
     ),
     opensItself: share(own.filter((run) => run.opened.has(itself)).length, own.length),
-    falseTrigger: share(near.filter((check) => check.run.opened.has(check.target)).length, near.length),
+    falseTrigger: share(near.filter((check) => nearOpened(check.run, check.target)).length, near.length),
     instead: Object.fromEntries(Object.entries(instead).sort(([, a], [, b]) => b - a)),
   };
 }
@@ -188,7 +193,7 @@ export function summarize(runs) {
         counted.filter((run) => run.case.expect.some((skill) => run.opened.has(skill))).length,
         counted.length,
       ),
-      falseTrigger: share(checks.filter((check) => check.run.opened.has(check.target)).length, checks.length),
+      falseTrigger: share(checks.filter((check) => nearOpened(check.run, check.target)).length, checks.length),
       opensPerRun: all === 0 ? null : runs.reduce((total, run) => total + run.opened.size, 0) / all,
       unowned: runs.filter((run) => run.case.hit !== null && !run.case.owned).length,
       droppedChecks: runs.reduce((total, run) => total + run.case.dropped.length, 0),
@@ -257,7 +262,7 @@ function caseLines(label, runs) {
   return runs.map((run) => {
     const opened = [...run.opened.entries()].map(([skill, turn]) => `${skill}@${turn}`).join(" ") || "(none)";
     const ok = run.case.hit === null || !run.case.owned || run.case.expect.some((skill) => run.opened.has(skill));
-    const wrong = run.case.checks.map((check) => check.target).filter((skill) => run.opened.has(skill));
+    const wrong = run.case.checks.map((check) => check.target).filter((skill) => nearOpened(run, skill));
     return `${label} ${run.case.id.padEnd(22)} ${ok && wrong.length === 0 ? "ok  " : "MISS"} opened: ${opened}${wrong.length > 0 ? `; near miss opened: ${wrong.join(", ")}` : ""}`;
   });
 }
