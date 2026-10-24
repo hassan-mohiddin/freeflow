@@ -5,7 +5,7 @@
 Freeflow gives the coding agent you already use (Codex, Claude Code, Pi and others) what it needs at the moment it decides. On every host its prompts and skills work as a portable layer; on Pi a native extension adds the runtime parts.
 
 - **A short method, always loaded.** One cycle: agree before building, build and verify, review and hand over. Each step checks what actually happened (a script's output, a test, your answer) before the next one, rather than trusting the plan.
-- **Eleven capability skills** that bring scripts and structured artifacts, not just advice: a script that maps what a change touches, a self-review report, a decision list for your choices, a Working Record that survives context loss.
+- **Ten capability skills** that bring scripts and structured artifacts, not just advice: a script that maps what a change touches, a self-review report, a decision list for your choices, a Working Record that survives context loss.
 - **On Pi, a runtime** that pushes the right lines of a skill at the tool call that needs them, and adds compaction, tool handling, task memory and multi-model routing.
 
 The agent keeps its own tools, permissions and execution. Freeflow does not grant permission, enforce a pipeline, or replace your repository's instructions, tests or review.
@@ -46,17 +46,16 @@ A question gets an answer, an exact one-line edit gets made, and a large change 
 | --- | --- |
 | Discuss Work | What to do or how is still open; agreeing before building; a choice mid-work; skipping an optional step |
 | Execute Work | Implementing, fixing, refactoring, designing, finding why something fails, migrating |
-| Verify Work | Checking whether work or a claim holds |
+| Verify Work | Checking whether work or a claim holds; setting up or rechecking saved live checks of your software |
 | Review Work | Judging whether work or a document is fit to use, yours or another's |
 | Deliver Work | Commit, push, merge or pull request, branch cleanup, release, deploy |
 | Track Work | Task memory beyond the conversation: the Working Record, recovery, handoffs |
 | Write Docs | Specs, plans, decision records, user and developer docs |
-| Map Features | A tested way to check your software live |
 | Setup Freeflow | Activating Freeflow in a repository and checking delivery |
 | Write Skill | Writing or revising a skill or other text an agent acts on |
 | Evaluate Behavior | Testing or comparing how an agent behaves with a setup change |
 
-Version 0.9.0 replaced twenty-five skills with these eleven; removed names have no aliases. [What changed in 0.9.0](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md#what-changed-in-090) says where each one went.
+Version 0.9.0 replaced twenty-five skills with these ten; removed names have no aliases. [What changed in 0.9.0](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md#what-changed-in-090) says where each one went.
 
 ## Commands
 

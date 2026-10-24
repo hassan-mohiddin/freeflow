@@ -15,6 +15,6 @@ Durable decisions for the public Freeflow plugin behavior:
 - [ADR 0011: Single Adaptive Workflow](0011-single-adaptive-workflow.md), amended 2026-10-05: runtime prompts are selectable on hosts other than Pi; Workflow parts superseded 2026-10-22 by ADR 0014
 - [ADR 0012: Compact Schema 4 Track Work](0012-compact-schema4-track-work.md)
 - [ADR 0013: One Review Skill Owns Every Review And The Judge Contract](0013-one-review-skill-and-judge-contract.md)
-- [ADR 0014: Capability Skills And A Compact Core](0014-capability-skills-and-a-compact-core.md): no Workflow skill, the cycle in core, routing through descriptions, eleven capability skills with references and scripts, no aliases
+- [ADR 0014: Capability Skills And A Compact Core](0014-capability-skills-and-a-compact-core.md): no Workflow skill, the cycle in core, routing through descriptions, ten capability skills with references and scripts, no aliases
 
 Historical project-development ADRs remain under [the archived project ADRs](../../.deprecated/project-docs/adr/); current durable ADRs belong here.

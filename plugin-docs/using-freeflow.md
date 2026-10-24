@@ -11,7 +11,7 @@ Freeflow is a feedback-based control system for coding agents: each step checks 
 | Part | What it gives the agent | Where |
 | --- | --- | --- |
 | **The cycle** | Agree before building, build and verify, review and hand over, in a short always-loaded prompt with the Interaction Contract and the Working Method. | Every host where Freeflow delivers its prompts. |
-| **Eleven skills** | One per capability: discussing and agreeing, executing, verifying, reviewing, delivering, task memory, documents, and a few for contributors. Each brings references for less common situations and scripts that gather the facts a decision needs. | Every host. |
+| **Ten skills** | One per capability: discussing and agreeing, executing, verifying, reviewing, delivering, task memory, documents, and a few for contributors. Each brings references for less common situations and scripts that gather the facts a decision needs. | Every host. |
 | **Pi capabilities** | Tool Execution (including skill guidance at the tool call that needs it), Compaction, Task Memory, Messaging and Cognitive Routing. | Native Pi. |
 
 [How Freeflow Works](workflow.md) describes the cycle, the agreement and every skill.
@@ -188,7 +188,7 @@ Freeflow skills are focused methods. Each skill's description says when it appli
 | Preserve long-running task state | `/track-work` | Working Record creation, recovery, Slices, decisions, checkpoints and handoffs |
 | Write a spec, plan, decision record or docs | `/write-docs` | Specs and Plans that decide work, decision records, and user and developer docs kept true as the code changes |
 
-[How Freeflow Works](workflow.md#skills) lists all eleven skills, including the contributor ones, and the scripts they run. The 0.9.0 skills replaced twenty-five earlier ones; [What changed in 0.9.0](workflow.md#what-changed-in-090) says where each removed name went.
+[How Freeflow Works](workflow.md#skills) lists all ten skills, including the contributor ones, and the scripts they run. The 0.9.0 skills replaced twenty-five earlier ones; [What changed in 0.9.0](workflow.md#what-changed-in-090) says where each removed name went.
 
 ### Natural language first
 

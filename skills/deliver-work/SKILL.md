@@ -1,6 +1,6 @@
 ---
 name: deliver-work
-description: "Use whenever work leaves your working tree: staging and committing, writing a commit message, pushing, opening, updating or merging a pull request, finishing, keeping or deleting a branch or worktree; preparing or publishing a release (version bump, changelog, release notes, tag, package publish); and deploying, rolling out, rolling back or restoring production. Read it before running git commit, git push, a merge, a tag or a publish command, even when the user only says commit or ship. It reads the repository's delivery state first and checks exactly what each step includes."
+description: "Use whenever work leaves your working tree: staging and committing, writing a commit message, pushing, opening, updating or merging a pull request, finishing, keeping or deleting a branch or worktree; preparing or publishing a release (version bump, changelog, release notes, tag, package publish); and deploying, rolling out, rolling back or restoring production. Read it before running git commit, git push, a merge, a tag or a publish command, even when the user only says commit or ship. It checks the branch, the staged files and the remote before each step, and exactly what each step includes."
 ---
 
 # Deliver Work

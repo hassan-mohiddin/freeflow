@@ -99,29 +99,6 @@
         "ambient_discovery": false
       }
     },
-    "map-features": {
-      "job": "Set up and keep honest a project's live-verification recipe: a feature map, a shared guide and a helper that launch the software and drive each feature as a user would.",
-      "positive_trigger": "The user asks for a tested way to check the software live, accepts Verify Work's proposal when no recipe exists, or asks to recheck a stale feature map.",
-      "near_miss": "Checking one claim against an existing recipe, which Verify Work owns, or writing a subsystem doc, which Write Docs owns.",
-      "pressure": "Under time pressure, write feature files from source reading alone and call them verified, or edit a failing step until it passes when the product is wrong.",
-      "observable": "Feature files are driven end to end before Verified at moves; undriven steps are marked unverified; a product bug is reported, not written into the steps; no paid call runs without the user's yes.",
-      "stop_edge": "No developer docs, a paid call, or an unreachable prerequisite routes to the user; a library with nothing to run gets no map.",
-      "neighbours": ["verify-work", "write-docs", "execute-work", "discuss-work"],
-      "evidence_class": ["native-activation", "artifact-outcome"],
-      "case_concept": "On a small CLI or HTTP fixture, set-up mode writes a guide, helper and feature file that a fresh agent can follow to launch, drive and clean up (SPEC-verification V0).",
-      "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
-      "source_path": "skills/map-features/SKILL.md",
-      "source_sha256": "3fa105fb1542f929f603b5caca0698885d6266677808e989be4284353ee2c6a6",
-      "evidence_status": "unverified",
-      "supported_configuration": null,
-      "intended_evaluation_configuration": {
-        "host": "pi",
-        "mode": "one-shot or declared multi-turn groups",
-        "variants": ["baseline", "candidate"],
-        "source": "exact declared immutable resources",
-        "ambient_discovery": false
-      }
-    },
     "review-work": {
       "job": "Judge implementation, a report or record of work done, an eval definition, or a durable artifact that will guide later work, through silent self-review or separately selected independent review without turning findings into edit or revision authority.",
       "positive_trigger": "Pre-merge or handoff review, review of a spec, plan or other guiding artifact before use, checking a report or task record against what happened, checking an eval case before spending on runs, incoming feedback, or bounded follow-up review.",

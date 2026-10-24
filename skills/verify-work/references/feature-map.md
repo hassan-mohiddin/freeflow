@@ -1,9 +1,4 @@
----
-name: "map-features"
-description: "Use when a project needs a saved, tested way to check its software live, or that way is out of date: setting up a feature map, feature files, a live-verification guide and the helper that launches the software and drives each feature as a user would; or rechecking them after the software changed, a feature was added, or a feature file is marked stale."
----
-
-# Map Features
+# Feature Map
 
 Give a project a tested way to check its software live, and keep it honest as the software changes. The result lives in the project's developer docs, written for an agent that has never seen the software and reads it cold, mid-task:
 
@@ -11,7 +6,7 @@ Give a project a tested way to check its software live, and keep it honest as th
 - a **live-verification guide** shared by every feature file: launch, health check, drive, evidence, clean-up, and which inputs make paid calls;
 - the **helper** script the guide documents, kept in the repository.
 
-[Write Docs](../write-docs/SKILL.md) owns the shapes of the feature file and the guide; read its [Documentation Shapes](../write-docs/references/documentation-shapes.md) before writing either. [Verify Work](../verify-work/SKILL.md) uses the map to check a claim; this skill builds and maintains it.
+[Write Docs](../../write-docs/SKILL.md) owns the shapes of the feature file and the guide; read its [Documentation Shapes](../../write-docs/references/documentation-shapes.md) before writing either. Verify Work's [Project Recipe](runtime-evidence.md#project-recipe) uses the map to check a claim; this reference builds and maintains it.
 
 There are two modes:
 
@@ -42,7 +37,7 @@ Goal: know what to drive and how before writing a line. Answer from the codebase
 
 If the checkout does not build or start as it is, fix that first when the agreement covers it, or report exactly what fails; steps written against a broken base teach the wrong thing.
 
-Read [Driving Surfaces](references/driving-surfaces.md) when choosing how to launch, drive and observe the surface, and before writing the helper.
+Read [Driving Surfaces](driving-surfaces.md) when choosing how to launch, drive and observe the surface, and before writing the helper.
 
 ## Set Up
 
@@ -70,4 +65,4 @@ A recheck runs when the user asks or accepts a proposal, never on a schedule. Pr
 
 Report the mode and outcome; features driven, unverified (with the reason) and unreachable (with the prerequisite and the route tried); product bugs; paid calls made and their cost; where the evidence is; and what the user must decide, such as committing the map or creating developer docs.
 
-Stop once the report is given. Return to the activity that asked, such as Verify Work checking a claim.
+Stop once the report is given. Return to the claim that needed the map, if one did.

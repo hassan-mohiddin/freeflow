@@ -4,7 +4,7 @@
   "id": "v0-setup-and-follow",
   "type": "body",
   "input": {
-    "prompt": "Use the Map Features skill to set up a tested way to check this notes CLI live, the way a user runs it. Put the developer docs under dev-docs/ (you may create them) and the helper where the skill says. Nothing here calls a paid service. Drive everything you write. When you are done, write your final report to setup-report.md in the workspace root."
+    "prompt": "Use Verify Work's feature map method to set up a tested way to check this notes CLI live, the way a user runs it. Put the developer docs under dev-docs/ (you may create them) and the helper where the skill says. Nothing here calls a paid service. Drive everything you write. When you are done, write your final report to setup-report.md in the workspace root."
   },
   "fixture": ".skill-eval/map-features/fixtures/notes-cli",
   "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
@@ -14,7 +14,7 @@
     "subject": {
       "kind": "skill",
       "source": { "kind": "working-tree" },
-      "skills": ["skills/map-features", "skills/write-docs", "skills/verify-work"],
+      "skills": ["skills/verify-work", "skills/write-docs"],
       "target": null,
       "context": []
     },
