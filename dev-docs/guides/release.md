@@ -20,7 +20,7 @@ The package has one portable skills source under `skills/`. Host-specific metada
 4. `Fixed`
 5. `Removed`
 
-Every entry is a bullet under exactly one category. Unknown, duplicate, empty, out-of-order, or uncategorized content fails `npm run check:changelog`. Pull-request validation also rejects changes to released sections. Release preparation may reorder valid categorized entries into canonical order, but it never guesses a category or rewrites released history.
+Every entry is a bullet under exactly one category. Unknown, duplicate, empty, out-of-order, or uncategorized content fails `npm run check:changelog`. Pull-request validation also rejects changes to a version section once it is tagged (`vX.Y.Z`); an untagged version section can still be edited. Release preparation may reorder valid categorized entries into canonical order, but it never guesses a category or rewrites released history.
 
 Agents classify consumer-visible work before editing the changelog, add one concise bullet in the final implementation slice, and run the changelog check. Internal-only work declares that no entry is needed through the pull-request declaration. GitHub Release notes are extracted from the committed versioned section, so the repository changelog remains the single release-note source.
 

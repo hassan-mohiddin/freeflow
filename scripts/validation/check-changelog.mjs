@@ -41,13 +41,13 @@ export function parseDeclaration(body) {
   };
 }
 
-export function validateChangelogDeclaration({ body, changedPaths, currentChangelog, baseChangelog }) {
+export function validateChangelogDeclaration({ body, changedPaths, currentChangelog, baseChangelog, tags }) {
   const parsed = parseDeclaration(body);
   if (parsed.errors.length > 0) return parsed;
 
   const errors = [...validateChangelogStructure(currentChangelog).errors];
   if (baseChangelog !== undefined && baseChangelog !== null) {
-    if (!releasedSectionsEqual(currentChangelog, baseChangelog)) {
+    if (!releasedSectionsEqual(currentChangelog, baseChangelog, tags)) {
       errors.push("Released changelog sections are immutable and must not change in a pull request.");
     }
   }
@@ -132,11 +132,13 @@ function runPullRequestCheck() {
   const changedPaths = git(["diff", "--name-only", "--diff-filter=ACMRT", baseSha, "HEAD"]).split("\n").filter(Boolean);
   const currentChangelog = readFileSync(resolve(CHANGELOG_PATH), "utf8");
   const baseChangelog = git(["show", `${baseSha}:${CHANGELOG_PATH}`]);
+  const tags = git(["tag", "--list", "v*"]).split("\n").filter(Boolean);
   const result = validateChangelogDeclaration({
     body: pullRequest.body || "",
     changedPaths,
     currentChangelog,
     baseChangelog,
+    tags,
   });
 
   if (result.errors.length > 0) {
