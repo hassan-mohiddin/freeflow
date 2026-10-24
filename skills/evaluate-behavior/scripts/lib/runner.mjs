@@ -355,7 +355,7 @@ async function runGroup({
         root,
         groupDirectory,
       });
-      freeflow = await prepareFreeflow({ variants: group.variants, root, groupDirectory });
+      freeflow = await withCpuSlot(() => prepareFreeflow({ variants: group.variants, root, groupDirectory }));
       // Building from source and probing the shell are local CPU work, so they wait for a --cpu-jobs slot.
       const extensions = hostExtensions;
       hostExtensions = await withCpuSlot(() => prepareSourceExtensions({ extensions, root, groupDirectory, signal }));
