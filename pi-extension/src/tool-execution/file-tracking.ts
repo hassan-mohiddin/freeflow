@@ -58,9 +58,6 @@ export class FileTracking {
   private readonly skillReads = new SkillReads();
   private built = false;
 
-  /** `selectiveView`: whether the model's request shows only part of the history (a Coordinator under projection). */
-  constructor(private readonly options: { selectiveView?: () => boolean } = {}) {}
-
   reset(): void {
     this.state.reset();
     this.changed.clear();
@@ -167,7 +164,10 @@ export class FileTracking {
       return rewritten === undefined ? undefined : { content: [{ type: "text", text: rewritten }] };
     }
     await this.state.observe(path, ctx.cwd, name);
-    if (name === "read") return this.skillReads.result(event, ctx.cwd, this.options.selectiveView?.() !== true);
+    if (name === "read") {
+      this.skillReads.observe(event, ctx.cwd);
+      return undefined;
+    }
     const lines =
       name === "edit"
         ? [...(changed ? [changedAfterEdit(path)] : []), noNeedToReread(path)]

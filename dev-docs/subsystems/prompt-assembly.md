@@ -30,7 +30,7 @@ The extension supplies one compact volatile Runtime State record at session star
 - while Freeflow is active, the user's `review` setting (``Review: `off` ``, ``Review: `always`, reviewer model `<model>` ``), only when it is other than the default `auto` with no model, so most users' state stays as it was; the hook hosts' state carries the same line;
 - optional capability availability;
 - Cognitive Routing `Control`, `Profile`, `Delegation`, and `Projection`;
-- with Tool Execution on and routing projection off, the Freeflow skills already read in this context (`Freeflow skills read in this context: …`), taken only where the state refreshes anyway; see [Tool Execution](tool-execution.md#repeat-reads-of-freeflow-instructions);
+- with Tool Execution on and routing projection off, the Freeflow skills already read in this context (`Freeflow skills read in this context: …`), taken only where the state refreshes anyway; see [Tool Execution](tool-execution.md#skills-read);
 - with task memory on (a prototype, see [Task memory](task-memory.md)), the attached Working Records and the focus.
 
 Runtime State is current-state data, not stable policy. It does not replace the prompt fragments, contain hidden reasoning, authorize a tool call, or reconstruct state from earlier transition history.

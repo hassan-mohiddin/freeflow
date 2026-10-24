@@ -7,8 +7,8 @@ Tests for [`src/tool-execution/`](../../src/tool-execution/README.md).
 | `prompt-native.test.js` | The system prompt sections: with Tool Execution on, Freeflow's rules, docs and environment sections; with it off, Pi's prompt untouched. |
 | `file-state.test.js` | Observations: when a file counts as changed, and rebuilding state from session history. |
 | `file-tracking-native.test.js` | `write` refuses to overwrite a file never read; an edit to a file changed since it was read applies and says so once. |
-| `skill-reads.test.js` | Repeat reads of Freeflow instruction files: which paths count, the same, changed and partial text, a file that lost lines, truncated, failed, nested and image reads, rebuild from the branch, compactions, a selective view, and rebuild after resume. |
-| `skill-reads-native.test.js` | Against Pi's real `read` of a shipped skill: a repeat read returns one line, the Runtime State names the skill from the next prompt on (not mid-run), Pi's own compaction lets the text through and names the skill in its summary, and a Coordinator gets the text again under projection and the line without it. |
+| `skill-reads.test.js` | The skills-read list: which paths count, repeat reads passing through, truncated, failed, nested and image reads, rebuild from the branch, compactions, and rebuild after resume. |
+| `skill-reads-native.test.js` | Against Pi's real `read` of a shipped skill: a repeat read returns the whole text again, the Runtime State names the skill from the next prompt on (not mid-run), Pi's own compaction names the skill in its summary, and a Coordinator under projection gets the text and no skills line. |
 | `changed-files-native.test.js` | A command that changes a file the model read says so once, on its own result. |
 | `guidance-notices-native.test.js` | Guidance notices on a commit (with the loss-check line only when instruction text is committed), a test command's second failure and a passing test after a change; off with the setting; a later request extends the earlier one. |
 | `apply-patch.test.js` | The parser and matcher against Codex's grammar, lenient forms, and error messages. |

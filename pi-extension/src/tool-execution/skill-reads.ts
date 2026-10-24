@@ -61,7 +61,7 @@ export function skillsRead(entries: readonly any[], cwd?: string): string[] {
   return [...names];
 }
 
-/** Marks a read result Freeflow replaced, so a rebuild does not take the replacement for the file's text. */
+/** Marks a read result an earlier version replaced with one line, so a rebuild does not take it for the file's text. */
 const REPLACED = "freeflowSkillRead";
 
 /** Pi's note after a read cut short by its `limit` while the file goes on. */
@@ -97,29 +97,10 @@ function readText(
   return { start, lines: text.split("\n"), toEnd: !more, ...(more ? { note: more[1] } : {}) };
 }
 
-/** A read the model already holds: the earlier read's text contains these lines at the same line numbers. */
-function covers(earlier: Seen, read: Seen): boolean {
-  const end = read.start + read.lines.length;
-  const earlierEnd = earlier.start + earlier.lines.length;
-  if (read.start < earlier.start || end > earlierEnd) return false;
-  // A read to the end of the file is covered only by one that ended there too, or the file may have lost lines.
-  if (read.toEnd && !(earlier.toEnd && end === earlierEnd)) return false;
-  const from = read.start - earlier.start;
-  return read.lines.every((line, i) => earlier.lines[from + i] === line);
-}
-
-function alreadyInContext(path: string, read: Seen, note?: string): string {
-  const fact =
-    read.start === 1 && read.toEnd
-      ? `${path} is unchanged since you read it earlier in this conversation, and that read showed the whole file.`
-      : `Lines ${read.start}-${read.start + read.lines.length - 1} of ${path} are unchanged since you read them earlier in this conversation.`;
-  return [`${fact} Use that copy.`, note].filter(Boolean).join("\n\n");
-}
-
 /**
- * The text of Freeflow's instruction files the model holds in this context, from successful top-level reads, so a
- * repeat read of the same text returns one line instead. Content is compared, not file state, so a changed file or a
- * rebuilt package passes through. Any compaction clears it; navigation rebuilds it from the branch. Memory only.
+ * The text of Freeflow's instruction files the model holds in this context, from successful top-level reads, for the
+ * skills-read list. A repeat read passes through untouched. Any compaction clears it; navigation rebuilds it from the
+ * branch. Memory only.
  */
 export class SkillReads {
   private readonly seen = new Map<string, Seen[]>();
@@ -179,23 +160,13 @@ export class SkillReads {
     this.seen.set(key, seen);
   }
 
-  /**
-   * For a successful top-level read: one line instead of the text when the model already holds it, otherwise
-   * undefined after recording the text. Pass `replace: false` where the model's view may lack earlier reads.
-   */
-  result(event: any, cwd: string, replace = true): { content: any[]; details: any } | undefined {
-    if (event.toolName !== "read" || event.isError || event.parentToolCallId) return undefined;
+  /** Records a successful, complete top-level read of an instruction file; its result reaches the model unchanged. */
+  observe(event: any, cwd: string): void {
+    if (event.toolName !== "read" || event.isError || event.parentToolCallId) return;
     const input = event.input;
     const key = typeof input?.path === "string" ? instructionPath(input.path, cwd) : undefined;
-    if (key === undefined) return undefined;
+    if (key === undefined) return;
     const read = readText(input, event.content, event.details);
-    if (!read) return undefined;
-    if (replace && (this.seen.get(key) ?? []).some((earlier) => covers(earlier, read)))
-      return {
-        content: [{ type: "text", text: alreadyInContext(input.path, read, read.note) }],
-        details: { ...(event.details ?? {}), [REPLACED]: true },
-      };
-    this.record(key, read);
-    return undefined;
+    if (read) this.record(key, read);
   }
 }
