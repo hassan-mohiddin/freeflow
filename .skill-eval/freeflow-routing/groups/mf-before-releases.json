@@ -51,6 +51,14 @@
       "tool": "read",
       "argumentContains": ["/skills/map-features/SKILL.md"],
       "expect": "succeeded"
+    },
+    {
+      "id": "read-verify-work",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/verify-work/SKILL.md"],
+      "expect": "succeeded"
     }
   ],
   "review_questions": []

@@ -1,0 +1,27 @@
+{
+  "commits": [
+    {
+      "message": "Ledger 0.1.0: entries, amounts and the balance",
+      "date": "2026-09-01T10:00:00Z",
+      "overlay": ["v010"],
+      "remove": [
+        "src/report.js",
+        "src/import.js",
+        "src/budget.js",
+        "src/export.js",
+        "test/report.test.js",
+        "test/import.test.js",
+        "test/budget.test.js",
+        "test/export.test.js",
+        "secrets.json"
+      ]
+    },
+    {
+      "message": "Ledger 0.2.0: monthly report, CSV import and budgets",
+      "date": "2026-10-01T10:00:00Z",
+      "overlay": ["v020"],
+      "remove": ["src/export.js", "test/export.test.js", "secrets.json"]
+    }
+  ],
+  "uncommitted": ["CHANGELOG.md", "README.md", "secrets.json", "src/cli.js", "src/export.js", "test/export.test.js"]
+}

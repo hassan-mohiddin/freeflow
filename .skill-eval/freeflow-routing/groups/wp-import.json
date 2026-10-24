@@ -53,6 +53,14 @@
       "expect": "succeeded"
     },
     {
+      "id": "read-write-docs",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/write-docs/SKILL.md"],
+      "expect": "succeeded"
+    },
+    {
       "id": "no-write-spec",
       "kind": "tool-call",
       "variant": "freeflow",

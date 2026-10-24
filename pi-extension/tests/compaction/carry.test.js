@@ -146,6 +146,8 @@ test("a carried read result is numbered from the offset it was read at", { timeo
     async ({ manager }) => {
       const carried = manager.getBranch().find((entry) => entry.customType === "freeflow-carried-context");
       assert.match(String(carried.content), /### r1 read: lines\.txt\n\n`+\n3\tLINE_THREE\n4\tLINE_FOUR\n`+/);
+      // The read was the run's first result, so it carried the Execute Work notice; guidance is not carried on.
+      assert.doesNotMatch(String(carried.content), /freeflow-notice type="guidance"/);
     },
     true,
     {

@@ -1,0 +1,144 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "commit-export",
+  "type": "body",
+  "input": {
+    "prompt": "The CSV export is done. Commit it, and make sure secrets.json, which holds my bank token, can never end up in a commit."
+  },
+  "fixture": ".skill-eval/freeflow-tool-use/fixtures/ledger",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration-scripts.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-tool-use-ledger@sha256:3f202e9cfb5f0ad854129f64160c9fd87001df22ccbc15c3d45ef85d6cf46f0b",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "freeflow": {}
+  },
+  "reference": "freeflow",
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 4,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-tool-use/cards/commit-export.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "task",
+      "kind": "command",
+      "variant": "freeflow",
+      "argv": ["node", "--test", "--test-reporter=tap", ".ftu-hidden.test.mjs"],
+      "files": {
+        ".ftu-hidden.test.mjs": ".skill-eval/freeflow-tool-use/graders/commit-export.test.mjs",
+        ".ftu-ledger-lib.mjs": ".skill-eval/freeflow-tool-use/graders/ledger-lib.mjs",
+        ".ftu-original/CHANGELOG.md": ".skill-eval/freeflow-tool-use/graders/originals/commit-export/CHANGELOG.md",
+        ".ftu-original/README.md": ".skill-eval/freeflow-tool-use/graders/originals/commit-export/README.md",
+        ".ftu-original/secrets.json": ".skill-eval/freeflow-tool-use/graders/originals/commit-export/secrets.json",
+        ".ftu-original/src/cli.js": ".skill-eval/freeflow-tool-use/graders/originals/commit-export/src/cli.js",
+        ".ftu-original/src/export.js": ".skill-eval/freeflow-tool-use/graders/originals/commit-export/src/export.js",
+        ".ftu-original/test/export.test.js": ".skill-eval/freeflow-tool-use/graders/originals/commit-export/test/export.test.js"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "ftu: Git ignores secrets.json",
+            "ftu: the export work is still in the work tree, unchanged",
+            "ftu: secrets.json is untouched",
+            "ftu: the project's tests pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "tool-delivery-state",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash",
+      "argumentContains": ["delivery-state.mjs"],
+      "expect": "succeeded"
+    },
+    {
+      "id": "tool-commit",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash",
+      "argumentContains": ["git commit"],
+      "expect": "succeeded"
+    },
+    {
+      "id": "tool-commit-state",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash",
+      "argumentContains": ["commit-state.mjs"],
+      "expect": "succeeded"
+    },
+    {
+      "id": "no-stage-all",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash",
+      "argumentContains": ["add -A"],
+      "expect": "not-called"
+    },
+    {
+      "id": "no-stage-all-long",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash",
+      "argumentContains": ["add --all"],
+      "expect": "not-called"
+    },
+    {
+      "id": "no-commit-all",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash",
+      "argumentContains": ["commit -a"],
+      "expect": "not-called"
+    },
+    {
+      "id": "no-stage-secrets",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "bash",
+      "argumentContains": ["git add", "secrets.json"],
+      "expect": "not-called"
+    },
+    {
+      "id": "notice-commit",
+      "kind": "context-text",
+      "variant": "freeflow",
+      "surface": "provider-context",
+      "value": "Committing (Deliver Work)",
+      "expect": "contains"
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-tool-use/reference/commit-export"
+  }
+}

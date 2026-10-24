@@ -42,7 +42,7 @@
       "case_concept": "Explore a materially open direction without treating discussion as authority, then refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss-work/SKILL.md",
-      "source_sha256": "e397a835b70e7f5b9ffc23cd9b7a615c6cca82c2de4d17d3384d8a6985bbcad6",
+      "source_sha256": "2ab882ad781398a79744ac31b3237e511a9ee3443fcfcdec3e78523b71cad4a0",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -88,7 +88,7 @@
       "case_concept": "Complete one accepted local correction, then change route when repeated evidence exposes a shared failure unit; discriminate cache-key from invalidation hypotheses before fixing a stale read; keep v1 until a dormant consumer is observed.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "5b2810b2061504d65093fc51c960189e86d8b71465c0da0ff5a6f96e5774e78e",
+      "source_sha256": "5cd1ad56ead5b807f3282e316fe74b3875c115692b29effe63a3e05a41f4d3e4",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

@@ -3,8 +3,11 @@ import test from "node:test";
 import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { fixture } from "../fixtures/routing-native.js";
 import { COMMIT_NOTICE, DIAGNOSE_NOTICE, INSTRUCTION_TEXT_NOTICE } from "../../dist/tool-execution/guidance-notices.js";
+
+const EXECUTE_WORK = /Read Execute Work \(\S+\/skills\/execute-work\/SKILL\.md\) before more tool calls/;
 
 const on = (toolExecution = { enabled: true }) => ({
   freeflowConfig: { toolExecution },
@@ -150,5 +153,55 @@ test("toolExecution.guidanceNotices is on by default, layered personal over repo
   assert.equal(
     validateToolExecutionConfig({ guidanceNotices: "no" }),
     "toolExecution.guidanceNotices must be a boolean",
+  );
+});
+
+test(
+  "a tool result while Execute Work is unread asks for it once per run, after a read of Freeflow's own instruction files",
+  { timeout: 30000 },
+  async () => {
+    const skill = (name) => ({
+      name: "read",
+      args: { path: fileURLToPath(new URL(`../../../skills/${name}/SKILL.md`, import.meta.url)) },
+    });
+    const look = { name: "bash", args: { command: "ls" } };
+    await fixture(
+      async (n) =>
+        [[skill("discuss-work")], [look], [look], [], [look], [skill("execute-work")], [], [look]][n - 1] ?? [],
+      false,
+      async ({ manager, session }) => {
+        await session.prompt("Continue.");
+        await session.waitForIdle();
+        await session.prompt("Again.");
+        await session.waitForIdle();
+        const [discuss, first, second, nextRun, read, afterRead] = results(manager);
+        assert.ok(!EXECUTE_WORK.test(discuss), discuss);
+        assert.match(first, EXECUTE_WORK);
+        assert.ok(!EXECUTE_WORK.test(second), second);
+        // A new run asks again while the body is still not in context; once it is, no run asks.
+        assert.match(nextRun, EXECUTE_WORK);
+        assert.ok(!EXECUTE_WORK.test(read));
+        assert.ok(!EXECUTE_WORK.test(afterRead), afterRead);
+      },
+      true,
+      { ...on(), beforePrompt: async ({ cwd }) => repository(cwd) },
+    );
+  },
+);
+
+test("the Execute Work notice stays off while Execute Work is turned off", { timeout: 30000 }, async () => {
+  await fixture(
+    async (n) => (n === 1 ? [{ name: "bash", args: { command: "ls" } }] : []),
+    false,
+    async ({ manager }) => {
+      assert.equal(results(manager).length, 1);
+      for (const text of results(manager)) assert.ok(!EXECUTE_WORK.test(text), text);
+    },
+    true,
+    {
+      ...on(),
+      freeflowConfig: { toolExecution: { enabled: true }, skills: { "execute-work": false } },
+      beforePrompt: async ({ cwd }) => repository(cwd),
+    },
   );
 });

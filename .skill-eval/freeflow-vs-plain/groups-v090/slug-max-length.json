@@ -1,0 +1,289 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "slug-max-length",
+  "type": "body",
+  "input": {
+    "prompt": "The README documents a maxLength option and a --max-length flag, but neither was ever implemented. Can you add them?"
+  },
+  "fixture": ".skill-eval/freeflow-vs-plain/fixtures/slug-max-length",
+  "tools": [
+    "read",
+    "write",
+    "edit",
+    "ls",
+    "find",
+    "grep",
+    "bash",
+    "bash_background",
+    "monitor",
+    "stop_background",
+    "apply_patch"
+  ],
+  "configuration": {
+    "extends": "../configuration-v090.json",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-vs-plain-slug-max-length@sha256:1ae0d11d68d39d5e2a9484b7f2edec8c87ce9f9cfa47261822fb59fd6848717b",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {},
+    "freeflow-te": {
+      "freeflow": {
+        "repository": {
+          "toolExecution": {
+            "enabled": true,
+            "guidanceNotices": true
+          }
+        }
+      }
+    }
+  },
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 5,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/freeflow-vs-plain/cards/slug-max-length.md"
+    }
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/slug-max-length.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: the README example cuts at the last whole word",
+            "fvp: a word is never cut in half",
+            "fvp: a cut slug never ends with a separator",
+            "fvp: a slug that fits is unchanged",
+            "fvp: maxLength counts a custom separator",
+            "fvp: without maxLength nothing is cut",
+            "fvp: the command line takes --max-length",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/slug-max-length.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: the README example cuts at the last whole word",
+            "fvp: a word is never cut in half",
+            "fvp: a cut slug never ends with a separator",
+            "fvp: a slug that fits is unchanged",
+            "fvp: maxLength counts a custom separator",
+            "fvp: without maxLength nothing is cut",
+            "fvp: the command line takes --max-length",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-te-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-te",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
+      "files": {
+        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/slug-max-length.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "fvp: the README example cuts at the last whole word",
+            "fvp: a word is never cut in half",
+            "fvp: a cut slug never ends with a separator",
+            "fvp: a slug that fits is unchanged",
+            "fvp: maxLength counts a custom separator",
+            "fvp: without maxLength nothing is cut",
+            "fvp: the command line takes --max-length",
+            "fvp: the existing tests still pass"
+          ]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-new-test",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-marker-new-test",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-te-marker-new-test",
+      "kind": "command",
+      "variant": "freeflow-te",
+      "comparison": "marker-new-test",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: a new or changed test fails before the change and passes after"]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-tests-kept",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-marker-tests-kept",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    },
+    {
+      "id": "freeflow-te-marker-tests-kept",
+      "kind": "command",
+      "variant": "freeflow-te",
+      "comparison": "marker-tests-kept",
+      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
+      "files": {
+        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
+        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
+      },
+      "timeout_seconds": 300,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": ["fvp: the existing tests are kept unchanged"]
+        }
+      }
+    },
+    {
+      "id": "plain-marker-ask-user",
+      "kind": "tool-call",
+      "variant": "plain",
+      "comparison": "marker-ask-user",
+      "tool": "ask_user",
+      "expect": "called"
+    },
+    {
+      "id": "freeflow-marker-ask-user",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "comparison": "marker-ask-user",
+      "tool": "ask_user",
+      "expect": "called"
+    },
+    {
+      "id": "freeflow-te-marker-ask-user",
+      "kind": "tool-call",
+      "variant": "freeflow-te",
+      "comparison": "marker-ask-user",
+      "tool": "ask_user",
+      "expect": "called"
+    }
+  ],
+  "review_questions": [],
+  "rubric": [
+    {
+      "id": "choice-put-to-user",
+      "question": "The request leaves one choice to the user: what to return when the first word alone is longer than maxLength (the README says a word is never cut, and also that maxLength is the longest slug). Did the agent put that choice to the user, as a question in one of its replies or by trying to ask with a question tool, or at least name the choice it made and invite the user to change it, rather than deciding it silently?"
+    },
+    {
+      "id": "verification-reported",
+      "question": "Does the final reply say what the agent ran or checked to confirm its change, what the result was, and what that result shows? Answer yes only when it names at least one concrete check (a command, a test, an example it ran) and its outcome."
+    }
+  ],
+  "reference_solution": {
+    "files": ".skill-eval/freeflow-vs-plain/reference/slug-max-length"
+  }
+}

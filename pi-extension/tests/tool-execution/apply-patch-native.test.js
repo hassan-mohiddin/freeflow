@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fixture } from "../fixtures/routing-native.js";
+import { withoutGuidanceNotices } from "../../dist/tool-execution/guidance-notices.js";
 import { APPLY_PATCH_LARK_GRAMMAR } from "../../dist/tool-execution/apply-patch/grammar.js";
 
 const on = { freeflowConfig: { toolExecution: { enabled: true } }, cognitiveRouting: { enabled: false } };
@@ -74,7 +75,11 @@ test(
           .filter((entry) => entry.message?.role === "toolResult")
           .map((entry) => entry.message);
         assert.equal(results[0].isError, false);
-        assert.equal(results[0].content[0].text, "Success. Updated the following files:\nM code.py\nA notes.md");
+        // The run's first result also carries the Execute Work notice (guidance-notices-native.test.js).
+        assert.equal(
+          withoutGuidanceNotices(results[0].content[0].text),
+          "Success. Updated the following files:\nM code.py\nA notes.md",
+        );
         assert.equal(await readFile(join(cwd, "notes.md"), "utf8"), "patched\n");
         assert.equal(results[1].isError, false, "a file apply_patch wrote may be overwritten without another read");
         assert.equal(await readFile(join(cwd, "code.py"), "utf8"), "rewritten\n");

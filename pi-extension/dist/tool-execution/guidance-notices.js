@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { freeflowNotice } from "../host/inbound.js";
+import { isFreeflowInstruction } from "./skill-reads.js";
 /**
  * Guidance pushed at the moment it is needed (the push retriever, Task 004 D-003): a short Freeflow notice appended to
  * the result of the tool call that makes it relevant, so it reaches the agent whether or not it read the skill that
@@ -11,6 +12,9 @@ import { freeflowNotice } from "../host/inbound.js";
  * - The second failure of the same test command: diagnose's two key lines. Once per command until it passes.
  * - A test command that passes after the run changed a file: run Execute Work's self-review before the final report.
  *   Once per run, and not after self-review ran.
+ * - Any tool result while Execute Work's body is not in the model's context (never read, or dropped by a compaction):
+ *   read it before more tool calls. Once per run, and not on a read of Freeflow's own instruction files, so reading
+ *   Discuss Work first is not interrupted.
  *
  * Cache: a notice is part of a tool result that has not been delivered yet, the same path as Tool Execution's
  * changed-files line; nothing already sent changes. Request path: none of this runs per request. State is in memory,
@@ -31,6 +35,11 @@ export const INSTRUCTION_TEXT_NOTICE =
   "This commit stages model-facing instruction text: for a substantial revision (a merge, split, move or rewrite), run Write Skill's `skill-author compare --all-units` and settle every unmatched unit before it goes further.";
 export const DIAGNOSE_NOTICE =
   "This test command failed twice (Execute Work's Diagnose Before Fixing; its diagnose reference has the full loop): two failed fixes mean the diagnosis is wrong. Before the next change, find an observation that would come out differently if your explanation were wrong: change the question, change the kind of observation, or check the cheapest assumption (did it build; does the test import what you think?).";
+export const executeWorkNotice = (skill) =>
+  `Read Execute Work (${skill}) before more tool calls: it holds how to read the request, find what a change touches and diagnose a failure.`;
+/** Text without the guidance notices joined to it: moment guidance, not evidence, so it is not carried on. */
+export const withoutGuidanceNotices = (text) =>
+  text.replace(/\n?<freeflow-notice type="guidance">\n[\s\S]*?\n<\/freeflow-notice>/g, "");
 export const selfReviewNotice = (script) =>
   `Before your final report (Execute Work's step before reporting; read Execute Work if its body is not in your context): run \`node ${script} --base <ref>\` and read its report: changed tests and fixtures with their hunks, new tests and whether they fail on the base, and whether each requirement's check ran after the last edit.`;
 const textOf = (content) => (content ?? []).map((part) => (part?.type === "text" ? part.text : "")).join("");
@@ -49,28 +58,42 @@ function committedPaths(cwd, failed) {
   );
 }
 export class GuidanceNotices {
-  run = { committed: false, changed: false, reviewed: false, reminded: false };
+  run = { committed: false, changed: false, reviewed: false, reminded: false, executeWork: false };
   failures = new Map();
   selfReview;
+  executeWork;
   constructor(packageRoot) {
     this.selfReview = join(packageRoot, "skills", "execute-work", "scripts", "self-review.mjs");
+    this.executeWork = join(packageRoot, "skills", "execute-work", "SKILL.md");
   }
   /** A new agent run: per-run notices may come again. */
   runStarted() {
-    this.run = { committed: false, changed: false, reviewed: false, reminded: false };
+    this.run = { committed: false, changed: false, reviewed: false, reminded: false, executeWork: false };
   }
-  /** The notice lines to append to a tool result; empty when none applies. */
-  async toolResult(event, cwd) {
+  /**
+   * The notice lines to append to a tool result; empty when none applies. `executeWorkUnread` says whether Execute
+   * Work is a skill this session lists and its body is not in the model's context; omitted, the notice never shows.
+   */
+  async toolResult(event, cwd, executeWorkUnread) {
     if (event?.parentToolCallId) return [];
     const name = event?.toolName;
+    const lines = [];
+    if (
+      !this.run.executeWork &&
+      executeWorkUnread !== undefined &&
+      !isFreeflowInstruction(name, event.input, cwd) &&
+      executeWorkUnread()
+    ) {
+      this.run.executeWork = true;
+      lines.push(freeflowNotice("guidance", executeWorkNotice(this.executeWork)));
+    }
     if (CHANGES_FILES.has(name)) {
       if (!event.isError) this.run.changed = true;
-      return [];
+      return lines;
     }
-    if (name !== "bash") return [];
+    if (name !== "bash") return lines;
     const command = String(event.input?.command ?? "").trim();
     if (command.includes("self-review.mjs")) this.run.reviewed = true;
-    const lines = [];
     if (GIT_COMMIT.test(command) && !this.run.committed) {
       this.run.committed = true;
       const paths = await committedPaths(cwd, event.isError === true);

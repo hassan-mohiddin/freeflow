@@ -1,11 +1,11 @@
 ---
 name: execute-work
-description: "Use for any work that changes code, files or settings: implementing a feature, fixing a bug, adding or changing behavior, configuring, prototyping, refactoring, simplifying or cleaning up code, deleting dead code, or maintaining a project. Also use when designing or changing modules, interfaces, data models, state, error handling or dependencies; when something fails, breaks, regresses or slows down and the cause is unknown, or a fix did not hold; when migrating users, data, a schema, a service or traffic to a replacement and removing the old path; and when adding edge-case handling or code comments. Read it before the first edit, even for a small change: it reads the request for its asks and implied requirements, finds what the change touches before you edit, and reviews and reports the result."
+description: "Use for any task that uses tools: reading or searching a repository, running commands, diagnosing, and any work that changes code, files or settings: implementing a feature, fixing a bug, adding or changing behavior, configuring, prototyping, refactoring, simplifying or cleaning up code, deleting dead code, or maintaining a project. Also use when designing or changing modules, interfaces, data models, state, error handling or dependencies; when something fails, breaks, regresses or slows down and the cause is unknown, or a fix did not hold; when migrating users, data, a schema, a service or traffic to a replacement and removing the old path; and when adding edge-case handling or code comments. Read it before your first tool call on a task, even a small or read-only one: it reads the request for its asks and implied requirements, finds what the change touches before you edit, and reviews and reports the result."
 ---
 
 # Execute Work
 
-Carry out agreed change work from the first edit to a checked result. The work agreement says what to build; work out how yourself when the request leaves that to you.
+Carry out a task from its first tool call to a checked result: the reading, searching and diagnosis before a change, and the change itself. The work agreement says what to build; work out how yourself when the request leaves that to you.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 

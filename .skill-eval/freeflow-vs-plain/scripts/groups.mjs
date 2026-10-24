@@ -3,6 +3,9 @@
 // table below and the pinned image digests in image/digests.json. Every group shares configuration.json (host, model,
 // Freeflow build and settings, network) and differs only in its task: prompt, the user's card, fixture, image, hidden
 // tests, behaviour markers, rubric and reference solution.
+// It also writes groups-v090/<task>.json: the same tasks with three arms on configuration-v090.json (plain Pi, Freeflow
+// v0.9.0 with Tool Execution off as before, and Freeflow v0.9.0 with Tool Execution and its guidance notices on), for
+// suite-v090*.json. The 21 Oct groups and suites are unchanged.
 // Run from the repository root after changing a task or re-pinning images: node .skill-eval/freeflow-vs-plain/scripts/groups.mjs
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -332,11 +335,11 @@ function testCommand(arm, id, comparison, grader, required) {
   };
 }
 
-function expectations(task) {
+function expectations(task, arms = ARMS) {
   const list = [];
-  for (const arm of ARMS) list.push(testCommand(arm, "hidden-tests", "hidden-tests", task.id, task.hidden));
+  for (const arm of arms) list.push(testCommand(arm, "hidden-tests", "hidden-tests", task.id, task.hidden));
   for (const marker of task.markers) {
-    for (const arm of ARMS) {
+    for (const arm of arms) {
       if (MARKER_TESTS[marker]) {
         list.push(testCommand(arm, `marker-${marker}`, `marker-${marker}`, "markers", [MARKER_TESTS[marker]]));
       } else if (marker === "fix-at-root") {
@@ -367,10 +370,19 @@ function expectations(task) {
   return list;
 }
 
+// The v0.9.0 arms. `freeflow` keeps the 21 Oct arm's settings (Tool Execution off) on the v0.9.0 build;
+// `freeflow-te` turns Tool Execution on with its guidance notices, as a Pi user has it, so its tools, the skills'
+// scripts' notices and the changed-files lines are live. Their tools are declared for every arm (one task, one tool
+// list); plain Pi and Freeflow with Tool Execution off register none of them, so those arms do not have them.
+const V090_ARMS = ["plain", "freeflow", "freeflow-te"];
+const V090_TOOLS = [...TOOLS, "bash_background", "monitor", "stop_background", "apply_patch"];
+const TOOL_EXECUTION_ON = { toolExecution: { enabled: true, guidanceNotices: true } };
+
 const digestsFile = join(SUITE, "image", "digests.json");
 const digests = existsSync(digestsFile) ? JSON.parse(readFileSync(digestsFile, "utf8")) : {};
 
 mkdirSync(join(SUITE, "groups"), { recursive: true });
+mkdirSync(join(SUITE, "groups-v090"), { recursive: true });
 mkdirSync(join(SUITE, "cards"), { recursive: true });
 for (const task of TASKS) {
   const image = digests[task.id];
@@ -404,5 +416,13 @@ for (const task of TASKS) {
   };
   writeFileSync(join(SUITE, "cards", `${task.id}.md`), card(task));
   writeFileSync(join(SUITE, "groups", `${task.id}.json`), `${JSON.stringify(group, null, 2)}\n`);
+  const v090 = {
+    ...group,
+    tools: V090_TOOLS,
+    configuration: { ...group.configuration, extends: "../configuration-v090.json" },
+    arms: { plain: { freeflow: null }, freeflow: {}, "freeflow-te": { freeflow: { repository: TOOL_EXECUTION_ON } } },
+    expectations: expectations(task, V090_ARMS),
+  };
+  writeFileSync(join(SUITE, "groups-v090", `${task.id}.json`), `${JSON.stringify(v090, null, 2)}\n`);
 }
 process.stdout.write(`wrote ${TASKS.length} groups and their cards\n`);
