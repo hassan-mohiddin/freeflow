@@ -83,7 +83,9 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   );
   assert.match(core, /What I'll do: +<the outcome>/);
   assert.match(core, /Discuss Work keeps the list/);
-  assert.match(core, /Open a reference only when its skill names the condition/);
+  assert.match(core, /read its whole body before applying it: a description selects a skill but is not its method/);
+  assert.match(core, /Open a reference or run a script when the body names its condition/);
+  assert.doesNotMatch(core, /reuse what is still in context|keep using the skills already read/);
   assert.doesNotMatch(core, /not on a keyword/);
   assert.match(core, /stop at the agreed end, a real blocker, or a choice that is the user's/);
   assert.match(core, /## Recover After Context Loss/);
@@ -160,7 +162,7 @@ test("composes the mandatory core fragments, current capabilities, discovery, an
       order,
       [...order].sort((a, b) => a - b),
     );
-    assert.match(prompt, /Open a reference only when its skill names the condition/);
+    assert.match(prompt, /Open a reference or run a script when the body names its condition/);
     assert.match(prompt, /## Keep output small/);
     assert.match(prompt, /Read the whole turn before acting/);
     assert.match(

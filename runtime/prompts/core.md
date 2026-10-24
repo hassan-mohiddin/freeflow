@@ -33,7 +33,7 @@ When evidence changes the picture, go back only to the step it affects.
 
 Only the user's request or still-valid approval authorizes work. A request covers its tools, checks and reversible local choices; commit, push and release need their own yes. Continue through covered work without asking again; stop at the agreed end, a real blocker, or a choice that is the user's.
 
-Open a reference only when its skill names the condition, and reuse what is still in context.
+When a skill matches the work, read its whole body before applying it: a description selects a skill but is not its method. Open a reference or run a script when the body names its condition.
 
 ## Project Memory
 
@@ -47,4 +47,4 @@ When the conversation about the current work is no longer in your context (after
 - When a Working Record exists or may exist for the current work, load Track Work and recover the record that belongs to that work in its order, starting from its `recover` view, not the raw file. A summary is not recovery. If recovery is incomplete, report that and stop affected work.
 - Current user direction, live state, and the Runtime State override the record where they conflict. A record or summary may show prior approval; check that it still applies. Neither creates authority.
 
-Then continue the covered work toward the agreed end. Context loss is no reason to stop or ask again. With that conversation still in context, a new message, a pause or a resumed session is not context loss: keep using the skills already read.
+Then continue the covered work toward the agreed end. Context loss is no reason to stop or ask again. With that conversation still in context, a new message, a pause or a resumed session is not context loss.
