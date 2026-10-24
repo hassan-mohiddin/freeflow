@@ -865,6 +865,10 @@ export const CASES = [
 ];
 
 /** The skill that does a measured skill's job on a build that merged it: its owner, itself when not merged. */
+// Skills a build's core tells the agent to read at the start of every task: Discuss Work at the first request, Execute
+// Work before the first tool call. On such a build, opening one on a near miss is the cue followed, not a false trigger.
+export const READ_FIRST = ["discuss-work", "execute-work"];
+
 export const ownerOf = (skill) => (Object.hasOwn(MERGED, skill) ? MERGED[skill] : skill);
 
 /** The skills a build with every merge applied ships (v0.9.0): the owners of the measured skills. */
@@ -880,12 +884,14 @@ export const OWNERS = [...new Set(SKILLS.map(ownerOf).filter(Boolean))];
  *   the false trigger on this build (the skill itself, or its owner), `family` its owner on every build, so before
  *   and after of one owner add up the same checks. A check is dropped, and listed in `dropped` with its reason, when
  *   its target has no owner, is the request's own route (`expect`), is a skill the case's `route` names as also
- *   doing the request's job, or repeats another check's target.
+ *   doing the request's job, repeats another check's target, or is read at the start of every task on this build
+ *   (READ_FIRST).
  *
  * @param {object} entry a case from CASES
  * @param {Set<string>} present the skills the build ships
+ * @param {boolean} readFirst whether the build's core says to read READ_FIRST at the start of every task
  */
-export function routeCase(entry, present) {
+export function routeCase(entry, present, readFirst = false) {
   const target = (skill) => (present.has(skill) || !Object.hasOwn(MERGED, skill) ? skill : MERGED[skill]);
   const expect = [...new Set(entry.expect.map(target).filter(Boolean))];
   const checks = [];
@@ -903,7 +909,9 @@ export function routeCase(entry, present) {
             ? "shares the request's route"
             : checks.some((check) => check.target === owner)
               ? "repeats a check"
-              : null;
+              : readFirst && READ_FIRST.includes(owner)
+                ? "read first on this build"
+                : null;
     if (reason === null) checks.push({ skill, family: ownerOf(skill), target: owner });
     else dropped.push({ skill, target: owner, reason });
   }

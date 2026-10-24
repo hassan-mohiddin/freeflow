@@ -83,9 +83,12 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   assert.match(core, /A description selects a skill but is not its method/);
   assert.match(
     core,
-    /\*\*Agree, with Discuss Work:\*\* before the first edit of a task that builds, fixes or changes behavior/,
+    /\*\*Agree, with Discuss Work:\*\* read it at a task's first request, before your first tool call\./,
   );
-  assert.match(core, /\*\*Build, with Execute Work:\*\* read it before the first edit, even for a small change/);
+  assert.match(
+    core,
+    /\*\*Build, with Execute Work:\*\* read it before your first tool call on a task, even a small or read-only one/,
+  );
   assert.match(core, /before saying a change works, is fixed or is done/);
   assert.match(core, /None of these skips reading the skills/);
   assert.doesNotMatch(core, /What I'll do: +<the outcome>/);

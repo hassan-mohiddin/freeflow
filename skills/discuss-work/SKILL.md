@@ -1,6 +1,6 @@
 ---
 name: discuss-work
-description: "Use whenever what to do, or how, is not settled yet: exploring a problem, comparing options or approaches, questioning assumptions, brainstorming, planning an approach, or revisiting a direction after new evidence. Read it before the first edit of any task that builds, fixes or changes behavior, to agree with the user what you will do, where you stop and which choices are theirs. Also use mid-work when a choice the user owns comes up (behavior, names, defaults, scope, cost, risk) or sources conflict; when a question needs a quick experiment before building on it; when a discussion or its decisions must outlast the conversation; and when the user asks to skip or lighten optional steps such as a plan, a review or a record."
+description: "Use whenever what to do, or how, is not settled yet: exploring a problem, comparing options or approaches, questioning assumptions, brainstorming, planning an approach, or revisiting a direction after new evidence. Read it at a task's first request, before your first tool call, to decide with the user what you will do, where you stop and which choices are theirs before anything is built, fixed or changed. Also use mid-work when a choice the user owns comes up (behavior, names, defaults, scope, cost, risk) or sources conflict; when a question needs a quick experiment before building on it; when a discussion or its decisions must outlast the conversation; and when the user asks to skip or lighten optional steps such as a plan, a review or a record."
 ---
 
 # Discuss Work

@@ -335,6 +335,28 @@ test("a near miss counts an open on its first turn only", () => {
   assert.equal(summarize([first]).skills["execute-work"].falseTrigger.count, 1);
 });
 
+test("on a build whose core says to read Discuss Work and Execute Work first, opening them is no false trigger", () => {
+  const entry = CASES.find((candidate) => candidate.id === "nm-ew-explain");
+  assert.deepEqual(
+    routeCase(entry, MERGED_BUILD).checks.map((check) => check.target),
+    ["execute-work"],
+  );
+  const later = routeCase(entry, MERGED_BUILD, true);
+  assert.deepEqual(later.checks, []);
+  assert.deepEqual(later.dropped, [
+    { skill: "execute-work", target: "execute-work", reason: "read first on this build" },
+  ]);
+  // The base's skills are not Discuss Work or Execute Work, so its checks stay.
+  assert.deepEqual(
+    routeCase(
+      CASES.find((candidate) => candidate.id === "nm-aw-exact"),
+      BASE,
+      true,
+    ).checks.map((check) => check.target),
+    ["agree-work"],
+  );
+});
+
 test("a stub dry run of one group grades the skill reads and reports a hit", async () => {
   const stub = await stubRun(SKILLS, "commit-work");
   try {

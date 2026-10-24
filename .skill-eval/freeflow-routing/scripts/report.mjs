@@ -117,9 +117,21 @@ export function usedParts(run) {
   return used;
 }
 
+/** Whether a group's Freeflow build tells the agent to read Discuss Work and Execute Work at the start of every task. */
+export async function buildReadsFirst(groupDirectory) {
+  const builds = path.join(groupDirectory, "resources", "freeflow");
+  for (const build of await readdir(builds).catch(() => [])) {
+    const core = await readFile(path.join(builds, build, "package", "runtime", "prompts", "core.md"), "utf8").catch(
+      () => "",
+    );
+    if (/Execute Work:\*\* read it before your first tool call/.test(core)) return true;
+  }
+  return false;
+}
+
 /** One run as its build measures it: the case routed for the build's skills (the base's when unknown). */
-export function measuredRun(entry, opened, present) {
-  return { case: routeCase(entry, present ?? new Set(SKILLS)), opened, unknownBuild: present === null };
+export function measuredRun(entry, opened, present, readFirst = false) {
+  return { case: routeCase(entry, present ?? new Set(SKILLS), readFirst), opened, unknownBuild: present === null };
 }
 
 /** Every usable run of every case in the results, as { case, opened, trial }, plus what was left out. */
@@ -141,8 +153,10 @@ export async function collect(results, resultsDirectory) {
           skipped.push({ case: entry.id, trial, reason: `held: ${flags.join(", ")}` });
           continue;
         }
-        const present = await buildSkills(path.join(trial, "groups", entry.id));
-        runs.push({ ...measuredRun(entry, openedSkills(run), present), used: usedParts(run), trial });
+        const group = path.join(trial, "groups", entry.id);
+        const present = await buildSkills(group);
+        const readFirst = await buildReadsFirst(group);
+        runs.push({ ...measuredRun(entry, openedSkills(run), present, readFirst), used: usedParts(run), trial });
       }
     }
   }
