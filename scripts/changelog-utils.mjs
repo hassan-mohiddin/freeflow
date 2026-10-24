@@ -36,7 +36,14 @@ export function extractReleasedSections(markdown) {
     });
 }
 
-export function releasedSectionsEqual(current, base) {
+// A version section is immutable once its vX.Y.Z tag exists. Without tags, or for other headings, it stays immutable.
+function isFrozenSection(title, tags) {
+  const version = /^(\d+\.\d+\.\d+)(?=\s|$)/.exec(title)?.[1];
+  if (!version || tags === undefined) return true;
+  return tags.includes(`v${version}`);
+}
+
+export function releasedSectionsEqual(current, base, tags) {
   const sectionTitle = (section) =>
     section
       .split(/\r?\n/, 1)[0]
@@ -52,7 +59,8 @@ export function releasedSectionsEqual(current, base) {
   const baseSections = sectionsByTitle(base);
   if (!currentSections || !baseSections) return false;
   for (const [title, section] of baseSections) {
-    if (currentSections.get(title) !== section) return false;
+    if (!currentSections.has(title)) return false;
+    if (isFrozenSection(title, tags) && currentSections.get(title) !== section) return false;
   }
   return true;
 }

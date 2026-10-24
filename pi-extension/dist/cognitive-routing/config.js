@@ -6,12 +6,11 @@ export const pairFromProfile = (profile) => ({
   modelId: profile.model,
   thinking: profile.thinking,
 });
+/** The keys `cognitiveRouting` accepts; the settings test checks each has a /freeflow settings row. */
+export const COGNITIVE_ROUTING_KEYS = ["enabled", "delegation", "projection", "profiles"];
 function parseLayer(raw) {
   if (raw === undefined) return {};
-  if (
-    !isObject(raw) ||
-    Object.keys(raw).some((key) => !["enabled", "delegation", "projection", "profiles"].includes(key))
-  )
+  if (!isObject(raw) || Object.keys(raw).some((key) => !COGNITIVE_ROUTING_KEYS.includes(key)))
     throw new Error(
       "Routing requires the enabled/delegation/projection/profiles schema; experimental legacy configuration is not migrated.",
     );

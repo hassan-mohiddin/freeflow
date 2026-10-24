@@ -70,7 +70,8 @@ async function configuredRepo(config = {}) {
 }
 
 test("obsolete mode and core-toggle configuration keys are rejected", async () => {
-  for (const config of [{ defaultMode: "workflow" }, { interactionContract: false }, { skills: { enabled: false } }]) {
+  // `prompts.interactionContract` and `prompts.enabled` replaced the top-level switch.
+  for (const config of [{ defaultMode: "workflow" }, { interactionContract: false }]) {
     const cwd = await configuredRepo(config);
     try {
       const layers = await readFreeflowConfigLayers(cwd);
@@ -180,7 +181,8 @@ test("an empty valid config enables the single Freeflow core", async () => {
     assert.equal("conversationHistory" in state, false);
     assert.equal("defaultMode" in state, false);
     assert.equal("interactionContract" in state, false);
-    assert.equal("skills" in state, false);
+    assert.deepEqual(state.skills, { enabled: true, off: [] });
+    assert.deepEqual(state.prompts, { core: true, interactionContract: true, workingMethod: true });
     assert.equal("defaultMode" in state.configSources, false);
     assert.equal("interactionContract" in state.configSources, false);
   } finally {

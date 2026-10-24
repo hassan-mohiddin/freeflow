@@ -20,7 +20,7 @@ The package has one portable skills source under `skills/`. Host-specific metada
 4. `Fixed`
 5. `Removed`
 
-Every entry is a bullet under exactly one category. Unknown, duplicate, empty, out-of-order, or uncategorized content fails `npm run check:changelog`. Pull-request validation also rejects changes to released sections. Release preparation may reorder valid categorized entries into canonical order, but it never guesses a category or rewrites released history.
+Every entry is a bullet under exactly one category. Unknown, duplicate, empty, out-of-order, or uncategorized content fails `npm run check:changelog`. Pull-request validation also rejects changes to a version section once it is tagged (`vX.Y.Z`); an untagged version section can still be edited. Release preparation may reorder valid categorized entries into canonical order, but it never guesses a category or rewrites released history.
 
 Agents classify consumer-visible work before editing the changelog, add one concise bullet in the final implementation slice, and run the changelog check. Internal-only work declares that no entry is needed through the pull-request declaration. GitHub Release notes are extracted from the committed versioned section, so the repository changelog remains the single release-note source.
 
@@ -58,7 +58,7 @@ Release preparation is an authorized local preparation step, not publication:
    npm run release:prepare -- 0.6.0
    ```
 
-The preparation script requires a clean worktree, updates version metadata and the changelog, and does not commit, tag, push, publish, or create a GitHub Release.
+The preparation script requires a clean worktree and a feature map driven live since its covered code last changed (`docs-check.mjs dev-docs/features --strict --driven`: a feature file whose text changed with the code but was not driven again counts as not driven). It updates version metadata and the changelog, and does not commit, tag, push, publish, or create a GitHub Release.
 
 Release preparation updates every version-bearing manifest, including `package.json`, `plugin.json`, `gemini-extension.json`, `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `package-lock.json`. The current post-v0.7.0 implementation keeps `CHANGELOG.md` under `## Unreleased`; its next versioned evidence record is created only when a release target is selected.
 

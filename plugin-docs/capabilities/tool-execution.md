@@ -8,7 +8,7 @@ It changes how a model works in the repository, not what it is allowed to do: ev
 
 - Native Pi 0.99.1 or later, including Pi 1.0.
 - On by default whenever Freeflow is enabled.
-- One switch turns on the whole layer: the guidance, the file tracking, the edit messages, `apply_patch`, the background commands and monitors, and the guidance notices. The guidance notices alone can be turned off with `toolExecution.guidanceNotices: false`.
+- One switch turns on the whole layer: the guidance, the file tracking, the edit messages, `apply_patch`, the background commands and monitors, and the guidance notices. The guidance notices alone can be turned off with their own row, Guidance notices (`toolExecution.guidanceNotices`).
 
 ## Turning it off
 
@@ -49,7 +49,7 @@ The settings of the retired v2 runtime (`capture`, `programs`, `workspace`, `dis
 - the second failure of the same test command: the two key lines of Execute Work's diagnose method;
 - a passing test command after the agent changed a file: a reminder to run Execute Work's `self-review.mjs` before reporting.
 
-The commit and self-review notices come at most once per run. They are added to a result not yet sent, so they do not change anything the provider has cached. Turn them off with `toolExecution.guidanceNotices: false` in `.freeflow/config.json` or `.freeflow/local.json`; they are not on the settings screen.
+The commit and self-review notices come at most once per run. They are added to a result not yet sent, so they do not change anything the provider has cached. Turn them off with the Guidance notices row under Tool Execution in `/freeflow settings`, for this session, for you, or for the repository (`toolExecution.guidanceNotices`).
 
 **Shell habits.** `bash` refuses a command ending in `&` (it would keep running with no exit notice and no saved output) and a foreground `sleep` of 10 seconds or more, and points to `bash_background`.
 

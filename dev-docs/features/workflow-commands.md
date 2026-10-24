@@ -1,7 +1,7 @@
 # Workflow Commands
 
 > **Covers:** `pi-extension/src/host/catalog.ts`
-> **Verified at:** `b7665190` (2026-10-22)
+> **Verified at:** `608c48d2` (2026-10-23)
 > **User docs:** `plugin-docs/workflow.md`
 
 Freeflow registers one Pi command per workflow skill, under the skill's own name (`/discuss-work`, `/execute-work`, `/deliver-work`, `/verify-work`, `/review-work` and the rest, plus `/setup-freeflow`, `/write-skill` and `/evaluate-behavior`). A skill removed or merged in 0.9.0 keeps no command: `/discuss`, `/bypass`, `/action-selection`, `/commit-work`, `/finish-branch`, `/release-work`, `/launch-work`, `/simplify-code`, `/migration-work`, `/diagnose-failure`, `/write-spec`, `/write-plan` and `/handoff` are gone: Write Docs owns specs and plans, and Track Work handoffs. Each sends its skill to the model as the next turn, so running one is a model call. Typing one and reading its completions is not. How skills route to each other: [Skill routing](../subsystems/skill-routing.md); how they reach the model: [Prompt assembly](../subsystems/prompt-assembly.md).
@@ -27,6 +27,7 @@ Preconditions:
 
 - **Completion, no model call.** Run `scripts/verify-live.sh keys "/discuss"`. The menu under the editor shows `→ discuss-work` with `Run Freeflow discuss-work`, and no `discuss` command of its own. Then `scripts/verify-live.sh snap wf-complete`.
 - **Empty the editor.** Run `scripts/verify-live.sh keys C-u`, then `scripts/verify-live.sh doctor`: `ok   editor idle`.
+- **Off skill, model-free part.** A skill the user turned off keeps its command, which says it is off instead of starting a turn; the Settings screen's `settings-skills` step shows it is not loaded. The command's refusal needs `cmd --allow-model-call` to type, so it is unverified live and covered by the test `Pi leaves out a skill and a runtime prompt the user turned off, and tells the agent`.
 - **No removed commands, no model call.** Run `scripts/verify-live.sh keys "/byp"`: the menu offers no `bypass` command or skill. Empty the editor with `C-u`, run `scripts/verify-live.sh keys "/commit"`: the menu offers no `commit-work` command. Then `scripts/verify-live.sh snap wf-removed`, empty the editor with `C-u`, and clean up.
 - **Run a skill. Model call; unverified.** Run `scripts/verify-live.sh cmd "/verify-work does README.md exist?" --allow-model-call`. The transcript should show the skill loaded and the agent's answer under it. Snap it as `wf-command`.
 - **Set up a repository. Model call; unverified.** In a run launched with `--no-config` and `--allow-model-call`, run `scripts/verify-live.sh cmd "/setup-freeflow" --allow-model-call`, follow the agent's questions, and observe `.freeflow/config.json`.

@@ -82,11 +82,20 @@ export async function getRuntimeContext(capabilityState: any = undefined) {
  * only while Cognitive Routing is effective (Task 003 D-002). It changes only when a setting changes, which costs one
  * prompt-cache write (D-001); between such changes it is identical from request to request.
  */
-export function stableRuntimeContext(context: any, options: { routing?: boolean } = {}) {
+export function stableRuntimeContext(
+  context: any,
+  options: {
+    routing?: boolean;
+    prompts?: Partial<Record<"core" | "interactionContract" | "workingMethod", boolean>>;
+  } = {},
+) {
+  // A prompt the user turned off (`prompts` in the config) is left out; a missing file is a different matter, which
+  // hasUsableMandatoryPrompts reports.
+  const on = (prompt: "core" | "interactionContract" | "workingMethod") => options.prompts?.[prompt] !== false;
   const sections = [
-    ["Freeflow core", context?.corePrompt],
-    ["Freeflow core", context?.interactionContractPrompt],
-    ["Working Method", context?.workingMethodPrompt],
+    ...(on("core") ? [["Freeflow core", context?.corePrompt]] : []),
+    ...(on("interactionContract") ? [["Freeflow core", context?.interactionContractPrompt]] : []),
+    ...(on("workingMethod") ? [["Working Method", context?.workingMethodPrompt]] : []),
     ...(options.routing ? [["Cognitive Routing", context?.cognitiveRoutingPrompt]] : []),
   ];
   return [

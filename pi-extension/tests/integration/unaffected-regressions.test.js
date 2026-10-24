@@ -478,6 +478,9 @@ test("session settings list every capability switch and change one in place", as
       component.handleInput(KEY.enter);
       await component.waitForWrites();
       rendered = component.render(120).join("\n");
+      // The list scrolls; the reset row is at its end.
+      choose(component, "Reset overrides", "Session");
+      rendered += `\n${component.render(120).join("\n")}`;
       component.handleInput(KEY.escape);
     };
     await command.definition.handler("settings session", settings);

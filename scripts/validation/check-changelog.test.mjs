@@ -15,6 +15,9 @@ const baseChangelog = "# Changelog\n\n## Unreleased\n\n### Added\n\n- Existing n
 const changedChangelog =
   "# Changelog\n\n## Unreleased\n\n### Added\n\n- Existing note.\n- New note.\n\n## 0.5.0 - 2026-08-13\n";
 
+const preparedChangelog =
+  "# Changelog\n\n## Unreleased\n\n## 0.9.0 - 2026-10-22\n\n### Added\n\n- Prepared note.\n\n## 0.8.0 - 2026-10-03\n\n- Older note.\n";
+
 test("parses exactly one consumer-visible declaration", () => {
   assert.deepEqual(parseDeclaration(consumerBody), { declaration: "consumer", errors: [] });
   assert.deepEqual(parseDeclaration(internalBody), { declaration: "internal", errors: [] });
@@ -89,6 +92,7 @@ test("rejects a consumer declaration that changes only a released section", () =
     changedPaths: ["CHANGELOG.md", "src/feature.ts"],
     currentChangelog: releasedOnly,
     baseChangelog,
+    tags: ["v0.5.0"],
   });
   assert.match(result.errors.join("\n"), /must update the ## Unreleased/);
   assert.match(result.errors.join("\n"), /released changelog sections are immutable/i);
@@ -101,6 +105,7 @@ test("rejects a release when a released section changes", () => {
     changedPaths: ["CHANGELOG.md"],
     currentChangelog: current,
     baseChangelog,
+    tags: ["v0.5.0"],
   });
   assert.match(result.errors.join("\n"), /released changelog sections are immutable/i);
 });
@@ -113,6 +118,7 @@ test("rejects line-ending changes in released sections", () => {
     changedPaths: ["CHANGELOG.md"],
     currentChangelog: current,
     baseChangelog: releasedBase,
+    tags: ["v0.5.0"],
   });
   assert.match(result.errors.join("\n"), /released changelog sections are immutable/i);
 });
@@ -126,6 +132,7 @@ test("preserves non-final separators while ignoring only the document terminal n
     changedPaths: ["CHANGELOG.md"],
     currentChangelog: boundaryChanged,
     baseChangelog: twoReleaseBase,
+    tags: ["v0.6.0", "v0.7.0"],
   });
   assert.match(boundaryResult.errors.join("\n"), /released changelog sections are immutable/i);
 
@@ -135,6 +142,7 @@ test("preserves non-final separators while ignoring only the document terminal n
       changedPaths: ["CHANGELOG.md"],
       currentChangelog: twoReleaseBase.replace(/\n$/, ""),
       baseChangelog: twoReleaseBase,
+      tags: ["v0.6.0", "v0.7.0"],
     }),
     { declaration: "internal", errors: [] },
   );
@@ -154,4 +162,42 @@ test("allows a new release section while preserving older released sections", ()
     }),
     { declaration: "internal", errors: [] },
   );
+});
+
+test("lets a version section change until its tag exists", () => {
+  const edited = preparedChangelog.replace("- Prepared note.", "- Prepared note.\n- Late note.");
+  assert.deepEqual(
+    validateChangelogDeclaration({
+      body: internalBody,
+      changedPaths: ["CHANGELOG.md"],
+      currentChangelog: edited,
+      baseChangelog: preparedChangelog,
+      tags: ["v0.8.0"],
+    }),
+    { declaration: "internal", errors: [] },
+  );
+
+  const tagged = validateChangelogDeclaration({
+    body: internalBody,
+    changedPaths: ["CHANGELOG.md"],
+    currentChangelog: edited,
+    baseChangelog: preparedChangelog,
+    tags: ["v0.8.0", "v0.9.0"],
+  });
+  assert.match(tagged.errors.join("\n"), /released changelog sections are immutable/i);
+});
+
+test("keeps an untagged version section from being removed or renamed", () => {
+  const removed = preparedChangelog.replace("## 0.9.0 - 2026-10-22\n\n### Added\n\n- Prepared note.\n\n", "");
+  const renamed = preparedChangelog.replace("## 0.9.0 - 2026-10-22", "## 0.9.1 - 2026-10-22");
+  for (const currentChangelog of [removed, renamed]) {
+    const result = validateChangelogDeclaration({
+      body: internalBody,
+      changedPaths: ["CHANGELOG.md"],
+      currentChangelog,
+      baseChangelog: preparedChangelog,
+      tags: ["v0.8.0"],
+    });
+    assert.match(result.errors.join("\n"), /released changelog sections are immutable/i);
+  }
 });

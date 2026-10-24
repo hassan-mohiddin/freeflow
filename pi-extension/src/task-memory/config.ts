@@ -7,6 +7,8 @@ export type TaskMemoryState = Readonly<{
 }>;
 
 export const DEFAULT_TASK_MEMORY_ENABLED = false;
+/** The keys `taskMemory` accepts; `autoApprove` holds one switch per group. The settings test checks each has a row. */
+export const TASK_MEMORY_KEYS = ["enabled", "autoApprove"] as const;
 
 /** The groups of proposed actions that can skip the confirmation dialog, and the task_memory actions in each. */
 export const AUTO_APPROVE_GROUPS = {
@@ -30,7 +32,7 @@ function record(value: unknown): value is Record<string, unknown> {
 
 export function validateTaskMemoryConfig(value: unknown): string | null {
   if (!record(value)) return "taskMemory must be an object";
-  const unknown = Object.keys(value).find((key) => key !== "enabled" && key !== "autoApprove");
+  const unknown = Object.keys(value).find((key) => !(TASK_MEMORY_KEYS as readonly string[]).includes(key));
   if (unknown) return `taskMemory has unsupported key: ${unknown}`;
   if (value.enabled !== undefined && typeof value.enabled !== "boolean") return "taskMemory.enabled must be a boolean";
   if (value.autoApprove !== undefined) {

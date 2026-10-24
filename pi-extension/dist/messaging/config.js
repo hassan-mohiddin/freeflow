@@ -2,12 +2,14 @@ export const DEFAULT_MESSAGING_ENABLED = false;
 export const DEFAULT_INBOUND_POLICY = "accept";
 export const INBOUND_POLICIES = ["accept", "project", "hold", "refuse"];
 const POLICIES = INBOUND_POLICIES;
+/** The keys `messaging` accepts; the settings test checks each has a /freeflow settings row. */
+export const MESSAGING_KEYS = ["enabled", "inbound"];
 function record(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 export function validateMessagingConfig(value) {
   if (!record(value)) return "messaging must be an object";
-  const unknown = Object.keys(value).find((key) => key !== "enabled" && key !== "inbound");
+  const unknown = Object.keys(value).find((key) => !MESSAGING_KEYS.includes(key));
   if (unknown) return `messaging has unsupported key: ${unknown}`;
   if (value.enabled !== undefined && typeof value.enabled !== "boolean") return "messaging.enabled must be a boolean";
   if (value.inbound !== undefined && !POLICIES.includes(value.inbound))

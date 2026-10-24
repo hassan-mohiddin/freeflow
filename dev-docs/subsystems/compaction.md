@@ -121,7 +121,7 @@ From Pi 1.4.0 Pi's reserve only says when Pi compacts: the summarizer may write 
 
 ## Surface
 
-**Configuration** (`.freeflow/config.json`, overridden by `.freeflow/local.json`, then session scope; validated by `validateCompactionConfig()`):
+**Configuration** (`.freeflow/config.json`, overridden by `.freeflow/local.json`, then session scope; validated by `validateCompactionConfig()` against `COMPACTION_KEYS`, which the settings test checks for screen rows):
 
 | Key | Default | Effect |
 | --- | --- | --- |

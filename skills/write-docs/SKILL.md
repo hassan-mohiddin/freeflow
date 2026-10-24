@@ -150,11 +150,11 @@ Goal: documentation stays true as the code changes, without anyone remembering t
 Run the bundled [docs check](scripts/docs-check.mjs) after writing or changing documentation:
 
 ```text
-node <write-docs-directory>/scripts/docs-check.mjs <docs-file-or-directory>... [--root <repository>] [--strict] [--json]
+node <write-docs-directory>/scripts/docs-check.mjs <docs-file-or-directory>... [--root <repository>] [--strict] [--driven] [--json]
 node <write-docs-directory>/scripts/docs-check.mjs [<docs-file-or-directory>...] --covering <path>... [--root <repository>] [--json]
 ```
 
-It reports paths a document names that do not exist and, for documents with the header, those whose covered code changed since the commit they record as verified. A change made together with the document, in the same commit or both uncommitted, counts as reviewed with it. Missing paths are errors (exit code 1). Changed code is a warning, since many changes leave a document true; `--strict` makes it an error. Read the changes it lists and update the document or its verified commit.
+It reports paths a document names that do not exist and, for documents with the header, those whose covered code changed since the commit they record as verified. A change made together with the document, in the same commit or both uncommitted, counts as reviewed with it. Missing paths are errors (exit code 1). Changed code is a warning, since many changes leave a document true; `--strict` makes it an error. Read the changes it lists and update the document or its verified commit. `--driven` counts a change made together with the document too: use it for feature files, whose verified commit is the last live drive, so editing the text does not count as driving it.
 
 `--covering` instead lists the documents that cover each path and whether each is current: the ones a change should reread or update.
 

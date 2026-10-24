@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Amended 2026-10-05 (selectable runtime prompts). Its Workflow parts are superseded by [ADR 0014: Capability Skills And A Compact Core](0014-capability-skills-and-a-compact-core.md) (2026-10-22); see the amendment below.
+Accepted. Amended 2026-10-05 (selectable runtime prompts) and 2026-10-22 (prompts and skills on every host, in every scope). Its Workflow parts are superseded by [ADR 0014: Capability Skills And A Compact Core](0014-capability-skills-and-a-compact-core.md) (2026-10-22); see the amendment below.
 
 ## Decision
 
@@ -34,6 +34,10 @@ Keeping the Interaction Contract as a separate mandatory fragment preserves a cl
 On hosts other than Pi, a `prompts` setting in `.freeflow/config.json` or `.freeflow/local.json` turns each runtime prompt on or off: `core`, `interactionContract` and `workingMethod`, each on by default, the personal file overriding the shared one prompt by prompt. The Interaction Contract is therefore mandatory only on Pi, which always delivers every runtime prompt and ignores the setting. The former top-level `interactionContract` key stays unsupported and still invalidates configuration.
 
 Hosts and the models they run differ in how much of this guidance they need, so the user chooses, with one default for every host.
+
+## Amendment (2026-10-22): runtime prompts and skills on every host
+
+The `prompts` setting now applies on Pi too, and a `skills` setting turns skills off. Each has a master switch (`prompts.enabled` for all three prompts, `skills.enabled` for every skill but Setup Freeflow) and a switch per item, all with rows in `/freeflow settings` in the Session, Personal and Repository scopes. The Interaction Contract is no longer mandatory on Pi: turned off, it is left out of the system section and Freeflow stays active, while a missing prompt file still makes Freeflow unavailable. On Pi an off skill is not loaded and its command refuses; hosts that load plugin skills themselves get a `Skills off:` line in the Runtime State. `skills: { "enabled": false }`, the switch 0.7.0 removed, is valid again with this meaning; the former top-level `interactionContract` key stays unsupported. The user asked for these switches; their effect on behavior has not been evaluated.
 
 ## Amendment (2026-10-22): no Workflow skill
 

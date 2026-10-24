@@ -4,28 +4,60 @@ import { resolveCognitiveRoutingState, supportsCognitiveRoutingModelRegistry } f
 import { sessionStage, stagedFor } from "./staging.js";
 import { resolveToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig } from "../compaction/config.js";
-import { resolveTaskMemoryConfig } from "../task-memory/config.js";
-import { resolveMessagingConfig } from "../messaging/config.js";
-import { resolveReviewSettings, validateLocalConfig, validateRepositoryConfig } from "./config-validation.js";
+import { AUTO_APPROVE_GROUPS, resolveTaskMemoryConfig } from "../task-memory/config.js";
+import { INBOUND_POLICIES, resolveMessagingConfig } from "../messaging/config.js";
+import {
+  REVIEW_MODES,
+  RUNTIME_PROMPTS,
+  SWITCHABLE_SKILLS,
+  resolveReviewSettings,
+  sectionEnabled,
+  selectedRuntimePrompts,
+  skillsOff,
+  validateLocalConfig,
+  validateRepositoryConfig,
+} from "./config-validation.js";
 import { cachedBranch } from "./branch.js";
 /**
  * Freeflow configuration: the repository and personal config files, their layering, per-session core overrides, and
  * the resulting capability state, with optional capabilities disabled inside subagents.
  */
 /**
- * Settings a session may override, as dotted config paths. "enabled" is Freeflow's master switch; the others switch a
- * capability and are applied as a layer above the personal config.
+ * Settings a session may override, as dotted config paths: every setting the settings screen shows, so the Session
+ * scope has what the file scopes have. "enabled" is Freeflow's master switch; the others are applied as a layer above
+ * the personal config. Most are switches; SESSION_CHOICES lists the ones that hold a value.
  */
 export const SESSION_OVERRIDE_KEYS = [
   "enabled",
   "cognitiveRouting.enabled",
   "cognitiveRouting.projection",
   "toolExecution.enabled",
+  "toolExecution.guidanceNotices",
   "compaction.enabled",
   "compaction.carry",
   "taskMemory.enabled",
+  ...Object.keys(AUTO_APPROVE_GROUPS).map((group) => `taskMemory.autoApprove.${group}`),
   "messaging.enabled",
+  "messaging.inbound",
+  "review.mode",
+  "review.model",
+  "prompts.enabled",
+  ...RUNTIME_PROMPTS.map((prompt) => `prompts.${prompt}`),
+  "skills.enabled",
+  ...SWITCHABLE_SKILLS.map((skill) => `skills.${skill}`),
 ];
+/** The overrides that hold a value rather than on or off, and the values each accepts (a model is any one-line name). */
+const SESSION_CHOICES = {
+  "messaging.inbound": INBOUND_POLICIES,
+  "review.mode": REVIEW_MODES,
+  "review.model": "name",
+};
+function validSessionValue(key, value) {
+  const choice = SESSION_CHOICES[key];
+  if (!choice) return typeof value === "boolean";
+  if (choice === "name") return typeof value === "string" && value.trim() !== "" && !/[\p{Cc}`]/u.test(value);
+  return choice.includes(value);
+}
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
 const SESSION_CORE_KEYS = new Set(SESSION_OVERRIDE_KEYS);
 let currentSessionOverrides = {};
@@ -126,26 +158,29 @@ function normalizeSessionOverrides(value) {
   if (!isRecord(value)) return {};
   const overrides = {};
   for (const key of SESSION_CORE_KEYS) {
-    if (typeof value[key] === "boolean") {
+    if (validSessionValue(key, value[key])) {
       overrides[key] = value[key];
     }
   }
   return overrides;
 }
-/** The capability overrides of this session as a config layer, e.g. { compaction: { carry: false } }. */
+/** The setting overrides of this session as a config layer, e.g. { compaction: { carry: false } }. */
 function sessionConfigLayer(overrides) {
   const layer = {};
   for (const [key, value] of Object.entries(overrides)) {
-    const [section, field] = key.split(".");
-    if (!field || typeof value !== "boolean") continue;
-    layer[section] = { ...(layer[section] ?? {}), [field]: value };
+    const path = key.split(".");
+    if (path.length < 2 || value === undefined) continue;
+    let at = layer;
+    for (const part of path.slice(0, -1)) at = at[part] = isRecord(at[part]) ? at[part] : {};
+    at[path.at(-1)] = value;
   }
   return layer;
 }
+/** The personal config with the session layer over it, merged object by object. */
 function withSessionLayer(local, session) {
   const merged = { ...local };
-  for (const [section, fields] of Object.entries(session))
-    merged[section] = { ...(isRecord(local[section]) ? local[section] : {}), ...fields };
+  for (const [key, value] of Object.entries(session))
+    merged[key] = isRecord(value) && isRecord(local[key]) ? withSessionLayer(local[key], value) : value;
   return merged;
 }
 function resolveSessionCoreConfig(layers) {
@@ -211,8 +246,14 @@ export async function readCapabilityState(cwd, host = undefined) {
   const compaction = resolveCompactionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const taskMemory = resolveTaskMemoryConfig(repositoryConfig, sessionLocalConfig, enabled);
   const messaging = resolveMessagingConfig(repositoryConfig, sessionLocalConfig, enabled);
-  // Not a capability: the user's choice for Review Work, which the Runtime State reports.
-  const review = resolveReviewSettings(repositoryConfig, localConfig);
+  // Not capabilities: the user's choices for Review Work, the runtime prompts and the skills, on every host.
+  const review = resolveReviewSettings(repositoryConfig, sessionLocalConfig);
+  const prompts = selectedRuntimePrompts(repositoryConfig, sessionLocalConfig);
+  const skills = {
+    enabled: sectionEnabled(repositoryConfig, sessionLocalConfig, "skills"),
+    off: skillsOff(repositoryConfig, sessionLocalConfig),
+  };
+  const promptsEnabled = sectionEnabled(repositoryConfig, sessionLocalConfig, "prompts");
   const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -236,6 +277,9 @@ export async function readCapabilityState(cwd, host = undefined) {
     taskMemory,
     messaging,
     review,
+    prompts,
+    promptsEnabled,
+    skills,
     // ask_user: core, on whenever Freeflow is enabled (Task 002 D-001); off in subagents, which have no user.
     askUser: { enabled, effective: enabled },
   };
@@ -278,7 +322,7 @@ export async function setSessionCoreOverride(key, value, ctx, pi) {
   if (!SESSION_CORE_KEYS.has(key)) {
     throw new Error(`Invalid Freeflow session override: ${String(key)}`);
   }
-  if (value !== null && typeof value !== "boolean") {
+  if (value !== null && !validSessionValue(key, value)) {
     throw new Error(`Invalid Freeflow session override value for ${key}: ${String(value)}`);
   }
   const hasOverride = Object.hasOwn(currentSessionOverrides, key);
@@ -295,7 +339,7 @@ export async function setSessionCoreOverride(key, value, ctx, pi) {
   recordSessionOverrides(ctx, pi);
   return {
     changed: true,
-    // Every session override switches Freeflow or a capability, which changes tools and guidance: reload.
+    // A session override can switch Freeflow, a capability, a skill or a prompt, which changes tools and guidance: reload.
     reloadRequired: true,
     sessionOverrides: { ...currentSessionOverrides },
     capabilityState: await readCapabilityState(ctx.cwd, ctx),

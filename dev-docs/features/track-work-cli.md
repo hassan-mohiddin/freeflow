@@ -1,7 +1,7 @@
 # Track Work CLI
 
 > **Covers:** `skills/track-work/scripts/`
-> **Verified at:** `ae8cffdd` (2026-10-22)
+> **Verified at:** `51b9682f` (2026-10-22)
 
 On Claude Code, Codex and other hosts, Working Records are created and read through the Track Work CLI, `skills/track-work/scripts/working-record.mjs`. A user, or their agent under the Track Work skill, creates a record with a Goal and a next action, reads its resume view (or, after context loss, its recover view: the resume view plus each source's state and live Git mismatches), and validates it (structure, plus a warning for each Material updates pointer that does not resolve). The record format and the registry: [Task memory](../subsystems/task-memory.md) and Track Work's `skills/track-work/references/working-record-format.md`.
 

@@ -12,6 +12,13 @@ import {
   setSessionCoreOverride,
   type SessionCoreKey,
 } from "../config.js";
+import {
+  REVIEW_MODES,
+  RUNTIME_PROMPTS,
+  SWITCHABLE_SKILLS,
+  resolveReviewSettings,
+  sectionEnabled,
+} from "../config-validation.js";
 import { freeflowStatusText } from "../status.js";
 import {
   PiSettingsComponent,
@@ -82,6 +89,8 @@ type SettingsItem = {
   runtimeInactive?: boolean;
   /** A group shown as one row that opens its settings on a screen of their own, as the routing presets do. */
   nested?: boolean;
+  /** The section's own row, as a capability's `.enabled` switch is, for a section without one (Review). */
+  heading?: boolean;
   /** Repository tab: the repository file does not set this, so its value is Freeflow's default. */
   repositoryUnset?: boolean;
   displaySuffix?: string;
@@ -528,28 +537,111 @@ function createSessionBooleanItem(options: {
   };
 }
 
+const AUTO_APPROVE_LABELS: Record<AutoApproveGroup, [string, string]> = {
+  attach: ["Attach", "attaching a record, and making a held record writable"],
+  create: ["Create", "creating a task or a child task"],
+  env: ["Directories", "changing a task's directories"],
+  fanout: ["Fan-out", "a child task with its own Git worktree and branch"],
+  projects: ["Projects", "creating or linking a project, and importing a record into one"],
+};
+const INBOUND_LABELS = { accept: "never", project: "outside the project", hold: "every message", refuse: "refuse all" };
+const INBOUND_DESCRIPTIONS = {
+  accept: "Deliver every message to the agent.",
+  project: "Deliver messages from sessions in this repository's Task Memory project; ask you about the rest.",
+  hold: "Ask you before delivering any message.",
+  refuse: "Refuse every message.",
+};
+const REVIEW_DESCRIPTIONS = {
+  auto: "Review Work's risk check decides.",
+  off: "Never on its own; for a risky change the agent proposes a review, with its reason and cost, and waits for you.",
+  always: "Review every finished task.",
+};
+
+/** A choice among fixed values in the Session scope; inherit follows the personal and repository settings. */
+function createSessionChoiceItem(options: {
+  id: string;
+  label: string;
+  description: string;
+  key: SessionCoreKey;
+  values: readonly string[];
+  valueLabels: Record<string, string>;
+  valueDescriptions: Record<string, string>;
+  inheritedValue: string;
+  inheritedSource: ConfigSource;
+  effectiveValue: string;
+  sessionOverrides: Partial<Record<SessionCoreKey, unknown>>;
+}): SettingsItem {
+  const override = options.sessionOverrides[options.key];
+  const set = typeof override === "string" && options.values.includes(override);
+  return {
+    id: options.id,
+    label: options.label,
+    description: options.description,
+    path: options.key.split("."),
+    kind: "enum",
+    value: set ? override : LOCAL_INHERIT,
+    values: [LOCAL_INHERIT, ...options.values],
+    valueLabels: { inherit: "inherit", ...options.valueLabels },
+    valueDescriptions: {
+      inherit: inheritText(
+        options.valueLabels[options.inheritedValue] ?? options.inheritedValue,
+        SOURCE_LABELS[options.inheritedSource],
+      ),
+      ...options.valueDescriptions,
+    },
+    configScope: "session",
+    configValues: Object.fromEntries([["inherit", undefined], ...options.values.map((value) => [value, value])]),
+    effectiveValue: options.effectiveValue,
+    effectiveSource: set ? "session" : options.inheritedSource,
+    inheritedValue: options.inheritedValue,
+    inheritedSource: options.inheritedSource,
+  };
+}
+
 /** A setting's configured value and source without session overrides: personal, then repository, then the default. */
-function configuredSetting(
+function configuredSetting<T extends boolean | string>(
   rawConfig: Record<string, unknown>,
   localConfig: Record<string, unknown>,
   path: string[],
-  defaultValue: boolean,
-): { value: boolean; source: ConfigSource } {
+  defaultValue: T,
+): { value: T; source: ConfigSource } {
   const local = getPath(localConfig, path);
-  if (typeof local === "boolean") return { value: local, source: "local" };
+  if (typeof local === typeof defaultValue) return { value: local as T, source: "local" };
   const repository = getPath(rawConfig, path);
-  if (typeof repository === "boolean") return { value: repository, source: "repository" };
+  if (typeof repository === typeof defaultValue) return { value: repository as T, source: "repository" };
   return { value: defaultValue, source: "builtin" };
+}
+
+const PROMPT_LABELS: Record<(typeof RUNTIME_PROMPTS)[number], [string, string]> = {
+  core: ["Core", "How Freeflow works: the cycle, what authorizes work, and where it stops."],
+  interactionContract: ["Interaction Contract", "How the agent talks with you: questions, reports and stopping."],
+  workingMethod: ["Working Method", "How the agent works: small output, named decisions, diagnosing before fixing."],
+};
+
+/** A skill's name as the screen shows it: discuss-work as Discuss Work. */
+function skillLabel(name: string): string {
+  return name
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+/** One row that opens a list of switches on a screen of its own, as Auto-approve does. */
+function nestedGroup(id: string, label: string, description: string, children: SettingsItem[]): SettingsItem {
+  return { id, label, description, kind: "group", nested: true, value: true, children };
 }
 
 /** Sections from everyday to experimental (Task 005): Freeflow, then the capabilities, then session tools. */
 const SECTION_ORDER = [
   "freeflow.enabled",
+  "freeflow.prompts",
+  "freeflow.skills",
   "freeflow.compaction",
   "freeflow.toolExecution",
   "freeflow.taskMemory",
   "freeflow.messaging",
   "freeflow.cognitiveRouting",
+  "freeflow.review",
   "freeflow.session",
 ];
 
@@ -576,7 +668,7 @@ function sessionFreeflowItems(
   rawConfig: Record<string, unknown>,
   localConfig: Record<string, unknown>,
 ): SettingsItem[] {
-  const sessionOverrides = state.sessionOverrides as Partial<Record<SessionCoreKey, boolean>>;
+  const sessionOverrides = state.sessionOverrides as Partial<Record<SessionCoreKey, any>>;
   const configured = state.configuredCoreConfig;
   const configuredSources = state.configuredSources as { enabled: ConfigSource };
   const freeflowInactive = !state.enabled;
@@ -734,6 +826,14 @@ function sessionFreeflowItems(
     state.toolExecution?.enabled ?? DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
     DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
   );
+  const noticesItem = sessionSwitch(
+    "freeflow.toolExecution.guidanceNotices",
+    "Guidance notices",
+    "Add a skill's key lines to the result of the tool call that needs them, in this session.",
+    "toolExecution.guidanceNotices",
+    state.toolExecution?.guidanceNotices ?? DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices,
+    DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices,
+  );
   const compactionItem = sessionSwitch(
     "freeflow.compaction.enabled",
     "Enabled",
@@ -750,6 +850,94 @@ function sessionFreeflowItems(
     state.compaction?.carry ?? DEFAULT_COMPACTION_CARRY,
     DEFAULT_COMPACTION_CARRY,
   );
+  const autoApproveItems = (Object.keys(AUTO_APPROVE_GROUPS) as AutoApproveGroup[]).map((group) =>
+    sessionSwitch(
+      `freeflow.taskMemory.autoApprove.${group}`,
+      AUTO_APPROVE_LABELS[group][0],
+      `Let the agent do this without asking you first, in this session: ${AUTO_APPROVE_LABELS[group][1]}.`,
+      `taskMemory.autoApprove.${group}`,
+      state.taskMemory?.autoApprove?.[group] ?? false,
+      false,
+    ),
+  );
+  const inboundInherited = configuredSetting(rawConfig, localConfig, ["messaging", "inbound"], DEFAULT_INBOUND_POLICY);
+  const inboundItem = createSessionChoiceItem({
+    id: "freeflow.messaging.inbound",
+    label: "Ask before delivering",
+    description: "Whether a message from another session waits for you to accept it, in this session.",
+    key: "messaging.inbound",
+    values: INBOUND_POLICIES,
+    valueLabels: INBOUND_LABELS,
+    valueDescriptions: INBOUND_DESCRIPTIONS,
+    inheritedValue: inboundInherited.value,
+    inheritedSource: inboundInherited.source,
+    effectiveValue: state.messaging?.inbound ?? DEFAULT_INBOUND_POLICY,
+    sessionOverrides,
+  });
+  inboundItem.inactive = freeflowInactive;
+  const reviewInherited = configuredSetting(rawConfig, localConfig, ["review", "mode"], "auto");
+  const reviewModeItem = createSessionChoiceItem({
+    id: "freeflow.review.mode",
+    label: "Independent review",
+    description: "When finished work is reviewed by a separate reviewer, in this session.",
+    key: "review.mode",
+    values: REVIEW_MODES,
+    valueLabels: { auto: "auto", off: "off", always: "always" },
+    valueDescriptions: REVIEW_DESCRIPTIONS,
+    inheritedValue: reviewInherited.value,
+    inheritedSource: reviewInherited.source,
+    effectiveValue: state.review?.mode ?? "auto",
+    sessionOverrides,
+  });
+  reviewModeItem.inactive = freeflowInactive;
+  reviewModeItem.heading = true;
+  const reviewModelItem = reviewerModelItem({
+    scope: "session",
+    rawConfig,
+    localConfig,
+    effectiveValue: state.review?.model,
+    effectiveSource: typeof sessionOverrides["review.model"] === "string" ? "session" : "builtin",
+    ctx,
+    sessionValue: typeof sessionOverrides["review.model"] === "string" ? sessionOverrides["review.model"] : undefined,
+  });
+  reviewModelItem.inactive = freeflowInactive;
+  const promptsMaster = sessionSwitch(
+    "freeflow.prompts.enabled",
+    "Enabled",
+    "Add Freeflow's runtime prompts in this session. Off leaves all three out; Freeflow stays on.",
+    "prompts.enabled",
+    state.promptsEnabled ?? true,
+    true,
+  );
+  const skillsMaster = sessionSwitch(
+    "freeflow.skills.enabled",
+    "Enabled",
+    "Give the agent Freeflow's skills in this session. Off turns every skill but Setup Freeflow off.",
+    "skills.enabled",
+    state.skills?.enabled ?? true,
+    true,
+  );
+  const promptItems = RUNTIME_PROMPTS.map((prompt) =>
+    sessionSwitch(
+      `freeflow.prompts.${prompt}`,
+      PROMPT_LABELS[prompt][0],
+      `${PROMPT_LABELS[prompt][1]} In this session.`,
+      `prompts.${prompt}`,
+      configuredSetting(rawConfig, localConfig, ["prompts", prompt], true).value,
+      true,
+    ),
+  );
+  const skillItems = SWITCHABLE_SKILLS.map((skill) =>
+    sessionSwitch(
+      `freeflow.skills.${skill}`,
+      skillLabel(skill),
+      `Give the agent ${skill} in this session.`,
+      `skills.${skill}`,
+      configuredSetting(rawConfig, localConfig, ["skills", skill], true).value,
+      true,
+    ),
+  );
+
   const taskMemoryItem = sessionSwitch(
     "freeflow.taskMemory.enabled",
     "Enabled",
@@ -769,6 +957,14 @@ function sessionFreeflowItems(
 
   const items: SettingsItem[] = [
     freeflowItem,
+    sectionItem("freeflow.prompts", "Runtime prompts", "Runtime prompts for this session.", "", [
+      promptsMaster,
+      nestedGroup("freeflow.prompts.each", "Each prompt", "One switch per prompt, in this session.", promptItems),
+    ]),
+    sectionItem("freeflow.skills", "Skills", "Skills for this session; Setup Freeflow always stays.", "", [
+      skillsMaster,
+      nestedGroup("freeflow.skills.each", "Each skill", "One switch per skill, in this session.", skillItems),
+    ]),
     ...(routing
       ? [
           sectionItem(
@@ -789,7 +985,7 @@ function sessionFreeflowItems(
       "Tool Execution",
       "Tool Execution for this session.",
       capabilityStatus(state.toolExecution),
-      [toolItem],
+      [toolItem, noticesItem],
     ),
     sectionItem(
       "freeflow.compaction",
@@ -803,11 +999,21 @@ function sessionFreeflowItems(
       "Task Memory",
       "Task memory for this session.",
       capabilityStatus(state.taskMemory),
-      [taskMemoryItem],
+      [
+        taskMemoryItem,
+        nestedGroup(
+          "freeflow.taskMemory.autoApprove",
+          "Auto-approve",
+          "Task memory actions the agent may take without asking you first, in this session. Enter opens the five switches; Esc returns.",
+          autoApproveItems,
+        ),
+      ],
     ),
     sectionItem("freeflow.messaging", "Messaging", "Messaging for this session.", capabilityStatus(state.messaging), [
       messagingItem,
+      inboundItem,
     ]),
+    sectionItem("freeflow.review", "Review", "Review Work for this session.", "", [reviewModeItem, reviewModelItem]),
     sectionItem("freeflow.session", "Session", "Session overrides.", "", [
       {
         id: "freeflow.session.reset",
@@ -961,6 +1167,76 @@ function cognitiveRoutingConfirmStep(summary: string): SettingsWizardStep {
       { key: "__cancel__", value: "cancel", label: "Cancel", description: "Leave the previous preset unchanged." },
     ],
     selectedKey: "__save__",
+  };
+}
+
+/**
+ * The reviewer model: Freeflow passes the name on as written (Review Work), so the picker offers this host's
+ * authenticated models by `provider/id`, keeps a name set elsewhere, and clears the setting with None or inherit.
+ */
+function reviewerModelItem(options: {
+  scope: ConfigScope;
+  rawConfig: Record<string, unknown>;
+  localConfig: Record<string, unknown>;
+  effectiveValue: string | undefined;
+  effectiveSource: ConfigSource;
+  ctx: any;
+  sessionValue?: string;
+}): SettingsItem {
+  const path = ["review", "model"];
+  const name = (value: unknown) => (typeof value === "string" ? value : undefined);
+  const repositoryModel = name(getPath(options.rawConfig, path));
+  const configuredModel = name(getPath(options.localConfig, path)) ?? repositoryModel;
+  const session = options.scope === "session";
+  const local = options.scope === "local";
+  const value = session ? options.sessionValue : local ? name(getPath(options.localConfig, path)) : repositoryModel;
+  const inherited = session ? configuredModel : repositoryModel;
+  const clear = session
+    ? { label: "Inherit configured setting", description: "Remove this session's reviewer model." }
+    : local
+      ? { label: "Inherit repository setting", description: "Remove your personal reviewer model." }
+      : { label: "None", description: "Review Work chooses the reviewer's model." };
+  const models = cognitiveRoutingModelOptions(options.ctx).map((model) => model.key);
+  const names = value && !models.includes(value) ? [value, ...models] : models;
+  return {
+    id: "freeflow.review.model",
+    label: "Reviewer model",
+    description: session
+      ? "The model a reviewer runs on, in this Pi session only."
+      : local
+        ? "The model a reviewer runs on, for you in this checkout."
+        : "The model a reviewer runs on, where the host lets the agent choose one. This edits shared .freeflow/config.json.",
+    path,
+    kind: "string",
+    value,
+    format: (current) => (typeof current === "string" ? current : "none"),
+    configScope: options.scope,
+    effectiveValue: options.effectiveValue,
+    effectiveSource: options.effectiveSource,
+    inheritedValue: session || local ? inherited : undefined,
+    inheritedSource:
+      session && name(getPath(options.localConfig, path))
+        ? "local"
+        : (session || local) && repositoryModel
+          ? "repository"
+          : "builtin",
+    wizard: () => ({
+      firstStep: () => ({
+        title: "Choose reviewer model",
+        choices: [
+          { key: LOCAL_INHERIT, value: LOCAL_INHERIT, label: clear.label, description: clear.description },
+          ...names.map((key) => ({
+            key,
+            value: key,
+            label: key,
+            description: models.includes(key) ? "" : "Set in the file; not an authenticated model here.",
+          })),
+        ],
+        selectedKey: value ?? LOCAL_INHERIT,
+      }),
+      nextStep: () => undefined,
+      valueFromSelections: (selected) => (selected[0] === LOCAL_INHERIT ? undefined : selected[0]),
+    }),
   };
 }
 
@@ -1281,7 +1557,21 @@ function freeflowItems(
     defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
   });
 
-  const toolExecutionItems = [toolExecutionEnabledItem];
+  const guidanceNoticesItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.guidanceNotices",
+    label: "Guidance notices",
+    description:
+      "Add a skill's key lines to the result of the tool call that needs them, such as a commit or a failing test.",
+    path: ["toolExecution", "guidanceNotices"],
+    effectiveValue: toolExecutionState?.guidanceNotices ?? DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices,
+    effectiveSource: toolSource(["toolExecution", "guidanceNotices"]),
+    defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices,
+  });
+
+  const toolExecutionItems = [toolExecutionEnabledItem, guidanceNoticesItem];
   walkSettingsItems(toolExecutionItems, (item) => {
     item.inactive = freeflowInactive;
   });
@@ -1351,14 +1641,8 @@ function freeflowItems(
     defaultValue: DEFAULT_TASK_MEMORY_ENABLED,
   });
   taskMemoryEnabledItem.inactive = freeflowInactive;
-  // Which proposals skip the confirmation dialog (Task 004 D-002); a standing preference, so no Session scope.
-  const approveLabels: Record<AutoApproveGroup, [string, string]> = {
-    attach: ["Attach", "attaching a record, and making a held record writable"],
-    create: ["Create", "creating a task or a child task"],
-    env: ["Directories", "changing a task's directories"],
-    fanout: ["Fan-out", "a child task with its own Git worktree and branch"],
-    projects: ["Projects", "creating or linking a project, and importing a record into one"],
-  };
+  // Which proposals skip the confirmation dialog (Task 004 D-002).
+  const approveLabels = AUTO_APPROVE_LABELS;
   const approveItems = (Object.keys(AUTO_APPROVE_GROUPS) as AutoApproveGroup[]).map((group) => {
     const item = createScopedBooleanItem({
       scope,
@@ -1423,13 +1707,8 @@ function freeflowItems(
     description: "Whether a message from another session waits for you to accept it.",
     path: ["messaging", "inbound"],
     values: INBOUND_POLICIES,
-    valueLabels: { accept: "never", project: "outside the project", hold: "every message", refuse: "refuse all" },
-    valueDescriptions: {
-      accept: "Deliver every message to the agent.",
-      project: "Deliver messages from sessions in this repository's Task Memory project; ask you about the rest.",
-      hold: "Ask you before delivering any message.",
-      refuse: "Refuse every message.",
-    },
+    valueLabels: INBOUND_LABELS,
+    valueDescriptions: INBOUND_DESCRIPTIONS,
     defaultValue: DEFAULT_INBOUND_POLICY,
     effectiveValue: messagingState?.inbound ?? DEFAULT_INBOUND_POLICY,
     effectiveSource: toolSource(["messaging", "inbound"]),
@@ -1446,6 +1725,130 @@ function freeflowItems(
     children: [messagingEnabledItem, messagingInboundItem],
   };
 
+  // The runtime prompts and skills, on every host (config-validation.ts).
+  // Each a section whose row is its master switch, with one row opening a switch per item.
+  const masterItem = (section: "prompts" | "skills", label: string, description: string) =>
+    createScopedBooleanItem({
+      scope,
+      rawConfig,
+      localConfig,
+      id: `freeflow.${section}.enabled`,
+      label,
+      description,
+      path: [section, "enabled"],
+      effectiveValue: sectionEnabled(rawConfig, localConfig, section),
+      effectiveSource: toolSource([section, "enabled"]),
+      defaultValue: true,
+    });
+  const eachPrompt = nestedGroup(
+    "freeflow.prompts.each",
+    "Each prompt",
+    "One switch per prompt. Enter opens them; Esc returns.",
+    RUNTIME_PROMPTS.map((prompt) =>
+      createScopedBooleanItem({
+        scope,
+        rawConfig,
+        localConfig,
+        id: `freeflow.prompts.${prompt}`,
+        label: PROMPT_LABELS[prompt][0],
+        description: PROMPT_LABELS[prompt][1],
+        path: ["prompts", prompt],
+        effectiveValue: configuredSetting(rawConfig, localConfig, ["prompts", prompt], true).value,
+        effectiveSource: toolSource(["prompts", prompt]),
+        defaultValue: true,
+      }),
+    ),
+  );
+  const promptsGroup: SettingsItem = {
+    id: "freeflow.prompts",
+    label: "Runtime prompts",
+    description: "The prompts Freeflow adds to every session: Core, the Interaction Contract and the Working Method.",
+    kind: "group",
+    value: true,
+    displaySuffix: "",
+    children: [
+      masterItem("prompts", "Enabled", "Add Freeflow's runtime prompts. Off leaves all three out; Freeflow stays on."),
+      eachPrompt,
+    ],
+  };
+  const eachSkill = nestedGroup(
+    "freeflow.skills.each",
+    "Each skill",
+    "One switch per skill. Enter opens them; Esc returns.",
+    SWITCHABLE_SKILLS.map((skill) =>
+      createScopedBooleanItem({
+        scope,
+        rawConfig,
+        localConfig,
+        id: `freeflow.skills.${skill}`,
+        label: skillLabel(skill),
+        description: `Give the agent ${skill}. Off, Pi does not load it and its command refuses; other hosts load it themselves, so there the agent is told not to use it.`,
+        path: ["skills", skill],
+        effectiveValue: configuredSetting(rawConfig, localConfig, ["skills", skill], true).value,
+        effectiveSource: toolSource(["skills", skill]),
+        defaultValue: true,
+      }),
+    ),
+  );
+  const skillsGroup: SettingsItem = {
+    id: "freeflow.skills",
+    label: "Skills",
+    description: "The skills Freeflow gives the agent; Setup Freeflow always stays.",
+    kind: "group",
+    value: true,
+    displaySuffix: "",
+    children: [
+      masterItem(
+        "skills",
+        "Enabled",
+        "Give the agent Freeflow's skills. Off turns every skill but Setup Freeflow off.",
+      ),
+      eachSkill,
+    ],
+  };
+  walkSettingsItems([promptsGroup, skillsGroup], (item) => {
+    item.inactive = freeflowInactive;
+  });
+
+  // Review Work's choice on every host (config-validation.ts).
+  const review = resolveReviewSettings(rawConfig, localConfig);
+  const reviewModeItem = createScopedChoiceItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.review.mode",
+    label: "Independent review",
+    description: "When finished work is reviewed by a separate reviewer; the agent's own self-review always runs.",
+    path: ["review", "mode"],
+    values: REVIEW_MODES,
+    valueLabels: { auto: "auto", off: "off", always: "always" },
+    valueDescriptions: REVIEW_DESCRIPTIONS,
+    defaultValue: "auto",
+    effectiveValue: review.mode,
+    effectiveSource: toolSource(["review", "mode"]),
+  });
+  reviewModeItem.inactive = freeflowInactive;
+  reviewModeItem.heading = true;
+  const reviewModelItem = reviewerModelItem({
+    scope,
+    rawConfig,
+    localConfig,
+    effectiveValue: review.model,
+    effectiveSource: toolSource(["review", "model"]),
+    ctx: options.ctx,
+  });
+  reviewModelItem.inactive = freeflowInactive;
+  const reviewGroup: SettingsItem = {
+    id: "freeflow.review",
+    label: "Review",
+    description: "Configure Review Work's independent review, on every host that reads these files.",
+    kind: "group",
+    value: true,
+    inactive: freeflowInactive,
+    displaySuffix: "",
+    children: [reviewModeItem, reviewModelItem],
+  };
+
   return inSectionOrder([
     freeflowItem,
     ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
@@ -1453,6 +1856,9 @@ function freeflowItems(
     compactionGroup,
     taskMemoryGroup,
     messagingGroup,
+    reviewGroup,
+    promptsGroup,
+    skillsGroup,
   ]);
 }
 
@@ -1461,6 +1867,7 @@ function pruneKnownDefaults(config: Record<string, unknown>) {
     { path: ["enabled"], value: DEFAULT_FREEFLOW_ENABLED },
     { path: ["cognitiveRouting", "delegation"], value: "executor" },
     { path: ["toolExecution", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.enabled },
+    { path: ["toolExecution", "guidanceNotices"], value: DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices },
     { path: ["compaction", "enabled"], value: DEFAULT_COMPACTION_ENABLED },
     { path: ["compaction", "carry"], value: DEFAULT_COMPACTION_CARRY },
     { path: ["taskMemory", "enabled"], value: DEFAULT_TASK_MEMORY_ENABLED },
@@ -1470,6 +1877,10 @@ function pruneKnownDefaults(config: Record<string, unknown>) {
     })),
     { path: ["messaging", "enabled"], value: DEFAULT_MESSAGING_ENABLED },
     { path: ["messaging", "inbound"], value: DEFAULT_INBOUND_POLICY },
+    { path: ["prompts", "enabled"], value: true },
+    ...RUNTIME_PROMPTS.map((prompt) => ({ path: ["prompts", prompt], value: true })),
+    { path: ["skills", "enabled"], value: true },
+    ...SWITCHABLE_SKILLS.map((skill) => ({ path: ["skills", skill], value: true })),
   ];
 
   for (const item of defaultPaths) {
@@ -1781,14 +2192,17 @@ function settingsEntries(
       // One row; Enter opens its settings on a screen of their own. Its value names the ones that are on.
       const children = item.children;
       const parts = () => {
-        const on = children
-          .filter((child) => displayParts(child).tone === "on")
-          .map((child) => child.label.toLowerCase());
+        const isOn = (child: SettingsItem) => displayParts(child).tone === "on";
+        const on = children.filter(isOn).map((child) => child.label.toLowerCase());
+        const off = children.filter((child) => !isOn(child)).map((child) => child.label.toLowerCase());
+        // Name the shorter side: what is on, or what is off when most are on.
         return on.length === 0
           ? { value: "none", tone: "off" as const }
-          : on.length === children.length
+          : off.length === 0
             ? { value: "all", tone: "on" as const }
-            : { value: on.join(", ") };
+            : off.length < on.length
+              ? { value: `all but ${off.join(", ")}` }
+              : { value: on.join(", ") };
       };
       return [
         {
@@ -1806,7 +2220,7 @@ function settingsEntries(
     }
     if (item.kind === "group" && item.children) {
       // A capability's own switch is its section's row; while it is off, the section's other settings are locked.
-      const toggle = item.children.find((child) => child.id === `${item.id}.enabled`);
+      const toggle = item.children.find((child) => child.id === `${item.id}.enabled` || child.heading);
       if (toggle) {
         const header = settingEntry(toggle, rootItems, onChange, depth, lockedBy);
         // The section's status adds what the switch alone does not say: not active, unavailable, the routing control.
@@ -2269,7 +2683,14 @@ export async function handleFreeflowCommand(
     }
     if (item.configScope === "session") {
       const key = item.path!.join(".") as SessionCoreKey;
-      const override = value === LOCAL_INHERIT ? null : value === "true";
+      const override =
+        value === LOCAL_INHERIT || value === undefined
+          ? null
+          : value === "true"
+            ? true
+            : value === "false"
+              ? false
+              : (value as string);
       const result = await setSessionCoreOverride(key, override, ctx, pi);
       return { changed: result.changed, reloadRequired: result.reloadRequired === true };
     }
