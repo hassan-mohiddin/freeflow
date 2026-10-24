@@ -55,7 +55,7 @@ When the likely work is clear, propose coherent outcomes and their dependencies,
 
 Goal: before editing, every place where the request, the repository and the developer docs leave a user-owned choice open is written down with your default.
 
-Read the request in the Working Method's layers and find what the change touches; each open choice becomes one item, and what those sources settle is not listed. Write technical items too (names, files, data structures, the code you will copy, exact messages): listing them is how you notice choices you would otherwise make unseen.
+Read the request in the layers Execute Work's [Read The Request](../execute-work/SKILL.md#read-the-request) lists, and find what the change touches; each open choice becomes one item, and what those sources settle is not listed. Write technical items too (names, files, data structures, the code you will copy, exact messages): listing them is how you notice choices you would otherwise make unseen.
 
 Each item has:
 

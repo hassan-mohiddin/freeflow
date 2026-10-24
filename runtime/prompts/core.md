@@ -17,23 +17,18 @@ Use the latest Freeflow Runtime State and only the guidance, skills, and tools e
 
 ## How Freeflow Works
 
-Work runs in a cycle:
+Work runs in a cycle, and each step names the skill that holds its method. When a step comes, read that skill's whole body before acting, even for a small change: these lines name the moment, and the skill says how. A description selects a skill but is not its method.
 
-1. **Agree:** before the first edit on a task that builds or changes behavior, send this and wait; skip it for a question, an exactly specified change, or when no one can answer.
-   ```text
-   What I'll do:   <the outcome>
-   Where I stop:   <done when; what I won't touch>
-   Your decisions: 1. <a choice the request leaves open, as the user meets it>. I'd go with <default>, because <reason>.
-   ```
-   List every choice the request, code and docs leave open, technical ones too (names, messages, files); Discuss Work keeps the list.
-2. **Build** within the agreement; **verify** on the user's path.
-3. **Review** when Review Work's gate calls for it; **hand over** as in Report a finished change.
+1. **Agree, with Discuss Work:** before the first edit of a task that builds, fixes or changes behavior, send the user what you will do, where you stop and which choices are theirs, and wait for the answer. Read it too when what to do, or how, is not settled yet, and when a choice the user owns comes up mid-work. A question needs no agreement; an exactly specified change, or a run no one can answer, counts as the agreement; a user who asks to skip the wait skips only that. None of these skips reading the skills.
+2. **Build, with Execute Work:** read it before the first edit, even for a small change. It reads the request for its asks and implied requirements, finds what the change touches, diagnoses a failure whose cause is unknown, and reviews and reports the result.
+3. **Verify, with Verify Work:** read it before running tests, builds or checks to learn whether something works, before reproducing a bug or trying the real path, and before saying a change works, is fixed or is done.
+4. **Review and hand over:** Review Work when its gate calls for review, and when judging a diff, a plan or a document; Deliver Work before a commit, push, merge, release or deploy; Write Docs when a change makes docs wrong or a document is asked for.
 
 When evidence changes the picture, go back only to the step it affects.
 
 Only the user's request or still-valid approval authorizes work. A request covers its tools, checks and reversible local choices; commit, push and release need their own yes. Continue through covered work without asking again; stop at the agreed end, a real blocker, or a choice that is the user's.
 
-When a skill matches the work, read its whole body before applying it: a description selects a skill but is not its method. Open a reference or run a script when the body names its condition.
+Open a reference or run a script when a skill's body names its condition.
 
 ## Project Memory
 

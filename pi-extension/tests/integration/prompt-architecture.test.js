@@ -77,14 +77,16 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   const routingSkill = routingFiles.join("\n");
 
   assert.match(core, /## How Freeflow Works/);
-  assert.match(
-    core,
-    /send this and wait; skip it for a question, an exactly specified change, or when no one can answer/,
-  );
-  assert.match(core, /What I'll do: +<the outcome>/);
-  assert.match(core, /Discuss Work keeps the list/);
-  assert.match(core, /read its whole body before applying it: a description selects a skill but is not its method/);
-  assert.match(core, /Open a reference or run a script when the body names its condition/);
+  // Each step names the skill that holds its method, in the words the skill's description uses; the method itself,
+  // such as the agreement template, lives only in the skill.
+  assert.match(core, /read that skill's whole body before acting, even for a small change/);
+  assert.match(core, /A description selects a skill but is not its method/);
+  assert.match(core, /\*\*Agree, with Discuss Work:\*\* before the first edit of a task that builds, fixes or changes behavior/);
+  assert.match(core, /\*\*Build, with Execute Work:\*\* read it before the first edit, even for a small change/);
+  assert.match(core, /before saying a change works, is fixed or is done/);
+  assert.match(core, /None of these skips reading the skills/);
+  assert.doesNotMatch(core, /What I'll do: +<the outcome>/);
+  assert.match(core, /Open a reference or run a script when a skill's body names its condition/);
   assert.doesNotMatch(core, /reuse what is still in context|keep using the skills already read/);
   assert.doesNotMatch(core, /not on a keyword/);
   assert.match(core, /stop at the agreed end, a real blocker, or a choice that is the user's/);
@@ -162,7 +164,7 @@ test("composes the mandatory core fragments, current capabilities, discovery, an
       order,
       [...order].sort((a, b) => a - b),
     );
-    assert.match(prompt, /Open a reference or run a script when the body names its condition/);
+    assert.match(prompt, /Open a reference or run a script when a skill's body names its condition/);
     assert.match(prompt, /## Keep output small/);
     assert.match(prompt, /Read the whole turn before acting/);
     assert.match(

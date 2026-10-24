@@ -33,9 +33,9 @@ export const COMMIT_NOTICE =
 export const INSTRUCTION_TEXT_NOTICE =
   "This commit stages model-facing instruction text: for a substantial revision (a merge, split, move or rewrite), run Write Skill's `skill-author compare --all-units` and settle every unmatched unit before it goes further.";
 export const DIAGNOSE_NOTICE =
-  "This test command failed twice (Execute Work's diagnose): two failed fixes mean the diagnosis is wrong. Before the next change, find an observation that would come out differently if your explanation were wrong: change the question, change the kind of observation, or check the cheapest assumption (did it build; does the test import what you think?).";
+  "This test command failed twice (Execute Work's Diagnose Before Fixing; its diagnose reference has the full loop): two failed fixes mean the diagnosis is wrong. Before the next change, find an observation that would come out differently if your explanation were wrong: change the question, change the kind of observation, or check the cheapest assumption (did it build; does the test import what you think?).";
 export const selfReviewNotice = (script: string) =>
-  `Before your final report (Execute Work): run \`node ${script} --base <ref>\` and read its report: changed tests and fixtures with their hunks, new tests and whether they fail on the base, and whether each requirement's check ran after the last edit.`;
+  `Before your final report (Execute Work's step before reporting; read Execute Work if its body is not in your context): run \`node ${script} --base <ref>\` and read its report: changed tests and fixtures with their hunks, new tests and whether they fail on the base, and whether each requirement's check ran after the last edit.`;
 
 type Run = { committed: boolean; changed: boolean; reviewed: boolean; reminded: boolean };
 

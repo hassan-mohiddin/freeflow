@@ -46,6 +46,13 @@ Distinguish required acceptance from an optional stronger assertion. If evidence
 
 Goal: the smallest observation that could actually disagree with the claim, at the right boundary.
 
+- **Aim every check at the path the user uses**: the command, function or entry point the request names, with input of the user's size and shape. A check on a helper with a toy input shows only that the helper works on that input.
+- **Reproduce the problem through that path before changing anything.** If you cannot, say so and what you tried.
+
+A check is evidence only for what it could have caught, and your own tests share your blind spots. Prefer evidence from outside your model: the reported observation reproduced again after the fix, the real path with what real callers pass, the existing test suite, and your new test seen failing on the unfixed code. A step that succeeded (an edit applied, a build compiled) shows it ran, not that the behavior is right.
+
+Run the relevant existing tests before and after your change. For a new failure, check whether it failed before (in an untouched copy: `git worktree add "${TMPDIR:-/tmp}/base" HEAD`) or is flaky (run it alone, again); otherwise treat it as a requirement you broke.
+
 Use the smallest direct observation that can disagree with the claim. Before relying on an unfamiliar fixture for substantial dependent work, establish that it reaches the required observing stage and distinguishes the relevant wrong behavior. Reuse an adequate existing fixture.
 
 For saved evidence, identify what code or artifact, check, configuration, and environment it examined, using existing outputs and source identities where available. Compare relevant later changes, including new files and generated output; HEAD alone does not identify an uncommitted candidate. Keep two facts separate: the observation occurred, and it applies to the current state. A later edit does not erase an earlier pass, and uncertain applicability does not certify the new candidate. Report missing identity or output rather than building a new evidence store. Reuse results whose applicability remains supported; rerun only affected evidence, and do not repeat checks merely because another activity or context began.
@@ -53,6 +60,17 @@ For saved evidence, identify what code or artifact, check, configuration, and en
 When the project keeps a feature map (feature files in its developer docs that drive the software as a user would, set up and kept through [Feature Map](references/feature-map.md)), find the feature files covering the changed code with Write Docs' docs check, `docs-check.mjs --covering <path> --driven`, or in Execute Work's self-review report. A claim about what a user sees in a feature such a file covers needs its steps driven through the Project Recipe route; tests settle it only where they exercise that same path. A file marked stale was not driven since its code changed.
 
 Passing tests do not prove behavior they do not exercise. Source inspection does not prove runtime execution; a helper call does not prove registration, native dispatch, or installed-package behavior; a happy path does not establish failure handling.
+
+## Predict, Observe, Compare
+
+Goal: every observation is compared with what you expected before you build on it.
+
+Before any action that produces information, know what you expect. After it, compare. When they differ, explain the difference before anything else.
+
+- An **unexpected success** is as suspicious as a failure: a new test that passes before the fix is not testing the bug.
+- An **empty result** (no matches, 0 ms, 0 rows) is more often a broken query or loop than an empty world.
+- An **almost-right** result (off by one, one path of three) points at what you do not yet understand.
+- **Check your instruments** on a case where you know the answer: a new search finds one place you already know; a new script counts a small input correctly.
 
 ## Run Without Manufacturing A Signal
 
