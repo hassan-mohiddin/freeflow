@@ -4,8 +4,8 @@ Freeflow is guidance for the agent you already use, not a new agent. The agent o
 
 - **Core guidance** carries the cycle below, what authorizes work, and how to recover after context loss.
 - **The Interaction Contract** tells a question or an idea apart from a request to act.
-- **The Working Method** says how to read a request, find what a change touches, keep output small, check evidence and report a finished change.
-- **Skills** hold the methods. Each skill's description says when it applies, and the agent opens it when the work matches; a skill opens a reference or runs a script only when its situation arises.
+- **The Working Method** holds the rules every task keeps, a one-line habit for each step that names the skill, reference or script holding its method, and how to keep output small.
+- **Skills** hold the methods. Each step of the cycle names the skill to read, and each skill's description says when it applies: the agent reads Discuss Work at a task's first request and Execute Work before its first tool call, even on a read-only task, and the others when their step comes. A skill's reference or script is read or run only when its situation arises.
 
 ## The Cycle
 
@@ -115,7 +115,7 @@ The agent runs these itself; you see their output in its report. They are under 
 | Write Docs `docs-check.mjs`, `plan-lint.mjs`, `artifact-check.mjs` | Paths a document names that do not exist and docs whose code changed; Plan steps that name no check; a Spec, Plan or decision record's status and source trail. |
 | Write Skill `skill-author.mjs compare` | What a revision of a skill or instruction file no longer says, and which dropped rules still need a verdict. |
 
-On Pi with Tool Execution on, a few of these lines also arrive at the tool call that needs them: the commit essentials on a `git commit` result, the diagnose method's key lines when the same test fails twice, and a reminder to run `self-review.mjs` when a test passes after a change. The Guidance notices row in `/freeflow settings` turns them off ([Tool Execution](capabilities/tool-execution.md#guidance-notices)).
+On Pi with Tool Execution on, a few of these lines also arrive at the tool call that needs them: the commit essentials on a `git commit` result, the diagnose method's key lines when the same test fails twice, a reminder to run `self-review.mjs` when a test passes after a change, and a request to read Execute Work when a run's first tool result comes back without it. The Guidance notices row in `/freeflow settings` turns them off ([Tool Execution](capabilities/tool-execution.md#guidance-notices)).
 
 ### What changed in 0.9.0
 
