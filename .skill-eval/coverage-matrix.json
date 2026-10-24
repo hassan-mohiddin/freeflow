@@ -19,7 +19,7 @@
       "case_concept": "Commit only an owned fix while preserving unrelated staged work, then refuse to push or release until each is approved; hold a rollout when metrics ingestion is broken.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/deliver-work/SKILL.md",
-      "source_sha256": "a33003d640bcadecba5a8196a62faa9e371dec6da6b12bbeb38549fffb2c46e5",
+      "source_sha256": "217370dea7464bcbf68f7b29bd10ea2cc3fa6376cf459ee92397d973658c0a30",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -65,7 +65,7 @@
       "case_concept": "Compare arms against a reference under a declared decision rule while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-behavior/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
       "source_path": "skills/evaluate-behavior/SKILL.md",
-      "source_sha256": "12c93c3280d455c4d07456ac929e94dd5600d5feb81b17335cd0995f01054a41",
+      "source_sha256": "43de14d12c8b329f62bbdbd3301203b0783ae1f808dd410db3d17c7564f3f9c4",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -180,7 +180,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. The test-changes script has its own tests (.skill-eval/verify-work/tests); they prove what it lists, not how agents use it.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "d5897c8251ffe06c9e5c8cfaf08f5d0f936fbb8602cc20e34b2e29e92b3e51a9",
+      "source_sha256": "953dca2a090a6393dace55aee6b0f7346ac9f5e5f8f722539e43b09eba0297fb",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
