@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `.skill-eval/freeflow-vs-plain/`, `.skill-eval/freeflow-routing/`, `.skill-eval/freeflow-tool-use/`, `scripts/validation/check-eval-definitions.mjs`
 > **Tests:** `.skill-eval/evaluate-behavior/tests/`, `.skill-eval/verify-work/tests/`
-> **Verified at:** `baa58afa` (2026-10-24)
+> **Verified at:** `7b1dfc31` (2026-10-24)
 
 For contributors changing how Freeflow reviews work, evaluates agent behavior, or verifies claims: what each part does, how they depend on each other, why they are shaped this way, and which of their behaviors are deliberate. It also covers the evaluator's code, the evidence it stores, and the contributor gate that measures Freeflow's own changes.
 
@@ -392,7 +392,7 @@ The binding shape is `skills/evaluate-behavior/references/authoring.md`, with ea
 | `lib/decision.mjs`, `metrics.mjs`, `validity.mjs` | Decision rule and sign test; run metrics, including peak context and skill reads from the transcript; the validity gate |
 | `lib/view.mjs`, `view-html.mjs` | Text views and the self-contained HTML page |
 | `skills/review-work/SKILL.md`, `references/` | Review Rules, roles, classification, review gate, budget; work review (with the security lens and the work reviewer's brief), artifact review (with reports and records and the non-work reviewer prompt), adjudication, evals and judges |
-| `skills/verify-work/SKILL.md`, `references/` | Claim verification; `test-design.md` and `runtime-evidence.md` (integration, browser, performance, project recipe); `feature-map.md` and `driving-surfaces.md` (setting up and rechecking a project's live-verification recipe: feature map, shared guide and helper) |
+| `skills/verify-work/SKILL.md`, `references/` | Claim verification; `test-design.md` and `runtime-evidence.md` (integration, browser, performance, project recipe); `feature-map.md` (setting up and rechecking a project's live-verification recipe: feature map, shared guide and helper; its Driving Surfaces section also serves a live check with no saved recipe) |
 | `skills/review-work/scripts/check-brief.mjs` | Refuses a work reviewer's pointer brief missing a required line or naming a path or commit that does not exist |
 | `skills/review-work/scripts/review-packet.mjs` | Prefills a work reviewer's pointer brief, reports gate triggers and the round budget, then runs `check-brief.mjs` |
 | `skills/verify-work/scripts/test-changes.mjs` | Lists changed, moved and deleted existing tests, fixtures, snapshots and test setup between a base and a head; with `--new`, the added ones |
@@ -477,6 +477,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 - 2026-10-19: Map Features sets up and rechecks a project's feature map, guide and helper; Verify Work's Project Recipe reference proposes it when no recipe exists.
 - 2026-10-24: Verify Work takes the evidence method the Working Method held: checking on the user's path, what a check can show (with running the existing tests before and after, and a baseline in a worktree), and predict, observe, compare. Execute Work routes to it for choosing the checks.
 - 2026-10-24: Map Features merged into Verify Work as its feature map reference (`references/feature-map.md`, with `driving-surfaces.md`); Verify Work's description carries its triggers.
+- 2026-10-24: Driving Surfaces merged into the feature map reference as a section; Runtime Evidence links it for a live check with no saved recipe.
 - 2026-10-24: The routing report counts a near-miss open on the first turn only: the simulated user's "go" on the second turn can ask for the work the near miss left out.
 - 2026-10-19: Verify Work gains the Project Recipe reference, which finds, uses and triages a project's feature map.
 - 2026-10-19: Verify Work gains `test-changes.mjs` and Test Design's Rule for changed tests, fixtures and setup, plus agreed-behavior assertions, weak-test signs, regression checks on the pre-fix code, performance limits, saved browser evidence, and one-line guidance on safety claims, baselines and keeping check scripts.
