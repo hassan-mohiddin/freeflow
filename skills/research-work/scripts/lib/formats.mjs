@@ -611,13 +611,14 @@ function sectionTableChecked(parsed, name, columns, problems) {
  * figures with their claims and data, and the objections answered. With `register` (the register's claim IDs) every
  * claim ID must exist there; with `dataExists` every figure's data file must exist. With `receipts` (the run
  * ledger's receipts by ID) and `figureFile` (a path's ledger-relative path and current sha256), a figure's receipt
- * must have exited 0, read its data file and written its figure file as they are now; `requireReceipts` also refuses
+ * must have exited 0, read its data file and written its figure file as they are now (and, with `specData`, its figure
+ * spec must draw from that data file); a figure file that does not exist fails; `requireReceipts` also refuses
  * a figure with no receipt yet.
  */
 function validateOutline(
   parsed,
   problems,
-  { register, registerMissing, dataExists, receipts, figureFile, requireReceipts = false } = {},
+  { register, registerMissing, dataExists, receipts, figureFile, specData, requireReceipts = false } = {},
 ) {
   validateHeader(parsed, "Paper Outline", problems);
   headerPlaceholders(parsed, problems);
@@ -681,11 +682,18 @@ function validateOutline(
       if (!run) problems.push(`${where}: ${receipt} is not in the run ledger`);
       else {
         if (run.exit_code !== 0) problems.push(`${where}: ${receipt} exited with ${run.exit_code}`);
+        // A file that does not exist, or a receipt that recorded it as absent, matches nothing.
+        const same = (recorded, now) =>
+          now.sha256 !== null && recorded.path === now.path && recorded.sha256 === now.sha256;
         const data = figureFile?.(cells.Data);
-        if (data && !run.inputs.some((input) => input.path === data.path && input.sha256 === data.sha256))
+        if (data && !run.inputs.some((input) => same(input, data)))
           problems.push(`${where}: ${receipt} did not read ${cells.Data} as it is now`);
+        const read = specData?.(run) ?? [];
+        if (data && read.length > 0 && !read.includes(data.path))
+          problems.push(`${where}: ${receipt}'s figure spec draws from ${read.join(", ")}, not ${cells.Data}`);
         const drawn = file ? figureFile?.(file) : null;
-        if (drawn && !run.outputs.some((output) => output.path === drawn.path && output.sha256 === drawn.sha256))
+        if (drawn && drawn.sha256 === null) problems.push(`${where}: the figure file ${file} does not exist`);
+        else if (drawn && !run.outputs.some((output) => same(output, drawn)))
           problems.push(`${where}: ${receipt} did not write ${file} as it is now`);
       }
     }
@@ -874,7 +882,7 @@ export function kindOf(path, text) {
 export function validate(
   kind,
   text,
-  { ledger, plan, judges, register, registerMissing, dataExists, receipts, figureFile, requireReceipts } = {},
+  { ledger, plan, judges, register, registerMissing, dataExists, receipts, figureFile, specData, requireReceipts } = {},
 ) {
   const problems = [];
   if (kind === "search-ledger") validateSearch(text, problems);
@@ -892,6 +900,7 @@ export function validate(
         dataExists,
         receipts,
         figureFile,
+        specData,
         requireReceipts,
       });
     else if (kind === "rebuttal") validateRebuttal(parsed, problems);

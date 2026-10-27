@@ -2,7 +2,7 @@
 // venue copy without claim IDs, and revision by patch. Nothing here calls a model or the network.
 
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 import { blankCode, numbersIn } from "./report.mjs";
@@ -27,6 +27,20 @@ export function figureReceipts(outlinePath, runs) {
       const absolute = resolve(folder, path);
       return { path: receiptPath(ledgerFolder, absolute), sha256: fileHash(absolute) };
     },
+    // The data files the receipt's JSON inputs name as `data`, as figure specs do, in the receipt's own path form.
+    specData: (receipt) =>
+      (receipt.inputs ?? []).flatMap((input) => {
+        if (!input.path.endsWith(".json")) return [];
+        const absolute = resolve(ledgerFolder, input.path);
+        try {
+          const spec = JSON.parse(readFileSync(absolute, "utf8"));
+          return typeof spec?.data === "string" && Array.isArray(spec.series)
+            ? [receiptPath(ledgerFolder, resolve(dirname(absolute), spec.data))]
+            : [];
+        } catch {
+          return [];
+        }
+      }),
   };
 }
 
@@ -94,6 +108,8 @@ export function draftCheck(text, { ledger = null, figures = null, limits = new M
   const problems = [];
   const notes = [];
   const parts = sections(text);
+  if (!ledger) notes.push({ line: 1, kind: "not checked", value: "[@S<n>] citations (no source ledger given)" });
+  if (!figures) notes.push({ line: 1, kind: "not checked", value: "figures against an outline (no outline given)" });
   const isAbstract = (section) => /^abstract$/i.test(section.name ?? "");
   const abstract = parts.find(isAbstract);
   const body = parts.filter((section) => section.level > 0 && !isAbstract(section) && section.level === 2);
@@ -171,7 +187,16 @@ export function draftCheck(text, { ledger = null, figures = null, limits = new M
     counts[name] = (counts[name] ?? 0) + count;
     if (section.level === 2 && !NOT_BODY.test(section.name)) total += count;
   }
+  const hasBody = parts.some((section) => section.level === 2 && !NOT_BODY.test(section.name));
   for (const [name, limit] of limits) {
+    if (name === "total" && !hasBody) {
+      problems.push({
+        line: 1,
+        kind: "word limit not checked",
+        value: "total: the draft has no level-2 body sections",
+      });
+      continue;
+    }
     const value =
       name === "total" ? total : counts[Object.keys(counts).find((key) => key.toLowerCase() === name.toLowerCase())];
     if (value === undefined) problems.push({ line: 1, kind: "word limit for a section the draft lacks", value: name });
@@ -298,13 +323,18 @@ export function anchor(text, draft) {
 export const PATCH_OPS = ["replace", "delete", "insert-after"];
 
 /**
- * Apply a patch to the reviewed draft. Each change names a block of the manifest, the finding it answers, an op
+ * Apply a patch to the reviewed draft. The patch names the anchored draft's sha256 as `base_sha256`. Each change names a
+ * block of the manifest, the finding it answers, an op
  * (replace, delete, insert-after) and, except for delete, its text. The draft must be the one anchored; nothing
  * outside the named blocks changes. Returns the revised text and the apply report, or throws without changing anything.
  */
 export function applyPatch(text, manifest, patch) {
   if (sha256(text) !== manifest.sha256)
     throw new Error("the draft changed since it was anchored; anchor the reviewed draft again");
+  if (patch?.base_sha256 !== manifest.sha256)
+    throw new Error(
+      `the patch's base_sha256 must be the anchored draft's sha256 (${manifest.sha256.slice(0, 12)}...), so it applies only to the draft it was written for`,
+    );
   const byId = new Map(manifest.blocks.map((block) => [block.id, block]));
   const changes = patch?.changes;
   if (!Array.isArray(changes) || changes.length === 0) throw new Error("the patch lists no changes");

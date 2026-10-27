@@ -178,7 +178,7 @@ Written before a paper's prose ([paper](paper.md)). The header adds **Register:*
 - `## Objections`: a table `| Objection | Answered in |`, or `none found within these searches`.
 - `## Limits`: where the limits are stated.
 
-Validation refuses an empty proposition, a contribution or figure with no claim ID, a claim ID the register does not have or a register it cannot read, a figure whose data file does not exist, an objection with no answer, and a placeholder left in the header. A filled Receipt must exist in the Runs ledger, have exited 0, and have read the Data file and written the File as they are now, by their hashes; `claims.mjs draft-check --outline` also refuses a figure with no receipt.
+Validation refuses an empty proposition, a contribution or figure with no claim ID, a claim ID the register does not have or a register it cannot read, a figure whose data file does not exist, an objection with no answer, and a placeholder left in the header. A filled Receipt must exist in the Runs ledger, have exited 0, and have read the Data file and written the File as they are now, by their hashes (a File that does not exist fails); when the receipt read a figure spec, the spec's data must be the Data file; `claims.mjs draft-check --outline` also refuses a figure with no receipt.
 
 ## Rebuttal
 
@@ -221,7 +221,10 @@ The output is the same bytes for the same spec and data. Colors follow Okabe and
 `paper.mjs anchor <draft.md>` writes `<draft>.blocks.json`: the draft's sha256 and its blocks (runs of non-blank lines, each top-level list item its own block, a fenced code block kept whole), each with an ID `B1`, `B2`…, its lines, sha256 and first words. A patch is JSON:
 
 ```json
-{ "changes": [{ "block": "B12", "finding": "R7:3", "op": "replace", "text": "The revised paragraph." }] }
+{
+  "base_sha256": "<the anchored draft's sha256, from the manifest>",
+  "changes": [{ "block": "B12", "finding": "R7:3", "op": "replace", "text": "The revised paragraph." }]
+}
 ```
 
-`op` is `replace`, `delete` or `insert-after`; `finding` names the review finding the change answers, as the review report numbers it (`R7:3`); apply checks only that one is named. `paper.mjs apply` refuses a draft that changed since it was anchored, a block the manifest lacks, a change without a finding, and two edits of one block; it writes the revised draft and `<revised>.apply.json`, the base and result hashes and each change with its finding.
+`op` is `replace`, `delete` or `insert-after`; `finding` names the review finding the change answers, as the review report numbers it (`R7:3`); apply checks only that one is named. `paper.mjs apply` refuses a patch whose `base_sha256` is not the anchored draft's, a draft that changed since it was anchored, `--out` naming the draft itself, a block the manifest lacks, a change without a finding, and two edits of one block; it writes the revised draft and `<revised>.apply.json`, the base and result hashes and each change with its finding.

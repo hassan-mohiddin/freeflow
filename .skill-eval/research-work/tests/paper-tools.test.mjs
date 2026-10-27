@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -230,6 +230,7 @@ test("a patch changes only the blocks it names, each for a finding, and only on 
     ],
   );
   const { text, report } = applyPatch(draft, manifest, {
+    base_sha256: manifest.sha256,
     changes: [
       { block: "B3", finding: "R6:1", op: "replace", text: "Second paragraph, revised." },
       { block: "B2", finding: "R6:2", op: "insert-after", text: "A new paragraph." },
@@ -244,11 +245,19 @@ test("a patch changes only the blocks it names, each for a finding, and only on 
   );
   assert.throws(() => applyPatch(`${draft}x\n`, manifest, { changes: [] }), /changed since it was anchored/);
   assert.throws(
-    () => applyPatch(draft, manifest, { changes: [{ block: "B2", op: "replace", text: "x" }] }),
+    () =>
+      applyPatch(draft, manifest, {
+        base_sha256: manifest.sha256,
+        changes: [{ block: "B2", op: "replace", text: "x" }],
+      }),
     /name the finding/,
   );
   assert.throws(
-    () => applyPatch(draft, manifest, { changes: [{ block: "B9", finding: "x", op: "delete" }] }),
+    () =>
+      applyPatch(draft, manifest, {
+        base_sha256: manifest.sha256,
+        changes: [{ block: "B9", finding: "x", op: "delete" }],
+      }),
     /not a block/,
   );
 });
@@ -395,7 +404,7 @@ Figure 2 comes first here, then Figure 1. The patch was applied in round two.
   assert.ok(!notes.includes("patch"), "an allowed process word is not listed");
 });
 
-test("a receipt records a path outside its folder as absolute, and a figure carries its title and description", () => {
+test("a receipt records paths relative to its ledger, and a figure carries its title and description", () => {
   const dir = figureFolder();
   const outside = folder();
   writeFileSync(join(outside, "input.txt"), "x\n");
@@ -411,7 +420,7 @@ test("a receipt records a path outside its folder as absolute, and a figure carr
   );
   assert.equal(ran.status, 0, ran.stderr);
   const receipt = JSON.parse(readFileSync(join(dir, "runs.jsonl"), "utf8").trim());
-  assert.equal(receipt.inputs[0].path, join(outside, "input.txt"));
+  assert.equal(receipt.inputs[0].path, relative(dir, join(outside, "input.txt")));
   const svg = drawFigure({ ...SPEC, title: "Coverage", description: "Wald below Wilson" }, join(dir, "spec.json")).svg;
   assert.match(svg, /<title>Coverage<\/title>\n<desc>Wald below Wilson<\/desc>/);
 });
@@ -429,6 +438,7 @@ test("each list item is its own block, and a CSV row with the wrong field count 
     ],
   );
   const { text } = applyPatch(draft, manifest, {
+    base_sha256: manifest.sha256,
     changes: [
       { block: "B2", finding: "R8:4", op: "replace", text: "- One trial; a second changed 2 of 10 verdicts." },
       { block: "B3", finding: "R8:6", op: "insert-after", text: "- Cost is an estimate." },
@@ -449,4 +459,104 @@ test("each list item is its own block, and a CSV row with the wrong field count 
       ),
     /row 2 has 4 fields, the header 3/,
   );
+});
+
+test("a figure's receipt fails when its file was never written, it exited non-zero, its data changed, or its spec reads other data", () => {
+  const dir = figureFolder();
+  writeFileSync(join(dir, "claims.md"), "| ID | Claim |\n| --- | --- |\n| C1 | x |\n");
+  const run = (...command) =>
+    node(
+      "paper.mjs",
+      "run",
+      "--ledger",
+      join(dir, "runs.jsonl"),
+      "--input",
+      join(dir, "spec.json"),
+      "--input",
+      join(dir, "data.json"),
+      "--output",
+      join(dir, "figure.svg"),
+      "--",
+      ...command,
+    );
+  run("true"); // R1: declares the figure, never writes it
+  writeFileSync(join(dir, "outline.md"), OUTLINE("R1"));
+  assert.match(
+    node("artifact.mjs", "validate", join(dir, "outline.md")).stdout,
+    /the figure file figure\.svg does not exist/,
+  );
+  run("false"); // R2: exits 1
+  writeFileSync(join(dir, "outline.md"), OUTLINE("R2"));
+  assert.match(node("artifact.mjs", "validate", join(dir, "outline.md")).stdout, /R2 exited with 1/);
+  run(process.execPath, join(SCRIPTS, "figure.mjs"), "draw", join(dir, "spec.json"), "--out", join(dir, "figure.svg")); // R3
+  writeFileSync(join(dir, "outline.md"), OUTLINE("R3"));
+  assert.equal(node("artifact.mjs", "validate", join(dir, "outline.md")).status, 0);
+  writeFileSync(join(dir, "data.json"), ROWS.replace("0.7699", "0.7700"));
+  assert.match(
+    node("artifact.mjs", "validate", join(dir, "outline.md")).stdout,
+    /R3 did not read data\.json as it is now/,
+  );
+  // A spec that draws from another file than the outline's Data.
+  writeFileSync(join(dir, "other.json"), ROWS);
+  writeFileSync(join(dir, "spec.json"), JSON.stringify({ ...SPEC, data: "other.json" }));
+  run(process.execPath, join(SCRIPTS, "figure.mjs"), "draw", join(dir, "spec.json"), "--out", join(dir, "figure.svg")); // R4
+  writeFileSync(join(dir, "outline.md"), OUTLINE("R4"));
+  assert.match(
+    node("artifact.mjs", "validate", join(dir, "outline.md")).stdout,
+    /R4's figure spec draws from other\.json, not data\.json/,
+  );
+});
+
+test("a paper's receipt in a study's ledger is not counted as a pilot", () => {
+  const dir = folder();
+  const plan = join(dir, "plan.md");
+  assert.equal(node("artifact.mjs", "init", "study-plan", plan, "--title", "T", "--owner", "O").status, 0);
+  node("paper.mjs", "run", "--ledger", join(dir, "runs.jsonl"), "--", "true");
+  const manifest = node("study.mjs", "manifest", plan, "--json");
+  assert.equal(JSON.parse(manifest.stdout).beforeLock, 0, manifest.stdout);
+});
+
+test("apply refuses a patch written for another draft and never overwrites the reviewed draft", () => {
+  const dir = folder();
+  const draft = "# T\n\nClaim A is 0.5.\n";
+  writeFileSync(join(dir, "paper.md"), draft);
+  assert.equal(node("paper.mjs", "anchor", join(dir, "paper.md")).status, 0);
+  const manifest = JSON.parse(readFileSync(join(dir, "paper.blocks.json"), "utf8"));
+  assert.throws(
+    () =>
+      applyPatch(draft, manifest, {
+        base_sha256: "0".repeat(64),
+        changes: [{ block: "B2", finding: "R1", op: "delete" }],
+      }),
+    /base_sha256 must be the anchored draft's sha256/,
+  );
+  writeFileSync(
+    join(dir, "patch.json"),
+    JSON.stringify({ base_sha256: manifest.sha256, changes: [{ block: "B2", finding: "R1", op: "delete" }] }),
+  );
+  const over = node(
+    "paper.mjs",
+    "apply",
+    join(dir, "paper.md"),
+    "--patch",
+    join(dir, "patch.json"),
+    "--out",
+    join(dir, "paper.md"),
+  );
+  assert.equal(over.status, 1);
+  assert.match(over.stderr, /--out is the reviewed draft/);
+  assert.equal(readFileSync(join(dir, "paper.md"), "utf8"), draft);
+});
+
+test("a check that cannot run says so: no ledger, no outline, no body sections, a limit that is not a number", () => {
+  const result = draftCheck("# P\n\nSee [@S9].\n", { limits: new Map([["total", 5]]) });
+  const notes = result.notes.map((note) => `${note.kind}: ${note.value}`);
+  assert.ok(notes.includes("not checked: [@S<n>] citations (no source ledger given)"), notes.join("\n"));
+  assert.ok(notes.includes("not checked: figures against an outline (no outline given)"));
+  assert.ok(result.problems.some((problem) => problem.kind === "word limit not checked"));
+  const dir = folder();
+  writeFileSync(join(dir, "paper.pdf"), "%PDF-1.4\n3 0 obj << /Type /Page >> endobj\n%%EOF\n");
+  const bad = node("paper.mjs", "check-pdf", join(dir, "paper.pdf"), "--max-pages", "abc");
+  assert.equal(bad.status, 2);
+  assert.match(bad.stderr, /--max-pages must be a whole number/);
 });

@@ -104,6 +104,7 @@ if (command === "run") {
   console.log(`${out}: ${manifest.blocks.length} blocks of ${target} (sha256 ${manifest.sha256.slice(0, 12)})`);
 } else if (command === "apply") {
   if (!target || !values.patch || !values.out) fail(USAGE);
+  if (resolve(values.out) === resolve(target)) fail("--out is the reviewed draft; write the revision to a new file", 1);
   const manifestPath = values.manifest ?? `${target.replace(/\.md$/, "")}.blocks.json`;
   let result;
   try {
@@ -195,6 +196,9 @@ if (command === "run") {
   process.exit(receipt.exit_code ?? 1);
 } else if (command === "check-pdf") {
   if (!target) fail(USAGE);
+  for (const option of ["max-pages", "max-words"])
+    if (values[option] !== undefined && !/^\d+$/.test(values[option]))
+      fail(`--${option} must be a whole number, not "${values[option]}"`);
   const problems = [];
   const notChecked = [];
   let pages = null;

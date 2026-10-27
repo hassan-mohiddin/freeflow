@@ -210,13 +210,12 @@ const tail = (buffer) => (buffer ?? Buffer.alloc(0)).subarray(-TAIL_BYTES).toStr
 
 /**
  * Run one command and append its receipt to a run ledger. Inputs are hashed before the run and outputs after it;
- * paths are recorded relative to `folder`, or absolute when outside it. `fields` come first in the receipt: a study's unit, arm, trial and plan
+ * paths are recorded relative to `folder`. `fields` come first in the receipt: a study's unit, arm, trial and plan
  * hash, or nothing for a paper's own runs. A non-zero exit is data; a command that could not start is recorded too.
  */
-/** A path as a receipt records it: relative to the ledger's folder when inside it, absolute when outside. */
+/** A path as a receipt records it: relative to the ledger's folder, so a study folder can move as a whole. */
 export function receiptPath(folder, absolute) {
-  const path = relative(folder, absolute);
-  return path === "" ? "." : path.startsWith("..") || isAbsolute(path) ? absolute : path;
+  return relative(folder, absolute) || ".";
 }
 
 export function recordRun(
@@ -374,7 +373,8 @@ export function manifest(planPath) {
   );
   return {
     rows,
-    beforeLock: receipts.filter((receipt) => !receipt.plan_locked).length,
+    // A paper's own receipt (paper.mjs run) carries no plan fields and is neither a pilot nor a study run.
+    beforeLock: receipts.filter((receipt) => "plan_locked" in receipt && !receipt.plan_locked).length,
     otherPlan: receipts.filter((receipt) => receipt.plan_locked && !hashes.has(receipt.plan_sha256)).length,
     unplanned: unplanned.map((receipt) => receipt.id),
   };
