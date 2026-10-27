@@ -11,6 +11,7 @@ import {
   judgeCounts,
   kindOf,
   ledgerRows,
+  newRequests,
   parseMarkdown,
   parseTable,
   planHypotheses,
@@ -85,8 +86,9 @@ if (command === "init") {
   const text = read(path);
   const kind = kindOf(path, text);
   if (!kind) fail(`${path}: no known Type in its header, and not a .jsonl search ledger`);
-  if ((values.sources || values.plan) && kind !== "claims-register")
-    fail("--sources and --plan apply only to a claims register");
+  if (values.plan && kind !== "claims-register") fail("--plan applies only to a claims register");
+  if (values.sources && !["claims-register", "evidence-table"].includes(kind))
+    fail("--sources applies only to a claims register or an evidence table");
   const options = {};
   if (values.sources) options.ledger = ledgerRows(read(values.sources));
   if (values.plan) {
@@ -109,6 +111,16 @@ if (command === "init") {
       }),
     );
   }
+  if (kind === "paper-outline") {
+    // An outline's claim IDs are checked against the register its header names, and its figures' data on disk.
+    const register = parseMarkdown(text).header.Register;
+    const registerPath = register ? resolve(dirname(path), register) : null;
+    if (registerPath && existsSync(registerPath))
+      options.register = new Set(
+        (parseTable(parseMarkdown(readFileSync(registerPath, "utf8")).lines)?.rows ?? []).map((row) => row.cells.ID),
+      );
+    options.dataExists = (file) => existsSync(resolve(dirname(path), file));
+  }
   const confirmatory = rows.some((row) => row.cells.Kind === "confirmatory");
   const result = validate(kind, text, options);
   if (values.json) console.log(JSON.stringify({ path, ...result }, null, 2));
@@ -119,6 +131,14 @@ if (command === "init") {
       console.log("  not checked: levels against the source ledger (pass --sources)");
     if (kind === "claims-register" && confirmatory && !values.plan)
       console.log("  not checked: confirmatory claims against a locked study plan (pass --plan)");
+    if (kind === "paper-outline" && !options.register)
+      console.log("  not checked: claim IDs against the register (the header's Register is missing or unreadable)");
+    if (kind === "evidence-table" && !values.sources)
+      console.log("  not checked: levels against the source ledger (pass --sources)");
+    if (kind === "rebuttal") {
+      const added = newRequests(text);
+      if (added.length > 0) console.log(`  new requests in a later round: ${added.join(", ")}`);
+    }
   }
   process.exit(result.valid ? 0 : 1);
 } else if (command === "counts") {

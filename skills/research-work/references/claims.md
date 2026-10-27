@@ -37,7 +37,7 @@ Counter-arguments and caveats are not owed for their own sake. When you looked f
 
 ## Write The Report From The Register
 
-Write the report in Write Docs' [Research](../../write-docs/references/spec-and-plan-shapes.md#research) shape, drafted from the register rather than from memory:
+Write the report in the [Research Report](artifacts.md#research-report) shape, drafted from the register rather than from memory:
 
 - **Answer first,** in plain words, with its level.
 - **Each finding cites its claim IDs** (`C3, C4`) and states the claim at its level: L2 as a plain fact, L3 as "we observed", L1 as "X reports". The level replaces hedging; do not attach a qualifier to every sentence.

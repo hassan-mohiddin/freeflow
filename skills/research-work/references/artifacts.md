@@ -8,7 +8,7 @@ node <research-work-directory>/scripts/artifact.mjs validate <path> [--sources <
 node <research-work-directory>/scripts/artifact.mjs counts <search ledger .jsonl>
 ```
 
-Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`, `study-plan`, `judge-validation`. `init` never overwrites. A study's run ledger and deviation log are written only by [study](../scripts/study.mjs), as [running](study.md#running-the-study) says. Artifacts live where the user or the task says; otherwise in the project's research folder when it has one, and otherwise in the task folder's `sources/`.
+Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`, `study-plan`, `judge-validation`, `paper-outline`, `rebuttal`, `evidence-table`. A research report has no kind: it follows the Research Report shape below and is checked by `cite-check` and `trace`. `init` never overwrites. A study's run ledger and deviation log are written only by [study](../scripts/study.mjs), as [running](study.md#running-the-study) says. Artifacts live where the user or the task says; otherwise in the project's research folder when it has one, and otherwise in the task folder's `sources/`.
 
 ## Header
 
@@ -141,3 +141,61 @@ Result can be `pass` only when the interval's lower bound reaches the required b
 ## Judge Answers
 
 A JSONL file, one answer per line: `item`, `score`, `quote` (the judged output's own words supporting the score, at least four of them) and `output` (the judged output's path, relative to the answers file). `sources.mjs quote-check <answers.jsonl>` refuses an answer with no quote, a quote under four words, or one not found in its output.
+
+## Research Report
+
+The shape of an in-depth report or a study's report, from a quick answer to a long synthesis. Its header follows Header above, with Type `Research` and the date the evidence was gathered; leave out a section with nothing to say. A quick answer may need only Question, Answer and Evidence.
+
+```markdown
+## Question        what is asked, who will use the answer, and the decision or work it serves
+## Answer          the answer in plain words, with its evidence level
+## Findings        each finding with its claim IDs and its level, most important first
+## Evidence        each source: what it shows, and how it was checked
+## Method          how the evidence was gathered: scope, searches or runs, what was left out
+## Limits          where sources disagree and how that was settled, and what the evidence cannot show
+## Open Questions  what is still unknown, and what would settle it
+## Implications    what the answer means for the reader's decision
+```
+
+- **Answer before evidence.** The reader knows the claim before reading what supports it.
+- **State strength once,** as the evidence level, where the finding is stated; keep the limits in Limits. A qualifier repeated in every sentence hides the claim without making it more accurate.
+- **Say how each source was checked,** as its source-ledger row records, with the version or date of anything that changes. Never present a source known only from a summary as verified.
+- **Recommendations are proposals.** Implications may recommend; the owner decides. A finding becomes a requirement or a decision only through its owner, as any other source does.
+
+[claims](claims.md#write-the-report-from-the-register) says how to write it from the register.
+
+## Paper Outline
+
+Written before a paper's prose ([paper](paper.md)). The header adds **Register:** the claims register the paper draws on, relative to the outline. Sections:
+
+- `## Proposition`: one sentence, the paper's message.
+- `## Contributions`: a table `| ID | Contribution | Claims |`; IDs `K1`, `K2`; each row names at least one claim ID.
+- `## Paragraphs`: a table `| Section | Paragraph | Role | Claims |`, one row per planned paragraph; Claims lists claim IDs or `-`.
+- `## Figures`: a table `| ID | Figure | Claims | Data |`; IDs `F1`, `F2`; Data is the figure's data file, relative to the outline; or `none`.
+- `## Objections`: a table `| Objection | Answered in |`, or `none found within these searches`.
+- `## Limits`: where the limits are stated.
+
+Validation refuses an empty proposition, a contribution or figure with no claim ID, a claim ID the register does not have, a figure whose data file does not exist, and an objection with no answer.
+
+## Rebuttal
+
+One per review round set, answering a venue's reviewers ([paper](paper.md#rebuttal)). The header adds **Stage:** `drafted` or `submitted`, and **Paper:** the version reviewed. One table:
+
+| Column | Holds |
+| --- | --- |
+| ID | `R1`, `R2`, … |
+| Reviewer | Who wrote the comment |
+| Round | 1, 2, … |
+| Comment | The comment, quoted |
+| Choice | `will address`, `won't` or `not on point` |
+| Reason | Why |
+| Commitment | What you commit to; `-` unless the choice is `will address` |
+| Fulfilled | Where the commitment was done (a section or a commit), or `-` |
+| New | `-` in round 1; later, `yes` for a request the earlier round did not make, or `continues R<n>` naming that reviewer's earlier comment |
+
+Validation refuses a missing choice or reason, a "will address" without a commitment, a later-round comment that is neither new nor continues an earlier comment of the same reviewer, and, at Stage `submitted`, a commitment with no Fulfilled. It lists the new requests.
+
+## Evidence Table
+
+For a literature review: one row per study it compares. One table, `| Source | Design | n | Result | Failure condition | Level |`. Source is a source-ledger ID; n is a whole number or `-`; Failure condition is the result that would have refuted the study's claim; Level is capped, with `--sources`, by how the source was checked, as for a claim.
+

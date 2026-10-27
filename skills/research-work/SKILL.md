@@ -1,6 +1,6 @@
 ---
 name: research-work
-description: "Use when a question has to be answered from evidence gathered and checked first: an in-depth report on a codebase, library, agent harness or tool; a survey or literature review of papers, docs or prior work; finding out what sources actually say before relying on them; a study or experiment whose plan is fixed before the data, or a quick check on about twenty tasks of whether a change helped. Also use when citing code at a pinned commit, deciding how strong a claim's evidence is, checking that every number traces to its source or log, designing a measurement or a model judge, and computing statistics for a result (intervals, paired comparisons, clustered runs, rater agreement, pass@k, multiple comparisons, power). Comparing options from facts already in hand is Discuss Work's; checking whether a change works is Verify Work's."
+description: "Use when a question has to be answered from evidence gathered and checked first: an in-depth report on a codebase, library, agent harness or tool; a survey or literature review of papers, docs or prior work; finding out what sources actually say before relying on them; a study or experiment whose plan is fixed before the data, or a quick check on about twenty tasks of whether a change helped; writing a paper from results, and answering its reviewers. Also use when citing code at a pinned commit, deciding how strong a claim's evidence is, checking that every number traces to its source or log, designing a measurement or a model judge, and computing statistics for a result (intervals, paired comparisons, clustered runs, rater agreement, pass@k, multiple comparisons, power). Comparing options from facts already in hand is Discuss Work's; checking whether a change works is Verify Work's."
 ---
 
 # Research Work
@@ -19,11 +19,12 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | Designing or running a study or a quick check: the twelve questions, the claim class, the decision rule, baselines, sample size, pilots, held-out items; locking the plan, receipts, deviations, amendments, raw data, the cost of runs | [study](references/study.md), with [study.mjs](scripts/study.mjs) |
 | Whether a measure tracks the claim: validity, fair tasks, reliability, reading raw outputs, a model judge and its validation record, a detector | [measurement](references/measurement.md) |
 | The arms are agent configurations run on a host: a skill, prompt, model or setting change | [Evaluate Behavior](../evaluate-behavior/SKILL.md) runs them and owns its suite decision rule; it computes with `stats.mjs` |
-| Creating or checking a research brief, source ledger, search ledger, claims register, study plan or judge validation record | [artifacts](references/artifacts.md), with [artifact](scripts/artifact.mjs) |
+| Writing a paper from the register: the outline, abstract, draft, one review, revision and the rebuttal to its reviewers; a literature review's evidence table | [paper](references/paper.md) |
+| Creating or checking a research brief, source ledger, search ledger, claims register, study plan, judge validation record, paper outline, rebuttal or evidence table | [artifacts](references/artifacts.md), with [artifact](scripts/artifact.mjs) |
 | Checking a report before it goes out: each `S<n>:path:line` citation exists at its pinned commit, each quote appears in its source, every number and claim ID traces to the register | Run [sources](scripts/sources.mjs) `cite-check` and [claims](scripts/claims.mjs) `trace`, as Check The Report says |
 | Checking that each of a judge's scores quotes the output it judged | Run [sources](scripts/sources.mjs) `quote-check`, as [measurement](references/measurement.md#judges) says |
 | A result with numbers from a sample: an interval, a comparison, agreement between raters, pass@k, power | Numbers From Samples, below, and [stats](scripts/stats.mjs) |
-| The report itself | Write Docs' [Research](../write-docs/references/spec-and-plan-shapes.md#research) shape |
+| The report itself | The [Research Report](references/artifacts.md#research-report) shape |
 | Agreeing the brief, or a choice the user owns comes up | [Discuss Work](../discuss-work/SKILL.md) |
 | Reviewing the brief or the report | [Review Work](../review-work/SKILL.md) |
 
@@ -75,7 +76,7 @@ Goal: a report that answers the brief's question, where every claim can be trace
 1. **Frame.** Create the brief with `artifact.mjs init research-brief` and agree it with the user through Discuss Work. A question someone else could not answer as written is not ready: read [framing](references/framing.md).
 2. **Survey.** Pin each source before relying on it: a repository at a commit, a paper by DOI or arXiv ID, a page by URL and access date. Read the primary source, record it in the source ledger as you go, and log searches in the search ledger. Read code in dependency order and cite it as `S<n>:path:line`. For a subject too large to read in one context, split it across workers as [investigation](references/investigation.md) says, and decide from their returns yourself.
 3. **Conclude.** Register each claim with its numbers, sources, level, kind, scope and limit, and settle conflicts between sources as [claims](references/claims.md) says. What you looked for and did not find is a finding too, with the search that looked.
-4. **Report.** Write the report in Write Docs' Research shape: the answer first, each finding citing its claim IDs, strength stated once from the levels, limits in one place. If the host will not let you write the report file (some refuse files from a subagent), return the report's full text instead, so whoever routed the work can save it unchanged and run the checks; run them yourself first on the text, reading it from `/dev/stdin`.
+4. **Report.** Write the report in the Research Report shape: the answer first, each finding citing its claim IDs, strength stated once from the levels, limits in one place. If the host will not let you write the report file (some refuse files from a subagent), return the report's full text instead, so whoever routed the work can save it unchanged and run the checks; run them yourself first on the text, reading it from `/dev/stdin`.
 5. **Check.** Run the checks below, fix what they report, and run them again.
 6. **Review.** At publication rigor, or when the user asks, review the report through Review Work's artifact review; give the reviewer the brief, the ledgers, the register and the check output, not your summary.
 
@@ -94,6 +95,16 @@ Goal: a result decided by a rule fixed before the data, where every number trace
 7. **Report, check and review** as for a report, with the study checks below.
 
 A quick check is this route at `check` rigor: five questions, about twenty paired tasks, the paired interval ([study design](references/study.md#the-quick-check)).
+
+## A Paper
+
+Goal: a paper whose one message a result could contradict and whose every number traces to the register.
+
+1. **Register.** Start from a study's register, or register what existing results show, as for a report. Which claims the paper makes is the user's choice.
+2. **Outline.** Create it with `artifact.mjs init paper-outline`: the proposition, the contributions with their claim IDs, one sentence per planned paragraph, the figures with their data, the objections and where each is answered. Validate it, then agree the outline and the abstract with the user.
+3. **Draft** from the outline, then run the checks below.
+4. **Review once** through Review Work, then revise by patch, naming the finding each change answers, as [paper](references/paper.md) says.
+5. **Rebuttal.** Answer the venue's reviewers in a rebuttal ledger (`artifact.mjs init rebuttal`); submission is the user's.
 
 ## Check The Report
 
