@@ -16,6 +16,7 @@ dev-docs/
   subsystems/    how each part works and why
   features/      what the user sees, and how to drive it live
   guides/        recurring maintainer jobs, such as a release or live verification
+  skills/        why each skill or other agent instruction exists, and its evidence
   adr/           hard-to-reverse decisions
 ```
 
@@ -23,7 +24,7 @@ Grow it on demand: start with `README.md` alone, and add a folder when its first
 
 ## Header
 
-An overview, a subsystem doc, a feature file, and a live-verification guide start with a title and a header block:
+An overview, a subsystem doc, a feature file, a live-verification guide and a skill design record start with a title and a header block:
 
 ```markdown
 # Compaction
@@ -164,6 +165,32 @@ One guide shared by every feature file (for example `guides/verify-live.md` in t
 - **Evidence:** what each step saves and where (an ignored folder), and the proof standards: drive the real user path, capture the action and the resulting state, and check side effects from a second view.
 - **Clean Up:** stop only what the run started, never by process name; remove scratch state; keep the evidence.
 - **Paid Calls:** which inputs call a model or another paid service, the guard that refuses them by default, and what a step needs before it may run one, such as a pinned cheap model and the user's yes.
+
+## Skill Design Record
+
+For anyone changing a skill or other agent instruction text: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The package holds only what the executing agent acts on; this record holds the reasons, so a later author does not rebuild a rejected design or remove an instruction that guards a measured failure. [Write Skill](../../write-skill/SKILL.md#keep-the-design-record) says what it must capture. One record per skill, at `dev-docs/skills/<skill>.md`, with the header above:
+
+```markdown
+# Review Work
+
+> **Covers:** `skills/review-work/`
+> **Tests:** `.skill-eval/review-work/`
+> **Verified at:** `9078dd0` (2026-10-03)
+```
+
+```markdown
+## Purpose          the job, the reader and the decision the skill exists to change
+## Behavioral Claim the behavior it produces, the failure it prevents, its earliest decision, its cues,
+                    the context it relies on, the nearby case it leaves alone, and when it stops steering
+## Design           its boundaries, the structure of the package, and where each behavior was placed, with why
+## Evidence         what was run or observed, where it is stored, and what it can and cannot show
+## Rejected         alternatives considered and why each was rejected
+## Dropped          candidate changes not made, and why
+## Open Questions   what is unknown and what would settle it
+## Changes          major revisions, with commits
+```
+
+Keep it to what is true of the current package: evidence that no longer applies moves to Changes with its commit, and claims are stated no more strongly than their evidence.
 
 ## Adapting To The Software
 

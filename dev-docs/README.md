@@ -107,6 +107,10 @@ Guides (how to do maintainer work):
 - [Release process](guides/release.md): preparation, evidence, and human-controlled release boundaries.
 - [Verify live](guides/verify-live.md): launching an isolated Pi session with this checkout's extension, checking and driving it, evidence, clean-up, and which inputs cost a model call.
 
+Skill design records (what a skill is meant to change, why it is shaped that way, and its evidence; the shape is in Write Docs):
+
+- [Write Skill](skills/write-skill.md): trunks over many skills and why, descriptions for recall, a light body, design records, and the evaluation behind them.
+
 Features (how a user meets Freeflow, and the exact steps that show each feature working live): the [feature map](features/README.md).
 
 Decisions: [decision records](adr/README.md) for hard-to-reverse choices.

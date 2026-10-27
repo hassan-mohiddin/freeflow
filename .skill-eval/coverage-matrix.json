@@ -203,7 +203,7 @@
       "case_concept": "After a behavior change, the stale subsystem doc is corrected in the same change and an intended-but-surprising behavior is recorded rather than 'fixed'; a spec preserves settled invitation behavior but marks unresolved billing semantics blocked.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-docs/SKILL.md",
-      "source_sha256": "3fc7d6492e3f784536a4f0948fb0ec427db266ee8859784f9cad2b31e2dc4d9c",
+      "source_sha256": "a796825d5a1e48a103b0e026021d40b43ebf2f372ce7d876654aea194daadff7",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -226,7 +226,7 @@
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
       "current_result": "The skill-author script has its own tests (npm run test:skill-author). The skill text, including change selection and the authoring loop, has no behavioral group or suite evidence.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "b5f8fdd59a66ee91283b30d449e7a162a55019f438a1eec82531a000a004da61",
+      "source_sha256": "a425e5e582348bf6ea27c7cfd6dfd52f6a3251e9ffd95c0582fb35670686fbb3",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
