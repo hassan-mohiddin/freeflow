@@ -9,6 +9,8 @@
 //   the receipt records it and the analysis decides what it means. A command that could not start is recorded too.
 // - The deviation log (`deviations.jsonl`) records each departure from the plan and, in a later line, who cleared it.
 //   An uncleared deviation holds the analysis.
+// Both ledgers are hash-chained: each line carries the sha256 of the line before it (`prev_sha256`, null on the
+// first), so an edited, removed or reordered line breaks the chain, and `check` reports where.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -128,6 +130,39 @@ export function amendPlan(planPath, { by, reason, at = now() }) {
   return lock.entries.at(-1);
 }
 
+/** Append one record to a ledger, chained to the line before it. */
+function appendChained(path, record) {
+  const lines = existsSync(path)
+    ? readFileSync(path, "utf8")
+        .split("\n")
+        .filter((line) => line.trim() !== "")
+    : [];
+  const chained = { ...record, prev_sha256: lines.length === 0 ? null : sha256(lines.at(-1)) };
+  appendFileSync(path, `${JSON.stringify(chained)}\n`);
+  return chained;
+}
+
+/** Where a ledger's hash chain breaks: the 1-based line numbers whose prev_sha256 does not match the line before. */
+export function chainBreaks(path) {
+  if (!existsSync(path)) return [];
+  const lines = readFileSync(path, "utf8")
+    .split("\n")
+    .filter((line) => line.trim() !== "");
+  const breaks = [];
+  lines.forEach((line, index) => {
+    let record;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      breaks.push(index + 1);
+      return;
+    }
+    const expected = index === 0 ? null : sha256(lines[index - 1]);
+    if (record.prev_sha256 !== expected) breaks.push(index + 1);
+  });
+  return breaks;
+}
+
 export function readLedger(path) {
   if (!existsSync(path)) return [];
   return readFileSync(path, "utf8")
@@ -203,8 +238,7 @@ export function runStep(planPath, argv, { inputs = [], outputs = [], unit, arm, 
   receipt.stdout_tail = tail(result.stdout);
   receipt.stderr_tail = tail(result.stderr);
   receipt.outputs = outputs.map((path) => ({ path: rel(path), sha256: fileHash(resolve(cwd, path)) }));
-  appendFileSync(ledgerPath, `${JSON.stringify(receipt)}\n`);
-  return { receipt, stdout: result.stdout, stderr: result.stderr };
+  return { receipt: appendChained(ledgerPath, receipt), stdout: result.stdout, stderr: result.stderr };
 }
 
 /** Log a departure from the plan. It holds the analysis until someone clears it. */
@@ -213,9 +247,15 @@ export function addDeviation(planPath, { what, unit, arm, by, at = now() }) {
   if (!by) throw new Error("a deviation needs --by: who logged it");
   const path = deviationLogPath(planPath);
   const records = readLedger(path);
-  const record = { kind: "deviation", id: nextId(records, "D"), what, unit: unit ?? null, arm: arm ?? null, by, at };
-  appendFileSync(path, `${JSON.stringify(record)}\n`);
-  return record;
+  return appendChained(path, {
+    kind: "deviation",
+    id: nextId(records, "D"),
+    what,
+    unit: unit ?? null,
+    arm: arm ?? null,
+    by,
+    at,
+  });
 }
 
 /** Clear a logged deviation, naming who cleared it. */
@@ -227,9 +267,7 @@ export function clearDeviation(planPath, id, { by, at = now() }) {
     throw new Error(`no deviation ${id} in ${path}`);
   if (records.some((record) => record.kind === "clearance" && record.id === id))
     throw new Error(`${id} is already cleared`);
-  const record = { kind: "clearance", id, by, at };
-  appendFileSync(path, `${JSON.stringify(record)}\n`);
-  return record;
+  return appendChained(path, { kind: "clearance", id, by, at });
 }
 
 /** Each deviation with the clearance that cleared it, or null. */
@@ -302,5 +340,12 @@ export function checkStudy(planPath) {
       );
   }
   for (const id of view.unplanned) problems.push(`${id} ran a unit and arm the plan does not list`);
+  for (const [name, path] of [
+    ["run ledger", runLedgerPath(planPath)],
+    ["deviation log", deviationLogPath(planPath)],
+  ]) {
+    for (const line of chainBreaks(path))
+      problems.push(`${name}: the hash chain breaks at line ${line}; a line was edited, removed or reordered`);
+  }
   return { ok: problems.length === 0, problems, state, manifest: view };
 }

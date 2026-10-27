@@ -296,3 +296,19 @@ test("trace --results finds each register number in the result file its Source n
     0,
   );
 });
+
+test("both ledgers are hash-chained, and check reports an edited line", () => {
+  const { folder, plan } = studyFolder();
+  study("lock", plan, "--by", "Hassan");
+  study("run", plan, "--unit", "t1", "--arm", "a", "--", process.execPath, "-e", "0");
+  study("run", plan, "--unit", "t1", "--arm", "b", "--", process.execPath, "-e", "0");
+  assert.equal(study("check", plan).status, 0);
+  const ledger = join(folder, "runs.jsonl");
+  const [first, second] = readFileSync(ledger, "utf8").trim().split("\n");
+  assert.equal(JSON.parse(first).prev_sha256, null);
+  assert.match(JSON.parse(second).prev_sha256, /^[0-9a-f]{64}$/);
+  writeFileSync(ledger, `${first.replace('"exit_code":0', '"exit_code":1')}\n${second}\n`);
+  const edited = study("check", plan);
+  assert.equal(edited.status, 1);
+  assert.match(edited.stdout, /run ledger: the hash chain breaks at line 2/);
+});

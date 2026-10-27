@@ -24,6 +24,8 @@ Run each command that produces data through `study.mjs run`, with its unit, arm 
 
 - **A non-zero exit is data.** A failing test, a refused answer or a crashed agent is an outcome of the study; the receipt records it and the analysis decides what it means, as the plan's question 11 said exclusions would be handled. Never rerun a failure until it passes and keep only the pass.
 - **Every attempt stays.** A command that could not start, a run cut short, a run you would rather forget: each has its receipt. The manifest counts only runs that started toward a planned trial.
+- **Turn off a harness's own retries,** or record each retry: a harness that retries a failed evaluation until it passes (some do, by default) hides the failures the study must count.
+- **Blocked is not zero.** A run that produced no score stays missing in the analysis; never impute a value for it, and say how many there were.
 - **One command, one receipt.** A script that runs every arm in one process hides which arm failed. Run per unit and arm when the plan's units are what the analysis counts.
 
 ## Keep Raw Data Immutable

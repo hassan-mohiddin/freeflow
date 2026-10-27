@@ -113,11 +113,11 @@ Written at Design, before the first run that counts; `init study-plan --rigor <r
 
 ## Run Ledger
 
-`runs.jsonl` beside the plan, one receipt per line, appended by `study.mjs run` and never edited. A receipt holds: `id` (`R1`, …), `unit`, `arm`, `trial`, `plan_sha256` and `plan_locked` (whether that hash was locked when it ran), `argv`, `cwd`, `program` (the resolved path and its sha256), `inputs` and `outputs` (each path, relative to the plan's folder, with its sha256, or null when absent), `started_at`, `finished_at`, `duration_ms`, `exit_code` (null when the command could not start), `signal`, `error`, and the last 2 KB of stdout and stderr.
+`runs.jsonl` beside the plan, one receipt per line, appended by `study.mjs run` and never edited. A receipt holds: `id` (`R1`, …), `unit`, `arm`, `trial`, `plan_sha256` and `plan_locked` (whether that hash was locked when it ran), `argv`, `cwd`, `program` (the resolved path and its sha256), `inputs` and `outputs` (each path, relative to the plan's folder, with its sha256, or null when absent), `started_at`, `finished_at`, `duration_ms`, `exit_code` (null when the command could not start), `signal`, `error`, the last 2 KB of stdout and stderr, and `prev_sha256`, the sha256 of the line before it (null on the first). The chain makes an edited, removed or reordered line visible: `study.mjs check` reports where it breaks.
 
 ## Deviation Log
 
-`deviations.jsonl` beside the plan, appended by `study.mjs deviation` and `study.mjs clear`. A `deviation` line has `id` (`D1`, …), `what`, `unit` and `arm` (or null), `by` (who logged it) and `at`; a `clearance` line has the deviation's `id`, `by` (who cleared it) and `at`. A deviation without a clearance holds `study.mjs check`. A cleared deviation naming a unit (and arm) covers that unit's missing trials.
+`deviations.jsonl` beside the plan, appended by `study.mjs deviation` and `study.mjs clear`. A `deviation` line has `id` (`D1`, …), `what`, `unit` and `arm` (or null), `by` (who logged it) and `at`; a `clearance` line has the deviation's `id`, `by` (who cleared it) and `at`. Its lines are hash-chained like the run ledger's. A deviation without a clearance holds `study.mjs check`. A cleared deviation naming a unit (and arm) covers that unit's missing trials.
 
 ## Judge Validation Record
 
