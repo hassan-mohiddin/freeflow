@@ -25,6 +25,7 @@ This body covers the common case: writing or revising one skill or one piece of 
 | Writing a description whose missed read could cause an irreversible or costly action, or whose neighbour matches similar requests; evidence that a skill was read late, early, not at all, or on a neighbour's request, or that two descriptions match the same request; or evidence that a read skill was misread, ignored, or kept steering later work | [Activation And Wording](references/activation-and-wording.md) |
 | Measuring what a revision changes in behavior | Evaluate In One Loop, below |
 | Checking structure, copied passages, or what a revision lost | Check The Package, below |
+| Recording why a skill exists: its claim, evidence, rejected alternatives and dropped candidates | Keep The Design Record, below |
 
 ## Rules
 
@@ -34,7 +35,7 @@ This body covers the common case: writing or revising one skill or one piece of 
 - Rely only on context guaranteed on every valid activation path, never on an optional sibling, a common but unguaranteed route, or an accidental earlier read.
 - In a skill package, link every agent-facing reference, asset, script, and package dependency from the body, with the condition that requires it. State the condition once, at the link; the resource opens with its content, not a restatement of its read condition.
 - When a skill is removed or merged into another, add no alias, shim or redirect under the old name: the description of the skill that now owns the job routes the work, every link and command naming the old skill is updated, and the removed name is reported as a breaking change.
-- Keep authoring status, evaluation summaries, evidence gaps, changelog notes, readiness claims, and author debate out of the executing package or text; they belong in the evaluation artifact, task record, or delivery report.
+- Keep authoring status, evaluation summaries, evidence gaps, changelog notes, readiness claims, and author debate out of the executing package or text; they belong in the evaluation artifact, task record, delivery report, or the skill's design record.
 - Claim only what the evidence observed. Structural checks prove structure. Explicit body delivery does not prove activation, one turn does not prove retained use, ambient context does not prove dependency behavior, prose review does not prove unchanged behavior, and one favorable example does not prove readiness.
 - For a skill package, run `validate` after any structural or dependency change and before claiming the package is valid. Never use deprecated authoring tooling.
 
@@ -50,7 +51,7 @@ When revising from evidence, such as observed failures, transcripts, review find
 - **already covered:** the skill says it, and the failure lies elsewhere, such as activation or placement; fix that boundary instead;
 - **structural:** a tool, script, check or runtime change prevents it more reliably than an instruction.
 
-Keep dropped candidates and their reasons with the evidence, outside the package.
+Keep dropped candidates and their reasons with the evidence, outside the package, in the skill's design record (Keep The Design Record, below).
 
 ## Prefer A Capability To Prose
 
@@ -67,7 +68,9 @@ The prose then names the capability where it is used and keeps only the judgment
 
 Goal: few skills, each owning one job in depth.
 
-Every skill's description is loaded on every request, and neighbours whose descriptions overlap confuse the choice between them. Prefer depth to width: when several skills do one job split by type, such as commit, push and release, merge them into one skill whose body routes to a reference per type. Keep a skill separate when its reader, trigger or job differs: another person or agent reads it, another request or situation calls for it, or it produces a different result.
+Every skill's description is loaded on every request, and neighbours whose descriptions overlap confuse the choice between them. Prefer depth to width: when several skills do one job split by type, such as commit, push and release, merge them into one skill whose body routes to a reference per type. Call such a skill a trunk: one capability, whose body routes to the references and scripts each of its situations needs. Keep a skill separate when its reader, trigger or job differs: another person or agent reads it, another request or situation calls for it, or it produces a different result.
+
+Depth wins because guidance changes a decision only when every link holds: the description gets the skill read, the routing table gets the right reference or script read when its situation arises, and the agent applies what it read. The links multiply, so each extra skill boundary between a request and the method lowers the chance the method reaches the decision. Between skills, the choice is made from one description among all the others. Inside a trunk, it is made from a routing table with the body in context, and a body the host keeps in context can still route when the situation arises later. A script's output skips the chain: it is in front of the agent whether or not anything was read.
 
 When the same workflow is rebuilt by hand across several tasks and no skill owns it, first check whether it is a branch of an existing skill; otherwise propose a new skill to the user, naming the tasks it recurred in.
 
@@ -88,6 +91,21 @@ Before writing, identify:
 
 Begin with the behavioral intervention, not with sections, wording, examples, or file layout.
 
+## Keep The Design Record
+
+Goal: whoever changes the skill next, a person or an agent, knows what it is meant to change and why, without the conversation that produced it.
+
+The package holds only what the executing agent acts on, so the reasons behind it need a home of their own. Where the repository keeps developer docs, each skill has a design record there, in Write Docs' [skill design record](../write-docs/references/documentation-shapes.md#skill-design-record) shape. It holds:
+
+- the behavioral claim above, as the skill currently makes it;
+- the design and why: its boundaries, the structure of the package, and where each behavior was placed;
+- the evidence for and against the claim, with where it is stored and what it can and cannot show;
+- the alternatives rejected, with the reason, so they are not rebuilt;
+- the candidates dropped under Choose What To Change, with the reason;
+- the open questions.
+
+Update it in the same change as the package. When the repository keeps no developer docs, keep this in the task record and say so in the delivery report.
+
 ## Shape The Package
 
 Goal: the common case runs from `SKILL.md` alone, and the depth one situation needs sits in one place.
@@ -96,6 +114,8 @@ Goal: the common case runs from `SKILL.md` alone, and the depth one situation ne
 - When the skill has references, a routing table comes first in the body: each row names a concrete, observable condition and the reference or section that serves it. "When unclear" is not a condition.
 - A reference holds one situation's method. Add one only when its condition is narrow, so that many activations never reach it, and its content is large, so that inlining it would bury the common route; otherwise keep it inline.
 - Merge references that are read together.
+- Route from the body: every reference a situation needs has its row in the body's routing table, so reaching it never depends on first reading another reference. A reference may still point to a sibling for a neighbouring situation.
+- Keep a trunk's body light: it is paid on every activation, so it holds the routing table, the common route and the Rules, and anything most activations do not use moves to a reference or a script.
 - Give each rule one owner; everywhere else, point to it rather than restate it (Repeat Instructions Deliberately).
 - Declare only the dependencies the skill's normal and conditional routes need.
 
@@ -134,7 +154,7 @@ Write for an agent seeing the skill for the first time with only guaranteed cont
 8. Keep the skill to one coherent job. Repeat only the local guard needed from the surrounding workflow's authority, routing, continuity, review, or completion method, not the method itself.
 9. Use plain words. Every coined term is something the agent must decode before it can act, so coin one only when it marks a distinction the agent has to act on, define it once, and use it the same way throughout.
 
-Use discussion, research, and author reasoning to understand the behavior, then compile that understanding into runtime instructions. The conversation, rejected drafts, fixture narration, and any explanation whose only reader is the author stay out.
+Use discussion, research, and author reasoning to understand the behavior, then compile that understanding into runtime instructions. The conversation, rejected drafts, fixture narration, and any explanation whose only reader is the author stay out; what a later author needs from them goes in the design record.
 
 ## Separate Rules From Judgment
 
@@ -270,7 +290,7 @@ Stop when the requested package:
 - works from guaranteed context on every valid path;
 - keeps its normal route executable on first read;
 - declares dependencies and resource conditions honestly;
-- contains no author-facing residue;
+- contains no author-facing residue, and its design record, where the repository keeps one, says why;
 - passes required structural checks, and after a substantial revision has a verdict for every rule-like unit it no longer states.
 
 Stop and ask when accepted behavior, activation, dependencies, or another user-owned choice cannot be settled from evidence. Do not add sections, references, examples, scripts, or procedure merely to make the package look complete.
