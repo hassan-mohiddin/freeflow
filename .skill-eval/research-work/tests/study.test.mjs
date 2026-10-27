@@ -487,3 +487,39 @@ test("quote-check counts a judge's score only when its quote is in the output it
   assert.match(checked.stdout, /line 4: a quote needs at least four words/);
   assert.match(checked.stdout, /line 5: gone\.txt does not exist/);
 });
+
+test("a unit run before the lock and declared held-out later is refused, and trace --results fails on rows not checked", () => {
+  const { plan } = studyFolder();
+  const withSplit = (bSplit) =>
+    readFileSync(plan, "utf8")
+      .replace(
+        /\| Unit \| Arm \| Trials \|( Split \|)?\n\| --- \| --- \| --- \|( --- \|)?/,
+        "| Unit | Arm | Trials | Split |\n| --- | --- | --- | --- |",
+      )
+      .replace(/\| t1 \| a \| 1 \|( \w+ \|)?/, "| t1 | a | 1 | tuning |")
+      .replace(/\| t1 \| b \| 1 \|( [\w-]+ \|)?/, `| t1 | b | 1 | ${bSplit} |`);
+  writeFileSync(plan, withSplit("tuning"));
+  study("run", plan, "--unit", "t1", "--arm", "b", "--trial", "1", "--", process.execPath, "-e", "0");
+  writeFileSync(plan, withSplit("held-out"));
+  study("lock", plan, "--by", "Hassan");
+  for (const arm of ["a", "b"])
+    study("run", plan, "--unit", "t1", "--arm", arm, "--trial", "1", "--", process.execPath, "-e", "0");
+  assert.match(study("check", plan).stdout, /R1 ran held-out unit t1 \/ b before the plan was locked/);
+
+  const folder = mkdtempSync(join(tmpdir(), "research-unchecked-"));
+  writeFileSync(
+    join(folder, "claims.md"),
+    register(["| C1 | A paper reports it | 0.95 | S1 | L1 | exploratory | the paper | not rerun |"]),
+  );
+  writeFileSync(join(folder, "report.md"), "The paper reports 0.95 (C1).\n");
+  const traced = run(
+    "claims.mjs",
+    "trace",
+    join(folder, "report.md"),
+    "--register",
+    join(folder, "claims.md"),
+    "--results",
+  );
+  assert.match(traced.stdout, /1 row\(s\) not checked/);
+  assert.equal(traced.status, 1);
+});

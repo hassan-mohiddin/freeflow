@@ -42,7 +42,7 @@ export const deviationLogPath = (planPath) => join(dirname(planPath), "deviation
 
 const hypothesesOf = (text) => Object.fromEntries(planHypotheses(text));
 
-/** Confirmatory hypotheses an amendment changed after study runs existed: exploratory from then on. */
+/** Hypotheses an amendment added or changed after study runs existed: none can be confirmatory from then on. */
 export const demotedHypotheses = (lock) =>
   new Set((lock?.entries ?? []).flatMap((entry) => entry.changed_after_runs ?? []));
 
@@ -389,8 +389,15 @@ export function checkStudy(planPath) {
       );
   }
   for (const id of view.unplanned) problems.push(`${id} ran a unit and arm the plan does not list`);
+  // A held-out unit is sealed until the lock: a run before it counts against the unit whatever split the plan gave
+  // it at the time, so a unit cannot be used as tuning and then declared held-out.
+  const heldOut = new Set(
+    plannedRuns(text)
+      .filter((run) => run.split === "held-out")
+      .map((run) => `${run.unit}\u0000${run.arm}`),
+  );
   for (const receipt of readLedger(runLedgerPath(planPath)))
-    if (receipt.split === "held-out" && !receipt.plan_locked)
+    if (!receipt.plan_locked && (receipt.split === "held-out" || heldOut.has(`${receipt.unit}\u0000${receipt.arm}`)))
       problems.push(
         `${receipt.id} ran held-out unit ${receipt.unit} / ${receipt.arm} before the plan was locked; held-out items are run only under the lock`,
       );

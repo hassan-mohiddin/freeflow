@@ -35,7 +35,7 @@ Grade each requirement a check covers, not only pass or fail, and note which req
 
 ## Read Raw Outputs Before Counting
 
-Before computing any metric, read a sample of the raw outputs: the failures, and some passes. A failure should look fair, with what went wrong plain to see. When it does not, the task, the check or the harness is at fault, and the count measures that instead.
+Before computing any metric, read a sample of the raw outputs: the failures, and some passes. A failure should look fair: it is clear what went wrong and why. When it does not, the task, the check or the harness is at fault, and the count measures that instead.
 
 - A failed output may hold a valid answer the check did not foresee. Fix the check, then rerun; never adjust the count by hand.
 - A passed output may have passed by a shortcut. Fix the check before counting it.

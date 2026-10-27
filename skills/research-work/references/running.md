@@ -16,7 +16,7 @@ node <research-work-directory>/scripts/study.mjs check <plan.md>
 ## Lock, Then Run
 
 - Lock the plan once the user has agreed it, where the user can answer: the agent the user talks to locks it, with `--by` holding who agreed, their words and the date, and who ran the lock. A worker routed a study by another agent cannot hear the user, so it never locks; it runs the plan the lock already holds, and returns a plan that is not locked to whoever routed it. Runs before the lock are pilots: their receipts say so, and they are not evidence for the claim.
-- A change to the plan after the lock is an amendment, with its reason. An amendment that changes a confirmatory hypothesis after study runs exist turns that hypothesis exploratory; the lock records which, and the register's validation enforces it. Amend before running whenever you can.
+- A change to the plan after the lock is an amendment, with its reason. An amendment after study runs exist that adds or changes a hypothesis makes it exploratory; the lock records which, and the register's validation enforces it. Amend before running whenever you can.
 
 ## Run Every Step Through A Receipt
 
@@ -40,6 +40,10 @@ Run each command that produces data through `study.mjs run`, with its unit, arm 
 A deviation is anything that departs from the locked plan: a run skipped, an item dropped, a tool upgraded mid-study, a different model snapshot, or a validity check that failed. Log it with `study.mjs deviation` when it happens, one per unit and arm it affects. It holds the analysis until someone clears it with `study.mjs clear --by`, applying what the plan says that failure means.
 
 Who may clear it: you, for a deviation that changes nothing the claim rests on (a rerun after the runner lost its connection before the command started); the user, for anything that changes what the result can claim (an item dropped, a budget cut, a changed model). The log names the clearer either way, so no deviation is cleared unseen.
+
+## What The Records Can And Cannot Show
+
+The lock, the run ledger and the deviation log are plain files. Their checks catch slips: a plan changed without an amendment, a receipt edited, removed or reordered, a result rewritten after its receipt. They cannot stop a deliberate rewrite, such as a lock edited by hand or a ledger recomputed from its first line. Commit them as the study goes, so the repository's history is the audit.
 
 ## Pin What Can Drift
 

@@ -127,4 +127,4 @@ else {
   for (const problem of problems)
     console.log(`  line ${problem.line}: ${problem.kind} ${problem.value} (${problem.detail})`);
 }
-process.exit(problems.length === 0 ? 0 : 1);
+process.exit(problems.length === 0 && results.notChecked.length === 0 ? 0 : 1);
