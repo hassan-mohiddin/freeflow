@@ -110,3 +110,32 @@ test("review-packet leaves the Boundary empty so check-brief refuses, and Review
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("review-packet run from outside the repository writes repository-relative Docs and Review rules paths that check-brief accepts", async () => {
+  const { root, base, task } = await project();
+  const elsewhere = await realpath(await mkdtemp(join(tmpdir(), "review-packet-cwd-")));
+  try {
+    const result = run(elsewhere, [
+      "--review",
+      "1",
+      "--base",
+      base,
+      "--task",
+      task,
+      "--root",
+      root,
+      "--boundary",
+      "merge to main",
+      "--json",
+    ]);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(JSON.parse(result.stdout).checkBrief.ok, true);
+    const brief = await readFile(join(task, "scratch/reviews/R1-brief.md"), "utf8");
+    assert.match(brief, /\nDocs: `dev-docs\/auth\.md`\n/);
+    assert.match(brief, /\nReview rules: `REVIEW\.md`\n/);
+    assert.equal(brief.includes(elsewhere), false, brief);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(elsewhere, { recursive: true, force: true });
+  }
+});
