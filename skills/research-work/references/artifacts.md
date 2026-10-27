@@ -69,6 +69,14 @@ A JSONL file, one record per line, appended as the search runs:
 - A hit names its `query` (defined on an earlier line) and its `title`. Its `state` is `included`, `excluded`, `duplicate` or `unscreened`; `excluded` and `duplicate` need a `reason`. An included hit's `source` is its source-ledger ID.
 - `artifact.mjs counts` computes the counts per query and in total. Report those counts, never hand-counted ones.
 
+## Citations In A Report
+
+A report, a worker's return and the claims register's Source column cite in these forms, which the checks read:
+
+- **Code:** `S<n>:path:line` or `S<n>:path:start-end`, where `S<n>` is a ledger row pinned as `<repository>@<commit>` and the path is relative to the repository root (`S1:codex-rs/core/src/codex.rs:120-145`).
+- **A quote:** the quoted words in double quotes followed by the source ID, `"the exact words" (S3)`. Quote at least four words, copied exactly; the check looks for them in the saved copy of S3.
+- **A claim:** its register ID, `C4`, or several, `C4, C7`, where a finding states it.
+
 ## Claims Register
 
 The contract between the stages: every claim a report or paper makes is a row here before any prose states it. One table with these columns, in order:
