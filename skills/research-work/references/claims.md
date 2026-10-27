@@ -18,7 +18,7 @@ Give each claim the highest level its evidence reaches, and no higher:
 - **L4:** a controlled comparison at a stated boundary, with its decision rule fixed before the data. Reading or running alone never reaches L4.
 - **L5:** it holds across independent replications: other models, tasks, groups or sources found the same.
 
-Then apply the caps: `artifact.mjs validate --sources` refuses a level above what the sources' checking allows, and an exploratory claim above L3. When two sources support a claim, its level is the strongest one that is not capped.
+Then apply the caps: `artifact.mjs validate --sources` refuses a level above what the sources' checking allows, and an exploratory claim above L3. Every source a row cites caps it, so cite only the sources the claim rests on; a weaker source that only agrees goes in Limit, not Source.
 
 `Kind` is `confirmatory` only for a claim tested by a decision rule fixed before the data; everything a report finds while reading is `exploratory`.
 
