@@ -154,6 +154,7 @@ Freeflow's and Pi's compaction may remove active user or evidence bodies while t
 | State is native session events replayed by a reducer that enforces every transition rule. | Inherits Pi's ancestry (navigation, forks) and avoids two sources of truth. Rules once enforced only in handlers could be bypassed. | A separate state store; handler-only checks. | Spec §1.3; Task 009 D-008, `f0abfb11` |
 | The Coordinator takes contract choices the request and repository leave open (names, messages, interfaces) to the user before delegating; in `executor` and `both` modes it also writes the user's own words (a Decision or a Work agreement line) into the Working Record itself. | A Coordinator that fixes a name or message the repository does not settle makes the user's choice for them, and the worker builds it faithfully. A decision held as "noted, not recorded" until the next assignment returned could be lost if the Coordinator's context was compacted first. | Fixing open contracts in the assignment; routing every record write through a worker. | 0.9.0 guidance revision |
 | The routing skill is split by role: `SKILL.md` holds what every profile shares (terms, Rules, costs, control and continuity), `references/coordinator.md` the Coordinator's method with a section per delegation mode, and `references/worker.md` the workers'. The bootstrap gate requires the skill and the reference for the profile's role. | Every profile had to hold the whole 3,700-word body in view before its first command or edit and again after each compaction, though a worker uses none of the placement, contract, assessment or ACT_BOUNDED method. A worker now needs about 2,200 words; the Coordinator, which used to add one mode reference, about the same as before, with all three modes in one file because it reads them with its method. | Gating only `SKILL.md` (a worker could skip its own method unnoticed); a file per mode (always read together with the Coordinator's method). | Task 004 S-009 (0.9.0) |
+| Workers no longer load Action Selection, which is removed; its one rule that reached the work, keeping tool output small, is in the Working Method on every host. | Its body was almost never opened, so its guidance rarely reached the work (ADR 0014). | — | 0.9.0 (2026-10-22); ADR 0014 |
 | Tool definitions stay visible to every profile; the gate decides what may run. | Changing tool lists with profile or settings rewrites the cached prompt on every switch. | Showing each profile only its tools. | Task 004 |
 | Only tool results are selectable evidence; worker assistant messages are not. | Workers rarely write text, and what they would select belongs in the report; assistant text candidates flooded evidence inspection. | Selecting whole assistant messages or their text. | Task 009 D-003, `212e40b9` |
 | A profile receives another profile's reasoning only on the same model and the same view. | A worker replaying the Coordinator's signed thinking after a different view broke Claude requests and the cache. | Never sharing; always sharing. | Task 009 D-002, `212e40b9` |
@@ -265,19 +266,3 @@ Deterministic source and fixture checks establish configuration and gating rules
 - Routing is native Pi only; other hosts receive the skill surface without the runtime.
 - Context Control v2 (source-aware residency and bounded recovery) is planned and not implemented; the removed legacy context code is in `.deprecated/legacy-context/` and is not a current contract.
 - The two known costs above.
-
-## Changes
-
-- Pi 1.4.0 (2026-10-22): runs an extension message starts are prepared in `before_agent_start` on Pi 1.2.0 and later, leaving an explicit resume's run to the resumed worker; routing tools are inactive until routing turns them on.
-- 0.9.0 (2026-10-22): the routing skill is split by role into a shared `SKILL.md` and Coordinator and worker references (the three mode references merged into the Coordinator's), and the bootstrap gate requires the skill and the profile's role reference; a worker now reads about 2,200 words instead of 3,700.
-- 0.9.0 (2026-10-22): the Coordinator surfaces open contract choices to the user and records the user's own decisions directly; a worker no longer loads Action Selection, which is removed.
-- Task 004 (2026-10-11): placeholders say why a worker result is not shown, provenance names each call, the Coordinator is told its selected evidence is in view, and the return receipt no longer reads as undelivered.
-- Task 003 (2026-10-11): routing tools renamed without the `freeflow_` prefix; old names still read from saved history.
-- Task 013 (2026-10-03): view renderings cached with stable identities (`25ec4b04`); startup verified by the file's tail, no trust point on `/reload`.
-- `1315e57e` (2026-10-03): projection on by default.
-- `70702419`, `b44ccc2a`, `305f20b6`, `01505b0f`, `9849a16c` (2026-10-02 to 03): compaction under routing.
-- `e2ea7d38`, `92d1d78d` (2026-09-30): Pi 0.99.1 support: message-started runs, codemode nested calls admitted, routing tools kept out of scripts.
-- `5e302941` to `f0abfb11` (2026-09-29): the runtime split into session, model control, gate, assembler, handoffs and handlers; the reducer enforces every transition rule.
-- `212e40b9` (2026-09-29): Claude routing qualified; reasoning shared only on the same model and view; worker messages no longer selectable.
-- `c6702bb3` (2026-09-15): Helper profile and cache reuse.
-- `d05f5615` (2026-09-10): the native routing redesign (Task 001).

@@ -60,7 +60,6 @@ The first part explains; the second is reference to consult while working. The s
 ## Code Map
 ## Tests
 ## Limits
-## Changes
 ```
 
 - **Purpose:** the problem it solves, what it does, and what it deliberately does not do.
@@ -76,7 +75,6 @@ The first part explains; the second is reference to consult while working. The s
 - **Code Map:** one line per directory or important file: what it owns, and its key types or functions by name. Point to folder READMEs for per-file detail rather than repeating it.
 - **Tests:** each test file or group and what it proves.
 - **Limits:** known limits and open questions, as facts about the present, not plans.
-- **Changes:** major changes in a few lines each, newest first, with commits. Not a changelog of every edit.
 
 ## Overview
 
@@ -187,10 +185,9 @@ For anyone changing a skill or other agent instruction text: what it is meant to
 ## Rejected         alternatives considered and why each was rejected
 ## Dropped          candidate changes not made, and why
 ## Open Questions   what is unknown and what would settle it
-## Changes          major revisions, with commits
 ```
 
-Keep it to what is true of the current package: evidence that no longer applies moves to Changes with its commit, and claims are stated no more strongly than their evidence.
+Keep it to what is true of the current package, and claims are stated no more strongly than their evidence. History lives in git: Design and Rejected cite the commit where each choice was made, and `git log` on the covered paths gives the rest. Evidence that no longer applies leaves the record; its commit keeps it.
 
 ## Adapting To The Software
 
