@@ -247,6 +247,9 @@ test("compare --markdown prints a readable report with the same exit status", as
     assert.match(result.stdout, /^# Loss check: /);
     assert.match(result.stdout, new RegExp(`\`${lostKey}\` ${LOST}`));
     assert.match(result.stdout, /verdict: NONE/);
+    assert.match(result.stdout, /## Rule-like reworded: confirm the meaning survived \(1\)/);
+    assert.match(result.stdout, new RegExp(`- \`${rewordedKey}\` ${REWORDED}\n  - closest \\(`));
+    assert.doesNotMatch(result.stdout, /Other reworded/);
     assert.match(result.stdout, /Status: unresolved\./);
   });
 });
