@@ -124,7 +124,7 @@ if (action === "lock") {
     for (const row of view.rows) {
       const covered = row.deviations.length > 0 ? `; covered by ${row.deviations.join(", ")}` : "";
       console.log(
-        `${row.unit} / ${row.arm}: planned ${row.trials}, ran ${row.ran}, non-zero exit ${row.nonzero}, not started ${row.notStarted}${covered}`,
+        `${row.unit} / ${row.arm}: planned ${row.trials}, ran ${row.ran}, missing trial(s) ${row.missingTrials.join(", ") || "none"}, non-zero exit ${row.nonzero}, not started ${row.notStarted}${covered}`,
       );
     }
     console.log(

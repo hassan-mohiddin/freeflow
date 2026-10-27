@@ -8,7 +8,7 @@ import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { parseMarkdown, parseTable } from "./lib/formats.mjs";
-import { claimIds, fileNumbers, numberInResults, numbersIn, resultCitations, units } from "./lib/report.mjs";
+import { claimIds, numberInResults, numbersIn, resultCitations, resultNumbers, units } from "./lib/report.mjs";
 
 const USAGE = "Usage: claims.mjs trace <report.md> --register <claims.md> [--results] [--json]";
 
@@ -100,7 +100,7 @@ if (parsed.values.results) {
           .split("\n")
           .slice(file.start - 1, file.end)
           .join("\n");
-      found.push(...fileNumbers(text));
+      found.push(...resultNumbers(text, file.path, { ranged: file.start !== null }));
     }
     for (const number of numbers) {
       results.checked += 1;

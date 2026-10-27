@@ -117,7 +117,10 @@ test("lock refuses an invalid plan and a second lock; check refuses an unlocked 
 
 test("run records a receipt for every attempt, passes the command's exit code through, and counts only started runs", () => {
   const { folder, plan } = studyFolder();
-  assert.equal(study("run", plan, "--unit", "t1", "--arm", "a", "--", process.execPath, "-e", "0").status, 0);
+  assert.equal(
+    study("run", plan, "--unit", "t1", "--arm", "a", "--trial", "1", "--", process.execPath, "-e", "0").status,
+    0,
+  );
   assert.equal(study("lock", plan, "--by", "Hassan").status, 0);
   writeFileSync(join(folder, "in.txt"), "input\n");
   const failed = study(
@@ -163,7 +166,7 @@ test("run records a receipt for every attempt, passes the command's exit code th
   // A non-zero exit is data; the run that never started does not count as t1 / b's trial.
   const checked = study("check", plan);
   assert.equal(checked.status, 1);
-  assert.match(checked.stdout, /t1 \/ b: 1 trial\(s\) planned, 0 run under the locked plan/);
+  assert.match(checked.stdout, /t1 \/ b: trial\(s\) 1 of 1 planned have no receipt under the locked plan/);
   assert.doesNotMatch(checked.stdout, /t1 \/ a:/);
   assert.match(checked.stdout, /1 receipt\(s\) ran before the lock/);
 });
@@ -171,7 +174,7 @@ test("run records a receipt for every attempt, passes the command's exit code th
 test("a deviation holds the analysis until someone is named as clearing it, and covers its unit's shortfall", () => {
   const { plan } = studyFolder();
   study("lock", plan, "--by", "Hassan");
-  study("run", plan, "--unit", "t1", "--arm", "a", "--", process.execPath, "-e", "0");
+  study("run", plan, "--unit", "t1", "--arm", "a", "--trial", "1", "--", process.execPath, "-e", "0");
   assert.match(study("deviation", plan, "--what", "t1 / b skipped").stderr, /needs --by/);
   assert.equal(
     study("deviation", plan, "--what", "t1 / b skipped: no budget", "--by", "agent", "--unit", "t1", "--arm", "b")
@@ -218,7 +221,7 @@ test("a confirmatory claim needs a confirmatory hypothesis of a locked plan that
     /not checked: confirmatory claims against a locked study plan/,
   );
   // The decision rule changes after a study run: C1 is exploratory from then on.
-  study("run", plan, "--unit", "t1", "--arm", "a", "--", process.execPath, "-e", "0");
+  study("run", plan, "--unit", "t1", "--arm", "a", "--trial", "1", "--", process.execPath, "-e", "0");
   writeFileSync(plan, readFileSync(plan, "utf8").replace("p < 0.05", "p < 0.10"));
   study("amend", plan, "--by", "Hassan", "--reason", "looser alpha");
   const demoted = run("artifact.mjs", "validate", claims, "--plan", plan);
@@ -317,8 +320,8 @@ test("trace --results finds each register number in the result file its Source n
 test("both ledgers are hash-chained, and check reports an edited line", () => {
   const { folder, plan } = studyFolder();
   study("lock", plan, "--by", "Hassan");
-  study("run", plan, "--unit", "t1", "--arm", "a", "--", process.execPath, "-e", "0");
-  study("run", plan, "--unit", "t1", "--arm", "b", "--", process.execPath, "-e", "0");
+  study("run", plan, "--unit", "t1", "--arm", "a", "--trial", "1", "--", process.execPath, "-e", "0");
+  study("run", plan, "--unit", "t1", "--arm", "b", "--trial", "1", "--", process.execPath, "-e", "0");
   assert.equal(study("check", plan).status, 0);
   const ledger = join(folder, "runs.jsonl");
   const [first, second] = readFileSync(ledger, "utf8").trim().split("\n");
@@ -350,9 +353,79 @@ test("check refuses a result file edited after the receipt that wrote it", () =>
   study("lock", plan, "--by", "Hassan");
   const result = join(folder, "result.json");
   const write = (value) => [process.execPath, "-e", `require('fs').writeFileSync(process.argv[1], '${value}')`, result];
-  study("run", plan, "--unit", "t1", "--arm", "a", "--output", result, "--", ...write("1"));
-  study("run", plan, "--unit", "t1", "--arm", "b", "--output", result, "--", ...write("2"));
+  study("run", plan, "--unit", "t1", "--arm", "a", "--trial", "1", "--output", result, "--", ...write("1"));
+  study("run", plan, "--unit", "t1", "--arm", "b", "--trial", "1", "--output", result, "--", ...write("2"));
   assert.equal(study("check", plan).status, 0, study("check", plan).stdout);
   writeFileSync(result, "3");
   assert.match(study("check", plan).stdout, /result\.json changed after R2 wrote it/);
+});
+
+test("an amendment after study runs that adds or promotes a confirmatory hypothesis makes it exploratory", () => {
+  const { folder, plan } = studyFolder();
+  study("lock", plan, "--by", "Hassan");
+  study("run", plan, "--unit", "t1", "--arm", "a", "--trial", "1", "--", process.execPath, "-e", "0");
+  writeFileSync(
+    plan,
+    readFileSync(plan, "utf8").replace(
+      "| C2 | Prompt b is faster | exploratory | - | - |",
+      "| C2 | Prompt b is faster | confirmatory | seconds | paired difference below 0 |\n| C7 | Prompt b is shorter | confirmatory | tokens | paired difference below 0 |",
+    ),
+  );
+  assert.equal(study("amend", plan, "--by", "Hassan", "--reason", "two more hypotheses").status, 0);
+  const lock = JSON.parse(readFileSync(join(folder, "plan.lock.json"), "utf8"));
+  assert.deepEqual(lock.entries.at(-1).changed_after_runs.sort(), ["C2", "C7"]);
+  const claims = join(folder, "claims.md");
+  writeFileSync(
+    claims,
+    register([
+      "| C2 | Prompt b is faster | - | results.json | L4 | confirmatory | 20 tasks | one model |",
+      "| C7 | Prompt b is shorter | - | results.json | L4 | confirmatory | 20 tasks | one model |",
+    ]),
+  );
+  const result = run("artifact.mjs", "validate", claims, "--plan", plan).stdout;
+  assert.match(result, /an amendment changed C2 after study runs existed/);
+  assert.match(result, /an amendment changed C7 after study runs existed/);
+});
+
+test("check counts each planned trial, and a count cut after runs still needs a cleared deviation", () => {
+  const { plan } = studyFolder();
+  writeFileSync(plan, readFileSync(plan, "utf8").replace("| t1 | a | 1 |", "| t1 | a | 3 |"));
+  study("lock", plan, "--by", "Hassan");
+  for (const trial of ["1", "1", "1"])
+    study("run", plan, "--unit", "t1", "--arm", "a", "--trial", trial, "--", process.execPath, "-e", "0");
+  study("run", plan, "--unit", "t1", "--arm", "b", "--trial", "1", "--", process.execPath, "-e", "0");
+  assert.match(study("check", plan).stdout, /t1 \/ a: trial\(s\) 2, 3 of 3 planned have no receipt/);
+  study("run", plan, "--unit", "t1", "--arm", "a", "--trial", "2", "--", process.execPath, "-e", "0");
+  study("run", plan, "--unit", "t1", "--arm", "a", "--trial", "1", "--", process.execPath, "-e", "0");
+  assert.match(study("check", plan).stdout, /t1 \/ a: trial\(s\) 3 of 3 planned have no receipt/);
+  // Cutting the count after runs does not lower what the check requires.
+  writeFileSync(plan, readFileSync(plan, "utf8").replace("| t1 | a | 3 |", "| t1 | a | 2 |"));
+  study("amend", plan, "--by", "Hassan", "--reason", "fewer trials");
+  assert.match(study("check", plan).stdout, /t1 \/ a: trial\(s\) 3 of 3 planned have no receipt/);
+  study("deviation", plan, "--what", "trial 3 of t1 / a dropped", "--by", "agent", "--unit", "t1", "--arm", "a");
+  study("clear", plan, "D1", "--by", "Hassan");
+  assert.equal(study("check", plan).status, 0, study("check", plan).stdout);
+});
+
+test("trace --results counts a JSON file's numeric values, not numbers written inside its strings", () => {
+  const folder = mkdtempSync(join(tmpdir(), "research-json-"));
+  writeFileSync(join(folder, "results.json"), JSON.stringify({ rule: "supported when at most 0.94", value: 0.91 }));
+  writeFileSync(
+    join(folder, "claims.md"),
+    register([
+      "| C1 | The value is low | 0.91 | results.json | L2 | exploratory | here | one run |",
+      "| C2 | The margin is met | 0.94 | results.json | L2 | exploratory | here | one run |",
+    ]),
+  );
+  writeFileSync(join(folder, "report.md"), "The value is 0.91 (C1).\n");
+  const traced = run(
+    "claims.mjs",
+    "trace",
+    join(folder, "report.md"),
+    "--register",
+    join(folder, "claims.md"),
+    "--results",
+  );
+  assert.match(traced.stdout, /number not in its results 0\.94 \(C2: not in results\.json\)/);
+  assert.doesNotMatch(traced.stdout, /C1:/);
 });

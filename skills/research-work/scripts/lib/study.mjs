@@ -3,8 +3,9 @@
 // - The lock (`<plan>.lock.json`) holds the plan's hash, who locked it and when, and each later amendment. The hash
 //   leaves out the plan's "## Amendments" section, so recording an amendment there does not change it; any other
 //   change does, and `check` refuses the plan until the change is recorded as an amendment. Each entry keeps the
-//   plan's hypotheses, so an amendment that changes a confirmatory hypothesis after study runs exist is recorded as
-//   such, and that hypothesis is exploratory from then on.
+//   plan's hypotheses and planned runs. An amendment after study runs exist records every hypothesis it adds or
+//   changes, and none of those can be confirmatory from then on; and a planned count it cuts still binds the check,
+//   so the shortfall needs a cleared deviation.
 // - The run ledger (`runs.jsonl`) gets one receipt per command run through `study.mjs run`. A non-zero exit is data:
 //   the receipt records it and the analysis decides what it means. A command that could not start is recorded too.
 // - The deviation log (`deviations.jsonl`) records each departure from the plan and, in a later line, who cleared it.
@@ -81,7 +82,9 @@ export function lockPlan(planPath, { by, at = now() }) {
     throw new Error(`${lockPath(planPath)} exists; a plan is locked once, and later changes are amendments`);
   const lock = {
     plan: basename(planPath),
-    entries: [{ kind: "lock", sha256: planHash(text), by, at, hypotheses: hypothesesOf(text) }],
+    entries: [
+      { kind: "lock", sha256: planHash(text), by, at, hypotheses: hypothesesOf(text), runs: plannedRuns(text) },
+    ],
   };
   writeFileSync(lockPath(planPath), `${JSON.stringify(lock, null, 2)}\n`);
   return lock;
@@ -102,8 +105,10 @@ export function amendPlan(planPath, { by, reason, at = now() }) {
   if (hash === lock.entries.at(-1).sha256) throw new Error("the plan has not changed since it was locked or amended");
   const previous = lock.entries.at(-1).hypotheses ?? {};
   const current = hypothesesOf(text);
-  const changed = Object.keys(previous).filter(
-    (id) => previous[id].kind === "confirmatory" && JSON.stringify(previous[id]) !== JSON.stringify(current[id]),
+  // Any hypothesis added, removed or changed: a new or promoted confirmatory hypothesis was chosen after the data
+  // as surely as a changed one.
+  const changed = [...new Set([...Object.keys(previous), ...Object.keys(current)])].filter(
+    (id) => JSON.stringify(previous[id]) !== JSON.stringify(current[id]),
   );
   const hashes = new Set(lockedHashes(lock));
   const studyRuns = readLedger(runLedgerPath(planPath)).filter(
@@ -116,6 +121,7 @@ export function amendPlan(planPath, { by, reason, at = now() }) {
     at,
     reason,
     hypotheses: current,
+    runs: plannedRuns(text),
     after_runs: studyRuns,
     changed_after_runs: studyRuns > 0 ? changed : [],
   });
@@ -285,14 +291,38 @@ export function deviations(planPath) {
  * Planned runs against the receipts made under a locked plan hash: per unit and arm, the trials planned, the
  * receipts, how many exited non-zero or could not start, and the cleared deviations that cover a shortfall.
  */
+/**
+ * The runs the check requires: the plan's planned runs, raised to the count in force when the first study run was
+ * made, so an amendment after the data cannot lower what must have run.
+ */
+function requiredRuns(planPath, lock, studyReceipts) {
+  const current = plannedRuns(readFileSync(planPath, "utf8"));
+  const first = studyReceipts[0];
+  const inForce = first ? (lock?.entries.find((entry) => entry.sha256 === first.plan_sha256)?.runs ?? []) : [];
+  const key = (run) => `${run.unit}\u0000${run.arm}`;
+  const required = new Map(current.map((run) => [key(run), { ...run }]));
+  for (const run of inForce) {
+    const existing = required.get(key(run));
+    if (!existing) required.set(key(run), { ...run });
+    else existing.trials = Math.max(existing.trials, run.trials);
+  }
+  return [...required.values()];
+}
+
 export function manifest(planPath) {
   const lock = readLock(planPath);
   const hashes = new Set(lockedHashes(lock));
   const receipts = readLedger(runLedgerPath(planPath));
   const studyReceipts = receipts.filter((receipt) => receipt.plan_locked && hashes.has(receipt.plan_sha256));
   const logged = deviations(planPath);
-  const rows = plannedRuns(readFileSync(planPath, "utf8")).map((planned) => {
+  const rows = requiredRuns(planPath, lock, studyReceipts).map((planned) => {
     const mine = studyReceipts.filter((receipt) => receipt.unit === planned.unit && receipt.arm === planned.arm);
+    const started = mine.filter((receipt) => receipt.exit_code !== null || receipt.signal !== null);
+    const trialsRun = new Set(
+      started
+        .map((receipt) => receipt.trial)
+        .filter((trial) => Number.isInteger(trial) && trial >= 1 && trial <= planned.trials),
+    );
     const covering = logged.filter(
       (deviation) =>
         deviation.cleared &&
@@ -301,7 +331,10 @@ export function manifest(planPath) {
     );
     return {
       ...planned,
-      ran: mine.filter((receipt) => receipt.exit_code !== null || receipt.signal !== null).length,
+      ran: started.length,
+      missingTrials: Array.from({ length: planned.trials }, (_, index) => index + 1).filter(
+        (trial) => !trialsRun.has(trial),
+      ),
       nonzero: mine.filter((receipt) => receipt.exit_code !== 0 && receipt.exit_code !== null).length,
       notStarted: mine.filter((receipt) => receipt.exit_code === null && receipt.signal === null).length,
       deviations: covering.map((deviation) => deviation.id),
@@ -348,9 +381,9 @@ export function checkStudy(planPath) {
   }
   const view = manifest(planPath);
   for (const row of view.rows) {
-    if (row.ran < row.trials && row.deviations.length === 0)
+    if (row.missingTrials.length > 0 && row.deviations.length === 0)
       problems.push(
-        `${row.unit} / ${row.arm}: ${row.trials} trial(s) planned, ${row.ran} run under the locked plan, and no cleared deviation covers the rest`,
+        `${row.unit} / ${row.arm}: trial(s) ${row.missingTrials.join(", ")} of ${row.trials} planned have no receipt under the locked plan, and no cleared deviation covers them`,
       );
   }
   for (const id of view.unplanned) problems.push(`${id} ran a unit and arm the plan does not list`);

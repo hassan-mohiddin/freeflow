@@ -153,6 +153,28 @@ export const fileNumbers = (text) =>
   [...text.matchAll(/(?<![\w.])-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?(?![\w.]*\d)/g)].map((match) => Number(match[0]));
 
 /**
+ * The numbers a result file holds as values. A JSON file contributes only its numeric values, so a number written
+ * inside a string (a rule's wording, a label) does not count as a result; any other file, or a cited line range,
+ * contributes every number in its text.
+ */
+export function resultNumbers(text, path, { ranged = false } = {}) {
+  if (!ranged && path.endsWith(".json")) {
+    try {
+      const values = [];
+      const walk = (value) => {
+        if (typeof value === "number") values.push(value);
+        else if (value && typeof value === "object") Object.values(value).forEach(walk);
+      };
+      walk(JSON.parse(text));
+      return values;
+    } catch {
+      // not JSON after all: read it as text
+    }
+  }
+  return fileNumbers(text);
+}
+
+/**
  * Whether a register number is in a result file: some number there rounds to it at the register's precision. A
  * percentage matches either the same number or its fraction (65% matches 65 or 0.65).
  */

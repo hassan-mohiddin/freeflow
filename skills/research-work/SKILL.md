@@ -106,7 +106,7 @@ node <research-work-directory>/scripts/claims.mjs trace <report.md> --register <
 
 - `artifact.mjs validate` refuses a register whose sources are missing or refuted, or whose levels exceed their sources' checking; with `--plan`, a confirmatory claim the locked plan does not hold as a confirmatory hypothesis; and a claim above L1 resting on a judge record that does not pass.
 - `cite-check` reads each cited file at the commit pinned in the ledger, using a local clone you name, and finds each quote in a saved copy of its source. Anything it could not check, it lists as not checked, never as passed. It exits 0 when nothing failed, so read its summary: the check passes only with 0 failed and 0 not checked.
-- `trace` lists every number and claim ID in the report that the register does not support. It skips code spans and blocks, so a number the report states belongs outside backticks. With `--results`, it also finds each register number in the result file or log its Source names.
+- `trace` lists every number and claim ID in the report that the register does not support. It skips code spans and blocks, so a number the report states belongs outside backticks. With `--results`, it also finds each register number in the result file or log its Source names (a JSON file's numeric values only). That shows the number is there, not that the analysis computed it; it passes only with 0 problems and 0 rows not checked.
 
 Passing checks show that each cited range exists and each number is registered, not that a range shows its claim. Read the lines a key claim rests on again before handing the report over: the common failure is a claim that is true on the path you read and drops the condition that selects that path.
 
