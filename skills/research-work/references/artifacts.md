@@ -168,10 +168,10 @@ The shape of an in-depth report or a study's report, from a quick answer to a lo
 
 Written before a paper's prose ([paper](paper.md)). The header adds **Register:** the claims register the paper draws on, relative to the outline. Sections:
 
-- `## Proposition`: one sentence, the paper's message.
+- `## Proposition`: one sentence, the paper's message, or `not yet stated` while the message is still being found.
 - `## Contributions`: a table `| ID | Contribution | Claims |`; IDs `K1`, `K2`; each row names at least one claim ID.
 - `## Paragraphs`: a table `| Section | Paragraph | Role | Claims |`, one row per planned paragraph; Claims lists claim IDs or `-`.
-- `## Figures`: a table `| ID | Figure | Claims | Data |`; IDs `F1`, `F2`; Data is the figure's data file, relative to the outline; or `none`.
+- `## Figures`: a table `| ID | Figure | Claims | Data |`; IDs `F1`, `F2`; Data is the figure's data file, relative to the outline, which must exist. A paper with no figures says `none` under the heading instead of a table.
 - `## Objections`: a table `| Objection | Answered in |`, or `none found within these searches`.
 - `## Limits`: where the limits are stated.
 

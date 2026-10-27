@@ -10,7 +10,7 @@ Start from the claims register, built by a study or, for a paper from existing r
 
 Create the outline with `artifact.mjs init paper-outline` and fill it before prose:
 
-- **The proposition:** the paper's one message, as a sentence a result could contradict. State it at the start of the paper and again at the end.
+- **The proposition:** the paper's one message, as a sentence a result could contradict. State it at the start of the paper and again at the end. While it is still being found, write `not yet stated`: the outline validates, and review checks the draft.
 - **The contributions,** each refutable and each naming the claim IDs that support it. Write them first: they are what the paper must deliver.
 - **One sentence per planned paragraph,** with the paragraph's role (the gap, an example, evidence, an objection answered) and the claim IDs it uses. Going further, to each paragraph's key wording, helped in one case; it is not required.
 - **Each figure and table,** with the claims it shows and its data file.
@@ -64,7 +64,7 @@ Answer the venue's reviewers in a rebuttal ledger (`artifact.mjs init rebuttal`)
 - your choice, with the reason: **will address** (the paper changes), **won't** (the comment is on point but the paper stays as it is), or **not on point** (the comment is about something the paper does not claim);
 - for "will address", the commitment and, before submission, where it was fulfilled (a section or a commit).
 
-In a later round, mark each comment either as continuing an earlier one (`continues R<n>`) or as new (`yes`). A new request in a later round is the goalpost moving: `artifact.mjs validate` lists them, so the user decides each one rather than absorbing it unnoticed. Set the ledger's Stage to `submitted` only when every "will address" names where it was done; validation refuses it otherwise. A comment that needs the user's decision stays "will address" with no fulfilment until they answer, so the ledger cannot be submitted before then.
+In a later round, mark each comment either as continuing an earlier one (`continues R<n>`) or as new (`yes`). A new request in a later round is the goalpost moving: `artifact.mjs validate` lists the rows marked `yes`, so the user decides each one rather than absorbing it unnoticed. The validator cannot judge what a comment asks, so the marking is yours: mark `continues` only a comment that asks for what the earlier one did. Set the ledger's Stage to `submitted` only when every "will address" names where it was done; validation refuses it otherwise. A comment that needs the user's decision stays "will address" with no fulfilment until they answer, so the ledger cannot be submitted before then.
 
 Answer each comment once, with the evidence or the limit it marks. Do not add caveats to the paper only to pre-empt a reviewer.
 

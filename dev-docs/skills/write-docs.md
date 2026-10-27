@@ -17,10 +17,10 @@ Write Docs is read when a document someone will act on is written or revised: a 
   - accepted decisions kept apart from proposals and open choices;
   - one honest status with its source;
   - documentation that states checked present facts, the reasons behind them and the behavior that looks wrong but is intended, kept current by the docs check;
-  - research that gives the answer first, states each finding's strength once, and says how each source was checked.
-- **Failure it prevents:** invented requirements, owners or approvals; a plan or spec made "ready" by settling an unresolved choice; documentation copied from a plan instead of the code; stale docs; history kept as a hand-written list beside git; research whose qualifiers bury its claim, or that presents a summary as verified.
+  - research documents that carry the shared header and source trail, written with Research Work, which owns their shape.
+- **Failure it prevents:** invented requirements, owners or approvals; a plan or spec made "ready" by settling an unresolved choice; documentation copied from a plan instead of the code; stale docs; history kept as a hand-written list beside git.
 - **Earliest decision:** before the document's first sentence. `runtime/prompts/core.md` names it at that step ("Write Docs when a change makes docs wrong or a document is asked for").
-- **Cues before the body is read:** its description, which names each document type including research documents, and core's step.
+- **Cues before the body is read:** its description, which names each document type it shapes (research documents are Research Work's), and core's step.
 - **Guaranteed context:** the description on every host; core where Freeflow's runtime prompts are on.
 - **Nearby cases it leaves alone:** a question about a document with no request to edit it; judging whether a document is fit to use (Review Work); instruction text an agent acts on (Write Skill).
 - **When it stops steering:** once the document is fit for its use or its blocking decision is explicit, and its checks have run.

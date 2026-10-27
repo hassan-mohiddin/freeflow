@@ -247,14 +247,17 @@ export function parseMarkdown(text) {
     if (match) header[match[1].trim()] = match[2].trim();
   }
   const sections = new Map();
+  // Each section's heading line (1-based), so a problem in a section's table names its line in the file.
+  const starts = new Map();
   let current = null;
-  for (const line of lines) {
+  lines.forEach((line, index) => {
     if (line.startsWith("## ")) {
       current = line.slice(3).trim();
       sections.set(current, []);
+      starts.set(current, index + 1);
     } else if (current !== null) sections.get(current).push(line);
-  }
-  return { title, header, sections, lines };
+  });
+  return { title, header, sections, starts, lines };
 }
 
 function splitRow(line) {
@@ -584,11 +587,13 @@ function sectionTableChecked(parsed, name, columns, problems) {
     problems.push(`missing section "## ${name}"`);
     return null;
   }
-  const table = parseTable(lines);
-  if (!table) {
+  const parsedTable = parseTable(lines);
+  if (!parsedTable) {
     problems.push(`## ${name} needs a table with columns: ${columns.join(", ")}`);
     return null;
   }
+  const offset = parsed.starts?.get(name) ?? 0;
+  const table = { ...parsedTable, rows: parsedTable.rows.map((row) => ({ ...row, line: row.line + offset })) };
   if (table.columns.join("|") !== columns.join("|"))
     problems.push(`## ${name}'s columns must be, in order: ${columns.join(", ")}`);
   return table;
@@ -599,12 +604,17 @@ function sectionTableChecked(parsed, name, columns, problems) {
  * figures with their claims and data, and the objections answered. With `register` (the register's claim IDs) every
  * claim ID must exist there; with `dataExists` every figure's data file must exist.
  */
-function validateOutline(parsed, problems, { register, dataExists } = {}) {
+function validateOutline(parsed, problems, { register, registerMissing, dataExists } = {}) {
   validateHeader(parsed, "Paper Outline", problems);
+  headerPlaceholders(parsed, problems);
   if (!parsed.header.Register || placeholder(parsed.header.Register))
     problems.push("the header needs a Register: the claims register the paper draws on");
+  else if (registerMissing)
+    problems.push(`the header's Register, ${parsed.header.Register}, cannot be read, so the claim IDs are not checked`);
+  // Before drafting, the proposition is the default, not a gate: "not yet stated" says so; review checks the draft.
   const proposition = (parsed.sections.get("Proposition") ?? []).join(" ").trim();
-  if (!proposition || placeholder(proposition)) problems.push("## Proposition must state the paper's one message");
+  if (!proposition || placeholder(proposition))
+    problems.push('## Proposition must state the paper\'s one message, or say "not yet stated"');
   const known = (id, where) => {
     if (register && !register.has(id)) problems.push(`${where}: ${id} is not in the claims register`);
   };
@@ -657,6 +667,12 @@ function validateOutline(parsed, problems, { register, dataExists } = {}) {
   if (!limits || placeholder(limits)) problems.push("## Limits must say where the limits are stated");
 }
 
+/** A header field still holding the skeleton's placeholder. */
+function headerPlaceholders(parsed, problems) {
+  for (const [field, value] of Object.entries(parsed.header))
+    if (placeholder(value)) problems.push(`the header's ${field} still holds a placeholder`);
+}
+
 /**
  * A rebuttal ledger: one row per reviewer comment with the author's choice, its reason, the commitment and where it is
  * fulfilled. At Stage submitted, every "will address" names where it was done. A comment in a later round either is
@@ -665,6 +681,7 @@ function validateOutline(parsed, problems, { register, dataExists } = {}) {
  */
 function validateRebuttal(parsed, problems) {
   validateHeader(parsed, "Rebuttal", problems);
+  headerPlaceholders(parsed, problems);
   const stage = parsed.header.Stage;
   if (!REBUTTAL_STAGES.includes(stage))
     problems.push(`the header's Stage must be one of: ${REBUTTAL_STAGES.join(", ")}`);
@@ -714,6 +731,7 @@ export function newRequests(text) {
 /** An evidence table for a literature review: one row per study, with its level capped by how its source was checked. */
 function validateEvidence(parsed, problems, { ledger } = {}) {
   validateHeader(parsed, "Evidence Table", problems);
+  headerPlaceholders(parsed, problems);
   const table = validateTable(parsed, EVIDENCE_COLUMNS, problems);
   for (const { line, cells } of table?.rows ?? []) {
     const where = `line ${line}`;
@@ -813,7 +831,7 @@ export function kindOf(path, text) {
  * its judge records (a claim resting on a judge record that does not pass is at most L1: `judges` maps each cited
  * path to `{ counts }`).
  */
-export function validate(kind, text, { ledger, plan, judges, register, dataExists } = {}) {
+export function validate(kind, text, { ledger, plan, judges, register, registerMissing, dataExists } = {}) {
   const problems = [];
   if (kind === "search-ledger") validateSearch(text, problems);
   else {
@@ -823,7 +841,7 @@ export function validate(kind, text, { ledger, plan, judges, register, dataExist
     else if (kind === "claims-register") validateRegister(parsed, problems, { ledger, plan, judges });
     else if (kind === "study-plan") validatePlan(parsed, problems);
     else if (kind === "judge-validation") validateJudge(parsed, problems);
-    else if (kind === "paper-outline") validateOutline(parsed, problems, { register, dataExists });
+    else if (kind === "paper-outline") validateOutline(parsed, problems, { register, registerMissing, dataExists });
     else if (kind === "rebuttal") validateRebuttal(parsed, problems);
     else if (kind === "evidence-table") validateEvidence(parsed, problems, { ledger });
     else problems.push(`unknown artifact kind "${kind}"`);

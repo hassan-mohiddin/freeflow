@@ -192,3 +192,28 @@ test("artifact.mjs checks an outline's claims against its register and its figur
   assert.equal(ledger.status, 0, ledger.stdout);
   assert.match(ledger.stdout, /new requests in a later round: R2/);
 });
+
+test("an outline's problems name their line in the file, and a proposition may be explicitly not yet stated", () => {
+  const unknown = validate("paper-outline", OUTLINE, { register: new Set(["C1"]) }).problems;
+  const line = OUTLINE.split("\n").findIndex((text) => text.startsWith("| F1 ")) + 1;
+  assert.ok(unknown.includes(`line ${line}: C2 is not in the claims register`), unknown.join("\n"));
+  const later = OUTLINE.replace(/## Proposition\n\n.*\n/, "## Proposition\n\nnot yet stated\n");
+  assert.deepEqual(validate("paper-outline", later).problems, []);
+});
+
+test("artifact.mjs fails an outline whose register cannot be read, and a rebuttal whose header keeps a placeholder", () => {
+  const folder = mkdtempSync(join(tmpdir(), "research-paper-"));
+  writeFileSync(join(folder, "outline.md"), OUTLINE.replace("C1; C2", "C1"));
+  const missing = run("validate", join(folder, "outline.md"));
+  assert.equal(missing.status, 1);
+  assert.match(missing.stdout, /Register, claims\.md, cannot be read/);
+  const placeholderHeader = REBUTTAL(["| R1 | A | 1 | x | won't | y | - | - | - |"]).replace(
+    "paper.md at v1",
+    "<path or version of the paper reviewed>",
+  );
+  assert.ok(
+    validate("rebuttal", placeholderHeader).problems.some((p) =>
+      p.includes("header's Paper still holds a placeholder"),
+    ),
+  );
+});

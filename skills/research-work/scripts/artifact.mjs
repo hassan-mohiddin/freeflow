@@ -119,6 +119,7 @@ if (command === "init") {
       options.register = new Set(
         (parseTable(parseMarkdown(readFileSync(registerPath, "utf8")).lines)?.rows ?? []).map((row) => row.cells.ID),
       );
+    else if (registerPath) options.registerMissing = true;
     options.dataExists = (file) => existsSync(resolve(dirname(path), file));
   }
   const confirmatory = rows.some((row) => row.cells.Kind === "confirmatory");
@@ -131,8 +132,13 @@ if (command === "init") {
       console.log("  not checked: levels against the source ledger (pass --sources)");
     if (kind === "claims-register" && confirmatory && !values.plan)
       console.log("  not checked: confirmatory claims against a locked study plan (pass --plan)");
-    if (kind === "paper-outline" && !options.register)
-      console.log("  not checked: claim IDs against the register (the header's Register is missing or unreadable)");
+    if (
+      kind === "paper-outline" &&
+      /^not yet stated\.?$/.test((parseMarkdown(text).sections.get("Proposition") ?? []).join(" ").trim())
+    )
+      console.log(
+        "  note: the proposition is not yet stated; a draft that still does not state one does not pass review",
+      );
     if (kind === "evidence-table" && !values.sources)
       console.log("  not checked: levels against the source ledger (pass --sources)");
     if (kind === "rebuttal") {

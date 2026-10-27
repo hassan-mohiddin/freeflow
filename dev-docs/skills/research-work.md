@@ -139,7 +139,7 @@ Activation has not been measured. The routing suite (`.skill-eval/freeflow-routi
 
 ## Open Questions
 
-- **What else the evidence suggested and is not built:** the building task's `sources/not-built.md`, by source: online citation lookups, read-range and consistency checks, plan-rule checks, more statistics, and the literature-review and paper formats.
+- **What else the evidence suggested and is not built:** the building task's `sources/not-built.md`, by source: online citation lookups, read-range and consistency checks, plan-rule checks, more statistics, and the paper tools (figures, bibliography, builds, draft checks).
 - **Whether reviewers should only judge or also propose fixes.** A two-arm experiment on real SWE-bench patches is planned as the study route's first real use; it costs model calls and waits for a pilot and the user's yes.
 - **Whether a lock should name a person rather than accept any `--by`.** The script records who locked and who cleared; it cannot tell an agent from the user.
 - **Whether the activation cases pass,** and whether the core line raises reads.
