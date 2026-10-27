@@ -29,7 +29,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Agree the research brief with the user before the first search or read of sources: the question, who uses the answer, the claim sought, the scope and the rigor are the user's. When no one can answer (a routed worker, an unattended run), write the brief with your defaults and put it first in the report.
 - Record how every source was checked, as the source ledger defines. Never present a source you know only from a summary, an abstract or memory as checked, and never give a claim a level above what its sources' checking allows.
 - A lookup that finds nothing makes a source unresolved, not fabricated. Only an identifier that resolves to something else refutes it.
-- At study or publication rigor, every claim the report makes is in the claims register before the prose states it, and the report goes out only after `artifact.mjs validate --sources`, `sources.mjs cite-check` and `claims.mjs trace` pass, or with each failure they report listed in the report.
+- At study or publication rigor, every claim the report makes is in the claims register before the prose states it, and the report goes out only after `artifact.mjs validate --sources`, `sources.mjs cite-check` and `claims.mjs trace` pass, or with each failure they report, and each item they could not check, listed in the report.
 - Compute every statistic with `stats.mjs` when it offers the method, and report the method with its interval. Never compute one by hand from memory.
 - Run the mechanical checks before any model review of the report.
 
@@ -84,8 +84,8 @@ node <research-work-directory>/scripts/claims.mjs trace <report.md> --register <
 ```
 
 - `artifact.mjs validate` refuses a register whose sources are missing or refuted, or whose levels exceed their sources' checking.
-- `cite-check` reads each cited file at the commit pinned in the ledger, using a local clone you name, and finds each quote in a saved copy of its source. Anything it could not check, it lists as not checked, never as passed.
-- `trace` lists every number and claim ID in the report that the register does not support.
+- `cite-check` reads each cited file at the commit pinned in the ledger, using a local clone you name, and finds each quote in a saved copy of its source. Anything it could not check, it lists as not checked, never as passed. It exits 0 when nothing failed, so read its summary: the check passes only with 0 failed and 0 not checked.
+- `trace` lists every number and claim ID in the report that the register does not support. It skips code spans and blocks, so a number the report states belongs outside backticks.
 
 Passing checks show that each cited range exists and each number is registered, not that a range shows its claim. Read the lines a key claim rests on again before handing the report over: the common failure is a claim that is true on the path you read and drops the condition that selects that path.
 

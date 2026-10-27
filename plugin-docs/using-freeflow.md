@@ -11,7 +11,7 @@ Freeflow is a feedback-based control system for coding agents: each step checks 
 | Part | What it gives the agent | Where |
 | --- | --- | --- |
 | **The cycle** | Agree before building, build and verify, review and hand over, in a short always-loaded prompt with the Interaction Contract and the Working Method. | Every host where Freeflow delivers its prompts. |
-| **Ten skills** | One per capability: discussing and agreeing, executing, verifying, reviewing, delivering, task memory, documents, and a few for contributors. Each brings references for less common situations and scripts that gather the facts a decision needs. | Every host. |
+| **Eleven skills** | One per capability: discussing and agreeing, executing, verifying, reviewing, delivering, task memory, documents, research, and a few for contributors. Each brings references for less common situations and scripts that gather the facts a decision needs. | Every host. |
 | **Pi capabilities** | Tool Execution (including skill guidance at the tool call that needs it), Compaction, Task Memory, Messaging and Cognitive Routing. | Native Pi. |
 
 [How Freeflow Works](workflow.md) describes the cycle, the agreement and every skill.

@@ -67,7 +67,7 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
   - Search-ledger counts are computed from the hit lines, never typed.
 - **Mechanical checks before any review, and none that call a model:**
   - `sources.mjs cite-check` reads each `S<n>:path:line` at the commit its ledger row pins and finds each quote in its source;
-  - `claims.mjs trace` matches every number and claim ID in the report to the register.
+  - `claims.mjs trace` matches every number and claim ID outside code in the report to the register.
   
   Anything they cannot check is listed as not checked, never as passed. The body also says what passing does not show, because the first real run passed all 93 citations while three of five checked claims dropped a guard condition.
 - **Statistics in one place, guidance at the decision.**
@@ -92,7 +92,7 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
 | --- | --- | --- | --- |
 | Statistics against published values | Every method's tests match a published example or scipy, statsmodels and errorbars values. Deliberately breaking six formulas fails a test each | `.skill-eval/research-work/tests/stats.test.mjs` | Reference values were computed once in a scratch environment and pasted in |
 | Format and report checks | Valid artifacts pass; each contract rule and each citation failure has a failing case | `.skill-eval/research-work/tests/` | Structure, not behavior |
-| One end-to-end run | A Haiku agent wrote an in-depth report on the Codex CLI's turn path at a pinned commit: 36 claims at L2, 93 citations, all checks passing. Its notes listed 13 gaps in the text, and a check of 5 claims against the code found 3 that dropped a condition; both led to revisions | Outside the repository: the building task's record, `evidence/codex-test/` | One run, one model, one question. Not a comparison against working without the skill |
+| One end-to-end run | A Haiku agent wrote an in-depth report on the Codex CLI's turn path at a pinned commit: 36 claims at L2, 93 citations, all checks passing. Its notes listed 13 gaps in the text, and a check of 5 claims against the code found 3 that dropped a condition; both led to revisions of the skill text. The saved report was not corrected | Outside the repository: the building task's record, `evidence/codex-test/` | One run, one model, one question. Not a comparison against working without the skill |
 | Design research | 24 reports on ARS; 13 web research reports; checks of the study questions and paper techniques against established sources | Outside the repository: the building task's `sources/` and `evidence/` | Read by Haiku agents through model extraction; some publisher sources stayed summary-only |
 
 Activation has not been measured. The routing suite (`.skill-eval/freeflow-routing/`) has Research Work's three requests and two near misses, and the building task has eleven more cases; none has run.
