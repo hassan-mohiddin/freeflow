@@ -162,10 +162,9 @@ test("validate warns on unresolved pointers, fails on them only with --strict, a
 
     await mkdir(join(dirname(recordPath), "scratch"), { recursive: true });
     await writeFile(join(dirname(recordPath), "scratch/bench.json"), "{}\n");
-    const text = (await readFile(recordPath, "utf8")).replace(
-      "merged upstream as 2d3dd0bc",
-      `merged as ${head.slice(0, 8)}`,
-    );
+    // The full hash: a bare hash counts as a commit only with both a digit and a letter, which a short prefix of a
+    // random hash sometimes lacks (about 2% of 8-character prefixes are all digits).
+    const text = (await readFile(recordPath, "utf8")).replace("merged upstream as 2d3dd0bc", `merged as ${head}`);
     await writeFile(recordPath, text);
     const passing = run(root, ["validate", "--record", recordPath, "--strict"]);
     assert.equal(passing.status, 0, passing.stderr);

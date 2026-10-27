@@ -2,19 +2,21 @@
 // Check a report's citations against their sources, offline: each `S<n>:path:line` exists at the commit its ledger
 // row pins, and each quote attributed to a source appears in a saved copy of it. What cannot be checked is listed
 // as not checked, never as passed. quote-check does the same for a judge's answers: each score's quote must appear
-// in the output it judged.
+// in the output it judged. bib writes a paper's .bib from the source ledger, marking every source not verified.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { ledgerRows } from "./lib/formats.mjs";
+import { bibFromLedger, parseBib } from "./lib/paper.mjs";
 import { codeCitations, normalizeForQuote, quoteCitations } from "./lib/report.mjs";
 
 const USAGE = [
   "Usage: sources.mjs cite-check <report.md> --ledger <sources.md> [--repo <name>=<clone>]... [--copy S<n>=<file>]... [--json]",
   "       sources.mjs quote-check <judge answers .jsonl> [--json]",
+  "       sources.mjs bib <sources.md> --out <refs.bib> [--from <existing.bib>]",
   "",
   "--repo maps a ledger pin's repository name (the part before @) to a local clone holding that commit.",
   "--copy maps a source ID to a saved copy of its text, for quote checks.",
@@ -44,6 +46,8 @@ try {
     allowPositionals: true,
     options: {
       ledger: { type: "string" },
+      out: { type: "string" },
+      from: { type: "string" },
       repo: { type: "string", multiple: true },
       copy: { type: "string", multiple: true },
       json: { type: "boolean", default: false },
@@ -58,6 +62,26 @@ if (parsed.values.help) {
   process.exit(0);
 }
 const [command, report] = parsed.positionals;
+
+if (command === "bib") {
+  if (!report || !parsed.values.out) fail(USAGE);
+  let rows;
+  let from = [];
+  try {
+    rows = ledgerRows(readFileSync(report, "utf8"));
+    if (parsed.values.from) from = parseBib(readFileSync(parsed.values.from, "utf8"));
+  } catch (error) {
+    fail(`cannot read: ${error.message}`);
+  }
+  const bib = bibFromLedger(rows, { from });
+  writeFileSync(parsed.values.out, bib.text);
+  console.log(
+    `${parsed.values.out}: ${rows.size} entries; ${bib.matched.length} completed from ${parsed.values.from ?? "no --from file"}; ${bib.unverified.length} not verified`,
+  );
+  for (const id of bib.unverified)
+    console.log(`  not verified: ${id} (${rows.get(id).Source}): its entry carries a note`);
+  process.exit(0);
+}
 if (command === "quote-check") {
   if (!report) fail(USAGE);
   quoteCheck(report, parsed.values.json);

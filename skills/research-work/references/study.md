@@ -46,7 +46,7 @@ The decision rule turns the data into a verdict, and it is written into the plan
 - the arms, the reference first;
 - the unit the test runs over, and how repeated trials of one unit combine (usually averaged per unit, since trials of one item are repeated draws of one question);
 - the test and its level, and the minimum number of decided units;
-- what each outcome licenses: the claim, its opposite, and "no difference shown".
+- what each outcome licenses: the claim, its opposite, "no difference shown", and "undecided" when fewer units are decided than the minimum. An undecided claim stays confirmatory in the register, its result stated as undecided at L2 (a computed status, not a comparison); it supports neither the claim nor "no difference".
 
 For paired pass or fail outcomes, the exact McNemar test on the discordant items (`stats.mjs paired mcnemar`); for paired scores, the paired difference with its interval, or a sign-flip permutation for few items. A rule written after seeing results is not a decision rule: amend the plan and the hypothesis it changes becomes exploratory, which `study.mjs amend` records and the register's validation enforces.
 
@@ -135,6 +135,7 @@ Run each command that produces data through `study.mjs run`, with its unit, arm 
 - **Blocked is not zero.** A run that produced no score stays missing in the analysis; never impute a value for it, and say how many there were.
 - **Derived steps get receipts too, without a unit:** combining per-unit outputs, the validity checks that read study outputs, the verdicts. The order is the planned runs, then the validity checks on their outputs, then the verdicts; a verdict computed before its validity check is read before the measure is known to work.
 - **One command, one receipt.** A script that runs every arm in one process hides which arm failed. Run per unit and arm when the plan's units are what the analysis counts.
+- **Read what a model arm actually received.** When agents are the arms, read the first turns of one transcript per batch, pilots included, before counting anything: an orchestration tool can add its own text to what a worker receives, such as the user's latest message framed as instructions, and a batch started at another moment can receive different text. Text the locked prompts do not hold is a difference in inputs; log it as a deviation for the user, even when both arms received it.
 
 ### Keep Raw Data Immutable
 

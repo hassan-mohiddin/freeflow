@@ -56,6 +56,14 @@ const RUN_COLUMNS = ["Unit", "Arm", "Trials"];
 // An optional fourth column says which split a planned unit belongs to.
 const RUN_COLUMNS_WITH_SPLIT = [...RUN_COLUMNS, "Split"];
 export const SPLITS = ["tuning", "held-out"];
+const CONTRIBUTION_COLUMNS = ["ID", "Contribution", "Claims"];
+const PARAGRAPH_COLUMNS = ["Section", "Paragraph", "Role", "Claims"];
+const FIGURE_COLUMNS = ["ID", "Figure", "Claims", "Data", "File", "Receipt"];
+const OBJECTION_COLUMNS = ["Objection", "Answered in"];
+const REBUTTAL_COLUMNS = ["ID", "Reviewer", "Round", "Comment", "Choice", "Reason", "Commitment", "Fulfilled", "New"];
+export const CHOICES = ["will address", "won't", "not on point"];
+export const REBUTTAL_STAGES = ["drafted", "submitted"];
+const EVIDENCE_COLUMNS = ["Source", "Design", "n", "Result", "Failure condition", "Level"];
 const JUDGE_FIELDS = [
   "Judge",
   "Rubric",
@@ -79,6 +87,9 @@ export const KINDS_OF_ARTIFACT = {
   "claims-register": { type: "Claims Register", file: "claims.md" },
   "study-plan": { type: "Study Plan", file: "plan.md" },
   "judge-validation": { type: "Judge Validation", file: "judge-validation.md" },
+  "paper-outline": { type: "Paper Outline", file: "outline.md" },
+  rebuttal: { type: "Rebuttal", file: "rebuttal.md" },
+  "evidence-table": { type: "Evidence Table", file: "evidence.md" },
 };
 
 const levelRank = (level) => LEVELS.indexOf(level);
@@ -114,8 +125,60 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
       "> **Result:** <pass or fail>",
     );
   }
+  if (kind === "paper-outline")
+    header.push(
+      "> **Register:** <path to the claims register the paper draws on>",
+      "> **Runs:** <the run ledger holding the figures' receipts, or none>",
+    );
+  if (kind === "rebuttal") header.push("> **Stage:** drafted", "> **Paper:** <path or version of the paper reviewed>");
+  const table = (columns, row) => [
+    `| ${columns.join(" | ")} |`,
+    `| ${columns.map(() => "---").join(" | ")} |`,
+    row,
+    "",
+  ];
   const lines = [...header, ""];
-  if (kind === "research-brief") {
+  if (kind === "paper-outline") {
+    lines.push(
+      "## Proposition",
+      "",
+      "<the paper's one message, as a sentence a result could contradict>",
+      "",
+      "## Contributions",
+      "",
+      ...table(CONTRIBUTION_COLUMNS, "| K1 | <a refutable contribution> | <claim IDs, such as C1; C2> |"),
+      "## Paragraphs",
+      "",
+      ...table(PARAGRAPH_COLUMNS, "| <section> | <the paragraph's one sentence> | <its role> | <claim IDs, or -> |"),
+      "## Figures",
+      "",
+      ...table(
+        FIGURE_COLUMNS,
+        "| F1 | <what it shows> | <claim IDs> | <path to its data file> | <path to the figure file> | <its receipt R<n>, or - until drawn> |",
+      ),
+      "## Objections",
+      "",
+      ...table(OBJECTION_COLUMNS, "| <the strongest objection> | <the section that answers it> |"),
+      "## Limits",
+      "",
+      "<where the limits are stated, once>",
+      "",
+    );
+  } else if (kind === "rebuttal") {
+    lines.push(
+      ...table(
+        REBUTTAL_COLUMNS,
+        "| R1 | <reviewer> | 1 | <the comment, quoted> | <will address, won't, or not on point> | <why> | <what you commit to, or -> | <where it is done, or -> | - |",
+      ),
+    );
+  } else if (kind === "evidence-table") {
+    lines.push(
+      ...table(
+        EVIDENCE_COLUMNS,
+        "| <S ID> | <the study's design> | <n, or -> | <its result> | <the result that would have refuted it> | <L0 to L5> |",
+      ),
+    );
+  } else if (kind === "research-brief") {
     lines.push(
       "## Question",
       "",
@@ -191,14 +254,17 @@ export function parseMarkdown(text) {
     if (match) header[match[1].trim()] = match[2].trim();
   }
   const sections = new Map();
+  // Each section's heading line (1-based), so a problem in a section's table names its line in the file.
+  const starts = new Map();
   let current = null;
-  for (const line of lines) {
+  lines.forEach((line, index) => {
     if (line.startsWith("## ")) {
       current = line.slice(3).trim();
       sections.set(current, []);
+      starts.set(current, index + 1);
     } else if (current !== null) sections.get(current).push(line);
-  }
-  return { title, header, sections, lines };
+  });
+  return { title, header, sections, starts, lines };
 }
 
 function splitRow(line) {
@@ -519,6 +585,223 @@ function validateRegister(parsed, problems, { ledger, plan, judges } = {}) {
   }
 }
 
+const claimIds = (cell) => cell.match(/\bC\d+\b/g) ?? [];
+
+/** A section's table, checked against its columns; null with a problem when it is missing. */
+function sectionTableChecked(parsed, name, columns, problems) {
+  const lines = parsed.sections.get(name);
+  if (!lines) {
+    problems.push(`missing section "## ${name}"`);
+    return null;
+  }
+  const parsedTable = parseTable(lines);
+  if (!parsedTable) {
+    problems.push(`## ${name} needs a table with columns: ${columns.join(", ")}`);
+    return null;
+  }
+  const offset = parsed.starts?.get(name) ?? 0;
+  const table = { ...parsedTable, rows: parsedTable.rows.map((row) => ({ ...row, line: row.line + offset })) };
+  if (table.columns.join("|") !== columns.join("|"))
+    problems.push(`## ${name}'s columns must be, in order: ${columns.join(", ")}`);
+  return table;
+}
+
+/**
+ * A paper outline: a proposition, refutable contributions each naming claims, one sentence per planned paragraph,
+ * figures with their claims and data, and the objections answered. With `register` (the register's claim IDs) every
+ * claim ID must exist there; with `dataExists` every figure's data file must exist. With `receipts` (the run
+ * ledger's receipts by ID) and `figureFile` (a path's ledger-relative path and current sha256), a figure's receipt
+ * must have exited 0, read its data file and written its figure file as they are now (and, with `specData`, its figure
+ * spec must draw from that data file); a figure file that does not exist fails; `requireReceipts` also refuses
+ * a figure with no receipt yet.
+ */
+function validateOutline(
+  parsed,
+  problems,
+  { register, registerMissing, dataExists, receipts, figureFile, specData, requireReceipts = false } = {},
+) {
+  validateHeader(parsed, "Paper Outline", problems);
+  headerPlaceholders(parsed, problems);
+  if (!parsed.header.Register || placeholder(parsed.header.Register))
+    problems.push("the header needs a Register: the claims register the paper draws on");
+  else if (registerMissing)
+    problems.push(`the header's Register, ${parsed.header.Register}, cannot be read, so the claim IDs are not checked`);
+  // Before drafting, the proposition is the default, not a gate: "not yet stated" says so; review checks the draft.
+  const proposition = (parsed.sections.get("Proposition") ?? []).join(" ").trim();
+  if (!proposition || placeholder(proposition))
+    problems.push('## Proposition must state the paper\'s one message, or say "not yet stated"');
+  const known = (id, where) => {
+    if (register && !register.has(id)) problems.push(`${where}: ${id} is not in the claims register`);
+  };
+  const contributions = sectionTableChecked(parsed, "Contributions", CONTRIBUTION_COLUMNS, problems);
+  if (contributions && contributions.rows.length === 0) problems.push("## Contributions needs at least one row");
+  for (const { line, cells } of contributions?.rows ?? []) {
+    if (!/^K\d+$/.test(cells.ID)) problems.push(`line ${line}: a contribution's ID must be K followed by a number`);
+    if (!cells.Contribution || placeholder(cells.Contribution))
+      problems.push(`line ${line}: Contribution must be filled`);
+    const ids = claimIds(cells.Claims);
+    if (ids.length === 0) problems.push(`line ${line}: a contribution names at least one claim ID`);
+    for (const id of ids) known(id, `line ${line}`);
+  }
+  const paragraphs = sectionTableChecked(parsed, "Paragraphs", PARAGRAPH_COLUMNS, problems);
+  if (paragraphs && paragraphs.rows.length === 0) problems.push("## Paragraphs needs one row per planned paragraph");
+  for (const { line, cells } of paragraphs?.rows ?? []) {
+    for (const column of ["Section", "Paragraph", "Role"])
+      if (!cells[column] || placeholder(cells[column])) problems.push(`line ${line}: ${column} must be filled`);
+    if (cells.Claims !== "-" && claimIds(cells.Claims).length === 0)
+      problems.push(`line ${line}: Claims lists claim IDs, or "-"`);
+    for (const id of claimIds(cells.Claims)) known(id, `line ${line}`);
+  }
+  const figures =
+    parsed.sections.has("Figures") && (parsed.sections.get("Figures") ?? []).join("").trim() === "none"
+      ? null
+      : sectionTableChecked(parsed, "Figures", FIGURE_COLUMNS, problems);
+  for (const { line, cells } of figures?.rows ?? []) {
+    const where = `line ${line}`;
+    const isTable = /^T\d+$/.test(cells.ID);
+    if (!/^[FT]\d+$/.test(cells.ID))
+      problems.push(`${where}: a figure's ID is F followed by a number, a table's T followed by a number`);
+    const ids = claimIds(cells.Claims);
+    if (ids.length === 0) problems.push(`${where}: a figure names the claim IDs it shows`);
+    for (const id of ids) known(id, where);
+    if (!cells.Data || placeholder(cells.Data)) problems.push(`${where}: Data names the figure's data file`);
+    else if (dataExists && !dataExists(cells.Data))
+      problems.push(`${where}: the data file ${cells.Data} does not exist`);
+    const file = cells.File && cells.File !== "-" && !placeholder(cells.File) ? cells.File : null;
+    if (!file && !isTable) problems.push(`${where}: File names the figure's file`);
+    const receipt = cells.Receipt;
+    if (!receipt || placeholder(receipt) || (receipt !== "-" && !/^R\d+$/.test(receipt)))
+      problems.push(`${where}: Receipt is the run that drew the figure (R<n>), or "-" until it is drawn`);
+    else if (receipt === "-") {
+      if (requireReceipts && !isTable)
+        problems.push(`${where}: ${cells.ID} has no receipt, so its figure is not shown to come from its data`);
+    } else if (!receipts) {
+      problems.push(`${where}: ${receipt} cannot be checked: the header's Runs names no readable run ledger`);
+    } else {
+      const run = receipts.get(receipt);
+      if (!run) problems.push(`${where}: ${receipt} is not in the run ledger`);
+      else {
+        if (run.exit_code !== 0) problems.push(`${where}: ${receipt} exited with ${run.exit_code}`);
+        // A file that does not exist, or a receipt that recorded it as absent, matches nothing.
+        const same = (recorded, now) =>
+          now.sha256 !== null && recorded.path === now.path && recorded.sha256 === now.sha256;
+        const data = figureFile?.(cells.Data);
+        if (data && !run.inputs.some((input) => same(input, data)))
+          problems.push(`${where}: ${receipt} did not read ${cells.Data} as it is now`);
+        const specs = specData?.(run) ?? [];
+        for (const spec of specs.filter((each) => !each.unchanged))
+          problems.push(`${where}: ${receipt} did not read ${spec.spec} as it is now`);
+        if (data && specs.length > 0 && !specs.some((each) => each.data === data.path))
+          problems.push(
+            `${where}: ${receipt}'s figure spec draws from ${specs.map((each) => each.data).join(", ")}, not ${cells.Data}`,
+          );
+        const drawn = file ? figureFile?.(file) : null;
+        if (drawn && drawn.sha256 === null) problems.push(`${where}: the figure file ${file} does not exist`);
+        else if (drawn && !run.outputs.some((output) => same(output, drawn)))
+          problems.push(`${where}: ${receipt} did not write ${file} as it is now`);
+      }
+    }
+  }
+  const objections = parsed.sections.get("Objections");
+  if (!objections) problems.push('missing section "## Objections" (a table, or "none found within these searches")');
+  else if (!/none found within these searches/.test(objections.join(" "))) {
+    const table = sectionTableChecked(parsed, "Objections", OBJECTION_COLUMNS, problems);
+    for (const { line, cells } of table?.rows ?? [])
+      if (
+        !cells.Objection ||
+        !cells["Answered in"] ||
+        placeholder(cells.Objection) ||
+        placeholder(cells["Answered in"])
+      )
+        problems.push(`line ${line}: each objection names where it is answered`);
+  }
+  const limits = (parsed.sections.get("Limits") ?? []).join(" ").trim();
+  if (!limits || placeholder(limits)) problems.push("## Limits must say where the limits are stated");
+}
+
+/** A header field still holding the skeleton's placeholder. */
+function headerPlaceholders(parsed, problems) {
+  for (const [field, value] of Object.entries(parsed.header))
+    if (placeholder(value)) problems.push(`the header's ${field} still holds a placeholder`);
+}
+
+/**
+ * A rebuttal ledger: one row per reviewer comment with the author's choice, its reason, the commitment and where it is
+ * fulfilled. At Stage submitted, every "will address" names where it was done. A comment in a later round either is
+ * marked New ("yes": a request the earlier round did not make, the goalpost guard) or names the earlier comment it
+ * continues ("continues R<n>").
+ */
+function validateRebuttal(parsed, problems) {
+  validateHeader(parsed, "Rebuttal", problems);
+  headerPlaceholders(parsed, problems);
+  const stage = parsed.header.Stage;
+  if (!REBUTTAL_STAGES.includes(stage))
+    problems.push(`the header's Stage must be one of: ${REBUTTAL_STAGES.join(", ")}`);
+  const table = validateTable(parsed, REBUTTAL_COLUMNS, problems);
+  if (!table) return;
+  const rows = new Map();
+  for (const { line, cells } of table.rows) {
+    const where = `line ${line}`;
+    if (!/^R\d+$/.test(cells.ID)) problems.push(`${where}: ID must be R followed by a number`);
+    else if (rows.has(cells.ID)) problems.push(`${where}: duplicate ID ${cells.ID}`);
+    const round = Number(cells.Round);
+    if (!Number.isInteger(round) || round < 1) problems.push(`${where}: Round must be a whole number of at least 1`);
+    for (const column of ["Reviewer", "Comment", "Reason"])
+      if (!cells[column] || placeholder(cells[column])) problems.push(`${where}: ${column} must be filled`);
+    if (!CHOICES.includes(cells.Choice)) problems.push(`${where}: Choice must be one of: ${CHOICES.join(", ")}`);
+    if (cells.Choice === "will address") {
+      if (!cells.Commitment || cells.Commitment === "-" || placeholder(cells.Commitment))
+        problems.push(`${where}: "will address" needs a commitment`);
+      if (stage === "submitted" && (!cells.Fulfilled || cells.Fulfilled === "-" || placeholder(cells.Fulfilled)))
+        problems.push(`${where}: the rebuttal is submitted, and this commitment does not say where it was fulfilled`);
+    }
+    rows.set(cells.ID, { round, reviewer: cells.Reviewer });
+    if (round > 1) {
+      const continues = /^continues (R\d+)$/.exec(cells.New);
+      if (cells.New === "yes") continue;
+      if (!continues)
+        problems.push(
+          `${where}: a round ${round} comment is New "yes", or "continues R<n>" naming the earlier comment`,
+        );
+      else {
+        const earlier = rows.get(continues[1]);
+        if (!earlier || earlier.round >= round || earlier.reviewer !== cells.Reviewer)
+          problems.push(`${where}: ${continues[1]} is not an earlier-round comment by ${cells.Reviewer}`);
+      }
+    } else if (cells.New !== "-" && cells.New !== "") problems.push(`${where}: a round 1 comment's New is "-"`);
+  }
+}
+
+/** The comments a rebuttal ledger marks as new requests in a later round: what the goalpost guard reports. */
+export function newRequests(text) {
+  const table = parseTable(parseMarkdown(text).lines);
+  return (table?.rows ?? [])
+    .filter((row) => Number(row.cells.Round) > 1 && row.cells.New === "yes")
+    .map((row) => row.cells.ID);
+}
+
+/** An evidence table for a literature review: one row per study, with its level capped by how its source was checked. */
+function validateEvidence(parsed, problems, { ledger } = {}) {
+  validateHeader(parsed, "Evidence Table", problems);
+  headerPlaceholders(parsed, problems);
+  const table = validateTable(parsed, EVIDENCE_COLUMNS, problems);
+  for (const { line, cells } of table?.rows ?? []) {
+    const where = `line ${line}`;
+    if (!/^S\d+$/.test(cells.Source)) problems.push(`${where}: Source must be a source-ledger ID such as S3`);
+    for (const column of ["Design", "Result", "Failure condition"])
+      if (!cells[column] || placeholder(cells[column])) problems.push(`${where}: ${column} must be filled`);
+    if (cells.n !== "-" && !/^[1-9]\d*$/.test(cells.n)) problems.push(`${where}: n must be a whole number, or "-"`);
+    if (!LEVELS.includes(cells.Level)) problems.push(`${where}: Level must be one of: ${LEVELS.join(", ")}`);
+    const source = ledger?.get(cells.Source);
+    if (ledger && !source) problems.push(`${where}: the source ledger has no ${cells.Source}`);
+    const cap = source && LEVEL_CAP[source.Checked];
+    if (cap && levelRank(cells.Level) > levelRank(cap))
+      problems.push(
+        `${where}: ${cells.Source} was checked as "${source.Checked}", which caps it at ${cap}; it is ${cells.Level}`,
+      );
+  }
+}
+
 /** One parsed line of a search ledger, or a problem with it. */
 function validateSearch(text, problems) {
   const queries = new Set();
@@ -600,7 +883,11 @@ export function kindOf(path, text) {
  * its judge records (a claim resting on a judge record that does not pass is at most L1: `judges` maps each cited
  * path to `{ counts }`).
  */
-export function validate(kind, text, { ledger, plan, judges } = {}) {
+export function validate(
+  kind,
+  text,
+  { ledger, plan, judges, register, registerMissing, dataExists, receipts, figureFile, specData, requireReceipts } = {},
+) {
   const problems = [];
   if (kind === "search-ledger") validateSearch(text, problems);
   else {
@@ -610,6 +897,18 @@ export function validate(kind, text, { ledger, plan, judges } = {}) {
     else if (kind === "claims-register") validateRegister(parsed, problems, { ledger, plan, judges });
     else if (kind === "study-plan") validatePlan(parsed, problems);
     else if (kind === "judge-validation") validateJudge(parsed, problems);
+    else if (kind === "paper-outline")
+      validateOutline(parsed, problems, {
+        register,
+        registerMissing,
+        dataExists,
+        receipts,
+        figureFile,
+        specData,
+        requireReceipts,
+      });
+    else if (kind === "rebuttal") validateRebuttal(parsed, problems);
+    else if (kind === "evidence-table") validateEvidence(parsed, problems, { ledger });
     else problems.push(`unknown artifact kind "${kind}"`);
   }
   return { kind, valid: problems.length === 0, problems };

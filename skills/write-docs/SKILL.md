@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: "Use when writing, updating or reviewing a document someone will act on: a spec, PRD, issue, requirements, API or interface contract, technical design, decision record or ADR; a research document or comparison of options; an implementation, remediation, migration or operations plan; a README, user guide, developer docs, subsystem doc, overview, folder README, feature file or a skill's design record; or when a code change makes existing docs wrong, or a project has no developer docs yet. It covers where a document goes, its header and status, and the checks to run after writing it."
+description: "Use when writing, updating or reviewing a document someone will act on: a spec, PRD, issue, requirements, API or interface contract, technical design, decision record or ADR; a comparison of options; an implementation, remediation, migration or operations plan; a README, user guide, developer docs, subsystem doc, overview, folder README, feature file or a skill's design record; or when a code change makes existing docs wrong, or a project has no developer docs yet. It covers where a document goes, its header and status, and the checks to run after writing it."
 ---
 
 # Write Docs
@@ -20,7 +20,8 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 | Situation | Read |
 | --- | --- |
-| A spec, PRD, issue, requirements, technical design, API or interface contract, or migration contract; an ordered plan for implementation, remediation, migration or operations; a research document that answers a question with evidence | [spec and plan shapes](references/spec-and-plan-shapes.md) |
+| A spec, PRD, issue, requirements, technical design, API or interface contract, or migration contract; an ordered plan for implementation, remediation, migration or operations; a comparison of options | [spec and plan shapes](references/spec-and-plan-shapes.md) |
+| A research document that answers a question with checked evidence | [Research Work](../research-work/SKILL.md), which owns its shape |
 | Preserving a decision and its rationale: a decision note or ADR | [spec and plan shapes: Decision Records](references/spec-and-plan-shapes.md#decision-records) |
 | Where a Spec, Plan or decision record goes, its header, status and source trail | Header, Status And Sources, below |
 | Finding a project's developer docs or proposing them; the structure of an overview, subsystem doc, folder README, feature file, live-verification guide or skill design record; a new or rewritten subsystem doc or overview | [documentation shapes](references/documentation-shapes.md) |
@@ -118,7 +119,7 @@ Goal: each fact lives in one place, written for the reader who needs it.
 | Someone editing files in one folder | Folder `README.md` | What each file owns, local rules, and a pointer to its subsystem doc. |
 | Someone checking a feature in the running software | Feature file, plus a shared live-verification guide | What the user sees and the exact steps that show it works. |
 | Someone changing a skill or other agent instruction text | Skill design record | What it is meant to change and why: its claim, design, evidence, rejected alternatives and dropped candidates. |
-| Anyone acting on a question that needs evidence | Research document | The answer, each finding with its strength, how each source was checked, and the limits, in the [Research](references/spec-and-plan-shapes.md#research) shape. |
+| Anyone acting on a question that needs evidence | Research document | Written with [Research Work](../research-work/SKILL.md), in its Research Report shape. |
 | Anyone revisiting a hard-to-reverse choice | Decision record | The decision and why, in the [Decision Records](references/spec-and-plan-shapes.md#decision-records) shape. |
 
 Prefer extending an existing document to creating a new one: a small set of current documents serves readers better than many partly current ones. A subsystem earns its own doc when the reasons behind it cannot be read from the code and readers keep needing them: agents re-derive the same design, or mistake a deliberate behavior for a bug. A user guide and a subsystem doc about the same feature are different documents for different readers; link them rather than merging them.

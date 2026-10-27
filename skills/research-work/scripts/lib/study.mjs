@@ -179,7 +179,8 @@ export function readLedger(path) {
 
 const nextId = (records, prefix) => `${prefix}${records.filter((record) => record.id?.startsWith(prefix)).length + 1}`;
 
-function fileHash(path) {
+/** The sha256 of a file's bytes, or null when it is not a readable file. */
+export function fileHash(path) {
   try {
     return statSync(path).isFile() ? sha256(readFileSync(path)) : null;
   } catch {
@@ -208,26 +209,27 @@ export function resolveProgram(program, cwd) {
 const tail = (buffer) => (buffer ?? Buffer.alloc(0)).subarray(-TAIL_BYTES).toString("utf8");
 
 /**
- * Run one command of the study and append its receipt to the run ledger. Inputs are hashed before the run and
- * outputs after it; paths are recorded relative to the study folder. The receipt names the plan hash and whether
- * that hash was locked when the command ran, so runs before the lock (pilots) stay apart from the study's runs.
+ * Run one command and append its receipt to a run ledger. Inputs are hashed before the run and outputs after it;
+ * paths are recorded relative to `folder`. `fields` come first in the receipt: a study's unit, arm, trial and plan
+ * hash, or nothing for a paper's own runs. A non-zero exit is data; a command that could not start is recorded too.
  */
-export function runStep(planPath, argv, { inputs = [], outputs = [], unit, arm, trial, cwd = process.cwd() } = {}) {
+/** A path as a receipt records it: relative to the ledger's folder, so a study folder can move as a whole. */
+export function receiptPath(folder, absolute) {
+  return relative(folder, absolute) || ".";
+}
+
+export function recordRun(
+  ledgerPath,
+  folder,
+  argv,
+  { inputs = [], outputs = [], cwd = process.cwd(), fields = {} } = {},
+) {
   if (argv.length === 0) throw new Error("run needs a command after --");
-  const folder = dirname(resolve(planPath));
-  const rel = (path) => relative(folder, resolve(cwd, path)) || ".";
-  const state = lockState(planPath);
-  const ledgerPath = runLedgerPath(planPath);
+  const rel = (path) => receiptPath(folder, resolve(cwd, path));
   const receipt = {
     kind: "run",
     id: nextId(readLedger(ledgerPath), "R"),
-    unit: unit ?? null,
-    arm: arm ?? null,
-    trial: trial === undefined ? null : Number(trial),
-    split:
-      plannedRuns(readFileSync(planPath, "utf8")).find((run) => run.unit === unit && run.arm === arm)?.split ?? null,
-    plan_sha256: state.current,
-    plan_locked: state.locked,
+    ...fields,
     argv,
     cwd: rel("."),
     program: null,
@@ -247,6 +249,29 @@ export function runStep(planPath, argv, { inputs = [], outputs = [], unit, arm, 
   receipt.stderr_tail = tail(result.stderr);
   receipt.outputs = outputs.map((path) => ({ path: rel(path), sha256: fileHash(resolve(cwd, path)) }));
   return { receipt: appendChained(ledgerPath, receipt), stdout: result.stdout, stderr: result.stderr };
+}
+
+/**
+ * Run one command of the study and append its receipt to the run ledger. The receipt names the plan hash and whether
+ * that hash was locked when the command ran, so runs before the lock (pilots) stay apart from the study's runs.
+ */
+export function runStep(planPath, argv, { inputs = [], outputs = [], unit, arm, trial, cwd = process.cwd() } = {}) {
+  if (argv.length === 0) throw new Error("run needs a command after --");
+  const state = lockState(planPath);
+  return recordRun(runLedgerPath(planPath), dirname(resolve(planPath)), argv, {
+    inputs,
+    outputs,
+    cwd,
+    fields: {
+      unit: unit ?? null,
+      arm: arm ?? null,
+      trial: trial === undefined ? null : Number(trial),
+      split:
+        plannedRuns(readFileSync(planPath, "utf8")).find((run) => run.unit === unit && run.arm === arm)?.split ?? null,
+      plan_sha256: state.current,
+      plan_locked: state.locked,
+    },
+  });
 }
 
 /** Log a departure from the plan. It holds the analysis until someone clears it. */
@@ -348,7 +373,8 @@ export function manifest(planPath) {
   );
   return {
     rows,
-    beforeLock: receipts.filter((receipt) => !receipt.plan_locked).length,
+    // A paper's own receipt (paper.mjs run) carries no plan fields and is neither a pilot nor a study run.
+    beforeLock: receipts.filter((receipt) => "plan_locked" in receipt && !receipt.plan_locked).length,
     otherPlan: receipts.filter((receipt) => receipt.plan_locked && !hashes.has(receipt.plan_sha256)).length,
     unplanned: unplanned.map((receipt) => receipt.id),
   };
