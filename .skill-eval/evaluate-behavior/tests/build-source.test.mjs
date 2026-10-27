@@ -200,6 +200,32 @@ test("arms built from two commits load different extension code, each distinct s
   });
 });
 
+test("the plan says how many extension builds run on the host, outside the seal", async () => {
+  await withTempDirectory(async (temp) => {
+    const root = path.join(temp, "repo");
+    await mkdir(root);
+    const { one, two } = await extensionRepository(root);
+    const { bin } = await installFakePi(root);
+    // Two distinct builds over three arms; the working-tree extension declares no build, so nothing runs for it.
+    const definition = await write(
+      path.join(root, "groups/built.json"),
+      group({
+        arms: {
+          baseline: { host: { name: "pi", extensions: [gitExtension(one)] } },
+          candidate: { host: { name: "pi", extensions: [gitExtension(two)] } },
+          again: { host: { name: "pi", extensions: [gitExtension(one), { path: "local-ext", entry: "index.mjs" }] } },
+        },
+        component: ["host.extensions"],
+      }),
+    );
+
+    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    assert.match(result.stdout, /^Plan: .+; unsealed: 2 extension builds run on the host; dry run$/m);
+  });
+});
+
 test("a failed build invalidates the group before any subject starts", async () => {
   await withTempDirectory(async (temp) => {
     const root = path.join(temp, "repo");

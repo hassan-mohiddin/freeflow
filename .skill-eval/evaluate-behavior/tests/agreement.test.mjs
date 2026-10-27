@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   cohenKappa,
   krippendorffAlpha,
+  linearWeightedKappa,
   raterAgreement,
 } from "../../../skills/evaluate-behavior/scripts/lib/agreement.mjs";
 
@@ -70,6 +71,58 @@ test("Cohen's kappa treats 0-2 scores and unknown as categories", () => {
     ]).kappa,
     1 / 3,
   );
+});
+
+/** Pairs from a contingency table: rows are the first rater's category, columns the second's, both from 1. */
+function tablePairs(table) {
+  return table.flatMap((row, i) => row.flatMap((count, j) => repeat([i + 1, j + 1], count)));
+}
+
+test("linear-weighted kappa matches Rapallo's published examples", () => {
+  // Rapallo (2020), "Analysis of the weighted kappa and its maximum with Markov moves", arXiv:2010.00232:
+  // Fig. 3 (a), a synthetic 4 x 4 table with linear-weighted kappa 0.5023, and Fig. 6 (centre), a table with
+  // the same margins and the maximum linear-weighted kappa, 0.7511.
+  const observed = linearWeightedKappa(
+    tablePairs([
+      [5, 3, 2, 1],
+      [1, 4, 3, 0],
+      [0, 1, 5, 1],
+      [0, 1, 2, 4],
+    ]),
+  );
+  assert.equal(observed.method, "linear-weighted-kappa");
+  assert.equal(observed.items, 33);
+  assert.equal(Number(observed.kappa.toFixed(4)), 0.5023);
+  const maximum = linearWeightedKappa(
+    tablePairs([
+      [6, 3, 2, 0],
+      [0, 6, 2, 0],
+      [0, 0, 7, 0],
+      [0, 0, 1, 6],
+    ]),
+  );
+  assert.equal(Number(maximum.kappa.toFixed(4)), 0.7511);
+});
+
+test("linear-weighted kappa counts a near miss on 0-2 as partial agreement and skips unknown", () => {
+  // Nominal kappa scores (0,1), (1,2), (2,2) as 0, the same as far misses. Linear weights: observed disagreement
+  // (1 + 1 + 0) / 3 = 2/3; expected, over the marginals {0, 1, 2} and {1, 2, 2}, (1 + 4 + 0 + 2 + 1 + 0) / 9 = 8/9;
+  // kappa = 1 - (2/3) / (8/9) = 0.25.
+  const nearMisses = [
+    [0, 1],
+    [1, 2],
+    [2, 2],
+  ];
+  close(cohenKappa(nearMisses).kappa, 0);
+  close(linearWeightedKappa(nearMisses).kappa, 0.25);
+  // "unknown" and missing answers have no place on the scale and are left out.
+  assert.deepEqual(linearWeightedKappa([...nearMisses, ["unknown", 2], [null, 0]]), {
+    method: "linear-weighted-kappa",
+    items: 3,
+    kappa: linearWeightedKappa(nearMisses).kappa,
+  });
+  assert.equal(linearWeightedKappa([[2, 2]]).kappa, null);
+  assert.equal(linearWeightedKappa([["yes", "no"]]).items, 0);
 });
 
 test("Krippendorff's alpha matches Krippendorff's published nominal example", () => {

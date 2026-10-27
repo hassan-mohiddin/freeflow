@@ -159,7 +159,7 @@ export async function runTrials(definitionFile, selectors, options = {}) {
   if (held.length > 0) aggregate.held = held;
   if (schedule !== null) aggregate.schedule = { ...schedule, rounds };
   if (rule !== null) aggregate.decision = decide(rule, groups);
-  aggregate.claim = claimFor(results, initial, dryRun, aggregate.decision, held.length);
+  aggregate.claim = claimFor(results, aggregate, initial, held.length);
   if (budget !== null) aggregate.budget = budgetEvidence(budget);
   await writeJson(path.join(directory, "aggregate.json"), aggregate);
   return { id, path: directory, state: aggregate.state, aggregate };
@@ -249,7 +249,7 @@ export async function rebuildAggregate(aggregatePath, { root = process.cwd(), re
   if (held.length > 0) rebuilt.held = held;
   if (aggregate.decision !== undefined) rebuilt.decision = decide(aggregate.decision.rule, groups);
   const k = aggregate.schedule?.initial ?? aggregate.requestedTrials;
-  rebuilt.claim = claimFor(trialResults, k, aggregate.dryRun === true, rebuilt.decision, held.length);
+  rebuilt.claim = claimFor(trialResults, rebuilt, k, held.length);
   await writeJson(file, rebuilt);
   return rebuilt;
 }
@@ -273,15 +273,26 @@ async function loadSelection(definitionFile, selectors, root) {
 /**
  * The strongest claim the aggregate supports. Without a decision rule, counts over complete trials support a rate
  * on this suite. With one, the claim is the rule's verdict ("beats", "worse" or "no-difference-shown") with its
- * split, p and rule hash. A dry run read inputs no commit identifies, so it supports no claim either way.
+ * split, p and rule hash. A dry run read inputs no commit identifies, so it supports no claim either way. A
+ * decision cut short (by the budget, a stop, or fewer trials than planned: the aggregate is `cancelled`) supports
+ * no verdict either: its claim keeps the split that ran, with `k` the trials that completed rather than those asked
+ * for. Everything it reads is kept in the aggregate, so a rebuild reaches the same claim.
+ *
+ * @param {any[]} results the trials' results, each with its `state`
+ * @param {any} aggregate its `state`, `dryRun`, `trials` entries and `decision`
+ * @param {number} k the trials asked for
  */
-function claimFor(results, k, dryRun, decision, held = 0) {
+function claimFor(results, aggregate, k, held = 0) {
+  const { decision } = aggregate;
+  const dryRun = aggregate.dryRun === true;
   const complete = results.filter((result) => result.state === "complete").length;
   // Runs held for uncleared transcript flags are left out of the counts and the decision; the claim says how many.
   const heldNote = held > 0 ? { held } : {};
   if (decision !== undefined) {
-    const reason = dryRun ? "dry run" : complete === 0 ? "no complete trial" : null;
-    return { ...decisionClaim(decision, { k, supported: reason === null, reason }), ...heldNote };
+    const cancelled = aggregate.state === "cancelled";
+    const reason = dryRun ? "dry run" : complete === 0 ? "no complete trial" : cancelled ? "cancelled" : null;
+    const trials = cancelled ? completedTrials(aggregate.trials) : k;
+    return { ...decisionClaim(decision, { k: trials, supported: reason === null, reason }), ...heldNote };
   }
   return {
     class: complete > 0 && !dryRun ? "rate-on-suite" : "none",
@@ -290,6 +301,19 @@ function claimFor(results, k, dryRun, decision, held = 0) {
     beats: "not supported: the suite declares no decision rule",
     ...heldNote,
   };
+}
+
+/**
+ * The full trials that completed, from the aggregate's trial entries. A trial an adaptive round added runs one case
+ * and is not one of them; a pilot and the rest of its groups are one trial, complete only when both are.
+ */
+function completedTrials(entries) {
+  const pilot = entries.find((entry) => entry.part === "pilot");
+  const rest = entries.find((entry) => entry.part === "rest");
+  const whole = entries.filter((entry) => entry.round === undefined && entry.part === undefined);
+  const pilotTrial =
+    pilot !== undefined && pilot.state === "complete" && (rest === undefined || rest.state === "complete");
+  return whole.filter((entry) => entry.state === "complete").length + (pilotTrial ? 1 : 0);
 }
 
 function aggregateState(results, requested) {

@@ -4,7 +4,7 @@ import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 
-import { extensionLabel } from "./lib/build-source.mjs";
+import { extensionLabel, isSourceExtension } from "./lib/build-source.mjs";
 import { clearRun } from "./lib/clear.mjs";
 import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
 import "./lib/metrics.mjs";
@@ -347,10 +347,13 @@ async function planRun(operation, root) {
   const trials = schedule?.initial ?? operation.trials ?? 1;
   let arms = 0;
   let unsealed = 0;
+  // Extension builds run on the host before any subject, outside the seal: each distinct one once per group.
+  let hostBuilds = 0;
   const models = new Set();
   const freeflow = new Set();
   const extensions = new Set();
   for (const { group, variants } of selection.groups) {
+    const builds = new Set();
     for (const [arm, state] of Object.entries(variants)) {
       if (state !== "selected") continue;
       arms += 1;
@@ -360,8 +363,13 @@ async function planRun(operation, root) {
       if (group.variants[arm].freeflow) freeflow.add(group.variants[arm].freeflow.source.ref);
       for (const extension of group.variants[arm].hostExtensions ?? []) {
         extensions.add(extensionLabel(extension));
+        if (isSourceExtension(extension) && extension.build !== undefined) {
+          // Keyed as the runner keys a build (prepareSourceExtensions), so the count matches what will run.
+          builds.add(JSON.stringify([extension.source ?? { path: extension.path }, extension.build]));
+        }
       }
     }
+    hostBuilds += builds.size;
   }
   const groups = selection.groups.length;
   let counts = `${groups} group${groups === 1 ? "" : "s"}, ${arms} arm${arms === 1 ? "" : "s"}, ${trials} trial${trials === 1 ? "" : "s"}`;
@@ -377,10 +385,16 @@ async function planRun(operation, root) {
   if (operation.jobs > 1) line += `; ${operation.jobs} subjects at once`;
   if (operation.pilot !== null) line += `; pilot of the first ${Math.min(operation.pilot, groups)} groups`;
   if (operation.reuse) line += "; reusing matching runs";
-  // Said before anything starts: code the subject writes will run on this machine, with its network and files.
+  // Said before anything starts: code the subject writes, and each extension build, will run on this machine, with
+  // its network and files.
+  const outside = [];
   if (unsealed > 0) {
-    line += `; unsealed: ${unsealed} arm${unsealed === 1 ? " runs" : "s run"} declared commands or graders on the host`;
+    outside.push(`${unsealed} arm${unsealed === 1 ? " runs" : "s run"} declared commands or graders on the host`);
   }
+  if (hostBuilds > 0) {
+    outside.push(`${hostBuilds} extension build${hostBuilds === 1 ? " runs" : "s run"} on the host`);
+  }
+  if (outside.length > 0) line += `; unsealed: ${outside.join(", and ")}`;
   const overridden = Object.entries(operation.sources ?? {});
   if (overridden.length > 0) line += `; sources: ${overridden.map(([arm, commit]) => `${arm}=${commit}`).join(", ")}`;
   if (operation.dryRun) line += "; dry run";
