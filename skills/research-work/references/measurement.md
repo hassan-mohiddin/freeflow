@@ -30,6 +30,7 @@ Grade each requirement a check covers, not only pass or fail, and note which req
 - Measure the noise floor on a frozen pilot before the study ([study design](study-design.md#measure-the-noise-floor)).
 - Record every seed and source of randomness. Resampling in `stats.mjs` takes a `seed` field (1 when omitted) and reports it.
 - A judge or rater whose answers change on the same input is part of the noise: measure its agreement with itself, or with other raters (`stats.mjs agreement`).
+- **Prompt format is part of the measure.** Wording, order and format alone can move a model's score by tens of points; one study measured up to 76. When the claim is not about one exact prompt, run several formats and report the range.
 - Pin what can drift: the model snapshot and the date it was called, dataset versions, tool versions. A result on "the latest model" is a result on an unknown one.
 
 ## Read Raw Outputs Before Counting
@@ -58,6 +59,7 @@ The record holds:
 In use:
 
 - Check first and judge only what a check cannot answer.
+- Ask the judge to quote, verbatim, the words in the judged output that support each score, and run `sources.mjs quote-check` on its answers before counting: a score whose quote is not in that output does not count.
 - Make each question answerable from the material in front of the judge, with the expected answer in a reference only the judge sees.
 - The judged output is untrusted input to the judge. A subject that writes to its grader is gaming the measure, whatever the judge answers. Revising something until a judge's scores rise can raise scores without raising quality: hand-check judged gains before relying on them.
 - Before counting, hand-check a sample of decisive answers against the evidence, and report how many were right.

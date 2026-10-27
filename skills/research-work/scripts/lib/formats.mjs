@@ -53,6 +53,9 @@ const LEDGER_COLUMNS = ["ID", "Source", "Pin", "Lookup", "Checked", "Read", "Sup
 const REGISTER_COLUMNS = ["ID", "Claim", "Numbers", "Source", "Level", "Kind", "Scope", "Limit"];
 const HYPOTHESIS_COLUMNS = ["ID", "Hypothesis", "Kind", "Metric", "Decision rule"];
 const RUN_COLUMNS = ["Unit", "Arm", "Trials"];
+// An optional fourth column says which split a planned unit belongs to.
+const RUN_COLUMNS_WITH_SPLIT = [...RUN_COLUMNS, "Split"];
+export const SPLITS = ["tuning", "held-out"];
 const JUDGE_FIELDS = [
   "Judge",
   "Rubric",
@@ -295,6 +298,7 @@ export function plannedRuns(text) {
     unit: row.cells.Unit,
     arm: row.cells.Arm,
     trials: Number(row.cells.Trials),
+    split: row.cells.Split ?? null,
   }));
 }
 
@@ -332,8 +336,11 @@ function validatePlan(parsed, problems) {
   const runs = sectionTable(parsed, "Planned runs");
   if (!runs) problems.push(`missing "## Planned runs" with the table: ${RUN_COLUMNS.join(", ")}`);
   else {
-    if (runs.columns.join("|") !== RUN_COLUMNS.join("|"))
-      problems.push(`the Planned runs table's columns must be, in order: ${RUN_COLUMNS.join(", ")}`);
+    const withSplit = runs.columns.join("|") === RUN_COLUMNS_WITH_SPLIT.join("|");
+    if (runs.columns.join("|") !== RUN_COLUMNS.join("|") && !withSplit)
+      problems.push(
+        `the Planned runs table's columns must be, in order: ${RUN_COLUMNS.join(", ")}, and optionally Split`,
+      );
     if (runs.rows.length === 0) problems.push("the Planned runs table has no rows");
     for (const { cells } of runs.rows) {
       const where = `Planned runs row ${cells.Unit || "?"}`;
@@ -341,6 +348,8 @@ function validatePlan(parsed, problems) {
         problems.push(`${where}: Unit and Arm must be filled`);
       if (!/^[1-9]\d*$/.test(cells.Trials ?? ""))
         problems.push(`${where}: Trials must be a whole number of at least 1`);
+      if (withSplit && !SPLITS.includes(cells.Split))
+        problems.push(`${where}: Split must be one of: ${SPLITS.join(", ")}`);
     }
   }
   if (!parsed.sections.has("Amendments")) problems.push('missing section "## Amendments" ("none" until the first)');

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // Check a report's citations against their sources, offline: each `S<n>:path:line` exists at the commit its ledger
 // row pins, and each quote attributed to a source appears in a saved copy of it. What cannot be checked is listed
-// as not checked, never as passed.
+// as not checked, never as passed. quote-check does the same for a judge's answers: each score's quote must appear
+// in the output it judged.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { ledgerRows } from "./lib/formats.mjs";
@@ -12,9 +14,13 @@ import { codeCitations, normalizeForQuote, quoteCitations } from "./lib/report.m
 
 const USAGE = [
   "Usage: sources.mjs cite-check <report.md> --ledger <sources.md> [--repo <name>=<clone>]... [--copy S<n>=<file>]... [--json]",
+  "       sources.mjs quote-check <judge answers .jsonl> [--json]",
   "",
   "--repo maps a ledger pin's repository name (the part before @) to a local clone holding that commit.",
   "--copy maps a source ID to a saved copy of its text, for quote checks.",
+  'quote-check reads one judge answer per line, {"item", "score", "quote", "output"}, with output the path of the',
+  "judged output (relative to the answers file), and refuses an answer whose quote is missing, under four words, or",
+  "not in that output.",
 ].join("\n");
 
 function fail(message) {
@@ -52,7 +58,52 @@ if (parsed.values.help) {
   process.exit(0);
 }
 const [command, report] = parsed.positionals;
+if (command === "quote-check") {
+  if (!report) fail(USAGE);
+  quoteCheck(report, parsed.values.json);
+}
 if (command !== "cite-check" || !report || !parsed.values.ledger) fail(USAGE);
+
+/** Each judge answer's quote must be found, at least four words, in the output it judged; exits with the result. */
+function quoteCheck(path, json) {
+  let lines;
+  try {
+    lines = readFileSync(path, "utf8").split("\n");
+  } catch (error) {
+    fail(`cannot read ${path}: ${error.message}`);
+  }
+  const results = [];
+  lines.forEach((raw, index) => {
+    if (raw.trim() === "") return;
+    const line = index + 1;
+    let answer;
+    try {
+      answer = JSON.parse(raw);
+    } catch {
+      results.push({ line, status: "failed", reason: "not valid JSON" });
+      return;
+    }
+    const where = { line, item: answer.item ?? null, score: answer.score ?? null };
+    const quote = typeof answer.quote === "string" ? normalizeForQuote(answer.quote) : "";
+    if (quote === "") return results.push({ ...where, status: "failed", reason: "the answer has no quote" });
+    if (quote.split(" ").length < 4)
+      return results.push({ ...where, status: "failed", reason: "a quote needs at least four words" });
+    if (typeof answer.output !== "string")
+      return results.push({ ...where, status: "failed", reason: "the answer names no output" });
+    const output = resolve(dirname(path), answer.output);
+    if (!existsSync(output))
+      return results.push({ ...where, status: "failed", reason: `${answer.output} does not exist` });
+    const found = normalizeForQuote(readFileSync(output, "utf8")).includes(quote);
+    results.push({ ...where, status: found ? "ok" : "failed", reason: found ? null : `not found in ${answer.output}` });
+  });
+  const failed = results.filter((result) => result.status === "failed");
+  if (json) console.log(JSON.stringify({ answers: path, results }, null, 2));
+  else {
+    console.log(`${path}: ${results.length} answer(s); ${results.length - failed.length} ok, ${failed.length} failed`);
+    for (const result of failed) console.log(`  failed: line ${result.line}: ${result.reason}`);
+  }
+  process.exit(failed.length === 0 ? 0 : 1);
+}
 
 const read = (path) => {
   try {

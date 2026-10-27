@@ -23,6 +23,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | Creating or checking a research brief, source ledger, search ledger, claims register, study plan or judge validation record | [artifacts](references/artifacts.md), with [artifact](scripts/artifact.mjs) |
 | Checking that each `S<n>:path:line` citation exists at its pinned commit and each quote appears in its source | Run [sources](scripts/sources.mjs) `cite-check`, as Check The Report says |
 | Checking that every number and claim ID in a draft traces to the claims register | Run [claims](scripts/claims.mjs) `trace`, as Check The Report says |
+| Checking that each of a judge's scores quotes the output it judged | Run [sources](scripts/sources.mjs) `quote-check`, as [measurement](references/measurement.md#judges) says |
 | A result with numbers from a sample: an interval, a comparison, agreement between raters, pass@k, power | Numbers From Samples, below, and [stats](scripts/stats.mjs) |
 | The report itself | Write Docs' [Research](../write-docs/references/spec-and-plan-shapes.md#research) shape |
 | Agreeing the brief, or a choice the user owns comes up | [Discuss Work](../discuss-work/SKILL.md) |
@@ -119,7 +120,7 @@ When a result comes from a sample of items, runs or raters, compute it with `sta
 | A pass rate on under a few hundred items | `interval wilson` | a normal (Wald) interval, which undercovers there |
 | Two arms on the same items, pass or fail | `paired mcnemar` on the items where the arms disagree | two separate rates compared by eye |
 | Two arms on the same items, a score | `paired difference`, or `paired permutation` for few items | an unpaired comparison |
-| Several runs of each task, or items grouped by source | `interval clustered` or `interval bootstrap` with clusters | counting runs as independent items |
+| Several runs of each task, or items grouped by source | `interval clustered` or `interval bootstrap` with clusters; `interval clustered-bayes` for pass or fail values with few clusters | counting runs as independent items |
 | Agreement between two raters | `agreement cohen`, with `agreement pabak` when one answer dominates; `agreement weighted` on an ordered scale | raw percent agreement alone |
 | Several planned comparisons | `correct holm` | reporting each p value alone |
 | pass@k or pass^k from n runs per task | `passk task` or `passk suite` | the share of runs that passed |

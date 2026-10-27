@@ -64,7 +64,7 @@ Several planned comparisons share the error rate: name them in the plan and corr
 - **pass^k and pass@k diverge.** At 75% per trial, all three of three succeed about 42% of the time and at least one about 98%. Report pass^k for behavior relied on every time; pass@k fits only when a retry or a checker stands between the result and its user (`stats.mjs passk`).
 - **Items set what a comparison can detect.** Compute the count before running (`stats.mjs power mcnemar-cases` or `power paired-cases`). A 20-point difference at 80% power needs roughly 62 to 93 items per arm, depending on the base rate; a pilot of 20 or 30 detects only large effects, and says so.
 - **More items beat more trials.** Past a few trials per item, extra trials narrow the result little; extra items narrow it more.
-- **Items that share a source are not independent.** Count the families as well as the items, spread items across families, and analyze with clusters (`stats.mjs interval clustered` or `interval bootstrap` with clusters).
+- **Items that share a source are not independent.** Count the families as well as the items, spread items across families, and analyze with clusters (`stats.mjs interval clustered` or `interval bootstrap` with clusters; for pass or fail values with few clusters, `interval clustered-bayes`, since the cluster-robust interval undercovers there).
 - **Keep the subject's settings.** Lowering temperature or effort to cut variance changes the subject; do it only when that setting is the question.
 - **Fix the count before the run.** Adding trials or items until a result looks right is selection. A sequential or adaptive schedule is valid only when the plan declares it, rule and maximum included.
 
@@ -93,9 +93,9 @@ The same configuration run twice gives different results. A difference smaller t
 
 ## Hold Items Out
 
-- Fix the split before any item is built or run, by a stable rule such as every third item in hash order.
+- Fix the split before any item is built or run, by a stable rule such as every third item in hash order, and mark it in the plan's Planned runs (`Split`: `tuning` or `held-out`). Each receipt records its split, and `study.mjs check` refuses a held-out run made before the lock.
 - Tune against the tuning items only. Report held-out items separately, and never tune against them.
-- Never report the score of a set you selected on: choosing the best of several candidates by their held-out score makes that score optimistic.
+- Never report the score of a set you selected on: choosing the best of several candidates by their held-out score makes that score optimistic. Improving a prompt or a method from earlier runs makes those runs' items tuning items; only items nothing was tuned on can support a confirmatory claim.
 - Items written by the author of what is under test, or by the model under test, are not independent of it.
 - Keep held-out answers in a private repository or as hashes, so they do not leak into training data or prompts.
 

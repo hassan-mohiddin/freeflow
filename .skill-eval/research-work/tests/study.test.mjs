@@ -429,3 +429,61 @@ test("trace --results counts a JSON file's numeric values, not numbers written i
   assert.match(traced.stdout, /number not in its results 0\.94 \(C2: not in results\.json\)/);
   assert.doesNotMatch(traced.stdout, /C1:/);
 });
+
+test("a planned run's split is recorded on its receipts, and a held-out run before the lock is refused", () => {
+  const { folder, plan } = studyFolder();
+  writeFileSync(
+    plan,
+    readFileSync(plan, "utf8")
+      .replace(
+        "| Unit | Arm | Trials |\n| --- | --- | --- |",
+        "| Unit | Arm | Trials | Split |\n| --- | --- | --- | --- |",
+      )
+      .replace("| t1 | a | 1 |", "| t1 | a | 1 | tuning |")
+      .replace("| t1 | b | 1 |", "| t1 | b | 1 | held-out |"),
+  );
+  assert.deepEqual(validate("study-plan", readFileSync(plan, "utf8")).problems, []);
+  assert.ok(
+    validate("study-plan", readFileSync(plan, "utf8").replace("| tuning |", "| train |")).problems.some((problem) =>
+      problem.includes("Split must be one of"),
+    ),
+  );
+  study("run", plan, "--unit", "t1", "--arm", "a", "--trial", "1", "--", process.execPath, "-e", "0");
+  study("run", plan, "--unit", "t1", "--arm", "b", "--trial", "1", "--", process.execPath, "-e", "0");
+  study("lock", plan, "--by", "Hassan");
+  study("run", plan, "--unit", "t1", "--arm", "a", "--trial", "1", "--", process.execPath, "-e", "0");
+  study("run", plan, "--unit", "t1", "--arm", "b", "--trial", "1", "--", process.execPath, "-e", "0");
+  const receipts = readFileSync(join(folder, "runs.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
+  assert.deepEqual(
+    receipts.map((receipt) => receipt.split),
+    ["tuning", "held-out", "tuning", "held-out"],
+  );
+  const checked = study("check", plan);
+  assert.equal(checked.status, 1);
+  assert.match(checked.stdout, /R2 ran held-out unit t1 \/ b before the plan was locked/);
+  assert.doesNotMatch(checked.stdout, /R1 ran held-out/);
+});
+
+test("quote-check counts a judge's score only when its quote is in the output it judged", () => {
+  const folder = mkdtempSync(join(tmpdir(), "research-quotes-"));
+  writeFileSync(join(folder, "out1.txt"), "The function returns early when the list is empty.\n");
+  writeFileSync(
+    join(folder, "answers.jsonl"),
+    [
+      { item: "1", score: 1, quote: "returns early when the list is empty", output: "out1.txt" },
+      { item: "2", score: 1, quote: "handles every empty input correctly", output: "out1.txt" },
+      { item: "3", score: 0, output: "out1.txt" },
+      { item: "4", score: 1, quote: "returns early", output: "out1.txt" },
+      { item: "5", score: 1, quote: "returns early when the list is empty", output: "gone.txt" },
+    ]
+      .map((answer) => JSON.stringify(answer))
+      .join("\n"),
+  );
+  const checked = run("sources.mjs", "quote-check", join(folder, "answers.jsonl"));
+  assert.equal(checked.status, 1);
+  assert.match(checked.stdout, /5 answer\(s\); 1 ok, 4 failed/);
+  assert.match(checked.stdout, /line 2: not found in out1\.txt/);
+  assert.match(checked.stdout, /line 3: the answer has no quote/);
+  assert.match(checked.stdout, /line 4: a quote needs at least four words/);
+  assert.match(checked.stdout, /line 5: gone\.txt does not exist/);
+});

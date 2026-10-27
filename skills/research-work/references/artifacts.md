@@ -106,14 +106,14 @@ Written at Design, before the first run that counts; `init study-plan --rigor <r
 | --- | --- |
 | `## 1. The claim` … `## 12. Where it holds` | The answers to the twelve questions in [study design](study-design.md#answer-the-twelve-questions). At `check` rigor only 1, 3, 4, 5 and 10 are required |
 | `## Hypotheses` | One table: `ID` (the claim ID the register will use), `Hypothesis`, `Kind` (`confirmatory` or `exploratory`), `Metric`, `Decision rule`. A confirmatory row names its metric and rule; `-` is allowed only for an exploratory one |
-| `## Planned runs` | One table: `Unit`, `Arm`, `Trials` (a whole number of at least 1), one row per unit and arm |
+| `## Planned runs` | One table: `Unit`, `Arm`, `Trials` (a whole number of at least 1), and optionally `Split` (`tuning` or `held-out`), one row per unit and arm |
 | `## Amendments` | `none`, then one line per amendment, written by `study.mjs amend` |
 
 `study.mjs lock` writes `<plan>.lock.json` beside the plan: the plan's sha256 (over everything but `## Amendments`), `by` (who agreed, their words and the date, and who ran the lock when that was someone else), when, and its hypotheses; each amendment adds an entry with its hash, who, when, why, and the confirmatory hypotheses it changed after study runs existed. Never edit the lock by hand.
 
 ## Run Ledger
 
-`runs.jsonl` beside the plan, one receipt per line, appended by `study.mjs run` and never edited. A receipt holds: `id` (`R1`, …), `unit`, `arm`, `trial`, `plan_sha256` and `plan_locked` (whether that hash was locked when it ran), `argv`, `cwd`, `program` (the resolved path and its sha256), `inputs` and `outputs` (each path, relative to the plan's folder, with its sha256, or null when absent), `started_at`, `finished_at`, `duration_ms`, `exit_code` (null when the command could not start), `signal`, `error`, the last 2 KB of stdout and stderr, and `prev_sha256`, the sha256 of the line before it (null on the first). The chain makes an edited, removed or reordered line visible: `study.mjs check` reports where it breaks.
+`runs.jsonl` beside the plan, one receipt per line, appended by `study.mjs run` and never edited. A receipt holds: `id` (`R1`, …), `unit`, `arm`, `trial`, `split` (from the plan, or null), `plan_sha256` and `plan_locked` (whether that hash was locked when it ran), `argv`, `cwd`, `program` (the resolved path and its sha256), `inputs` and `outputs` (each path, relative to the plan's folder, with its sha256, or null when absent), `started_at`, `finished_at`, `duration_ms`, `exit_code` (null when the command could not start), `signal`, `error`, the last 2 KB of stdout and stderr, and `prev_sha256`, the sha256 of the line before it (null on the first). The chain makes an edited, removed or reordered line visible: `study.mjs check` reports where it breaks.
 
 ## Deviation Log
 
@@ -137,3 +137,7 @@ One per judge configuration and rubric, made before any of the judge's answers c
 | Result | `pass` or `fail` |
 
 Result can be `pass` only when the interval's lower bound reaches the required bound and all four controls `passed`; validation refuses a record that says otherwise. A `## Notes` section says how the gold set was built and what the decoys were.
+
+## Judge Answers
+
+A JSONL file, one answer per line: `item`, `score`, `quote` (the judged output's own words supporting the score, at least four of them) and `output` (the judged output's path, relative to the answers file). `sources.mjs quote-check <answers.jsonl>` refuses an answer with no quote, a quote under four words, or one not found in its output.

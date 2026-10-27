@@ -224,6 +224,8 @@ export function runStep(planPath, argv, { inputs = [], outputs = [], unit, arm, 
     unit: unit ?? null,
     arm: arm ?? null,
     trial: trial === undefined ? null : Number(trial),
+    split:
+      plannedRuns(readFileSync(planPath, "utf8")).find((run) => run.unit === unit && run.arm === arm)?.split ?? null,
     plan_sha256: state.current,
     plan_locked: state.locked,
     argv,
@@ -387,6 +389,11 @@ export function checkStudy(planPath) {
       );
   }
   for (const id of view.unplanned) problems.push(`${id} ran a unit and arm the plan does not list`);
+  for (const receipt of readLedger(runLedgerPath(planPath)))
+    if (receipt.split === "held-out" && !receipt.plan_locked)
+      problems.push(
+        `${receipt.id} ran held-out unit ${receipt.unit} / ${receipt.arm} before the plan was locked; held-out items are run only under the lock`,
+      );
   for (const changed of changedOutputs(planPath))
     problems.push(
       `${changed.path} changed after ${changed.receipt} wrote it; rewrite a result only through a new receipt, or give it a new name`,
