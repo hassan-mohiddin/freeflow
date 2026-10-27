@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `.skill-eval/freeflow-vs-plain/`, `.skill-eval/freeflow-routing/`, `.skill-eval/freeflow-tool-use/`, `scripts/validation/check-eval-definitions.mjs`, `skills/research-work/scripts/lib/stats.mjs`
 > **Tests:** `.skill-eval/evaluate-behavior/tests/`, `.skill-eval/verify-work/tests/`
-> **Verified at:** `2d993663` (2026-10-27)
+> **Verified at:** `1240e71f` (2026-10-27)
 
 For contributors changing how Freeflow reviews work, evaluates agent behavior, or verifies claims: what each part does, how they depend on each other, why they are shaped this way, and which of their behaviors are deliberate. It also covers the evaluator's code, the evidence it stores, and the contributor gate that measures Freeflow's own changes.
 
@@ -371,7 +371,7 @@ The binding shape is `skills/evaluate-behavior/references/authoring.md`, with ea
 | Path | Owns |
 | --- | --- |
 | `skills/evaluate-behavior/SKILL.md` | The method: Rules, questions, claims, components, modes, reporting |
-| `skills/evaluate-behavior/references/` | `design-and-measurement.md` (question, arms, pressure, claims, sizing, judges, cost, defect suites), `authoring.md` (binding definition shape), `coding-tasks.md` and `conversations-pipelines-judges.md` (each mode's guidance and fields), `running-and-evidence.md` (the evaluator's behavior, reading results, revision and rerun) |
+| `skills/evaluate-behavior/references/` | `design-and-measurement.md` (question, arms, pressure, claims, sizing, judges, cost, defect suites; for the general method of study design and measurement it points to Research Work's `study-design.md` and `measurement.md`, keeping what is particular to agent evals), `authoring.md` (binding definition shape), `coding-tasks.md` and `conversations-pipelines-judges.md` (each mode's guidance and fields), `running-and-evidence.md` (the evaluator's behavior, reading results, revision and rerun) |
 | `skills/evaluate-behavior/scripts/skill-eval.mjs` | CLI: options, `planRun`, `run`, `checkTasks`, `review`, `judge`, `calibrate`, `clear` |
 | `skills/evaluate-behavior/scripts/guard-rules.mjs` | The confinement rules every host's guard decides with |
 | `skills/evaluate-behavior/scripts/pi-guard.mjs`, `pi-command-tool.mjs`, `pi-observer.mjs`, `pi-login-refresh.mjs`, `pi-container-route.mjs` | Subject-side Pi extensions: confinement and prompt, `run_command`, context observation, central login refresh, and (last) moving shell commands into the subject's container |

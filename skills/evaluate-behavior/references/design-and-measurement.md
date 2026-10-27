@@ -122,22 +122,16 @@ Choose the pressure by the kind of instruction under test:
 
 ## Make Tasks Fair
 
-A task is fair when an agent that does the job correctly passes, and one that does not, fails.
+Research Work's [measurement](../../research-work/references/measurement.md#make-tasks-fair) says what a fair task is and how to grade one requirement at a time. For an agent's task:
 
-- Everything a check requires is stated in the task or follows from it. A check that expects a file path the task never names fails a correct agent.
-- Two people who know the domain would give each run the same pass or fail. When they would not, sharpen the task or the check before running.
-- Passing requires doing the job, not a shortcut: editing or deleting tests, hard-coding an expected output, or writing text aimed at a judge.
+- Passing must require doing the job, not a shortcut: editing or deleting tests, hard-coding an expected output, or writing text aimed at a judge.
 - An arm that fails a case in every one of many trials usually has a broken task or check, not an incapable agent. Read its transcripts, and for a coding task run its reference solution, before revising the component.
 
 ## Grade By Requirement And Respect Variance
 
-Grade each requirement a group checks, not only pass or fail. Label each as derivable from the request and code, dependent on a clarification, or imposed by the evaluator (an exact name or message only the checker knows); a failure on an evaluator-imposed requirement says little about the component.
+Label each requirement a group checks as derivable from the request and code, dependent on a clarification, or imposed by the evaluator (an exact name or message only the checker knows); a failure on an evaluator-imposed requirement says little about the component. For a task with several parts, give each part its own expectation; the aggregate counts each check separately and never combines them into one weighted score.
 
-For a task with several parts, give each part its own expectation, so a run that does most of the task reads differently from one that fails at once. The aggregate counts each check separately; it does not combine them into one weighted score.
-
-One run per cell cannot separate a difference of one or two items from run-to-run variance. Repeat the cell, or report such a difference as unresolved.
-
-Freeze the candidate before a batch runs; items used to develop a revision are not evidence for it (Hold Cases Out, below).
+One run per cell cannot separate a difference of one or two items from run-to-run variance. Repeat the cell, or report such a difference as unresolved. Freeze the candidate before a batch runs; items used to develop a revision are not evidence for it (Hold Cases Out, below).
 
 ## Keep Separate Conclusions Separate
 
@@ -145,7 +139,7 @@ An explicitly delivered body may support first-read behavior while a natural pro
 
 ## Claim Classes
 
-Name the strongest claim the result must support before building cases, and report the strongest one it reached, never a stronger one.
+Name the strongest claim the result must support before building cases, and report the strongest one it reached, never a stronger one. The general classes and the evidence levels they reach are in Research Work's [study design](../../research-work/references/study-design.md#name-the-claim-class); for an agent eval they are:
 
 | Claim | Minimum evidence | Not enough |
 | --- | --- | --- |
@@ -158,7 +152,7 @@ Name the strongest claim the result must support before building cases, and repo
 
 ## Fix The Decision Rule First
 
-Declare the rule as the suite's `decision` before the run ([authoring](authoring.md#decision) has its fields and defaults). It names:
+Why the rule comes first, and what any decision rule names, is in Research Work's [study design](../../research-work/references/study-design.md#fix-the-decision-rule-first). Declare the rule as the suite's `decision` before the run ([authoring](authoring.md#decision) has its fields and defaults). It names:
 
 - the measure: a comparison's checks, a run metric such as cost or turns, or a judged rubric dimension;
 - the two arms it compares, the reference first, and whether higher or lower is better;
@@ -170,52 +164,39 @@ The sign test ignores how much better a case was, so it is conservative for meas
 
 ## Size Cases And Trials To The Decision
 
-- **Few trials show little.** Three passes in three trials is consistent with a true pass rate near 0.3: the exact two-sided 95% lower bound is about 0.29.
-- **pass^k and pass@k diverge.** At 75% per trial, all three of three trials succeed about 42% of the time, and at least one about 98%. Report pass^k for behavior a user relies on each time; pass@k fits only when a retry or a checker stands between the subject and the user.
-- **Cases set what a comparison can detect.** A 20-point difference at 80% power needs roughly 62 to 93 cases per arm, depending on the base rate. A pilot of 20 or 30 cases detects only large effects; say so in its report. Early changes often have large effects, so 20 to 50 cases drawn from real failures are a good start.
-- **More cases beat more trials.** Past a few trials per case, extra trials narrow the result little; extra cases narrow it more.
-- **Cases that share a fixture or a task family are not independent.** Count the families as well as the cases, and spread cases across families.
-- **Keep the subject's settings.** Lowering the thinking level or sampling temperature to cut variance changes the subject; do it only when that setting is the question.
+Research Work's [study design](../../research-work/references/study-design.md#size-to-the-decision) has the sizing rules: few trials show little, pass^k against pass@k, the cases a comparison needs (`stats.mjs power`), more cases beat more trials, families are not independent, the subject's settings stay as they are, and the count is fixed before the run. For an agent eval:
+
 - **Spend trials where a miss costs most.** Cases whose miss is the costlier error can run more trials than the rest, for example nine for known-issue cases and three for clean ones.
-- **Fix the trial count before the run.** A three-trial look once suggested a drop in detection (80 against 74 of 90) that six trials did not confirm. Adding trials until a result looks right is selection. A decision's `trials` schedule is the one exception, because it is declared before the run: it adds trials only to cases whose sign is not yet stable, up to its maximum.
+- **Early changes often have large effects,** so 20 to 50 cases drawn from real failures are a good start; a pilot of that size reports that it detects only large effects.
+- **Fix the trial count before the run.** A three-trial look once suggested a drop in detection (80 against 74 of 90) that six trials did not confirm. A decision's `trials` schedule is the one exception, because it is declared before the run: it adds trials only to cases whose sign is not yet stable, up to its maximum.
 
 ## Expect Run-To-Run Noise
 
-The same baseline commit accepted 31 of 45 correct changes in one run and 38 of 45 in the next. A difference smaller than that swing, between two single runs, is not a result.
+The same baseline commit accepted 31 of 45 correct changes in one run and 38 of 45 in the next. A difference smaller than that swing, between two single runs, is not a result; how to measure the floor is in Research Work's [study design](../../research-work/references/study-design.md#measure-the-noise-floor).
 
 - Run both arms in the same batch, so they share conditions.
-- Pool every baseline run of the same commit and the same case versions, and compare a later candidate with all of them, not the most favorable. A changed case or check starts a new series.
+- Pool every baseline run of the same commit and the same case versions, and compare a later candidate with all of them. A changed case or check starts a new series.
 - When a claim is close, run a noise check (`component: []`), with identical arms; the gap it shows is the floor a real difference must clear.
 
 ## Keep Capability And Regression Suites Apart
 
-- A **capability** suite asks what the agent cannot yet do reliably. It should start with a low pass rate, so a change has room to show. A suite where every arm passes nearly every case is saturated: a large improvement shows as a small change. Add harder cases, or move it to regression.
-- A **regression** suite guards what already works and should sit near 100%. A drop means something broke. Read it per check and case: a sign test says `worse` only when many cases got worse, so a few broken cases show in the counts long before the verdict moves.
-- A case that passes reliably in a capability suite can graduate into the regression suite.
-- A check that passes in every arm and every trial does not separate the arms. Replace it in a capability suite; keep it in a regression suite only if it guards something that could break.
+Keep them apart as Research Work's [study design](../../research-work/references/study-design.md#keep-capability-and-regression-studies-apart) says. In a regression suite, read the result per check and case: a sign test says `worse` only when many cases got worse, so a few broken cases show in the counts long before the verdict moves. A case that passes reliably in a capability suite can graduate into the regression suite.
 
 ## Hold Cases Out
 
-- Fix the split before any case is built or run, by a stable rule such as every third case in hash order.
-- Tune wording against the tuning cases only. Report held-out cases separately, and never tune against them.
-- Never report the score of a set you selected on as the result: choosing the best of several candidates by their held-out score makes that score optimistic.
-- Cases written by the author of the guidance under test, or by the model under test, are not independent of it.
+Fix the split before any case is built or run, tune against the tuning cases only, and report held-out cases separately, as Research Work's [study design](../../research-work/references/study-design.md#hold-items-out) says. Cases written by the author of the guidance under test, or by the model under test, are not independent of it.
 
 ## Control Mechanical Checks That Approximate Meaning
 
-A deterministic check that stands in for a meaning, such as a regex or "the review names the right file and line", needs a control: run it where the right answer is no. In one review suite, a check that a review named the seeded line "found" the seed in 30% to 46% of reviews of the clean version, because seeds sit where reviewers comment anyway. A check that fires on its controls cannot measure detection. Use it as a filter, or ask a judge.
+A deterministic check that stands in for a meaning, such as a regex or "the review names the right file and line", needs a control where the right answer is no, as Research Work's [measurement](../../research-work/references/measurement.md#validity-does-the-measure-track-the-claim) says. A check that fires on its controls cannot measure detection. Use it as a filter, or ask a judge.
 
 ## Read Before Counting
 
-Before reporting a count, read the transcripts of failed runs and of a sample of passing ones. A failure should look fair: it is clear what the agent got wrong and why. When it is not, the task, the check or the harness is at fault, and the count measures that instead.
-
-- A run the check failed may hold a valid solution the author did not foresee. Fix the check, not the agent.
-- A run the check passed may have passed by a shortcut. Fix the check before counting it.
-- When a judge and a deterministic check disagree, find which side is wrong: the agent, the check, or the judge. Fix that one and rerun; never average the two.
+Before reporting a count, read the transcripts of failed runs and of a sample of passing ones, as Research Work's [measurement](../../research-work/references/measurement.md#read-raw-outputs-before-counting) says: a run the check failed may hold a valid solution, a run it passed may have passed by a shortcut, and when a judge and a deterministic check disagree, fix the side that is wrong and rerun, never averaging the two.
 
 ## Count Judge Answers With Care
 
-A judge's answers are measurements, under Review Work's [Judge Contract](../../review-work/references/evals-and-judges.md#judge-contract). In practice:
+A judge's answers are measurements, under Review Work's [Judge Contract](../../review-work/references/evals-and-judges.md#judge-contract); what any judge needs before its answers count is in Research Work's [measurement](../../research-work/references/measurement.md#judges). In practice:
 
 - Check first and judge only what checks cannot answer. Count only rubric answers (`review --rubric`): each run is judged alone and blind to its arm, so no order effect arises, and a decision rule can name a dimension. Keep pairwise review questions for advisory comparison.
 - Make each question answerable from the materials: name what to look for, such as the defect's location, expression and effect, and put the expected answer in the dimension's `reference`, which only judges see. Low agreement between judges (Cohen's kappa for two, Krippendorff's alpha for more, per dimension in the aggregate) means the question is uncertain: sharpen it and its reference before counting.
@@ -236,7 +217,7 @@ Spend the fewest subject and judge calls that still answer the question: start f
 
 For a reviewer, checker or anything else whose job is to find problems. Sizing, noise and judges are above; this section covers what is particular to detectors.
 
-A detector is measured on two sides: how often it finds real problems, and how often it rejects sound work. One side alone means nothing; a reviewer that rejects everything finds every defect.
+A detector is measured on two sides, as Research Work's [measurement](../../research-work/references/measurement.md#detectors-measure-both-sides) says: how often it finds real problems, and how often it rejects sound work. One side alone means nothing; a reviewer that rejects everything finds every defect.
 
 ### Build Both Sides
 

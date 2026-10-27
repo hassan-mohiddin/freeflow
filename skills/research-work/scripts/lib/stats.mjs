@@ -454,6 +454,71 @@ export function clusteredMean(values, clusters, { confidence = 0.95 } = {}) {
 }
 
 /**
+ * Bayesian interval for the mean of binary values that come in clusters: each cluster's rate is drawn from a
+ * Beta(mu * kappa, (1 - mu) * kappa), with the prior p(alpha, beta) proportional to (alpha + beta)^(-5/2) (Gelman et
+ * al., Bayesian Data Analysis, 3rd ed., section 5.3), integrated on a grid over mu and log kappa. The interval is the
+ * equal-tailed credible interval for mu. Use it with few clusters, where the cluster-robust interval undercovers,
+ * above all for rates near 0 or 1. With one value per cluster it is the Beta(k + 1, n - k + 1) interval.
+ */
+export function clusteredBetaBinomial(values, clusters, { confidence = 0.95, muPoints = 300, kappaPoints = 80 } = {}) {
+  finiteNumbers(values, "values");
+  checkConfidence(confidence);
+  if (!values.every((value) => value === 0 || value === 1)) throw new Error("values must each be 0 or 1");
+  const groups = groupsOf(values, clusters).map((group) => [
+    group.reduce((sum, value) => sum + value, 0),
+    group.length,
+  ]);
+  const logBeta = (a, b) => logGamma(a) + logGamma(b) - logGamma(a + b);
+  const lowLog = Math.log(0.01);
+  const highLog = Math.log(1e5);
+  const logs = new Float64Array(muPoints * kappaPoints);
+  let maxLog = -Infinity;
+  for (let i = 0; i < muPoints; i += 1) {
+    const mu = (i + 0.5) / muPoints;
+    for (let j = 0; j < kappaPoints; j += 1) {
+      const u = lowLog + ((j + 0.5) * (highLog - lowLog)) / kappaPoints;
+      const kappa = Math.exp(u);
+      const a = mu * kappa;
+      const b = (1 - mu) * kappa;
+      // The prior on (alpha, beta), moved to (mu, log kappa): kappa^(-5/2) times the Jacobian kappa^2.
+      let logDensity = -0.5 * u;
+      const base = logBeta(a, b);
+      for (const [k, n] of groups) logDensity += logBeta(k + a, n - k + b) - base;
+      logs[i * kappaPoints + j] = logDensity;
+      if (logDensity > maxLog) maxLog = logDensity;
+    }
+  }
+  const weights = new Float64Array(muPoints);
+  for (let i = 0; i < muPoints; i += 1)
+    for (let j = 0; j < kappaPoints; j += 1) weights[i] += Math.exp(logs[i * kappaPoints + j] - maxLog);
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  const tail = (1 - confidence) / 2;
+  let cumulative = 0;
+  let low = null;
+  let high = null;
+  let estimate = 0;
+  for (let i = 0; i < muPoints; i += 1) {
+    const before = cumulative;
+    const share = weights[i] / total;
+    cumulative += share;
+    estimate += share * ((i + 0.5) / muPoints);
+    const at = (target) => (i + (target - before) / (cumulative - before)) / muPoints;
+    if (low === null && cumulative >= tail) low = at(tail);
+    if (high === null && cumulative >= 1 - tail) high = at(1 - tail);
+  }
+  return {
+    method: "clustered-beta-binomial",
+    n: values.length,
+    clusters: groups.length,
+    estimate,
+    confidence,
+    low,
+    high,
+    grid: { mu: muPoints, kappa: kappaPoints },
+  };
+}
+
+/**
  * Intraclass correlation by the one-way random-effects ANOVA estimator, with Kish's correction for unequal cluster
  * sizes. 0 when there is one cluster or every cluster has one value.
  */

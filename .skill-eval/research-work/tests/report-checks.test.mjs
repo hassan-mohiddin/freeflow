@@ -121,6 +121,8 @@ test("numbers are taken as quantities, and labels, dates, versions and identifie
   assert.deepEqual(numbersIn("1. On 2026-10-27 the gpt-4o run took 12 turns."), ["12"]);
   assert.deepEqual(numbersIn("A drop of −3.5 points."), ["-3.5"]);
   assert.deepEqual(numbersIn("As findings 14 and 15 show, and finding 6, see notes 2, 3 and 4."), []);
+  // The same value matches however it is written: a trailing zero, a comma after it.
+  assert.deepEqual(numbersIn("Coverage was 0.9510 at n=100, then 0.951."), ["0.951", "100", "0.951"]);
 });
 
 test("trace accepts numbers its cited claims register and reports the rest", () => {

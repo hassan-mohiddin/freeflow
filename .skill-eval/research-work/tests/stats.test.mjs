@@ -3,10 +3,12 @@ import test from "node:test";
 
 import {
   bootstrapMean,
+  clusteredBetaBinomial,
   clusteredMean,
   designEffect,
   exactBinomialInterval,
   holm,
+  incompleteBeta,
   intraclassCorrelation,
   mcnemarCasesForPower,
   mcnemarExact,
@@ -223,4 +225,35 @@ test("inputs outside a method's domain are refused, not silently computed", () =
   assert.throws(() => holm([0.5, 1.2]), /from 0 to 1/);
   assert.throws(() => signFlipTest([1, 2], { seed: -1 }), /seed/);
   assert.throws(() => mcnemarPower({ n: 10, armOnly: 0.7, referenceOnly: 0.5 }), /cannot exceed 1/);
+});
+
+test("the clustered beta-binomial interval is the Beta(k + 1, n - k + 1) interval for singleton clusters, and widens with clustering", () => {
+  // Ten singleton clusters, 8 successes: the equal-tailed 95% interval of Beta(9, 3), up to the grid's resolution.
+  const singles = clusteredBetaBinomial([1, 0, 1, 1, 1, 1, 0, 1, 1, 1], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  close(incompleteBeta(9, 3, singles.low), 0.025, 0.002);
+  close(incompleteBeta(9, 3, singles.high), 0.975, 0.002);
+  close(singles.estimate, 0.75, 0.002);
+  // The same 40 successes in 50 items, as five clusters that disagree: wider than treating the items as independent.
+  const values = [];
+  const clusters = [];
+  for (const [cluster, successes] of [
+    [1, 10],
+    [2, 10],
+    [3, 10],
+    [4, 8],
+    [5, 2],
+  ])
+    for (let item = 0; item < 10; item += 1) {
+      values.push(item < successes ? 1 : 0);
+      clusters.push(cluster);
+    }
+  const clustered = clusteredBetaBinomial(values, clusters);
+  const independent = clusteredBetaBinomial(
+    values,
+    values.map((_, index) => index),
+  );
+  assert.equal(clustered.clusters, 5);
+  assert.ok(clustered.high - clustered.low > 1.5 * (independent.high - independent.low));
+  assert.ok(clustered.low < 0.8 && clustered.high > 0.8);
+  assert.throws(() => clusteredBetaBinomial([0.5, 1], [1, 2]), /0 or 1/);
 });

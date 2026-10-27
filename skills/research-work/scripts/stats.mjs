@@ -13,6 +13,8 @@ const FAMILIES = {
     "exact-binomial": ({ successes, n, confidence }) => stats.exactBinomialInterval(successes, n, { confidence }),
     mean: ({ values, confidence }) => stats.meanInterval(values, { confidence }),
     clustered: ({ values, clusters, confidence }) => stats.clusteredMean(values, clusters, { confidence }),
+    "clustered-bayes": ({ values, clusters, confidence }) =>
+      stats.clusteredBetaBinomial(values, clusters, { confidence }),
     bootstrap: ({ values, clusters, resamples, seed, confidence }) =>
       stats.bootstrapMean(values, { clusters, resamples, seed, confidence }),
     icc: ({ values, clusters }) => stats.intraclassCorrelation(values, clusters),

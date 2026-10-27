@@ -1,7 +1,7 @@
 // Research Work's artifact formats: what each file holds, a skeleton to start one, and a validator that refuses a
 // file breaking its contract. The contract itself is written for agents in references/artifacts.md; this module is
 // its enforcement. Markdown artifacts carry Write Docs' header (Type, Status, Owner, Source); the search ledger is
-// JSONL, one record per line.
+// JSONL, one record per line. The study's run ledger and deviation log are written by study.mjs (lib/study.mjs).
 
 export const STATUSES = ["Draft", "Reviewed", "Accepted", "Rejected", "Superseded", "Retired"];
 export const RIGOR = ["check", "study", "publication"];
@@ -11,6 +11,28 @@ export const READ = ["full", "partial", "abstract", "none"];
 export const LEVELS = ["L0", "L1", "L2", "L3", "L4", "L5"];
 export const KINDS = ["confirmatory", "exploratory"];
 export const HIT_STATES = ["included", "excluded", "duplicate", "unscreened"];
+export const CONTROL_RESULTS = ["passed", "failed", "not run"];
+
+/**
+ * The twelve questions a study plan answers, as its numbered sections. At check rigor a plan answers 1, 3, 4, 5 and
+ * 10; at study and publication rigor, all twelve.
+ */
+export const QUESTIONS = [
+  "The claim",
+  "Who uses it",
+  "The prediction",
+  "Compared to what",
+  "The unit and the count",
+  "Validity",
+  "Reliability",
+  "Raw outputs first",
+  "Rival explanations",
+  "The interval",
+  "Fixed before the data",
+  "Where it holds",
+];
+export const CHECK_QUESTIONS = [1, 3, 4, 5, 10];
+export const questionHeading = (number) => `${number}. ${QUESTIONS[number - 1]}`;
 
 /**
  * How a source was checked caps the level of a claim resting on it: a source known only from a summary or from
@@ -29,12 +51,34 @@ export const LEVEL_CAP = {
 const BRIEF_SECTIONS = ["Question", "Reader and decision", "Claim sought", "Prediction", "Scope", "Constraints"];
 const LEDGER_COLUMNS = ["ID", "Source", "Pin", "Lookup", "Checked", "Read", "Supports"];
 const REGISTER_COLUMNS = ["ID", "Claim", "Numbers", "Source", "Level", "Kind", "Scope", "Limit"];
+const HYPOTHESIS_COLUMNS = ["ID", "Hypothesis", "Kind", "Metric", "Decision rule"];
+const RUN_COLUMNS = ["Unit", "Arm", "Trials"];
+// An optional fourth column says which split a planned unit belongs to.
+const RUN_COLUMNS_WITH_SPLIT = [...RUN_COLUMNS, "Split"];
+export const SPLITS = ["tuning", "held-out"];
+const JUDGE_FIELDS = [
+  "Judge",
+  "Rubric",
+  "Rubric sha256",
+  "Gold items",
+  "Agreement",
+  "Interval",
+  "Required lower bound",
+  "Both orders",
+  "Length control",
+  "Decoys",
+  "Repeatability",
+  "Judge and graded",
+  "Result",
+];
 
 export const KINDS_OF_ARTIFACT = {
   "research-brief": { type: "Research Brief", file: "brief.md" },
   "source-ledger": { type: "Source Ledger", file: "sources.md" },
   "search-ledger": { type: null, file: "search.jsonl" },
   "claims-register": { type: "Claims Register", file: "claims.md" },
+  "study-plan": { type: "Study Plan", file: "plan.md" },
+  "judge-validation": { type: "Judge Validation", file: "judge-validation.md" },
 };
 
 const levelRank = (level) => LEVELS.indexOf(level);
@@ -49,9 +93,26 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
   if (!type)
     throw new Error(`unknown artifact kind "${kind}"; choose one of: ${Object.keys(KINDS_OF_ARTIFACT).join(", ")}`);
   const header = [`# ${type}: ${title}`, "", `> **Type:** ${type}`, "> **Status:** Draft", `> **Owner:** ${owner}`];
-  if (kind === "research-brief") {
+  if (kind === "research-brief" || kind === "study-plan") {
     if (!RIGOR.includes(rigor)) throw new Error(`rigor must be one of: ${RIGOR.join(", ")}`);
     header.push(`> **Rigor:** ${rigor}`);
+  }
+  if (kind === "judge-validation") {
+    header.push(
+      "> **Judge:** <model, version and settings>",
+      "> **Rubric:** <path to the frozen rubric>",
+      "> **Rubric sha256:** <sha256 of the rubric file>",
+      "> **Gold items:** <how many items with known answers>",
+      "> **Agreement:** <agreement with the gold answers, 0 to 1>",
+      "> **Interval:** <[low, high] and its method, from stats.mjs>",
+      "> **Required lower bound:** <the lowest interval bound the study accepts, fixed before scoring>",
+      "> **Both orders:** <passed, failed or not run>",
+      "> **Length control:** <passed, failed or not run>",
+      "> **Decoys:** <passed, failed or not run>",
+      "> **Repeatability:** <passed, failed or not run: the judge's agreement with itself on a rerun>",
+      "> **Judge and graded:** <different family, different model, or same model: why no other was available>",
+      "> **Result:** <pass or fail>",
+    );
   }
   const lines = [...header, ""];
   if (kind === "research-brief") {
@@ -82,6 +143,29 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
       "- <each constraint in the user's words, with the date it was given; or 'none'>",
       "",
     );
+  } else if (kind === "study-plan") {
+    const numbers = rigor === "check" ? CHECK_QUESTIONS : QUESTIONS.map((_, index) => index + 1);
+    for (const number of numbers) lines.push(`## ${questionHeading(number)}`, "", "<the answer, before any data>", "");
+    lines.push(
+      "## Hypotheses",
+      "",
+      `| ${HYPOTHESIS_COLUMNS.join(" | ")} |`,
+      `| ${HYPOTHESIS_COLUMNS.map(() => "---").join(" | ")} |`,
+      "| C1 | <what the study tests> | confirmatory | <the primary metric> | <the rule that decides it> |",
+      "",
+      "## Planned runs",
+      "",
+      `| ${RUN_COLUMNS.join(" | ")} |`,
+      `| ${RUN_COLUMNS.map(() => "---").join(" | ")} |`,
+      "| <unit> | <arm> | <trials> |",
+      "",
+      "## Amendments",
+      "",
+      "none",
+      "",
+    );
+  } else if (kind === "judge-validation") {
+    lines.push("## Notes", "", "<how the gold set was built, and what the decoys were>", "");
   } else if (kind === "source-ledger") {
     lines.push(`| ${LEDGER_COLUMNS.join(" | ")} |`, `| ${LEDGER_COLUMNS.map(() => "---").join(" | ")} |`, "");
   } else {
@@ -143,7 +227,9 @@ export function parseTable(lines) {
   return { columns, rows, separator: lines[start + 1] ?? "" };
 }
 
-const placeholder = (text) => /<[^>]+>/.test(text);
+// A placeholder is angle brackets around words, as the skeletons write them ("<what the work covers>"); a comparison
+// such as "x < 3 and y > 2" or "p<0.05" is not one.
+const placeholder = (text) => /(?<![\w<])<[A-Za-z][^<>\n]*[^\s<>]>/.test(text);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Validation
@@ -189,6 +275,139 @@ function validateBrief(parsed, problems) {
   }
 }
 
+/** The ## sections of a parsed plan whose body is the table under that heading. */
+function sectionTable(parsed, name) {
+  return parsed.sections.has(name) ? parseTable(parsed.sections.get(name)) : null;
+}
+
+/** A study plan's hypotheses, by claim ID: `{ kind, metric, rule }`. */
+export function planHypotheses(text) {
+  const table = sectionTable(parseMarkdown(text), "Hypotheses");
+  return new Map(
+    (table?.rows ?? []).map((row) => [
+      row.cells.ID,
+      { kind: row.cells.Kind, metric: row.cells.Metric, rule: row.cells["Decision rule"] },
+    ]),
+  );
+}
+
+/** A study plan's planned runs: `{ unit, arm, trials }` per row. */
+export function plannedRuns(text) {
+  const table = sectionTable(parseMarkdown(text), "Planned runs");
+  return (table?.rows ?? []).map((row) => ({
+    unit: row.cells.Unit,
+    arm: row.cells.Arm,
+    trials: Number(row.cells.Trials),
+    split: row.cells.Split ?? null,
+  }));
+}
+
+function validatePlan(parsed, problems) {
+  validateHeader(parsed, "Study Plan", problems);
+  if (!RIGOR.includes(parsed.header.Rigor)) problems.push(`the header's Rigor must be one of: ${RIGOR.join(", ")}`);
+  const required = parsed.header.Rigor === "check" ? CHECK_QUESTIONS : QUESTIONS.map((_, index) => index + 1);
+  for (const number of required) {
+    const name = questionHeading(number);
+    const body = (parsed.sections.get(name) ?? []).join("\n").trim();
+    if (!parsed.sections.has(name)) problems.push(`missing section "## ${name}"`);
+    else if (body === "") problems.push(`section "${name}" is empty`);
+    else if (placeholder(body)) problems.push(`section "${name}" still has a <placeholder>`);
+  }
+  const hypotheses = sectionTable(parsed, "Hypotheses");
+  if (!hypotheses) problems.push(`missing "## Hypotheses" with the table: ${HYPOTHESIS_COLUMNS.join(", ")}`);
+  else {
+    if (hypotheses.columns.join("|") !== HYPOTHESIS_COLUMNS.join("|"))
+      problems.push(`the Hypotheses table's columns must be, in order: ${HYPOTHESIS_COLUMNS.join(", ")}`);
+    if (hypotheses.rows.length === 0) problems.push("the Hypotheses table has no rows");
+    const seen = new Set();
+    for (const { cells } of hypotheses.rows) {
+      const where = `Hypotheses row ${cells.ID || "?"}`;
+      if (!/^C\d+$/.test(cells.ID)) problems.push(`${where}: ID must be a claim ID, C followed by a number`);
+      else if (seen.has(cells.ID)) problems.push(`${where}: duplicate ID`);
+      seen.add(cells.ID);
+      if (!KINDS.includes(cells.Kind)) problems.push(`${where}: Kind must be one of: ${KINDS.join(", ")}`);
+      for (const column of ["Hypothesis", "Metric", "Decision rule"]) {
+        if (placeholder(cells[column] ?? "")) problems.push(`${where}: ${column} still has a <placeholder>`);
+      }
+      if (cells.Kind === "confirmatory" && [cells.Metric, cells["Decision rule"]].some((cell) => !cell || cell === "-"))
+        problems.push(`${where}: a confirmatory hypothesis names its metric and its decision rule`);
+    }
+  }
+  const runs = sectionTable(parsed, "Planned runs");
+  if (!runs) problems.push(`missing "## Planned runs" with the table: ${RUN_COLUMNS.join(", ")}`);
+  else {
+    const withSplit = runs.columns.join("|") === RUN_COLUMNS_WITH_SPLIT.join("|");
+    if (runs.columns.join("|") !== RUN_COLUMNS.join("|") && !withSplit)
+      problems.push(
+        `the Planned runs table's columns must be, in order: ${RUN_COLUMNS.join(", ")}, and optionally Split`,
+      );
+    if (runs.rows.length === 0) problems.push("the Planned runs table has no rows");
+    for (const { cells } of runs.rows) {
+      const where = `Planned runs row ${cells.Unit || "?"}`;
+      if (!cells.Unit || placeholder(cells.Unit) || !cells.Arm || placeholder(cells.Arm))
+        problems.push(`${where}: Unit and Arm must be filled`);
+      if (!/^[1-9]\d*$/.test(cells.Trials ?? ""))
+        problems.push(`${where}: Trials must be a whole number of at least 1`);
+      if (withSplit && !SPLITS.includes(cells.Split))
+        problems.push(`${where}: Split must be one of: ${SPLITS.join(", ")}`);
+    }
+  }
+  if (!parsed.sections.has("Amendments")) problems.push('missing section "## Amendments" ("none" until the first)');
+}
+
+/** The controls a passing judge validation record has all passed. */
+const CONTROLS = ["Both orders", "Length control", "Decoys", "Repeatability"];
+/** How the judge relates to the model it grades: a different model by default, the same one only with a reason. */
+const JUDGE_RELATION = /^(different family|different model|same model: \S.*)$/;
+
+const interval = (text) => {
+  const match = /\[\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)\s*\]/.exec(text ?? "");
+  return match ? { low: Number(match[1]), high: Number(match[2]) } : null;
+};
+
+function validateJudge(parsed, problems) {
+  validateHeader(parsed, "Judge Validation", problems);
+  const field = parsed.header;
+  for (const name of JUDGE_FIELDS) {
+    if (!field[name]) problems.push(`the header needs ${name}`);
+    else if (placeholder(field[name])) problems.push(`${name} still has a <placeholder>`);
+  }
+  if (field["Rubric sha256"] && !/^[0-9a-f]{64}$/.test(field["Rubric sha256"]))
+    problems.push("Rubric sha256 must be 64 lowercase hex characters");
+  if (field["Gold items"] && !/^[1-9]\d*$/.test(field["Gold items"]))
+    problems.push("Gold items must be a whole number");
+  const bounds = interval(field.Interval);
+  if (field.Interval && !bounds) problems.push("Interval must hold [low, high]");
+  const required = Number(field["Required lower bound"]);
+  if (field["Required lower bound"] && !(required >= 0 && required <= 1))
+    problems.push("Required lower bound must be a number from 0 to 1");
+  for (const name of CONTROLS) {
+    if (field[name] && !CONTROL_RESULTS.includes(field[name]))
+      problems.push(`${name} must be one of: ${CONTROL_RESULTS.join(", ")}`);
+  }
+  if (field["Judge and graded"] && !JUDGE_RELATION.test(field["Judge and graded"]))
+    problems.push(
+      'Judge and graded must be "different family", "different model", or "same model: <why no other model was available>"',
+    );
+  if (field.Result && !["pass", "fail"].includes(field.Result)) problems.push('Result must be "pass" or "fail"');
+  if (field.Result === "pass") {
+    if (bounds && bounds.low < required)
+      problems.push(`Result is pass, but the interval's lower bound ${bounds.low} is below the required ${required}`);
+    for (const name of CONTROLS) {
+      if (field[name] && field[name] !== "passed") problems.push(`Result is pass, but ${name} is "${field[name]}"`);
+    }
+  }
+}
+
+/** Whether a judge validation record lets the judge's verdicts count: valid, and its Result is pass. */
+export function judgeCounts(text) {
+  const { valid, problems } = validate("judge-validation", text);
+  return { counts: valid && parseMarkdown(text).header.Result === "pass", problems };
+}
+
+/** The judge records a register row's Source cites as `judge:<path>`. */
+export const judgeCitations = (source) => [...source.matchAll(/\bjudge:(\S+?)(?=[;,]|\s|$)/g)].map((match) => match[1]);
+
 const PIN = {
   doi: /^doi:10\.\d{4,9}\/\S+$/i,
   arxiv: /^arXiv:\d{4}\.\d{4,5}(v\d+)?$/,
@@ -232,7 +451,7 @@ function validateLedger(parsed, problems) {
   }
 }
 
-function validateRegister(parsed, problems, { ledger } = {}) {
+function validateRegister(parsed, problems, { ledger, plan, judges } = {}) {
   validateHeader(parsed, "Claims Register", problems);
   const table = validateTable(parsed, REGISTER_COLUMNS, problems);
   if (!table) return;
@@ -252,6 +471,31 @@ function validateRegister(parsed, problems, { ledger } = {}) {
       problems.push(
         `${where}: an exploratory claim is at most L3; ${cells.Level} needs a comparison whose decision rule was fixed beforehand`,
       );
+    }
+    if (plan && cells.Kind === "confirmatory") {
+      const hypothesis = plan.hypotheses.get(cells.ID);
+      if (!plan.locked)
+        problems.push(
+          `${where}: a confirmatory claim needs a locked study plan, and the plan is not locked (${plan.reason})`,
+        );
+      else if (!hypothesis || hypothesis.kind !== "confirmatory")
+        problems.push(
+          `${where}: ${cells.ID} is not a confirmatory hypothesis of the locked study plan, so it is exploratory`,
+        );
+      else if (plan.demoted?.has(cells.ID))
+        problems.push(
+          `${where}: an amendment changed ${cells.ID} after study runs existed, so it is exploratory now (at most L3)`,
+        );
+    }
+    if (judges) {
+      for (const path of judgeCitations(cells.Source)) {
+        const record = judges.get(path);
+        if (record?.counts) continue;
+        if (levelRank(cells.Level) > levelRank("L1"))
+          problems.push(
+            `${where}: rests on the judge record ${path}, which ${record ? "does not pass" : "cannot be read"}, so the claim is at most L1; it is ${cells.Level}`,
+          );
+      }
     }
     if (!ledger) continue;
     for (const id of cells.Source.match(/\bS\d+\b/g) ?? []) {
@@ -346,17 +590,23 @@ export function kindOf(path, text) {
 }
 
 /**
- * Validate one artifact. A claims register is cross-checked against its source ledger when one is given: every
- * source ID it cites exists, none is refuted, and no claim's level exceeds what its sources' checking allows.
+ * Validate one artifact. A claims register is cross-checked against what is given: its source ledger (every source ID
+ * it cites exists, none is refuted, no level exceeds what its sources' checking allows), its study plan (each
+ * confirmatory claim is a confirmatory hypothesis of a locked plan that no amendment changed after study runs:
+ * `plan` is `{ hypotheses, locked, reason, demoted }`), and
+ * its judge records (a claim resting on a judge record that does not pass is at most L1: `judges` maps each cited
+ * path to `{ counts }`).
  */
-export function validate(kind, text, { ledger } = {}) {
+export function validate(kind, text, { ledger, plan, judges } = {}) {
   const problems = [];
   if (kind === "search-ledger") validateSearch(text, problems);
   else {
     const parsed = parseMarkdown(text);
     if (kind === "research-brief") validateBrief(parsed, problems);
     else if (kind === "source-ledger") validateLedger(parsed, problems);
-    else if (kind === "claims-register") validateRegister(parsed, problems, { ledger });
+    else if (kind === "claims-register") validateRegister(parsed, problems, { ledger, plan, judges });
+    else if (kind === "study-plan") validatePlan(parsed, problems);
+    else if (kind === "judge-validation") validateJudge(parsed, problems);
     else problems.push(`unknown artifact kind "${kind}"`);
   }
   return { kind, valid: problems.length === 0, problems };

@@ -82,12 +82,18 @@ export function numbersIn(line) {
   return numbers;
 }
 
-/** A number written for matching: thousands separators removed, a minus sign made plain, a trailing dot dropped. */
+/**
+ * A number written for matching: thousands separators removed, a minus sign made plain, a trailing dot or comma
+ * dropped, and the value written in its shortest form, so 0.9510 matches 0.951 and 1,200 matches 1200.
+ */
 export function normalizeNumber(token) {
-  return token
+  const plain = token
     .replace(/−/g, "-")
     .replace(/,(?=\d{3}\b)/g, "")
-    .replace(/\.$/, "");
+    .replace(/[.,]$/, "");
+  const percent = plain.endsWith("%");
+  const value = Number(percent ? plain.slice(0, -1) : plain);
+  return Number.isFinite(value) ? `${value}${percent ? "%" : ""}` : plain;
 }
 
 /**
@@ -122,4 +128,63 @@ export function units(text) {
 /** Claim IDs a unit cites. */
 export function claimIds(text) {
   return [...new Set(text.match(/\bC\d+\b/g) ?? [])];
+}
+
+/**
+ * The result files a register row's Source names: each `;`- or `,`-separated part that is a path (it holds a `/` or a
+ * file extension), with an optional `:line` or `:start-end`. Source IDs and `judge:` records are not result files.
+ */
+export function resultCitations(source) {
+  return source
+    .split(/[;,]\s*/)
+    .map((part) => part.trim())
+    .filter((part) => part !== "" && !/^S\d+$/.test(part) && !part.startsWith("judge:"))
+    .map((part) => /^(.+?)(?::(\d+)(?:-(\d+))?)?$/.exec(part))
+    .filter((match) => match && (match[1].includes("/") || /\.\w+$/.test(match[1])))
+    .map((match) => ({
+      path: match[1],
+      start: match[2] === undefined ? null : Number(match[2]),
+      end: match[2] === undefined ? null : Number(match[3] ?? match[2]),
+    }));
+}
+
+/** Every number written in a result file's text (JSON, CSV, logs), as numbers. */
+export const fileNumbers = (text) =>
+  [...text.matchAll(/(?<![\w.])-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?(?![\w.]*\d)/g)].map((match) => Number(match[0]));
+
+/**
+ * The numbers a result file holds as values. A JSON file contributes only its numeric values, so a number written
+ * inside a string (a rule's wording, a label) does not count as a result; any other file, or a cited line range,
+ * contributes every number in its text.
+ */
+export function resultNumbers(text, path, { ranged = false } = {}) {
+  if (!ranged && path.endsWith(".json")) {
+    try {
+      const values = [];
+      const walk = (value) => {
+        if (typeof value === "number") values.push(value);
+        else if (value && typeof value === "object") Object.values(value).forEach(walk);
+      };
+      walk(JSON.parse(text));
+      return values;
+    } catch {
+      // not JSON after all: read it as text
+    }
+  }
+  return fileNumbers(text);
+}
+
+/**
+ * Whether a register number is in a result file: some number there rounds to it at the register's precision. A
+ * percentage matches either the same number or its fraction (65% matches 65 or 0.65).
+ */
+export function numberInResults(token, numbers) {
+  const percent = token.endsWith("%");
+  const written = token.replace(/%$/, "");
+  const value = Number(written);
+  if (!Number.isFinite(value)) return false;
+  const decimals = written.includes(".") ? written.split(".")[1].length : 0;
+  const tolerance = 0.5 * 10 ** -decimals + 1e-12;
+  const matches = (candidate) => Math.abs(candidate - value) <= tolerance;
+  return numbers.some((number) => matches(number) || (percent && matches(number * 100)));
 }
