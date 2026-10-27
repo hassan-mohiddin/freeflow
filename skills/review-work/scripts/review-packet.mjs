@@ -72,7 +72,8 @@ const head = commitOf(values.head);
 if (!head) fail(`no such commit: ${values.head}`);
 if (!commitOf(values.base)) fail(`no such commit: ${values.base}`);
 
-// Paths in the brief: relative to the repository when inside it, absolute otherwise.
+// Paths in the brief: relative to the repository when inside it, absolute otherwise. A path from Git or docs-check is
+// relative to the repository, so it is resolved against root before it reaches show.
 const show = (path) => {
   const relativePath = relative(root, resolve(path));
   return relativePath.startsWith("..") ? resolve(path) : relativePath;
@@ -122,14 +123,19 @@ if (changed.length && existsSync(DOCS_CHECK)) {
     { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
   if (run.status === 0)
-    docs = [...new Set(JSON.parse(run.stdout).paths.flatMap((entry) => entry.documents.map((doc) => doc.path)))];
+    docs = [
+      ...new Set(
+        JSON.parse(run.stdout).paths.flatMap((entry) => entry.documents.map((doc) => resolve(root, doc.path))),
+      ),
+    ];
   else notes.push("docs-check could not run: fill Docs by hand");
 }
 
 // The project's Review Rules, when it keeps them in a file.
 const rules = git(root, ["ls-files"])
   .split("\n")
-  .filter((path) => /(^|\/)(REVIEW\.md|review-rules\.md|REVIEW_RULES\.md)$/i.test(path));
+  .filter((path) => /(^|\/)(REVIEW\.md|review-rules\.md|REVIEW_RULES\.md)$/i.test(path))
+  .map((path) => resolve(root, path));
 
 // The project's declared checks, for "May run".
 let mayRun = values["may-run"] ?? "";
