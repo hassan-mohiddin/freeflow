@@ -66,6 +66,7 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
   - A comparison without a decision rule fixed beforehand is exploratory, at most L3.
   - `artifact.mjs validate --sources` enforces both caps.
   - The level carries the uncertainty, so sentences state claims plainly.
+  - A value computed exactly under a stated model is L2, and a comparison of computed values under a locked rule is L4 (task record P45). The test study's workers had given its one-arm threshold rules L4, which L4's definition, a controlled comparison, did not cover.
 - **Rigor by stakes:** `check`, `study`, `publication`, chosen by the user in the brief. It sets which artifacts and checks are required, so a quick answer is not run at publication cost.
 - **Formats as one contract, enforced by a script.**
   - `references/artifacts.md` defines the research brief, source ledger, search ledger (JSONL), claims register, study plan, run ledger, deviation log and judge validation record, and the citation forms. `artifact.mjs` creates and validates the Markdown ones; `study.mjs` alone writes the run ledger and deviation log.
@@ -79,7 +80,7 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
 - **A study's gates are scripts.** Each of the three binding gates in the design is a refusal, not an instruction:
   - *The plan is locked before the runs that count.* `study.mjs lock` records the plan's sha256 (over everything but its Amendments section), who locked it and its hypotheses. A later change is an amendment with a reason; `study.mjs check` refuses a plan changed without one. An amendment that changes a confirmatory hypothesis after study runs exist is recorded, and `artifact.mjs validate --plan` then refuses that claim as confirmatory. A study confirms only what its locked plan said it would test.
   - *Every number traces to a command.* `study.mjs run` writes a receipt per command: program and its hash, input and output hashes, exit code, duration, output tails, plan hash. A non-zero exit is data, a command that could not start is recorded, and only started runs count toward a planned trial. `claims.mjs trace --results` finds each register number in the result file its row names, at the precision written.
-  - *A judge's verdict counts only with a validation record.* The record holds agreement with a gold set and its interval against a lower bound fixed before scoring, both answer orders, length control, decoys and the rubric's hash; validation refuses a `pass` the numbers do not support, and a register row citing `judge:<record>` that does not pass is capped at L1.
+  - *A judge's verdict counts only with a validation record.* The record holds agreement with a gold set and its interval against a lower bound fixed before scoring, both answer orders, length control, decoys, repeatability, which model judged which (a different model by default; the same model only with the reason, since a user may have one subscription and one model; task record P43) and the rubric's hash; validation refuses a `pass` the numbers do not support, and a register row citing `judge:<record>` that does not pass is capped at L1.
   - Deviations are logged with who cleared them, and an uncleared one holds `study.mjs check`, so an agent cannot clear its own departure from the plan unseen (task record, question 4 of the Evaluate Behavior split).
   - Both ledgers are hash-chained (each line carries the hash of the line before), so an edited, removed or reordered receipt shows at `study.mjs check` (the ARS review's hash-chained ledger).
 - **Statistics in one place, guidance at the decision.**
@@ -129,7 +130,6 @@ Activation has not been measured. The routing suite (`.skill-eval/freeflow-routi
 
 - **The route still to build:** the paper route, and the Research document shape moving here from Write Docs (task record decision D-006).
 - **Whether reviewers should only judge or also propose fixes.** A two-arm experiment on real SWE-bench patches is planned as the study route's first real use; it costs model calls and waits for a pilot and the user's yes.
-- **What level an exact computation reaches.** The study's workers gave its three locked rules L4, but L4 is defined as a controlled comparison, and two of the rules check one arm against a margin. Whether a computed fact is L2 (checked mechanically), or L4 when its rule was locked, is open.
 - **Whether a lock should name a person rather than accept any `--by`.** The script records who locked and who cleared; it cannot tell an agent from the user.
 - **Whether the activation cases pass,** and whether the core line raises reads.
 - **How much register machinery the `check` rigor needs** in practice.

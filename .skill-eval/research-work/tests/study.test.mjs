@@ -52,6 +52,8 @@ const judgeRecord = (overrides = {}) => {
     "Both orders": "passed",
     "Length control": "passed",
     Decoys: "passed",
+    Repeatability: "passed",
+    "Judge and graded": "different model",
     Result: "pass",
     ...overrides,
   };
@@ -234,6 +236,21 @@ test("a judge record lets its verdicts count only when it passes, and a claim re
   assert.ok(inconsistent.problems.some((problem) => problem.includes("lower bound 0.71 is below the required 0.8")));
   assert.ok(
     judgeCounts(judgeRecord({ Decoys: "not run" })).problems.some((problem) => problem.includes('Decoys is "not run"')),
+  );
+  // The same model may judge itself only when the record says why no other was available.
+  assert.equal(
+    judgeCounts(judgeRecord({ "Judge and graded": "same model: one subscription, one model" })).counts,
+    true,
+  );
+  assert.ok(
+    judgeCounts(judgeRecord({ "Judge and graded": "same model" })).problems.some((problem) =>
+      problem.includes("Judge and graded must be"),
+    ),
+  );
+  assert.ok(
+    judgeCounts(judgeRecord({ Repeatability: "failed" })).problems.some((problem) =>
+      problem.includes('Repeatability is "failed"'),
+    ),
   );
   const folder = mkdtempSync(join(tmpdir(), "research-judge-"));
   writeFileSync(join(folder, "judge-ok.md"), judgeRecord());

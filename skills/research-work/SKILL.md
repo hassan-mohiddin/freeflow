@@ -48,9 +48,9 @@ Every claim gets one level. The level carries the uncertainty, so the report sta
 | --- | --- | --- | --- |
 | L0 | Proposed | A hypothesis or a design, with no evidence yet | "we propose" |
 | L1 | Reported | Someone claims it; not checked here | "X reports" |
-| L2 | Checked | Checked against the primary source or mechanically: the paper opened, the code read at a pinned commit, a test run | a plain statement of the fact |
+| L2 | Checked | Checked against the primary source or mechanically: the paper opened, the code read at a pinned commit, a test run, a value computed exactly under a stated model | a plain statement of the fact |
 | L3 | Observed | Seen in use, an uncontrolled observation, or one case | "we observed, in …" |
-| L4 | Compared | A controlled comparison at a stated boundary, its decision rule fixed before the data | "raises", "causes", on that boundary |
+| L4 | Compared | A controlled comparison at a stated boundary, its decision rule fixed before the data; computed values compared under a locked rule count | "raises", "causes", on that boundary |
 | L5 | Replicated | Holds across independent models, tasks, hosts, groups or sources | a general statement, with its range |
 
 - How a source was checked caps the claim: a source known only from a summary, an abstract or memory supports at most L1, whatever study stands behind it.

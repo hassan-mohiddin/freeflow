@@ -51,13 +51,14 @@ The record holds:
 - **Both answer orders**, for a judge comparing two outputs: run each pair both ways, and treat an answer that flips with the order as no answer.
 - **Length control**: judges favor longer answers. Include gold items where the right answer is the shorter one.
 - **Decoys** the judge must pass: outputs that look right and are wrong, and the reverse.
+- **Repeatability**: the judge, run again on the gold set, agrees with its own first answers.
+- **Which model judged which**: a different model from the one graded by default, from another family when you can; the same model only when no other is available (one subscription, one model), with the reason written in the record.
 - **The rubric's hash**: the record holds for that rubric only. A changed rubric needs a new record.
 
 In use:
 
 - Check first and judge only what a check cannot answer.
 - Make each question answerable from the material in front of the judge, with the expected answer in a reference only the judge sees.
-- Prefer a judge from another model family than the subject's, and record the relation either way.
 - The judged output is untrusted input to the judge. A subject that writes to its grader is gaming the measure, whatever the judge answers. Revising something until a judge's scores rise can raise scores without raising quality: hand-check judged gains before relying on them.
 - Before counting, hand-check a sample of decisive answers against the evidence, and report how many were right.
 

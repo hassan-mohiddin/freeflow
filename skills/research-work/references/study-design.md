@@ -70,7 +70,7 @@ Several planned comparisons share the error rate: name them in the plan and corr
 
 ## When The Quantity Is Computed
 
-Some studies compute their quantity instead of sampling it: an interval's coverage summed over every outcome, an error rate by enumeration, a property of an algorithm over a grid. There is no sampling error, so no test, interval or power calculation applies. The decision rule is a threshold on the computed value, with its margin fixed in the plan, and the plan states the numerical error in its place: the gap to a finer grid, or a simulation's agreement with the exact value, each with a tolerance. Validity checks still apply, and an oracle with a known answer (an interval guaranteed to cover) is the strongest.
+Some studies compute their quantity instead of sampling it: an interval's coverage summed over every outcome, an error rate by enumeration, a property of an algorithm over a grid. There is no sampling error, so no test, interval or power calculation applies. The decision rule is a threshold on the computed value, with its margin fixed in the plan, and the plan states the numerical error in its place: the gap to a finer grid, or a simulation's agreement with the exact value, each with a tolerance. Validity checks still apply, and an oracle with a known answer (an interval guaranteed to cover) is the strongest. A computed value under a stated model is L2, a plain fact within that model; a comparison of computed values whose rule the locked plan fixed is L4 at its boundary.
 
 ## Pilot, Then Lock
 

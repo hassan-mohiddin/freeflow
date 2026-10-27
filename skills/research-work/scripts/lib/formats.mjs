@@ -64,6 +64,8 @@ const JUDGE_FIELDS = [
   "Both orders",
   "Length control",
   "Decoys",
+  "Repeatability",
+  "Judge and graded",
   "Result",
 ];
 
@@ -104,6 +106,8 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
       "> **Both orders:** <passed, failed or not run>",
       "> **Length control:** <passed, failed or not run>",
       "> **Decoys:** <passed, failed or not run>",
+      "> **Repeatability:** <passed, failed or not run: the judge's agreement with itself on a rerun>",
+      "> **Judge and graded:** <different family, different model, or same model: why no other was available>",
       "> **Result:** <pass or fail>",
     );
   }
@@ -342,6 +346,11 @@ function validatePlan(parsed, problems) {
   if (!parsed.sections.has("Amendments")) problems.push('missing section "## Amendments" ("none" until the first)');
 }
 
+/** The controls a passing judge validation record has all passed. */
+const CONTROLS = ["Both orders", "Length control", "Decoys", "Repeatability"];
+/** How the judge relates to the model it grades: a different model by default, the same one only with a reason. */
+const JUDGE_RELATION = /^(different family|different model|same model: \S.*)$/;
+
 const interval = (text) => {
   const match = /\[\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)\s*\]/.exec(text ?? "");
   return match ? { low: Number(match[1]), high: Number(match[2]) } : null;
@@ -363,15 +372,19 @@ function validateJudge(parsed, problems) {
   const required = Number(field["Required lower bound"]);
   if (field["Required lower bound"] && !(required >= 0 && required <= 1))
     problems.push("Required lower bound must be a number from 0 to 1");
-  for (const name of ["Both orders", "Length control", "Decoys"]) {
+  for (const name of CONTROLS) {
     if (field[name] && !CONTROL_RESULTS.includes(field[name]))
       problems.push(`${name} must be one of: ${CONTROL_RESULTS.join(", ")}`);
   }
+  if (field["Judge and graded"] && !JUDGE_RELATION.test(field["Judge and graded"]))
+    problems.push(
+      'Judge and graded must be "different family", "different model", or "same model: <why no other model was available>"',
+    );
   if (field.Result && !["pass", "fail"].includes(field.Result)) problems.push('Result must be "pass" or "fail"');
   if (field.Result === "pass") {
     if (bounds && bounds.low < required)
       problems.push(`Result is pass, but the interval's lower bound ${bounds.low} is below the required ${required}`);
-    for (const name of ["Both orders", "Length control", "Decoys"]) {
+    for (const name of CONTROLS) {
       if (field[name] && field[name] !== "passed") problems.push(`Result is pass, but ${name} is "${field[name]}"`);
     }
   }
