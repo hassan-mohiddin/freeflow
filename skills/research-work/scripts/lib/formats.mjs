@@ -220,7 +220,9 @@ export function parseTable(lines) {
   return { columns, rows, separator: lines[start + 1] ?? "" };
 }
 
-const placeholder = (text) => /<[^>]+>/.test(text);
+// A placeholder is angle brackets around words, as the skeletons write them ("<what the work covers>"); a comparison
+// such as "x < 3 and y > 2" or "p<0.05" is not one.
+const placeholder = (text) => /(?<![\w<])<[A-Za-z][^<>\n]*[^\s<>]>/.test(text);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Validation

@@ -24,7 +24,7 @@ Every Markdown artifact starts with a title, `# <Type>: <title>`, and a header w
 ```
 
 - **Status** is one of `Draft`, `Reviewed`, `Accepted`, `Rejected`, `Superseded`, `Retired`. `Accepted` needs a **Source** naming where the owner accepted it.
-- Text in angle brackets is a placeholder; validation refuses an artifact that still has one.
+- Words in angle brackets, as the skeletons write them (`<what the work covers>`), are a placeholder; validation refuses an artifact that still has one. A comparison such as `x < 3` is not a placeholder.
 
 ## Research Brief
 
@@ -109,7 +109,7 @@ Written at Design, before the first run that counts; `init study-plan --rigor <r
 | `## Planned runs` | One table: `Unit`, `Arm`, `Trials` (a whole number of at least 1), one row per unit and arm |
 | `## Amendments` | `none`, then one line per amendment, written by `study.mjs amend` |
 
-`study.mjs lock` writes `<plan>.lock.json` beside the plan: the plan's sha256 (over everything but `## Amendments`), who locked it and when, and its hypotheses; each amendment adds an entry with its hash, who, when, why, and the confirmatory hypotheses it changed after study runs existed. Never edit the lock by hand.
+`study.mjs lock` writes `<plan>.lock.json` beside the plan: the plan's sha256 (over everything but `## Amendments`), `by` (who agreed, their words and the date, and who ran the lock when that was someone else), when, and its hypotheses; each amendment adds an entry with its hash, who, when, why, and the confirmatory hypotheses it changed after study runs existed. Never edit the lock by hand.
 
 ## Run Ledger
 

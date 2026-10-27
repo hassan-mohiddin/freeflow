@@ -312,3 +312,30 @@ test("both ledgers are hash-chained, and check reports an edited line", () => {
   assert.equal(edited.status, 1);
   assert.match(edited.stdout, /run ledger: the hash chain breaks at line 2/);
 });
+
+test("an inequality is not a placeholder, and a placeholder still is", () => {
+  const { plan } = studyFolder();
+  const text = readFileSync(plan, "utf8");
+  const withMath = text.replace(
+    "## 1. The claim\n\nAnswered before any data.",
+    "## 1. The claim\n\nCoverage is x < 0.95 when n < 40 and p<0.05, and y > 2.",
+  );
+  assert.deepEqual(validate("study-plan", withMath).problems, []);
+  const withPlaceholder = text.replace(
+    "## 1. The claim\n\nAnswered before any data.",
+    "## 1. The claim\n\n<the claim>",
+  );
+  assert.ok(validate("study-plan", withPlaceholder).problems.some((problem) => problem.includes("placeholder")));
+});
+
+test("check refuses a result file edited after the receipt that wrote it", () => {
+  const { folder, plan } = studyFolder();
+  study("lock", plan, "--by", "Hassan");
+  const result = join(folder, "result.json");
+  const write = (value) => [process.execPath, "-e", `require('fs').writeFileSync(process.argv[1], '${value}')`, result];
+  study("run", plan, "--unit", "t1", "--arm", "a", "--output", result, "--", ...write("1"));
+  study("run", plan, "--unit", "t1", "--arm", "b", "--output", result, "--", ...write("2"));
+  assert.equal(study("check", plan).status, 0, study("check", plan).stdout);
+  writeFileSync(result, "3");
+  assert.match(study("check", plan).stdout, /result\.json changed after R2 wrote it/);
+});

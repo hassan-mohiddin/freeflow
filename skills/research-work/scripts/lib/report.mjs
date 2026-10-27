@@ -82,12 +82,18 @@ export function numbersIn(line) {
   return numbers;
 }
 
-/** A number written for matching: thousands separators removed, a minus sign made plain, a trailing dot dropped. */
+/**
+ * A number written for matching: thousands separators removed, a minus sign made plain, a trailing dot or comma
+ * dropped, and the value written in its shortest form, so 0.9510 matches 0.951 and 1,200 matches 1200.
+ */
 export function normalizeNumber(token) {
-  return token
+  const plain = token
     .replace(/−/g, "-")
     .replace(/,(?=\d{3}\b)/g, "")
-    .replace(/\.$/, "");
+    .replace(/[.,]$/, "");
+  const percent = plain.endsWith("%");
+  const value = Number(percent ? plain.slice(0, -1) : plain);
+  return Number.isFinite(value) ? `${value}${percent ? "%" : ""}` : plain;
 }
 
 /**

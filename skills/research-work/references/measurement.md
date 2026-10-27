@@ -10,6 +10,8 @@ A measure is a proxy for the thing the claim is about. Before reading any result
 
 - **An oracle scores full.** The reference solution, a gold answer, or a known-good run passes every check.
 - **A do-nothing arm scores near zero.** An empty answer, a constant output, or an agent that does nothing fails. A measure a do-nothing arm passes is measuring the task's leniency.
+- **A measure a trivial answer maxes out needs its cost beside it.** An interval covering everything has full coverage, and a reviewer that flags everything finds every defect: report coverage with width, detection with false rejection, and include the trivial answer as a control.
+- **Stable under refinement.** A result computed on a grid or by simulation should not move on a finer grid or with more draws: check it at a tolerance fixed in the plan.
 - **Controls where the right answer is no.** A check that stands in for a meaning (a regex, "the answer names the right file and line") needs runs where the meaning is absent. In one review study, a check that a review named the seeded line "found" the seed in 30% to 46% of reviews of the clean version, because seeds sit where reviewers comment anyway. A check that fires on its controls cannot measure detection: use it as a filter, or ask a validated judge.
 
 ## Make Tasks Fair

@@ -42,6 +42,7 @@ Write the report in Write Docs' [Research](../../write-docs/references/spec-and-
 - **Answer first,** in plain words, with its level.
 - **Each finding cites its claim IDs** (`C3, C4`) and states the claim at its level: L2 as a plain fact, L3 as "we observed", L1 as "X reports". The level replaces hedging; do not attach a qualifier to every sentence.
 - **Strength once.** When every finding has the same level, say so once in the Answer. Otherwise give each finding its level where the finding is stated, and nowhere else.
+- **Process facts are not claims.** Which checks passed, the deviations and who cleared them, how the plan was locked: these go in Method and Limits, citing the claims they bear on, not in the register.
 - **Limits in one place.** Collect the register's limits, the conflicts, what was out of scope and what was not followed into Limits. A limit stated once is honest; the same limit repeated in every section hides the answer.
 - **Every number from the register.** Copy numbers from the Numbers column; never retype one from memory. Then run `claims.mjs trace`.
 - **Recommendations are proposals** for the reader, who decides.

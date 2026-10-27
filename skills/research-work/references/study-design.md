@@ -15,7 +15,7 @@ The study plan is the answers to these questions, written before the first run t
 | 3 | **The prediction** | The primary metric, named now; the smallest effect worth detecting and the power to detect it; the result that counts as failure |
 | 4 | **Compared to what** | How it is done today; the baseline and a trivial baseline (a do-nothing agent, a constant answer); the tuning and compute each arm gets |
 | 5 | **The unit and the count** | What one observation is; where its variation comes from (tasks, runs, prompts, seeds); how many; what fixed the number; the stopping rule |
-| 6 | **Validity** | Why the measure tracks the claim: an oracle scores full and a do-nothing arm near zero before any result is read; a judge has its validation record ([measurement](measurement.md)) |
+| 6 | **Validity** | Why the measure tracks the claim: an oracle scores full and a do-nothing arm near zero before any result is read; a judge has its validation record ([measurement](measurement.md)). For each check, its tolerance and one rule for what its failure does: stop, or make named verdicts undecided |
 | 7 | **Reliability** | The noise floor, measured on a frozen pilot; seeds and other randomness controls |
 | 8 | **Raw outputs first** | Which raw outputs you will read before computing any metric |
 | 9 | **Rival explanations** | For each, the check that separates it from the claim; the analysis path itself is one |
@@ -68,9 +68,13 @@ Several planned comparisons share the error rate: name them in the plan and corr
 - **Keep the subject's settings.** Lowering temperature or effort to cut variance changes the subject; do it only when that setting is the question.
 - **Fix the count before the run.** Adding trials or items until a result looks right is selection. A sequential or adaptive schedule is valid only when the plan declares it, rule and maximum included.
 
+## When The Quantity Is Computed
+
+Some studies compute their quantity instead of sampling it: an interval's coverage summed over every outcome, an error rate by enumeration, a property of an algorithm over a grid. There is no sampling error, so no test, interval or power calculation applies. The decision rule is a threshold on the computed value, with its margin fixed in the plan, and the plan states the numerical error in its place: the gap to a finer grid, or a simulation's agreement with the exact value, each with a tolerance. Validity checks still apply, and an oracle with a known answer (an interval guaranteed to cover) is the strongest.
+
 ## Pilot, Then Lock
 
-A pilot checks that the instrument works: the oracle scores full, the do-nothing arm scores near zero, the outputs can be read, and the cost per run is known. Run it before the lock; its receipts are marked as before the lock and are not evidence for the claim. Use it to measure the noise floor (Measure The Noise Floor, below) and to size the study, never to choose the hypothesis it then confirms.
+A pilot checks that the instrument works: the oracle scores full, the do-nothing arm scores near zero, the outputs can be read, and the cost per run is known. A pilot check covers the units the study will judge, or the plan says which it covered and what that leaves untested. Run it before the lock; its receipts are marked as before the lock and are not evidence for the claim. Use it to measure the noise floor (Measure The Noise Floor, below) and to size the study, never to choose the hypothesis it then confirms.
 
 Lock the plan when the twelve answers are written and the user has agreed them: the lock is the user's decision at `study` and `publication` rigor, recorded as a decision Checkpoint through [Track Work](../../track-work/SKILL.md), and `study.mjs lock --by` names who locked it ([running](running.md)).
 

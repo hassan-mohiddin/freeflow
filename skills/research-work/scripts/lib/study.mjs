@@ -320,6 +320,20 @@ export function manifest(planPath) {
 }
 
 /**
+ * Outputs whose file no longer matches the last receipt that recorded it: a result edited by hand, or overwritten by
+ * a command that ran without a receipt. A file a later receipt rewrote is checked against that later receipt.
+ */
+export function changedOutputs(planPath) {
+  const folder = dirname(resolve(planPath));
+  const last = new Map();
+  for (const receipt of readLedger(runLedgerPath(planPath)))
+    for (const output of receipt.outputs ?? []) last.set(output.path, { receipt: receipt.id, sha256: output.sha256 });
+  return [...last.entries()]
+    .filter(([path, recorded]) => recorded.sha256 !== null && fileHash(resolve(folder, path)) !== recorded.sha256)
+    .map(([path, recorded]) => ({ path, receipt: recorded.receipt }));
+}
+
+/**
  * Whether the analysis may run: the plan validates and is locked as it stands, no deviation is uncleared, and every
  * planned trial has a receipt or a cleared deviation covering its unit.
  */
@@ -340,6 +354,10 @@ export function checkStudy(planPath) {
       );
   }
   for (const id of view.unplanned) problems.push(`${id} ran a unit and arm the plan does not list`);
+  for (const changed of changedOutputs(planPath))
+    problems.push(
+      `${changed.path} changed after ${changed.receipt} wrote it; rewrite a result only through a new receipt, or give it a new name`,
+    );
   for (const [name, path] of [
     ["run ledger", runLedgerPath(planPath)],
     ["deviation log", deviationLogPath(planPath)],
