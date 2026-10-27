@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `.skill-eval/freeflow-vs-plain/`, `.skill-eval/freeflow-routing/`, `.skill-eval/freeflow-tool-use/`, `scripts/validation/check-eval-definitions.mjs`, `skills/research-work/scripts/lib/stats.mjs`
 > **Tests:** `.skill-eval/evaluate-behavior/tests/`, `.skill-eval/verify-work/tests/`
-> **Verified at:** `4fccc51f` (2026-10-27)
+> **Verified at:** `bb043333` (2026-10-27)
 
 For contributors changing how Freeflow reviews work, evaluates agent behavior, or verifies claims: what each part does, how they depend on each other, why they are shaped this way, and which of their behaviors are deliberate. It also covers the evaluator's code, the evidence it stores, and the contributor gate that measures Freeflow's own changes.
 
@@ -83,7 +83,7 @@ Review Work is one skill for every kind of review (ADR 0013). Its core holds the
 6. **Adjudication** by the receiver disposes each finding as Accepted, Rejected or Open, from the actual state rather than the reviewer's verdict. A Rejected security finding goes to the user. One `Review` line per review records the round, reviewer, adjudicated judgment and the Accepted, Rejected and Open counts, so noise and rounds can be counted later.
 7. **Budget:** Review 1 broad; Review 2 focused, only when corrections or new evidence need it; Review 3 exceptional and final. Never Review 4. Never repeat a review merely to obtain Pass. Rounds 2 and 3 are briefed with the previous report, its adjudication and the diff since the previous review's reviewed state, never repeat a finding already Accepted, Rejected or fixed, and name a defect's class and where else it occurs. If Review 3 remains Blocking, the builder rethinks the approach.
 
-The judge contract (`evals-and-judges.md`, Judge Contract) is binding for every judge use: record identity (model, provider, family, thinking, prompt hash, date, anything loaded that changes what it is sent); independence and the family relation to the producer; what the judge saw and what was withheld; a verdict with evidence, where "unclear" is valid; order and a swap when comparing; the combining rule named before verdicts; calibration status. Rubric judges judge one output alone and blind, so no swap is needed; their combining rule is declared in the definition; calibration belongs to the judge configuration.
+The judge contract (`evals-and-judges.md`, Judge Contract) is binding for every judge use: record identity (model, provider, family, thinking, prompt hash, date, anything loaded that changes what it is sent); independence and the model relation to the producer (a different model by default, another family optional, the same model only with the reason); what the judge saw and what was withheld; a verdict with evidence, where "unclear" is valid; order and a swap when comparing; the combining rule named before verdicts; calibration, which means a passing judge validation record in Research Work's format (agreement with known answers, both orders, length control, decoys, repeatability), and otherwise the verdict is advisory. What a judge needs before its answers count is Research Work's (`measurement.md`, Judges); the contract records each use. Rubric judges judge one output alone and blind, so no swap is needed; their combining rule is declared in the definition; calibration belongs to the judge configuration.
 
 ### Evaluation: one run, step by step
 
