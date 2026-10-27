@@ -415,3 +415,38 @@ test("a receipt records a path outside its folder as absolute, and a figure carr
   const svg = drawFigure({ ...SPEC, title: "Coverage", description: "Wald below Wilson" }, join(dir, "spec.json")).svg;
   assert.match(svg, /<title>Coverage<\/title>\n<desc>Wald below Wilson<\/desc>/);
 });
+
+test("each list item is its own block, and a CSV row with the wrong field count is refused", () => {
+  const draft = "## Limits\n\n- One trial.\n- One model,\n  one benchmark.\n- Labels not re-run.\n";
+  const manifest = anchor(draft, "paper.md");
+  assert.deepEqual(
+    manifest.blocks.map((block) => [block.id, block.start, block.end]),
+    [
+      ["B1", 1, 1],
+      ["B2", 3, 3],
+      ["B3", 4, 5],
+      ["B4", 6, 6],
+    ],
+  );
+  const { text } = applyPatch(draft, manifest, {
+    changes: [
+      { block: "B2", finding: "R8:4", op: "replace", text: "- One trial; a second changed 2 of 10 verdicts." },
+      { block: "B3", finding: "R8:6", op: "insert-after", text: "- Cost is an estimate." },
+    ],
+  });
+  assert.equal(
+    text,
+    "## Limits\n\n- One trial; a second changed 2 of 10 verdicts.\n- One model,\n  one benchmark.\n- Cost is an estimate.\n- Labels not re-run.\n",
+  );
+  const dir = folder();
+  writeFileSync(join(dir, "data.csv"), "label,n,y\nall, decided,10,0.5\n");
+  writeFileSync(join(dir, "spec.json"), "{}");
+  assert.throws(
+    () =>
+      drawFigure(
+        { type: "bar", data: "data.csv", series: [{ label: "a", x: "label", y: "y" }] },
+        join(dir, "spec.json"),
+      ),
+    /row 2 has 4 fields, the header 3/,
+  );
+});

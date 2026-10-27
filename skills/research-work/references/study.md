@@ -135,6 +135,7 @@ Run each command that produces data through `study.mjs run`, with its unit, arm 
 - **Blocked is not zero.** A run that produced no score stays missing in the analysis; never impute a value for it, and say how many there were.
 - **Derived steps get receipts too, without a unit:** combining per-unit outputs, the validity checks that read study outputs, the verdicts. The order is the planned runs, then the validity checks on their outputs, then the verdicts; a verdict computed before its validity check is read before the measure is known to work.
 - **One command, one receipt.** A script that runs every arm in one process hides which arm failed. Run per unit and arm when the plan's units are what the analysis counts.
+- **Read what a model arm actually received.** When agents are the arms, read the first turns of one transcript per batch, pilots included, before counting anything: an orchestration tool can add its own text to what a worker receives, such as the user's latest message framed as instructions, and a batch started at another moment can receive different text. Text the locked prompts do not hold is a difference in inputs; log it as a deviation for the user, even when both arms received it.
 
 ### Keep Raw Data Immutable
 

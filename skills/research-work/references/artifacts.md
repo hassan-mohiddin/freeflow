@@ -218,10 +218,10 @@ The output is the same bytes for the same spec and data. Colors follow Okabe and
 
 ## Revision Patch
 
-`paper.mjs anchor <draft.md>` writes `<draft>.blocks.json`: the draft's sha256 and its blocks (runs of non-blank lines, a fenced code block kept whole), each with an ID `B1`, `B2`…, its lines, sha256 and first words. A patch is JSON:
+`paper.mjs anchor <draft.md>` writes `<draft>.blocks.json`: the draft's sha256 and its blocks (runs of non-blank lines, each top-level list item its own block, a fenced code block kept whole), each with an ID `B1`, `B2`…, its lines, sha256 and first words. A patch is JSON:
 
 ```json
 { "changes": [{ "block": "B12", "finding": "R7:3", "op": "replace", "text": "The revised paragraph." }] }
 ```
 
-`op` is `replace`, `delete` or `insert-after`; `finding` names the review finding the change answers. `paper.mjs apply` refuses a draft that changed since it was anchored, a block the manifest lacks, a change without a finding, and two edits of one block; it writes the revised draft and `<revised>.apply.json`, the base and result hashes and each change with its finding.
+`op` is `replace`, `delete` or `insert-after`; `finding` names the review finding the change answers, as the review report numbers it (`R7:3`); apply checks only that one is named. `paper.mjs apply` refuses a draft that changed since it was anchored, a block the manifest lacks, a change without a finding, and two edits of one block; it writes the revised draft and `<revised>.apply.json`, the base and result hashes and each change with its finding.

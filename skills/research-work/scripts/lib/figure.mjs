@@ -41,7 +41,13 @@ export function loadRows(file, path) {
   if (extension === ".csv") {
     const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
     const header = csvFields(lines[0] ?? "");
-    rows = lines.slice(1).map((line) => Object.fromEntries(csvFields(line).map((value, at) => [header[at], value])));
+    rows = lines.slice(1).map((line, at) => {
+      const fields = csvFields(line);
+      // A row with more or fewer fields than the header would shift its values into the wrong columns.
+      if (fields.length !== header.length)
+        throw new Error(`${file} row ${at + 2} has ${fields.length} fields, the header ${header.length}`);
+      return Object.fromEntries(fields.map((value, index) => [header[index], value]));
+    });
   } else if (extension === ".jsonl") {
     rows = text
       .split("\n")

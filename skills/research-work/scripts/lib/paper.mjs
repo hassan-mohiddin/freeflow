@@ -251,7 +251,12 @@ export function stripIds(text) {
 // ---------------------------------------------------------------------------------------------------------------
 // Revision by patch
 
-/** The draft's blocks: runs of non-blank lines, a fenced code block kept whole. Lines are 1-based. */
+/**
+ * The draft's blocks: runs of non-blank lines, each top-level list item its own block (with its continuation lines),
+ * and a fenced code block kept whole. Lines are 1-based.
+ */
+const LIST_ITEM = /^(?:[-*+]|\d+[.)])\s/;
+
 export function blocks(text) {
   const lines = text.split("\n");
   const found = [];
@@ -272,11 +277,16 @@ export function blocks(text) {
       if (start !== null) found.push([start, index - 1]);
       start = null;
     } else if (start === null) start = index;
+    else if (LIST_ITEM.test(line)) {
+      found.push([start, index - 1]);
+      start = index;
+    }
   }
   if (start !== null) found.push([start, lines.length - 1]);
   return found.map(([from, to], at) => {
     const body = lines.slice(from, to + 1).join("\n");
-    return { id: `B${at + 1}`, start: from + 1, end: to + 1, sha256: sha256(body), first: body.slice(0, 60) };
+    const block = { id: `B${at + 1}`, start: from + 1, end: to + 1, sha256: sha256(body), first: body.slice(0, 60) };
+    return LIST_ITEM.test(lines[from]) ? { ...block, item: true } : block;
   });
 }
 
@@ -318,7 +328,8 @@ export function applyPatch(text, manifest, patch) {
   for (const change of ordered) {
     const block = byId.get(change.block);
     const replacement = change.op === "delete" ? [] : change.text.replace(/\n+$/, "").split("\n");
-    if (change.op === "insert-after") lines.splice(block.end, 0, "", ...replacement);
+    // After a list item, the new item follows directly, so the list stays one list.
+    if (change.op === "insert-after") lines.splice(block.end, 0, ...(block.item ? [] : [""]), ...replacement);
     else if (change.op === "replace") lines.splice(block.start - 1, block.end - block.start + 1, ...replacement);
     else {
       const blankAfter = lines[block.end] !== undefined && lines[block.end].trim() === "" ? 1 : 0;
