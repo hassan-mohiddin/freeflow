@@ -309,7 +309,7 @@ Reference the decision from dependent artifacts instead of copying its full rati
 
 ## Research
 
-Use when a question must be answered with evidence for someone who will act on the answer: a comparison of options, a literature or source review, a check of what a tool or service actually does, or a synthesis of results. Header, status and source trail follow Write Docs' [Header, Status And Sources](../SKILL.md#header-status-and-sources), with Type `Research` and the date the evidence was gathered.
+Use when a question must be answered with evidence for someone who will act on the answer: a comparison of options, a check of what a tool or service actually does, or a synthesis of results. Header, status and source trail follow Write Docs' [Header, Status And Sources](../SKILL.md#header-status-and-sources), with Type `Research` and the date the evidence was gathered.
 
 When the findings need sources searched for and checked, or a measured comparison (an in-depth report, a survey or literature review, a study), do the research with [Research Work](../../research-work/SKILL.md), which writes its report in this shape.
 

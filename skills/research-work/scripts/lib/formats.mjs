@@ -106,7 +106,7 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
       "> **Agreement:** <agreement with the gold answers, 0 to 1>",
       "> **Interval:** <[low, high] and its method, from stats.mjs>",
       "> **Required lower bound:** <the lowest interval bound the study accepts, fixed before scoring>",
-      "> **Both orders:** <passed, failed or not run>",
+      "> **Both orders:** <passed, failed, not run, or not applicable when the judge rates one output at a time>",
       "> **Length control:** <passed, failed or not run>",
       "> **Decoys:** <passed, failed or not run>",
       "> **Repeatability:** <passed, failed or not run: the judge's agreement with itself on a rerun>",
@@ -357,6 +357,8 @@ function validatePlan(parsed, problems) {
 
 /** The controls a passing judge validation record has all passed. */
 const CONTROLS = ["Both orders", "Length control", "Decoys", "Repeatability"];
+/** Results each control accepts: a judge that rates one output at a time has no answer order to swap. */
+const controlResults = (name) => (name === "Both orders" ? [...CONTROL_RESULTS, "not applicable"] : CONTROL_RESULTS);
 /** How the judge relates to the model it grades: a different model by default, the same one only with a reason. */
 const JUDGE_RELATION = /^(different family|different model|same model: \S.*)$/;
 
@@ -382,8 +384,8 @@ function validateJudge(parsed, problems) {
   if (field["Required lower bound"] && !(required >= 0 && required <= 1))
     problems.push("Required lower bound must be a number from 0 to 1");
   for (const name of CONTROLS) {
-    if (field[name] && !CONTROL_RESULTS.includes(field[name]))
-      problems.push(`${name} must be one of: ${CONTROL_RESULTS.join(", ")}`);
+    if (field[name] && !controlResults(name).includes(field[name]))
+      problems.push(`${name} must be one of: ${controlResults(name).join(", ")}`);
   }
   if (field["Judge and graded"] && !JUDGE_RELATION.test(field["Judge and graded"]))
     problems.push(
@@ -394,7 +396,8 @@ function validateJudge(parsed, problems) {
     if (bounds && bounds.low < required)
       problems.push(`Result is pass, but the interval's lower bound ${bounds.low} is below the required ${required}`);
     for (const name of CONTROLS) {
-      if (field[name] && field[name] !== "passed") problems.push(`Result is pass, but ${name} is "${field[name]}"`);
+      if (field[name] && field[name] !== "passed" && field[name] !== "not applicable")
+        problems.push(`Result is pass, but ${name} is "${field[name]}"`);
     }
   }
 }

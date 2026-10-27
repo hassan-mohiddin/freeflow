@@ -132,11 +132,11 @@ One per judge configuration and rubric, made before any of the judge's answers c
 | Agreement | Its agreement with the gold answers, 0 to 1 |
 | Interval | `[low, high]` and the method, from `stats.mjs` |
 | Required lower bound | The lowest interval bound the study accepts, fixed before scoring |
-| Both orders, Length control, Decoys, Repeatability | `passed`, `failed` or `not run`; Repeatability is the judge's agreement with itself on a rerun |
+| Both orders, Length control, Decoys, Repeatability | `passed`, `failed` or `not run`; Both orders may also be `not applicable`, for a judge that rates one output at a time; Repeatability is the judge's agreement with itself on a rerun |
 | Judge and graded | `different family`, `different model`, or `same model: <why no other model was available>` |
 | Result | `pass` or `fail` |
 
-Result can be `pass` only when the interval's lower bound reaches the required bound and all four controls `passed`; validation refuses a record that says otherwise. A `## Notes` section says how the gold set was built and what the decoys were.
+Result can be `pass` only when the interval's lower bound reaches the required bound and all four controls `passed` (Both orders may be `not applicable`); validation refuses a record that says otherwise. A `## Notes` section says how the gold set was built and what the decoys were.
 
 ## Judge Answers
 

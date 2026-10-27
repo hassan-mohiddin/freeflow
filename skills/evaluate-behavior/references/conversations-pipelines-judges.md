@@ -88,7 +88,7 @@ In both protocols the arm's `usage` covers every participant, so `--max-cost` co
   - For an open-ended answer, list the key facts or claims a good answer must contain as separate dimensions, and put them in the references.
   - Put a short worked example of a yes and a no in the reference when the question leaves room for reading; examples make judges more consistent, though consistency alone is not accuracy.
   - Each judge answers every dimension in one reply, so answers to one dimension can colour another. Keep the rubric to the dimensions the question needs.
-- **Pitfalls:** design and measurement's [Count Judge Answers With Care](design-and-measurement.md#count-judge-answers-with-care) covers what to check first, the judge's family, calibration, agreement between judges, and what the judge sees. Pairwise `review` questions remain useful for an advisory side-by-side reading of the arms; they are not a measure.
+- **Pitfalls:** what to check first is in Research Work's [measurement](../../research-work/references/measurement.md#judges); design and measurement's [Count Judge Answers With Care](design-and-measurement.md#count-judge-answers-with-care) covers the judge's relation to the subject, calibration, agreement between judges, and what the judge sees. Pairwise `review` questions remain useful for an advisory side-by-side reading of the arms; they are not a measure.
 
 ## Rubric And Judges
 
