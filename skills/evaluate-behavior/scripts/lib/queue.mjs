@@ -11,10 +11,12 @@ export function createLimiter(limit) {
   if (!Number.isInteger(limit) || limit < 1) throw new Error("a limiter needs a positive integer limit");
   const waiting = [];
   const state = { limit, active: 0, peak: 0 };
+  // A freed slot passes straight to the next waiter, still counted as taken, so a start that arrives before the
+  // waiter resumes finds no free slot and queues behind it.
   const release = () => {
-    state.active -= 1;
     const next = waiting.shift();
     if (next) next();
+    else state.active -= 1;
   };
   return {
     get limit() {
@@ -28,8 +30,9 @@ export function createLimiter(limit) {
     },
     /** @template T @param {() => Promise<T>} work @returns {Promise<T>} */
     async run(work) {
+      // A waiter resumes holding the slot its predecessor handed over; only a start with a free slot takes one.
       if (state.active >= state.limit) await new Promise((resolve) => waiting.push(resolve));
-      state.active += 1;
+      else state.active += 1;
       state.peak = Math.max(state.peak, state.active);
       try {
         return await work();

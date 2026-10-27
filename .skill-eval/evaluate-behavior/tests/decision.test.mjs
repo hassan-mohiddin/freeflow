@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import {
   decide,
   decisionProblem,
+  renderClaim,
   signTest,
   validateDecision,
 } from "../../../skills/evaluate-behavior/scripts/lib/decision.mjs";
@@ -306,6 +307,18 @@ test("a run that is not complete adds no metric to a decision", async () => {
     assert.deepEqual([decision.better, decision.excluded], [5, 1]);
     assert.equal(groups[0].metrics.arms.candidate.durationMs.count, 0);
   });
+});
+
+test("a case with a very long list of values is decided without failing", () => {
+  // Far more values per arm than a function call takes as arguments.
+  const perTrial = [];
+  for (let index = 0; index < 300_000; index += 1) {
+    perTrial.push({ arm: "baseline", values: { durationMs: 200 + (index % 7) } });
+    perTrial.push({ arm: "candidate", values: { durationMs: 100 + (index % 5) } });
+  }
+  const rule = { ...RULE, measure: { metric: "durationMs" }, direction: "lower", min_cases: 1 };
+  const decision = decide(rule, [{ id: "long", trials: 300_000, metrics: { perTrial } }]);
+  assert.deepEqual([decision.better, decision.worse, decision.cases[0].sign], [1, 0, "better"]);
 });
 
 test("a judged measure is read from the judged section's perTrial values", () => {
@@ -695,6 +708,64 @@ test("an aggregate without a decision keeps the rate claim and rebuilds unchange
     });
     const before = await readFile(path.join(directory, "aggregate.json"), "utf8");
     await rebuildAggregate(directory, { root });
+    assert.equal(await readFile(path.join(directory, "aggregate.json"), "utf8"), before);
+  });
+});
+
+test("a decision cut short supports no verdict: its claim keeps the counts, with k the trials that completed", async () => {
+  await withTempDirectory(async (root) => {
+    const ids = ["c1", "c2", "c3", "c4", "c5", "c6"];
+    // Six cases the candidate wins: three full trials would make a verdict of "beats" (p = 0.03125).
+    const suite = await writeSuite(root, ids, { ...RULE, min_cases: 6 });
+    const { evaluate: scripted } = scriptedEvaluator(root, ids, () => ["fail", "pass"]);
+    const controller = new AbortController();
+    let invocations = 0;
+    // The second trial is stopped part way, so it is cancelled, and the third never starts.
+    const evaluate = async (...args) => {
+      const result = await scripted(...args);
+      invocations += 1;
+      if (invocations < 2) return result;
+      controller.abort();
+      const summary = { ...result.summary, state: "cancelled" };
+      await writeFile(path.join(result.path, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
+      return { ...result, state: "cancelled", summary };
+    };
+
+    const { path: directory, aggregate } = await runTrials(
+      suite,
+      { group: null, variant: null },
+      { root, trials: 3, maxCost: null, evaluate, signal: controller.signal },
+    );
+
+    assert.equal(aggregate.state, "cancelled");
+    assert.equal(aggregate.requestedTrials, 3);
+    assert.deepEqual(
+      aggregate.trials.map((trial) => trial.state),
+      ["complete", "cancelled"],
+    );
+    // The rule's own verdict over what ran is kept in the decision; the claim does not carry it.
+    assert.equal(aggregate.decision.verdict, "beats");
+    assert.deepEqual(aggregate.claim, {
+      class: "none",
+      reason: "cancelled",
+      k: 1,
+      ruleSha256: aggregate.decision.ruleSha256,
+      better: 6,
+      worse: 0,
+      ties: 0,
+      decided: 6,
+      excluded: 0,
+      p: 0.03125,
+    });
+    assert.equal(
+      renderClaim(aggregate)[0],
+      "Claim: none (cancelled); candidate against baseline on comparison target-read, higher is better",
+    );
+
+    // Rebuilding the aggregate reaches the same claim.
+    const before = await readFile(path.join(directory, "aggregate.json"), "utf8");
+    const rebuilt = await rebuildAggregate(directory, { root });
+    assert.deepEqual(rebuilt.claim, aggregate.claim);
     assert.equal(await readFile(path.join(directory, "aggregate.json"), "utf8"), before);
   });
 });

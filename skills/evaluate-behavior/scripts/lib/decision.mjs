@@ -226,8 +226,16 @@ function caseOutcome(group, rule) {
   const equal = Math.abs(difference) <= 1e-12 * scale;
   const sign = equal ? "equal" : difference > 0 ? "better" : "worse";
   // Undecided: a tie, or a difference smaller than one trial's worth (the observed range over the fewer values).
-  const all = [...found.arms[reference].values, ...found.arms[arm].values];
-  const worth = (Math.max(...all) - Math.min(...all)) / Math.min(summaries[reference].n, summaries[arm].n);
+  // A loop, not a spread: a spread fails once the values outgrow a call's argument limit.
+  let lowest = Infinity;
+  let highest = -Infinity;
+  for (const values of [found.arms[reference].values, found.arms[arm].values]) {
+    for (const value of values) {
+      if (value < lowest) lowest = value;
+      if (value > highest) highest = value;
+    }
+  }
+  const worth = (highest - lowest) / Math.min(summaries[reference].n, summaries[arm].n);
   return { ...outcome, sign, stable: !equal && Math.abs(raw) >= worth };
 }
 

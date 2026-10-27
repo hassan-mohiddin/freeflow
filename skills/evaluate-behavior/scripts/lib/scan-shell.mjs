@@ -193,14 +193,12 @@ export function expand(word, values) {
 }
 
 /**
- * Whether a host is this machine or the container's own network: loopback, `0.0.0.0`, `*.localhost`, or a name with
- * no dot (a container's service name, which a sealed run cannot resolve beyond its own network anyway).
+ * Whether a host is this machine: loopback, `0.0.0.0` or `*.localhost`. A name with no dot is external: it can name
+ * a container's service, but also a host on the user's network (`http://intranet`), so it is flagged for a person.
  */
 export function isInternalHost(host) {
   const name = host.toLowerCase().replace(/^\[|\]$/g, "");
-  if (name === "localhost" || name.endsWith(".localhost") || name === "0.0.0.0" || name === "::1") return true;
-  if (/^127(?:\.\d{1,3}){3}$/.test(name)) return true;
-  return !name.includes(".") && !name.includes(":");
+  return name === "0.0.0.0" || isLoopbackName(name);
 }
 
 const SCHEME_URL = /^([a-z][a-z0-9+.-]*):\/\/(?:[^@/?#\s]*@)?(\[[^\]]+\]|[^:/?#\s]+)/i;

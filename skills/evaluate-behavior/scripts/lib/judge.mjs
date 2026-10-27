@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
-import { cohenKappa, raterAgreement } from "./agreement.mjs";
+import { cohenKappa, linearWeightedKappa, raterAgreement } from "./agreement.mjs";
 import { DefinitionError, loadJudgeConfiguration } from "./definitions.mjs";
 import { sha256 } from "./evidence.mjs";
 import { registerAggregator } from "./hooks.mjs";
@@ -281,11 +281,12 @@ export function combineAnswers(answers, rule, scale) {
   if (known.length === 0) return "unknown";
   const complete = known.length === answers.length;
   if (rule === "unanimous") {
-    const lowest = Math.min(...known);
+    // Reduced, not spread: a spread fails once the list outgrows a call's argument limit.
+    const lowest = known.reduce((low, value) => (value < low ? value : low), Infinity);
     return complete || lowest === 0 ? asAnswer(lowest) : "unknown";
   }
   if (rule === "any") {
-    const highest = Math.max(...known);
+    const highest = known.reduce((high, value) => (value > high ? value : high), -Infinity);
     return complete || highest === top ? asAnswer(highest) : "unknown";
   }
   throw new Error(`unknown combining rule: ${rule}`);
@@ -392,7 +393,7 @@ export function judgedContractGaps(grade) {
 
 /**
  * Each judge configuration's agreement with hand labels, per dimension: the share of labelled answers it matched
- * and Cohen's kappa between it and the labels.
+ * and Cohen's kappa between it and the labels, plus, for a 0-2 dimension, linear-weighted kappa as `weighted`.
  *
  * @param {Array<{run: string, grade: any, labels: Record<string, unknown>}>} entries
  * @param {{file: string, sha256: string}} source
@@ -417,6 +418,7 @@ export function calibrationFromLabels(entries, source, checkedAt = new Date().to
         thinking: judge.thinking ?? null,
         runs: new Set(),
         pairs: new Map(),
+        scales: new Map(),
       };
       byConfiguration.set(judge.configuration, entry);
       entry.runs.add(run);
@@ -426,6 +428,7 @@ export function calibrationFromLabels(entries, source, checkedAt = new Date().to
         const pairs = entry.pairs.get(dimensionId) ?? [];
         pairs.push([answer, normalizeAnswer(label, scale)]);
         entry.pairs.set(dimensionId, pairs);
+        entry.scales.set(dimensionId, scale);
       }
     }
   }
@@ -437,6 +440,8 @@ export function calibrationFromLabels(entries, source, checkedAt = new Date().to
     for (const [dimensionId, pairs] of entry.pairs) {
       const { items: count, observed, kappa } = cohenKappa(pairs);
       dimensions[dimensionId] = { items: count, agreement: observed, kappa };
+      // Added beside the nominal kappa, which stays as it was, so earlier calibrations read the same.
+      if (entry.scales.get(dimensionId) === SCALE) dimensions[dimensionId].weighted = linearWeightedKappa(pairs);
       agreed += (observed ?? 0) * count;
       items += count;
     }
@@ -489,8 +494,8 @@ function perTrialValue(answer) {
 /**
  * The `judged` aggregator: per arm and dimension, counts of each combined answer over the group's trials (a trial
  * whose arm was not judged, or whose judging failed, counts as `notJudged`), pass^k for yes/no dimensions,
- * agreement between judges per dimension, and `perTrial` values for decision rules. Groups without a rubric get
- * no section.
+ * agreement between judges per dimension (with linear-weighted kappa as `weighted` for two judges on a 0-2
+ * dimension), and `perTrial` values for decision rules. Groups without a rubric get no section.
  */
 export async function judgedSection({ arms, trials }) {
   const directory = trials.find((trial) => typeof trial.directory === "string")?.directory;
@@ -581,7 +586,12 @@ export async function judgedSection({ arms, trials }) {
   const agreement = {};
   for (const dimension of rubric) {
     const measured = raterAgreement(units[dimension.id]);
-    if (measured !== null) agreement[dimension.id] = measured;
+    if (measured === null) continue;
+    // Two judges on 0-2 also get linear-weighted kappa beside the nominal one, which stays as it was.
+    if (measured.method === "cohen-kappa" && dimension.answers === SCALE) {
+      measured.weighted = linearWeightedKappa(units[dimension.id].map((unit) => [unit[0], unit[1]]));
+    }
+    agreement[dimension.id] = measured;
   }
   if (Object.keys(agreement).length > 0) output.agreement = agreement;
   output.contractGaps = [...gaps];

@@ -1,5 +1,6 @@
 // Agreement between raters on nominal answers: Cohen's kappa for two raters, Krippendorff's alpha for more.
 // Answers are compared as categories ("yes", "no", "unknown", 0, 1, 2); `null` or `undefined` is a missing answer.
+// For two raters on an ordered numeric scale (0-2), linear-weighted kappa is reported beside the nominal kappa.
 
 const missing = (value) => value === null || value === undefined;
 const key = (value) => JSON.stringify(value);
@@ -28,6 +29,38 @@ export function cohenKappa(pairs) {
   for (const [category, count] of first) expected += (count / items) * ((second.get(category) ?? 0) / items);
   const kappa = expected === 1 ? null : (observed - expected) / (1 - expected);
   return { method: "cohen-kappa", items, observed, expected, kappa };
+}
+
+/**
+ * Cohen's kappa with linear weights, for answers on an ordered numeric scale such as 0-2: a near miss counts as
+ * partial agreement, so 1 against 2 costs half of 0 against 2. Only pairs where both answers are numbers count
+ * ("unknown" has no place on the scale). With disagreement |a - b|, kappa = 1 - observed / expected, where expected
+ * pairs the two raters' answers at random from their own marginals (Cohen 1968, linear weights; the scale's width
+ * cancels). `kappa` is null when no disagreement is expected (each rater gave one value, the same one).
+ *
+ * @param {Array<[unknown, unknown]>} pairs
+ * @returns {{method: "linear-weighted-kappa", items: number, kappa: number | null}}
+ */
+export function linearWeightedKappa(pairs) {
+  const numeric = (value) => typeof value === "number" && Number.isFinite(value);
+  const rated = pairs.filter(([first, second]) => numeric(first) && numeric(second));
+  const items = rated.length;
+  if (items === 0) return { method: "linear-weighted-kappa", items, kappa: null };
+  const first = new Map();
+  const second = new Map();
+  let observed = 0;
+  for (const [left, right] of rated) {
+    observed += Math.abs(left - right);
+    first.set(left, (first.get(left) ?? 0) + 1);
+    second.set(right, (second.get(right) ?? 0) + 1);
+  }
+  let expected = 0;
+  for (const [left, leftCount] of first) {
+    for (const [right, rightCount] of second) expected += leftCount * rightCount * Math.abs(left - right);
+  }
+  // Both as means: observed over the items, expected over every pairing of the two marginals.
+  const kappa = expected === 0 ? null : 1 - observed / items / (expected / (items * items));
+  return { method: "linear-weighted-kappa", items, kappa };
 }
 
 /**

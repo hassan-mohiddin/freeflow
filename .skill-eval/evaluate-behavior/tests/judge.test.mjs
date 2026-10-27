@@ -310,6 +310,13 @@ test("combine rules: majority, unanimous, any and mean, with unknown counted aga
   assert.equal(combineAnswers(["yes"], "unanimous", yesNo), "yes");
 });
 
+test("unanimous and any combine a very long list of answers without failing", () => {
+  // Far more answers than a function call takes as arguments; one low and one high answer sit at the end.
+  const answers = [...Array(300_000).fill(1), 0, 2];
+  assert.equal(combineAnswers(answers, "unanimous", "0-2"), 0);
+  assert.equal(combineAnswers(answers, "any", "0-2"), 2);
+});
+
 // Rubric judging -----------------------------------------------------------------------------------------------
 
 test("the rubric never reaches the subject", async () => {
@@ -700,6 +707,12 @@ test("--calibrate scores each judge against hand labels and records it as that j
     assert.equal(haiku.calibration.runs, 2);
     assert.equal(haiku.calibration.agreement, 0.75);
     assert.deepEqual(haiku.calibration.dimensions["names-route"], { items: 2, agreement: 1, kappa: 1 });
+    // The 0-2 dimension also records linear-weighted kappa: 2 and 0 against labels 2 and 1, so observed
+    // disagreement 1/2 against 1 expected from the marginals, kappa 0.5, beside the nominal kappa of 1/3.
+    const clarity = haiku.calibration.dimensions.clarity;
+    assert.deepEqual([clarity.items, clarity.agreement], [2, 0.5]);
+    assert.ok(Math.abs(clarity.kappa - 1 / 3) < 1e-9);
+    assert.deepEqual(clarity.weighted, { method: "linear-weighted-kappa", items: 2, kappa: 0.5 });
     assert.equal(haiku.calibration.labels.file, "labels.json");
     // judge-two said unknown where the label says no: agreement 1/2, kappa 1/3.
     assert.equal(two.calibration.dimensions["names-route"].agreement, 0.5);
@@ -922,6 +935,53 @@ test("the judged aggregator counts an unjudged trial and gives no section to a g
       await judgedSection({ arms: ["baseline"], trials: [{ id: "t1", directory: groupDirectory }] }),
       undefined,
     );
+  });
+});
+
+test("two judges on a 0-2 dimension get linear-weighted kappa beside the unchanged nominal kappa", async () => {
+  await withTempDirectory(async (root) => {
+    const trials = [];
+    // Votes per run (judge one, judge two): clarity (2,2), (0,1), (1,2), (unknown,2); found always (yes,yes).
+    const votes = [
+      [2, 2],
+      [0, 1],
+      [1, 2],
+      ["unknown", 2],
+    ];
+    for (const [index, id] of ["t1", "t2"].entries()) {
+      const groupDirectory = path.join(root, `${id}/groups/g`);
+      await writeJson(path.join(groupDirectory, "definition.json"), {
+        id: "g",
+        rubric: [
+          { id: "clarity", question: "q", answers: "0-2" },
+          { id: "found", question: "q" },
+        ],
+      });
+      for (const [offset, arm] of ["baseline", "candidate"].entries()) {
+        const clarity = votes[index * 2 + offset];
+        await writeJson(path.join(groupDirectory, arm, "judged-grade.json"), {
+          state: "complete",
+          judges: [],
+          answers: [
+            { dimension: "clarity", answer: clarity[1], votes: clarity },
+            { dimension: "found", answer: "yes", votes: ["yes", "yes"] },
+          ],
+        });
+      }
+      trials.push({ id, directory: groupDirectory });
+    }
+
+    const section = await judgedSection({ arms: ["baseline", "candidate"], trials });
+
+    // Nominal kappa over all four runs, "unknown" a category of its own, as before.
+    const clarity = section.agreement.clarity;
+    assert.deepEqual([clarity.method, clarity.items, clarity.observed], ["cohen-kappa", 4, 0.25]);
+    // Linear weights over the three runs both judges scored: observed disagreement 2/3, expected 8/9, kappa 0.25.
+    assert.equal(clarity.weighted.method, "linear-weighted-kappa");
+    assert.equal(clarity.weighted.items, 3);
+    assert.ok(Math.abs(clarity.weighted.kappa - 0.25) < 1e-9, String(clarity.weighted.kappa));
+    // A yes/no dimension has no scale to weight.
+    assert.equal(Object.hasOwn(section.agreement.found, "weighted"), false);
   });
 });
 

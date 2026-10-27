@@ -197,6 +197,38 @@ test("a limiter never runs more than its limit and starts waiters in order", asy
   assert.equal(await withCpuSlot(async () => "cpu"), "cpu");
 });
 
+test("a start that arrives while a freed slot passes to a waiter waits its turn, so the limit holds", async () => {
+  const limiter = createLimiter(1);
+  const order = [];
+  let finishFirst;
+  const first = limiter.run(
+    () =>
+      new Promise((resolve) => {
+        order.push("start first");
+        finishFirst = resolve;
+      }),
+  );
+  const timed = (id) => async () => {
+    order.push(`start ${id} with ${limiter.active} running`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  };
+  const waiting = limiter.run(timed("waiting"));
+  await Promise.resolve();
+  // The first finishes; a new start is queued for after its slot is freed and before the waiter resumes, as a
+  // runner that awaits before each start can do.
+  finishFirst();
+  let late;
+  queueMicrotask(() => {
+    late = limiter.run(timed("late"));
+  });
+  await first;
+  await waiting;
+  await late;
+  assert.deepEqual(order, ["start first", "start waiting with 1 running", "start late with 1 running"]);
+  assert.equal(limiter.peak, 1);
+  assert.equal(limiter.active, 0);
+});
+
 test("--jobs 3 runs subjects across groups, arms and trials, never more than 3 at once", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installFakePi(root);
