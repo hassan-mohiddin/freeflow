@@ -38,7 +38,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Stop the affected writing when it would silently settle a user-owned choice, as [Discuss Work](../discuss-work/SKILL.md) defines it, or a hard-to-reverse design; never settle such a choice through normative prose, an unexplained assumption or a polished placeholder. Return the concrete effect and supported alternatives to the owner through Discuss Work.
 - Never rewrite source truth to suit implementation, let available tests redefine acceptance, or rewrite a historical decision as though it always contained the new choice.
 - Check each factual claim against its source (the code, its tests, an observed run, or the accepted source) before writing it as fact; state what you could not check as unverified, or leave it out. Never claim whole-system completion from a narrow observer.
-- Documentation says what is true now. Plans, task progress and open work belong in the task's record, Spec or Plan; history appears only as a short list of major changes.
+- Documentation says what is true now. Plans, task progress and open work belong in the task's record, Spec or Plan; history lives in git, and a decision cites the commit where it was made.
 - When your change makes a document wrong, correct it in the same change. Writing new documentation, or rewriting more than your change made wrong, needs a request or the repository's documentation rules.
 - Follow the repository's documentation rules (`AGENTS.md` or its equivalent): where documents live, which parts need the user's approval to change, and what is public.
 - Keep secrets, credentials, private task notes and personal data out of documents others can read.
@@ -134,7 +134,7 @@ Goal: a reader with only the document and the code can make a correct change, an
 - **Write invariants, including absences.** "Nothing outside `config.ts` reads the config file" or "the request path never reads session files" cannot be seen by reading any one file, so state it.
 - **Say what looks wrong but is intended.** For behavior a careful reader would take for a bug, state the behavior, the reason, and what would break if it changed.
 - **Keep explanation apart from reference.** Explanation (purpose, how it works, why) is read once to understand; reference (surface, state, invariants, code map, tests) is consulted while working. Put them in separate sections so a reader looking up a fact does not wade through reasoning.
-- **Prefer present-tense facts to narrative.** "Compaction runs at the end of a turn" rather than "We changed compaction so that it now runs at the end of a turn". History gets one short section of major changes, with commits.
+- **Prefer present-tense facts to narrative.** "Compaction runs at the end of a turn" rather than "We changed compaction so that it now runs at the end of a turn". History is in git, and the Decisions section cites the commit for each decision.
 
 Depth follows the reader's risk. A subsystem with many hidden reasons needs most of the shape; a small one may need only purpose, surface, and code map.
 

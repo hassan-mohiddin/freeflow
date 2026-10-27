@@ -56,9 +56,3 @@ None recorded before this record was started.
 - The near-miss rate under broad descriptions: reported as near zero, not yet recorded with its source.
 - Whether the gate needs cases for the trunk guidance and for keeping a design record. Neither is measured.
 - Whether delivery, steerability and causal share combine as a product when a skill changes success. It is a hypothesis from the Beyond the Weights research (`research/agent-success/theory-of-agent-success.md` in that repository), untested.
-
-## Changes
-
-- 2026-10-22: capability skills and a compact core, ADR 0014 (merges completed in `469af7f`).
-- 2026-10-24: broad descriptions and scripts in routing tables, `d3694df`.
-- 2026-10-27: why depth beats breadth, the light-body and route-from-the-body guidance, and design records; this record started.
