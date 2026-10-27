@@ -255,6 +255,14 @@ test("a judge record lets its verdicts count only when it passes, and a claim re
       problem.includes('Repeatability is "failed"'),
     ),
   );
+  // A judge that rates one output at a time has no answer order to swap: Both orders may be "not applicable", and
+  // only Both orders.
+  assert.equal(judgeCounts(judgeRecord({ "Both orders": "not applicable" })).counts, true);
+  assert.ok(
+    judgeCounts(judgeRecord({ Decoys: "not applicable" })).problems.some((problem) =>
+      problem.includes("Decoys must be one of"),
+    ),
+  );
   const folder = mkdtempSync(join(tmpdir(), "research-judge-"));
   writeFileSync(join(folder, "judge-ok.md"), judgeRecord());
   writeFileSync(join(folder, "judge-low.md"), judgeRecord({ Result: "fail" }));

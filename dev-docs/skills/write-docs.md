@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/write-docs/`
 > **Tests:** `.skill-eval/write-docs/`
-> **Verified at:** `bb043333` (2026-10-27)
+> **Verified at:** `18eee969` (2026-10-27)
 
 For anyone changing Write Docs: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/write-docs/SKILL.md); this record holds the reasons it does not.
 
