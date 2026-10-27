@@ -210,9 +210,15 @@ const tail = (buffer) => (buffer ?? Buffer.alloc(0)).subarray(-TAIL_BYTES).toStr
 
 /**
  * Run one command and append its receipt to a run ledger. Inputs are hashed before the run and outputs after it;
- * paths are recorded relative to `folder`. `fields` come first in the receipt: a study's unit, arm, trial and plan
+ * paths are recorded relative to `folder`, or absolute when outside it. `fields` come first in the receipt: a study's unit, arm, trial and plan
  * hash, or nothing for a paper's own runs. A non-zero exit is data; a command that could not start is recorded too.
  */
+/** A path as a receipt records it: relative to the ledger's folder when inside it, absolute when outside. */
+export function receiptPath(folder, absolute) {
+  const path = relative(folder, absolute);
+  return path === "" ? "." : path.startsWith("..") || isAbsolute(path) ? absolute : path;
+}
+
 export function recordRun(
   ledgerPath,
   folder,
@@ -220,7 +226,7 @@ export function recordRun(
   { inputs = [], outputs = [], cwd = process.cwd(), fields = {} } = {},
 ) {
   if (argv.length === 0) throw new Error("run needs a command after --");
-  const rel = (path) => relative(folder, resolve(cwd, path)) || ".";
+  const rel = (path) => receiptPath(folder, resolve(cwd, path));
   const receipt = {
     kind: "run",
     id: nextId(readLedger(ledgerPath), "R"),

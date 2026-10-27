@@ -212,7 +212,7 @@ The JSON that [figure](../scripts/figure.mjs) draws an SVG from: `node figure.mj
 | `data` | The data file, relative to the spec: a JSON array of rows (at the dotted path `rows` names inside the file, when given), JSONL, or CSV with a header row. Values typed into the spec are refused |
 | `series` | One entry per series: `label`, the `x` and `y` columns, optional `low` and `high` columns for an interval, optional `where` (column values a row must have) |
 | `x`, `y` | Optional `label`, `min` and `max` for each axis |
-| `title`, `reference`, `width`, `height` | Optional: a title; reference lines `[{ "y": 0.95, "label": "nominal" }]`; the size in pixels (640 by 400) |
+| `title`, `description`, `reference`, `width`, `height` | Optional: a title and a description, written into the SVG as its title and alternative text; reference lines `[{ "y": 0.95, "label": "nominal" }]`; the size in pixels (640 by 400) |
 
 The output is the same bytes for the same spec and data. Colors follow Okabe and Ito's palette, with a different marker per series.
 

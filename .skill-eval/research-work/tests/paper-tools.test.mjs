@@ -368,3 +368,50 @@ test("an outline's figure needs its file, and its receipt is R<n> or -", () => {
   );
   assert.ok(problems.some((problem) => problem.includes("Receipt is the run that drew the figure")));
 });
+
+test("draft-check counts the body without the abstract, keeps figures in order, and allows the paper's own words", () => {
+  const draft = `---
+title: P
+---
+
+# P
+
+## Abstract
+
+One two three four five.
+
+## Results
+
+Figure 2 comes first here, then Figure 1. The patch was applied in round two.
+
+## References
+`;
+  const result = draftCheck(draft, { limits: new Map([["total", 12]]), allow: new Set(["patch"]) });
+  assert.equal(result.words.total, 15);
+  assert.ok(result.problems.some((problem) => problem.kind === "over its word limit"));
+  assert.ok(result.problems.some((problem) => problem.value === "Figure 1 is first named after Figure 2"));
+  const notes = result.notes.map((note) => note.value);
+  assert.ok(notes.includes("round"));
+  assert.ok(!notes.includes("patch"), "an allowed process word is not listed");
+});
+
+test("a receipt records a path outside its folder as absolute, and a figure carries its title and description", () => {
+  const dir = figureFolder();
+  const outside = folder();
+  writeFileSync(join(outside, "input.txt"), "x\n");
+  const ran = node(
+    "paper.mjs",
+    "run",
+    "--ledger",
+    join(dir, "runs.jsonl"),
+    "--input",
+    join(outside, "input.txt"),
+    "--",
+    "true",
+  );
+  assert.equal(ran.status, 0, ran.stderr);
+  const receipt = JSON.parse(readFileSync(join(dir, "runs.jsonl"), "utf8").trim());
+  assert.equal(receipt.inputs[0].path, join(outside, "input.txt"));
+  const svg = drawFigure({ ...SPEC, title: "Coverage", description: "Wald below Wilson" }, join(dir, "spec.json")).svg;
+  assert.match(svg, /<title>Coverage<\/title>\n<desc>Wald below Wilson<\/desc>/);
+});

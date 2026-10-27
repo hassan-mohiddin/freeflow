@@ -46,7 +46,7 @@ The decision rule turns the data into a verdict, and it is written into the plan
 - the arms, the reference first;
 - the unit the test runs over, and how repeated trials of one unit combine (usually averaged per unit, since trials of one item are repeated draws of one question);
 - the test and its level, and the minimum number of decided units;
-- what each outcome licenses: the claim, its opposite, and "no difference shown".
+- what each outcome licenses: the claim, its opposite, "no difference shown", and "undecided" when fewer units are decided than the minimum. An undecided claim stays confirmatory in the register, its result stated as undecided at L2 (a computed status, not a comparison); it supports neither the claim nor "no difference".
 
 For paired pass or fail outcomes, the exact McNemar test on the discordant items (`stats.mjs paired mcnemar`); for paired scores, the paired difference with its interval, or a sign-flip permutation for few items. A rule written after seeing results is not a decision rule: amend the plan and the hypothesis it changes becomes exploratory, which `study.mjs amend` records and the register's validation enforces.
 

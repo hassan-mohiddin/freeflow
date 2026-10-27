@@ -259,6 +259,8 @@ export function drawFigure(spec, specPath) {
 
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="Helvetica, Arial, sans-serif" font-size="12">`,
+    ...(spec.title ? [`<title>${escape(spec.title)}</title>`] : []),
+    ...(spec.description ? [`<desc>${escape(spec.description)}</desc>`] : []),
     `<rect width="${width}" height="${height}" fill="#ffffff"/>`,
     ...parts,
     "</svg>",

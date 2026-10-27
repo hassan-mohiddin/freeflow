@@ -3,10 +3,10 @@
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { dirname, relative, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import { blankCode, numbersIn } from "./report.mjs";
-import { fileHash, readLedger } from "./study.mjs";
+import { fileHash, readLedger, receiptPath } from "./study.mjs";
 
 const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 
@@ -25,7 +25,7 @@ export function figureReceipts(outlinePath, runs) {
     receipts: new Map(readLedger(ledgerPath).map((receipt) => [receipt.id, receipt])),
     figureFile: (path) => {
       const absolute = resolve(folder, path);
-      return { path: relative(ledgerFolder, absolute), sha256: fileHash(absolute) };
+      return { path: receiptPath(ledgerFolder, absolute), sha256: fileHash(absolute) };
     },
   };
 }
@@ -37,7 +37,7 @@ export { sha256 };
 
 /** The draft's headings and the lines under each, by its level-2 (or level-1 when there is no level-2) sections. */
 export function sections(text) {
-  const lines = blankCode(text).split("\n");
+  const lines = withoutFrontMatter(blankCode(text)).split("\n");
   const found = [];
   let current = { name: null, level: 0, line: 1, lines: [] };
   lines.forEach((line, index) => {
@@ -50,6 +50,15 @@ export function sections(text) {
   found.push(current);
   return found.filter((section) => section.name !== null || section.lines.some((line) => line.text.trim() !== ""));
 }
+
+/** The text with a leading YAML front-matter block blanked, keeping its lines. */
+function withoutFrontMatter(text) {
+  const match = /^---\n[\s\S]*?\n(---|\.\.\.)\n/.exec(text);
+  return match ? text.replace(match[0], match[0].replace(/[^\n]/g, " ")) : text;
+}
+
+// Sections a venue's word limit usually leaves out of the body count.
+const NOT_BODY = /^(abstract|references|bibliography|acknowledg(e)?ments?)$/i;
 
 const words = (text) => (text.match(/[^\s|#>*_`-][^\s|]*/g) ?? []).length;
 
@@ -76,8 +85,10 @@ export const PROCESS_WORDS = [
 /**
  * Check a draft before review. Problems (which fail the check): an abstract number missing from the body, a citation
  * `[@S<n>]` not in the source ledger, a "Figure N" or "Table N" the outline lacks or an outline figure the draft never
- * names, a "Section X" that names no heading, and a section over its word limit. Notes (listed, never failing):
- * acronyms used before their definition or never defined, and process words.
+ * names, figures or tables numbered out of the order the text first names them, a "Section X" that names no heading,
+ * and a section over its word limit ("total" counts the level-2 sections other than the abstract, references and
+ * acknowledgements). Notes (listed, never failing): acronyms used before their definition or never defined, and
+ * process words; `allow` silences an acronym or a process word that belongs to the paper.
  */
 export function draftCheck(text, { ledger = null, figures = null, limits = new Map(), allow = new Set() } = {}) {
   const problems = [];
@@ -126,6 +137,22 @@ export function draftCheck(text, { ledger = null, figures = null, limits = new M
         if (!found) problems.push({ line: at, kind: "reference to a section the draft lacks", value: ref[0] });
       }
   });
+  // Figures and tables are numbered in the order the text first names them.
+  for (const kind of ["F", "T"]) {
+    const order = [];
+    plain.forEach((line) => {
+      for (const ref of line.matchAll(/\b(Figure|Fig\.|Table)\s+(\d+)\b/g))
+        if ((ref[1] === "Table" ? "T" : "F") === kind && !order.includes(Number(ref[2]))) order.push(Number(ref[2]));
+    });
+    order.forEach((number, index) => {
+      if (index > 0 && number < order[index - 1])
+        problems.push({
+          line: 1,
+          kind: "numbered out of order",
+          value: `${kind === "T" ? "Table" : "Figure"} ${number} is first named after ${kind === "T" ? "Table" : "Figure"} ${order[index - 1]}`,
+        });
+    });
+  }
   if (figures)
     for (const id of figures)
       if (!named[id[0]].has(id))
@@ -142,7 +169,7 @@ export function draftCheck(text, { ledger = null, figures = null, limits = new M
     const count = section.lines.reduce((sum, line) => sum + words(line.text), 0);
     const name = section.name ?? "(before the first heading)";
     counts[name] = (counts[name] ?? 0) + count;
-    if (section.level > 1 || section.name === null) total += count;
+    if (section.level === 2 && !NOT_BODY.test(section.name)) total += count;
   }
   for (const [name, limit] of limits) {
     const value =
@@ -179,7 +206,7 @@ export function draftCheck(text, { ledger = null, figures = null, limits = new M
 
   // Process words.
   plain.forEach((line, index) => {
-    for (const word of PROCESS_WORDS) {
+    for (const word of PROCESS_WORDS.filter((each) => !allow.has(each))) {
       const pattern = new RegExp(
         `(^|[^\\w])${word.replace(/[[\]]/g, "\\$&")}(?![\\w])`,
         word === word.toUpperCase() ? "" : "i",
