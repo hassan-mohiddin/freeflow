@@ -28,7 +28,7 @@ Write Docs is read when a document someone will act on is written or revised: a 
 ## Design
 
 - **Two lives, kept apart.**
-  - Task artifacts decide or inform work: Specs, Plans, decision records and research documents. They share one header, status vocabulary and source trail, checked by `artifact-check.mjs`, and live in the task folder unless the repository keeps them elsewhere.
+  - Task artifacts decide or inform work: Specs, Plans, decision records and research documents. They share one header, status vocabulary and source trail, checked by `artifact-check.mjs`. Specs, Plans and decision records live in the task folder unless the repository keeps them elsewhere; a research document lives where Research Work says (task record P69): the task folder when the research serves a task, the research folder when the task is research.
   - Documentation describes software that exists. Its `Covers` and `Verified at` header lets `docs-check.mjs` flag a document whose code changed.
   
   The two have different readers and different ways of going wrong, so each has its own header.
@@ -60,4 +60,3 @@ None recorded before this record was started.
 ## Open Questions
 
 - Whether the research rules change how agents write research. No case measures it.
-- Whether research documents need their own folder in the task layout, or `sources/` serves.

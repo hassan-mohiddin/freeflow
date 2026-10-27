@@ -62,6 +62,7 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
   - `paper.mjs anchor` and `apply` make revision by patch mechanical: a manifest of the reviewed draft's blocks, a patch whose changes each name a finding, and an apply report.
   - `paper.mjs build` runs Pandoc with the venue's template fetched at use; for PDF a LaTeX engine or a headless Chromium. Nothing is shipped or installed. `check-pdf` reads pages and words with poppler's tools when present.
   - `artifact.mjs init project` lays out a research folder; paths stay relative, so it is a default, not a requirement.
+- **Where research artifacts live** depends on the work (task record P69): research done for another task stays in that task's folder, a task that is itself research uses the project's research folder, and a quick question answered from facts in hand is not research. Research Work owns the rule; Write Docs points to it.
 - **Boundaries:**
   - Discuss Work owns agreeing the brief and the user's choices.
   - Review Work owns how any review runs. Research Work supplies the brief, the ledgers, the register and the check output to the reviewer.
