@@ -109,9 +109,9 @@
       "neighbours": ["discuss-work", "verify-work", "evaluate-behavior", "write-docs", "review-work"],
       "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "A natural request for an in-depth report or a literature review should read the skill and produce the brief, ledgers, register and checked report; a comparison of options in hand or a single lookup should not; a quick yes-or-no question should run at check rigor, not study.",
-      "current_result": "One end-to-end run: a Haiku agent followed the skill to report on the Codex CLI's turn path at a pinned commit; its 93 citations passed cite-check, and a check of five claims against the code found three that dropped a guard condition, which led to revisions. The scripts have their own tests (.skill-eval/research-work/tests). Activation cases are written but not run.",
+      "current_result": "One end-to-end run: a Haiku agent followed the skill to report on the Codex CLI's turn path at a pinned commit; its 93 citations passed cite-check, and a check of five claims against the code found three that dropped a guard condition, which led to revisions of the skill text (the saved report was not corrected). The run used the text at 58b44b72; later changes only say what a passing check and trace cover. The scripts have their own tests (.skill-eval/research-work/tests). Activation cases are written but not run.",
       "source_path": "skills/research-work/SKILL.md",
-      "source_sha256": "50e028fc2981fb3cf275f8912a8e4b82f1acceeb4625dc800dd17eee29d14fef",
+      "source_sha256": "711e78f8ec6483da4cefd401969dc10526c9ff67a15f5b0d9714285fd12457ef",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
