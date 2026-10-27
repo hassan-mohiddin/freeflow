@@ -4,11 +4,14 @@ This reference is a contract: every Research Work artifact follows it as written
 
 ```text
 node <research-work-directory>/scripts/artifact.mjs init <kind> <path> --title <title> --owner <owner> [--rigor check|study|publication]
+node <research-work-directory>/scripts/artifact.mjs init project <folder> --title <title> --owner <owner> [--rigor check|study|publication]
 node <research-work-directory>/scripts/artifact.mjs validate <path> [--sources <source ledger>]
 node <research-work-directory>/scripts/artifact.mjs counts <search ledger .jsonl>
 ```
 
 Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`, `study-plan`, `judge-validation`, `paper-outline`, `rebuttal`, `evidence-table`. A research report has no kind: it follows the Research Report shape below and is checked by `cite-check` and `trace`. `init` never overwrites. A study's run ledger and deviation log are written only by [study](../scripts/study.mjs), as [running](study.md#running-the-study) says. Artifacts live where the user or the task says; otherwise in the project's research folder when it has one, and otherwise in the task folder's `sources/`.
+
+`init project` lays out a research folder: `brief.md`; `sources/` (`sources.md`, `searches.jsonl`, saved copies); `study/` (the plan, its lock and ledgers, `results/`); `claims.md`; `paper/` (`outline.md`, `paper.md`, `figures/`, `refs.bib`, `build/`, `runs.jsonl` for the paper's own receipts, `rebuttal.md`); `reviews/`. Every path inside an artifact is relative, so another layout works as well.
 
 ## Header
 
@@ -166,16 +169,16 @@ The shape of an in-depth report or a study's report, from a quick answer to a lo
 
 ## Paper Outline
 
-Written before a paper's prose ([paper](paper.md)). The header adds **Register:** the claims register the paper draws on, relative to the outline. Sections:
+Written before a paper's prose ([paper](paper.md)). The header adds **Register:** the claims register the paper draws on, relative to the outline, and **Runs:** the run ledger holding the figures' receipts (a study's `runs.jsonl` or the paper's own), or `none`. Sections:
 
 - `## Proposition`: one sentence, the paper's message, or `not yet stated` while the message is still being found.
 - `## Contributions`: a table `| ID | Contribution | Claims |`; IDs `K1`, `K2`; each row names at least one claim ID.
 - `## Paragraphs`: a table `| Section | Paragraph | Role | Claims |`, one row per planned paragraph; Claims lists claim IDs or `-`.
-- `## Figures`: a table `| ID | Figure | Claims | Data |`; IDs `F1`, `F2`; Data is the figure's data file, relative to the outline, which must exist. A paper with no figures says `none` under the heading instead of a table.
+- `## Figures`: a table `| ID | Figure | Claims | Data | File | Receipt |`; IDs `F1`, `F2` for figures and `T1`, `T2` for tables; Data is the data file, relative to the outline, which must exist; File is the figure file (`-` for a table set in the text); Receipt is the run that drew it (`R<n>` in the Runs ledger), or `-` until it is drawn. A paper with no figures says `none` under the heading instead of a table.
 - `## Objections`: a table `| Objection | Answered in |`, or `none found within these searches`.
 - `## Limits`: where the limits are stated.
 
-Validation refuses an empty proposition, a contribution or figure with no claim ID, a claim ID the register does not have, a figure whose data file does not exist, and an objection with no answer.
+Validation refuses an empty proposition, a contribution or figure with no claim ID, a claim ID the register does not have or a register it cannot read, a figure whose data file does not exist, an objection with no answer, and a placeholder left in the header. A filled Receipt must exist in the Runs ledger, have exited 0, and have read the Data file and written the File as they are now, by their hashes; `claims.mjs draft-check --outline` also refuses a figure with no receipt.
 
 ## Rebuttal
 
@@ -199,3 +202,26 @@ Validation refuses a missing choice or reason, a "will address" without a commit
 
 For a literature review: one row per study it compares. One table, `| Source | Design | n | Result | Failure condition | Level |`. Source is a source-ledger ID; n is a whole number or `-`; Failure condition is the result that would have refuted the study's claim; Level is capped, with `--sources`, by how the source was checked, as for a claim.
 
+## Figure Spec
+
+The JSON that [figure](../scripts/figure.mjs) draws an SVG from: `node figure.mjs draw <spec.json> --out <figure.svg>`. Draw it through `paper.mjs run` or `study.mjs run`, with the spec and data as inputs and the SVG as output, so its receipt can go in the outline.
+
+| Field | Holds |
+| --- | --- |
+| `type` | `line`, `points`, `bar` (categories on x) or `scatter` |
+| `data` | The data file, relative to the spec: a JSON array of rows (at the dotted path `rows` names inside the file, when given), JSONL, or CSV with a header row. Values typed into the spec are refused |
+| `series` | One entry per series: `label`, the `x` and `y` columns, optional `low` and `high` columns for an interval, optional `where` (column values a row must have) |
+| `x`, `y` | Optional `label`, `min` and `max` for each axis |
+| `title`, `reference`, `width`, `height` | Optional: a title; reference lines `[{ "y": 0.95, "label": "nominal" }]`; the size in pixels (640 by 400) |
+
+The output is the same bytes for the same spec and data. Colors follow Okabe and Ito's palette, with a different marker per series.
+
+## Revision Patch
+
+`paper.mjs anchor <draft.md>` writes `<draft>.blocks.json`: the draft's sha256 and its blocks (runs of non-blank lines, a fenced code block kept whole), each with an ID `B1`, `B2`…, its lines, sha256 and first words. A patch is JSON:
+
+```json
+{ "changes": [{ "block": "B12", "finding": "R7:3", "op": "replace", "text": "The revised paragraph." }] }
+```
+
+`op` is `replace`, `delete` or `insert-after`; `finding` names the review finding the change answers. `paper.mjs apply` refuses a draft that changed since it was anchored, a block the manifest lacks, a change without a finding, and two edits of one block; it writes the revised draft and `<revised>.apply.json`, the base and result hashes and each change with its finding.

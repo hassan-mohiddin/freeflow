@@ -54,6 +54,14 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
   - ARS, the academic-research skill pack studied before this design, spreads the same ground over five skills, 35 modes and a fixed ten-stage pipeline.
   - This version ships the in-depth report, the study (with the quick check as the study at `check` rigor) and the paper, written from the register and answered in a rebuttal ledger. The body names no route that is not built, since the package holds no authoring status.
 - **The paper route** (task record P64) keeps the design's writing techniques in `references/paper.md`, each with its basis (guide, measured or one case). Three formats carry its checks: the paper outline (a proposition, contributions with claim IDs that must exist in the register, one sentence per planned paragraph, figures with data files that must exist, objections and where each is answered), the rebuttal ledger (a choice and reason per reviewer comment, a fulfilled pointer for each commitment before submission, and the goalpost guard: a later-round comment is either new or continues an earlier one, and the new ones are listed), and the evidence table for a literature review (levels capped by how each source was checked). The proposition is checked at review, not before drafting; the draft gets one review, never a loop against a model judge; revision is by patch; venue checklists are fetched at use.
+- **The paper tools** (task record D-014) make the paper's parts from checked inputs by recorded commands, since generated papers fail at figures (missing or misplaced in 4 of 7 in Beel et al.; unreadable plots in AI Scientist), references (21 of 68 still wrong after three integrity rounds in ARS's own showcase) and builds that live only in prose:
+  - `figure.mjs` draws an SVG from a spec and a data file, refusing values typed into the spec, with no dependencies so it runs on any host. The outline's Figures row names the receipt that drew it, and validation compares the receipt's input and output hashes with the files as they are now, so a stale figure shows.
+  - `paper.mjs run` writes the same receipt as `study.mjs run` for a paper with no study plan; both use `recordRun` in `lib/study.mjs`.
+  - `claims.mjs draft-check` holds the checks a reader would catch (abstract numbers missing from the body, citations and references that resolve to nothing, figures without receipts, word limits) and lists, without failing, undefined acronyms and process words. One command holds every reference check, so `trace` stays the number check.
+  - `sources.mjs bib` writes the bibliography from the ledger and marks every source not verified; full author fields come from a reference manager's export matched by DOI or arXiv ID, not from a lookup (online lookups are a later step).
+  - `paper.mjs anchor` and `apply` make revision by patch mechanical: a manifest of the reviewed draft's blocks, a patch whose changes each name a finding, and an apply report.
+  - `paper.mjs build` runs Pandoc with the venue's template fetched at use; for PDF a LaTeX engine or a headless Chromium. Nothing is shipped or installed. `check-pdf` reads pages and words with poppler's tools when present.
+  - `artifact.mjs init project` lays out a research folder; paths stay relative, so it is a default, not a requirement.
 - **Boundaries:**
   - Discuss Work owns agreeing the brief and the user's choices.
   - Review Work owns how any review runs. Research Work supplies the brief, the ledgers, the register and the check output to the reviewer.
@@ -139,7 +147,7 @@ Activation has not been measured. The routing suite (`.skill-eval/freeflow-routi
 
 ## Open Questions
 
-- **What else the evidence suggested and is not built:** the building task's `sources/not-built.md`, by source: online citation lookups, read-range and consistency checks, plan-rule checks, more statistics, and the paper tools (figures, bibliography, builds, draft checks).
+- **What else the evidence suggested and is not built:** the building task's `sources/not-built.md`, by source: online citation lookups, read-range and consistency checks, plan-rule checks, more statistics, online citation lookups for the bibliography, and a vision check of rendered figures, whose accuracy no study has measured.
 - **Whether reviewers should only judge or also propose fixes.** A two-arm experiment on real SWE-bench patches is planned as the study route's first real use; it costs model calls and waits for a pilot and the user's yes.
 - **Whether a lock should name a person rather than accept any `--by`.** The script records who locked and who cleared; it cannot tell an agent from the user.
 - **Whether the activation cases pass,** and whether the core line raises reads.

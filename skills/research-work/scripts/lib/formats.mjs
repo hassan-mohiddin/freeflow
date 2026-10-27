@@ -58,7 +58,7 @@ const RUN_COLUMNS_WITH_SPLIT = [...RUN_COLUMNS, "Split"];
 export const SPLITS = ["tuning", "held-out"];
 const CONTRIBUTION_COLUMNS = ["ID", "Contribution", "Claims"];
 const PARAGRAPH_COLUMNS = ["Section", "Paragraph", "Role", "Claims"];
-const FIGURE_COLUMNS = ["ID", "Figure", "Claims", "Data"];
+const FIGURE_COLUMNS = ["ID", "Figure", "Claims", "Data", "File", "Receipt"];
 const OBJECTION_COLUMNS = ["Objection", "Answered in"];
 const REBUTTAL_COLUMNS = ["ID", "Reviewer", "Round", "Comment", "Choice", "Reason", "Commitment", "Fulfilled", "New"];
 export const CHOICES = ["will address", "won't", "not on point"];
@@ -125,7 +125,11 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
       "> **Result:** <pass or fail>",
     );
   }
-  if (kind === "paper-outline") header.push("> **Register:** <path to the claims register the paper draws on>");
+  if (kind === "paper-outline")
+    header.push(
+      "> **Register:** <path to the claims register the paper draws on>",
+      "> **Runs:** <the run ledger holding the figures' receipts, or none>",
+    );
   if (kind === "rebuttal") header.push("> **Stage:** drafted", "> **Paper:** <path or version of the paper reviewed>");
   const table = (columns, row) => [
     `| ${columns.join(" | ")} |`,
@@ -148,7 +152,10 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
       ...table(PARAGRAPH_COLUMNS, "| <section> | <the paragraph's one sentence> | <its role> | <claim IDs, or -> |"),
       "## Figures",
       "",
-      ...table(FIGURE_COLUMNS, "| F1 | <what it shows> | <claim IDs> | <path to its data file> |"),
+      ...table(
+        FIGURE_COLUMNS,
+        "| F1 | <what it shows> | <claim IDs> | <path to its data file> | <path to the figure file> | <its receipt R<n>, or - until drawn> |",
+      ),
       "## Objections",
       "",
       ...table(OBJECTION_COLUMNS, "| <the strongest objection> | <the section that answers it> |"),
@@ -602,9 +609,16 @@ function sectionTableChecked(parsed, name, columns, problems) {
 /**
  * A paper outline: a proposition, refutable contributions each naming claims, one sentence per planned paragraph,
  * figures with their claims and data, and the objections answered. With `register` (the register's claim IDs) every
- * claim ID must exist there; with `dataExists` every figure's data file must exist.
+ * claim ID must exist there; with `dataExists` every figure's data file must exist. With `receipts` (the run
+ * ledger's receipts by ID) and `figureFile` (a path's ledger-relative path and current sha256), a figure's receipt
+ * must have exited 0, read its data file and written its figure file as they are now; `requireReceipts` also refuses
+ * a figure with no receipt yet.
  */
-function validateOutline(parsed, problems, { register, registerMissing, dataExists } = {}) {
+function validateOutline(
+  parsed,
+  problems,
+  { register, registerMissing, dataExists, receipts, figureFile, requireReceipts = false } = {},
+) {
   validateHeader(parsed, "Paper Outline", problems);
   headerPlaceholders(parsed, problems);
   if (!parsed.header.Register || placeholder(parsed.header.Register))
@@ -642,13 +656,39 @@ function validateOutline(parsed, problems, { register, registerMissing, dataExis
       ? null
       : sectionTableChecked(parsed, "Figures", FIGURE_COLUMNS, problems);
   for (const { line, cells } of figures?.rows ?? []) {
-    if (!/^F\d+$/.test(cells.ID)) problems.push(`line ${line}: a figure's ID must be F followed by a number`);
+    const where = `line ${line}`;
+    const isTable = /^T\d+$/.test(cells.ID);
+    if (!/^[FT]\d+$/.test(cells.ID))
+      problems.push(`${where}: a figure's ID is F followed by a number, a table's T followed by a number`);
     const ids = claimIds(cells.Claims);
-    if (ids.length === 0) problems.push(`line ${line}: a figure names the claim IDs it shows`);
-    for (const id of ids) known(id, `line ${line}`);
-    if (!cells.Data || placeholder(cells.Data)) problems.push(`line ${line}: Data names the figure's data file`);
+    if (ids.length === 0) problems.push(`${where}: a figure names the claim IDs it shows`);
+    for (const id of ids) known(id, where);
+    if (!cells.Data || placeholder(cells.Data)) problems.push(`${where}: Data names the figure's data file`);
     else if (dataExists && !dataExists(cells.Data))
-      problems.push(`line ${line}: the data file ${cells.Data} does not exist`);
+      problems.push(`${where}: the data file ${cells.Data} does not exist`);
+    const file = cells.File && cells.File !== "-" && !placeholder(cells.File) ? cells.File : null;
+    if (!file && !isTable) problems.push(`${where}: File names the figure's file`);
+    const receipt = cells.Receipt;
+    if (!receipt || placeholder(receipt) || (receipt !== "-" && !/^R\d+$/.test(receipt)))
+      problems.push(`${where}: Receipt is the run that drew the figure (R<n>), or "-" until it is drawn`);
+    else if (receipt === "-") {
+      if (requireReceipts && !isTable)
+        problems.push(`${where}: ${cells.ID} has no receipt, so its figure is not shown to come from its data`);
+    } else if (!receipts) {
+      problems.push(`${where}: ${receipt} cannot be checked: the header's Runs names no readable run ledger`);
+    } else {
+      const run = receipts.get(receipt);
+      if (!run) problems.push(`${where}: ${receipt} is not in the run ledger`);
+      else {
+        if (run.exit_code !== 0) problems.push(`${where}: ${receipt} exited with ${run.exit_code}`);
+        const data = figureFile?.(cells.Data);
+        if (data && !run.inputs.some((input) => input.path === data.path && input.sha256 === data.sha256))
+          problems.push(`${where}: ${receipt} did not read ${cells.Data} as it is now`);
+        const drawn = file ? figureFile?.(file) : null;
+        if (drawn && !run.outputs.some((output) => output.path === drawn.path && output.sha256 === drawn.sha256))
+          problems.push(`${where}: ${receipt} did not write ${file} as it is now`);
+      }
+    }
   }
   const objections = parsed.sections.get("Objections");
   if (!objections) problems.push('missing section "## Objections" (a table, or "none found within these searches")');
@@ -831,7 +871,11 @@ export function kindOf(path, text) {
  * its judge records (a claim resting on a judge record that does not pass is at most L1: `judges` maps each cited
  * path to `{ counts }`).
  */
-export function validate(kind, text, { ledger, plan, judges, register, registerMissing, dataExists } = {}) {
+export function validate(
+  kind,
+  text,
+  { ledger, plan, judges, register, registerMissing, dataExists, receipts, figureFile, requireReceipts } = {},
+) {
   const problems = [];
   if (kind === "search-ledger") validateSearch(text, problems);
   else {
@@ -841,7 +885,15 @@ export function validate(kind, text, { ledger, plan, judges, register, registerM
     else if (kind === "claims-register") validateRegister(parsed, problems, { ledger, plan, judges });
     else if (kind === "study-plan") validatePlan(parsed, problems);
     else if (kind === "judge-validation") validateJudge(parsed, problems);
-    else if (kind === "paper-outline") validateOutline(parsed, problems, { register, registerMissing, dataExists });
+    else if (kind === "paper-outline")
+      validateOutline(parsed, problems, {
+        register,
+        registerMissing,
+        dataExists,
+        receipts,
+        figureFile,
+        requireReceipts,
+      });
     else if (kind === "rebuttal") validateRebuttal(parsed, problems);
     else if (kind === "evidence-table") validateEvidence(parsed, problems, { ledger });
     else problems.push(`unknown artifact kind "${kind}"`);

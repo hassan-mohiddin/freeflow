@@ -19,6 +19,7 @@ const OUTLINE = `# Paper Outline: Wald against Wilson
 > **Status:** Draft
 > **Owner:** Hassan Mohiddin
 > **Register:** claims.md
+> **Runs:** none
 
 ## Proposition
 
@@ -39,9 +40,9 @@ The Wald interval undercovers below n = 40, while Wilson's stays near 95%.
 
 ## Figures
 
-| ID | Figure | Claims | Data |
-| --- | --- | --- | --- |
-| F1 | Coverage against n for both intervals | C1; C2 | results/coverage.json |
+| ID | Figure | Claims | Data | File | Receipt |
+| --- | --- | --- | --- | --- | --- |
+| F1 | Coverage against n for both intervals | C1; C2 | results/coverage.json | figures/coverage.svg | - |
 
 ## Objections
 

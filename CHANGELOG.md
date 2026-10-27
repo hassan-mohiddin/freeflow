@@ -9,6 +9,8 @@
 
 - Research Work writes papers: an outline checked against the claims register (a proposition a result could contradict, contributions with their claim IDs, one sentence per planned paragraph, figures with their data files, the objections and where each is answered), the writing techniques with the evidence behind each, one review and revision by patch, and a rebuttal ledger for the venue's reviewers that records your choice and reason for each comment, refuses submission while a commitment has no place it was fulfilled, and lists requests that are new in a later round. A literature review gets an evidence table. The research report's shape moves from Write Docs into Research Work, which states each finding's strength as its evidence level; Write Docs routes research documents there.
 
+- Research Work has tools for writing the paper: figures drawn from their data files with a receipt the outline checks, a bibliography from the source ledger that marks every source not verified, checks a draft must pass before review (abstract numbers in the body, citations, figure and section references, word limits), a venue copy without claim IDs, revision by patch where each change names its finding, a build to PDF, Word, LaTeX or HTML through Pandoc, a check of the built PDF's pages, words and required sections, and a default project layout.
+
 ### Changed
 
 - Write Skill explains why one capability skill that routes to its references and scripts (a trunk) beats many narrow skills, keeps a trunk's body to its routing table, common route and Rules, and asks for a design record per skill in the developer docs; Write Docs adds the skill design record shape under `dev-docs/skills/`.

@@ -17,7 +17,11 @@ Create the outline with `artifact.mjs init paper-outline` and fill it before pro
 - **The objections:** the strongest ones a reader will raise, each with where it is answered. "none found within these searches" is a valid answer; do not invent objections to fill the section.
 - **Where the limits go:** one place.
 
-`artifact.mjs validate` checks the outline: every claim ID is in the register its header names, every contribution names one, and every figure's data file exists. Agree the outline and the abstract with the user before the draft.
+`artifact.mjs validate` checks the outline: every claim ID is in the register its header names, every contribution names one, and every figure's data file exists. Agree the outline and the abstract with the user before the draft. With no project folder yet, `artifact.mjs init project <folder>` lays one out ([artifacts](artifacts.md)).
+
+## Figures
+
+Draw each figure from its data file, never from numbers typed in: write a [figure spec](artifacts.md#figure-spec) and run `figure.mjs draw` through `paper.mjs run` (or `study.mjs run` inside a study), with the spec and data as `--input` and the SVG as `--output`. Put the receipt's ID in the outline's Figures row; validation then shows the figure came from that data as it is now, and a figure redrawn or a data file changed after it shows as stale. A figure drawn with another tool (matplotlib, a project's own script) goes through the same receipt. Caption numbers trace to the register like any paragraph's. A model that looks at the rendered figure may flag a problem for you to check; it never passes one, since no study has measured how well it sees.
 
 ## Draft
 
@@ -48,13 +52,19 @@ The venue's checklist and template change every year: fetch the current ones at 
 
 ## Check, Then One Review
 
-Run `claims.mjs trace` on the draft against the register, and `sources.mjs cite-check` when it cites code or quotes, as Check The Report says. A missing proposition does not block drafting, since writing is often how the message is found, but a draft that still does not state one does not pass review.
+Run `claims.mjs trace` on the draft against the register, and `sources.mjs cite-check` when it cites code or quotes, as Check The Report says. Then run `claims.mjs draft-check <paper.md> --outline <outline.md> --ledger <sources.md>`, with `--limit <section>=<words>` for the venue's limits: it fails on an abstract number the body does not state, a citation the ledger lacks, a figure, table or section reference that resolves to nothing, a figure without a valid receipt, and a section over its limit, and it lists acronyms not defined before use and process words (a round, a rerun, the coordinator) for you to read. A listed word is not wrong by itself; leave it when it belongs to the paper's method. A missing proposition does not block drafting, since writing is often how the message is found, but a draft that still does not state one does not pass review.
 
 Then review the draft once, through Review Work's artifact review, with the register, the outline and the check output beside it. Do not loop the draft against a model judge: iterated rewriting drifts toward generic text (Perez et al.; Ziegenbein et al.), and self-refinement against an evaluator that shares the writer's context drifts from human judgment (Pan et al.). No quota of caveats, limitations score or protected hedge belongs in the review.
 
 ## Revise By Patch
 
-Settle the review's findings as Review Work's adjudication says, then answer each finding you accept with a change, as a patch to the reviewed draft, not a new draft: a regenerated draft reopens everything the review passed. Keep the reviewed version, and name in the adjudication the finding each change answers. A change that states a new claim registers it first; a change to what a paragraph claims updates the outline too. Run the checks again on the revised draft. The rebuttal ledger below is for the venue's reviewers, not this review.
+Settle the review's findings as Review Work's adjudication says, then answer each finding you accept with a change, as a patch to the reviewed draft, not a new draft: a regenerated draft reopens everything the review passed. Anchor the reviewed draft with `paper.mjs anchor` before the review, write the changes as a [patch](artifacts.md#revision-patch), each naming its finding, and apply it with `paper.mjs apply`: it refuses a draft that changed since the anchor and leaves every other block as it was, and its apply report keeps each change beside its finding. A change that states a new claim registers it first; a change to what a paragraph claims updates the outline too. Run the checks again on the revised draft. The rebuttal ledger below is for the venue's reviewers, not this review.
+
+## References And The Build
+
+Write citations as `[@S3]`, the source-ledger ID, and make the bibliography with `sources.mjs bib <sources.md> --out refs.bib`. Each entry comes from the ledger's pin; a source whose lookup is not `verified` carries a note saying so and is listed, so it is checked or dropped before submission, never cited as if it were. To get full author and title fields, export the references from a reference manager and pass the file with `--from`: an entry with the same DOI or arXiv ID gives its fields, and the key stays the ledger ID.
+
+Build with `paper.mjs build <paper.md> --to pdf|docx|latex|html --venue --bib refs.bib --ledger <runs.jsonl>`, with the venue's template (`--template`) and citation style (`--csl`) fetched at use and recorded in the source ledger. `--venue` builds from a copy without the claim-ID parentheses, and lists the claim IDs left in running text for you to rewrite. Each command the build runs gets a receipt. A PDF needs Pandoc and a LaTeX engine, or `--engine browser` with Chromium or Chrome; when neither is installed the build says so and stops, and nothing is installed for you. Then `paper.mjs check-pdf <paper.pdf> --max-pages <n> --max-words <n> --source <paper.md> --require <section>` checks the built PDF against the venue's limits and its required sections (data availability, funding); what goes in those sections is the user's.
 
 ## Rebuttal
 
