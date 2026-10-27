@@ -33,6 +33,10 @@
     {
       "command": "/deliver-work",
       "skill": "deliver-work"
+    },
+    {
+      "command": "/research-work",
+      "skill": "research-work"
     }
   ],
   "piNativeCommands": [

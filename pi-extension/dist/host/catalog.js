@@ -11,6 +11,7 @@ export const WORKFLOW_COMMANDS = [
   { command: "verify-work", skill: "verify-work" },
   { command: "review-work", skill: "review-work" },
   { command: "deliver-work", skill: "deliver-work" },
+  { command: "research-work", skill: "research-work" },
 ];
 export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-behavior"];
 /**
@@ -22,6 +23,7 @@ export const FREEFLOW_MODEL_SKILL_NAMES = [
   "discuss-work",
   "evaluate-behavior",
   "execute-work",
+  "research-work",
   "review-work",
   "setup-freeflow",
   "track-work",

@@ -1,0 +1,118 @@
+# Research Work
+
+> **Covers:** `skills/research-work/`
+> **Tests:** `.skill-eval/research-work/tests/`
+> **Verified at:** `58b44b72` (2026-10-27)
+
+For anyone changing Research Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/research-work/SKILL.md); this record holds the reasons it does not.
+
+## Purpose
+
+Research Work is read when a question has to be answered from evidence gathered and checked first. It carries the question to a claim the evidence supports and on to where the claim is used. Its first route is the in-depth report: a question answered from code at a pinned commit, papers or docs. It also owns the statistics for any result that comes from a sample, which Evaluate Behavior uses.
+
+It exists because agents know the textbook methods and fail at applying them:
+- they answer from summaries and memory;
+- they cite whole files, or a branch of the code as the whole path;
+- they compute intervals and tests by hand, unpaired where the data is paired, with normal intervals on small samples;
+- they hedge every sentence instead of stating each claim at the strength its evidence has.
+
+The skill is mostly structure (formats, checks, a level per claim) and decisions, not exposition.
+
+## Behavioral Claim
+
+- **Behavior it produces:**
+  - a research brief agreed with the user before the first source is read;
+  - every source pinned and recorded with how it was checked;
+  - every claim registered with its level, capped by its sources' checking, before the prose states it (at study and publication rigor);
+  - a report whose citations exist at the pinned commit, whose quotes appear in their sources and whose numbers trace to the register;
+  - statistics from `stats.mjs`, reported with their method and interval.
+- **Failure it prevents:**
+  - claims stronger than their sources;
+  - unchecked citations;
+  - numbers that appear nowhere in the evidence;
+  - wrong intervals and unpaired tests;
+  - caveats stacked into every sentence.
+- **Earliest decision:** before the first search or read of sources.
+- **Cues before the body is read:**
+  - its description;
+  - one line in core naming it outside the cycle ("Research Work when a question has to be answered from evidence gathered and checked first …"), added with the skill.
+- **Guaranteed context:** the description on every host; core where Freeflow's runtime prompts are on.
+- **Nearby cases it leaves alone:**
+  - comparing options from facts in hand (Discuss Work);
+  - checking that a change works (Verify Work);
+  - running an agent eval (Evaluate Behavior, which uses its statistics);
+  - a single lookup.
+- **When it stops steering:** when the report and its check output are handed to the user.
+
+## Design
+
+- **One trunk for all research.** Research Work is one skill with a route per application, not a skill per application. Each skill boundary between a request and the method lowers the chance the method reaches the decision (Write Skill, "Choose Skill Boundaries").
+  - ARS, the academic-research skill pack studied before this design, spreads the same ground over five skills, 35 modes and a fixed ten-stage pipeline.
+  - This version ships the in-depth report route. The body names no route that is not built, since the package holds no authoring status.
+- **Boundaries:**
+  - Discuss Work owns agreeing the brief and the user's choices.
+  - Review Work owns how any review runs. Research Work supplies the brief, the ledgers, the register and the check output to the reviewer.
+  - Write Docs owns the report's shape (its Research shape) and every document's header. Moving the Research shape into Research Work is decided for the end of the build (task record decision D-006).
+  - Evaluate Behavior owns running agent evals and imports `skills/research-work/scripts/lib/stats.mjs` by relative path (`lib/agreement.mjs` and `lib/decision.mjs` re-export it). Its `evaluatorVersion()` hashes `stats.mjs` too, so a change to the statistics invalidates reuse keys.
+- **The evidence scale, L0 to L5** (proposed, reported, checked, observed, compared, replicated):
+  - It is Research Work's own, general enough for any domain, so *State Before Action*'s E0–E5 becomes a specialization of it.
+  - How a source was checked caps the claims resting on it: a source known only from a summary, an abstract or memory supports at most L1.
+  - A comparison without a decision rule fixed beforehand is exploratory, at most L3.
+  - `artifact.mjs validate --sources` enforces both caps.
+  - The level carries the uncertainty, so sentences state claims plainly.
+- **Rigor by stakes:** `check`, `study`, `publication`, chosen by the user in the brief. It sets which artifacts and checks are required, so a quick answer is not run at publication cost.
+- **Formats as one contract, enforced by a script.**
+  - `references/artifacts.md` defines the research brief, source ledger, search ledger (JSONL) and claims register, and the citation forms. `artifact.mjs` creates and validates them.
+  - This is Track Work's pattern (a format reference plus a script that writes and checks the file), chosen over template files in `assets/`.
+  - Search-ledger counts are computed from the hit lines, never typed.
+- **Mechanical checks before any review, and none that call a model:**
+  - `sources.mjs cite-check` reads each `S<n>:path:line` at the commit its ledger row pins and finds each quote in its source;
+  - `claims.mjs trace` matches every number and claim ID in the report to the register.
+  
+  Anything they cannot check is listed as not checked, never as passed. The body also says what passing does not show, because the first real run passed all 93 citations while three of five checked claims dropped a guard condition.
+- **Statistics in one place, guidance at the decision.**
+  - `stats.mjs` has the methods agents get wrong when computing by hand:
+    - Wilson and exact intervals;
+    - exact McNemar and the sign test;
+    - paired differences and sign-flip permutation;
+    - cluster-robust means and cluster bootstrap;
+    - kappa (also weighted and prevalence-adjusted) and Krippendorff's alpha;
+    - Holm's correction;
+    - unbiased pass@k and pass^k;
+    - TOST;
+    - exact McNemar power and paired sample size.
+  - Resampling records its seed. Each method is tested against a published worked example (Newcombe 1998 for Wilson) or values computed once with scipy, statsmodels and errorbars, none of which is a dependency.
+  - The body's "Numbers From Samples" table maps the data's shape to the method and names the wrong default each replaces.
+  - Methods are reimplemented from papers and textbooks, and code is borrowed only under MIT or Apache (task record decision D-008).
+- **Workers return files, or text when the host refuses files.** Claude Code refuses report files from a subagent, so a worker returns the content for the coordinator to save unchanged (seen twice in the task that built the skill).
+
+## Evidence
+
+| What | Result | Where | Limits |
+| --- | --- | --- | --- |
+| Statistics against published values | Every method's tests match a published example or scipy, statsmodels and errorbars values. Deliberately breaking six formulas fails a test each | `.skill-eval/research-work/tests/stats.test.mjs` | Reference values were computed once in a scratch environment and pasted in |
+| Format and report checks | Valid artifacts pass; each contract rule and each citation failure has a failing case | `.skill-eval/research-work/tests/` | Structure, not behavior |
+| One end-to-end run | A Haiku agent wrote an in-depth report on the Codex CLI's turn path at a pinned commit: 36 claims at L2, 93 citations, all checks passing. Its notes listed 13 gaps in the text, and a check of 5 claims against the code found 3 that dropped a condition; both led to revisions | Outside the repository: the building task's record, `evidence/codex-test/` | One run, one model, one question. Not a comparison against working without the skill |
+| Design research | 24 reports on ARS; 13 web research reports; checks of the study questions and paper techniques against established sources | Outside the repository: the building task's `sources/` and `evidence/` | Read by Haiku agents through model extraction; some publisher sources stayed summary-only |
+
+Activation has not been measured. The routing suite (`.skill-eval/freeflow-routing/`) has Research Work's three requests and two near misses, and the building task has eleven more cases; none has run.
+
+## Rejected
+
+- **ARS's structure** (five skills, 35 modes, a fixed pipeline, review panels that must propose fixes). Descriptions compete, fixed stages spend compute that changes no decision, and forced fixes produced caveat-dense drafts.
+- **Templates in `assets/`.** A format reference with a validating script keeps one owner and checks the file later.
+- **Python with scipy.** Not guaranteed on Freeflow's hosts.
+- **A vendored copy of the statistics in Evaluate Behavior.** AGENTS.md allows no second maintained copy.
+- **A model as the judge of whether a citation exists.** Model verifiers' false-positive rates ran from 0.050 to 0.478 in HALLMARK (arXiv:2607.18360); a failed lookup is "unresolved", never "fabricated".
+
+## Dropped
+
+- **A check that flags wording stronger than a claim's level.** It waits for evidence that agents overclaim in reports. The first run's failure was dropped conditions, not strong verbs.
+- **Defining "too large for one context" for splitting work across workers.** Left as judgment.
+
+## Open Questions
+
+- **The routes still to build:** the quick check, the study route (study plan locked by hash, run receipts, a judge validation record, and Evaluate Behavior's general method text moving here), and the paper route.
+- **Whether reviewers should only judge or also propose fixes.** A two-arm experiment on real SWE-bench patches is planned as the study route's first use.
+- **Whether the activation cases pass,** and whether the core line raises reads.
+- **How much register machinery the `check` rigor needs** in practice.

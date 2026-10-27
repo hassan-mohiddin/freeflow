@@ -71,6 +71,7 @@ Skill commands on Pi (Claude Code uses `/freeflow:<skill>`, Codex a skill mentio
 /deliver-work
 /track-work
 /write-docs
+/research-work
 ```
 
 Contributor calls:

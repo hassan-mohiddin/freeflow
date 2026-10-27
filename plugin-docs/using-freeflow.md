@@ -188,7 +188,7 @@ Freeflow skills are focused methods. Each skill's description says when it appli
 | Preserve long-running task state | `/track-work` | Working Record creation, recovery, Slices, decisions, checkpoints and handoffs |
 | Write a spec, plan, decision record or docs | `/write-docs` | Specs and Plans that decide work, decision records, and user and developer docs kept true as the code changes |
 
-[How Freeflow Works](workflow.md#skills) lists all ten skills, including the contributor ones, and the scripts they run. The 0.9.0 skills replaced twenty-five earlier ones; [What changed in 0.9.0](workflow.md#what-changed-in-090) says where each removed name went.
+[How Freeflow Works](workflow.md#skills) lists all eleven skills, including the contributor ones, and the scripts they run. The 0.9.0 skills replaced twenty-five earlier ones; [What changed in 0.9.0](workflow.md#what-changed-in-090) says where each removed name went.
 
 ### Natural language first
 

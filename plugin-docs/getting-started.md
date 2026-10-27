@@ -1,6 +1,6 @@
 # Getting Started
 
-Freeflow is a feedback-based control system for coding agents: a short always-loaded method and ten skills that work as a portable layer on every host, and on Pi a native extension. Choose the host that matches the capabilities you need, install the Freeflow package, activate it in a repository, and verify delivery before relying on it.
+Freeflow is a feedback-based control system for coding agents: a short always-loaded method and eleven skills that work as a portable layer on every host, and on Pi a native extension. Choose the host that matches the capabilities you need, install the Freeflow package, activate it in a repository, and verify delivery before relying on it.
 
 ## Choose a host
 
