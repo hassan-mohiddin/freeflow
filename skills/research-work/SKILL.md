@@ -16,13 +16,11 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | The question is vague, broad, a comparison, or a claim that something is new; or choosing how rigorous to be | [framing](references/framing.md) |
 | Gathering sources: reading code at a pinned commit, searching papers or the web, judging a source, or splitting a large subject across worker agents | [investigation](references/investigation.md) |
 | Turning findings into claims, choosing each claim's level, sources that conflict, an absence ("none found"), or writing the report from the register | [claims](references/claims.md) |
-| Designing a study or a quick check: the twelve questions, the claim class, the decision rule, baselines, sample size, pilots, held-out items | [study design](references/study-design.md) |
+| Designing or running a study or a quick check: the twelve questions, the claim class, the decision rule, baselines, sample size, pilots, held-out items; locking the plan, receipts, deviations, amendments, raw data, the cost of runs | [study](references/study.md), with [study.mjs](scripts/study.mjs) |
 | Whether a measure tracks the claim: validity, fair tasks, reliability, reading raw outputs, a model judge and its validation record, a detector | [measurement](references/measurement.md) |
-| Locking a study plan, running its steps with receipts, deviations, amendments, raw data, the cost of runs | [running](references/running.md), with [study](scripts/study.mjs) |
 | The arms are agent configurations run on a host: a skill, prompt, model or setting change | [Evaluate Behavior](../evaluate-behavior/SKILL.md) runs them and owns its suite decision rule; it computes with `stats.mjs` |
 | Creating or checking a research brief, source ledger, search ledger, claims register, study plan or judge validation record | [artifacts](references/artifacts.md), with [artifact](scripts/artifact.mjs) |
-| Checking that each `S<n>:path:line` citation exists at its pinned commit and each quote appears in its source | Run [sources](scripts/sources.mjs) `cite-check`, as Check The Report says |
-| Checking that every number and claim ID in a draft traces to the claims register | Run [claims](scripts/claims.mjs) `trace`, as Check The Report says |
+| Checking a report before it goes out: each `S<n>:path:line` citation exists at its pinned commit, each quote appears in its source, every number and claim ID traces to the register | Run [sources](scripts/sources.mjs) `cite-check` and [claims](scripts/claims.mjs) `trace`, as Check The Report says |
 | Checking that each of a judge's scores quotes the output it judged | Run [sources](scripts/sources.mjs) `quote-check`, as [measurement](references/measurement.md#judges) says |
 | A result with numbers from a sample: an interval, a comparison, agreement between raters, pass@k, power | Numbers From Samples, below, and [stats](scripts/stats.mjs) |
 | The report itself | Write Docs' [Research](../write-docs/references/spec-and-plan-shapes.md#research) shape |
@@ -89,13 +87,13 @@ Goal: a result decided by a rule fixed before the data, where every number trace
 
 1. **Frame.** Agree the brief as for a report. The claim sought names what the study tests.
 2. **Survey.** Find what is already known at the depth the design needs: prior results, the baseline in use, a measure that already exists.
-3. **Design.** Create the plan with `artifact.mjs init study-plan --rigor <rigor>` and answer its questions as [study design](references/study-design.md) says, with each hypothesis's decision rule. Pilot to check the measure ([measurement](references/measurement.md)) and its cost. Agree the plan with the user through Discuss Work, then lock it.
-4. **Run.** Run every step through `study.mjs run`, log deviations as they happen, and ask before any paid run, as [running](references/running.md) says.
+3. **Design.** Create the plan with `artifact.mjs init study-plan --rigor <rigor>` and answer its questions as [study design](references/study.md) says, with each hypothesis's decision rule. Pilot to check the measure ([measurement](references/measurement.md)) and its cost. Agree the plan with the user through Discuss Work, then lock it.
+4. **Run.** Run every step through `study.mjs run`, log deviations as they happen, and ask before any paid run, as [running](references/study.md#running-the-study) says.
 5. **Analyze.** Run `study.mjs check`, read the raw outputs, then apply the plan's decision rule with `stats.mjs`.
 6. **Conclude.** Register each claim with the result files its numbers come from; a judged claim cites its judge's record.
 7. **Report, check and review** as for a report, with the study checks below.
 
-A quick check is this route at `check` rigor: five questions, about twenty paired tasks, the paired interval ([study design](references/study-design.md#the-quick-check)).
+A quick check is this route at `check` rigor: five questions, about twenty paired tasks, the paired interval ([study design](references/study.md#the-quick-check)).
 
 ## Check The Report
 

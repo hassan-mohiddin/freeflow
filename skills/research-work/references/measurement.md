@@ -27,7 +27,7 @@ Grade each requirement a check covers, not only pass or fail, and note which req
 
 ## Reliability: Would It Repeat?
 
-- Measure the noise floor on a frozen pilot before the study ([study design](study-design.md#measure-the-noise-floor)).
+- Measure the noise floor on a frozen pilot before the study ([study design](study.md#measure-the-noise-floor)).
 - Record every seed and source of randomness. Resampling in `stats.mjs` takes a `seed` field (1 when omitted) and reports it.
 - A judge or rater whose answers change on the same input is part of the noise: measure its agreement with itself, or with other raters (`stats.mjs agreement`).
 - **Prompt format is part of the measure.** Wording, order and format alone can move a model's score by tens of points; one study measured up to 76. When the claim is not about one exact prompt, run several formats and report the range.
