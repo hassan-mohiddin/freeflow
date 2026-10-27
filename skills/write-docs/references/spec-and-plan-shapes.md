@@ -1,6 +1,6 @@
-# Spec, Plan And Decision Shapes
+# Spec, Plan, Decision And Research Shapes
 
-This reference is judgment, with one Rule under Plans: composable shapes for a Spec, a Plan or a decision record, not mandatory templates. Use only the sections the document needs for its use; the header, status and source trail are in [Write Docs](../SKILL.md#header-status-and-sources). A decision note or ADR has its own shape under [Decision Records](#decision-records), below.
+This reference is judgment, with one Rule under Plans: composable shapes for a Spec, a Plan, a decision record or a research document, not mandatory templates. Use only the sections the document needs for its use; the header, status and source trail are in [Write Docs](../SKILL.md#header-status-and-sources). A decision note or ADR has its own shape under [Decision Records](#decision-records), and a research document under [Research](#research), below.
 
 ## Specs
 
@@ -306,3 +306,27 @@ Live evidence may show that implementation violates a decision or that the decis
 ### Avoid Duplication
 
 Reference the decision from dependent artifacts instead of copying its full rationale. When a durable decision shapes how existing software works, the owning subsystem doc's Decisions section states its current effect and points to the record, and is kept current with the code like the rest of that doc. Keep task-local decisions in the Working Record unless they become durable beyond the task.
+
+## Research
+
+Use when a question must be answered with evidence for someone who will act on the answer: a comparison of options, a literature or source review, a check of what a tool or service actually does, or a synthesis of results. Header, status and source trail follow Write Docs' [Header, Status And Sources](../SKILL.md#header-status-and-sources), with Type `Research` and the date the evidence was gathered.
+
+One shape serves a quick answer and a long synthesis; leave out a section with nothing to say. A quick answer may need only Question, Answer and Evidence.
+
+```markdown
+## Question        what is asked, who will use the answer, and the decision or work it serves
+## Answer          the answer in plain words, and how strong the evidence behind it is
+## Findings        each finding with its strength and its sources, most important first
+## Evidence        each source: what it shows, and how it was checked
+## Method          how the evidence was gathered: scope, searches or runs, what was left out
+## Limits          where sources disagree and how that was settled, and what the evidence cannot show
+## Open Questions  what is still unknown, and what would settle it
+## Implications    what the answer means for the reader's decision
+```
+
+- **Answer before evidence.** The reader knows the claim before reading what supports it.
+- **State strength once.** Give each finding's strength where the finding is stated, and keep the limits in Limits. A qualifier repeated in every sentence hides the claim without making it more accurate.
+- **Say how each source was checked:** opened and read, known only from a summary or search result, the project's own data, or a run observed here, with the version or date of anything that changes. Never present a source known only from a summary as verified.
+- **Recommendations are proposals.** Implications may recommend; the owner decides. A finding becomes a requirement or a decision only through its owner, as any other source does.
+
+A research document is a task artifact: it goes in the task folder's `sources/`, or in the repository's own research location when it has one.

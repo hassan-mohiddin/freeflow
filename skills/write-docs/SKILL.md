@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: "Use when writing, updating or reviewing a document someone will act on: a spec, PRD, issue, requirements, API or interface contract, technical design, decision record or ADR; an implementation, remediation, migration or operations plan; a README, user guide, developer docs, subsystem doc, overview, folder README, feature file or a skill's design record; or when a code change makes existing docs wrong, or a project has no developer docs yet. It covers where a document goes, its header and status, and the checks to run after writing it."
+description: "Use when writing, updating or reviewing a document someone will act on: a spec, PRD, issue, requirements, API or interface contract, technical design, decision record or ADR; a research document, literature review or comparison of options; an implementation, remediation, migration or operations plan; a README, user guide, developer docs, subsystem doc, overview, folder README, feature file or a skill's design record; or when a code change makes existing docs wrong, or a project has no developer docs yet. It covers where a document goes, its header and status, and the checks to run after writing it."
 ---
 
 # Write Docs
@@ -9,7 +9,7 @@ Write a document a reader will act on: true to its sources, no more certain than
 
 Documents come in two kinds, with different lives:
 
-- **Specs and Plans decide work before it happens.** A Spec defines what to build or decide: a PRD, issue, requirements, technical design, API or migration contract. A Plan orders how to carry out agreed work. They are task artifacts, kept beside the task's Working Record (`specs/`, `plans/`) unless the repository keeps them elsewhere; they are drafted, accepted by the user, and left behind once the work is done. A decision record is written the same way and can outlive the task.
+- **Specs and Plans decide work before it happens.** A Spec defines what to build or decide: a PRD, issue, requirements, technical design, API or migration contract. A Plan orders how to carry out agreed work. They are task artifacts, kept beside the task's Working Record (`specs/`, `plans/`) unless the repository keeps them elsewhere; they are drafted, accepted by the user, and left behind once the work is done. A decision record is written the same way and can outlive the task. A research document, which answers a question with evidence for a decision or work, is a task artifact too.
 - **Documentation describes software that exists:** how it works and why, for the people and agents who use or change it. It lives in the repository and stays true only if it changes with the code; its header names the code it `Covers` and the commit it was `Verified at`. A document that decides work not yet done is a Spec or a Plan, not documentation.
 
 Readers include agents. An agent that reads code sees what it does but not why; without the why, it may treat a deliberate choice as a bug, rebuild a design that was rejected for a reason, or break a rule nobody wrote down.
@@ -20,7 +20,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 | Situation | Read |
 | --- | --- |
-| A spec, PRD, issue, requirements, technical design, API or interface contract, or migration contract; an ordered plan for implementation, remediation, migration or operations | [spec and plan shapes](references/spec-and-plan-shapes.md) |
+| A spec, PRD, issue, requirements, technical design, API or interface contract, or migration contract; an ordered plan for implementation, remediation, migration or operations; a research document that answers a question with evidence | [spec and plan shapes](references/spec-and-plan-shapes.md) |
 | Preserving a decision and its rationale: a decision note or ADR | [spec and plan shapes: Decision Records](references/spec-and-plan-shapes.md#decision-records) |
 | Where a Spec, Plan or decision record goes, its header, status and source trail | Header, Status And Sources, below |
 | Finding a project's developer docs or proposing them; the structure of an overview, subsystem doc, folder README, feature file, live-verification guide or skill design record; a new or rewritten subsystem doc or overview | [documentation shapes](references/documentation-shapes.md) |
@@ -67,9 +67,9 @@ Revise for a change in the contract or strategy, not for progress. Preserve acce
 
 ### Header, Status And Sources
 
-These apply to Specs, Plans and decision records; documentation uses the header in [documentation shapes](references/documentation-shapes.md#header) instead.
+These apply to Specs, Plans, decision records and research documents; documentation uses the header in [documentation shapes](references/documentation-shapes.md#header) instead.
 
-**Destination.** A task-local Spec or Plan goes in the task folder Track Work owns (`specs/`, `plans/`). Use an established product, design, API, issue, migration, policy or architecture location instead when the document should be canonical there, and the repository's issue tracker for an issue when it is available and intended. Ask before choosing between task-local memory and canonical repository documentation when the choice changes authority, review or longevity. Do not start a new top-level docs convention for one document.
+**Destination.** A task-local Spec or Plan goes in the task folder Track Work owns (`specs/`, `plans/`), and a research document in its `sources/`. Use an established product, design, API, issue, migration, policy or architecture location instead when the document should be canonical there, and the repository's issue tracker for an issue when it is available and intended. Ask before choosing between task-local memory and canonical repository documentation when the choice changes authority, review or longevity. Do not start a new top-level docs convention for one document.
 
 **Header.** Use the repository's required metadata. Otherwise, when identity helps future readers, give a title and a compact header with only useful fields:
 
@@ -83,7 +83,7 @@ These apply to Specs, Plans and decision records; documentation uses the header 
 > **Source:** Working Record task-004 and accepted product decisions
 ```
 
-**Doc ID** when links, review history or supersession need one; **Type** the document's actual job, such as PRD, Issue, Technical Design, API Contract, Migration Contract, Implementation Plan or Decision; **Owner** the person or role with authority over its intent; **Source** compact pointers to accepted context and evidence; a date, or **Supersedes** / **Superseded by**, only when reliable and needed. Never invent an owner, approval, date or authority to complete a header.
+**Doc ID** when links, review history or supersession need one; **Type** the document's actual job, such as PRD, Issue, Technical Design, API Contract, Migration Contract, Implementation Plan, Decision or Research; **Owner** the person or role with authority over its intent; **Source** compact pointers to accepted context and evidence; a date, or **Supersedes** / **Superseded by**, only when reliable and needed. Never invent an owner, approval, date or authority to complete a header.
 
 **Status.** Use the repository's statuses when it has them. Otherwise give one current status from this vocabulary, the same for every Spec, Plan and decision record, using only the states its life reaches:
 
@@ -118,6 +118,7 @@ Goal: each fact lives in one place, written for the reader who needs it.
 | Someone editing files in one folder | Folder `README.md` | What each file owns, local rules, and a pointer to its subsystem doc. |
 | Someone checking a feature in the running software | Feature file, plus a shared live-verification guide | What the user sees and the exact steps that show it works. |
 | Someone changing a skill or other agent instruction text | Skill design record | What it is meant to change and why: its claim, design, evidence, rejected alternatives and dropped candidates. |
+| Anyone acting on a question that needs evidence | Research document | The answer, each finding with its strength, how each source was checked, and the limits, in the [Research](references/spec-and-plan-shapes.md#research) shape. |
 | Anyone revisiting a hard-to-reverse choice | Decision record | The decision and why, in the [Decision Records](references/spec-and-plan-shapes.md#decision-records) shape. |
 
 Prefer extending an existing document to creating a new one: a small set of current documents serves readers better than many partly current ones. A subsystem earns its own doc when the reasons behind it cannot be read from the code and readers keep needing them: agents re-derive the same design, or mistake a deliberate behavior for a bug. A user guide and a subsystem doc about the same feature are different documents for different readers; link them rather than merging them.
