@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/write-docs/`
 > **Tests:** `.skill-eval/write-docs/`
-> **Verified at:** `52d6f7f` (2026-10-27)
+> **Verified at:** `bb043333` (2026-10-27)
 
 For anyone changing Write Docs: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/write-docs/SKILL.md); this record holds the reasons it does not.
 
@@ -32,6 +32,7 @@ Write Docs is read when a document someone will act on is written or revised: a 
   - Documentation describes software that exists. Its `Covers` and `Verified at` header lets `docs-check.mjs` flag a document whose code changed.
   
   The two have different readers and different ways of going wrong, so each has its own header.
+- **Research that needs checked sources goes through Research Work.** An in-depth report, a survey or literature review, or a study is done with Research Work, which writes its report in this shape; Write Docs' description no longer names literature reviews, so the two descriptions do not both claim them (task record D-013). Moving the shape itself into Research Work waits for its paper route (D-006).
 - **Research as one shape, beside the Specs.** A research document answers a question with evidence. A quick answer and a long synthesis differ only in length, so one shape scales by leaving out sections. It sits in `references/spec-and-plan-shapes.md` because it shares the Specs' header rules and life. A reference of its own would add a file for about 25 lines that are read together with them.
 - **The research rules come from the agent-success research** (Beyond the Weights, `research/agent-success/`):
   - **Answer before evidence and strength stated once** come from comparing review-loop drafts with a paper written plainly. Repeated qualifiers buried the claim without making it more accurate.
