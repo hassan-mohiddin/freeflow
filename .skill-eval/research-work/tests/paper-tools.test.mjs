@@ -560,3 +560,65 @@ test("a check that cannot run says so: no ledger, no outline, no body sections, 
   assert.equal(bad.status, 2);
   assert.match(bad.stderr, /--max-pages must be a whole number/);
 });
+
+test("a figure spec edited after its receipt makes the figure stale, and mixed heading levels leave the total unchecked", () => {
+  const dir = figureFolder();
+  writeFileSync(join(dir, "claims.md"), "| ID | Claim |\n| --- | --- |\n| C1 | x |\n");
+  const drawn = node(
+    "paper.mjs",
+    "run",
+    "--ledger",
+    join(dir, "runs.jsonl"),
+    "--input",
+    join(dir, "spec.json"),
+    "--input",
+    join(dir, "data.json"),
+    "--output",
+    join(dir, "figure.svg"),
+    "--",
+    process.execPath,
+    join(SCRIPTS, "figure.mjs"),
+    "draw",
+    join(dir, "spec.json"),
+    "--out",
+    join(dir, "figure.svg"),
+  );
+  assert.equal(drawn.status, 0, drawn.stderr);
+  writeFileSync(join(dir, "outline.md"), OUTLINE("R1"));
+  assert.equal(node("artifact.mjs", "validate", join(dir, "outline.md")).status, 0);
+  writeFileSync(join(dir, "spec.json"), JSON.stringify({ ...SPEC, title: "Edited after drawing" }));
+  assert.match(
+    node("artifact.mjs", "validate", join(dir, "outline.md")).stdout,
+    /R1 did not read spec\.json as it is now/,
+  );
+
+  const mixed = draftCheck("# Title\n\n# Introduction\n\none two three four five six\n\n## Method\n\nseven\n", {
+    limits: new Map([["total", 3]]),
+  });
+  assert.ok(
+    mixed.problems.some((problem) => problem.value.startsWith("total: body text sits under level-1 headings")),
+    JSON.stringify(mixed.problems),
+  );
+});
+
+test("a build that cannot find a figure fails", (t) => {
+  if (spawnSync("pandoc", ["--version"]).status !== 0) {
+    t.skip("pandoc is not installed here");
+    return;
+  }
+  const dir = folder();
+  writeFileSync(join(dir, "paper.md"), "# P\n\n## Results\n\n![Figure 1](figures/missing.svg)\n");
+  const built = node(
+    "paper.mjs",
+    "build",
+    join(dir, "paper.md"),
+    "--to",
+    "html",
+    "--out",
+    join(dir, "build", "paper.html"),
+    "--ledger",
+    join(dir, "runs.jsonl"),
+  );
+  assert.equal(built.status, 1, built.stdout);
+  assert.match(built.stderr, /could not find: .*missing\.svg/);
+});

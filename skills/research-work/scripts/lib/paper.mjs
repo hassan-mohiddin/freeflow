@@ -27,16 +27,22 @@ export function figureReceipts(outlinePath, runs) {
       const absolute = resolve(folder, path);
       return { path: receiptPath(ledgerFolder, absolute), sha256: fileHash(absolute) };
     },
-    // The data files the receipt's JSON inputs name as `data`, as figure specs do, in the receipt's own path form.
+    // The figure specs among the receipt's JSON inputs: the data file each names, in the receipt's own path form, and
+    // whether the spec is still as the receipt read it.
     specData: (receipt) =>
       (receipt.inputs ?? []).flatMap((input) => {
         if (!input.path.endsWith(".json")) return [];
         const absolute = resolve(ledgerFolder, input.path);
         try {
           const spec = JSON.parse(readFileSync(absolute, "utf8"));
-          return typeof spec?.data === "string" && Array.isArray(spec.series)
-            ? [receiptPath(ledgerFolder, resolve(dirname(absolute), spec.data))]
-            : [];
+          if (typeof spec?.data !== "string" || !Array.isArray(spec.series)) return [];
+          return [
+            {
+              spec: input.path,
+              data: receiptPath(ledgerFolder, resolve(dirname(absolute), spec.data)),
+              unchanged: input.sha256 !== null && input.sha256 === fileHash(absolute),
+            },
+          ];
         } catch {
           return [];
         }
@@ -188,12 +194,22 @@ export function draftCheck(text, { ledger = null, figures = null, limits = new M
     if (section.level === 2 && !NOT_BODY.test(section.name)) total += count;
   }
   const hasBody = parts.some((section) => section.level === 2 && !NOT_BODY.test(section.name));
+  // Body text under a level-1 heading other than the title would be left out of the total, so the total is not checked.
+  const firstTitle = parts.findIndex((section) => section.level === 1);
+  const mixed =
+    hasBody &&
+    parts.some(
+      (section, index) =>
+        section.level === 1 && index !== firstTitle && section.lines.some((line) => line.text.trim() !== ""),
+    );
   for (const [name, limit] of limits) {
-    if (name === "total" && !hasBody) {
+    if (name === "total" && (!hasBody || mixed)) {
       problems.push({
         line: 1,
         kind: "word limit not checked",
-        value: "total: the draft has no level-2 body sections",
+        value: mixed
+          ? "total: body text sits under level-1 headings as well as level-2 ones"
+          : "total: the draft has no level-2 body sections",
       });
       continue;
     }

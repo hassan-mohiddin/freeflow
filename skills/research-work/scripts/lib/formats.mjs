@@ -688,9 +688,13 @@ function validateOutline(
         const data = figureFile?.(cells.Data);
         if (data && !run.inputs.some((input) => same(input, data)))
           problems.push(`${where}: ${receipt} did not read ${cells.Data} as it is now`);
-        const read = specData?.(run) ?? [];
-        if (data && read.length > 0 && !read.includes(data.path))
-          problems.push(`${where}: ${receipt}'s figure spec draws from ${read.join(", ")}, not ${cells.Data}`);
+        const specs = specData?.(run) ?? [];
+        for (const spec of specs.filter((each) => !each.unchanged))
+          problems.push(`${where}: ${receipt} did not read ${spec.spec} as it is now`);
+        if (data && specs.length > 0 && !specs.some((each) => each.data === data.path))
+          problems.push(
+            `${where}: ${receipt}'s figure spec draws from ${specs.map((each) => each.data).join(", ")}, not ${cells.Data}`,
+          );
         const drawn = file ? figureFile?.(file) : null;
         if (drawn && drawn.sha256 === null) problems.push(`${where}: the figure file ${file} does not exist`);
         else if (drawn && !run.outputs.some((output) => same(output, drawn)))

@@ -148,6 +148,7 @@ if (command === "run") {
   extras.push(`--resource-path=${dirname(resolve(target))}`);
   mkdirSync(dirname(resolve(values.out)), { recursive: true });
   let receipt;
+  let first = null;
   if (values.to !== "pdf") {
     const to = values.to === "html" ? ["--standalone", "--embed-resources"] : ["--standalone"];
     receipt = recorded(["pandoc", source, ...to, ...extras, "-o", values.out], inputs, [values.out]);
@@ -173,9 +174,7 @@ if (command === "run") {
         ["chromium", "chromium-browser", "google-chrome", "chrome"].find((name) => resolveProgram(name, process.cwd()));
       if (!browser) fail("no Chromium or Chrome on PATH: name one with --browser, or use --engine latex", 1);
       const html = `${values.out.replace(/\.pdf$/, "")}.html`;
-      const first = recorded(["pandoc", source, "--standalone", "--embed-resources", ...extras, "-o", html], inputs, [
-        html,
-      ]);
+      first = recorded(["pandoc", source, "--standalone", "--embed-resources", ...extras, "-o", html], inputs, [html]);
       if (first.exit_code !== 0) process.exit(first.exit_code ?? 1);
       receipt = recorded(
         [
@@ -193,6 +192,12 @@ if (command === "run") {
     } else fail(`--engine must be latex or browser\n${USAGE}`);
   }
   if (receipt.exit_code === 0 && !existsSync(values.out)) fail(`${values.out} was not written`, 1);
+  // Pandoc replaces an image it cannot find with its description and still exits 0; a paper missing a figure is not built.
+  const missing = [first, receipt]
+    .filter(Boolean)
+    .flatMap((each) => [...(each.stderr_tail ?? "").matchAll(/Could not fetch resource ([^\n:]+)/g)])
+    .map((match) => match[1].trim());
+  if (missing.length > 0) fail(`the build could not find: ${missing.join(", ")}; ${values.out} is incomplete`, 1);
   process.exit(receipt.exit_code ?? 1);
 } else if (command === "check-pdf") {
   if (!target) fail(USAGE);
