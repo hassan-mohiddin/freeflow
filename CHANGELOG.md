@@ -5,6 +5,7 @@
 ### Changed
 
 - Write Skill explains why one capability skill that routes to its references and scripts (a trunk) beats many narrow skills, keeps a trunk's body to its routing table, common route and Rules, and asks for a design record per skill in the developer docs; Write Docs adds the skill design record shape under `dev-docs/skills/`.
+- Write Docs keeps history in git: developer docs drop their Changes lists, and decisions cite the commit where they were made.
 
 ## 0.9.0 - 2026-10-24
 
