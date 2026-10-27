@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/write-skill/`
 > **Tests:** `.skill-eval/write-skill/`, `.skill-eval/gate/write-skill/`
-> **Verified at:** `154e24a` (2026-10-27)
+> **Verified at:** `138165f5` (2026-10-27)
 
 For anyone changing Write Skill: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/write-skill/SKILL.md); this record holds the reasons it does not.
 

@@ -16,7 +16,8 @@ import { SkillAuthorError } from "./skill-author.mjs";
 // whether behavior did.
 // A unit is rule-like when it sits under a Rules heading, is a numbered step, or states a rule (never, must...) or the
 // reason behind one (because, so that, otherwise, why): a lost reason changes how an agent applies the rule it kept.
-// Rule-like unmatched units need a verdict; with allUnits, every unmatched unit does.
+// Rule-like unmatched units need a verdict; with allUnits, every unmatched unit does. Reworded units are listed for a
+// reading, never gated: with allUnits, every reworded unit that is not rule-like is listed too.
 
 const SHINGLE_WORDS = 5;
 const MIN_RULE_WORDS = 4;
@@ -624,6 +625,9 @@ export async function compareGuidance({
         .filter((unit) => !unit.ruleLike && unit.match.class === "unmatched")
         .map((unit) => ({ ...detail(unit), verdict: judged.get(unit.key) ?? null }))
     : [];
+  const otherReworded = allUnits
+    ? units.filter((unit) => !unit.ruleLike && unit.match.class === "reworded").map(detail)
+    : [];
   const needVerdicts = [...ruleLikeUnmatched, ...otherUnmatched];
   const unresolved = needVerdicts.filter((unit) => unit.verdict === null).map((unit) => unit.key);
   const used = new Set(needVerdicts.map((unit) => unit.key));
@@ -647,7 +651,7 @@ export async function compareGuidance({
     counts: { all: tally(units), ruleLike: tally(units.filter((unit) => unit.ruleLike)) },
     ruleLikeUnmatched,
     ruleLikeReworded,
-    ...(allUnits ? { otherUnmatched } : {}),
+    ...(allUnits ? { otherUnmatched, otherReworded } : {}),
     unresolved,
     unusedVerdicts: [...judged.keys()].filter((key) => !used.has(key)),
   };
@@ -655,6 +659,12 @@ export async function compareGuidance({
 
 const short = (ref) => (/^[0-9a-f]{40}$/i.test(ref) ? ref.slice(0, 8) : ref);
 const at = (score) => (score?.file ? `${score.score} at ${score.file}:${score.line ?? "?"}` : "0");
+// A reworded unit is shown with its closest text, from whichever measure scores higher, so the reader sees what it became.
+const rewordedLines = (units) =>
+  units.flatMap((unit) => {
+    const best = unit.containment.score >= unit.jaccard.score ? unit.containment : unit.jaccard;
+    return [`- \`${unit.key}\` ${unit.text}`, `  - closest (${at(best)}): ${best.text ?? ""}`];
+  });
 
 export function compareMarkdown(result) {
   const lines = [`# Loss check: ${short(result.base)} -> ${short(result.new)}`, ""];
@@ -689,12 +699,13 @@ export function compareMarkdown(result) {
     if (!other.length) lines.push("None.");
   }
   lines.push("", `## Rule-like reworded: confirm the meaning survived (${result.ruleLikeReworded.length})`, "");
-  for (const unit of result.ruleLikeReworded) {
-    lines.push(`- \`${unit.key}\` ${unit.text}`);
-    const best = unit.containment.score >= unit.jaccard.score ? unit.containment : unit.jaccard;
-    lines.push(`  - closest (${at(best)}): ${best.text ?? ""}`);
-  }
+  lines.push(...rewordedLines(result.ruleLikeReworded));
   if (!result.ruleLikeReworded.length) lines.push("None.");
+  if (result.allUnits) {
+    lines.push("", `## Other reworded: confirm the meaning survived (${result.otherReworded.length})`, "");
+    lines.push(...rewordedLines(result.otherReworded));
+    if (!result.otherReworded.length) lines.push("None.");
+  }
   if (result.unusedVerdicts.length) lines.push("", `Verdicts no longer needed: ${result.unusedVerdicts.join(", ")}.`);
   lines.push("", `Status: ${result.status}.`);
   return `${lines.join("\n")}\n`;
