@@ -16,6 +16,7 @@
 ### Fixed
 
 - Evaluate Behavior's evaluator: a suite's decision cut short by the budget or a stop no longer claims "beats" or "worse" (its claim is `none`, reason `cancelled`, with the counts that ran and `k` the trials that completed); `--jobs` and `--cpu-jobs` hold even when a new start arrives as a slot is freed; the plan line also counts host-extension builds, which run on the host outside the seal; the transcript scan flags a host name with no dot, such as `http://intranet`, as an external network target (loopback and `localhost` stay internal), so more runs are held for you to read; judge calibration and agreement between two judges add linear-weighted kappa for `0-2` dimensions beside the unchanged kappa; and a decision or combined judge answer over a very long list of values no longer fails.
+- `skill-author compare --all-units` lists every reworded unit that is not rule-like, under "Other reworded: confirm the meaning survived" in its JSON (`otherReworded`) and `--markdown` output, so the meaning check Write Skill asks for after a substantial revision can reach each one; the exit status is unchanged.
 
 ## 0.9.0 - 2026-10-24
 

@@ -377,3 +377,38 @@ test("compare --all-units needs a verdict for every unmatched unit, not only rul
     assert.match(markdown.stdout, /## Other unmatched: read each for meaning \(1, 0 without a verdict\)/);
   });
 });
+
+test("compare --all-units lists the reworded units that are not rule-like, without changing the exit status", async () => {
+  await withRepository(async (root, base) => {
+    const plain = "Write one line per user-visible change, grouped by category.";
+    const reworded = "Record one line for every change a user can see, grouped by category.";
+    await write(root, { "skills/ship-it/references/notes.md": `# Notes\n\n${reworded}\n` });
+    const key = "skills/ship-it/references/notes.md:3";
+
+    const ruleOnly = compare(root, base);
+    assert.equal(ruleOnly.status, 0, ruleOnly.stdout);
+    assert.equal(ruleOnly.json.otherReworded, undefined);
+
+    const all = compare(root, base, "--all-units");
+    assert.equal(all.status, 0, all.stdout);
+    assert.ok(Array.isArray(all.json.otherReworded), JSON.stringify(all.json));
+    assert.deepEqual(
+      all.json.otherReworded.map((unit) => unit.text),
+      [plain],
+    );
+    assert.equal(all.json.otherReworded[0].key, key);
+    assert.equal(all.json.otherReworded[0].jaccard.text, reworded);
+    assert.deepEqual(all.json.ruleLikeReworded, []);
+    assert.deepEqual(all.json.unresolved, []);
+    assert.equal(all.json.counts.all.reworded, 1);
+
+    const markdown = spawnSync(process.execPath, [entrypoint, "compare", base, "--all-units", "--markdown"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.equal(markdown.status, 0, markdown.stdout);
+    assert.match(markdown.stdout, /## Other reworded: confirm the meaning survived \(1\)/);
+    assert.match(markdown.stdout, new RegExp(`\`${key}\` ${plain}\n  - closest \\([^)]*\\): ${reworded}`));
+    assert.match(markdown.stdout, /Status: ok\./);
+  });
+});
