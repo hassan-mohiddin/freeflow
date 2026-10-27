@@ -43,7 +43,7 @@ Before computing any metric, read a sample of the raw outputs: the failures, and
 
 ## Judges
 
-A model judge's answers are measurements of an instrument whose error is unknown until measured. A judge's verdict counts toward a claim only with a judge validation record that passes; without one, a claim resting on the judge is at most L1, and `artifact.mjs validate` refuses more for a register row whose Source cites `judge:<record>`.
+A model judge's answers are measurements of an instrument whose error is unknown until measured. This section says what any judge needs before its answers count; Review Work's [Judge Contract](../../review-work/references/evals-and-judges.md#judge-contract) says what to record each time one is used, and Evaluate Behavior's [judge answers](../../evaluate-behavior/references/design-and-measurement.md#count-judge-answers-with-care) how its evaluator runs and calibrates one. A judge's verdict counts toward a claim only with a judge validation record that passes; without one, a claim resting on the judge is at most L1, and `artifact.mjs validate` refuses more for a register row whose Source cites `judge:<record>`.
 
 The record holds:
 
@@ -53,7 +53,7 @@ The record holds:
 - **Length control**: judges favor longer answers. Include gold items where the right answer is the shorter one.
 - **Decoys** the judge must pass: outputs that look right and are wrong, and the reverse.
 - **Repeatability**: the judge, run again on the gold set, agrees with its own first answers.
-- **Which model judged which**: a different model from the one graded by default, from another family when you can; the same model only when no other is available (one subscription, one model), with the reason written in the record.
+- **Which model judged which**: a different model from the one graded, by default. Another family is optional: it flags different items but has not been shown to find more real defects. The same model only when no other is available (one subscription, one model), with the reason written in the record.
 - **The rubric's hash**: the record holds for that rubric only. A changed rubric needs a new record.
 
 In use:

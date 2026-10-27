@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: "Use when writing, updating or reviewing a document someone will act on: a spec, PRD, issue, requirements, API or interface contract, technical design, decision record or ADR; a research document, literature review or comparison of options; an implementation, remediation, migration or operations plan; a README, user guide, developer docs, subsystem doc, overview, folder README, feature file or a skill's design record; or when a code change makes existing docs wrong, or a project has no developer docs yet. It covers where a document goes, its header and status, and the checks to run after writing it."
+description: "Use when writing, updating or reviewing a document someone will act on: a spec, PRD, issue, requirements, API or interface contract, technical design, decision record or ADR; a research document or comparison of options; an implementation, remediation, migration or operations plan; a README, user guide, developer docs, subsystem doc, overview, folder README, feature file or a skill's design record; or when a code change makes existing docs wrong, or a project has no developer docs yet. It covers where a document goes, its header and status, and the checks to run after writing it."
 ---
 
 # Write Docs

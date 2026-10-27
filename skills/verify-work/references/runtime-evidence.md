@@ -136,7 +136,7 @@ A microbenchmark is diagnostic when it isolates a hypothesis; it becomes accepta
 ### Compare Honestly
 
 - Keep behavior-relevant configuration matched, with each side tuned as production runs it (release build, flags, pools, batching, indexes); against a side left on defaults, name no winner.
-- Report the median and range of repeated runs, not one favorable run. When comparing, alternate the sides, at least five runs each, so warm-up and drift favor neither.
+- Report the median and range of repeated runs, not one favorable run. When comparing, alternate the sides, at least five runs each, so warm-up and drift favor neither. For an interval on the difference, or the runs a comparison needs, use Research Work's [`stats.mjs`](../../research-work/scripts/stats.mjs) (`paired difference`, `interval bootstrap`, `power`).
 - Count failed and non-success results, and confirm the timed work happened: fast rejections, early timeouts, unawaited promises and lazy results nobody reads measure work that never ran.
 - For how cost grows with input size, run the same operation on the input and on double it.
 - Include cold/warm cache distinctions when they affect users.

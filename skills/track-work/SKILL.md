@@ -113,7 +113,7 @@ Size a Slice by one coherent result that can be checked and corrected with a man
 
 Keep checking and correction inside the Slice that produced the work. When accepted scope grows, record the extension in the Slice before acting on it. Start a new Slice when the result, authority, or evidence boundary changes.
 
-An experiment or investigation completes when its question is answered or its limit is reached; a negative answer is a valid result. Record what it showed and what it changes, not how it was built.
+An experiment or investigation completes when its question is answered or its limit is reached; a negative answer is a valid result. Record what it showed and what it changes, not how it was built. A study run with [Research Work](../research-work/SKILL.md) keeps its plan, lock, run ledger and deviation log as its own evidence: name the plan as a defining artifact and its lock as a decision Checkpoint, and do not copy receipts or deviations into the record.
 
 ## Keep A Rolling Route In Future Work
 

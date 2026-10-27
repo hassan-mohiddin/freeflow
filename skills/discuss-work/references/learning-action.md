@@ -8,6 +8,8 @@ This reference is judgment: adapt it to the question. Its binding statements res
 
 Use an experiment or prototype when existing evidence cannot settle a material question and exercising behavior can distinguish the remaining answers. A separate prototype should isolate the uncertainty more safely or economically than changing production; unfamiliarity alone does not require one.
 
+When the answer is a measured rate or a comparison, or a finding others will act on, it is a study or a quick check: frame and run it with [Research Work](../../research-work/SKILL.md). A prototype that answers a design question stays here.
+
 If the work is an accepted useful outcome regardless of what it teaches, treat it as delivery work, not an experiment; do not disguise implementation as learning. Incidental learning does not change its authority or acceptance boundary.
 
 ## Frame It
