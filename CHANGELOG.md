@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Research Work, a new skill (`/research-work`) for answering a question from evidence gathered and checked first, starting with in-depth reports on code, papers or docs: a research brief agreed with you, a source ledger saying how each source was checked, a claims register with an evidence level per claim, and checks that every `path:line` citation exists at its pinned commit, every quote appears in its source and every number in the report traces to a registered claim. Its statistics script gives intervals, paired comparisons, clustered runs, rater agreement, multiple-comparison correction, pass@k and power, and Evaluate Behavior now uses it.
+
 ### Changed
 
 - Write Skill explains why one capability skill that routes to its references and scripts (a trunk) beats many narrow skills, keeps a trunk's body to its routing table, common route and Rules, and asks for a design record per skill in the developer docs; Write Docs adds the skill design record shape under `dev-docs/skills/`.

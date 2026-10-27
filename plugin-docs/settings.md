@@ -110,6 +110,7 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Each skill › Discuss Work | `skills.discuss-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
 | Each skill › Evaluate Behavior | `skills.evaluate-behavior` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
 | Each skill › Execute Work | `skills.execute-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
+| Each skill › Research Work | `skills.research-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
 | Each skill › Review Work | `skills.review-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
 | Each skill › Track Work | `skills.track-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
 | Each skill › Verify Work | `skills.verify-work` | `true`, `false` | `true` | Session, Personal, Repository (every host) |

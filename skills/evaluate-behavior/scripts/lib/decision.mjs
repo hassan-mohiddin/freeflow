@@ -4,7 +4,11 @@
 
 import { createHash } from "node:crypto";
 
+import { signTest } from "../../../research-work/scripts/lib/stats.mjs";
 import { ARM_NAME } from "./arms.mjs";
+
+// The exact sign test is Research Work's; the evaluator's callers and tests import it from here.
+export { signTest };
 
 const DECISION_FIELDS = new Set(["measure", "arms", "direction", "method", "alpha", "min_cases", "trials"]);
 const SCHEDULE_FIELDS = ["initial", "max", "step"];
@@ -237,30 +241,6 @@ function caseOutcome(group, rule) {
   }
   const worth = (highest - lowest) / Math.min(summaries[reference].n, summaries[arm].n);
   return { ...outcome, sign, stable: !equal && Math.abs(raw) >= worth };
-}
-
-/** Exact two-sided binomial sign test with p = 1/2 over `better` and `worse`; ties are not passed in. */
-export function signTest(better, worse) {
-  const n = better + worse;
-  if (n === 0) return 1;
-  const k = Math.min(better, worse);
-  if (n <= 1000) {
-    // Exact: the tail's binomial coefficients as integers over 2^n, rounded once.
-    let choose = 1n;
-    let sum = 0n;
-    for (let i = 0; i <= k; i += 1) {
-      if (i > 0) choose = (choose * BigInt(n - i + 1)) / BigInt(i);
-      sum += choose;
-    }
-    return Math.min(1, Number(2n * sum) / 2 ** n);
-  }
-  let logChoose = 0;
-  let tail = 0;
-  for (let i = 0; i <= k; i += 1) {
-    if (i > 0) logChoose += Math.log(n - i + 1) - Math.log(i);
-    tail += Math.exp(logChoose - n * Math.LN2);
-  }
-  return Math.min(1, 2 * tail);
 }
 
 /**

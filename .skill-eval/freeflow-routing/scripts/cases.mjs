@@ -45,7 +45,10 @@ export const MOVED_PARTS = {
   "write-docs/references/decision-records.md": "write-docs/references/spec-and-plan-shapes.md",
 };
 
-/** Every skill Freeflow shipped to the model at the pinned base (1a21211c): the skills the suite's cases name. */
+/**
+ * Every skill Freeflow shipped to the model at the pinned base (1a21211c), and the skills added since (Research Work):
+ * the skills the suite's cases name. A build that lacks an added skill has no owner for its requests (routeCase).
+ */
 export const SKILLS = [
   "action-selection",
   "agree-work",
@@ -62,6 +65,7 @@ export const SKILLS = [
   "map-features",
   "migration-work",
   "release-work",
+  "research-work",
   "review-work",
   "setup-freeflow",
   "simplify-code",
@@ -287,7 +291,7 @@ export const CASES = [
     id: "di-tags-or-folders",
     hit: "discuss",
     expect: ["discuss"],
-    not: [],
+    not: ["research-work"],
     prompt:
       "I'm torn between adding folders and making tags better for organizing bookmarks. What do you think? Let's talk it through before deciding anything.",
   },
@@ -534,6 +538,35 @@ export const CASES = [
     prompt: "Add an optional notes field that people can set on new bookmarks with --notes.",
   },
 
+  // Research Work: a question answered from evidence gathered and checked first. Added after the base.
+  {
+    id: "rs-search-report",
+    hit: "research-work",
+    expect: ["research-work"],
+    not: [],
+    parts: ["research-work/references/investigation.md"],
+    prompt:
+      "Write me an in-depth report on how search works in shelf, from the query typed on the command line to the results printed, with every step cited to the lines of code.",
+  },
+  {
+    id: "rs-paired-result",
+    hit: "research-work",
+    expect: ["research-work"],
+    not: [],
+    parts: ["research-work/scripts/stats.mjs"],
+    prompt:
+      "We ran the old search and the accent-folding one on the same 40 queries: the new one found the right bookmark on 31, the old one on 26. Is that difference real or noise? Give me an interval.",
+  },
+  {
+    id: "rs-sources",
+    hit: "research-work",
+    expect: ["research-work"],
+    not: [],
+    parts: ["research-work/references/investigation.md"],
+    prompt:
+      "Someone on the issue tracker says fuzzy matching always beats prefix matching for short titles like ours. Before we rely on that, find out what the published work actually says, with sources.",
+  },
+
   // Release Work: preparing, publishing or verifying a versioned release.
   {
     id: "rw-cut",
@@ -699,7 +732,7 @@ export const CASES = [
     id: "vw-claim",
     hit: "verify-work",
     expect: ["verify-work"],
-    not: ["review-work"],
+    not: ["review-work", "research-work"],
     prompt: "My colleague says the uncommitted TSV export works. Is that actually true? Check it.",
   },
   {
@@ -876,10 +909,12 @@ export const OWNERS = [...new Set(SKILLS.map(ownerOf).filter(Boolean))];
 
 /**
  * A case as one build measures it. `present` holds the skills the build ships. On the base every measured skill is
- * present and the case is unchanged. On a build without a measured skill, its owner (MERGED) takes its place:
+ * present and the case is unchanged. On a build without a measured skill, its owner (MERGED) takes its place; a skill
+ * added after the base has no owner on a build that lacks it:
  *
- * - `expect`: an absent skill's owner counts as the route; `owned` is false when no skill does the request's job any
- *   more (Action Selection), and the request then counts toward no hit rate.
+ * - `expect`: an absent skill's owner counts as the route; `owned` is false when no skill does the request's job on
+ *   this build (Action Selection after the merge, Research Work before it was added), and the request then counts
+ *   toward no hit rate.
  * - `checks`: one near-miss check per `not` skill, `{ skill, family, target }`: `target` is the skill whose opening is
  *   the false trigger on this build (the skill itself, or its owner), `family` its owner on every build, so before
  *   and after of one owner add up the same checks. A check is dropped, and listed in `dropped` with its reason, when
@@ -892,7 +927,7 @@ export const OWNERS = [...new Set(SKILLS.map(ownerOf).filter(Boolean))];
  * @param {boolean} readFirst whether the build's core says to read READ_FIRST at the start of every task
  */
 export function routeCase(entry, present, readFirst = false) {
-  const target = (skill) => (present.has(skill) || !Object.hasOwn(MERGED, skill) ? skill : MERGED[skill]);
+  const target = (skill) => (present.has(skill) ? skill : Object.hasOwn(MERGED, skill) ? MERGED[skill] : null);
   const expect = [...new Set(entry.expect.map(target).filter(Boolean))];
   const checks = [];
   const dropped = [];

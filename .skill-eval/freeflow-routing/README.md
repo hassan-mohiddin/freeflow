@@ -31,9 +31,9 @@ ISO strings with `-`), a search that lost its accent folding in a refactor, a sl
 messy `src/format.js`, duplicated URL normalizing, deployment notes, `AGENTS.md`, a changelog with an Unreleased
 section and a 2,200-line server log.
 
-**The cases** are in `scripts/cases.mjs`: 90 requests, each with the skill whose hit rate it counts toward (`hit`), the
-skills whose opening counts as the right route (`expect`), and the skills that must not open (`not`). Each of the 25
-skills has 3 requests that should open it, and at least one near miss: a request where a neighbour or no skill is right.
+**The cases** are in `scripts/cases.mjs`: 93 requests, each with the skill whose hit rate it counts toward (`hit`), the
+skills whose opening counts as the right route (`expect`), and the skills that must not open (`not`). Each of the 26
+skills (the base's 25, and Research Work, added since) has 3 requests that should open it, and at least one near miss: a request where a neighbour or no skill is right.
 Near misses come from two places: 15 dedicated requests (a question, an exactly specified edit, a feature that is not a
 refactor, an app setting that is not Freeflow's) and hit requests of a neighbour (a pull request must not open Commit
 Work; a deployment must not open Release Work).
@@ -55,6 +55,7 @@ Work; a deployment must not open Release Work).
 | map-features | `mf-setup`, `mf-before-releases`, `mf-live-checks` | `vw-serve` |
 | migration-work | `mg-sqlite`, `mg-tags-array`, `mg-hosting` | `nm-mg-notes`, `dd-backends` |
 | release-work | `rw-cut`, `rw-prepare`, `rw-verify-published` | `lw-deploy`, `cw-commit-push` |
+| research-work | `rs-search-report`, `rs-paired-result`, `rs-sources` | `di-tags-or-folders`, `vw-claim` |
 | review-work | `rv-branch`, `rv-plan`, `rv-tsv-change` | `vw-claim` |
 | setup-freeflow | `sf-activate`, `sf-loaded`, `sf-repair` | `nm-sf-app-setting` |
 | simplify-code | `sc-format`, `sc-duplicate`, `sc-cli-args` | `nm-sc-feature`, `aw-limit-flag` |
@@ -88,12 +89,18 @@ Workflow's rule applies to every merged skill:
   Deliver Work now), when the case's `route` names the owner as also doing the request's job, or when it repeats
   another check. The report counts dropped checks; `--json` lists them per case.
 
-Near misses dropped on the merged build (v0.9.0), so its false-trigger total is 17 checks, not 35:
+**Added skills.** Research Work was added after the base. On a build that lacks it, no skill does its requests' job:
+they count toward no hit rate there, like Action Selection's after the merge, and its near misses (`di-tags-or-folders`,
+`vw-claim`) are dropped. On the base the suite therefore measures 75 requests and 35 near-miss checks, as before;
+on a build with Research Work, 78 requests and 37 checks.
+
+Near misses dropped on the merged build (Freeflow's current skill list), so its false-trigger total is 18 checks, not 37:
 
 | Case | Near miss | Why |
 | --- | --- | --- |
 | `cw-commit-tsv`, `cw-commit-push`, `fb-pull-request`, `lw-deploy`, `rw-cut` | Finish Branch, Release Work, Commit Work, Release Work, Launch Work | own route: Deliver Work |
 | `dd-backends` | Migration Work | own route: Execute Work |
+| `vw-serve` | Map Features | own route: Verify Work |
 | `wp-import`, `ws-design`, `ws-sync` | Write Spec, Write Plan, Write Docs | own route: Write Docs |
 | `aw-limit-flag`, `nm-sc-feature`, `nm-dd-local`, `nm-df-known-cause`, `nm-mg-notes` | Simplify Code, Simplify Code, Design for Depth, Diagnose Failure, Migration Work | the request is a code change, Execute Work's job (`route`) |
 | `nm-by-urgent`, `nm-di-decided` | Bypass, Discuss | a change to agree before building, Discuss Work's job (`route`) |
@@ -202,8 +209,8 @@ try another model, change `model` in `configuration.json` and run both builds ag
 
 Reading: compare hit and false-trigger rates per skill and overall. The plan's rule is trigger recall no lower and
 near-miss false triggers no higher. With three requests a skill, one run each, a single run moves a skill's hit rate by
-a third, so read per-skill changes as signals to look at in `--cases`, and the overall rates (75 requests, 35 near-miss
-checks) as the measure.
+a third, so read per-skill changes as signals to look at in `--cases`, and the overall rates (75 requests and 35 near-miss
+checks on the base) as the measure.
 
 ## Cost
 
@@ -211,7 +218,7 @@ Not yet measured on this suite. Estimated from `.skill-eval/freeflow-vs-plain`'s
 runs $0.004 to $0.006 each on Pi's list-price figures, for whole tasks): a routing run is shorter (many requests are
 questions, and the cap is two turns) but carries Tool Execution's tool texts and one simulated-user call.
 
-| Estimate, Haiku 5.5, medium | Per run | Full run (90 runs) | Pilot (5) |
+| Estimate, Haiku 5.5, medium | Per run | Full run (93 runs) | Pilot (5) |
 | --- | --- | --- | --- |
 | one build | ~$0.003 to $0.008 | ~$0.3 to $0.7 | ~$0.03 |
 | before and after | | ~$0.6 to $1.4 | |

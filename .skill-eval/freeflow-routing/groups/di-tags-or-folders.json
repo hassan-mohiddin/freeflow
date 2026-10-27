@@ -59,6 +59,14 @@
       "tool": "read",
       "argumentContains": ["/skills/discuss-work/SKILL.md"],
       "expect": "succeeded"
+    },
+    {
+      "id": "no-research-work",
+      "kind": "tool-call",
+      "variant": "freeflow",
+      "tool": "read",
+      "argumentContains": ["/skills/research-work/SKILL.md"],
+      "expect": "not-called"
     }
   ],
   "review_questions": []

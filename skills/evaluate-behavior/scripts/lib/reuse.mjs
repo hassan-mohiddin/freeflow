@@ -16,6 +16,9 @@ import { unclearedFlags } from "./scan.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPTS = fileURLToPath(new URL("../", import.meta.url));
+// The shared statistics the evaluator imports from Research Work; part of its version, so a change there is a new
+// evaluator too.
+const SHARED_STATISTICS = fileURLToPath(new URL("../../../research-work/scripts/lib/stats.mjs", import.meta.url));
 export const INDEX_FILE = "index.jsonl";
 // Group fields that describe arms rather than the task; each arm's effective configuration is hashed instead.
 const ARM_FIELDS = new Set([
@@ -80,9 +83,14 @@ export async function contentHash(target) {
 
 let evaluatorVersionPromise = null;
 
-/** This evaluator's version: a content hash of its scripts directory, computed once per process. */
+/**
+ * This evaluator's version: a content hash of its scripts directory and of the shared statistics it imports,
+ * computed once per process.
+ */
 export function evaluatorVersion() {
-  evaluatorVersionPromise ??= contentHash(SCRIPTS);
+  evaluatorVersionPromise ??= Promise.all([contentHash(SCRIPTS), contentHash(SHARED_STATISTICS)]).then((hashes) =>
+    sha256(hashes.join("\0")),
+  );
   return evaluatorVersionPromise;
 }
 

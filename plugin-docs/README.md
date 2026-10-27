@@ -24,7 +24,7 @@ The Freeflow Context tool, Context Virtualization, and Conversation History have
 
 - [Using Freeflow Effectively](using-freeflow.md): prompt well, choose skills and routing modes, steer the agreement and task memory, configure settings, and interpret evidence/cost limits.
 - [Getting Started](getting-started.md): install, activate, and verify Freeflow on each supported host.
-- [How Freeflow Works](workflow.md): the cycle (agree, build and verify, review and hand over), the agreement, the ten skills and their scripts, and what changed in 0.9.0.
+- [How Freeflow Works](workflow.md): the cycle (agree, build and verify, review and hand over), the agreement, the eleven skills and their scripts, and what changed in 0.9.0.
 - [Prompt caching](prompt-caching.md): how provider caches behave, what Freeflow adds to a request, and what it does to keep cache reuse high.
 - [Release evidence](release-evidence/README.md): versioned evidence records and deferred checks.
 

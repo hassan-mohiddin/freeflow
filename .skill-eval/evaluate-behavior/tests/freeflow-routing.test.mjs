@@ -84,6 +84,14 @@ test("on the base every case is measured as written; on the merged build a merge
   assert.deepEqual(routed("nm-as-obvious", MERGED_BUILD).dropped, [
     { skill: "action-selection", target: null, reason: "no owner" },
   ]);
+  // A skill added after the base has no owner on a build that lacks it: its requests count toward no hit rate there,
+  // and its near misses are dropped.
+  const beforeResearch = new Set(SKILLS.filter((skill) => skill !== "research-work"));
+  assert.equal(routed("rs-paired-result", beforeResearch).owned, false);
+  assert.deepEqual(routed("di-tags-or-folders", beforeResearch).dropped, [
+    { skill: "research-work", target: null, reason: "no owner" },
+  ]);
+  assert.equal(routed("rs-paired-result", MERGED_BUILD).owned, true);
   // A near miss whose owner is still another skill than the request's route moves to the owner.
   assert.deepEqual(routed("nm-aw-exact", MERGED_BUILD).checks, [
     { skill: "agree-work", family: "discuss-work", target: "discuss-work" },

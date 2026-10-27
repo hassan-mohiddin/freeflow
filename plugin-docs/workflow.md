@@ -1,6 +1,6 @@
 # How Freeflow Works
 
-Freeflow is guidance for the agent you already use, not a new agent. The agent owns understanding your request, doing the work, checking it and reporting. Freeflow gives it three always-present prompts and ten skills:
+Freeflow is guidance for the agent you already use, not a new agent. The agent owns understanding your request, doing the work, checking it and reporting. Freeflow gives it three always-present prompts and eleven skills:
 
 - **Core guidance** carries the cycle below, what authorizes work, and how to recover after context loss.
 - **The Interaction Contract** tells a question or an idea apart from a request to act.
@@ -91,6 +91,7 @@ Each skill is one capability. Its first page covers the common case and a table 
 | [Deliver Work](../skills/deliver-work/SKILL.md) | Committing, pushing, merging or opening a pull request, cleaning up a branch, releasing, deploying | `/deliver-work` |
 | [Track Work](../skills/track-work/SKILL.md) | A task that needs memory beyond the conversation: its Working Record, recovery after context loss, a handoff to another session or person | `/track-work` |
 | [Write Docs](../skills/write-docs/SKILL.md) | A spec, plan, decision record or ADR; user or developer docs; docs a change made wrong | `/write-docs` |
+| [Research Work](../skills/research-work/SKILL.md) | Answering a question from checked sources: an in-depth report on code or papers, a literature review, statistics for a result | `/research-work` |
 | [Setup Freeflow](../skills/setup-freeflow/SKILL.md) | Activating Freeflow in a repository, repairing its configuration, checking delivery | `/setup-freeflow` |
 | [Write Skill](../skills/write-skill/SKILL.md) | Writing or revising a skill or other text an agent acts on, such as `AGENTS.md` | `/write-skill` |
 | [Evaluate Behavior](../skills/evaluate-behavior/SKILL.md) | Testing or comparing how an agent behaves with a skill or setup change | `/evaluate-behavior` |

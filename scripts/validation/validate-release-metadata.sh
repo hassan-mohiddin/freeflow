@@ -29,7 +29,7 @@ release_version=""
 format="text"
 product_description="Feedback-based control system for coding agents."
 short_description="Feedback-based control for coding agents."
-long_description="Freeflow gives coding agents an Interaction Contract, one cycle (agree, build and verify, review and hand over), ten skills with scripts, and durable task memory."
+long_description="Freeflow gives coding agents an Interaction Contract, one cycle (agree, build and verify, review and hand over), eleven skills with scripts, and durable task memory."
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in

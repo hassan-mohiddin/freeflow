@@ -5,7 +5,7 @@
 Freeflow gives the coding agent you already use (Codex, Claude Code, Pi and others) what it needs at the moment it decides. On every host its prompts and skills work as a portable layer; on Pi a native extension adds the runtime parts.
 
 - **A short method, always loaded.** One cycle: agree before building, build and verify, review and hand over. Each step checks what actually happened (a script's output, a test, your answer) before the next one, rather than trusting the plan.
-- **Ten capability skills** that bring scripts and structured artifacts, not just advice: a script that maps what a change touches, a self-review report, a decision list for your choices, a Working Record that survives context loss.
+- **Eleven capability skills** that bring scripts and structured artifacts, not just advice: a script that maps what a change touches, a self-review report, a decision list for your choices, a Working Record that survives context loss.
 - **On Pi, a runtime** that pushes the right lines of a skill at the tool call that needs them, and adds compaction, tool handling, task memory and multi-model routing.
 
 The agent keeps its own tools, permissions and execution. Freeflow does not grant permission, enforce a pipeline, or replace your repository's instructions, tests or review.
@@ -71,6 +71,7 @@ Skill commands on Pi (Claude Code uses `/freeflow:<skill>`, Codex a skill mentio
 /deliver-work
 /track-work
 /write-docs
+/research-work
 ```
 
 Contributor calls:
