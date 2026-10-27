@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/research-work/`
 > **Tests:** `.skill-eval/research-work/tests/`
-> **Verified at:** `b6c0b3e9` (2026-10-27)
+> **Verified at:** `c3357e9b` (2026-10-27)
 
 For anyone changing Research Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/research-work/SKILL.md); this record holds the reasons it does not.
 
@@ -81,6 +81,7 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
   - *Every number traces to a command.* `study.mjs run` writes a receipt per command: program and its hash, input and output hashes, exit code, duration, output tails, plan hash. A non-zero exit is data, a command that could not start is recorded, and only started runs count toward a planned trial. `claims.mjs trace --results` finds each register number in the result file its row names, at the precision written.
   - *A judge's verdict counts only with a validation record.* The record holds agreement with a gold set and its interval against a lower bound fixed before scoring, both answer orders, length control, decoys and the rubric's hash; validation refuses a `pass` the numbers do not support, and a register row citing `judge:<record>` that does not pass is capped at L1.
   - Deviations are logged with who cleared them, and an uncleared one holds `study.mjs check`, so an agent cannot clear its own departure from the plan unseen (task record, question 4 of the Evaluate Behavior split).
+  - Both ledgers are hash-chained (each line carries the hash of the line before), so an edited, removed or reordered receipt shows at `study.mjs check` (the ARS review's hash-chained ledger).
 - **Statistics in one place, guidance at the decision.**
   - `stats.mjs` has the methods agents get wrong when computing by hand:
     - Wilson and exact intervals;
