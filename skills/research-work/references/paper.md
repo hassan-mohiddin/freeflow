@@ -21,7 +21,7 @@ Create the outline with `artifact.mjs init paper-outline` and fill it before pro
 
 ## Draft
 
-Write the abstract from the proposition and the contributions, before the body. Then draft the body from the outline, paragraph by paragraph.
+Write the abstract from the proposition and the contributions, before the body. Then draft the body from the outline, paragraph by paragraph, from the register as [claims](claims.md#write-the-report-from-the-register) says: each paragraph that states a number cites its claim IDs, and process facts such as the lock and the deviations go in Method and Limits. A paper from a study reports every outcome its plan says to report, its checks and controls included, whether they passed or failed.
 
 Each technique below carries its basis: **guide** (established writing guidance agrees), **measured** (a study bears on the failure it prevents), or **one case** (only one paper's drafting supports it). None has been measured on paper quality; treat them as defaults.
 
@@ -44,27 +44,27 @@ Each technique below carries its basis: **guide** (established writing guidance 
 
 Disclosing AI use is a separate decision, the user's; it lowered trust in one set of studies (Schilke and Reimann, press release only).
 
-The venue's checklist and template change every year: fetch the current ones at use, record each in the source ledger with its date, and check the draft against the checklist before review.
+The venue's checklist and template change every year: fetch the current ones at use, record each in the source ledger with its date, and check the draft against the checklist before review. With no venue chosen yet, skip this and say so.
 
 ## Check, Then One Review
 
-Run `claims.mjs trace` on the draft against the register, and `sources.mjs cite-check` when it cites code or quotes, as Check The Report says. A draft that does not state its proposition does not pass review; before drafting, the proposition is the default, not a gate, since writing is often how the message is found.
+Run `claims.mjs trace` on the draft against the register, and `sources.mjs cite-check` when it cites code or quotes, as Check The Report says. A missing proposition does not block drafting, since writing is often how the message is found, but a draft that still does not state one does not pass review.
 
 Then review the draft once, through Review Work's artifact review, with the register, the outline and the check output beside it. Do not loop the draft against a model judge: iterated rewriting drifts toward generic text (Perez et al.; Ziegenbein et al.), and self-refinement against an evaluator that shares the writer's context drifts from human judgment (Pan et al.). No quota of caveats, limitations score or protected hedge belongs in the review.
 
 ## Revise By Patch
 
-Answer each finding you accept with a change that names it, as a patch to the reviewed draft, not a new draft: a regenerated draft reopens everything the review passed. Run the checks again on the revised draft.
+Settle the review's findings as Review Work's adjudication says, then answer each finding you accept with a change, as a patch to the reviewed draft, not a new draft: a regenerated draft reopens everything the review passed. Keep the reviewed version, and name in the adjudication the finding each change answers. A change that states a new claim registers it first; a change to what a paragraph claims updates the outline too. Run the checks again on the revised draft. The rebuttal ledger below is for the venue's reviewers, not this review.
 
 ## Rebuttal
 
 Answer the venue's reviewers in a rebuttal ledger (`artifact.mjs init rebuttal`), one row per comment:
 
 - the comment, quoted;
-- your choice: will address, won't, or not on point, with the reason;
+- your choice, with the reason: **will address** (the paper changes), **won't** (the comment is on point but the paper stays as it is), or **not on point** (the comment is about something the paper does not claim);
 - for "will address", the commitment and, before submission, where it was fulfilled (a section or a commit).
 
-In a later round, mark each comment either as continuing an earlier one (`continues R<n>`) or as new (`yes`). A new request in a later round is the goalpost moving: `artifact.mjs validate` lists them, so the user decides each one rather than absorbing it unnoticed. Set the ledger's Stage to `submitted` only when every "will address" names where it was done; validation refuses it otherwise.
+In a later round, mark each comment either as continuing an earlier one (`continues R<n>`) or as new (`yes`). A new request in a later round is the goalpost moving: `artifact.mjs validate` lists them, so the user decides each one rather than absorbing it unnoticed. Set the ledger's Stage to `submitted` only when every "will address" names where it was done; validation refuses it otherwise. A comment that needs the user's decision stays "will address" with no fulfilment until they answer, so the ledger cannot be submitted before then.
 
 Answer each comment once, with the evidence or the limit it marks. Do not add caveats to the paper only to pre-empt a reviewer.
 

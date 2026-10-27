@@ -50,7 +50,7 @@ Every claim gets one level. The level carries the uncertainty, so the report sta
 | L1 | Reported | Someone claims it; not checked here | "X reports" |
 | L2 | Checked | Checked against the primary source or mechanically: the paper opened, the code read at a pinned commit, a test run, a value computed exactly under a stated model | a plain statement of the fact |
 | L3 | Observed | Seen in use, an uncontrolled observation, or one case | "we observed, in …" |
-| L4 | Compared | A controlled comparison at a stated boundary, its decision rule fixed before the data; computed values compared under a locked rule count | "raises", "causes", on that boundary |
+| L4 | Compared | A controlled comparison at a stated boundary, its decision rule fixed before the data; computed values compared under a locked rule count | "raises", "causes", or the bound stated plainly, on that boundary |
 | L5 | Replicated | Holds across independent models, tasks, hosts, groups or sources | a general statement, with its range |
 
 - How a source was checked caps the claim: a source known only from a summary, an abstract or memory supports at most L1, whatever study stands behind it.
@@ -101,8 +101,8 @@ A quick check is this route at `check` rigor: five questions, about twenty paire
 Goal: a paper whose one message a result could contradict and whose every number traces to the register.
 
 1. **Register.** Start from a study's register, or register what existing results show, as for a report. Which claims the paper makes is the user's choice.
-2. **Outline.** Create it with `artifact.mjs init paper-outline`: the proposition, the contributions with their claim IDs, one sentence per planned paragraph, the figures with their data, the objections and where each is answered. Validate it, then agree the outline and the abstract with the user.
-3. **Draft** from the outline, then run the checks below.
+2. **Outline.** Create it with `artifact.mjs init paper-outline`: the proposition, the contributions with their claim IDs, one sentence per planned paragraph, the figures with their data, the objections and where each is answered. Validate it with `artifact.mjs validate <outline.md>`, then agree the outline and the abstract with the user.
+3. **Draft** from the outline, then run the checks below: `trace` with `--results` when the register comes from a study, and `cite-check` when the draft cites code or quotes.
 4. **Review once** through Review Work, then revise by patch, naming the finding each change answers, as [paper](references/paper.md) says.
 5. **Rebuttal.** Answer the venue's reviewers in a rebuttal ledger (`artifact.mjs init rebuttal`); submission is the user's.
 
@@ -116,7 +116,7 @@ node <research-work-directory>/scripts/claims.mjs trace <report.md> --register <
 
 - `artifact.mjs validate` refuses a register whose sources are missing or refuted, or whose levels exceed their sources' checking; with `--plan`, a confirmatory claim the locked plan does not hold as a confirmatory hypothesis; and a claim above L1 resting on a judge record that does not pass.
 - `cite-check` reads each cited file at the commit pinned in the ledger, using a local clone you name, and finds each quote in a saved copy of its source. Anything it could not check, it lists as not checked, never as passed. It exits 0 when nothing failed, so read its summary: the check passes only with 0 failed and 0 not checked.
-- `trace` lists every number and claim ID in the report that the register does not support. It skips code spans and blocks, so a number the report states belongs outside backticks. With `--results`, it also finds each register number in the result file or log its Source names (a JSON file's numeric values only). That shows the number is there, not that the analysis computed it; it passes only with 0 problems and 0 rows not checked.
+- `trace` lists every number and claim ID in the report that the register does not support. It reads the report by paragraph, list item, table row and heading, and a number passes only when the same one cites the claim it comes from. Every digit outside code counts, so write a design constant (a grid spacing, a seed) in words or put it in its claim's Numbers. It skips code spans and blocks, so a number the report states belongs outside backticks. With `--results`, it also finds each register number in the result file or log its Source names (a JSON file's numeric values only). That shows the number is there, not that the analysis computed it; it passes only with 0 problems and 0 rows not checked.
 
 Passing checks show that each cited range exists and each number is registered, not that a range shows its claim. Read the lines a key claim rests on again before handing the report over: the common failure is a claim that is true on the path you read and drops the condition that selects that path.
 
