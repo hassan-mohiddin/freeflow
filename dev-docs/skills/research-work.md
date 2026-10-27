@@ -8,12 +8,13 @@ For anyone changing Research Work: what it is meant to change, why it is shaped 
 
 ## Purpose
 
-Research Work is read when a question has to be answered from evidence gathered and checked first. It carries the question to a claim the evidence supports and on to where the claim is used. Its first route is the in-depth report: a question answered from code at a pinned commit, papers or docs. It also owns the statistics for any result that comes from a sample, which Evaluate Behavior uses.
+Research Work is read when a question has to be answered from evidence gathered and checked first. It carries the question to a claim the evidence supports and on to where the claim is used. It has two routes: the in-depth report, a question answered from code at a pinned commit, papers or docs; and the study, a question answered by runs planned and locked before the data, with the quick check as the study at `check` rigor. It also owns the general method of study design and measurement, and the statistics for any result that comes from a sample, which Evaluate Behavior uses.
 
 It exists because agents know the textbook methods and fail at applying them:
 - they answer from summaries and memory;
 - they cite whole files, or a branch of the code as the whole path;
 - they compute intervals and tests by hand, unpaired where the data is paired, with normal intervals on small samples;
+- they start running before there is a design, choose the analysis after seeing the data, and rerun failures until they pass;
 - they hedge every sentence instead of stating each claim at the strength its evidence has.
 
 The skill is mostly structure (formats, checks, a level per claim) and decisions, not exposition.
@@ -25,12 +26,15 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
   - every source pinned and recorded with how it was checked;
   - every claim registered with its level, capped by its sources' checking, before the prose states it (at study and publication rigor);
   - a report whose citations exist at the pinned commit, whose quotes appear in their sources and whose numbers trace to the register;
-  - statistics from `stats.mjs`, reported with their method and interval.
+  - statistics from `stats.mjs`, reported with their method and interval;
+  - for a study, a plan answering the twelve questions, locked with the user's agreement before the runs that count; a receipt for every run, failed ones included; each deviation logged with who cleared it; and confirmatory claims only for the locked plan's hypotheses.
 - **Failure it prevents:**
   - claims stronger than their sources;
   - unchecked citations;
   - numbers that appear nowhere in the evidence;
   - wrong intervals and unpaired tests;
+  - a hypothesis or analysis chosen after the data, and a failed run dropped from the record;
+  - a model judge's verdicts counted without evidence the judge agrees with known answers;
   - caveats stacked into every sentence.
 - **Earliest decision:** before the first search or read of sources.
 - **Cues before the body is read:**
@@ -48,12 +52,14 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
 
 - **One trunk for all research.** Research Work is one skill with a route per application, not a skill per application. Each skill boundary between a request and the method lowers the chance the method reaches the decision (Write Skill, "Choose Skill Boundaries").
   - ARS, the academic-research skill pack studied before this design, spreads the same ground over five skills, 35 modes and a fixed ten-stage pipeline.
-  - This version ships the in-depth report route. The body names no route that is not built, since the package holds no authoring status.
+  - This version ships the in-depth report and the study, with the quick check as the study at `check` rigor. The body names no route that is not built, since the package holds no authoring status.
 - **Boundaries:**
   - Discuss Work owns agreeing the brief and the user's choices.
   - Review Work owns how any review runs. Research Work supplies the brief, the ledgers, the register and the check output to the reviewer.
   - Write Docs owns the report's shape (its Research shape) and every document's header. Moving the Research shape into Research Work is decided for the end of the build (task record decision D-006).
   - Evaluate Behavior owns running agent evals and imports `skills/research-work/scripts/lib/stats.mjs` by relative path (`lib/agreement.mjs` and `lib/decision.mjs` re-export it). Its `evaluatorVersion()` hashes `stats.mjs` too, so a change to the statistics invalidates reuse keys.
+  - The general method of study design and measurement is Research Work's (`references/study-design.md`, `measurement.md`): claim classes, the decision rule first, sizing, the noise floor, held-out items, controls for mechanical checks, reading before counting, fair tasks, judges, detectors measured on both sides, cost. Evaluate Behavior's `design-and-measurement.md` points to it and keeps its binding Rules and what is particular to agents: its claim mapping with "Ready", the suite `decision` and its sign test, trial schedules, `component: []` noise checks, its judge flags and the seeded-defect recipe. The move kept every unit (`skill-author compare --all-units`; one verdict, in the building task's `evidence/study-route/`).
+  - When a study's arms are agent configurations on a host, Evaluate Behavior runs them; the body's routing table says so.
 - **The evidence scale, L0 to L5** (proposed, reported, checked, observed, compared, replicated):
   - It is Research Work's own, general enough for any domain, so *State Before Action*'s E0–E5 becomes a specialization of it.
   - How a source was checked caps the claims resting on it: a source known only from a summary, an abstract or memory supports at most L1.
@@ -62,7 +68,7 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
   - The level carries the uncertainty, so sentences state claims plainly.
 - **Rigor by stakes:** `check`, `study`, `publication`, chosen by the user in the brief. It sets which artifacts and checks are required, so a quick answer is not run at publication cost.
 - **Formats as one contract, enforced by a script.**
-  - `references/artifacts.md` defines the research brief, source ledger, search ledger (JSONL) and claims register, and the citation forms. `artifact.mjs` creates and validates them.
+  - `references/artifacts.md` defines the research brief, source ledger, search ledger (JSONL), claims register, study plan, run ledger, deviation log and judge validation record, and the citation forms. `artifact.mjs` creates and validates the Markdown ones; `study.mjs` alone writes the run ledger and deviation log.
   - This is Track Work's pattern (a format reference plus a script that writes and checks the file), chosen over template files in `assets/`.
   - Search-ledger counts are computed from the hit lines, never typed.
 - **Mechanical checks before any review, and none that call a model:**
@@ -70,6 +76,11 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
   - `claims.mjs trace` matches every number and claim ID outside code in the report to the register.
   
   Anything they cannot check is listed as not checked, never as passed. The body also says what passing does not show, because the first real run passed all 93 citations while three of five checked claims dropped a guard condition.
+- **A study's gates are scripts.** Each of the three binding gates in the design is a refusal, not an instruction:
+  - *The plan is locked before the runs that count.* `study.mjs lock` records the plan's sha256 (over everything but its Amendments section), who locked it and its hypotheses. A later change is an amendment with a reason; `study.mjs check` refuses a plan changed without one. An amendment that changes a confirmatory hypothesis after study runs exist is recorded, and `artifact.mjs validate --plan` then refuses that claim as confirmatory. A study confirms only what its locked plan said it would test.
+  - *Every number traces to a command.* `study.mjs run` writes a receipt per command: program and its hash, input and output hashes, exit code, duration, output tails, plan hash. A non-zero exit is data, a command that could not start is recorded, and only started runs count toward a planned trial. `claims.mjs trace --results` finds each register number in the result file its row names, at the precision written.
+  - *A judge's verdict counts only with a validation record.* The record holds agreement with a gold set and its interval against a lower bound fixed before scoring, both answer orders, length control, decoys and the rubric's hash; validation refuses a `pass` the numbers do not support, and a register row citing `judge:<record>` that does not pass is capped at L1.
+  - Deviations are logged with who cleared them, and an uncleared one holds `study.mjs check`, so an agent cannot clear its own departure from the plan unseen (task record, question 4 of the Evaluate Behavior split).
 - **Statistics in one place, guidance at the decision.**
   - `stats.mjs` has the methods agents get wrong when computing by hand:
     - Wilson and exact intervals;
@@ -112,7 +123,8 @@ Activation has not been measured. The routing suite (`.skill-eval/freeflow-routi
 
 ## Open Questions
 
-- **The routes still to build:** the quick check, the study route (study plan locked by hash, run receipts, a judge validation record, and Evaluate Behavior's general method text moving here), and the paper route.
-- **Whether reviewers should only judge or also propose fixes.** A two-arm experiment on real SWE-bench patches is planned as the study route's first use.
+- **The route still to build:** the paper route, and the Research document shape moving here from Write Docs (task record decision D-006).
+- **Whether reviewers should only judge or also propose fixes.** A two-arm experiment on real SWE-bench patches is planned as the study route's first real use; it costs model calls and waits for a pilot and the user's yes.
+- **Whether a lock should name a person rather than accept any `--by`.** The script records who locked and who cleared; it cannot tell an agent from the user.
 - **Whether the activation cases pass,** and whether the core line raises reads.
 - **How much register machinery the `check` rigor needs** in practice.

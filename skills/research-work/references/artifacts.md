@@ -8,7 +8,7 @@ node <research-work-directory>/scripts/artifact.mjs validate <path> [--sources <
 node <research-work-directory>/scripts/artifact.mjs counts <search ledger .jsonl>
 ```
 
-Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`. `init` never overwrites. Artifacts live where the user or the task says; otherwise in the project's research folder when it has one, and otherwise in the task folder's `sources/`.
+Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`, `study-plan`, `judge-validation`. `init` never overwrites. A study's run ledger and deviation log are written only by [study](../scripts/study.mjs), as [running](running.md) says. Artifacts live where the user or the task says; otherwise in the project's research folder when it has one, and otherwise in the task folder's `sources/`.
 
 ## Header
 
@@ -86,7 +86,7 @@ The contract between the stages: every claim a report or paper makes is a row he
 | ID | `C1`, `C2`, … never reused |
 | Claim | The claim, in one sentence |
 | Numbers | Every number the claim states, with its interval where it has one (`0.83 [0.79, 0.86]`), or `-` |
-| Source | Source-ledger IDs and the result files or log lines the numbers come from (`S2; runs/aggregate.json`) |
+| Source | Source-ledger IDs, the result files or log lines the numbers come from (`S2; runs/aggregate.json`, `log.txt:40-42`), and `judge:<record>` for a claim resting on a judge's verdicts; paths are relative to the register |
 | Level | `L0` to `L5` on the evidence scale |
 | Kind | `confirmatory` (tested by a decision rule fixed before the data) or `exploratory` |
 | Scope | Where the claim holds |
@@ -94,3 +94,45 @@ The contract between the stages: every claim a report or paper makes is a row he
 
 - An exploratory claim is at most L3.
 - Validate a register with `--sources <source ledger>`. That check refuses a source ID the ledger lacks, a refuted source, and a level above what the sources' checking allows.
+- Validate a study's register with `--plan <study plan>` too. It refuses a confirmatory claim unless its ID is a confirmatory hypothesis of the plan, the plan is locked as it stands, and no amendment changed that hypothesis after study runs existed.
+- A claim citing `judge:<record>` is at most L1 unless that judge validation record validates and its Result is `pass`; validation checks this whenever a row cites one.
+- `claims.mjs trace --results` finds each number in the Numbers column in the result files the row's Source names, at the precision written (0.83 matches 0.8333; 65% matches 0.65). A row with numbers and no result file is listed as not checked.
+
+## Study Plan
+
+Written at Design, before the first run that counts; `init study-plan --rigor <rigor>` creates the sections for that rigor. The header adds **Rigor**. Sections, none empty:
+
+| Section | Holds |
+| --- | --- |
+| `## 1. The claim` … `## 12. Where it holds` | The answers to the twelve questions in [study design](study-design.md#answer-the-twelve-questions). At `check` rigor only 1, 3, 4, 5 and 10 are required |
+| `## Hypotheses` | One table: `ID` (the claim ID the register will use), `Hypothesis`, `Kind` (`confirmatory` or `exploratory`), `Metric`, `Decision rule`. A confirmatory row names its metric and rule; `-` is allowed only for an exploratory one |
+| `## Planned runs` | One table: `Unit`, `Arm`, `Trials` (a whole number of at least 1), one row per unit and arm |
+| `## Amendments` | `none`, then one line per amendment, written by `study.mjs amend` |
+
+`study.mjs lock` writes `<plan>.lock.json` beside the plan: the plan's sha256 (over everything but `## Amendments`), who locked it and when, and its hypotheses; each amendment adds an entry with its hash, who, when, why, and the confirmatory hypotheses it changed after study runs existed. Never edit the lock by hand.
+
+## Run Ledger
+
+`runs.jsonl` beside the plan, one receipt per line, appended by `study.mjs run` and never edited. A receipt holds: `id` (`R1`, …), `unit`, `arm`, `trial`, `plan_sha256` and `plan_locked` (whether that hash was locked when it ran), `argv`, `cwd`, `program` (the resolved path and its sha256), `inputs` and `outputs` (each path, relative to the plan's folder, with its sha256, or null when absent), `started_at`, `finished_at`, `duration_ms`, `exit_code` (null when the command could not start), `signal`, `error`, and the last 2 KB of stdout and stderr.
+
+## Deviation Log
+
+`deviations.jsonl` beside the plan, appended by `study.mjs deviation` and `study.mjs clear`. A `deviation` line has `id` (`D1`, …), `what`, `unit` and `arm` (or null), `by` (who logged it) and `at`; a `clearance` line has the deviation's `id`, `by` (who cleared it) and `at`. A deviation without a clearance holds `study.mjs check`. A cleared deviation naming a unit (and arm) covers that unit's missing trials.
+
+## Judge Validation Record
+
+One per judge configuration and rubric, made before any of the judge's answers count. The header adds these fields, all filled:
+
+| Field | Holds |
+| --- | --- |
+| Judge | The model, its version and settings |
+| Rubric | The path of the frozen rubric |
+| Rubric sha256 | Its sha256, 64 lowercase hex characters |
+| Gold items | How many items with known answers it was scored on |
+| Agreement | Its agreement with the gold answers, 0 to 1 |
+| Interval | `[low, high]` and the method, from `stats.mjs` |
+| Required lower bound | The lowest interval bound the study accepts, fixed before scoring |
+| Both orders, Length control, Decoys | `passed`, `failed` or `not run` |
+| Result | `pass` or `fail` |
+
+Result can be `pass` only when the interval's lower bound reaches the required bound and all three controls `passed`; validation refuses a record that says otherwise. A `## Notes` section says how the gold set was built and what the decoys were.
