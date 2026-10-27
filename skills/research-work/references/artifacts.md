@@ -8,7 +8,7 @@ node <research-work-directory>/scripts/artifact.mjs validate <path> [--sources <
 node <research-work-directory>/scripts/artifact.mjs counts <search ledger .jsonl>
 ```
 
-Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`, `study-plan`, `judge-validation`. `init` never overwrites. A study's run ledger and deviation log are written only by [study](../scripts/study.mjs), as [running](running.md) says. Artifacts live where the user or the task says; otherwise in the project's research folder when it has one, and otherwise in the task folder's `sources/`.
+Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`, `study-plan`, `judge-validation`. `init` never overwrites. A study's run ledger and deviation log are written only by [study](../scripts/study.mjs), as [running](study.md#running-the-study) says. Artifacts live where the user or the task says; otherwise in the project's research folder when it has one, and otherwise in the task folder's `sources/`.
 
 ## Header
 
@@ -104,7 +104,7 @@ Written at Design, before the first run that counts; `init study-plan --rigor <r
 
 | Section | Holds |
 | --- | --- |
-| `## 1. The claim` … `## 12. Where it holds` | The answers to the twelve questions in [study design](study-design.md#answer-the-twelve-questions). At `check` rigor only 1, 3, 4, 5 and 10 are required |
+| `## 1. The claim` … `## 12. Where it holds` | The answers to the twelve questions in [study design](study.md#answer-the-twelve-questions). At `check` rigor only 1, 3, 4, 5 and 10 are required |
 | `## Hypotheses` | One table: `ID` (the claim ID the register will use), `Hypothesis`, `Kind` (`confirmatory` or `exploratory`), `Metric`, `Decision rule`. A confirmatory row names its metric and rule; `-` is allowed only for an exploratory one |
 | `## Planned runs` | One table: `Unit`, `Arm`, `Trials` (a whole number of at least 1), and optionally `Split` (`tuning` or `held-out`), one row per unit and arm |
 | `## Amendments` | `none`, then one line per amendment, written by `study.mjs amend` |

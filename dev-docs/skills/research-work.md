@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/research-work/`
 > **Tests:** `.skill-eval/research-work/tests/`
-> **Verified at:** `40af98ed` (2026-10-27)
+> **Verified at:** `608cb48a` (2026-10-27)
 
 For anyone changing Research Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/research-work/SKILL.md); this record holds the reasons it does not.
 
@@ -58,7 +58,7 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
   - Review Work owns how any review runs. Research Work supplies the brief, the ledgers, the register and the check output to the reviewer.
   - Write Docs owns the report's shape (its Research shape) and every document's header. Moving the Research shape into Research Work is decided for the end of the build (task record decision D-006).
   - Evaluate Behavior owns running agent evals and imports `skills/research-work/scripts/lib/stats.mjs` by relative path (`lib/agreement.mjs` and `lib/decision.mjs` re-export it). Its `evaluatorVersion()` hashes `stats.mjs` too, so a change to the statistics invalidates reuse keys.
-  - The general method of study design and measurement is Research Work's (`references/study-design.md`, `measurement.md`): claim classes, the decision rule first, sizing, the noise floor, held-out items, controls for mechanical checks, reading before counting, fair tasks, judges, detectors measured on both sides, cost. Evaluate Behavior's `design-and-measurement.md` points to it and keeps its binding Rules and what is particular to agents: its claim mapping with "Ready", the suite `decision` and its sign test, trial schedules, `component: []` noise checks, its judge flags and the seeded-defect recipe. `skill-author compare --all-units` against the merge base found 169 units: 137 kept, 9 edited, 16 moved, 6 reworded and 1 unmatched, which moved to `measurement.md`. The three rule-like rewordings were read for meaning, and one lost words that were then restored; the edited and moved units are Evaluate Behavior's own sections, rewritten to point here. The output, the verdict and the meaning checks are in the building task's `evidence/study-route/`. Kept text shows the text survived, not that behavior did.
+  - The general method of study design and measurement is Research Work's (`references/study.md`, `measurement.md`): claim classes, the decision rule first, sizing, the noise floor, held-out items, controls for mechanical checks, reading before counting, fair tasks, judges, detectors measured on both sides, cost. Evaluate Behavior's `design-and-measurement.md` points to it and keeps its binding Rules and what is particular to agents: its claim mapping with "Ready", the suite `decision` and its sign test, trial schedules, `component: []` noise checks, its judge flags and the seeded-defect recipe. `skill-author compare --all-units` against the merge base found 169 units: 137 kept, 9 edited, 16 moved, 6 reworded and 1 unmatched, which moved to `measurement.md`. The three rule-like rewordings were read for meaning, and one lost words that were then restored; the edited and moved units are Evaluate Behavior's own sections, rewritten to point here. The output, the verdict and the meaning checks are in the building task's `evidence/study-route/`. Kept text shows the text survived, not that behavior did.
   - When a study's arms are agent configurations on a host, Evaluate Behavior runs them; the body's routing table says so.
 - **The evidence scale, L0 to L5** (proposed, reported, checked, observed, compared, replicated):
   - It is Research Work's own, general enough for any domain, so *State Before Action*'s E0–E5 becomes a specialization of it.
@@ -85,7 +85,7 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
   - Deviations are logged with who cleared them, and an uncleared one holds `study.mjs check`. The log names the clearer, so a self-clearance shows; nothing stops one (task record, question 4 of the Evaluate Behavior split). A derived step that fails, such as a validity check, holds the analysis only once it is logged as a deviation.
   - *Held-out items stay held out.* A planned run may name its split (`tuning` or `held-out`); each receipt records it, and `study.mjs check` refuses any run made before the lock on a unit the plan marks held-out, whatever split it was given then (the method check's sealed-holdout design).
   - Both ledgers are hash-chained (each line carries the hash of the line before), so an edited, removed or reordered receipt shows at `study.mjs check` (the ARS review's hash-chained ledger).
-  - The records are plain files: these checks catch slips and partial edits, not a deliberate rewrite (a lock edited by hand, a ledger recomputed from its first line). `running.md` says to commit them as the study goes, so the repository's history is the audit. Anchoring them outside the folder is in `sources/not-built.md`.
+  - The records are plain files: these checks catch slips and partial edits, not a deliberate rewrite (a lock edited by hand, a ledger recomputed from its first line). `study.md` says to commit them as the study goes, so the repository's history is the audit. Anchoring them outside the folder is in `sources/not-built.md`.
 - **Statistics in one place, guidance at the decision.**
   - `stats.mjs` has the methods agents get wrong when computing by hand:
     - Wilson and exact intervals;
@@ -101,6 +101,7 @@ The skill is mostly structure (formats, checks, a level per claim) and decisions
   - Resampling records its seed. Each method is tested against a published worked example (Newcombe 1998 for Wilson) or values computed once with scipy, statsmodels and errorbars, none of which is a dependency.
   - The body's "Numbers From Samples" table maps the data's shape to the method and names the wrong default each replaces.
   - Methods are reimplemented from papers and textbooks, and code is borrowed only under MIT or Apache (task record decision D-008).
+- **References by what is read together.** Six references: framing for a question not yet answerable as written, investigation and claims for the report route's Survey and Conclude, `study.md` for designing and running a study (study design and running were read one after the other on every study, so they are one file), `measurement.md` for a measure, a judge or a detector inside or outside a study, and `artifacts.md`, the format contract. `skill-author compare --all-units` against main found 483 units: 462 kept verbatim, 14 edited (link retargets), 3 moved, 4 reworded (the merged opening and Goal lines, read for meaning) and 0 unmatched. The output and the meaning checks are in the building task's `evidence/compaction/`. The references link each other in a cycle (artifacts, measurement and study), as they did before the merge: each points to the others for a neighbouring situation, and none is needed to reach another from the body.
 - **Workers return files, or text when the host refuses files.** Claude Code refuses report files from a subagent, so a worker returns the content for the coordinator to save unchanged (seen twice in the task that built the skill).
 
 ## Evidence
@@ -120,6 +121,7 @@ Activation has not been measured. The routing suite (`.skill-eval/freeflow-routi
 ## Rejected
 
 - **ARS's structure** (five skills, 35 modes, a fixed pipeline, review panels that must propose fixes). Descriptions compete, fixed stages spend compute that changes no decision, and forced fixes produced caveat-dense drafts.
+- **The statistics table in `stats.mjs --help` instead of the body** (considered while compacting the references). The failure it prevents is computing by hand without running `stats.mjs`, and that agent never sees the script's help; in the body, it sees the table.
 - **Templates in `assets/`.** A format reference with a validating script keeps one owner and checks the file later.
 - **Python with scipy.** Not guaranteed on Freeflow's hosts.
 - **A vendored copy of the statistics in Evaluate Behavior.** AGENTS.md allows no second maintained copy.

@@ -139,7 +139,7 @@ An explicitly delivered body may support first-read behavior while a natural pro
 
 ## Claim Classes
 
-Name the strongest claim the result must support before building cases, and report the strongest one it reached, never a stronger one. The general classes and the evidence levels they reach are in Research Work's [study design](../../research-work/references/study-design.md#name-the-claim-class); for an agent eval they are:
+Name the strongest claim the result must support before building cases, and report the strongest one it reached, never a stronger one. The general classes and the evidence levels they reach are in Research Work's [study design](../../research-work/references/study.md#name-the-claim-class); for an agent eval they are:
 
 | Claim | Minimum evidence | Not enough |
 | --- | --- | --- |
@@ -152,7 +152,7 @@ Name the strongest claim the result must support before building cases, and repo
 
 ## Fix The Decision Rule First
 
-Why the rule comes first, and what any decision rule names, is in Research Work's [study design](../../research-work/references/study-design.md#fix-the-decision-rule-first). Declare the rule as the suite's `decision` before the run ([authoring](authoring.md#decision) has its fields and defaults). It names:
+Why the rule comes first, and what any decision rule names, is in Research Work's [study design](../../research-work/references/study.md#fix-the-decision-rule-first). Declare the rule as the suite's `decision` before the run ([authoring](authoring.md#decision) has its fields and defaults). It names:
 
 - the measure: a comparison's checks, a run metric such as cost or turns, or a judged rubric dimension;
 - the two arms it compares, the reference first, and whether higher or lower is better;
@@ -164,7 +164,7 @@ The sign test ignores how much better a case was, so it is conservative for meas
 
 ## Size Cases And Trials To The Decision
 
-Research Work's [study design](../../research-work/references/study-design.md#size-to-the-decision) has the sizing rules: few trials show little, pass^k against pass@k, the cases a comparison needs (`stats.mjs power`), more cases beat more trials, families are not independent, the subject's settings stay as they are, and the count is fixed before the run. For an agent eval:
+Research Work's [study design](../../research-work/references/study.md#size-to-the-decision) has the sizing rules: few trials show little, pass^k against pass@k, the cases a comparison needs (`stats.mjs power`), more cases beat more trials, families are not independent, the subject's settings stay as they are, and the count is fixed before the run. For an agent eval:
 
 - **Spend trials where a miss costs most.** Cases whose miss is the costlier error can run more trials than the rest, for example nine for known-issue cases and three for clean ones.
 - **Early changes often have large effects,** so 20 to 50 cases drawn from real failures are a good start; a pilot of that size reports that it detects only large effects.
@@ -172,7 +172,7 @@ Research Work's [study design](../../research-work/references/study-design.md#si
 
 ## Expect Run-To-Run Noise
 
-The same baseline commit accepted 31 of 45 correct changes in one run and 38 of 45 in the next. A difference smaller than that swing, between two single runs, is not a result; how to measure the floor is in Research Work's [study design](../../research-work/references/study-design.md#measure-the-noise-floor).
+The same baseline commit accepted 31 of 45 correct changes in one run and 38 of 45 in the next. A difference smaller than that swing, between two single runs, is not a result; how to measure the floor is in Research Work's [study design](../../research-work/references/study.md#measure-the-noise-floor).
 
 - Run both arms in the same batch, so they share conditions.
 - Pool every baseline run of the same commit and the same case versions, and compare a later candidate with all of them. A changed case or check starts a new series.
@@ -180,11 +180,11 @@ The same baseline commit accepted 31 of 45 correct changes in one run and 38 of 
 
 ## Keep Capability And Regression Suites Apart
 
-Keep them apart as Research Work's [study design](../../research-work/references/study-design.md#keep-capability-and-regression-studies-apart) says. In a regression suite, read the result per check and case: a sign test says `worse` only when many cases got worse, so a few broken cases show in the counts long before the verdict moves. A case that passes reliably in a capability suite can graduate into the regression suite.
+Keep them apart as Research Work's [study design](../../research-work/references/study.md#keep-capability-and-regression-studies-apart) says. In a regression suite, read the result per check and case: a sign test says `worse` only when many cases got worse, so a few broken cases show in the counts long before the verdict moves. A case that passes reliably in a capability suite can graduate into the regression suite.
 
 ## Hold Cases Out
 
-Fix the split before any case is built or run, tune against the tuning cases only, and report held-out cases separately, as Research Work's [study design](../../research-work/references/study-design.md#hold-items-out) says. Cases written by the author of the guidance under test, or by the model under test, are not independent of it.
+Fix the split before any case is built or run, tune against the tuning cases only, and report held-out cases separately, as Research Work's [study design](../../research-work/references/study.md#hold-items-out) says. Cases written by the author of the guidance under test, or by the model under test, are not independent of it.
 
 ## Control Mechanical Checks That Approximate Meaning
 
