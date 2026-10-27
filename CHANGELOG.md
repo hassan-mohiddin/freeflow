@@ -11,6 +11,8 @@
 
 - Research Work has tools for writing the paper: figures drawn from their data files with a receipt the outline checks, a bibliography from the source ledger that marks every source not verified, checks a draft must pass before review (abstract numbers in the body, citations, figure and section references, word limits), a venue copy without claim IDs, revision by patch where each change names its finding, a build to PDF, Word, LaTeX or HTML through Pandoc, a check of the built PDF's pages, words and required sections, and a default project layout.
 
+- Research Work looks sources up online when you ask: a DOI through Crossref with any retraction or correction notice, an arXiv ID, a link's reachability, cached so a second run stays offline, and never marking a source fabricated because nothing was found. A code citation can be checked against the lines the agent actually read. A study plan's lock names the git commit that holds it when the plan is committed, and a plan is refused when it stops as soon as a result turns significant or gives a comparison no sample size.
+
 ### Changed
 
 - Write Skill explains why one capability skill that routes to its references and scripts (a trunk) beats many narrow skills, keeps a trunk's body to its routing table, common route and Rules, and asks for a design record per skill in the developer docs; Write Docs adds the skill design record shape under `dev-docs/skills/`.

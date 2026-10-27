@@ -5,18 +5,28 @@
 // in the output it judged. bib writes a paper's .bib from the source ledger, marking every source not verified.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { ledgerRows } from "./lib/formats.mjs";
+import { lookupRow, pinIdentifier } from "./lib/lookup.mjs";
 import { bibFromLedger, parseBib } from "./lib/paper.mjs";
+import { loadReads, readsFromTranscript, wasRead } from "./lib/reads.mjs";
 import { codeCitations, normalizeForQuote, quoteCitations } from "./lib/report.mjs";
 
 const USAGE = [
   "Usage: sources.mjs cite-check <report.md> --ledger <sources.md> [--repo <name>=<clone>]... [--copy S<n>=<file>]... [--json]",
   "       sources.mjs quote-check <judge answers .jsonl> [--json]",
   "       sources.mjs bib <sources.md> --out <refs.bib> [--from <existing.bib>]",
+  "       sources.mjs lookup <sources.md> --cache <lookups.json> [--only S<n>,...] [--refresh] [--json]",
+  "       sources.mjs reads <transcript.jsonl>... --ledger <sources.md> --repo <name>=<clone>... --out <reads.jsonl>",
+  "",
+  "lookup goes online, so run it only when the user asks: a DOI through Crossref (with its retraction and correction",
+  "notices), an arXiv ID through arXiv, a URL's reachability. Answers are cached in --cache; --refresh asks again.",
+  "It never edits the ledger; it says what each row's Lookup should read.",
+  "cite-check --reads <reads.jsonl> also fails a code citation whose range no read overlaps; reads makes that file",
+  "from Claude Code transcripts.",
   "",
   "--repo maps a ledger pin's repository name (the part before @) to a local clone holding that commit.",
   "--copy maps a source ID to a saved copy of its text, for quote checks.",
@@ -46,6 +56,10 @@ try {
     allowPositionals: true,
     options: {
       ledger: { type: "string" },
+      cache: { type: "string" },
+      only: { type: "string" },
+      refresh: { type: "boolean", default: false },
+      reads: { type: "string" },
       out: { type: "string" },
       from: { type: "string" },
       repo: { type: "string", multiple: true },
@@ -80,6 +94,67 @@ if (command === "bib") {
   );
   for (const id of bib.unverified)
     console.log(`  not verified: ${id} (${rows.get(id).Source}): its entry carries a note`);
+  process.exit(0);
+}
+if (command === "lookup") {
+  if (!report || !parsed.values.cache) fail(USAGE);
+  const rows = ledgerRows(readFileSync(report, "utf8"));
+  const only = parsed.values.only ? new Set(parsed.values.only.split(",").map((id) => id.trim())) : null;
+  const cache =
+    existsSync(parsed.values.cache) && !parsed.values.refresh
+      ? JSON.parse(readFileSync(parsed.values.cache, "utf8"))
+      : {};
+  const results = [];
+  for (const [id, row] of rows) {
+    if (only && !only.has(id)) continue;
+    const identifier = pinIdentifier(row.Pin);
+    // Two rows can share an identifier with different Source lines, and the match depends on the Source.
+    const key = identifier.value ? `${identifier.kind}:${identifier.value}\u0000${row.Source}` : null;
+    let result;
+    if (key && cache[key]) result = { ...cache[key].result, cached: cache[key].at };
+    else {
+      result = await lookupRow({ ...row, ID: id });
+      if (key) cache[key] = { at: new Date().toISOString(), source: row.Source, result };
+    }
+    results.push({ ...result, id, current: row.Lookup });
+  }
+  mkdirSync(dirname(resolve(parsed.values.cache)), { recursive: true });
+  writeFileSync(parsed.values.cache, `${JSON.stringify(cache, null, 2)}\n`);
+  const flagged = results.filter(
+    (result) =>
+      (result.lookup && result.lookup !== result.current) ||
+      result.notices.some((notice) => notice.type === "retraction" || notice.type === "not checked"),
+  );
+  if (parsed.values.json) console.log(JSON.stringify({ ledger: report, results }, null, 2));
+  else {
+    console.log(`${report}: ${results.length} row(s) looked up; ${flagged.length} need attention`);
+    for (const result of results) {
+      const lookup = result.lookup ?? "not online";
+      const change =
+        result.lookup && result.lookup !== result.current ? ` (Lookup now ${result.current || "empty"})` : "";
+      console.log(
+        `  ${result.id}: ${lookup}${change}: ${result.detail}${result.cached ? ` [cached ${result.cached}]` : ""}`,
+      );
+      for (const notice of result.notices)
+        console.log(`    ${notice.type}${notice.doi ? ` ${notice.doi}` : ""}: ${notice.title}`);
+    }
+  }
+  process.exit(flagged.length === 0 ? 0 : 1);
+}
+if (command === "reads") {
+  const transcripts = parsed.positionals.slice(1);
+  if (transcripts.length === 0 || !parsed.values.ledger || !parsed.values.out) fail(USAGE);
+  const pins = new Map();
+  for (const [id, row] of ledgerRows(readFileSync(parsed.values.ledger, "utf8"))) {
+    const pin = /^(\S+)@([0-9a-f]{7,40})$/.exec(row.Pin ?? "");
+    if (pin) pins.set(id, { repo: pin[1], commit: pin[2] });
+  }
+  const clones = pairs(parsed.values.repo, "--repo");
+  const reads = transcripts.flatMap((path) => readsFromTranscript(readFileSync(path, "utf8"), { clones, pins }));
+  writeFileSync(parsed.values.out, reads.map((read) => JSON.stringify(read)).join("\n") + (reads.length ? "\n" : ""));
+  console.log(
+    `${parsed.values.out}: ${reads.length} read(s) of ${new Set(reads.map((read) => read.source)).size} source(s)`,
+  );
   process.exit(0);
 }
 if (command === "quote-check") {
@@ -140,6 +215,7 @@ const text = read(report);
 const ledger = ledgerRows(read(parsed.values.ledger));
 const repos = pairs(parsed.values.repo, "--repo");
 const copies = pairs(parsed.values.copy, "--copy");
+const reads = parsed.values.reads ? loadReads(parsed.values.reads) : null;
 
 /** The file's text and line count at the commit, or the reason it could not be read. */
 const fileCache = new Map();
@@ -200,7 +276,16 @@ for (const citation of codeCitations(text)) {
       status: "failed",
       reason: `${citation.path} has ${file.count} lines at ${pin[2]}; the citation ends at ${citation.end}`,
     });
-  } else results.push({ ...base, status: "ok" });
+  } else if (
+    reads &&
+    !wasRead(reads, { source: citation.source, path: citation.path, start: citation.start, end: citation.end })
+  )
+    results.push({
+      ...base,
+      status: "failed",
+      reason: `no recorded read covers ${citation.path}:${citation.start}-${citation.end}`,
+    });
+  else results.push({ ...base, status: "ok" });
 }
 
 const copyText = new Map();
@@ -264,6 +349,8 @@ else {
   console.log(
     `${report}: ${summary.citations} citation(s); ${summary.ok} ok, ${summary.failed} failed, ${summary.notChecked} not checked`,
   );
+  if (!reads && codeCitations(text).length > 0)
+    console.log("  read ranges: not checked (pass --reads to check each code citation against what was read)");
   for (const result of results.filter((entry) => entry.status !== "ok")) {
     console.log(`  ${result.status}: line ${result.line}: ${result.citation} (${result.reason})`);
   }

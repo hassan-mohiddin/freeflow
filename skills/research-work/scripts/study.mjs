@@ -77,6 +77,12 @@ const attempt = (work) => {
 if (action === "lock") {
   const lock = attempt(() => lockPlan(plan, { by: values.by }));
   console.log(`Locked ${plan} (sha256 ${lock.entries[0].sha256}) by ${values.by}: ${lockPath(plan)}`);
+  const anchor = lock.entries[0].git;
+  console.log(
+    anchor.commit
+      ? `  anchored in git at ${anchor.commit.slice(0, 12)} (${anchor.path})`
+      : `  not anchored in git: ${anchor.reason}`,
+  );
 } else if (action === "amend") {
   const entry = attempt(() => amendPlan(plan, { by: values.by, reason: values.reason }));
   console.log(`Amended ${plan} (sha256 ${entry.sha256}) by ${entry.by}: ${entry.reason}`);
@@ -115,6 +121,7 @@ if (action === "lock") {
     const { beforeLock, otherPlan } = result.manifest;
     if (beforeLock > 0) console.log(`  note: ${beforeLock} receipt(s) ran before the lock (pilot or exploratory)`);
     if (otherPlan > 0) console.log(`  note: ${otherPlan} receipt(s) ran under a plan hash the lock does not record`);
+    for (const note of result.notes) console.log(`  note: ${note}`);
   }
   process.exit(result.ok ? 0 : 1);
 } else if (action === "manifest") {

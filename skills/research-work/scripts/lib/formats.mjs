@@ -208,7 +208,16 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
     );
   } else if (kind === "study-plan") {
     const numbers = rigor === "check" ? CHECK_QUESTIONS : QUESTIONS.map((_, index) => index + 1);
-    for (const number of numbers) lines.push(`## ${questionHeading(number)}`, "", "<the answer, before any data>", "");
+    // Question 3 states the size, so its placeholder asks for the power computation the validator looks for.
+    for (const number of numbers)
+      lines.push(
+        `## ${questionHeading(number)}`,
+        "",
+        number === 3
+          ? "<the prediction: the primary metric, the smallest effect worth detecting, and the power computation (stats.mjs power) that sized the study, or why none applies>"
+          : "<the answer, before any data>",
+        "",
+      );
     lines.push(
       "## Hypotheses",
       "",
@@ -399,6 +408,24 @@ function validatePlan(parsed, problems) {
         problems.push(`${where}: a confirmatory hypothesis names its metric and its decision rule`);
     }
   }
+  // The plan's own text: the twelve answers and the decision rules, where a stop rule or a size would be stated.
+  const planText = [
+    ...QUESTIONS.map((_, index) => (parsed.sections.get(questionHeading(index + 1)) ?? []).join("\n")),
+    ...(hypotheses?.rows ?? []).map((row) => row.cells["Decision rule"] ?? ""),
+  ].join("\n");
+  // Stopping when a result turns significant inflates false positives unless the test is built for looking often.
+  if (
+    /stop\w*[^.\n]{0,60}(significan|p\s*[<≤]|p-value)|until[^.\n]{0,40}significan/i.test(planText) &&
+    !/sequential|alpha[- ]spending|group sequential|always[- ]valid/i.test(planText)
+  )
+    problems.push(
+      "the plan stops when a result turns significant; fix the count in advance, or name a sequential test built for repeated looks",
+    );
+  const comparison = (hypotheses?.rows ?? []).some((row) => row.cells.Kind === "confirmatory");
+  if (comparison && !/\bpower\b|not a sampling question|computed,? not (sampled|estimated)/i.test(planText))
+    problems.push(
+      "a confirmatory hypothesis needs its size: a power computation (stats.mjs power) in question 3, or the reason none applies (a computed quantity, not a sample)",
+    );
   const runs = sectionTable(parsed, "Planned runs");
   if (!runs) problems.push(`missing "## Planned runs" with the table: ${RUN_COLUMNS.join(", ")}`);
   else {
