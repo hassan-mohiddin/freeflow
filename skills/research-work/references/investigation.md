@@ -39,7 +39,7 @@ Goal: describe what the code does at the pinned commit, with every statement tra
 
 ## Searching
 
-When the work searches papers, the web or a database, log each query and what it returned in the search ledger: one `query` line, then one `hit` line per result you looked at, with its state (`included`, `excluded` with a reason, `duplicate`, `unscreened`). Report counts from `artifact.mjs counts`, never from memory.
+Searches inside a pinned repository (grep for a name, a caller, an error string) are part of reading the code: name them in the report's Method, and give the search behind any absence in the claim's Scope. When the work searches papers, the web or a database, log each query and what it returned in the search ledger: one `query` line, then one `hit` line per result you looked at, with its state (`included`, `excluded` with a reason, `duplicate`, `unscreened`). Report counts from `artifact.mjs counts`, never from memory.
 
 - Search for the mechanism as well as the name; the same idea often has several names.
 - Follow citations both ways from the closest work: what it cites, and what cites it.
@@ -60,7 +60,7 @@ Split the survey when the subject is larger than one context can read well: many
 
 - **Split by part of the subject,** not by step: one worker per component, per paper cluster, per repository. For code, split along the dependency order, so a worker reading a component can rely on its dependencies' returns.
 - **Brief each worker with:** its part of the question; the pinned sources and where they are; the ledger and citation forms it must use (point it to [artifacts](artifacts.md)); what to return; and its limits (read-only, no paid calls, no files outside its output). Name the model and effort the worker runs on in the brief.
-- **Ask for a file, not a chat reply:** its findings as claims with `S<n>:path:line` citations and levels, its ledger rows, what it read and what it did not, and the questions it could not answer. The reply is just the file's path and whether its part was covered.
+- **Ask for a file, not a chat reply:** its findings as claims with `S<n>:path:line` citations and levels, its ledger rows, what it read and what it did not, and the questions it could not answer. The reply is just the file's path and whether its part was covered. Where the host refuses files from a worker, ask for the same content as its reply and save it unchanged before checking it.
 - **Check returns before using them.** Run `sources.mjs cite-check` on each return, read the citations a key claim rests on yourself, and send a gap back to its worker rather than filling it with your guess.
 - **One decider.** You merge the returns, settle conflicts between them, and write the claims register. Workers gather; they do not decide what the report concludes.
 

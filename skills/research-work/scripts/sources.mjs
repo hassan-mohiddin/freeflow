@@ -66,9 +66,9 @@ const ledger = ledgerRows(read(parsed.values.ledger));
 const repos = pairs(parsed.values.repo, "--repo");
 const copies = pairs(parsed.values.copy, "--copy");
 
-/** The file's line count at the commit, or null with the reason it could not be read. */
+/** The file's text and line count at the commit, or the reason it could not be read. */
 const fileCache = new Map();
-function linesAt(clone, commit, path) {
+function fileAt(clone, commit, path) {
   const key = `${clone}\0${commit}\0${path}`;
   if (!fileCache.has(key)) {
     try {
@@ -78,6 +78,7 @@ function linesAt(clone, commit, path) {
         stdio: ["ignore", "pipe", "pipe"],
       });
       fileCache.set(key, {
+        content,
         count: content.endsWith("\n") ? content.split("\n").length - 1 : content.split("\n").length,
       });
     } catch (error) {
@@ -116,7 +117,7 @@ for (const citation of codeCitations(text)) {
     results.push({ ...base, status: "not checked", reason: `no --repo ${pin[1]}=<clone> given` });
     continue;
   }
-  const file = linesAt(clone, pin[2], citation.path);
+  const file = fileAt(clone, pin[2], citation.path);
   if (file.error) results.push({ ...base, status: "failed", reason: `${citation.path} at ${pin[2]}: ${file.error}` });
   else if (citation.end > file.count) {
     results.push({
@@ -137,6 +138,31 @@ for (const citation of quoteCitations(text)) {
   const words = citation.quote.trim().split(/\s+/).length;
   if (words < 4) {
     results.push({ ...base, status: "failed", reason: `a quote must be at least four words, this one has ${words}` });
+    continue;
+  }
+  if (citation.path) {
+    // A quote from a file in a pinned repository is checked in that file at the commit.
+    const pin = /^(\S+)@([0-9a-f]{7,40})$/.exec(ledger.get(citation.source).Pin ?? "");
+    if (!pin) {
+      results.push({ ...base, status: "failed", reason: `${citation.source} is not pinned as <repository>@<commit>` });
+      continue;
+    }
+    const clone = repos.get(pin[1]);
+    if (!clone) {
+      results.push({ ...base, status: "not checked", reason: `no --repo ${pin[1]}=<clone> given` });
+      continue;
+    }
+    const file = fileAt(clone, pin[2], citation.path);
+    if (file.error) {
+      results.push({ ...base, status: "failed", reason: `${citation.path} at ${pin[2]}: ${file.error}` });
+      continue;
+    }
+    const found = normalizeForQuote(file.content).includes(normalizeForQuote(citation.quote));
+    results.push(
+      found
+        ? { ...base, status: "ok" }
+        : { ...base, status: "failed", reason: `the quote is not in ${citation.path} at ${pin[2]}` },
+    );
     continue;
   }
   const path = copies.get(citation.source);

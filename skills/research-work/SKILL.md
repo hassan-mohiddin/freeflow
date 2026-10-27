@@ -69,9 +69,9 @@ Goal: a report that answers the brief's question, where every claim can be trace
 1. **Frame.** Create the brief with `artifact.mjs init research-brief` and agree it with the user through Discuss Work. A question someone else could not answer as written is not ready: read [framing](references/framing.md).
 2. **Survey.** Pin each source before relying on it: a repository at a commit, a paper by DOI or arXiv ID, a page by URL and access date. Read the primary source, record it in the source ledger as you go, and log searches in the search ledger. Read code in dependency order and cite it as `S<n>:path:line`. For a subject too large to read in one context, split it across workers as [investigation](references/investigation.md) says, and decide from their returns yourself.
 3. **Conclude.** Register each claim with its numbers, sources, level, kind, scope and limit, and settle conflicts between sources as [claims](references/claims.md) says. What you looked for and did not find is a finding too, with the search that looked.
-4. **Report.** Write the report in Write Docs' Research shape: the answer first, each finding citing its claim IDs, strength stated once from the levels, limits in one place.
+4. **Report.** Write the report in Write Docs' Research shape: the answer first, each finding citing its claim IDs, strength stated once from the levels, limits in one place. If the host will not let you write the report file (some refuse files from a subagent), return the report's full text instead, so whoever routed the work can save it unchanged and run the checks.
 5. **Check.** Run the checks below, fix what they report, and run them again.
-6. **Review.** Use Review Work when its gate fires or the user asks; give the reviewer the brief, the ledgers, the register and the check output, not your summary.
+6. **Review.** At publication rigor, or when the user asks, review the report through Review Work's artifact review; give the reviewer the brief, the ledgers, the register and the check output, not your summary.
 
 Stop when the report and its checks are handed to the user, with what stayed unresolved, unchecked or out of scope.
 
@@ -86,6 +86,8 @@ node <research-work-directory>/scripts/claims.mjs trace <report.md> --register <
 - `artifact.mjs validate` refuses a register whose sources are missing or refuted, or whose levels exceed their sources' checking.
 - `cite-check` reads each cited file at the commit pinned in the ledger, using a local clone you name, and finds each quote in a saved copy of its source. Anything it could not check, it lists as not checked, never as passed.
 - `trace` lists every number and claim ID in the report that the register does not support.
+
+Passing checks show that each cited range exists and each number is registered, not that a range shows its claim. Read the lines a key claim rests on again before handing the report over: the common failure is a claim that is true on the path you read and drops the condition that selects that path.
 
 ## Numbers From Samples
 

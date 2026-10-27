@@ -8,7 +8,7 @@ node <research-work-directory>/scripts/artifact.mjs validate <path> [--sources <
 node <research-work-directory>/scripts/artifact.mjs counts <search ledger .jsonl>
 ```
 
-Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`. `init` never overwrites. Artifacts live in the project's research folder when it has one, otherwise in the task folder's `sources/`.
+Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`. `init` never overwrites. Artifacts live where the user or the task says; otherwise in the project's research folder when it has one, and otherwise in the task folder's `sources/`.
 
 ## Header
 
@@ -47,10 +47,10 @@ One row per source the work relies on, in one table with these columns, in order
 | --- | --- |
 | ID | `S1`, `S2`, … never reused |
 | Source | Authors, year and title, or the repository and path |
-| Pin | `doi:10.…/…`, `arXiv:NNNN.NNNNN`, `<repository>@<commit>`, `ISBN …`, a URL followed by `(accessed YYYY-MM-DD)`, or `none` when known only from memory |
+| Pin | `doi:10.…/…`, `arXiv:NNNN.NNNNN`, `<repository>@<commit>`, `ISBN …`, a URL followed by `(accessed YYYY-MM-DD)`, or `none` when known only from memory. `<repository>` is a short name of your choosing (`codex`), the one you pass to `cite-check --repo` |
 | Lookup | `verified` (found at its identifier), `unresolved` (not found, which does not make it fabricated), `refuted` (its identifier resolves to something else; only an identifier can refute), `not-looked-up` |
 | Checked | `opened` (read the source itself), `repository-read` (read the code at the pinned commit), `ran` (executed it), `abstract`, `summary-only` (a search result or someone else's summary), `memory` |
-| Read | `full`, `partial`, `abstract`, `none` |
+| Read | `full`, `partial`, `abstract`, `none`. For a repository, `full` means every file the claims rest on was read whole; `partial`, only the cited ranges and what led to them |
 | Supports | The claim IDs it supports (`C1, C3`), or `-` |
 
 How a source was checked caps the claims resting on it: `abstract`, `summary-only` and `memory` support at most L1, whatever study stands behind the source. Write `|` inside a cell as `\|`.
@@ -74,7 +74,7 @@ A JSONL file, one record per line, appended as the search runs:
 A report, a worker's return and the claims register's Source column cite in these forms, which the checks read:
 
 - **Code:** `S<n>:path:line` or `S<n>:path:start-end`, where `S<n>` is a ledger row pinned as `<repository>@<commit>` and the path is relative to the repository root (`S1:codex-rs/core/src/codex.rs:120-145`).
-- **A quote:** the quoted words in double quotes followed by the source ID, `"the exact words" (S3)`. Quote at least four words, copied exactly; the check looks for them in the saved copy of S3.
+- **A quote:** the quoted words in double quotes followed by the source ID, `"the exact words" (S3)`, or for a repository the file too, `"the exact words" (S1:path)`. Quote at least four words, copied exactly; the check looks for them in the saved copy of S3, or in the file at the pinned commit.
 - **A claim:** its register ID, `C4`, or several, `C4, C7`, where a finding states it.
 
 ## Claims Register

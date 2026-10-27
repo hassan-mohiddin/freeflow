@@ -34,9 +34,9 @@ export function codeCitations(text) {
 export function quoteCitations(text) {
   const plain = blankCode(text);
   const found = [];
-  const pattern = /["“]([^"“”\n]+)["”]\s*\((S\d+)\)/g;
+  const pattern = /["“]([^"“”\n]+)["”]\s*\((S\d+)(?::([A-Za-z0-9_./@+-]+))?\)/g;
   for (const match of plain.matchAll(pattern)) {
-    found.push({ line: lineOf(plain, match.index), source: match[2], quote: match[1], text: match[0] });
+    found.push({ line: lineOf(plain, match.index), source: match[2], path: match[3], quote: match[1], text: match[0] });
   }
   return found;
 }
@@ -53,7 +53,7 @@ export function normalizeForQuote(text) {
 
 // Words after which a number is a label, not a measured quantity.
 const LABEL_WORDS =
-  /(?:section|sections|table|tables|figure|figures|fig\.|step|steps|version|versions|python|node|chapter|appendix|item|items|question|line|lines|rule|rules|phase|round|week|day|days)\s*$/i;
+  /(?:section|sections|table|tables|figure|figures|fig\.|step|steps|version|versions|python|node|chapter|appendix|item|items|question|questions|finding|findings|note|notes|option|options|line|lines|rule|rules|phase|round|week|day|days)(?:\s+\d+(?:,\s*\d+)*(?:,|,?\s+and)?)?\s*$/i;
 
 /**
  * The numbers a line states as quantities. Left out: dates, years 1900-2099 standing alone, version strings,

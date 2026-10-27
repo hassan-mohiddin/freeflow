@@ -57,6 +57,8 @@ test("cite-check passes citations inside the file at its commit and fails the re
       'The note says "it retries a failed call at most twice" (S2).',
       'A misquote: "it retries a failed call three times" (S2), and "too short" (S2).',
       'An unsaved copy: "the blog says many things here" (S3).',
+      'In the code: "line 20 // line 21 // line 22" (S1:src/loop.rs).',
+      'A wrong file: "line 20 // line 21 // line 22" (S1:src/gone.rs).',
       "```",
       "S1:src/ignored.rs:1 inside a code block is an example.",
       "```",
@@ -87,6 +89,8 @@ test("cite-check passes citations inside the file at its commit and fails the re
   assert.match(by("three times").reason, /not in/);
   assert.match(by("too short").reason, /at least four words/);
   assert.equal(by("the blog says").status, "not checked");
+  assert.equal(by("(S1:src/loop.rs)").status, "ok");
+  assert.match(by("(S1:src/gone.rs)").reason, /gone.rs at/);
   assert.equal(
     output.results.some((entry) => entry.citation.includes("ignored.rs")),
     false,
@@ -116,6 +120,7 @@ test("numbers are taken as quantities, and labels, dates, versions and identifie
   );
   assert.deepEqual(numbersIn("1. On 2026-10-27 the gpt-4o run took 12 turns."), ["12"]);
   assert.deepEqual(numbersIn("A drop of −3.5 points."), ["-3.5"]);
+  assert.deepEqual(numbersIn("As findings 14 and 15 show, and finding 6, see notes 2, 3 and 4."), []);
 });
 
 test("trace accepts numbers its cited claims register and reports the rest", () => {
