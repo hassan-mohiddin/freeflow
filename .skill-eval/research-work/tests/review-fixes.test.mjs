@@ -175,8 +175,8 @@ const LEDGER = [
   "",
   "| ID | Source | Pin | Lookup | Checked | Read | Supports |",
   "| --- | --- | --- | --- | --- | --- | --- |",
-  "| S1 | Smith 2024. A study | arXiv:2401.00001 | not-looked-up | opened | full | C1 |",
-  "| S2 | Jones 2024. Another | arXiv:2401.00002 | not-looked-up | opened | full | C2 |",
+  "| S1 | Smith 2024. A study | arXiv:2401.00001 | not-looked-up | opened | full | C1, C3, C4, C5 |",
+  "| S2 | Jones 2024. Another | arXiv:2401.00002 | not-looked-up | opened | full | C1, C2, C5 |",
   "",
 ].join("\n");
 const REGISTER = (rows) =>
