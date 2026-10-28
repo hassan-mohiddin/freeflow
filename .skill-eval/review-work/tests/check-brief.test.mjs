@@ -28,12 +28,12 @@ async function write(root, files) {
 }
 
 // A repository with a base and a head commit, a Working Record, a dev doc, review rules, evidence and a reviews folder.
-async function repository() {
+async function repository({ readme = "# Docs\n\n## Review Rules\n" } = {}) {
   const root = await mkdtemp(join(tmpdir(), "check-brief-"));
   git(root, "init", "--quiet", "--initial-branch=main");
   await write(root, {
     "skills/review-work/SKILL.md": "# Review Work\n",
-    "dev-docs/README.md": "# Docs\n\n## Review Rules\n",
+    "dev-docs/README.md": readme,
     "dev-docs/subsystems/app.md": "# App\n",
     "src/app.js": "export const a = 1;\n",
   });
@@ -108,12 +108,20 @@ test("refuses a path that does not exist, and ignores a #anchor on one that does
 });
 
 test("accepts none for docs, review rules and evidence, but not for the agreement or method", async () => {
-  const repo = await repository();
+  const repo = await repository({ readme: "# Docs\n" });
   const accepted = await check(repo.root, brief(repo, { Docs: "none", "Review rules": "none", Evidence: "none" }));
   assert.equal(accepted.status, 0, JSON.stringify(accepted.report?.problems));
   const refused = await check(repo.root, brief(repo, { Agreement: "none", Method: "none" }));
   assert.equal(refused.status, 1);
   assert.deepEqual(lines(refused.report).sort(), ["Agreement", "Method"]);
+});
+
+test("refuses Review rules: none when a tracked Markdown file at the diff's base has a Review Rules section", async () => {
+  const repo = await repository();
+  const { status, report } = await check(repo.root, brief(repo, { "Review rules": "none" }));
+  assert.equal(status, 1);
+  assert.deepEqual(lines(report), ["Review rules"]);
+  assert.match(report.problems[0].problem, /dev-docs\/README\.md#review-rules/);
 });
 
 test("refuses pasted text where a pointer belongs", async () => {

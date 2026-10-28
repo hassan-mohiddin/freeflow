@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -23,12 +23,12 @@ const write = async (root, files) => {
     await writeFile(join(root, path), text);
   }
 };
-const run = (cwd, args) => {
-  const result = spawnSync(process.execPath, [script, ...args], { cwd, env: gitEnv, encoding: "utf8" });
+const run = (cwd, args, using = script) => {
+  const result = spawnSync(process.execPath, [using, ...args], { cwd, env: gitEnv, encoding: "utf8" });
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 };
 
-async function project() {
+async function project(extra = {}) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "review-packet-")));
   git(root, "init", "--quiet", "--initial-branch=main");
   await write(root, {
@@ -39,7 +39,9 @@ async function project() {
     "dev-docs/auth.md": "# Auth\n\n> **Covers:** `src/auth/`\n> **Verified at:** `HEAD`\n",
     "REVIEW.md": "# Review Rules\n",
     ".freeflow/tasks/task-001-ttl/record.md": "# Working Record: TTL\n",
+    ...Object.fromEntries(Object.entries(extra).filter(([, text]) => text !== null)),
   });
+  for (const [path, text] of Object.entries(extra)) if (text === null) await rm(join(root, path));
   git(root, "add", "--all");
   git(root, "commit", "--quiet", "-m", "base");
   const base = git(root, "rev-parse", "HEAD");
@@ -77,7 +79,10 @@ test("review-packet prefills the brief, names the gate triggers and budget, and 
     assert.match(brief, /\nDocs: `dev-docs\/auth\.md`\n/);
     assert.match(brief, /\nReview rules: `REVIEW\.md`\n/);
     assert.match(brief, new RegExp(`\\nDiff: ${base.slice(0, 12)}\\.\\.[0-9a-f]{12}\\n`));
-    assert.match(brief, /\nMay run: the project's declared checks: `npm test`, `npm run lint`\n/);
+    assert.match(
+      brief,
+      /\nMay run: the project's declared checks: `npm test`, `npm run lint`; and probes of the changed code on copies in your own scratch folder, with no edits to the repository\n/,
+    );
     assert.match(brief, /\nReport: `\.freeflow\/tasks\/task-001-ttl\/scratch\/reviews\/R1-report\.md`\n$/);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -105,6 +110,17 @@ test("review-packet leaves the Boundary empty so check-brief refuses, and Review
     assert.match(brief, new RegExp(`\\nDiff: ${reviewed.slice(0, 12)}\\.\\.`));
     assert.match(brief, /\nPrevious report: `[^`]*R1-report\.md`\n/);
     assert.match(JSON.parse(second.stdout).budget, /^Review 2 of at most 3/);
+    assert.deepEqual(JSON.parse(second.stdout).correctionDiff, {
+      from: reviewed.slice(0, 12),
+      files: 1,
+      insertions: 1,
+      deletions: 1,
+    });
+    const printed = run(root, ["--review", "2", "--base", base, "--task", task, "--boundary", "merge"]);
+    assert.match(
+      printed.stdout,
+      /Correction diff since Review 1's reviewed state [0-9a-f]{12}: 1 files, \+1 -1 lines\./,
+    );
     assert.equal(run(root, ["--review", "4", "--base", base, "--task", task]).status, 2);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -137,5 +153,49 @@ test("review-packet run from outside the repository writes repository-relative D
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(elsewhere, { recursive: true, force: true });
+  }
+});
+
+test("review-packet points Review rules at a tracked Markdown file's Review Rules section at the base", async () => {
+  const { root, base, task } = await project({
+    "REVIEW.md": null,
+    "dev-docs/README.md": "# Docs\n\n## Review Rules\n\n- **Blocking Issue:** an unsupported claim.\n",
+  });
+  try {
+    const result = run(root, ["--review", "1", "--base", base, "--task", task, "--boundary", "merge", "--json"]);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const brief = await readFile(join(task, "scratch/reviews/R1-brief.md"), "utf8");
+    assert.match(brief, /\nReview rules: `dev-docs\/README\.md#review-rules`\n/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("review-packet points Method at the base's copy of Review Work when the change under review edits it", async () => {
+  const { root, task } = await project();
+  try {
+    await cp(resolve("skills/review-work"), join(root, "skills/review-work"), { recursive: true });
+    git(root, "add", "--all");
+    git(root, "commit", "--quiet", "-m", "add review work");
+    const base = git(root, "rev-parse", "HEAD");
+    await write(root, { "skills/review-work/references/work.md": "# Work Review, edited by the change\n" });
+    git(root, "commit", "--quiet", "-am", "edit the method");
+    const copied = join(root, "skills/review-work/scripts/review-packet.mjs");
+    const result = run(
+      root,
+      ["--review", "1", "--base", base, "--task", task, "--boundary", "merge", "--json"],
+      copied,
+    );
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const brief = await readFile(join(task, "scratch/reviews/R1-brief.md"), "utf8");
+    const short = base.slice(0, 12);
+    assert.match(
+      brief,
+      new RegExp(
+        `\\nMethod: \`skills/review-work/SKILL\\.md\`, \`skills/review-work/references/work\\.md\`, read from the base ${short} \\(git show ${short}:<path>\\)\\n`,
+      ),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });

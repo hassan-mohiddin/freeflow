@@ -111,7 +111,7 @@ The brief points to where the reviewer finds each input; the reviewer reads them
 Review: [1 | 2 | 3]
 Boundary: [the protected future action]
 Reviewed state: [commit]
-Method: [path to Review Work's SKILL.md] and its references/work.md
+Method: [path to Review Work's SKILL.md and its references/work.md, read from the base branch]
 Agreement: [path to the Working Record, read through its resume view, or to the accepted outcome, requirements and non-goals; plus any Spec or Plan it names]
 Docs: [paths to the dev docs covering the changed files, read from the base branch | none]
 Review rules: [path to the project's Review Rules or REVIEW.md, read from the base branch | none]
@@ -124,7 +124,7 @@ Report: [path to write the report to]
 
 Write each path in backticks. Add a `Lenses:` line only to narrow the review to the lenses material to this boundary, and a `Notes:` line pointing to the invariant, state owner, affecting paths, observer, forbidden mutations, prior-state requirements, adversarial disproof, mutation footprint and fidelity limits when state transitions or proof integrity matter. `May run` defaults to what Review Work's Rules allow a reviewer. For Review 2 or 3, the diff is the range since the previous review's reviewed state, not the whole change.
 
-[review-packet](../scripts/review-packet.mjs) writes this brief for you: `node <review-work-directory>/scripts/review-packet.mjs --review <n> --base <ref> --task <task folder> --boundary <the protected action>` fills every line it can (the Review 2 or 3 diff from the previous brief's reviewed state, the docs covering the changed files, the declared checks), leaves the rest empty and runs check-brief. Before dispatching, run [check-brief](../scripts/check-brief.mjs) on the brief: `node <review-work-directory>/scripts/check-brief.mjs <brief> [--root <repository>]`. It refuses a brief missing a required line or naming a path or commit that does not exist. Dispatch only a brief it accepts; if it cannot run, check the same by hand and say so in the record.
+[review-packet](../scripts/review-packet.mjs) writes this brief for you: `node <review-work-directory>/scripts/review-packet.mjs --review <n> --base <ref> --task <task folder> --boundary <the protected action>` fills every line it can (the Review 2 or 3 diff from the previous brief's reviewed state and its size, the docs covering the changed files, the Review Rules, the declared checks and scratch probes), leaves the rest empty and runs check-brief. Before dispatching, run [check-brief](../scripts/check-brief.mjs) on the brief: `node <review-work-directory>/scripts/check-brief.mjs <brief> [--root <repository>]`. It refuses a brief missing a required line, naming a path or commit that does not exist, or saying `Review rules: none` when the base has a `## Review Rules` section. Dispatch only a brief it accepts; if it cannot run, check the same by hand and say so in the record.
 
 A reviewer that cannot read files is a host gap: record it, and do not paste the inputs instead.
 
@@ -156,10 +156,10 @@ Relationship to prior items (Review 2 or 3 only): [related consequence | indepen
 ### Review Items
 
 #### Issues — Blocking
-- [location, issue, violated source, evidence, consequence, correction constraints or owning activity]
+- [location, issue, violated source, evidence (for code: the command run on the reviewed state and what it printed), consequence, correction constraints or owning activity]
 
 #### Issues — Non-blocking
-- [location, issue, evidence, why it can be deferred]
+- [location, issue, evidence (for code: the command run on the reviewed state and what it printed), why it can be deferred]
 
 #### Unresolved — Questions
 - [question, effect on judgment, required answer]

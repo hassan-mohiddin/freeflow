@@ -9,13 +9,17 @@
 //                          [--root <repository>] [--json]
 // With --task, the brief is written to <task>/scratch/reviews/R<n>-brief.md, the report path is R<n>-report.md beside
 // it, the agreement defaults to the task's record.md, and Review 2 or 3 takes its diff from the previous brief's
-// reviewed state and points to R<n-1>-report.md. Docs come from Write Docs' docs-check.mjs --covering on the changed
-// files. Exit code: check-brief's (0 passes, 1 has problems); 2 on a usage or Git error.
+// reviewed state, points to R<n-1>-report.md and prints the size of that correction diff. Docs come from Write Docs'
+// docs-check.mjs --covering on the changed files; Review rules from a REVIEW.md or a tracked Markdown file with a
+// "## Review Rules" section at the base; Method from the base's copy when Review Work is in the reviewed repository.
+// The default May run is the declared npm checks and probes on scratch copies.
+// Exit code: check-brief's (0 passes, 1 has problems); 2 on a usage or Git error.
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { reviewRulesSections } from "./lib/review-rules.mjs";
 
 const USAGE =
   "Usage: review-packet.mjs --review <1|2|3> --base <ref> [--head <ref>] [--task <task folder>] [--out <brief.md>] [--boundary <text>] [--agreement <path>]... [--evidence <path>]... [--may-run <text>] [--root <repository>] [--json]";
@@ -131,25 +135,35 @@ if (changed.length && existsSync(DOCS_CHECK)) {
   else notes.push("docs-check could not run: fill Docs by hand");
 }
 
-// The project's Review Rules, when it keeps them in a file.
-const rules = git(root, ["ls-files"])
-  .split("\n")
-  .filter((path) => /(^|\/)(REVIEW\.md|review-rules\.md|REVIEW_RULES\.md)$/i.test(path))
-  .map((path) => resolve(root, path));
+// The project's Review Rules, read from the base: a file named for them, or a tracked Markdown file with a
+// "## Review Rules" section, written as path#review-rules.
+const rules = [
+  ...new Set([
+    ...git(root, ["ls-files"])
+      .split("\n")
+      .filter((path) => /(^|\/)(REVIEW\.md|review-rules\.md|REVIEW_RULES\.md)$/i.test(path)),
+    ...reviewRulesSections(root, commitOf(values.base)).map((path) => `${path}#review-rules`),
+  ]),
+].map((path) => resolve(root, path));
 
-// The project's declared checks, for "May run".
+// The default "May run": the project's declared checks and probes of the changed code on scratch copies.
+const PROBES = "probes of the changed code on copies in your own scratch folder, with no edits to the repository";
 let mayRun = values["may-run"] ?? "";
-if (!mayRun && existsSync(join(root, "package.json"))) {
+if (!mayRun) {
+  let declared = [];
   try {
-    const scripts = Object.keys(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts ?? {});
-    const declared = ["test", "check", "lint", "typecheck"].filter((name) => scripts.includes(name));
-    if (declared.length)
-      mayRun = `the project's declared checks: ${declared.map((name) => `\`npm ${name === "test" ? "test" : `run ${name}`}\``).join(", ")}`;
+    if (existsSync(join(root, "package.json"))) {
+      const scripts = Object.keys(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts ?? {});
+      declared = ["test", "check", "lint", "typecheck"].filter((name) => scripts.includes(name));
+    }
   } catch {
-    // An unreadable package.json leaves May run for the initiator.
+    // An unreadable package.json leaves the declared checks for the initiator.
   }
+  mayRun = declared.length
+    ? `the project's declared checks: ${declared.map((name) => `\`npm ${name === "test" ? "test" : `run ${name}`}\``).join(", ")}; and ${PROBES}`
+    : PROBES;
+  if (!declared.length) notes.push('no declared npm checks found: add the project\'s checks to "May run"');
 }
-if (!mayRun) notes.push('fill "May run": the declared checks, or "nothing"');
 
 // Review gate triggers the diff shows; the agreement's own review triggers and Review Rules paths need a reader.
 const TRIGGERS = [
@@ -178,11 +192,45 @@ const budget =
       ? "Review 2 of at most 3: a focused follow-up on the range since Review 1; if it stays Blocking, adjudicate and diagnose before any Review 3."
       : "Review 3 of 3: exceptional, separately authorized and final; if it stays Blocking, rethink the approach rather than correct again.";
 
+// The method is read from the base when Review Work lives in the reviewed repository, so a change to Review Work
+// never supplies the method that reviews it.
+const methodFiles = [SKILL, join(dirname(SKILL), "references", "work.md")];
+const methodInRepo = methodFiles.every((path) => !relative(root, path).startsWith(".."));
+const baseCommit = commitOf(values.base);
+const methodAtBase =
+  methodInRepo &&
+  methodFiles.every((path) => {
+    try {
+      git(root, ["cat-file", "-e", `${baseCommit}:${relative(root, path).split("\\").join("/")}`]);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+if (methodInRepo && !methodAtBase)
+  notes.push("Review Work is not at the base: the Method line points to the reviewed state");
+const method = `${tick(methodFiles)}${methodAtBase ? `, read from the base ${baseCommit.slice(0, 12)} (git show ${baseCommit.slice(0, 12)}:<path>)` : ""}`;
+
+// For Review 2 or 3, the size of the correction diff since the previous review's reviewed state.
+let correction = null;
+if (round > 1 && diffBase !== values.base) {
+  const stat = git(root, ["diff", "--numstat", diffBase, head])
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.split("\t"));
+  correction = {
+    from: commitOf(diffBase).slice(0, 12),
+    files: stat.length,
+    insertions: stat.reduce((sum, [added]) => sum + (Number(added) || 0), 0),
+    deletions: stat.reduce((sum, [, removed]) => sum + (Number(removed) || 0), 0),
+  };
+}
+
 const lines = [
   `Review: ${round}`,
   `Boundary: ${values.boundary ?? ""}`,
   `Reviewed state: ${head.slice(0, 12)}`,
-  `Method: ${tick([SKILL, join(dirname(SKILL), "references", "work.md")])}`,
+  `Method: ${method}`,
   `Agreement: ${tick(agreement)}`,
   `Docs: ${docs.length ? tick(docs) : "none"}`,
   `Review rules: ${rules.length ? tick(rules) : "none"}`,
@@ -214,6 +262,7 @@ const result = {
   gateTriggers: triggers,
   gateNotDetected: ["anything the work agreement names for review", "paths the Review Rules mark sensitive"],
   budget,
+  correctionDiff: correction,
   notes,
   checkBrief: { ok: checked.ok, problems: checked.problems },
 };
@@ -229,6 +278,10 @@ else {
   );
   console.log(`Not detected here: ${result.gateNotDetected.join("; ")}.`);
   console.log(`Round budget: ${budget}`);
+  if (correction)
+    console.log(
+      `Correction diff since Review ${round - 1}'s reviewed state ${correction.from}: ${correction.files} files, +${correction.insertions} -${correction.deletions} lines.`,
+    );
   for (const note of notes) console.log(`Note: ${note}`);
   console.log(
     checked.ok

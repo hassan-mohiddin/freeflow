@@ -134,7 +134,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with the body before the 2026-10-22 restructure (the description is not what the suite delivers or measures; the restructure moves and deduplicates that text and has not been rerun), 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "1c3b3a164006f8639063c2c8c3028542bf714c17c03f2f8ca8290b13c3af83a9",
+      "source_sha256": "7ad421078d5b4ba967d07bfcc02fd8cbcd5dc9f1f284b9a08f8335f8664e6ff3",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

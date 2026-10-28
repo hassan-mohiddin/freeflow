@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Checks a work reviewer's pointer brief (references/work.md, "The Brief") before it is dispatched: every
 // required labelled line is present, every backticked path it points to exists, and every commit it names resolves.
+// It also refuses "Review rules: none" when a tracked Markdown file at the diff's base has a "## Review Rules" section.
 // It checks pointers only; whether they point to the right inputs is the initiator's judgment.
 // Usage: check-brief.mjs <brief> [--root <repository>] [--json]
 // Paths resolve against --root (default: the current directory); absolute paths are allowed, and a "#anchor" suffix is
@@ -9,6 +10,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { reviewRulesSections } from "./lib/review-rules.mjs";
 
 const USAGE = "Usage: check-brief.mjs <brief> [--root <repository>] [--json]";
 
@@ -112,6 +114,16 @@ for (const spec of REQUIRED) {
   else check(spec, lines.get(spec.label));
 }
 for (const spec of OPTIONAL) if (lines.has(spec.label)) check(spec, lines.get(spec.label));
+// "Review rules: none" while the project keeps a Review Rules section at the diff's base.
+if (/^none\.?$/i.test(lines.get("Review rules") ?? "")) {
+  const base = commitOf(unquote((lines.get("Diff") ?? "").split(/\s+/)[0]).split(/\.{2,3}/)[0] || "");
+  const found = base ? reviewRulesSections(root, base) : [];
+  if (found.length)
+    problem(
+      "Review rules",
+      `says none, but the base has a Review Rules section: ${found.map((path) => `${path}#review-rules`).join(", ")}`,
+    );
+}
 const round = Number(lines.get("Review")?.match(/\d+/)?.[0]);
 if ((round === 2 || round === 3) && !lines.has("Previous report"))
   problem("Previous report", `is missing; Review ${round} needs the previous report and its adjudication`);
