@@ -1171,7 +1171,11 @@ export function metaFixed(yi, vi, { confidence = 0.95 } = {}) {
  * weighted mean with weights 1 / (vi + tau²), and the Hartung-Knapp-Sidik-Jonkman interval (Hartung and Knapp 2001;
  * Sidik and Jonkman 2002), a t interval on k - 1 degrees of freedom around a weighted residual variance, which keeps
  * its coverage with few studies where the normal interval does not. `low` and `high` are the Hartung-Knapp
- * interval; `normal` holds the DerSimonian-Laird normal interval beside it, and `fixed` the fixed-effect fit.
+ * interval, untruncated as statsmodels computes it; `hartungKnapp.truncated` floors the residual variance at 1
+ * (IntHout et al. 2014), so its se is never below the DerSimonian-Laird se, and a warning names it when the
+ * untruncated se is: studies that agree more closely than their variances predict would otherwise yield an interval
+ * narrower than any one study's evidence supports. `normal` holds the DerSimonian-Laird normal interval beside it,
+ * and `fixed` the fixed-effect fit.
  */
 export function metaRandom(yi, vi, { confidence = 0.95 } = {}) {
   checkConfidence(confidence);
@@ -1184,9 +1188,21 @@ export function metaRandom(yi, vi, { confidence = 0.95 } = {}) {
   let residual = 0;
   for (let i = 0; i < k; i += 1) residual += weights[i] * (yi[i] - pooled.estimate) ** 2;
   const seHartungKnapp = Math.sqrt(residual / ((k - 1) * pooled.total));
+  const seTruncated = Math.sqrt(Math.max(1, residual / (k - 1)) / pooled.total);
   const t = tQuantile(1 - (1 - confidence) / 2, k - 1);
   const z = normalQuantile(1 - (1 - confidence) / 2);
+  const tP = (se) => (se > 0 ? 2 * (1 - tCdf(Math.abs(pooled.estimate / se), k - 1)) : Number(pooled.estimate === 0));
+  const truncated = {
+    se: seTruncated,
+    low: pooled.estimate - t * seTruncated,
+    high: pooled.estimate + t * seTruncated,
+    p: tP(seTruncated),
+  };
   const warnings = poolingWarnings(k, i2, "random");
+  if (seHartungKnapp < pooled.se)
+    warnings.push(
+      `the Hartung-Knapp se (${Number(seHartungKnapp.toPrecision(3))}) is below the DerSimonian-Laird se (${Number(pooled.se.toPrecision(3))}): the studies agree more closely than their variances predict, so the default interval is narrower than their evidence supports; report hartungKnapp.truncated's interval, ${Number(truncated.low.toPrecision(4))} to ${Number(truncated.high.toPrecision(4))}, instead`,
+    );
   return {
     method: "meta-random",
     tau2Method: "dersimonian-laird",
@@ -1197,11 +1213,8 @@ export function metaRandom(yi, vi, { confidence = 0.95 } = {}) {
     confidence,
     low: pooled.estimate - t * seHartungKnapp,
     high: pooled.estimate + t * seHartungKnapp,
-    p:
-      seHartungKnapp > 0
-        ? 2 * (1 - tCdf(Math.abs(pooled.estimate / seHartungKnapp), k - 1))
-        : Number(pooled.estimate === 0),
-    hartungKnapp: { se: seHartungKnapp, df: k - 1 },
+    p: tP(seHartungKnapp),
+    hartungKnapp: { se: seHartungKnapp, df: k - 1, truncated },
     normal: {
       low: pooled.estimate - z * pooled.se,
       high: pooled.estimate + z * pooled.se,

@@ -2,7 +2,7 @@
 // Create and check Research Work's artifacts. The formats are defined in references/artifacts.md.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import {
@@ -17,8 +17,8 @@ import {
   planHypotheses,
   planLabelsByModel,
   planVariants,
+  screenerFiles,
   searchCounts,
-  searchJudges,
   skeleton,
   validate,
 } from "./lib/formats.mjs";
@@ -46,16 +46,6 @@ function read(path) {
   } catch (error) {
     fail(`cannot read ${path}: ${error.message}`);
   }
-}
-
-/** The judge records a search ledger's model screeners cite, read relative to the ledger. */
-function screenerJudges(path, text) {
-  return new Map(
-    searchJudges(text).map((judge) => {
-      const file = resolve(dirname(path), judge);
-      return [judge, existsSync(file) ? judgeCounts(readFileSync(file, "utf8")) : undefined];
-    }),
-  );
 }
 
 let parsed;
@@ -233,7 +223,7 @@ if (command === "init" && rest[0] === "project") {
     options.dataExists = (file) => existsSync(resolve(dirname(path), file));
     Object.assign(options, figureReceipts(path, parseMarkdown(text).header.Runs));
   }
-  if (kind === "search-ledger") options.judges = screenerJudges(path, text);
+  if (kind === "search-ledger") Object.assign(options, screenerFiles(path, text));
   const confirmatory = rows.some((row) => row.cells.Kind === "confirmatory");
   const result = validate(kind, text, options);
   if (values.json) console.log(JSON.stringify({ path, ...result }, null, 2));
@@ -263,11 +253,13 @@ if (command === "init" && rest[0] === "project") {
   const [path] = rest;
   if (!path || !path.endsWith(".jsonl")) fail(USAGE);
   const text = read(path);
-  const result = searchCounts(text, { judges: screenerJudges(path, text) });
-  // The flow is written only from a ledger that validates, so a figure drawn from it never shows a refused count.
+  const result = searchCounts(text, screenerFiles(path, text));
+  // The flow is written only from a ledger that validates, so a figure drawn from it never shows a refused count. It
+  // names the ledger and its hash, so the figure can recompute it and refuse a flow the ledger does not give.
   if (values.flow && result.problems.length === 0) {
     mkdirSync(dirname(values.flow), { recursive: true });
-    writeFileSync(values.flow, `${JSON.stringify(result.flow, null, 2)}\n`);
+    const ledger = { ledger: relative(dirname(resolve(values.flow)), resolve(path)), ledger_sha256: fileHash(path) };
+    writeFileSync(values.flow, `${JSON.stringify({ ...result.flow, ...ledger }, null, 2)}\n`);
   }
   if (values.json) console.log(JSON.stringify({ path, ...result }, null, 2));
   else {

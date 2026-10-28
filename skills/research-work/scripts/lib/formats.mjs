@@ -3,6 +3,10 @@
 // its enforcement. Markdown artifacts carry Write Docs' header (Type, Status, Owner, Source); the search ledger is
 // JSONL, one record per line. The study's run ledger and deviation log are written by study.mjs (lib/study.mjs).
 
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+
 import { CHECKS, recheck, statusCell } from "./recheck.mjs";
 import { numberInResults, numbersIn, resultCitations } from "./report.mjs";
 import { cohenKappa } from "./stats.mjs";
@@ -710,10 +714,14 @@ function validateJudge(parsed, problems) {
   }
 }
 
-/** Whether a judge validation record lets the judge's verdicts count: valid, and its Result is pass. */
+/**
+ * Whether a judge validation record lets the judge's verdicts count: valid, and its Result is pass. `rubricSha256` is
+ * the hash of the rubric it was validated on, so a use of the judge can be held to that rubric.
+ */
 export function judgeCounts(text) {
   const { valid, problems } = validate("judge-validation", text);
-  return { counts: valid && parseMarkdown(text).header.Result === "pass", problems };
+  const { header } = parseMarkdown(text);
+  return { counts: valid && header.Result === "pass", problems, rubricSha256: header["Rubric sha256"] };
 }
 
 /** The judge records a register row's Source cites as `judge:<path>`. */
@@ -1130,7 +1138,9 @@ export function newRequests(text) {
 }
 
 // RoB 2 is built for randomized trials and ROBINS-I (or ROBINS-E) for studies that did not randomize; a tool named
-// against the other kind of design, as the Design cell words it, is a slip.
+// against the other kind of design, as the Design cell's leading words name it, is a slip. Only the words before the
+// first ",", ";", "(" or " with " name the design, so "randomized trial with an observational follow-up" is a trial.
+const designKind = (design) => (design ?? "").split(/[,;(]| with /i)[0];
 const NOT_RANDOMIZED = /\bnon-?randomi[sz]ed\b|\bobservational\b|\bcohort\b|\bcase-control\b|\bcross-sectional\b/i;
 const RANDOMIZED = /\brandomi[sz]ed\b|\bRCT\b/i;
 
@@ -1172,11 +1182,11 @@ function validateEvidence(parsed, problems, { ledger } = {}) {
         problems.push(`${where}: a risk of bias judged ${risk} names the tool that judged it`);
       else if (tool !== "-" && risk === "not assessed")
         problems.push(`${where}: Risk of bias is not assessed, so Bias tool is "-"`);
-      else if (/\bRoB ?2\b/i.test(tool) && NOT_RANDOMIZED.test(cells.Design ?? ""))
+      else if (/\bRoB ?2\b/i.test(tool) && NOT_RANDOMIZED.test(designKind(cells.Design)))
         problems.push(`${where}: RoB 2 is for randomized trials, and the design reads "${cells.Design}"; use ROBINS-I`);
       else if (
         /\bROBINS-[IE]\b/i.test(tool) &&
-        RANDOMIZED.test((cells.Design ?? "").replace(/\bnon-?randomi[sz]ed\b/gi, ""))
+        RANDOMIZED.test(designKind(cells.Design).replace(/\bnon-?randomi[sz]ed\b/gi, ""))
       )
         problems.push(
           `${where}: ${tool} is for studies that did not randomize, and the design reads "${cells.Design}"; use RoB 2`,
@@ -1228,30 +1238,49 @@ function validateRecheck(parsed, problems, { ledger } = {}) {
 export const SCREENING_STAGES = ["title-abstract", "full-text"];
 const SCREEN_STATES = ["included", "excluded"];
 
-/** The judge validation records a search ledger's model screeners cite, as written (relative to the ledger). */
-export function searchJudges(text) {
-  const paths = new Set();
+/**
+ * The files a search ledger's model screeners cite, read relative to the ledger at `path`: `judges` maps each judge
+ * validation record to `judgeCounts` of it, and `rubrics` each rubric to its sha256; a file that cannot be read maps
+ * to undefined.
+ */
+export function screenerFiles(path, text) {
+  const judges = new Map();
+  const rubrics = new Map();
+  const file = (cited) => resolve(dirname(path), cited);
   for (const raw of text.split(/\r?\n/)) {
+    let record;
     try {
-      const record = JSON.parse(raw);
-      if (record?.kind === "screener" && typeof record.model === "string" && typeof record.judge === "string")
-        paths.add(record.judge);
+      record = JSON.parse(raw);
     } catch {
-      // not JSON: validation reports it
+      continue; // not JSON: validation reports it
     }
+    if (record?.kind !== "screener" || typeof record.model !== "string") continue;
+    if (typeof record.judge === "string" && !judges.has(record.judge))
+      judges.set(
+        record.judge,
+        existsSync(file(record.judge)) ? judgeCounts(readFileSync(file(record.judge), "utf8")) : undefined,
+      );
+    if (typeof record.rubric === "string" && !rubrics.has(record.rubric))
+      rubrics.set(
+        record.rubric,
+        existsSync(file(record.rubric))
+          ? createHash("sha256")
+              .update(readFileSync(file(record.rubric)))
+              .digest("hex")
+          : undefined,
+      );
   }
-  return [...paths];
+  return { judges, rubrics };
 }
 
 const lineList = (lines) => (lines.length > 5 ? `${lines.slice(0, 5).join(", ")}, …` : lines.join(", "));
 
 /**
  * Parse and check a search ledger: its queries, the screening criteria with their stage, the screeners (a person,
- * or a model with the judge validation record that lets its decisions count), and the hits. `judges` maps each
- * judge path a model screener cites to `{ counts, problems }`, or to undefined when the record cannot be read; a
- * record not in the map is treated as unread.
+ * or a model with the rubric it was given and the judge validation record that lets its decisions count), and the
+ * hits. `judges` and `rubrics` are as `screenerFiles` returns them; a file not in its map is treated as unread.
  */
-function validateSearch(text, problems, { judges } = {}) {
+function validateSearch(text, problems, { judges, rubrics } = {}) {
   const queries = new Set();
   const criteria = new Map();
   const screeners = new Map();
@@ -1323,6 +1352,10 @@ function validateSearch(text, problems, { judges } = {}) {
         problems.push(
           `line ${line}: a model screener needs judge: the path of the judge validation record that lets its decisions count`,
         );
+      if (model && !(typeof record.rubric === "string" && record.rubric.trim() !== ""))
+        problems.push(
+          `line ${line}: a model screener needs rubric: the path of the screening instructions it was given, which hold the ledger's criteria`,
+        );
       if (record.id && !screeners.has(record.id)) screeners.set(record.id, { ...record, model: model && !person });
     } else if (record.kind === "hit") {
       if (!queries.has(record.query))
@@ -1362,10 +1395,11 @@ function validateSearch(text, problems, { judges } = {}) {
           if (screens[0]?.screener !== undefined && screens[0]?.screener === screens[1]?.screener)
             problems.push(`line ${line}: the two screens need two different screeners`);
           // The hit's own state is the decision that counts. Where the screeners disagree, or it departs from what
-          // they both said, a person settles it and is named.
+          // they both said (unscreened included), a person settles it and is named.
           const agreed = screens[0]?.state === screens[1]?.state ? screens[0]?.state : null;
           const settled = typeof record.settled_by === "string" && record.settled_by.trim() !== "";
-          if (SCREEN_STATES.includes(record.state) && record.state !== agreed && !settled)
+          const departs = agreed ? record.state !== agreed : SCREEN_STATES.includes(record.state);
+          if (departs && record.state !== "duplicate" && !settled)
             problems.push(
               `line ${line}: ${agreed ? `the screeners agreed the hit is ${agreed}, and its state is ${record.state}` : "the screeners disagree"}, so settled_by names the person who settled it`,
             );
@@ -1387,14 +1421,24 @@ function validateSearch(text, problems, { judges } = {}) {
         problems.push(
           `line ${line}: the ledger defines criteria, so an excluded hit cites the criterion it was excluded by`,
         );
+  // A model's decisions count only under a passing judge record for the rubric it was given: a record validated on
+  // other instructions says nothing about these.
   for (const [id, lines] of byModel) {
     const screener = screeners.get(id);
-    if (!screener.judge) continue;
+    if (!screener.judge || !screener.rubric) continue;
     const record = judges?.get(screener.judge);
-    if (record?.counts) continue;
-    problems.push(
-      `screener ${id} is a model, and its judge record ${screener.judge} ${record ? `does not pass (${record.problems.length > 0 ? record.problems.join("; ") : "its Result is not pass"})` : "cannot be read"}, so the ${lines.length} hit${lines.length === 1 ? "" : "s"} it screened (line${lines.length === 1 ? "" : "s"} ${lineList(lines)}) do not count`,
-    );
+    const rubric = rubrics?.get(screener.rubric);
+    let why = null;
+    if (!record) why = `its judge record ${screener.judge} cannot be read`;
+    else if (!record.counts)
+      why = `its judge record ${screener.judge} does not pass (${record.problems.length > 0 ? record.problems.join("; ") : "its Result is not pass"})`;
+    else if (rubric === undefined) why = `its rubric ${screener.rubric} cannot be read`;
+    else if (record.rubricSha256 !== rubric)
+      why = `its judge record ${screener.judge} was validated on a rubric with sha256 ${record.rubricSha256}, not on its rubric ${screener.rubric} (sha256 ${rubric})`;
+    if (why)
+      problems.push(
+        `screener ${id} is a model, and ${why}, so the ${lines.length} hit${lines.length === 1 ? "" : "s"} it screened (line${lines.length === 1 ? "" : "s"} ${lineList(lines)}) do not count`,
+      );
   }
   return { records, criteria, screeners };
 }
@@ -1498,11 +1542,11 @@ function screeningAgreement(records) {
 
 /**
  * Hit counts per query and state, computed from a search ledger's hit lines; the agreement between two screeners
- * where hits carry both decisions; and the review's flow (`searchFlow`). `judges` is as for validation.
+ * where hits carry both decisions; and the review's flow (`searchFlow`). `judges` and `rubrics` are as for validation.
  */
-export function searchCounts(text, { judges } = {}) {
+export function searchCounts(text, { judges, rubrics } = {}) {
   const problems = [];
-  const { records, criteria } = validateSearch(text, problems, { judges });
+  const { records, criteria } = validateSearch(text, problems, { judges, rubrics });
   const perQuery = new Map();
   const totals = Object.fromEntries(HIT_STATES.map((state) => [state, 0]));
   for (const { record } of records) {
@@ -1542,7 +1586,8 @@ export function kindOf(path, text) {
  * confirmatory claim is a confirmatory hypothesis of a locked plan that no amendment changed after study runs:
  * `plan` is `{ hypotheses, locked, reason, demoted }`), and
  * its judge records (a claim resting on a judge record that does not pass is at most L1: `judges` maps each cited
- * path to `{ counts }`).
+ * path to `{ counts }`). A search ledger's model screeners are checked against `judges` and `rubrics`, as
+ * `screenerFiles` reads them.
  */
 export function validate(
   kind,
@@ -1551,6 +1596,7 @@ export function validate(
     ledger,
     plan,
     judges,
+    rubrics,
     searches,
     register,
     registerMissing,
@@ -1562,7 +1608,7 @@ export function validate(
   } = {},
 ) {
   const problems = [];
-  if (kind === "search-ledger") validateSearch(text, problems, { judges });
+  if (kind === "search-ledger") validateSearch(text, problems, { judges, rubrics });
   else {
     const parsed = parseMarkdown(text);
     if (kind === "research-brief") validateBrief(parsed, problems);

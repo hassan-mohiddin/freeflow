@@ -2,8 +2,12 @@
 // results rather than from values typed into the spec; draw it through a receipt (`paper.mjs run` or `study.mjs run`)
 // so the outline can show which data made it. The output is deterministic: the same spec and data give the same bytes.
 
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
+
+import { screenerFiles, searchCounts } from "./formats.mjs";
 
 export const TYPES = ["line", "points", "bar", "scatter", "flow"];
 // Okabe and Ito's palette, distinguishable with the common colour-vision deficiencies.
@@ -296,8 +300,9 @@ function checkGroup(group, name, problems) {
 }
 
 /**
- * Read a flow written by `artifact.mjs counts --flow`, refusing counts that do not add up: a flow typed or edited by
- * hand usually breaks one of these sums.
+ * Read a flow written by `artifact.mjs counts --flow`, refusing counts that do not add up, then one its search ledger
+ * does not give: the flow names the ledger and its sha256, and the flow is recomputed from that ledger, so an edit
+ * that keeps every sum still shows.
  */
 export function readFlow(spec, specPath) {
   for (const key of Object.keys(spec))
@@ -342,6 +347,33 @@ export function readFlow(spec, specPath) {
   if (problems.length > 0)
     throw new Error(
       `${spec.data}: the flow's counts do not add up (${problems.join("; ")}); write it with artifact.mjs counts --flow`,
+    );
+  if (typeof flow.ledger !== "string" || flow.ledger.trim() === "")
+    throw new Error(
+      `${spec.data} names no search ledger, so its counts cannot be recomputed; write it with artifact.mjs counts --flow`,
+    );
+  const ledgerPath = resolve(dirname(file), flow.ledger);
+  let bytes;
+  try {
+    bytes = readFileSync(ledgerPath);
+  } catch {
+    throw new Error(`${spec.data}'s search ledger ${flow.ledger} cannot be read`);
+  }
+  if (createHash("sha256").update(bytes).digest("hex") !== flow.ledger_sha256)
+    throw new Error(
+      `${flow.ledger} is not the ledger ${spec.data} was written from (its sha256 differs); write the flow again with artifact.mjs counts --flow`,
+    );
+  const text = bytes.toString("utf8");
+  const counts = searchCounts(text, screenerFiles(ledgerPath, text));
+  if (counts.problems.length > 0)
+    throw new Error(`${flow.ledger} has problems (${counts.problems.join("; ")}), so its flow is not drawn`);
+  const expected = { ...counts.flow, ledger: flow.ledger, ledger_sha256: flow.ledger_sha256 };
+  const differ = [...new Set([...Object.keys(expected), ...Object.keys(flow)])].filter(
+    (key) => !isDeepStrictEqual(expected[key], flow[key]),
+  );
+  if (differ.length > 0)
+    throw new Error(
+      `${spec.data}'s counts are not those ${flow.ledger} gives (${differ.join(", ")} differ${differ.length === 1 ? "s" : ""}); write it with artifact.mjs counts --flow`,
     );
   return flow;
 }

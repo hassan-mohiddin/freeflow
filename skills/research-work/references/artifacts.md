@@ -78,14 +78,14 @@ A screened review adds its criteria, its screeners and each hit's stage. All are
 {"kind":"criterion","id":"E1","text":"not about model judges","stage":"title-abstract"}
 {"kind":"criterion","id":"E2","text":"no agreement measured against people","stage":"full-text"}
 {"kind":"screener","id":"P1","person":"Hassan Mohiddin"}
-{"kind":"screener","id":"M1","model":"claude-haiku-5-5 (2026-10-01)","judge":"screening-judge.md"}
+{"kind":"screener","id":"M1","model":"claude-haiku-5-5 (2026-10-01)","judge":"screening-judge.md","rubric":"screening-instructions.md"}
 {"kind":"hit","query":"Q1","title":"…","state":"excluded","criterion":"E2","stage":"full-text","screener":"M1"}
 {"kind":"hit","query":"Q1","title":"…","state":"included","stage":"full-text","source":"S5","screens":[{"screener":"P1","state":"included"},{"screener":"M1","state":"excluded","criterion":"E2"}],"settled_by":"Hassan Mohiddin"}
 ```
 
 - A **criterion** (`E1`, …) is a ground for exclusion, written before screening, with its `text` and the `stage` that can apply it: `title-abstract` (it applies at either stage) or `full-text` (only the full text can settle it). Once the ledger defines criteria, every excluded hit cites the one that excluded it, as `criterion`, defined on an earlier line.
 - A hit's **stage** is where it was last screened: `title-abstract` or `full-text`. A hit that cites a criterion names its stage, and a full-text criterion cannot exclude at `title-abstract`.
-- A **screener** is a `person` or a `model`. A model screener names, as `judge`, its [judge validation record](#judge-validation-record), relative to the ledger: a sample of hits screened by a person is the gold set. Until that record passes, every hit the model screened is refused. A hit names who screened it as `screener`.
+- A **screener** is a `person` or a `model`. A model screener names, as `judge`, its [judge validation record](#judge-validation-record), and, as `rubric`, the screening instructions it was given, which hold the ledger's criteria; both paths are relative to the ledger, and a sample of hits screened by a person is the gold set. Until that record passes, and its Rubric sha256 is the sha256 of that rubric file, every hit the model screened is refused, with the reason: a record validated on other instructions says nothing about these. A hit names who screened it as `screener`.
 - **Two screeners:** `screens` holds both decisions (`screener`, `state` of `included` or `excluded`, and the `criterion` for an exclusion), and the hit's own `state` is the decision that counts. Where the two disagree, or the state is not the one they both gave, `settled_by` names the person who settled it; a disagreement not yet settled leaves the hit `unscreened`. The screens are at the hit's stage.
 
 `counts` also reports, for each pair of screeners and stage, their raw agreement, Cohen's kappa and the disagreements, with how many no person has settled. `counts --flow <flow.json>` writes the review's flow, PRISMA-style, for `figure.mjs` to draw (Figure Spec, below), and writes nothing from a ledger with problems:
@@ -98,6 +98,7 @@ A screened review adds its criteria, its screeners and each hit's stage. All are
 | `excluded_title_abstract`, `excluded_stage_not_recorded` | `records` and `reasons`: each criterion's (or free reason's) `criterion`, `reason` and `records` |
 | `full_text` | `assessed` and `excluded` as above, or `null` when no hit records the full-text stage |
 | `included` | Hits included |
+| `ledger`, `ledger_sha256` | The search ledger's path, relative to the flow file, and the sha256 of the ledger it was written from |
 
 ## Citations In A Report
 
@@ -234,7 +235,7 @@ Validation refuses a missing choice or reason, a "will address" without a commit
 
 ## Evidence Table
 
-For a literature review: one row per study it compares. One table, `| Source | Design | n | Result | Failure condition | Level |`, optionally followed by `Weakness`: the study's main weakness, or `-`; then optionally by both `Bias tool` and `Risk of bias`: the tool that assessed the study's risk of bias, chosen for its design (RoB 2 for a randomized trial, ROBINS-I for a study that did not randomize), and the tool's overall judgment, `low`, `some concerns`, `high` or `not assessed` (with Bias tool `-`). Source is a source-ledger ID; n is a whole number or `-`; Failure condition is the result that would have refuted the study's claim; Level is capped, with `--sources`, by how the source was checked, as for a claim. Validation refuses a judgment outside the four, a judgment with no tool, and RoB 2 or ROBINS-I named against a design that reads the other way.
+For a literature review: one row per study it compares. One table, `| Source | Design | n | Result | Failure condition | Level |`, optionally followed by `Weakness`: the study's main weakness, or `-`; then optionally by both `Bias tool` and `Risk of bias`: the tool that assessed the study's risk of bias, chosen for its design (RoB 2 for a randomized trial, ROBINS-I for a study that did not randomize), and the tool's overall judgment, `low`, `some concerns`, `high` or `not assessed` (with Bias tool `-`). Source is a source-ledger ID; n is a whole number or `-`; Failure condition is the result that would have refuted the study's claim; Level is capped, with `--sources`, by how the source was checked, as for a claim. Validation refuses a judgment outside the four, a judgment with no tool, and RoB 2 or ROBINS-I named against a design that reads the other way, read from the Design cell's leading words: the text before the first `,`, `;`, `(` or ` with `, so "randomized trial with an observational follow-up" is a trial.
 
 ## Recheck Table
 
@@ -282,7 +283,7 @@ The JSON that [figure](../scripts/figure.mjs) draws an SVG from: `node figure.mj
 
 The output is the same bytes for the same spec and data. Colors follow Okabe and Ito's palette, with a different marker per series.
 
-A review's flow is a spec of `type` `flow` whose `data` is the file `counts --flow` wrote, with only `title`, `description` and `width` beside them. It draws the steps down the left (identified, screened, full texts assessed, included) and what leaves at each step to the right (duplicates, those awaiting screening, the exclusions with their reasons), and refuses a flow whose counts do not add up. Run `counts --flow` through the same receipt route, with the ledger as input.
+A review's flow is a spec of `type` `flow` whose `data` is the file `counts --flow` wrote, with only `title`, `description` and `width` beside them. It draws the steps down the left (identified, screened, full texts assessed, included) and what leaves at each step to the right (duplicates, those awaiting screening, the exclusions with their reasons), and refuses a flow whose counts do not add up, that names no ledger, whose ledger has changed since (its sha256 differs), or that differs from the flow recomputed from that ledger, so a count edited by hand, even with every sum kept, is refused. Run `counts --flow` through the same receipt route, with the ledger as input.
 
 ## Revision Patch
 

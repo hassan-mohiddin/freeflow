@@ -1,8 +1,9 @@
 // Literature and systematic reviews: screening criteria tagged by stage, a model screener that counts only with a
-// passing judge record, agreement between two screeners, the flow from identification to inclusion drawn from the
+// passing judge record for its rubric, agreement between two screeners, the flow from identification to inclusion drawn from the
 // ledger, risk of bias in the evidence table, and pooling effect sizes. Each check has a case that must fail.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,7 +25,7 @@ const QUERY2 = { kind: "query", id: "Q2", query: "judge bias", database: "Scopus
 const E1 = { kind: "criterion", id: "E1", text: "not about model judges", stage: "title-abstract" };
 const E2 = { kind: "criterion", id: "E2", text: "no agreement measured against people", stage: "full-text" };
 const PERSON = { kind: "screener", id: "P1", person: "Hassan Mohiddin" };
-const MODEL = { kind: "screener", id: "M1", model: "claude-haiku-5-5", judge: "judge.md" };
+const MODEL = { kind: "screener", id: "M1", model: "claude-haiku-5-5", judge: "judge.md", rubric: "criteria.md" };
 const hit = (title, fields) => ({ kind: "hit", query: "Q1", title, ...fields });
 
 const judgeRecord = (overrides = {}) =>
@@ -37,7 +38,7 @@ const judgeRecord = (overrides = {}) =>
     ...Object.entries({
       Judge: "claude-haiku-5-5, thinking low",
       Rubric: "criteria.md",
-      "Rubric sha256": "a".repeat(64),
+      "Rubric sha256": RUBRIC_SHA,
       "Gold items": "100",
       Agreement: "0.90",
       Interval: "[0.83, 0.94] wilson",
@@ -56,6 +57,12 @@ const judgeRecord = (overrides = {}) =>
     "A person screened 100 hits drawn at random; the decoys were on-topic titles about human raters.",
     "",
   ].join("\n");
+
+// The rubric the model screener was given, and the hash its judge record was validated on.
+const RUBRIC_TEXT = "Exclude a hit not about model judges (E1).\n";
+const sha = (text) => createHash("sha256").update(text).digest("hex");
+const RUBRIC_SHA = sha(RUBRIC_TEXT);
+const RUBRICS = new Map([["criteria.md", RUBRIC_SHA]]);
 
 test("a criterion tagged full-text cannot exclude a hit at the title-and-abstract stage", () => {
   const ok = lines(
@@ -107,6 +114,9 @@ test("once a ledger defines criteria every exclusion cites one, and a ledger wit
   );
 });
 
+const PASSING = new Map([["judge.md", judgeCounts(judgeRecord())]]);
+const SCREENING = { judges: PASSING, rubrics: RUBRICS };
+
 test("a model's screening counts only with a judge validation record that passes", () => {
   const ledger = lines(
     QUERY,
@@ -118,10 +128,10 @@ test("a model's screening counts only with a judge validation record that passes
     hit("C", { state: "included", stage: "title-abstract", screener: "P1" }),
   );
   const passing = new Map([["judge.md", judgeCounts(judgeRecord())]]);
-  assert.equal(problemsOf(ledger, { judges: passing }), "");
+  assert.equal(problemsOf(ledger, { judges: passing, rubrics: RUBRICS }), "");
   const failing = new Map([["judge.md", judgeCounts(judgeRecord({ Result: "fail" }))]]);
   assert.match(
-    problemsOf(ledger, { judges: failing }),
+    problemsOf(ledger, { judges: failing, rubrics: RUBRICS }),
     /screener M1 is a model, and its judge record judge\.md does not pass \(its Result is not pass\), so the 2 hits it screened \(lines 5, 6\) do not count/,
   );
   assert.match(problemsOf(ledger), /judge record judge\.md cannot be read, so the 2 hits/);
@@ -129,13 +139,33 @@ test("a model's screening counts only with a judge validation record that passes
   assert.equal(problemsOf(lines(QUERY, PERSON, hit("C", { state: "included", screener: "P1" }))), "");
   const unnamed = problemsOf(lines(QUERY, { kind: "screener", id: "M2", model: "gpt" }));
   assert.match(unnamed, /a model screener needs judge/);
+  assert.match(unnamed, /a model screener needs rubric: the path of the screening instructions it was given/);
   assert.match(problemsOf(lines(QUERY, { kind: "screener", id: "X", person: "A", model: "B" })), /either a person or/);
   assert.match(problemsOf(lines(QUERY, hit("A", { state: "included", screener: "Z9" }))), /names screener Z9/);
 });
 
-test("validate and counts read a model screener's judge record beside the ledger", () => {
+test("a passing judge record counts only for the rubric it was validated on", () => {
+  const ledger = lines(QUERY, E1, MODEL, hit("A", { state: "included", stage: "title-abstract", screener: "M1" }));
+  const other = new Map([
+    ["judge.md", judgeCounts(judgeRecord({ Rubric: "other-study.md", "Rubric sha256": sha("another review") }))],
+  ]);
+  assert.match(
+    problemsOf(ledger, { judges: other, rubrics: RUBRICS }),
+    new RegExp(
+      `screener M1 is a model, and its judge record judge\\.md was validated on a rubric with sha256 ${sha("another review")}, not on its rubric criteria\\.md \\(sha256 ${RUBRIC_SHA}\\), so the 1 hit it screened \\(line 4\\) do not count`,
+    ),
+  );
+  assert.equal(problemsOf(ledger, SCREENING), "");
+  assert.match(
+    problemsOf(ledger, { judges: PASSING, rubrics: new Map() }),
+    /its rubric criteria\.md cannot be read, so the 1 hit/,
+  );
+});
+
+test("validate and counts read a model screener's judge record and rubric beside the ledger", () => {
   const dir = folder();
   const ledger = join(dir, "searches.jsonl");
+  writeFileSync(join(dir, "criteria.md"), RUBRIC_TEXT);
   writeFileSync(ledger, lines(QUERY, MODEL, hit("A", { state: "included", screener: "M1" })));
   const missing = node("artifact.mjs", "validate", ledger);
   assert.equal(missing.status, 1);
@@ -145,6 +175,9 @@ test("validate and counts read a model screener's judge record beside the ledger
   writeFileSync(join(dir, "judge.md"), judgeRecord());
   assert.equal(node("artifact.mjs", "validate", ledger).status, 0);
   assert.equal(node("artifact.mjs", "counts", ledger).status, 0);
+  // The rubric edited after validation is not the rubric the record holds for.
+  writeFileSync(join(dir, "criteria.md"), `${RUBRIC_TEXT}Also exclude surveys.\n`);
+  assert.match(node("artifact.mjs", "validate", ledger).stdout, /was validated on a rubric with sha256 /);
 });
 
 // Ten hits screened by a person and a model: 8 agreed, 2 disagreed (one settled by a person, one awaiting).
@@ -185,10 +218,9 @@ const DUAL = () => {
     hit("split 2", { state: "unscreened", ...at, ...split("included", "excluded") }),
   ];
 };
-const PASSING = new Map([["judge.md", judgeCounts(judgeRecord())]]);
 
 test("counts reports two screeners' raw agreement, kappa and disagreements", () => {
-  const counts = searchCounts(lines(...DUAL()), { judges: PASSING });
+  const counts = searchCounts(lines(...DUAL()), SCREENING);
   assert.deepEqual(counts.problems, []);
   // Observed 8/10; each screener said included 5 times of 10, so chance agreement is 0.5 and kappa 0.6.
   assert.deepEqual(counts.agreement, [
@@ -204,6 +236,7 @@ test("counts reports two screeners' raw agreement, kappa and disagreements", () 
   ]);
   const dir = folder();
   writeFileSync(join(dir, "judge.md"), judgeRecord());
+  writeFileSync(join(dir, "criteria.md"), RUBRIC_TEXT);
   writeFileSync(join(dir, "searches.jsonl"), lines(...DUAL()));
   const printed = node("artifact.mjs", "counts", join(dir, "searches.jsonl"));
   assert.equal(printed.status, 0, printed.stdout);
@@ -216,16 +249,23 @@ test("counts reports two screeners' raw agreement, kappa and disagreements", () 
 test("a disagreement, or a state the two screeners did not give, is settled by a named person", () => {
   const records = DUAL();
   const unsettled = { ...records[12], settled_by: undefined };
-  const problems = problemsOf(lines(...records.slice(0, 12), unsettled), { judges: PASSING });
+  const problems = problemsOf(lines(...records.slice(0, 12), unsettled), SCREENING);
   assert.match(problems, /line 13: the screeners disagree, so settled_by names the person who settled it/);
   const overruled = { ...records[4], state: "excluded", criterion: "E1" };
   assert.match(
-    problemsOf(lines(...records.slice(0, 4), overruled), { judges: PASSING }),
+    problemsOf(lines(...records.slice(0, 4), overruled), SCREENING),
     /line 5: the screeners agreed the hit is included, and its state is excluded, so settled_by names the person/,
   );
+  // Both included it, and it is left unscreened: it would drop out of the included count unremarked.
+  const dropped = { ...records[4], state: "unscreened" };
+  assert.match(
+    problemsOf(lines(...records.slice(0, 4), dropped), SCREENING),
+    /line 5: the screeners agreed the hit is included, and its state is unscreened, so settled_by names the person/,
+  );
+  assert.equal(problemsOf(lines(...records.slice(0, 4), { ...dropped, settled_by: "Hassan" }), SCREENING), "");
   const byModel = { ...records[12], settled_by: "M1" };
   assert.match(
-    problemsOf(lines(...records.slice(0, 12), byModel), { judges: PASSING }),
+    problemsOf(lines(...records.slice(0, 12), byModel), SCREENING),
     /settled_by names M1, a model; a person settles a disagreement/,
   );
   const same = hit("x", {
@@ -285,6 +325,8 @@ test("counts --flow writes the stage counts from the ledger, and refuses to writ
       },
     },
     included: 1,
+    ledger: "searches.jsonl",
+    ledger_sha256: sha(FLOW_LEDGER()),
   });
   writeFileSync(
     join(dir, "bad.jsonl"),
@@ -336,6 +378,45 @@ test("figure.mjs draws the flow as boxes and arrows, the same bytes each time, a
   );
   writeFileSync(join(dir, "typed.json"), JSON.stringify({ identified: 6 }));
   assert.throws(() => drawFigure({ ...spec, data: "typed.json" }, join(dir, "spec.json")), /not a flow written by/);
+});
+
+test("figure.mjs recomputes the flow from the ledger it names, so an edit that keeps every sum is refused", () => {
+  const dir = folder();
+  writeFileSync(join(dir, "searches.jsonl"), FLOW_LEDGER());
+  node("artifact.mjs", "counts", join(dir, "searches.jsonl"), "--flow", join(dir, "flow.json"));
+  const flow = JSON.parse(readFileSync(join(dir, "flow.json"), "utf8"));
+  const spec = { type: "flow", data: "flow.json" };
+  assert.match(drawFigure(spec, join(dir, "spec.json")).svg, /Studies included \(n = 1\)/);
+  // R19's consistent edit: one more study included, carried through every total so each sum still holds.
+  const edited = {
+    ...flow,
+    identified: {
+      records: 7,
+      databases: [
+        { database: "arXiv", records: 4 },
+        { database: "Scopus", records: 3 },
+      ],
+    },
+    screened: 5,
+    full_text: { ...flow.full_text, assessed: 3 },
+    included: 2,
+  };
+  writeFileSync(join(dir, "edited.json"), JSON.stringify(edited));
+  assert.throws(
+    () => drawFigure({ ...spec, data: "edited.json" }, join(dir, "spec.json")),
+    /edited\.json's counts are not those searches\.jsonl gives \(identified, screened, full_text, included differ\)/,
+  );
+  const { ledger, ledger_sha256, ...unnamed } = flow;
+  assert.equal(ledger, "searches.jsonl");
+  writeFileSync(join(dir, "unnamed.json"), JSON.stringify(unnamed));
+  assert.throws(() => drawFigure({ ...spec, data: "unnamed.json" }, join(dir, "spec.json")), /names no search ledger/);
+  // A ledger changed after the flow was written: the hash no longer matches.
+  writeFileSync(join(dir, "searches.jsonl"), `${FLOW_LEDGER()}\n${JSON.stringify(hit("F", { state: "unscreened" }))}`);
+  assert.throws(
+    () => drawFigure(spec, join(dir, "spec.json")),
+    new RegExp(`searches\\.jsonl is not the ledger flow\\.json was written from \\(its sha256 differs\\)`),
+  );
+  assert.ok(ledger_sha256);
 });
 
 test("an outline's flow figure is checked against its receipt like any other figure", () => {
@@ -462,6 +543,27 @@ test("the evidence table's risk of bias names the tool for the design and one of
   assert.match(problems, /line 11: Risk of bias is not assessed, so Bias tool is "-"/);
   assert.match(problems, /line 12: RoB 2 is for randomized trials, and the design reads "prospective cohort"/);
   assert.match(problems, /line 13: ROBINS-I is for studies that did not randomize, and the design reads "RCT"/);
+  // The design kind is read from the cell's leading words, so a trial with a secondary cohort analysis is a trial.
+  const trials = EVIDENCE(
+    columns,
+    "| S1 | randomized trial with an observational follow-up | 200 | 0.4 | no effect | L4 | RoB 2 | low |",
+    "| S2 | randomised controlled trial, cohort analysis of dropouts | 200 | 0.4 | no effect | L4 | RoB 2 | low |",
+    "| S3 | randomized trial; secondary cohort analysis | 200 | 0.4 | no effect | L4 | RoB 2 | low |",
+  );
+  assert.deepEqual(validate("evidence-table", trials).problems, []);
+  const wrong = validate(
+    "evidence-table",
+    EVIDENCE(
+      columns,
+      "| S1 | cohort study | 900 | 0.3 | no association | L3 | RoB 2 | low |",
+      "| S2 | randomized trial | 200 | 0.4 | no effect | L4 | ROBINS-I | low |",
+    ),
+  ).problems.join("\n");
+  assert.match(wrong, /line 9: RoB 2 is for randomized trials, and the design reads "cohort study"/);
+  assert.match(
+    wrong,
+    /line 10: ROBINS-I is for studies that did not randomize, and the design reads "randomized trial"/,
+  );
   const half = validate("evidence-table", EVIDENCE([...BASE, "Risk of bias"], "| S1 | trial | 2 | x | y | L3 | low |"));
   assert.match(half.problems.join("\n"), /risk of bias takes both columns/);
   // A table without the columns is unchanged.
@@ -510,17 +612,43 @@ test("meta pooling matches statsmodels on the BCG vaccine trials", () => {
 });
 
 test("meta warns with fewer than five studies, and refuses input it cannot pool", () => {
-  // Three homogeneous studies: tau² is 0, I² is 0, and the few-studies warning stands alone.
+  // Three homogeneous studies: tau² is 0, I² is 0, and the few-studies warning comes first. Q is below its degrees
+  // of freedom, so the Hartung-Knapp se is below the DerSimonian-Laird se and that warning follows.
   const few = metaRandom([0.1, 0.3, 0.2], [0.01, 0.02, 0.015]);
   assert.equal(few.tau2, 0);
   assert.equal(few.i2, 0);
-  assert.deepEqual(few.warnings.length, 1);
+  assert.deepEqual(few.warnings.length, 2);
   assert.match(few.warnings[0], /fewer than five studies \(3\): tau² is estimated from too few values/);
-  // Five homogeneous studies give no warning at all.
-  assert.equal(metaRandom([0.1, 0.3, 0.2, 0.25, 0.15], [0.01, 0.02, 0.015, 0.02, 0.01]).warnings, undefined);
+  assert.match(few.warnings[1], /the Hartung-Knapp se \(.+\) is below the DerSimonian-Laird se/);
+  // Five homogeneous studies give no few-studies warning, only the Hartung-Knapp one.
+  const five = metaRandom([0.1, 0.3, 0.2, 0.25, 0.15], [0.01, 0.02, 0.015, 0.02, 0.01]);
+  assert.equal(five.warnings.length, 1);
+  assert.match(five.warnings[0], /the Hartung-Knapp se/);
+  // Five studies spread a little more than their variances predict give no warning at all.
+  assert.equal(metaRandom([0.1, 0.4, 0.2, 0.35, 0], [0.01, 0.02, 0.015, 0.02, 0.01]).warnings, undefined);
   assert.throws(() => metaRandom([0.1], [0.01]), /at least two studies/);
   assert.throws(() => metaRandom([0.1, 0.2], [0.01]), /the same length/);
   assert.throws(() => metaFixed([0.1, 0.2], [0.01, 0]), /greater than 0/);
+});
+
+test("meta's Hartung-Knapp interval, when narrower than the studies' own evidence, warns and names the truncated one", () => {
+  // R19's probe: five studies with estimates 0.10 to 0.12, each variance 0.04 (I² = 0).
+  const probe = metaRandom([0.1, 0.105, 0.11, 0.115, 0.12], [0.04, 0.04, 0.04, 0.04, 0.04]);
+  close(probe.hartungKnapp.se, 0.003535533905932737);
+  close(probe.se, Math.sqrt(0.04 / 5));
+  close(probe.high - probe.low, 0.019632431614775, 1e-9);
+  // Truncated: the residual variance floored at 1 (IntHout et al. 2014), so the se is the DerSimonian-Laird se.
+  close(probe.hartungKnapp.truncated.se, probe.se);
+  close(probe.hartungKnapp.truncated.high - probe.hartungKnapp.truncated.low, 0.4966655992815033, 1e-9);
+  assert.equal(probe.warnings.length, 1);
+  assert.match(
+    probe.warnings[0],
+    /the Hartung-Knapp se \(0\.00354\) is below the DerSimonian-Laird se \(0\.0894\).*report hartungKnapp\.truncated's interval, -0\.1383 to 0\.3583, instead/,
+  );
+  // On BCG the residual variance is above 1, so the truncated interval is the untruncated one.
+  const bcg = metaRandom(BCG.yi, BCG.vi);
+  close(bcg.hartungKnapp.truncated.low, bcg.low);
+  close(bcg.hartungKnapp.truncated.high, bcg.high);
 });
 
 test("stats.mjs meta runs from the command line and records what computed it", () => {
