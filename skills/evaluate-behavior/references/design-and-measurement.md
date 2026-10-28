@@ -175,7 +175,7 @@ Research Work's [study design](../../research-work/references/study.md#size-to-t
 The same baseline commit accepted 31 of 45 correct changes in one run and 38 of 45 in the next. What such a swing means for a result, and how to pool runs, is in Research Work's [study design](../../research-work/references/study.md#measure-the-noise-floor); here a run's configuration is its commit and case versions.
 
 - Run both arms in the same batch, so they share conditions.
-- When a claim is close, run a noise check (`component: []`): it is that section's identical arms.
+- When a claim is close, run a noise check (`component: []`): the identical arms that Measure The Noise Floor describes.
 
 ## Keep Capability And Regression Suites Apart
 
@@ -183,7 +183,7 @@ Keep them apart as Research Work's [study design](../../research-work/references
 
 ## Hold Cases Out
 
-Cases are the items of Research Work's [Hold Items Out](../../research-work/references/study.md#hold-items-out): its split, tuning and independence rules apply to them as written, and the author of the guidance under test is the author of what is under test.
+Cases are the items of Research Work's [Hold Items Out](../../research-work/references/study.md#hold-items-out), and its split, tuning and independence rules apply to them as written: cases written by the author of the guidance under test, or by the model under test, are not independent of it.
 
 ## Control Mechanical Checks That Approximate Meaning
 

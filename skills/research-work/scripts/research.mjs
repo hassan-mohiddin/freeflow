@@ -453,8 +453,9 @@ if (target && (supportRequired || used.verdicts)) {
   }
 }
 
-// The built PDF: required for a paper at publication rigor, checked whenever one is present. At publication it is
-// checked against the venue: with no limit or required section given, it is not.
+// The built PDF: required for a paper at publication rigor, checked whenever one is present, and below publication
+// shown without holding the gate. At publication it is checked against the venue: with no limit or required section
+// given, it is not; given only some, it is checked against those (a page limit leaves the words unasked).
 const venueGiven = Boolean(values["max-pages"] || values["max-words"] || values.require.length > 0);
 const venueTodo =
   "check it against the venue: run the gate again with the venue's page and word limits and its required sections (--max-pages <n>, --max-words <n>, --require <section> for each; the venue's current call and template give them)";
@@ -480,7 +481,7 @@ if (used.pdf || (used.paper && atLeast("publication"))) {
       reason: `not checked against the venue: no --max-pages, --max-words or --require given (${pdf.reason})`,
       todo: venueTodo,
     });
-  add("pdf", "paper: PDF", true, pdf);
+  add("pdf", "paper: PDF", atLeast("publication"), pdf);
 }
 
 // What is left: each required check that did not pass, then the steps no script can take.

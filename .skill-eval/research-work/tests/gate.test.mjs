@@ -411,12 +411,16 @@ test("a PDF whose pages or words cannot be read, with no limit given, is not che
   const { folder, copy } = project("check");
   mkdirSync(join(folder, "paper", "build"), { recursive: true });
   writeFileSync(join(folder, "paper", "build", "paper.pdf"), "not a PDF at all\n");
-  const pdf = check(gate(folder, "--copy", copy), "pdf");
+  const result = gate(folder, "--copy", copy);
+  const pdf = check(result, "pdf");
   assert.equal(pdf.status, "failed");
   assert.ok(
     pdf.output.some((line) => /not checked: pages/.test(line)),
     pdf.output.join("\n"),
   );
+  // Below publication a PDF is not required, so what it could not read is shown and holds nothing.
+  assert.equal(pdf.required, false);
+  assert.equal(result.status, 0, result.stdout);
   const direct = node("paper.mjs", "check-pdf", join(folder, "paper", "build", "paper.pdf"));
   assert.equal(direct.status, 1);
   assert.match(direct.stdout, /not checked: words/);
