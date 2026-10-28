@@ -17,6 +17,7 @@ import {
   planHypotheses,
   planLabelsByModel,
   planVariants,
+  recheckFlags,
   screenerFiles,
   searchCounts,
   skeleton,
@@ -28,8 +29,8 @@ import { resultNumbers } from "./lib/report.mjs";
 
 const USAGE = [
   "Usage: artifact.mjs init <kind> <path> --title <title> --owner <owner> [--rigor check|study|publication]",
-  "       artifact.mjs init project <folder> --title <title> --owner <owner> [--rigor check|study|publication]",
-  "       artifact.mjs validate <path> [--sources <source ledger>] [--plan <study plan>] [--search <search ledger>] [--json]",
+  "       artifact.mjs init project <folder> --title <title> --owner <owner> [--rigor check|study|publication] [--kind review]",
+  "       artifact.mjs validate <path> [--sources <source ledger>] [--plan <study plan>] [--search <search ledger>] [--recheck <recheck table>] [--json]",
   "       artifact.mjs counts <search ledger .jsonl> [--flow <flow.json>] [--json]",
   "",
   `Kinds: ${Object.keys(KINDS_OF_ARTIFACT).join(", ")}`,
@@ -59,6 +60,8 @@ try {
       sources: { type: "string" },
       plan: { type: "string" },
       search: { type: "string" },
+      recheck: { type: "string" },
+      kind: { type: "string" },
       flow: { type: "string" },
       json: { type: "boolean", default: false },
       help: { type: "boolean" },
@@ -80,29 +83,53 @@ if (command === "init" && rest[0] === "project") {
   const [, folder] = rest;
   if (!folder) fail(USAGE);
   if (!values.title || !values.owner) fail("init needs --title and --owner");
+  if (values.kind !== undefined && values.kind !== "review")
+    fail("--kind takes review (a literature or systematic review); leave it out for the default layout");
   if (existsSync(folder) && readdirSync(folder).length > 0) fail(`${folder} is not empty; init never overwrites`);
+  const review = values.kind === "review";
+  const who = { title: values.title, owner: values.owner };
   const files = {
-    "brief.md": skeleton("research-brief", { title: values.title, owner: values.owner, rigor: values.rigor }),
-    "sources/sources.md": skeleton("source-ledger", { title: values.title, owner: values.owner }),
+    "brief.md": skeleton("research-brief", { ...who, rigor: values.rigor }),
+    "sources/sources.md": skeleton("source-ledger", who),
     "sources/searches.jsonl": "",
-    "claims.md": skeleton("claims-register", { title: values.title, owner: values.owner }),
-    "paper/outline.md": skeleton("paper-outline", { title: values.title, owner: values.owner })
-      .replace("<path to the claims register the paper draws on>", "../claims.md")
-      .replace("<the run ledger holding the figures' receipts, or none>", "runs.jsonl"),
+    "claims.md": skeleton("claims-register", who),
+    // A review synthesizes what others found: no study of its own and no paper outline, and its tables, effects,
+    // pooling and flow, with the receipts that made them, sit together.
+    ...(review
+      ? {
+          "synthesis/evidence-table.md": skeleton("evidence-table", who),
+          "synthesis/recheck.md": skeleton("recheck", who),
+        }
+      : {
+          "paper/outline.md": skeleton("paper-outline", who)
+            .replace("<path to the claims register the paper draws on>", "../claims.md")
+            .replace("<the run ledger holding the figures' receipts, or none>", "runs.jsonl"),
+        }),
   };
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(dirname(join(folder, file)), { recursive: true });
     writeFileSync(join(folder, file), text);
   }
-  for (const empty of ["study/results", "paper/figures", "paper/build", "reviews"])
+  for (const empty of review
+    ? ["synthesis/figures", "reviews"]
+    : ["study/results", "paper/figures", "paper/build", "reviews"])
     mkdirSync(join(folder, empty), { recursive: true });
-  console.log(`Created project: ${folder}`);
+  console.log(`Created ${review ? "review " : ""}project: ${folder}`);
   for (const line of [
     "  brief.md                the research brief",
     "  sources/                sources.md (source ledger), searches.jsonl (search ledger), saved copies",
-    "  study/                  plan.md (artifact.mjs init study-plan), runs.jsonl, deviations.jsonl, results/",
+    ...(review
+      ? [
+          "  synthesis/              evidence-table.md, recheck.md, effects.json (stats.mjs effect), pooling.json (stats.mjs meta),",
+          "                          flow.json (artifact.mjs counts --flow), figures/ (specs and SVGs), runs.jsonl (paper.mjs run)",
+        ]
+      : ["  study/                  plan.md (artifact.mjs init study-plan), runs.jsonl, deviations.jsonl, results/"]),
     "  claims.md               the claims register",
-    "  paper/                  outline.md, paper.md, figures/ (specs and SVGs), refs.bib, build/, runs.jsonl, rebuttal.md",
+    ...(review
+      ? []
+      : [
+          "  paper/                  outline.md, paper.md, figures/ (specs and SVGs), refs.bib, build/, runs.jsonl, rebuttal.md",
+        ]),
     "  reviews/                review briefs and reports",
   ])
     console.log(line);
@@ -128,10 +155,21 @@ if (command === "init" && rest[0] === "project") {
   if (!kind) fail(`${path}: no known Type in its header, and not a .jsonl search ledger`);
   if (values.plan && kind !== "claims-register") fail("--plan applies only to a claims register");
   if (values.search && kind !== "claims-register") fail("--search applies only to a claims register");
-  if (values.sources && !["claims-register", "evidence-table", "recheck"].includes(kind))
-    fail("--sources applies only to a claims register, an evidence table or a recheck table");
+  // --sources and --recheck on a kind that does not read them are noted and ignored, so one command form validates
+  // every artifact of a project.
+  const ignored = [];
+  if (values.sources && !["claims-register", "evidence-table", "recheck"].includes(kind)) ignored.push("--sources");
+  if (values.recheck && kind !== "claims-register") ignored.push("--recheck");
   const options = {};
-  if (values.sources) options.ledger = ledgerRows(read(values.sources));
+  if (values.sources && !ignored.includes("--sources")) options.ledger = ledgerRows(read(values.sources));
+  // The recheck table's path as the register's Source would cite it, relative to the register.
+  if (values.recheck && !ignored.includes("--recheck"))
+    options.rechecks = {
+      flags: recheckFlags(read(values.recheck)),
+      file: relative(dirname(resolve(path)), resolve(values.recheck))
+        .split("\\")
+        .join("/"),
+    };
   if (values.plan) {
     read(values.plan);
     const state = lockState(values.plan);
@@ -230,6 +268,7 @@ if (command === "init" && rest[0] === "project") {
   else {
     console.log(`${path}: ${kind}, ${result.valid ? "valid" : `${result.problems.length} problem(s)`}`);
     for (const problem of result.problems) console.log(`  problem: ${problem}`);
+    for (const flag of ignored) console.log(`  note: ${flag} does not apply to a ${kind}, so it was ignored`);
     if (kind === "claims-register" && !values.sources)
       console.log("  not checked: levels against the source ledger (pass --sources)");
     if (kind === "claims-register" && confirmatory && !values.plan)
@@ -268,11 +307,25 @@ if (command === "init" && rest[0] === "project") {
       `${path}: ${total.hits} hits; included ${total.included}, excluded ${total.excluded}, duplicate ${total.duplicate}, unscreened ${total.unscreened}`,
     );
     for (const [id, query] of Object.entries(result.queries)) {
+      const where =
+        query.method === "citation"
+          ? `citation ${query.direction} from ${(query.from ?? []).join(", ")}`
+          : query.database;
+      const returned =
+        query.returned !== undefined
+          ? `; returned ${query.returned}, ${Math.max(0, query.returned - (query.included + query.excluded + query.duplicate + query.unscreened))} not screened`
+          : "";
       console.log(
-        `  ${id} ${query.database} ${query.date}: included ${query.included}, excluded ${query.excluded}, duplicate ${query.duplicate}, unscreened ${query.unscreened} (${query.query})`,
+        `  ${id} ${where} ${query.date}: included ${query.included}, excluded ${query.excluded}, duplicate ${query.duplicate}, unscreened ${query.unscreened}${returned}${query.query ? ` (${query.query})` : ""}`,
       );
     }
     const { flow } = result;
+    if (flow.not_screened > 0)
+      console.log(`  identified but not screened: ${flow.not_screened} (returned by a service, no hit line)`);
+    if (flow.agent_alone)
+      console.log(
+        `  screened by the reviewing agent alone, no second screener: ${flow.agent_alone.records} (${flow.agent_alone.agents.join(", ")}); name it in the report's Limits`,
+      );
     const reasons = (group) =>
       group.reasons.map(
         (reason) => `${reason.criterion ? `${reason.criterion} ` : ""}${reason.reason}: ${reason.records}`,

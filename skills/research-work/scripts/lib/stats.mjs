@@ -1076,6 +1076,121 @@ export function tostPaired(differences, { low, high, alpha = 0.05 }) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Effect sizes for pooling, from two proportions
+
+export const EFFECT_MEASURES = ["risk-difference", "log-odds", "log-risk-ratio"];
+
+/**
+ * One study's effect of the arm over the reference, with its sampling variance, for `meta` to pool. Unpaired
+ * (two groups): `{ p1, p2, n1, n2 }`, the arm's and the reference's proportions and sizes; the variances are the
+ * usual large-sample ones (risk difference p(1-p)/n summed; log odds ratio 1/a + 1/b + 1/c + 1/d over the four
+ * cells; log risk ratio (1-p)/(np) summed). Paired (both arms on the same items): `{ armOnly, referenceOnly, both,
+ * n }`, the items only the arm passed, only the reference passed, both passed, and all items; the risk difference
+ * (b - c)/n with variance ((b + c) - (b - c)²/n)/n², the conditional log odds ratio log(b/c) with variance 1/b + 1/c,
+ * and the log risk ratio log((a + b)/(a + c)) with variance (b + c)/((a + b)(a + c)) (Agresti 2013, 11.1). A ratio
+ * with a zero cell gets 0.5 added to each cell of that study, as metafor does by default, and a warning says so.
+ */
+export function effectSize(measure, study) {
+  if (!EFFECT_MEASURES.includes(measure))
+    throw new Error(`the effect measure must be one of ${EFFECT_MEASURES.join(", ")}, got ${measure}`);
+  if (!study || typeof study !== "object") throw new Error("each study must be an object");
+  const warnings = [];
+  const corrected = (cells) => {
+    if (cells.every((cell) => cell > 0)) return cells;
+    warnings.push(`a cell is 0, so 0.5 was added to each cell of this study (${cells.join(", ")})`);
+    return cells.map((cell) => cell + 0.5);
+  };
+  let yi;
+  let vi;
+  let design;
+  if (study.armOnly !== undefined || study.referenceOnly !== undefined) {
+    design = "paired";
+    const { armOnly: b, referenceOnly: c, both: a, n } = study;
+    for (const [label, value] of [
+      ["armOnly", b],
+      ["referenceOnly", c],
+    ])
+      if (!Number.isInteger(value) || value < 0) throw new Error(`${label} must be a whole number, got ${value}`);
+    if (b + c === 0) throw new Error("no item where the arms disagree, so the paired variance is 0");
+    if (measure === "risk-difference") {
+      if (!Number.isInteger(n) || n < b + c) throw new Error(`n must be the whole number of items, at least ${b + c}`);
+      yi = (b - c) / n;
+      vi = (b + c - (b - c) ** 2 / n) / n ** 2;
+    } else if (measure === "log-odds") {
+      const [bc, cc] = corrected([b, c]);
+      yi = Math.log(bc / cc);
+      vi = 1 / bc + 1 / cc;
+    } else {
+      if (!Number.isInteger(a) || a < 0) throw new Error(`both must be a whole number, got ${a}`);
+      if (n !== undefined && (!Number.isInteger(n) || n < a + b + c))
+        throw new Error(`n must be the whole number of items, at least ${a + b + c}`);
+      if (a + b === 0 || a + c === 0) throw new Error("an arm passed no item, so the risk ratio is undefined");
+      yi = Math.log((a + b) / (a + c));
+      vi = (b + c) / ((a + b) * (a + c));
+    }
+  } else {
+    design = "unpaired";
+    const { p1, p2, n1, n2 } = study;
+    checkProbability(p1, "p1");
+    checkProbability(p2, "p2");
+    for (const [label, value] of [
+      ["n1", n1],
+      ["n2", n2],
+    ])
+      if (!Number.isInteger(value) || value < 1)
+        throw new Error(`${label} must be a positive whole number, got ${value}`);
+    if (measure === "risk-difference") {
+      yi = p1 - p2;
+      vi = (p1 * (1 - p1)) / n1 + (p2 * (1 - p2)) / n2;
+      if (vi === 0) throw new Error("both proportions are 0 or 1, so the variance is 0");
+    } else {
+      const [a, b, c, d] = corrected([p1 * n1, (1 - p1) * n1, p2 * n2, (1 - p2) * n2]);
+      if (measure === "log-odds") {
+        yi = Math.log((a * d) / (b * c));
+        vi = 1 / a + 1 / b + 1 / c + 1 / d;
+      } else {
+        yi = Math.log(a / (a + b) / (c / (c + d)));
+        vi = 1 / a - 1 / (a + b) + 1 / c - 1 / (c + d);
+      }
+    }
+  }
+  return {
+    method: `effect-${measure}`,
+    design,
+    yi,
+    vi,
+    se: Math.sqrt(vi),
+    ...(warnings.length > 0 ? { warnings } : {}),
+  };
+}
+
+/**
+ * Effect sizes for several studies at once, in the form `meta` reads: `yi` and `vi` in the order given, and
+ * `studies`, each study's effect with its `id` when it has one.
+ */
+export function effectSizes(measure, studies) {
+  if (!Array.isArray(studies) || studies.length === 0) throw new Error("studies must be a non-empty array");
+  const each = studies.map((study, index) => {
+    try {
+      return { ...(study?.id !== undefined ? { id: study.id } : {}), ...effectSize(measure, study) };
+    } catch (error) {
+      throw new Error(`study ${study?.id ?? index + 1}: ${error.message}`);
+    }
+  });
+  const warnings = each.flatMap((study) =>
+    (study.warnings ?? []).map((warning) => `study ${study.id ?? each.indexOf(study) + 1}: ${warning}`),
+  );
+  return {
+    method: `effect-${measure}`,
+    k: each.length,
+    yi: each.map((study) => study.yi),
+    vi: each.map((study) => study.vi),
+    studies: each.map(({ method: _method, warnings: _warnings, ...study }) => study),
+    ...(warnings.length > 0 ? { warnings } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Pooling effect sizes across studies (meta-analysis)
 
 /** The heterogeneity I² above which pooled studies are read as disagreeing beyond chance (Higgins et al. 2003). */

@@ -11,7 +11,7 @@ Prefer the primary source: the code over its README, the paper over a blog about
 Pin a source before relying on it, because sources change:
 
 - **Code:** clone the repository and resolve the commit (`git rev-parse HEAD`); the pin is `<repository>@<commit>`. Read at that commit only; if you move to a newer one, record it as a new source.
-- **Papers:** the DOI or arXiv ID, with the version you read (`arXiv:2306.05685v4`).
+- **Papers:** the DOI or arXiv ID, with the version you read (`arXiv:2306.05685v4`). Save a paper's text copy with plain `pdftotext` (no `-layout`), so a quote from a two-column page stays in one column.
 - **Pages and docs:** the URL with the date you read it. When a quote from a page matters, save a copy in the task's `sources/` so a later check can find the quote.
 
 Record each source in the ledger when you first rely on it, not at the end: the ledger is how a later context, or a reviewer, knows what was actually read.
@@ -44,7 +44,8 @@ Goal: describe what the code does at the pinned commit, with every statement tra
 Searches inside a pinned repository (grep for a name, a caller, an error string) are part of reading the code: name them in the report's Method, and give the search behind any absence in the claim's Scope. When the work searches papers, the web or a database, log each query and what it returned in the search ledger: one `query` line, then one `hit` line per result you looked at, with its state (`included`, `excluded` with a reason, `duplicate`, `unscreened`). Report counts from `artifact.mjs counts`, never from memory.
 
 - Search for the mechanism as well as the name; the same idea often has several names.
-- Follow citations both ways from the closest work: what it cites, and what cites it.
+- Follow citations both ways from the closest work: what it cites, and what cites it. Log each pass as a citation query (`"method":"citation"`, [search ledger](artifacts.md#search-ledger)), not as a database.
+- With a query budget, check a query's yield before screening it; log every query that ran, empty ones too.
 - Stop when new queries return only what you already have, and say so in the report's method.
 - An empty search is evidence of absence only within that search; write it that way.
 
@@ -65,7 +66,7 @@ When a claim leans on the means, SDs, proportions or tests another study reports
 
 | Check | Asks | Applies to |
 | --- | --- | --- |
-| `grim` | Is the mean a whole total divided by n? | Means and percentages of whole-number data, with n × items below 10 to the power of the mean's decimals |
+| `grim` | Is the mean a whole total divided by n? | Means and percentages of whole-number data, with n × items below 10 to the power of the mean's decimals. An accuracy on a benchmark of known size is checkable only when it is printed with enough decimals for that (1319 items need four: 60.87%); skip the rows that cannot be |
 | `grimmer` | Do whole numbers with that total and an SD that rounds to the printed one exist? | Single-item whole-number data, with its mean; searched exactly, and not computable when the search is too large (n in the hundreds, or an SD in the tens) |
 | `debit` | Does the SD follow from the proportion and n? | Proportions of yes-or-no data; a match with the population SD instead of the sample SD is consistent, and the detail says so |
 | `p` | Does the p value follow from the statistic and its degrees of freedom? | t, F, χ², r and z tests; a printed p = .05 counts as significant, as statcheck counts it by default. A p written as `corrected p` or `adjusted p`, or named with its correction (Bonferroni, Holm, FDR), is checked only for being at least the uncorrected p, and is never a decision error; an adjusted R² or an adjusted mean does not mark it |
@@ -75,7 +76,7 @@ When a claim leans on the means, SDs, proportions or tests another study reports
 What a Status means for a claim:
 
 - **Consistent** shows only that the numbers could be right.
-- **Mismatch** means they cannot all be as printed: a typo, a wrong n, or worse. The claim that rests on that number stays L1, and its Limit names the row.
+- **Mismatch** means they cannot all be as printed: a typo, a wrong n, or worse. The claim that rests on that number stays L1, and its Limit names the row; `artifact.mjs validate --recheck` refuses a claim above L1 that cites the source. When the n is assumed rather than printed (a benchmark's full size), Where says so, and the Limit names the assumption.
 - **Decision error** means significance at .05 changes. The claim stays L1, and the report says the conclusion does not follow from the printed numbers.
 - **Not computable** is not a pass. Its reason says what is missing.
 

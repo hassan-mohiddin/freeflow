@@ -318,13 +318,26 @@ export function readFlow(spec, specPath) {
   const problems = [];
   for (const name of ["duplicates", "awaiting", "screened", "included"])
     if (!whole(flow[name])) problems.push(`${name} must be a whole number`);
+  if (flow.not_screened !== undefined && !whole(flow.not_screened))
+    problems.push("not_screened must be a whole number");
   const databases = flow.identified?.databases;
-  if (!whole(flow.identified?.records) || !Array.isArray(databases) || databases.length === 0)
-    problems.push("identified needs records and at least one database");
+  const otherMethods = flow.identified?.other_methods ?? [];
+  if (
+    !whole(flow.identified?.records) ||
+    !Array.isArray(databases) ||
+    !Array.isArray(otherMethods) ||
+    databases.length + otherMethods.length === 0
+  )
+    problems.push("identified needs records and at least one database or other method");
   else {
-    const sum = databases.reduce((total, each) => total + (whole(each?.records) ? each.records : NaN), 0);
+    const sum = [...databases, ...otherMethods].reduce(
+      (total, each) => total + (whole(each?.records) ? each.records : NaN),
+      0,
+    );
     if (sum !== flow.identified.records)
-      problems.push(`identified: its databases count ${sum}, its total ${flow.identified.records}`);
+      problems.push(
+        `identified: its databases${otherMethods.length > 0 ? " and other methods" : ""} count ${sum}, its total ${flow.identified.records}`,
+      );
   }
   checkGroup(flow.excluded_title_abstract, "excluded_title_abstract", problems);
   checkGroup(flow.excluded_stage_not_recorded, "excluded_stage_not_recorded", problems);
@@ -335,8 +348,10 @@ export function readFlow(spec, specPath) {
       problems.push("full_text: those assessed are not those excluded at full text plus those included");
   }
   if (problems.length === 0) {
-    if (flow.identified.records !== flow.duplicates + flow.awaiting + flow.screened)
-      problems.push("identified is not duplicates plus awaiting plus screened");
+    if (flow.identified.records !== (flow.not_screened ?? 0) + flow.duplicates + flow.awaiting + flow.screened)
+      problems.push(
+        `identified is not ${flow.not_screened !== undefined ? "those not screened plus " : ""}duplicates plus awaiting plus screened`,
+      );
     const afterScreening = flow.full_text ? flow.full_text.assessed : flow.included;
     if (
       flow.screened !==
@@ -419,10 +434,14 @@ export function drawFlow(spec, specPath) {
   rows.push({
     main: box(
       `Records identified (n = ${flow.identified.records})`,
-      flow.identified.databases.map((each) => `${each.database}: ${each.records}`),
+      [
+        ...flow.identified.databases.map((each) => `${each.database}: ${each.records}`),
+        ...(flow.identified.other_methods ?? []).map((each) => `Other methods, ${each.method}: ${each.records}`),
+      ],
       mainWidth,
     ),
     side: [
+      ...(flow.not_screened > 0 ? [box(`Returned but not screened (n = ${flow.not_screened})`, [], sideWidth)] : []),
       box(`Duplicates removed (n = ${flow.duplicates})`, [], sideWidth),
       ...(flow.awaiting > 0 ? [box(`Awaiting screening (n = ${flow.awaiting})`, [], sideWidth)] : []),
     ],
@@ -444,7 +463,12 @@ export function drawFlow(spec, specPath) {
         sideWidth,
       ),
     );
-  rows.push({ main: box(`Records screened (n = ${flow.screened})`, [], mainWidth), side: atScreening });
+  const screenedBy = flow.agent_alone
+    ? [
+        `${flow.agent_alone.records} by the reviewing agent alone (${flow.agent_alone.agents.join(", ")}), no second screener`,
+      ]
+    : [];
+  rows.push({ main: box(`Records screened (n = ${flow.screened})`, screenedBy, mainWidth), side: atScreening });
   if (flow.full_text)
     rows.push({
       main: box(`Full texts assessed (n = ${flow.full_text.assessed})`, [], mainWidth),

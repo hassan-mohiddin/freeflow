@@ -792,7 +792,7 @@ const isAbsenceClaim = (claim) => ABSENCE.some((pattern) => pattern.test(claim))
 
 const searchCitations = (cell) => [...cell.matchAll(/\bsearch:(Q\d+)\b/g)].map((match) => match[1]);
 
-function validateRegister(parsed, problems, { ledger, plan, judges, searches } = {}) {
+function validateRegister(parsed, problems, { ledger, plan, judges, searches, rechecks } = {}) {
   validateHeader(parsed, "Claims Register", problems);
   const table = validateTable(parsed, REGISTER_COLUMNS, problems);
   if (!table) return;
@@ -859,6 +859,22 @@ function validateRegister(parsed, problems, { ledger, plan, judges, searches } =
           );
       }
     }
+    // A source whose printed numbers cannot all be as printed (a recheck mismatch or decision error) caps the claims
+    // resting on it at L1.
+    // A claim that cites the recheck table itself states the recheck's finding, so it does not rest on the number.
+    const citesRecheck = (cells.Source ?? "").split(/[;,\s]+/).includes(rechecks?.file);
+    if (rechecks && !citesRecheck && levelRank(cells.Level) > levelRank("L1"))
+      // Source IDs as whole entries (S3, or S3:path for code), not the S3 inside a file name such as no-S3.json.
+      for (const id of new Set(
+        (cells.Source ?? "")
+          .split(/[;,\s]+/)
+          .map((entry) => /^(S\d+)(?::|$)/.exec(entry)?.[1])
+          .filter(Boolean),
+      ))
+        for (const row of rechecks.flags.get(id) ?? [])
+          problems.push(
+            `${where}: ${id} has recheck row ${row.id} (${row.status}: ${row.where}), so a claim resting on it is at most L1; it is ${cells.Level}`,
+          );
     if (!ledger) continue;
     for (const id of cells.Source.match(/\bS\d+\b/g) ?? []) {
       const source = ledger.get(id);
@@ -1233,9 +1249,25 @@ function validateRecheck(parsed, problems, { ledger } = {}) {
   }
 }
 
+/**
+ * The rows of a recheck table whose computation is a mismatch or a decision error, by source: each with its `id`,
+ * its `status` and its `where`. The status is computed from the Reported text, not read from the Status cell.
+ */
+export function recheckFlags(text) {
+  const flags = new Map();
+  for (const { cells } of parseTable(parseMarkdown(text).lines)?.rows ?? []) {
+    if (!CHECKS.includes(cells.Check) || !/^S\d+$/.test(cells.Source ?? "")) continue;
+    const { status } = recheck(cells.Check, cells.Reported ?? "");
+    if (status === "mismatch" || status === "decision error")
+      flags.set(cells.Source, [...(flags.get(cells.Source) ?? []), { id: cells.ID, status, where: cells.Where }]);
+  }
+  return flags;
+}
+
 // The stages a hit is screened at. A criterion tagged full-text needs the full text to apply, so it cannot exclude a
 // hit at the title-and-abstract stage; a title-abstract criterion applies at either stage.
 export const SCREENING_STAGES = ["title-abstract", "full-text"];
+const CITATION_DIRECTIONS = ["backward", "forward"];
 const SCREEN_STATES = ["included", "excluded"];
 
 /**
@@ -1282,6 +1314,7 @@ const lineList = (lines) => (lines.length > 5 ? `${lines.slice(0, 5).join(", ")}
  */
 function validateSearch(text, problems, { judges, rubrics } = {}) {
   const queries = new Set();
+  const returned = new Map();
   const criteria = new Map();
   const screeners = new Map();
   const records = [];
@@ -1327,8 +1360,29 @@ function validateSearch(text, problems, { judges, rubrics } = {}) {
       if (!/^Q\d+$/.test(record.id ?? "")) problems.push(`line ${line}: a query needs an id Q followed by a number`);
       else if (queries.has(record.id)) problems.push(`line ${line}: duplicate query id ${record.id}`);
       queries.add(record.id);
-      for (const field of ["query", "database", "date"])
+      // Citation chasing is its own method, as PRISMA counts it: from the sources it started at, in one direction,
+      // in place of a database.
+      if (record.method !== undefined && record.method !== "citation")
+        problems.push(
+          `line ${line}: a query's method, when given, is "citation"; a database search names its database`,
+        );
+      if (record.method === "citation") {
+        if (record.database !== undefined)
+          problems.push(`line ${line}: a citation query names from and direction instead of a database`);
+        if (!Array.isArray(record.from) || record.from.length === 0 || !record.from.every((id) => /^S\d+$/.test(id)))
+          problems.push(
+            `line ${line}: a citation query needs from: the source-ledger IDs it started at, such as ["S2"]`,
+          );
+        if (!CITATION_DIRECTIONS.includes(record.direction))
+          problems.push(`line ${line}: a citation query's direction is one of: ${CITATION_DIRECTIONS.join(", ")}`);
+      }
+      for (const field of record.method === "citation" ? ["date"] : ["query", "database", "date"])
         if (!record[field]) problems.push(`line ${line}: a query needs ${field}`);
+      if (record.returned !== undefined && !(Number.isInteger(record.returned) && record.returned >= 0))
+        problems.push(
+          `line ${line}: returned is a whole number, copied from the service's own count of the records it returned`,
+        );
+      else if (record.returned !== undefined) returned.set(record.id, { line, returned: record.returned });
       if (record.date && !/^\d{4}-\d{2}-\d{2}$/.test(record.date))
         problems.push(`line ${line}: date must be YYYY-MM-DD`);
       if ("hits" in record)
@@ -1347,7 +1401,13 @@ function validateSearch(text, problems, { judges, rubrics } = {}) {
       else if (screeners.has(record.id)) problems.push(`line ${line}: duplicate screener id ${record.id}`);
       const person = typeof record.person === "string" && record.person.trim() !== "";
       const model = typeof record.model === "string" && record.model.trim() !== "";
-      if (person === model) problems.push(`line ${line}: a screener names either a person or a model`);
+      // The reviewing agent itself: the author of the review, not a judge it delegated to, so it needs no judge
+      // record; counts and the flow say which hits it screened alone, for the report's Limits.
+      const agent = typeof record.agent === "string" && record.agent.trim() !== "";
+      if ([person, model, agent].filter(Boolean).length !== 1)
+        problems.push(
+          `line ${line}: a screener names just one of: either a person or a model (a delegated judge), or agent (the reviewing agent itself, its model and version)`,
+        );
       if (model && !(typeof record.judge === "string" && record.judge.trim() !== ""))
         problems.push(
           `line ${line}: a model screener needs judge: the path of the judge validation record that lets its decisions count`,
@@ -1356,7 +1416,12 @@ function validateSearch(text, problems, { judges, rubrics } = {}) {
         problems.push(
           `line ${line}: a model screener needs rubric: the path of the screening instructions it was given, which hold the ledger's criteria`,
         );
-      if (record.id && !screeners.has(record.id)) screeners.set(record.id, { ...record, model: model && !person });
+      if (record.id && !screeners.has(record.id))
+        screeners.set(record.id, {
+          ...record,
+          model: model && !person && !agent,
+          agent: agent && !person && !model ? record.agent.trim() : false,
+        });
     } else if (record.kind === "hit") {
       if (!queries.has(record.query))
         problems.push(`line ${line}: hit names query ${record.query}, which no earlier line defines`);
@@ -1421,6 +1486,14 @@ function validateSearch(text, problems, { judges, rubrics } = {}) {
         problems.push(
           `line ${line}: the ledger defines criteria, so an excluded hit cites the criterion it was excluded by`,
         );
+  // A query's returned count is the service's own; fewer than the hits logged under it is a count typed wrong.
+  for (const [id, { line, returned: count }] of returned) {
+    const hits = records.filter(({ record }) => record.kind === "hit" && record.query === id).length;
+    if (count < hits)
+      problems.push(
+        `line ${line}: ${id} says the service returned ${count} records, and ${hits} hits are logged under it; copy returned from the service's own count`,
+      );
+  }
   // A model's decisions count only under a passing judge record for the rubric it was given: a record validated on
   // other instructions says nothing about these.
   for (const [id, lines] of byModel) {
@@ -1465,21 +1538,40 @@ const total = (reasons) => reasons.reduce((sum, reason) => sum + reason.records,
 
 /**
  * The review's flow from identification to inclusion, PRISMA-style, as data `figure.mjs` draws: the records each
- * database gave, the duplicates removed, those awaiting screening, those screened, the exclusions at each stage with
- * their reasons, and the studies included. The full-text step appears only when some hit records the full-text stage.
+ * database gave, and, when there are any, those found by other methods (citation chasing) and those a service
+ * returned that no hit line logs (from a query's `returned`); the duplicates removed, those awaiting screening, those
+ * screened, the exclusions at each stage with their reasons, and the studies included. The full-text step appears
+ * only when some hit records the full-text stage; `agent_alone` only when the reviewing agent screened hits with no
+ * second screener, so the report names it in its Limits.
  */
-export function searchFlow(records, criteria) {
+export function searchFlow(records, criteria, screeners = new Map()) {
   const databases = new Map();
-  const queryDatabase = new Map();
+  const otherMethods = new Map();
+  const queryOf = new Map();
   for (const { record } of records) {
-    if (record.kind === "query") queryDatabase.set(record.id, record.database);
+    if (record.kind === "query" && !queryOf.has(record.id)) queryOf.set(record.id, record);
   }
   const hits = records
     .map(({ record }) => record)
-    .filter((record) => record.kind === "hit" && queryDatabase.has(record.query) && HIT_STATES.includes(record.state));
-  for (const hit of hits) {
-    const database = queryDatabase.get(hit.query);
-    databases.set(database, (databases.get(database) ?? 0) + 1);
+    .filter((record) => record.kind === "hit" && queryOf.has(record.query) && HIT_STATES.includes(record.state));
+  const logged = new Map();
+  for (const hit of hits) logged.set(hit.query, (logged.get(hit.query) ?? 0) + 1);
+  // A query's records: those its service returned when the ledger copies that count, otherwise the hits it logs.
+  let notScreened = 0;
+  let anyReturned = false;
+  for (const [id, query] of queryOf) {
+    const hitsOf = logged.get(id) ?? 0;
+    const returned = Number.isInteger(query.returned) && query.returned >= hitsOf ? query.returned : null;
+    if (returned !== null) {
+      anyReturned = true;
+      notScreened += returned - hitsOf;
+    }
+    const records = returned ?? hitsOf;
+    if (query.method === "citation") {
+      if (records === 0) continue;
+      const key = `citation, ${query.direction}`;
+      otherMethods.set(key, (otherMethods.get(key) ?? 0) + records);
+    } else if (records > 0) databases.set(query.database, (databases.get(query.database) ?? 0) + records);
   }
   const excluded = hits.filter((hit) => hit.state === "excluded");
   const atStage = (stage) => excluded.filter((hit) => hit.stage === stage);
@@ -1492,13 +1584,31 @@ export function searchFlow(records, criteria) {
   const count = (state) => hits.filter((hit) => hit.state === state).length;
   const included = count("included");
   const fullTextStage = hits.some((hit) => hit.stage === "full-text");
+  // Hits the reviewing agent screened with no second screener.
+  const agents = new Set();
+  let agentAlone = 0;
+  for (const hit of hits) {
+    const agent = screeners.get(hit.screener)?.agent;
+    if (agent && SCREEN_STATES.includes(hit.state)) {
+      agentAlone += 1;
+      agents.add(agent);
+    }
+  }
   return {
     kind: "search-flow",
     computed_by: "artifact.mjs counts --flow",
-    identified: { records: hits.length, databases: [...databases].map(([database, n]) => ({ database, records: n })) },
+    identified: {
+      records: hits.length + notScreened,
+      databases: [...databases].map(([database, n]) => ({ database, records: n })),
+      ...(otherMethods.size > 0
+        ? { other_methods: [...otherMethods].map(([method, n]) => ({ method, records: n })) }
+        : {}),
+    },
+    ...(anyReturned ? { not_screened: notScreened } : {}),
     duplicates: count("duplicate"),
     awaiting: count("unscreened"),
     screened: included + excluded.length,
+    ...(agentAlone > 0 ? { agent_alone: { records: agentAlone, agents: [...agents] } } : {}),
     excluded_title_abstract: { records: total(titleAbstract), reasons: titleAbstract },
     excluded_stage_not_recorded: { records: total(unstaged), reasons: unstaged },
     full_text: fullTextStage
@@ -1546,7 +1656,7 @@ function screeningAgreement(records) {
  */
 export function searchCounts(text, { judges, rubrics } = {}) {
   const problems = [];
-  const { records, criteria } = validateSearch(text, problems, { judges, rubrics });
+  const { records, criteria, screeners } = validateSearch(text, problems, { judges, rubrics });
   const perQuery = new Map();
   const totals = Object.fromEntries(HIT_STATES.map((state) => [state, 0]));
   for (const { record } of records) {
@@ -1554,6 +1664,8 @@ export function searchCounts(text, { judges, rubrics } = {}) {
       perQuery.set(record.id, {
         query: record.query,
         database: record.database,
+        ...(record.method === "citation" ? { method: "citation", from: record.from, direction: record.direction } : {}),
+        ...(record.returned !== undefined ? { returned: record.returned } : {}),
         date: record.date,
         ...Object.fromEntries(HIT_STATES.map((state) => [state, 0])),
       });
@@ -1567,7 +1679,7 @@ export function searchCounts(text, { judges, rubrics } = {}) {
     queries: Object.fromEntries(perQuery),
     total: { hits, ...totals },
     agreement: screeningAgreement(records),
-    flow: searchFlow(records, criteria),
+    flow: searchFlow(records, criteria, screeners),
     problems,
   };
 }
@@ -1598,6 +1710,7 @@ export function validate(
     judges,
     rubrics,
     searches,
+    rechecks,
     register,
     registerMissing,
     dataExists,
@@ -1613,7 +1726,8 @@ export function validate(
     const parsed = parseMarkdown(text);
     if (kind === "research-brief") validateBrief(parsed, problems);
     else if (kind === "source-ledger") validateLedger(parsed, problems);
-    else if (kind === "claims-register") validateRegister(parsed, problems, { ledger, plan, judges, searches });
+    else if (kind === "claims-register")
+      validateRegister(parsed, problems, { ledger, plan, judges, searches, rechecks });
     else if (kind === "study-plan") validatePlan(parsed, problems);
     else if (kind === "judge-validation") validateJudge(parsed, problems);
     else if (kind === "paper-outline")

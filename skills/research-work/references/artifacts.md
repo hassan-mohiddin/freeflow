@@ -4,14 +4,14 @@ This reference is a contract: every Research Work artifact follows it as written
 
 ```text
 node <research-work-directory>/scripts/artifact.mjs init <kind> <path> --title <title> --owner <owner> [--rigor check|study|publication]
-node <research-work-directory>/scripts/artifact.mjs init project <folder> --title <title> --owner <owner> [--rigor check|study|publication]
-node <research-work-directory>/scripts/artifact.mjs validate <path> [--sources <source ledger>]
+node <research-work-directory>/scripts/artifact.mjs init project <folder> --title <title> --owner <owner> [--rigor check|study|publication] [--kind review]
+node <research-work-directory>/scripts/artifact.mjs validate <path> [--sources <source ledger>] [--recheck <recheck table>]
 node <research-work-directory>/scripts/artifact.mjs counts <search ledger .jsonl> [--flow <flow.json>]
 ```
 
 Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`, `study-plan`, `judge-validation`, `paper-outline`, `rebuttal`, `evidence-table`, `recheck`. A research report has no kind: it follows the Research Report shape below and is checked by `cite-check` and `trace`. `init` never overwrites. A study's run ledger and deviation log are written only by [study](../scripts/study.mjs), as [running](study.md#running-the-study) says. Artifacts live where the user says; otherwise where the work puts them. Research done for another task (a study or report that informs a change) goes in that task's folder, under `sources/`. A task that is itself research goes in the project's research folder, laid out by `init project` when there is none. A quick question answered from facts in hand is not research and gets no research artifact.
 
-`init project` lays out a research folder: `brief.md`; `sources/` (`sources.md`, `searches.jsonl`, saved copies); `study/` (the plan, its lock and ledgers, `results/`); `claims.md`; `paper/` (`outline.md`, `paper.md`, `figures/`, `refs.bib`, `build/`, `runs.jsonl` for the paper's own receipts, `rebuttal.md`); `reviews/`. Every path inside an artifact is relative, so another layout works as well.
+`init project` lays out a research folder: `brief.md`; `sources/` (`sources.md`, `searches.jsonl`, saved copies); `study/` (the plan, its lock and ledgers, `results/`); `claims.md`; `paper/` (`outline.md`, `paper.md`, `figures/`, `refs.bib`, `build/`, `runs.jsonl` for the paper's own receipts, `rebuttal.md`); `reviews/`. For a literature or systematic review, `--kind review` lays out `synthesis/` in place of `study/` and `paper/`: the evidence and recheck tables, the effects (`stats.mjs effect`), the pooling (`stats.mjs meta`), the flow and its figure, and `runs.jsonl` for their receipts. Every path inside an artifact is relative, so another layout works as well. `validate` notes and ignores `--sources` or `--recheck` given for a kind that does not read it, so one command form checks every artifact.
 
 ## Header
 
@@ -68,7 +68,8 @@ A JSONL file, one record per line, appended as the search runs:
 {"kind":"hit","query":"Q1","title":"An unrelated survey","state":"excluded","reason":"not about judges"}
 ```
 
-- A query has `id` (`Q1`, …), `query`, `database` and `date` (`YYYY-MM-DD`). It never carries a typed hit count.
+- A query has `id` (`Q1`, …), `query`, `database` and `date` (`YYYY-MM-DD`). It never carries a typed hit count; it may carry `returned`, the number of records the service says it returned, copied from its own response (arXiv's `opensearch:totalResults`), never counted by hand, so the records it returned that no hit line logs show in the flow as not screened. Validation refuses a `returned` below the hits logged under the query.
+- Citation chasing is a query with `"method":"citation"`, `from` (the source IDs it started at, `["S2","S4"]`) and `direction` (`backward`, their references, or `forward`, what cites them) in place of `database`; `query` is optional. The flow counts it under other methods, apart from the databases, as PRISMA does.
 - A hit names its `query` (defined on an earlier line) and its `title`. Its `state` is `included`, `excluded`, `duplicate` or `unscreened`; `duplicate` needs a `reason`, `excluded` a `reason` or a `criterion`. An included hit's `source` is its source-ledger ID.
 - `artifact.mjs counts` computes the counts per query and in total. Report those counts, never hand-counted ones.
 
@@ -85,7 +86,7 @@ A screened review adds its criteria, its screeners and each hit's stage. All are
 
 - A **criterion** (`E1`, …) is a ground for exclusion, written before screening, with its `text` and the `stage` that can apply it: `title-abstract` (it applies at either stage) or `full-text` (only the full text can settle it). Once the ledger defines criteria, every excluded hit cites the one that excluded it, as `criterion`, defined on an earlier line.
 - A hit's **stage** is where it was last screened: `title-abstract` or `full-text`. A hit that cites a criterion names its stage, and a full-text criterion cannot exclude at `title-abstract`.
-- A **screener** is a `person` or a `model`. A model screener names, as `judge`, its [judge validation record](#judge-validation-record), and, as `rubric`, the screening instructions it was given, which hold the ledger's criteria; both paths are relative to the ledger, and a sample of hits screened by a person is the gold set. Until that record passes, and its Rubric sha256 is the sha256 of that rubric file, every hit the model screened is refused, with the reason: a record validated on other instructions says nothing about these. A hit names who screened it as `screener`.
+- A **screener** is a `person`, a `model` or the `agent`. The `agent` is the agent doing the review, named with its model and version (`{"kind":"screener","id":"A1","agent":"claude-opus-5-5"}`): the review's author, not a judge it delegated to, so it needs no judge record; `counts` and the flow say how many hits it screened alone, with no second screener, and the report names that in its Limits. A model screener is a delegated judge: it names, as `judge`, its [judge validation record](#judge-validation-record), and, as `rubric`, the screening instructions it was given, which hold the ledger's criteria; both paths are relative to the ledger, and a sample of hits screened by a person is the gold set. Until that record passes, and its Rubric sha256 is the sha256 of that rubric file, every hit the model screened is refused, with the reason: a record validated on other instructions says nothing about these. A hit names who screened it as `screener`.
 - **Two screeners:** `screens` holds both decisions (`screener`, `state` of `included` or `excluded`, and the `criterion` for an exclusion), and the hit's own `state` is the decision that counts. Where the two disagree, or the state is not the one they both gave, `settled_by` names the person who settled it; a disagreement not yet settled leaves the hit `unscreened`. The screens are at the hit's stage.
 
 `counts` also reports, for each pair of screeners and stage, their raw agreement, Cohen's kappa and the disagreements, with how many no person has settled. `counts --flow <flow.json>` writes the review's flow, PRISMA-style, for `figure.mjs` to draw (Figure Spec, below), and writes nothing from a ledger with problems:
@@ -93,8 +94,10 @@ A screened review adds its criteria, its screeners and each hit's stage. All are
 | Field | Holds |
 | --- | --- |
 | `kind`, `computed_by` | `search-flow`, `artifact.mjs counts --flow` |
-| `identified` | `records`, every hit line, and `databases`: each database's `database` and `records` |
+| `identified` | `records`, every hit line plus those not screened, `databases`: each database's `database` and `records`, and, when there is citation chasing, `other_methods`: each method's `method` (`citation, backward`) and `records` |
+| `not_screened` | When a query carries `returned`: the records services returned that no hit line logs |
 | `duplicates`, `awaiting`, `screened` | Hits marked duplicate, still unscreened, and screened (included or excluded) |
+| `agent_alone` | When the reviewing agent screened hits with no second screener: `records` and `agents` |
 | `excluded_title_abstract`, `excluded_stage_not_recorded` | `records` and `reasons`: each criterion's (or free reason's) `criterion`, `reason` and `records` |
 | `full_text` | `assessed` and `excluded` as above, or `null` when no hit records the full-text stage |
 | `included` | Hits included |
@@ -126,10 +129,11 @@ The contract between the stages: every claim a report or paper makes is a row he
 - An exploratory claim is at most L3.
 - A claim worded as an absence (being first, nothing or nobody having done it, novel, unprecedented, unexplored) cites the search behind it as `search:Q<n>`; validation refuses one that cites none, reading the wording, and with `--search <search ledger>` a query the ledger lacks.
 - Validate a register with `--sources <source ledger>`. That check refuses a source ID the ledger lacks, a refuted source, and a level above what the sources' checking allows.
+- With `--recheck <recheck table>`, validation refuses a claim above L1 that cites a source with a recheck row computing to `mismatch` or `decision error`, naming the row. A claim that cites the recheck table itself (its path, relative to the register) states the recheck's finding and is not capped by it.
 - Validate a study's register with `--plan <study plan>` too. It refuses a confirmatory claim unless its ID is a confirmatory hypothesis of the plan, the plan is locked as it stands, and no amendment changed that hypothesis after study runs existed; and it refuses an analysis variant the plan lists, or listed in any locked version, that no row's Claim, Scope or Limit names as `variant V<n>`.
 - A claim citing `judge:<record>` is at most L1 unless that judge validation record validates and its Result is `pass`; validation checks this whenever a row cites one. When the plan lists a model as `judge` or `annotator`, validation with `--plan` refuses a claim above L1 that cites a result file and neither `judge:<record>` nor `judge:none` (no model's labels feed it).
 - With `--plan`, a confirmatory claim whose hypothesis names a `stats.mjs` Method is checked against the result files it cites that hold its numbers (every cited one, when none does): each must record `computed_by` as a part of the Method, and at least one as its last part, the correction when one is listed (`stats.mjs correct holm`; the raw test's file may sit beside it), and a receipt run under the locked plan, with `stats.mjs` as its program or node's script, must have written it as it is now. `stats.mjs --out <file>` writes the result for the receipt to declare.
-- `claims.mjs trace --results` finds each number in the Numbers column in the result files the row's Source names, at the precision written (0.83 matches 0.8333; 65% matches 0.65). A row with numbers and no result file is listed as not checked.
+- `claims.mjs trace --results` finds each number in the Numbers column in the result files the row's Source names, at the precision written (0.83 matches 0.8333; 65% matches 0.65). A row with numbers and no result file is listed as not checked. A saved text copy of a paper (in `sources/`) serves as a result file, for the numbers a review copies from it.
 
 ## Study Plan
 
@@ -283,7 +287,7 @@ The JSON that [figure](../scripts/figure.mjs) draws an SVG from: `node figure.mj
 
 The output is the same bytes for the same spec and data. Colors follow Okabe and Ito's palette, with a different marker per series.
 
-A review's flow is a spec of `type` `flow` whose `data` is the file `counts --flow` wrote, with only `title`, `description` and `width` beside them. It draws the steps down the left (identified, screened, full texts assessed, included) and what leaves at each step to the right (duplicates, those awaiting screening, the exclusions with their reasons), and refuses a flow whose counts do not add up, that names no ledger, whose ledger has changed since (its sha256 differs), or that differs from the flow recomputed from that ledger, so a count edited by hand, even with every sum kept, is refused. Run `counts --flow` through the same receipt route, with the ledger as input.
+A review's flow is a spec of `type` `flow` whose `data` is the file `counts --flow` wrote, with only `title`, `description` and `width` beside them. It draws the steps down the left (identified, by database and by other method; screened, with how many the reviewing agent screened alone; full texts assessed; included) and what leaves at each step to the right (records returned but not screened, duplicates, those awaiting screening, the exclusions with their reasons), and refuses a flow whose counts do not add up, that names no ledger, whose ledger has changed since (its sha256 differs), or that differs from the flow recomputed from that ledger, so a count edited by hand, even with every sum kept, is refused. Run `counts --flow` through the same receipt route, with the ledger as input.
 
 ## Revision Patch
 
