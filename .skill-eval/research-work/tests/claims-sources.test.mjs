@@ -11,9 +11,18 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { lookupRow, matchesSource, searchTitle } from "../../../skills/research-work/scripts/lib/lookup.mjs";
-import { draftCheck } from "../../../skills/research-work/scripts/lib/paper.mjs";
+import { ledgerRows, validate } from "../../../skills/research-work/scripts/lib/formats.mjs";
+import { bibFromLedger, draftCheck } from "../../../skills/research-work/scripts/lib/paper.mjs";
 import { recheck } from "../../../skills/research-work/scripts/lib/recheck.mjs";
-import { currentNotes, percentMismatches, wordingNotes } from "../../../skills/research-work/scripts/lib/report.mjs";
+import {
+  blankQuoteCitations,
+  currentNotes,
+  looseQuotes,
+  numbersIn,
+  percentMismatches,
+  quoteCitations,
+  wordingNotes,
+} from "../../../skills/research-work/scripts/lib/report.mjs";
 import { buildPackets, checkVerdicts } from "../../../skills/research-work/scripts/lib/support.mjs";
 
 const SCRIPTS = fileURLToPath(new URL("../../../skills/research-work/scripts/", import.meta.url));
@@ -668,4 +677,214 @@ test("a malformed pin does not stop a lookup run, and a correction notice needs 
   assert.equal(run.status, 1, run.stderr);
   assert.match(run.stdout, /S1: unresolved/);
   assert.ok(existsSync(join(dir, "lookups.json")));
+});
+
+// From the code-report trial (scratch/reports/trial-report.md), each with the form that misfired.
+
+test("a citation sentence before its claim's sentence counts for that claim (trial friction 1)", () => {
+  const rows = [{ cells: { ID: "C1", Claim: "x", Numbers: "-", Source: "S1", Scope: "here", Limit: "-" } }];
+  const ledger = new Map([["S1", { Pin: "harness@1a2b3c4d" }]]);
+  // Citation first, then "C1, L2.": the citation belongs to C1 (here unreadable, so C1 is not checked for that reason).
+  const built = buildPackets("# R\n\n- The loop retries twice (S1:src/loop.rs:3). C1, L2.\n", rows, ledger);
+  assert.match(built.notChecked[0].reason, /no --repo harness=<clone> given/);
+  // A claim sentence followed by its citation still works.
+  const after = buildPackets("# R\n\n- The loop retries twice (C1). See S1:src/loop.rs:3.\n", rows, ledger);
+  assert.match(after.notChecked[0].reason, /no --repo harness=<clone> given/);
+});
+
+test("a quote beside a source in another form is listed as not checked, and a citation may carry its claim (trial friction 2)", () => {
+  assert.equal(quoteCitations('"the run exited with code zero" (S2; C2, L3)')[0].source, "S2");
+  assert.equal(looseQuotes('It printed "the run exited with code zero" and stopped (S2).').length, 1);
+  assert.equal(looseQuotes('It printed "the run exited with code zero" (S2).').length, 0);
+  assert.equal(looseQuotes('The phrase "a b c d e" appears here without any source.').length, 0);
+});
+
+test("digits inside a cited quote are not the report's numbers (trial friction 8)", () => {
+  assert.equal(blankQuoteCitations('It said "No entity matched D-999" (S2), as C8 records.').includes("999"), false);
+  assert.ok(blankQuoteCitations("It made 12 calls (C8).").includes("12"));
+});
+
+test("a number after a model name's hyphen is the name's, and a hyphenated quantity is still a number (trial 2)", () => {
+  assert.deepEqual(numbersIn("Claude-3.5-Sonnet and GPT-5.4-mini scored 12; Llama-2-70B had 0.83"), ["12", "0.83"]);
+  assert.deepEqual(numbersIn("GPT-4 and GPT-4o differ by a 20-point gap, 3-fold"), ["20", "3"]);
+  assert.deepEqual(numbersIn("3.5-turbo"), ["3.5"]);
+});
+
+test("the noun 'causes' is not causal wording, and the verb still is (trial 2)", () => {
+  const levels = new Map([["C1", "L2"]]);
+  assert.deepEqual(wordingNotes("The causes of position bias are unclear (C1).", levels), []);
+  assert.deepEqual(wordingNotes("Its main causes are order and length (C1).", levels), []);
+  assert.equal(wordingNotes("Order causes the bias (C1).", levels).length, 1);
+});
+
+test("trace passes a search count with --search only when the ledger computes it (trial 2)", () => {
+  const dir = folder();
+  writeFileSync(
+    join(dir, "claims.md"),
+    "# Claims Register: R\n\n| ID | Claim | Numbers | Source | Level | Kind | Scope | Limit |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| C1 | Judges favour the first answer | - | S1 | L1 | exploratory | here | abstract only |\n",
+  );
+  writeFileSync(
+    join(dir, "searches.jsonl"),
+    [
+      { kind: "query", id: "Q1", query: "position bias", database: "arXiv", date: "2026-10-28" },
+      { kind: "hit", query: "Q1", title: "A", state: "included", source: "S1" },
+      { kind: "hit", query: "Q1", title: "B", state: "included", source: "S2" },
+      { kind: "hit", query: "Q1", title: "C", state: "excluded", reason: "off topic" },
+    ]
+      .map((record) => JSON.stringify(record))
+      .join("\n") + "\n",
+  );
+  writeFileSync(join(dir, "ok.md"), "# R\n\nThe search returned 3 hits, of which 2 were included (C1).\n");
+  const args = ["trace", join(dir, "ok.md"), "--register", join(dir, "claims.md")];
+  assert.equal(node("claims.mjs", ...args).status, 1, "without --search the counts are untraced");
+  const ok = node("claims.mjs", ...args, "--search", join(dir, "searches.jsonl"));
+  assert.equal(ok.status, 0, ok.stdout);
+  writeFileSync(join(dir, "bad.md"), "# R\n\nThe search returned 5 hits (C1).\n");
+  const bad = node(
+    "claims.mjs",
+    "trace",
+    join(dir, "bad.md"),
+    "--register",
+    join(dir, "claims.md"),
+    "--search",
+    join(dir, "searches.jsonl"),
+  );
+  assert.equal(bad.status, 1);
+  assert.match(bad.stdout, /untraced number.*5|5.*untraced/s);
+});
+
+test("bib fills title, authors and year from a verified lookup of the same Pin and Source (trial 2)", () => {
+  const rows = new Map([
+    ["S1", { Source: "Zheng et al. 2023. Judging LLM-as-a-Judge", Pin: "arXiv:2306.05685", Lookup: "verified" }],
+    [
+      "S2",
+      {
+        Source: "Wang et al. 2023. Large language models are not fair evaluators",
+        Pin: "arXiv:2305.17926",
+        Lookup: "unresolved",
+      },
+    ],
+  ]);
+  const record = {
+    title: "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+    authors: ["Zheng", "Chiang"],
+    year: 2023,
+    venue: "arXiv",
+  };
+  const bib = bibFromLedger(rows, { lookups: new Map([["S1", record]]) });
+  assert.match(bib.text, /title = \{Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena\}/);
+  assert.match(bib.text, /author = \{Zheng and Chiang\}/);
+  assert.deepEqual(bib.matched, ["S1"]);
+
+  const dir = folder();
+  const ledger = `# Source Ledger: R\n\n| ID | Source | Pin | Lookup | Checked | Read | Supports |\n| --- | --- | --- | --- | --- | --- | --- |\n| S1 | ${rows.get("S1").Source} | arXiv:2306.05685 | verified | opened | full | - |\n| S2 | ${rows.get("S2").Source} | arXiv:2305.17926 | unresolved | opened | full | - |\n`;
+  writeFileSync(join(dir, "sources.md"), ledger);
+  const result = (pin, source) => ({
+    at: "2026-10-28T00:00:00Z",
+    rule: 3,
+    source,
+    result: { pin, lookup: "verified", record },
+  });
+  writeFileSync(
+    join(dir, "lookups.json"),
+    JSON.stringify({
+      a: result("arXiv:2306.05685", rows.get("S1").Source),
+      // A verified entry for another Pin, or for S2 whose ledger row is not verified, fills nothing.
+      b: result("arXiv:9999.99999", rows.get("S1").Source),
+      c: result("arXiv:2305.17926", rows.get("S2").Source),
+    }),
+  );
+  const out = node(
+    "sources.mjs",
+    "bib",
+    join(dir, "sources.md"),
+    "--out",
+    join(dir, "refs.bib"),
+    "--cache",
+    join(dir, "lookups.json"),
+  );
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /1 completed from/);
+  const text = readFileSync(join(dir, "refs.bib"), "utf8");
+  assert.match(text, /@misc\{S1,[^@]*author = \{Zheng and Chiang\}/);
+  assert.doesNotMatch(text, /@misc\{S2,[^@]*author/);
+});
+
+test("the ledger's Supports must match the register's citing claims, leaving other registers' claims alone (trial 2)", () => {
+  const ledger = (s1, s2) =>
+    `# Source Ledger: R\n\n> **Type:** Source Ledger\n> **Status:** Draft\n> **Owner:** H\n\n| ID | Source | Pin | Lookup | Checked | Read | Supports |\n| --- | --- | --- | --- | --- | --- | --- |\n| S1 | A 2020. A title | arXiv:2001.00001 | verified | opened | full | ${s1} |\n| S2 | B 2021. B title | arXiv:2101.00001 | verified | opened | full | ${s2} |\n`;
+  const register = `# Claims Register: R\n\n> **Type:** Claims Register\n> **Status:** Draft\n> **Owner:** H\n\n| ID | Claim | Numbers | Source | Level | Kind | Scope | Limit |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| C1 | One | - | S1 | L2 | exploratory | here | none |\n| C2 | Two | - | S1; S2 | L2 | exploratory | here | none |\n`;
+  const problems = (s1, s2) => validate("claims-register", register, { ledger: ledgerRows(ledger(s1, s2)) }).problems;
+  assert.deepEqual(problems("C1, C2", "C2"), []);
+  // C9 belongs to another register sharing the ledger.
+  assert.deepEqual(problems("C1, C2, C9", "C2"), []);
+  assert.match(problems("C1", "C2").join("\n"), /Supports for S1 lacks C2, which cite it/);
+  assert.match(problems("C1, C2", "C1, C2").join("\n"), /Supports for S2 lists C1, which do not cite it/);
+});
+
+test("acronyms in the header and parts of hyphenated names are not listed as undefined (trial 2)", () => {
+  const draft =
+    "# Paper\n\n> **Venue:** ACL\n\n## Introduction\n\nWe test judges on MT-Bench, and RLHF changes them.\n";
+  const listed = draftCheck(draft)
+    .notes.filter((note) => note.kind === "acronym never defined")
+    .map((note) => note.value);
+  assert.deepEqual(listed, ["RLHF"]);
+});
+
+test("a lowercase word before a hyphenated number does not hide it, and a named query passes only its own counts (R18)", () => {
+  assert.deepEqual(numbersIn("under the alpha-0.05 rule and the p-0.03 rule; CIFAR-10 and gpt-4"), [
+    "0.05",
+    "0.03",
+    "4",
+  ]);
+  // R21: a name of letters only; a label with a digit (F1-0.8, CI95-0.5) is a quantity.
+  assert.deepEqual(numbersIn("F1-0.8 and CI95-0.5; GPT-5.4-mini and Llama-2-70B"), ["0.8", "0.5"]);
+  const dir = folder();
+  writeFileSync(
+    join(dir, "claims.md"),
+    "# Claims Register: R\n\n| ID | Claim | Numbers | Source | Level | Kind | Scope | Limit |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| C1 | x | - | S1 | L1 | exploratory | here | none |\n",
+  );
+  writeFileSync(
+    join(dir, "searches.jsonl"),
+    [
+      { kind: "query", id: "Q1", query: "a", database: "arXiv", date: "2026-10-28" },
+      { kind: "query", id: "Q2", query: "b", database: "arXiv", date: "2026-10-28" },
+      { kind: "hit", query: "Q1", title: "A", state: "included", source: "S1" },
+      { kind: "hit", query: "Q1", title: "B", state: "excluded", reason: "off topic" },
+      { kind: "hit", query: "Q1", title: "C", state: "excluded", reason: "off topic" },
+    ]
+      .map((record) => JSON.stringify(record))
+      .join("\n") + "\n",
+  );
+  const trace = (text) => {
+    writeFileSync(join(dir, "r.md"), `# R\n\n${text} (C1).\n`);
+    return node(
+      "claims.mjs",
+      "trace",
+      join(dir, "r.md"),
+      "--register",
+      join(dir, "claims.md"),
+      "--search",
+      join(dir, "searches.jsonl"),
+    ).status;
+  };
+  assert.equal(trace("Q1 returned 3 hits, 2 of them excluded"), 0);
+  assert.equal(trace("Q2 returned 3 hits"), 1, "3 is Q1's count, not Q2's");
+  // R21: each count belongs to the query before it; a total over the named queries passes; an unknown query passes none.
+  assert.equal(trace("Q1 returned 3 hits and Q2 returned 3 hits"), 1, "the second 3 is not Q2's");
+  assert.equal(trace("Q1 returned 3 hits and Q2 returned 0 hits"), 0);
+  assert.equal(trace("Q1 and Q2 returned 3 hits in total"), 0);
+  assert.equal(trace("Q9 returned 3 hits"), 1, "Q9 is not in the ledger");
+});
+
+test("YAML front matter and a header line are not first uses, a header definition counts, and LLM-based is a use (R18)", () => {
+  const notes = (draft) =>
+    draftCheck(draft)
+      .notes.filter((note) => /acronym/.test(note.kind))
+      .map((note) => `${note.kind}: ${note.value}`);
+  assert.deepEqual(notes("---\ntitle: LLM judges\n---\n\n## Intro\n\nA large language model (LLM) judges.\n"), []);
+  assert.deepEqual(notes("# P\n\n> **Key:** a large language model (LLM) judge\n\n## Intro\n\nLLM judges here.\n"), []);
+  assert.equal(notes("# P\n\n## Intro\n\nLLM-based judges.\n\nThen a large language model (LLM).\n").length, 1);
+  assert.deepEqual(wordingNotes("Its root causes are order and length (C1).", new Map([["C1", "L2"]])), []);
+  assert.equal(wordingNotes("The change will likely cause a regression (C1).", new Map([["C1", "L2"]])).length, 1);
 });

@@ -30,15 +30,50 @@ export function codeCitations(text) {
   return found;
 }
 
+// A quote followed by its source in parentheses: `(S3)`, `(S3:path)`, or the source first with more after it,
+// such as the claim it supports: `(S3; C2, L3)`.
+const QUOTE_CITATION = /["“]([^"“”\n]+)["”]\s*\((S\d+)(?::([A-Za-z0-9_./@+-]+))?(?:\s*[;,][^)\n]*)?\)/g;
+
 /** Quotes attributed to a source: `"the exact words" (S3)`, with straight or curly double quotes. */
 export function quoteCitations(text) {
   const plain = blankCode(text);
   const found = [];
-  const pattern = /["“]([^"“”\n]+)["”]\s*\((S\d+)(?::([A-Za-z0-9_./@+-]+))?\)/g;
+  const pattern = new RegExp(QUOTE_CITATION.source, "g");
   for (const match of plain.matchAll(pattern)) {
     found.push({ line: lineOf(plain, match.index), source: match[2], path: match[3], quote: match[1], text: match[0] });
   }
   return found;
+}
+
+/**
+ * Quoted passages of four or more words in a sentence that names a source (`S3`) but are not in a citation form,
+ * such as `printed "the exact words" and exited (S2)`: a check that skipped them would pass what it never checked.
+ */
+export function looseQuotes(text) {
+  const plain = blankCode(text);
+  const cited = new Set(quoteCitations(text).map((citation) => `${citation.line}\u0000${citation.quote}`));
+  const found = [];
+  for (const match of plain.matchAll(/["“]([^"“”\n]+)["”]/g)) {
+    if (match[1].trim().split(/\s+/).length < 4) continue;
+    const line = lineOf(plain, match.index);
+    if (cited.has(`${line}\u0000${match[1]}`)) continue;
+    const start = Math.max(plain.lastIndexOf(". ", match.index), plain.lastIndexOf("\n", match.index), 0);
+    const ends = [
+      plain.indexOf(". ", match.index + match[0].length),
+      plain.indexOf("\n", match.index + match[0].length),
+    ].filter((at) => at >= 0);
+    const sentence = plain.slice(start, ends.length ? Math.min(...ends) : plain.length);
+    if (/\bS\d+\b/.test(sentence)) found.push({ line, quote: match[1], text: match[0] });
+  }
+  return found;
+}
+
+/** The text with each quote citation's quoted words blanked: digits inside a checked quote are not the report's numbers. */
+export function blankQuoteCitations(text) {
+  return text.replace(new RegExp(QUOTE_CITATION.source, "g"), (match) => {
+    const close = match.search(/["”]\s*\(/);
+    return match.slice(0, 1) + match.slice(1, close).replace(/[^\n]/g, " ") + match.slice(close);
+  });
 }
 
 /** Text normalized for quote matching: curly quotes and dashes made plain, whitespace collapsed. */
@@ -71,7 +106,9 @@ export function numbersIn(line) {
     .replace(/^\s*(?:[-*+]|\d+[.)])\s+/, (marker) => marker.replace(/\d/g, " "))
     .replace(/^#+\s*\d+(?:\.\d+)*\.?/, " ");
   const numbers = [];
-  const pattern = /(?<![\w.])[-−]?\d[\d,]*(?:\.\d+)?%?(?![\w])/g;
+  // A number after a capitalised name and a hyphen is part of the name (GPT-4, Claude-3.5-Sonnet, CIFAR-10), not a
+  // quantity; one after a lowercase word ("alpha-0.05") or before a hyphen ("a 20-point gap") still is.
+  const pattern = /(?<![\w.]|\b[A-Z][A-Za-z]*-)[-−]?\d[\d,]*(?:\.\d+)?%?(?![\w]|\.\d)/g;
   for (const match of text.matchAll(pattern)) {
     const before = text.slice(0, match.index);
     if (LABEL_WORDS.test(before)) continue;
@@ -210,8 +247,9 @@ export function percentMismatches(line) {
 }
 
 // Wording that says one thing made another better or caused it: it needs a controlled comparison (L4) behind it.
+// "causes" after an article or before "of" is the noun ("the causes of"), not the verb.
 const STRONG =
-  /\b(?:improv(?:e|es|ed|ing|ement|ements)|increas(?:e|es|ed)|rais(?:e|es|ed)|boost(?:s|ed)?|outperform(?:s|ed)?|beats?|better than|superior to|caus(?:e|es|ed)|leads? to|results? in)\b/gi;
+  /\b(?:improv(?:e|es|ed|ing|ement|ements)|increas(?:e|es|ed)|rais(?:e|es|ed)|boost(?:s|ed)?|outperform(?:s|ed)?|beats?|better than|superior to|(?<!\b(?:the|its|their|possible|main|root|underlying|common|two|three|several)\s)caus(?:e|es|ed)(?!\s+of\b)|leads? to|results? in)\b/gi;
 // Wording that says a change was for the better, which a negative number contradicts.
 const BETTER = /\b(?:improv(?:e|es|ed|ing|ement|ements)|gains?|boost(?:s|ed)?|better|outperform(?:s|ed)?)\b/i;
 

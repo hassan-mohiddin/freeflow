@@ -13,13 +13,13 @@ import { ledgerRows } from "./lib/formats.mjs";
 import { LOOKUP_RULE, lookupRow, pinIdentifier } from "./lib/lookup.mjs";
 import { bibFromLedger, parseBib } from "./lib/paper.mjs";
 import { loadReads, readsFromTranscript, wasRead } from "./lib/reads.mjs";
-import { codeCitations, normalizeForQuote, quoteCitations } from "./lib/report.mjs";
+import { codeCitations, looseQuotes, normalizeForQuote, quoteCitations } from "./lib/report.mjs";
 import { fileAtCommit } from "./lib/support.mjs";
 
 const USAGE = [
   "Usage: sources.mjs cite-check <report.md> --ledger <sources.md> [--repo <name>=<clone>]... [--copy S<n>=<file>]... [--json]",
   "       sources.mjs quote-check <judge answers .jsonl> [--json]",
-  "       sources.mjs bib <sources.md> --out <refs.bib> [--from <existing.bib>]",
+  "       sources.mjs bib <sources.md> --out <refs.bib> [--from <existing.bib>] [--cache <lookups.json>]",
   "       sources.mjs lookup <sources.md> --cache <lookups.json> [--only S<n>,...] [--search-titles] [--refresh] [--json]",
   "       sources.mjs reads <transcript.jsonl>... --ledger <sources.md> --repo <name>=<clone>... --out <reads.jsonl>",
   "",
@@ -93,10 +93,23 @@ if (command === "bib") {
   } catch (error) {
     fail(`cannot read: ${error.message}`);
   }
-  const bib = bibFromLedger(rows, { from });
+  // --cache: a verified lookup's record fills the entry's title, authors and year.
+  const lookups = new Map();
+  if (parsed.values.cache && existsSync(parsed.values.cache)) {
+    const cache = JSON.parse(readFileSync(parsed.values.cache, "utf8"));
+    // An entry counts for a row only when it looked up that row's Pin for that Source and verified it.
+    for (const entry of Object.values(cache)) {
+      const result = entry.result;
+      if (result?.lookup !== "verified" || !result.record) continue;
+      for (const [id, row] of rows)
+        if (row.Lookup === "verified" && row.Pin === result.pin && row.Source === entry.source)
+          lookups.set(id, result.record);
+    }
+  }
+  const bib = bibFromLedger(rows, { from, lookups });
   writeFileSync(parsed.values.out, bib.text);
   console.log(
-    `${parsed.values.out}: ${rows.size} entries; ${bib.matched.length} completed from ${parsed.values.from ?? "no --from file"}; ${bib.unverified.length} not verified`,
+    `${parsed.values.out}: ${rows.size} entries; ${bib.matched.length} completed from ${[parsed.values.from, parsed.values.cache].filter(Boolean).join(" and ") || "no --from file or --cache"}; ${bib.unverified.length} not verified`,
   );
   for (const id of bib.unverified)
     console.log(`  not verified: ${id} (${rows.get(id).Source}): its entry carries a note`);
@@ -153,7 +166,9 @@ if (command === "lookup") {
   );
   if (parsed.values.json) console.log(JSON.stringify({ ledger: report, results }, null, 2));
   else {
-    console.log(`${report}: ${results.length} row(s) looked up; ${flagged.length} need attention`);
+    console.log(
+      `${report}: ${results.length} row(s) looked up; ${flagged.length} need attention (a Lookup to update in the ledger, or a notice to read)`,
+    );
     for (const result of results) {
       const lookup = result.lookup ?? "not online";
       const change =
@@ -352,6 +367,15 @@ for (const citation of quoteCitations(text)) {
   );
 }
 
+// A quote beside a source that is not in a citation form is listed, so it is never passed unchecked.
+for (const loose of looseQuotes(text))
+  results.push({
+    line: loose.line,
+    citation: loose.text,
+    status: "not checked",
+    reason: 'a quote of four or more words beside a source ID, not in the form "the exact words" (S<n>)',
+  });
+
 const count = (status) => results.filter((result) => result.status === status).length;
 const summary = {
   citations: results.length,
@@ -365,7 +389,9 @@ else {
     `${report}: ${summary.citations} citation(s); ${summary.ok} ok, ${summary.failed} failed, ${summary.notChecked} not checked`,
   );
   if (!reads && codeCitations(text).length > 0)
-    console.log("  read ranges: not checked (pass --reads to check each code citation against what was read)");
+    console.log(
+      "  note: read ranges were not checked (no --reads); this note does not count against the check, which passes on 0 failed and 0 not checked",
+    );
   for (const result of results.filter((entry) => entry.status !== "ok")) {
     console.log(`  ${result.status}: line ${result.line}: ${result.citation} (${result.reason})`);
   }
