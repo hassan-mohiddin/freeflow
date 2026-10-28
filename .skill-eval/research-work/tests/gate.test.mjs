@@ -604,3 +604,22 @@ test("at publication a report sentence reworded after its packet was answered ma
   assert.match(check(widened, "support").reason, /not what the report/);
   assert.equal(widened.status, 1);
 });
+
+test("at publication a claim the report cites with no code citation or quote still needs a packet (final review B)", () => {
+  const { folder, copy } = project("publication");
+  writeFileSync(
+    join(folder, "claims.md"),
+    `${register()}| C2 | Version 5 of the harness never retries | 5 | S1 | L2 | exploratory | the design note | not run |\n`,
+  );
+  writeFileSync(join(folder, "report.md"), `${REPORT}\nVersion 5 of the harness never retries (C2; S1).\n`);
+  // support finds nothing to give C2's reader, so the packets hold C1 alone.
+  answer(folder, copy, ["report.md"], "C1");
+  const result = gate(folder, "--copy", copy);
+  assert.equal(check(result, "support").status, "passed");
+  assert.equal(check(result, "coverage").status, "failed");
+  assert.match(check(result, "coverage").reason, /1 cited claim\(s\) have no packet: C2$/);
+  assert.equal(result.status, 1);
+  const marked = gate(folder, "--copy", copy, "--unsupported-ok", "C2");
+  assert.equal(check(marked, "coverage").status, "passed");
+  assert.equal(marked.status, 0, JSON.stringify(marked.checks, null, 2));
+});

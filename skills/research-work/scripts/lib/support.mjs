@@ -212,10 +212,14 @@ function claimEvidence(reportText, registerRows) {
   return { evidence, stated, rows, cited };
 }
 
-/** The registered claims the report cites with a code citation or quote: the ones `buildPackets` makes packets for. */
-export function claimsWithEvidence(reportText, registerRows) {
-  const { evidence, rows, cited } = claimEvidence(reportText, registerRows);
-  return cited.filter((id) => rows.has(id) && (evidence.get(id)?.size ?? 0) > 0);
+/**
+ * The registered claims the report cites, with or without a code citation or quote: the ones the support check
+ * must cover at publication. `buildPackets` makes packets only for those with evidence, and lists the rest as not
+ * checked.
+ */
+export function citedClaims(reportText, registerRows) {
+  const { rows, cited } = claimEvidence(reportText, registerRows);
+  return cited.filter((id) => rows.has(id));
 }
 
 /**
