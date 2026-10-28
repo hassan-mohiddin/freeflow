@@ -136,7 +136,13 @@ if (command === "init" && rest[0] === "project") {
       locked: state.locked,
       reason: state.reason,
       demoted: demotedHypotheses(state.lock),
-      variants: planVariants(read(values.plan)),
+      // Every variant the plan has ever listed, from each lock entry, so an amendment cannot drop one unreported.
+      variants: [
+        ...new Set([
+          ...planVariants(read(values.plan)),
+          ...(state.lock?.entries ?? []).flatMap((entry) => entry.variants ?? []),
+        ]),
+      ],
     };
   }
   if (values.search)

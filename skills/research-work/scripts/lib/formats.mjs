@@ -398,9 +398,26 @@ export function planHypotheses(text) {
 
 /** A study plan's analysis variants, by ID: none when the section is missing or says "none". */
 export function planVariants(text) {
-  return (sectionTable(parseMarkdown(text), "Analysis variants")?.rows ?? [])
+  const lines = sectionNamed(parseMarkdown(text), "Analysis variants");
+  return (lines ? (parseTable(lines)?.rows ?? []) : [])
     .map((row) => row.cells.ID)
-    .filter((id) => /^V\d+$/.test(id));
+    .filter((id) => id && !placeholder(id));
+}
+
+/** A section's lines, its heading matched without regard to case ("## Analysis Variants" is the same section). */
+function sectionNamed(parsed, name) {
+  for (const [heading, lines] of parsed.sections) if (heading.toLowerCase() === name.toLowerCase()) return lines;
+  return null;
+}
+
+export const MODEL_ROLES = ["judge", "annotator", "generator", "subject"];
+const UNPINNED = ["latest", "current", "default", "newest", "stable"];
+
+/** Whether a YYYY-MM-DD string is a real calendar date no later than today. */
+function pastDate(text) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const date = new Date(`${text}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text && date.getTime() <= Date.now();
 }
 
 /** The plan's optional sections, checked when present: each is a table with its columns, or the word "none". */
@@ -409,24 +426,42 @@ function validateOptionalPlanSections(parsed, problems) {
     ["Analysis variants", VARIANT_COLUMNS],
     ["Models in the method", MODEL_COLUMNS],
   ]) {
-    if (!parsed.sections.has(name)) continue;
-    const body = parsed.sections.get(name).join("\n").trim();
-    if (body.toLowerCase() === "none") continue;
-    const table = parseTable(parsed.sections.get(name));
+    const lines = sectionNamed(parsed, name);
+    if (!lines) continue;
+    if (lines.join("\n").trim().toLowerCase() === "none") continue;
+    const table = parseTable(lines);
     if (!table || table.columns.join("|") !== columns.join("|")) {
       problems.push(`the ${name} section must be "none" or one table with the columns: ${columns.join(", ")}`);
       continue;
     }
     if (table.rows.length === 0) problems.push(`the ${name} table has no rows; write "none" instead`);
-    for (const { cells } of table.rows) {
+    const seen = new Set();
+    for (const { cells, width } of table.rows) {
+      if (width !== columns.length) {
+        problems.push(`the ${name} table has a row with ${width} cells; it needs ${columns.length}`);
+        continue;
+      }
       if (Object.values(cells).some((cell) => !cell || placeholder(cell))) {
         problems.push(`the ${name} section still has an empty cell or a <placeholder>`);
         continue;
       }
-      if (name === "Analysis variants" && !/^V\d+$/.test(cells.ID))
-        problems.push(`Analysis variants row ${cells.ID}: ID must be V followed by a number`);
-      if (name === "Models in the method" && !/^\d{4}-\d{2}-\d{2}$/.test(cells.Accessed))
-        problems.push(`Models in the method row ${cells.Model}: Accessed must be a date, YYYY-MM-DD`);
+      if (name === "Analysis variants") {
+        if (!/^V\d+$/.test(cells.ID))
+          problems.push(`Analysis variants row ${cells.ID}: ID must be V followed by a number`);
+        else if (seen.has(cells.ID)) problems.push(`Analysis variants row ${cells.ID}: duplicate ID`);
+        seen.add(cells.ID);
+      } else {
+        const where = `Models in the method row ${cells.Model}`;
+        if (!MODEL_ROLES.includes(cells.Role.toLowerCase()))
+          problems.push(`${where}: Role must be one of: ${MODEL_ROLES.join(", ")}`);
+        if (
+          UNPINNED.includes(cells.Snapshot.toLowerCase()) ||
+          cells.Snapshot.toLowerCase() === cells.Model.toLowerCase()
+        )
+          problems.push(`${where}: Snapshot must name the exact version, not "${cells.Snapshot}"`);
+        if (!pastDate(cells.Accessed))
+          problems.push(`${where}: Accessed must be a real date, YYYY-MM-DD, no later than today`);
+      }
     }
   }
 }
@@ -622,9 +657,24 @@ function validateLedger(parsed, problems) {
   }
 }
 
-// A claim about absence ("the first to", "no prior work") is only as good as the search behind it (framing.md).
-const ABSENCE =
-  /\b(?:the first (?:to|study|work|paper|tool|method|system|benchmark)|for the first time|no (?:prior|previous|existing|other|published) (?:work|study|studies|paper|papers|tool|tools|method|methods|system|systems|benchmark)s?|(?:nobody|no one) has|has not been (?:studied|shown|measured|done|tested)|novel)\b/i;
+// A claim about absence ("the first to", "no prior work") is only as good as the search behind it (framing.md). The
+// check reads three classes of wording: being first, nothing or nobody having done it, and words that say it is new.
+// It reads wording, so it catches the common forms, not every one.
+const RESEARCH_VERBS =
+  "measured|studied|shown|done|tested|examined|compared|proposed|built|reported|explored|investigated|evaluated|addressed|attempted|tried|published|released|described|found|considered";
+const ABSENCE = [
+  // "We are the first team to...", "This is the first", "for the first time"; not "this was the first run".
+  /\b(?:we|this|it|ours?|they|these|the (?:method|approach|tool|system|paper|study|work))\b[^.;]{0,40}?\b(?:is|are|was|were|'s|'re)\s+(?:the\s+)?(?:very\s+)?first\b(?!\s+(?:run|trial|step|attempt|arm|round|batch|iteration|stage|seed|try)\b)/i,
+  /\bfor the first time\b/i,
+  /\bthe first to (?:show|measure|propose|study|demonstrate|introduce|report|compare|apply|use|build|test)\b/i,
+  // "Nobody has done X", "No one else has measured"; not "Nobody has dropped out".
+  new RegExp(String.raw`\bno(?:body| one)(?: else)?(?: has| have| had)?\s+(?:ever\s+)?(?:${RESEARCH_VERBS})\b`, "i"),
+  // "No tool does Y", "There is no prior research"; not "No other work was excluded".
+  /\bno (?:prior |previous |existing |published |other |earlier )?(?:work|research|study|studies|paper|papers|tool|tools|method|methods|system|systems|benchmark|benchmarks|approach|approaches|library|libraries|dataset|datasets)\b(?!\s+(?:was|were|is|are)\s+(?:excluded|dropped|removed|used|included|skipped))/i,
+  new RegExp(String.raw`\b(?:has|have|had) (?:never|not)(?: yet)? been (?:${RESEARCH_VERBS})\b`, "i"),
+  /\b(?:novel|unprecedented|unexplored|unstudied|understudied|first-of-its-kind)\b/i,
+];
+const isAbsenceClaim = (claim) => ABSENCE.some((pattern) => pattern.test(claim));
 
 const searchCitations = (cell) => [...cell.matchAll(/\bsearch:(Q\d+)\b/g)].map((match) => match[1]);
 
@@ -665,7 +715,7 @@ function validateRegister(parsed, problems, { ledger, plan, judges, searches } =
         );
     }
     const cited = searchCitations(cells.Source ?? "");
-    if (ABSENCE.test(cells.Claim ?? "") && cited.length === 0)
+    if (isAbsenceClaim(cells.Claim ?? "") && cited.length === 0)
       problems.push(
         `${where}: the claim is about absence (something new or never done), so cite the search behind it in Source as search:Q<n>`,
       );
@@ -706,13 +756,19 @@ const claimIds = (cell) => cell.match(/\bC\d+\b/g) ?? [];
 
 /** Every analysis variant a plan lists must be reported: named in some row's Claim, Scope or Limit. */
 function variantProblems(rows, variants) {
+  // A variant is reported where a row names it as one ("under variant V2"); a bare "V2" may name something else.
   const named = new Set(
-    rows.flatMap(({ cells }) => [cells.Claim, cells.Scope, cells.Limit].join(" ").match(/\bV\d+\b/g) ?? []),
+    rows.flatMap(({ cells }) =>
+      [...[cells.Claim, cells.Scope, cells.Limit].join(" ").matchAll(/\bvariant\s+(V\d+)\b/gi)].map((match) =>
+        match[1].toUpperCase(),
+      ),
+    ),
   );
-  return variants
+  return [...new Set(variants.map((id) => id.toUpperCase()))]
     .filter((id) => !named.has(id))
     .map(
-      (id) => `${id}, an analysis variant of the plan, is reported by no claim; register its result, or say why not`,
+      (id) =>
+        `${id}, an analysis variant of the plan, is reported by no claim; name it in a row as "variant ${id}", with its result or why it has none`,
     );
 }
 

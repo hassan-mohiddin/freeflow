@@ -102,7 +102,7 @@ The same configuration run twice gives different results. A difference smaller t
 
 ## Separate Rival Explanations
 
-For each explanation other than the claim, name the check that would tell them apart, and run it: a placebo arm, a shuffled label, the same change on a task where it should not matter, a second model. The analysis path is a rival too: if a different reasonable analysis would change the answer, report both, or fix the analysis in the plan before seeing data. List each other analysis you will run in the plan's `## Analysis variants` table (V1, V2, …); register validation with `--plan` refuses a variant no claim reports, so a variant cannot be run and then left out.
+For each explanation other than the claim, name the check that would tell them apart, and run it: a placebo arm, a shuffled label, the same change on a task where it should not matter, a second model. The analysis path is a rival too: if a different reasonable analysis would change the answer, report both, or fix the analysis in the plan before seeing data. List each other analysis you will run in the plan's `## Analysis variants` table (V1, V2, …); report each in a register row that names it as `variant V2`. The lock records the variants, and register validation with `--plan` refuses one that no row names, even after an amendment removed it.
 
 ## The Quick Check
 

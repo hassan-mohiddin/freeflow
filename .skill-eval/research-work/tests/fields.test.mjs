@@ -122,15 +122,15 @@ test("a plan's analysis variants and models are checked when present, and the sk
 
 test("every analysis variant the plan lists is reported by some claim", () => {
   const withPlan = { hypotheses: new Map(), locked: true, variants: ["V1", "V2"] };
-  const one = register([row("C1", "Under V1 the rate is lower", "S1")]);
+  const one = register([row("C1", "Under variant V1 the rate is lower", "S1")]);
   assert.ok(
     validate("claims-register", one, { plan: withPlan }).problems.some((problem) =>
       problem.includes("V2, an analysis variant of the plan, is reported by no claim"),
     ),
   );
   const both = register([
-    row("C1", "Under V1 the rate is lower", "S1"),
-    [...row("C2", "The rate holds", "S1").slice(0, 6), "V2: per family", "one search"],
+    row("C1", "Under variant V1 the rate is lower", "S1"),
+    [...row("C2", "The rate holds", "S1").slice(0, 6), "variant V2: per family", "one search"],
   ]);
   assert.deepEqual(validate("claims-register", both, { plan: withPlan }).problems, []);
 });
@@ -158,4 +158,97 @@ test("an evidence table may add a Weakness column", () => {
       problem.includes("Weakness must be filled"),
     ),
   );
+});
+
+test("the absence check reads the wording classes, not a phrase list", () => {
+  const refused = (claim) =>
+    validate("claims-register", register([row("C1", claim)])).problems.some((problem) =>
+      problem.includes("cite the search behind it"),
+    );
+  for (const claim of [
+    "This is the first",
+    "No tool does Y",
+    "Nobody has done X",
+    "We are the first team to measure judge drift",
+    "We were first to show judge drift",
+    "This is the first time judge drift is measured",
+    "No one else has measured judge drift",
+    "Nobody measured judge drift before",
+    "Judge drift has never been measured",
+    "These judges have not been studied",
+    "There is no prior research on judge drift",
+    "We know of no work that measures drift",
+    "The approach is unprecedented",
+    "Judge drift is unexplored",
+  ])
+    assert.ok(refused(claim), `should need a search: ${claim}`);
+  for (const claim of [
+    "The first study arm failed at n = 10",
+    "The first tool we ran crashed",
+    "We ran the first system check on Monday",
+    "The first to fail was prompt B",
+    "No other work was excluded from the sample",
+    "Nobody has dropped out of the study",
+    "The first run failed",
+    "No judge passed the decoys",
+  ])
+    assert.ok(!refused(claim), `should not need a search: ${claim}`);
+});
+
+test("a variant counts as reported only when a row names it as a variant, and an amendment cannot drop one", () => {
+  const withPlan = { hypotheses: new Map(), locked: true, variants: ["V1", "V2"] };
+  const reported = (rows) =>
+    !validate("claims-register", register(rows), { plan: withPlan }).problems.some((problem) => problem.includes("V2"));
+  assert.ok(reported([row("C1", "Under variant V1 the rate is lower"), row("C2", "Under variant V2 it holds")]));
+  // A bare ID, or a "V2" that names something else, is not a report of the variant.
+  assert.ok(!reported([row("C1", "Under variant V1 the rate is lower"), [...row("C2", "x").slice(0, 7), "V2"]]));
+  assert.ok(
+    !reported([row("C1", "Under variant V1 the rate is lower"), row("C2", "Accuracy on the MMLU V2 set is 0.7")]),
+  );
+  // Variants in the plan's earlier versions still count, from the lock.
+  const dir = mkdtempSync(join(tmpdir(), "research-fields-amend-"));
+  const text = withoutNewSections(plan()).replace(
+    "## Amendments",
+    `${VARIANTS}## Models in the method\n\nnone\n\n## Amendments`,
+  );
+  writeFileSync(join(dir, "plan.md"), text);
+  assert.equal(node("study.mjs", "lock", join(dir, "plan.md"), "--by", "O").status, 0);
+  writeFileSync(join(dir, "plan.md"), text.replace("| V2 | Per-family means | the unit |\n", ""));
+  assert.equal(node("study.mjs", "amend", join(dir, "plan.md"), "--by", "O", "--reason", "tidy").status, 0);
+  writeFileSync(join(dir, "claims.md"), register([row("C1", "Under variant V1 the rate is lower")]));
+  const run = node("artifact.mjs", "validate", join(dir, "claims.md"), "--plan", join(dir, "plan.md"));
+  assert.match(run.stdout, /V2, an analysis variant of the plan/);
+});
+
+test("the optional sections are found whatever their case, and their rows are checked closely", () => {
+  const base = withoutNewSections(plan());
+  const lower = base.replace(
+    "## Amendments",
+    `${VARIANTS.replace("## Analysis variants", "## Analysis Variants")}## Amendments`,
+  );
+  assert.deepEqual(planVariants(lower), ["V1", "V2"]);
+  const duplicate = base.replace("## Amendments", `${VARIANTS.replace("| V2 |", "| V1 |")}## Amendments`);
+  assert.ok(validate("study-plan", duplicate).problems.some((problem) => problem.includes("duplicate")));
+  const wide = base.replace(
+    "## Amendments",
+    `${VARIANTS.replace("| the unit |", "| the unit | extra |")}## Amendments`,
+  );
+  assert.ok(validate("study-plan", wide).problems.some((problem) => problem.includes("cells")));
+  const models = (cells) =>
+    base.replace(
+      "## Amendments",
+      `## Models in the method\n\n| Role | Model | Snapshot | Accessed |\n| --- | --- | --- | --- |\n| ${cells.join(" | ")} |\n\n## Amendments`,
+    );
+  assert.deepEqual(validate("study-plan", models(["judge", "Haiku", "claude-haiku-5-5", "2026-10-27"])).problems, []);
+  for (const [cells, word] of [
+    [["reviewer", "Haiku", "claude-haiku-5-5", "2026-10-27"], "Role"],
+    [["judge", "Haiku", "latest", "2026-10-27"], "Snapshot"],
+    [["judge", "Haiku", "Haiku", "2026-10-27"], "Snapshot"],
+    [["judge", "Haiku", "claude-haiku-5-5", "2026-02-30"], "Accessed"],
+    [["judge", "Haiku", "claude-haiku-5-5", "2999-01-01"], "Accessed"],
+  ])
+    assert.ok(
+      validate("study-plan", models(cells)).problems.some((problem) => problem.includes(word)),
+      `${cells.join(", ")} should be refused for ${word}`,
+    );
 });

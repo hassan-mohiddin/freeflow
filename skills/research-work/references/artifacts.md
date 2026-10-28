@@ -96,9 +96,9 @@ The contract between the stages: every claim a report or paper makes is a row he
 | Limit | What it does not show |
 
 - An exploratory claim is at most L3.
-- A claim worded as an absence ("the first to", "no prior work", "for the first time", "novel") cites the search behind it as `search:Q<n>`; validation refuses one that cites none, and with `--search <search ledger>` a query the ledger lacks.
+- A claim worded as an absence (being first, nothing or nobody having done it, novel, unprecedented, unexplored) cites the search behind it as `search:Q<n>`; validation refuses one that cites none, reading the wording, and with `--search <search ledger>` a query the ledger lacks.
 - Validate a register with `--sources <source ledger>`. That check refuses a source ID the ledger lacks, a refuted source, and a level above what the sources' checking allows.
-- Validate a study's register with `--plan <study plan>` too. It refuses a confirmatory claim unless its ID is a confirmatory hypothesis of the plan, the plan is locked as it stands, and no amendment changed that hypothesis after study runs existed; and it refuses a plan's analysis variant that no row's Claim, Scope or Limit names.
+- Validate a study's register with `--plan <study plan>` too. It refuses a confirmatory claim unless its ID is a confirmatory hypothesis of the plan, the plan is locked as it stands, and no amendment changed that hypothesis after study runs existed; and it refuses an analysis variant the plan lists, or listed in any locked version, that no row's Claim, Scope or Limit names as `variant V<n>`.
 - A claim citing `judge:<record>` is at most L1 unless that judge validation record validates and its Result is `pass`; validation checks this whenever a row cites one.
 - `claims.mjs trace --results` finds each number in the Numbers column in the result files the row's Source names, at the precision written (0.83 matches 0.8333; 65% matches 0.65). A row with numbers and no result file is listed as not checked.
 
@@ -111,8 +111,8 @@ Written at Design, before the first run that counts; `init study-plan --rigor <r
 | `## 1. The claim` … `## 12. Where it holds` | The answers to the twelve questions in [study design](study.md#answer-the-twelve-questions). At `check` rigor only 1, 3, 4, 5 and 10 are required |
 | `## Hypotheses` | One table: `ID` (the claim ID the register will use), `Hypothesis`, `Kind` (`confirmatory` or `exploratory`), `Metric`, `Decision rule`. A confirmatory row names its metric and rule; `-` is allowed only for an exploratory one |
 | `## Planned runs` | One table: `Unit`, `Arm`, `Trials` (a whole number of at least 1), and optionally `Split` (`tuning` or `held-out`), one row per unit and arm |
-| `## Analysis variants` | At `study` and `publication` rigor: `none`, or one table, `ID` (`V1`, …), `Variant`, `What it changes`: each other reasonable analysis that will be run and reported |
-| `## Models in the method` | At `study` and `publication` rigor: `none`, or one table, `Role` (judge, annotator, generator or subject), `Model`, `Snapshot`, `Accessed` (`YYYY-MM-DD`) |
+| `## Analysis variants` | At `study` and `publication` rigor: `none`, or one table, `ID` (`V1`, …, each once), `Variant`, `What it changes`: each other reasonable analysis that will be run and reported. The lock records them, so an amendment cannot drop one unreported |
+| `## Models in the method` | At `study` and `publication` rigor: `none`, or one table, `Role` (`judge`, `annotator`, `generator` or `subject`), `Model`, `Snapshot` (the exact version, never `latest`), `Accessed` (`YYYY-MM-DD`, no later than today) |
 | `## Amendments` | `none`, then one line per amendment, written by `study.mjs amend` |
 
 The two sections at `study` and `publication` rigor are validated when present and noted by `study.mjs check` when absent, so plans locked before they existed stay valid; add them by amendment.
