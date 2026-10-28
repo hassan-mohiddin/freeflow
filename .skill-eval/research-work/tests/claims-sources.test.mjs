@@ -888,3 +888,159 @@ test("YAML front matter and a header line are not first uses, a header definitio
   assert.deepEqual(wordingNotes("Its root causes are order and length (C1).", new Map([["C1", "L2"]])), []);
   assert.equal(wordingNotes("The change will likely cause a regression (C1).", new Map([["C1", "L2"]])).length, 1);
 });
+
+test("a packet carries the sentences that cite its claim, so a widened report sentence is judged, not only the register (final review A)", () => {
+  const dir = folder();
+  const copy = join(dir, "S1.txt");
+  writeFileSync(copy, "Before. The harness retries a failed call twice when the policy allows it. After.");
+  const rows = [
+    {
+      cells: {
+        ID: "C1",
+        Claim: "The harness retries a failed call twice when the policy allows it",
+        Numbers: "2",
+        Source: "S1",
+        Scope: "the design note",
+        Limit: "not run",
+      },
+    },
+  ];
+  const ledger = new Map([["S1", { Pin: "https://example.org/note (accessed 2026-10-27)" }]]);
+  const copies = new Map([["S1", copy]]);
+  const quote = '"retries a failed call twice when the policy allows it" (S1)';
+  const sound = `# R\n\nThe harness retries a failed call 2 times when the policy allows it (C1): ${quote}.\n`;
+  const widened = `# R\n\nThe harness always retries a failed call 2 times,\non every call (C1): ${quote}.\n`;
+  const [good] = buildPackets(sound, rows, ledger, { copies }).packets;
+  const [bad] = buildPackets(widened, rows, ledger, { copies }).packets;
+  assert.deepEqual(bad.stated, [`The harness always retries a failed call 2 times, on every call (C1): ${quote}.`]);
+  assert.notDeepEqual(good, bad);
+  assert.equal(bad.statement, rows[0].cells.Claim);
+  // The question asks about each stated sentence too: one that drops a condition or widens the claim is partial.
+  assert.match(bad.question, /each stated sentence/);
+  assert.match(bad.question, /drops a condition or widens the claim/);
+  // A sentence of citations before "C1, L2." carries the claim's words; the bare ID sentence adds nothing.
+  const before = buildPackets(`# R\n\nIt always retries twice: ${quote}. C1, L2.\n`, rows, ledger, { copies });
+  assert.deepEqual(before.packets[0].stated, [`It always retries twice: ${quote}.`]);
+  // The report and the paper both stating it: each sentence once.
+  const both = buildPackets(`${sound}\n\n${sound}\n\nIn short, it retries (C1).\n`, rows, ledger, { copies });
+  assert.equal(both.packets[0].stated.length, 2);
+});
+
+test('a paper\'s quote form, "the exact words" [@S1], is a checked quote for cite-check and support (final review E)', () => {
+  const words = "retries a failed call twice when the policy allows it";
+  for (const [form, source] of [
+    [`"${words}" [@S1]`, "S1"],
+    [`“${words}” [@S1; @S4]`, "S1"],
+    [`"${words}" [@S1, p. 4]`, "S1"],
+    [`"${words}" (S1; C1, L2)`, "S1"],
+  ]) {
+    const [citation] = quoteCitations(`It says ${form}.`);
+    assert.equal(citation?.source, source, form);
+    assert.equal(citation.quote, words);
+    assert.equal(looseQuotes(`It says ${form}.`).length, 0, form);
+  }
+  // A source ID inside the brackets that is not the first is not the quote's source, and a bare [@S1] quotes nothing.
+  assert.equal(quoteCitations("It retries twice [@S1].").length, 0);
+  assert.equal(blankQuoteCitations('It said "No entity matched D-999" [@S2].').includes("999"), false);
+
+  const dir = folder();
+  writeFileSync(
+    join(dir, "S1.txt"),
+    "Before. The harness retries a failed call twice when the policy allows it. After.",
+  );
+  writeFileSync(
+    join(dir, "sources.md"),
+    "# Source Ledger: R\n\n| ID | Source | Pin | Lookup | Checked | Read | Supports |\n| --- | --- | --- | --- | --- | --- | --- |\n| S1 | A design note | https://example.org/note (accessed 2026-10-27) | verified | opened | full | C1 |\n",
+  );
+  writeFileSync(
+    join(dir, "claims.md"),
+    "# Claims Register: R\n\n| ID | Claim | Numbers | Source | Level | Kind | Scope | Limit |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| C1 | The harness retries a failed call twice when the policy allows it | 2 | S1 | L2 | exploratory | the design note | not run |\n",
+  );
+  writeFileSync(
+    join(dir, "paper.md"),
+    `# Paper: Retries\n\n## Body\n\nThe note says it "${words}" [@S1], so it retries 2 times (C1).\n`,
+  );
+  const cited = node(
+    "sources.mjs",
+    "cite-check",
+    join(dir, "paper.md"),
+    "--ledger",
+    join(dir, "sources.md"),
+    "--copy",
+    `S1=${join(dir, "S1.txt")}`,
+  );
+  assert.equal(cited.status, 0, cited.stdout);
+  assert.match(cited.stdout, /1 citation\(s\); 1 ok, 0 failed, 0 not checked/);
+  const out = join(dir, "packets.jsonl");
+  const built = node(
+    "claims.mjs",
+    "support",
+    join(dir, "paper.md"),
+    "--register",
+    join(dir, "claims.md"),
+    "--ledger",
+    join(dir, "sources.md"),
+    "--copy",
+    `S1=${join(dir, "S1.txt")}`,
+    "--out",
+    out,
+  );
+  assert.equal(built.status, 0, built.stdout);
+  assert.equal(JSON.parse(readFileSync(out, "utf8")).evidence[0].cite, `"${words}" [@S1]`);
+});
+
+test("a quote under four words is accepted when it is one whole line of the evidence (support rerun 2)", () => {
+  const packets = [
+    {
+      packet: "P1",
+      claim: "C1",
+      evidence: [
+        {
+          cite: "S1:src/cli.mjs:552",
+          text: ' 550: try {\n 551:   if (command === "view") {\n>552:     process.stdout.write(await runCore(command, rest));\n 553:   }',
+        },
+      ],
+    },
+  ];
+  const line = (answer, at = 1) => ({ line: at, answer });
+  const whole = { packet: "P1", verdict: "supported", quote: "process.stdout.write(await runCore(command, rest));" };
+  assert.deepEqual(checkVerdicts(packets, [line(whole)]).problems, []);
+  // Part of a line is still too short to decide anything.
+  const part = checkVerdicts(packets, [line({ ...whole, quote: "await runCore(command, rest));" })]);
+  assert.match(part.problems[0].problem, /at least four words, or one whole line/);
+  // A line of punctuation alone decides nothing.
+  assert.match(checkVerdicts(packets, [line({ ...whole, quote: "}" })]).problems[0].problem, /at least four words/);
+  // An adjudication may quote the whole line too.
+  const settled = checkVerdicts(packets, [
+    line({
+      packet: "P1",
+      verdict: "partial",
+      quote: 'if (command === "view") {',
+      missing: "that the write is the only one",
+      adjudication: 'rejected: "process.stdout.write(await runCore(command, rest));" is the single write',
+    }),
+  ]);
+  assert.deepEqual(settled.problems, []);
+  assert.equal(settled.settled.length, 1);
+});
+
+test("a quote's passage from a saved copy keeps the copy's line breaks (support rerun 4)", () => {
+  const dir = folder();
+  const copy = join(dir, "runs.txt");
+  writeFileSync(
+    copy,
+    "$ node recover.mjs view recover --record a.md\ndocs/spec-missing.md: missing\nexit=0\n\n$ node recover.mjs view recover --record b.md\nresolved\nexit=1\n",
+  );
+  const rows = [
+    { cells: { ID: "C1", Claim: "A missing pointer exits 0", Numbers: "-", Source: "S2", Scope: "here", Limit: "-" } },
+  ];
+  const ledger = new Map([["S2", { Pin: "run/recover-runs.txt" }]]);
+  const report = '# R\n\nA missing pointer is not fatal (C1): "docs/spec-missing.md: missing exit=0" (S2).\n';
+  const built = buildPackets(report, rows, ledger, { copies: new Map([["S2", copy]]) });
+  const [piece] = built.packets[0].evidence;
+  // The quote is found across the line break, and the passage shows which output follows which command.
+  assert.match(piece.text, /--record a\.md\ndocs\/spec-missing\.md: missing\nexit=0\n\n\$ node recover\.mjs/);
+  // A quote spanning the copy's lines is still found in the packet.
+  const verdict = { packet: "P1", verdict: "supported", quote: "--record a.md docs/spec-missing.md: missing exit=0" };
+  assert.deepEqual(checkVerdicts(built.packets, [{ line: 1, answer: verdict }]).problems, []);
+});

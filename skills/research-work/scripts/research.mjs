@@ -14,7 +14,7 @@ import { parseArgs } from "node:util";
 import { ledgerRows, parseMarkdown, parseTable } from "./lib/formats.mjs";
 import { LAYOUT, isSkeleton } from "./lib/project.mjs";
 import { resultCitations } from "./lib/report.mjs";
-import { claimsWithEvidence } from "./lib/support.mjs";
+import { citedClaims } from "./lib/support.mjs";
 
 const SCRIPTS = dirname(fileURLToPath(import.meta.url));
 const RIGORS = ["check", "study", "publication"];
@@ -37,8 +37,8 @@ const USAGE = [
   "--results when there is a study plan, and --results --cited-only when a register row's Source names a result file),",
   "and for a paper its outline and draft-check. study and publication need the",
   "claims register; publication also needs every source opened or run, the citation support verdicts",
-  "(support-check, on packets that still match the report and paper, with a packet for every claim either cites with",
-  "a code citation or quote, except those --unsupported-ok marks out by the author's choice), and a paper's PDF",
+  "(support-check, on packets that still match the report and paper, with a packet for every registered claim either",
+  "cites, quoted or not, except those --unsupported-ok marks out by the author's choice), and a paper's PDF",
   "(check-pdf, against the venue's --max-pages, --max-words or --require). A study plan, when present, is validated",
   "and checked with study.mjs check, and the register is validated against it; a register with a confirmatory claim",
   "and no plan fails. A review's evidence table is validated with --sources. A file that is present is always",
@@ -427,7 +427,8 @@ if (used.paper)
 
 // Citation support: required at publication, checked below it when answers exist. The packets come from the report
 // and the paper, whichever are present; they must still be what those and their sources give now, and at publication
-// every claim either cites with a code citation or quote needs a packet, unless the author marks it out.
+// every registered claim either cites needs a packet, with or without a code citation or quote beside it, unless the
+// author marks it out: leaving a quote out must not be a way past the check.
 const targets = products.map(([file]) => file);
 const target = targets.length > 0 ? targets.join(" and ") : null;
 const supportRequired = atLeast("publication") && target !== null;
@@ -445,10 +446,10 @@ if (target && (supportRequired || used.verdicts)) {
     ...sourceOptions,
   ];
   const buildCommand = commandLine("claims.mjs", build(paths.packets));
-  // The claims the report and paper cite with a code citation or quote, which the support check must cover.
+  // The registered claims the report and paper cite, which the support check must cover.
   const wanted =
     used.claims && supportRequired
-      ? claimsWithEvidence(targets.map((file) => text(paths[file])).join("\n\n"), registerRows).filter(
+      ? citedClaims(targets.map((file) => text(paths[file])).join("\n\n"), registerRows).filter(
           (id) => !markedOut.includes(id),
         )
       : [];
@@ -461,7 +462,7 @@ if (target && (supportRequired || used.verdicts)) {
       true,
       notRun(
         `no packets at ${paths.packets}`,
-        `build them with ${buildCommand}${wanted.length > 0 ? ` (it cites ${wanted.join(", ")} with a code citation or quote; each needs a packet, or --unsupported-ok to mark it out)` : ""}, give them to a separate reader, and save its answers to ${paths.verdicts}`,
+        `build them with ${buildCommand}${wanted.length > 0 ? ` (it cites ${wanted.join(", ")}; each needs a packet, so a code citation or quote beside it, or --unsupported-ok to mark it out)` : ""}, give them to a separate reader, and save its answers to ${paths.verdicts}`,
       ),
     );
   else {
@@ -528,12 +529,12 @@ if (target && (supportRequired || used.verdicts)) {
         uncovered.length === 0
           ? {
               status: "passed",
-              reason: `every claim cited with a code citation or quote has a packet${markedOut.length > 0 ? `, except ${markedOut.join(", ")}, marked out by --unsupported-ok` : ""}`,
+              reason: `every cited claim has a packet${markedOut.length > 0 ? `, except ${markedOut.join(", ")}, marked out by --unsupported-ok` : ""}`,
             }
           : {
               status: "failed",
-              reason: `${uncovered.length} claim(s) cited with a code citation or quote have no packet: ${uncovered.join(", ")}`,
-              todo: `add them with ${buildCommand} --only ${[...claims, ...uncovered].join(",")} and have the new packets answered, or keep them out of the support check by your choice with --unsupported-ok ${uncovered.join(",")}`,
+              reason: `${uncovered.length} cited claim(s) have no packet: ${uncovered.join(", ")}`,
+              todo: `give each a code citation or quote beside it if it has none, add them with ${buildCommand} --only ${[...claims, ...uncovered].join(",")} and have the new packets answered, or keep them out of the support check by your choice with --unsupported-ok ${uncovered.join(",")}`,
             },
       );
     }
