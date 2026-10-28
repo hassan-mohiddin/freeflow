@@ -792,16 +792,21 @@ const isAbsenceClaim = (claim) => ABSENCE.some((pattern) => pattern.test(claim))
 
 const searchCitations = (cell) => [...cell.matchAll(/\bsearch:(Q\d+)\b/g)].map((match) => match[1]);
 
-/** Source IDs as whole entries of a Source cell (S3, or S3:path for code), not the S3 inside a file name such as no-S3.json. */
+/**
+ * Source IDs as whole entries of a Source cell (S3, S3:path for code, or the (S3) of a quote), not the S3 inside a
+ * file name such as no-S3.json.
+ */
 function sourceIds(cell) {
   return (cell ?? "")
     .split(/[;,\s]+/)
-    .map((entry) => /^(S\d+)(?::|$)/.exec(entry)?.[1])
+    .map((entry) => /^\(?(S\d+)(?::|\)?$)/.exec(entry)?.[1])
     .filter(Boolean);
 }
 
 function validateRegister(parsed, problems, { ledger, plan, judges, searches, rechecks } = {}) {
   validateHeader(parsed, "Claims Register", problems);
+  // A recheck row the table cannot read caps nothing, so the table's own problems are the register's.
+  for (const problem of rechecks?.problems ?? []) problems.push(`${rechecks.file}: ${problem}`);
   const table = validateTable(parsed, REGISTER_COLUMNS, problems);
   if (!table) return;
   const seen = new Set();
@@ -869,12 +874,11 @@ function validateRegister(parsed, problems, { ledger, plan, judges, searches, re
     }
     // A source whose printed numbers cannot all be as printed (a recheck mismatch or decision error) caps the claims
     // resting on it at L1.
-    // A claim that cites the recheck table itself states the recheck's finding, so it does not rest on the number.
-    const citesRecheck = (cells.Source ?? "").split(/[;,\s]+/).includes(rechecks?.file);
-    if (rechecks && !citesRecheck && levelRank(cells.Level) > levelRank("L1"))
+    if (rechecks && levelRank(cells.Level) > levelRank("L1"))
       for (const id of new Set(sourceIds(cells.Source)))
         for (const row of rechecks.flags.get(id) ?? [])
-          // A claim that cites the source for something else names the row in its Limit ("does not rest on N6").
+          // A claim that cites the source for something else, or states the recheck's finding, names the row in its
+          // Limit ("does not rest on N6").
           if (!new RegExp(`\\b${row.id}\\b`).test(cells.Limit ?? ""))
             problems.push(
               `${where}: ${id} has recheck row ${row.id} (${row.status}: ${row.where}), so a claim resting on it is at most L1; it is ${cells.Level}`,
@@ -1472,9 +1476,10 @@ function validateSearch(text, problems, { judges, rubrics } = {}) {
             problems.push(
               `line ${line}: ${agreed ? `the screeners agreed the hit is ${agreed}, and its state is ${record.state}` : "the screeners disagree"}, so settled_by names the person who settled it`,
             );
-          if (settled && screeners.get(record.settled_by)?.model)
+          const settler = settled ? screeners.get(record.settled_by) : undefined;
+          if (settler?.model || settler?.agent)
             problems.push(
-              `line ${line}: settled_by names ${record.settled_by}, a model; a person settles a disagreement`,
+              `line ${line}: settled_by names ${record.settled_by}, ${settler.model ? "a model" : "the reviewing agent"}; a person settles a disagreement`,
             );
         }
       }
