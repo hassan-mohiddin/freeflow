@@ -228,6 +228,7 @@ const levels = new Map(
 // --search: a count the report states about its searches (hits, included, excluded) traces to the search ledger.
 const searchNumbers = new Set();
 const queryNumbers = new Map();
+const queryCounts = new Map();
 if (parsed.values.search) {
   const counts = searchCounts(read(parsed.values.search));
   const perQuery = Object.values(counts.queries);
@@ -238,6 +239,8 @@ if (parsed.values.search) {
   ])
     if (Number.isFinite(value)) searchNumbers.add(String(value));
   for (const [id, row] of Object.entries(counts.queries))
+    queryCounts.set(id, { ...row, total: HIT_STATES.reduce((sum, state) => sum + row[state], 0) });
+  for (const [id, row] of Object.entries(counts.queries))
     queryNumbers.set(
       id,
       new Set(
@@ -247,6 +250,37 @@ if (parsed.values.search) {
       ),
     );
 }
+/**
+ * The numbers in a line that its searches account for, with how many times each may pass. A number after a query ID
+ * (Q2) counts for that query, or for the sum over the queries the line names ("Q1 and Q2 returned 4 hits in total");
+ * a number before any query ID counts as any count the ledger computes; a query the ledger lacks accounts for none.
+ */
+function searchCountsIn(line) {
+  const mentions = [...line.matchAll(/\bQ\d+\b/g)];
+  const named = [...new Set(mentions.map((match) => match[0]))];
+  const known = named.filter((id) => queryNumbers.has(id));
+  const sums = new Set(
+    [...HIT_STATES, "total"].map((state) =>
+      String(known.reduce((sum, id) => sum + Number(queryCounts.get(id)[state]), 0)),
+    ),
+  );
+  const allowed = new Map();
+  const count = (number) => allowed.set(number, (allowed.get(number) ?? 0) + 1);
+  const before = mentions.length > 0 ? line.slice(0, mentions[0].index) : line;
+  for (const number of numbersIn(before)) if (searchNumbers.has(number)) count(number);
+  // The sum counts only when the queries are named together, with no count between them ("Q1 and Q2 returned 4").
+  let listed = true;
+  mentions.forEach((match, at) => {
+    const segment = line.slice(match.index, mentions[at + 1]?.index ?? line.length);
+    const own = queryNumbers.get(match[0]);
+    const numbers = numbersIn(segment);
+    for (const number of numbers)
+      if (own && (own.has(number) || (listed && known.length > 1 && sums.has(number)))) count(number);
+    if (numbers.length > 0) listed = false;
+  });
+  return allowed;
+}
+
 const SEARCH_WORDS = /\b(?:quer(?:y|ies)|hits?|screened|included|excluded|duplicates?|unscreened|searches?)\b/i;
 
 const problems = [];
@@ -274,14 +308,13 @@ for (const unit of units(read(report))) {
   blankQuoteCitations(unit.text)
     .split("\n")
     .forEach((line, offset) => {
+      const searchCounted = parsed.values.search && SEARCH_WORDS.test(line) ? searchCountsIn(line) : new Map();
       for (const number of numbersIn(line)) {
         checkedNumbers += 1;
         if (supported.has(number)) continue;
-        if (SEARCH_WORDS.test(line)) {
-          // A line that names its query (Q2) passes only that query's counts; otherwise any count the ledger computes.
-          const named = [...new Set(line.match(/\bQ\d+\b/g) ?? [])].filter((id) => queryNumbers.has(id));
-          if (named.length > 0 ? named.some((id) => queryNumbers.get(id).has(number)) : searchNumbers.has(number))
-            continue;
+        if ((searchCounted.get(number) ?? 0) > 0) {
+          searchCounted.set(number, searchCounted.get(number) - 1);
+          continue;
         }
         problems.push({
           line: unit.line + offset,

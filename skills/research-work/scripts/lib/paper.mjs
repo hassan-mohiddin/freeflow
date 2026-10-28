@@ -282,7 +282,7 @@ export function draftCheck(
   // Acronyms: defined as "Long Form (ACR)" or "ACR (long form)" at or before first use.
   const firstUse = new Map();
   const definedAt = new Map();
-  // The title, YAML front matter and header lines are not uses (a definition there still counts).
+  // YAML front matter and header lines are not uses (a definition there still counts); headings are not read at all.
   const frontMatterEnd = plain[0] === "---" ? plain.indexOf("---", 1) : -1;
   plain.forEach((line, index) => {
     if (/^#/.test(line)) return;

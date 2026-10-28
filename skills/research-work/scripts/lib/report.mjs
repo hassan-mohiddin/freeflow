@@ -108,7 +108,7 @@ export function numbersIn(line) {
   const numbers = [];
   // A number after a capitalised name and a hyphen is part of the name (GPT-4, Claude-3.5-Sonnet, CIFAR-10), not a
   // quantity; one after a lowercase word ("alpha-0.05") or before a hyphen ("a 20-point gap") still is.
-  const pattern = /(?<![\w.]|\b[A-Z][A-Za-z0-9.]*-)[-−]?\d[\d,]*(?:\.\d+)?%?(?![\w]|\.\d)/g;
+  const pattern = /(?<![\w.]|\b[A-Z][A-Za-z]*-)[-−]?\d[\d,]*(?:\.\d+)?%?(?![\w]|\.\d)/g;
   for (const match of text.matchAll(pattern)) {
     const before = text.slice(0, match.index);
     if (LABEL_WORDS.test(before)) continue;
@@ -249,7 +249,7 @@ export function percentMismatches(line) {
 // Wording that says one thing made another better or caused it: it needs a controlled comparison (L4) behind it.
 // "causes" after an article or before "of" is the noun ("the causes of"), not the verb.
 const STRONG =
-  /\b(?:improv(?:e|es|ed|ing|ement|ements)|increas(?:e|es|ed)|rais(?:e|es|ed)|boost(?:s|ed)?|outperform(?:s|ed)?|beats?|better than|superior to|(?<!\b(?:the|its|their|possible|main|root|underlying|common|likely|known|two|three|several)\s)caus(?:e|es|ed)(?!\s+of\b)|leads? to|results? in)\b/gi;
+  /\b(?:improv(?:e|es|ed|ing|ement|ements)|increas(?:e|es|ed)|rais(?:e|es|ed)|boost(?:s|ed)?|outperform(?:s|ed)?|beats?|better than|superior to|(?<!\b(?:the|its|their|possible|main|root|underlying|common|two|three|several)\s)caus(?:e|es|ed)(?!\s+of\b)|leads? to|results? in)\b/gi;
 // Wording that says a change was for the better, which a negative number contradicts.
 const BETTER = /\b(?:improv(?:e|es|ed|ing|ement|ements)|gains?|boost(?:s|ed)?|better|outperform(?:s|ed)?)\b/i;
 

@@ -837,6 +837,8 @@ test("a lowercase word before a hyphenated number does not hide it, and a named 
     "0.03",
     "4",
   ]);
+  // R21: a name of letters only; a label with a digit (F1-0.8, CI95-0.5) is a quantity.
+  assert.deepEqual(numbersIn("F1-0.8 and CI95-0.5; GPT-5.4-mini and Llama-2-70B"), ["0.8", "0.5"]);
   const dir = folder();
   writeFileSync(
     join(dir, "claims.md"),
@@ -868,6 +870,11 @@ test("a lowercase word before a hyphenated number does not hide it, and a named 
   };
   assert.equal(trace("Q1 returned 3 hits, 2 of them excluded"), 0);
   assert.equal(trace("Q2 returned 3 hits"), 1, "3 is Q1's count, not Q2's");
+  // R21: each count belongs to the query before it; a total over the named queries passes; an unknown query passes none.
+  assert.equal(trace("Q1 returned 3 hits and Q2 returned 3 hits"), 1, "the second 3 is not Q2's");
+  assert.equal(trace("Q1 returned 3 hits and Q2 returned 0 hits"), 0);
+  assert.equal(trace("Q1 and Q2 returned 3 hits in total"), 0);
+  assert.equal(trace("Q9 returned 3 hits"), 1, "Q9 is not in the ledger");
 });
 
 test("YAML front matter and a header line are not first uses, a header definition counts, and LLM-based is a use (R18)", () => {
@@ -879,4 +886,5 @@ test("YAML front matter and a header line are not first uses, a header definitio
   assert.deepEqual(notes("# P\n\n> **Key:** a large language model (LLM) judge\n\n## Intro\n\nLLM judges here.\n"), []);
   assert.equal(notes("# P\n\n## Intro\n\nLLM-based judges.\n\nThen a large language model (LLM).\n").length, 1);
   assert.deepEqual(wordingNotes("Its root causes are order and length (C1).", new Map([["C1", "L2"]])), []);
+  assert.equal(wordingNotes("The change will likely cause a regression (C1).", new Map([["C1", "L2"]])).length, 1);
 });
