@@ -199,3 +199,24 @@ test("review-packet points Method at the base's copy of Review Work when the cha
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("review-packet numbers briefs in sequence across a task and never replaces a review that has reported", async () => {
+  const { root, base, task } = await project();
+  try {
+    await write(task, {
+      "scratch/reviews/R1-brief.md": "Review: 1\nReviewed state: abc\n",
+      "scratch/reviews/R1-report.md": "Judgment: Pass\n",
+      "scratch/reviews/R2-brief.md": "Review: 1\nReviewed state: def\n",
+      "scratch/reviews/R2-report.md": "Judgment: Pass\n",
+    });
+    const result = run(root, ["--review", "1", "--base", base, "--task", task, "--boundary", "merge", "--json"]);
+    assert.equal(result.status, 0, result.stdout);
+    assert.match(JSON.parse(result.stdout).brief, /R3-brief\.md$/);
+    assert.equal(await readFile(join(task, "scratch/reviews/R1-brief.md"), "utf8"), "Review: 1\nReviewed state: abc\n");
+    // Run again: R3 has no report yet, so its draft is written again rather than a new R4.
+    const again = run(root, ["--review", "1", "--base", base, "--task", task, "--boundary", "merge", "--json"]);
+    assert.match(JSON.parse(again.stdout).brief, /R3-brief\.md$/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

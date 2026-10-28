@@ -7,7 +7,7 @@
 // Usage: review-packet.mjs --review <1|2|3> --base <ref> [--head <ref>] [--task <task folder>] [--out <brief.md>]
 //                          [--boundary <text>] [--agreement <path>]... [--evidence <path>]... [--may-run <text>]
 //                          [--root <repository>] [--json]
-// With --task, the brief is written to <task>/scratch/reviews/R<n>-brief.md, the report path is R<n>-report.md beside
+// With --task, the brief is written to <task>/scratch/reviews/R<n>-brief.md, n the next number free in the task, the report path is R<n>-report.md beside
 // it, the agreement defaults to the task's record.md, and Review 2 or 3 takes its diff from the previous brief's
 // reviewed state, points to R<n-1>-report.md and prints the size of that correction diff. Docs come from Write Docs'
 // docs-check.mjs --covering on the changed files; Review rules from a REVIEW.md or a tracked Markdown file with a
@@ -15,8 +15,8 @@
 // The default May run is the declared npm checks and probes on scratch copies.
 // Exit code: check-brief's (0 passes, 1 has problems); 2 on a usage or Git error.
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { reviewRulesSections } from "./lib/review-rules.mjs";
@@ -86,15 +86,37 @@ const tick = (paths) => paths.map((path) => `\`${show(path)}\``).join(", ");
 
 const task = values.task ? resolve(values.task) : null;
 const reviews = task ? join(task, "scratch", "reviews") : dirname(resolve(values.out));
-const briefPath = values.out ? resolve(values.out) : join(reviews, `R${round}-brief.md`);
-const reportPath = join(task ? reviews : dirname(briefPath), `R${round}-report.md`);
+// Reviews in a task folder are numbered in sequence across the task (R1, R2, … whatever their round), so a new
+// brief takes the next free number and never overwrites an earlier review's brief or report.
+const numbered = existsSync(reviews)
+  ? readdirSync(reviews)
+      .map((name) => /^R(\d+)-(?:brief|report)\.md$/.exec(name)?.[1])
+      .filter(Boolean)
+      .map(Number)
+  : [];
+const latest = numbered.length > 0 ? Math.max(...numbered) : 0;
+// The latest brief is written again only while it is a draft of this same round (no report yet, the same Review
+// number); a review that has reported, or a brief for another round, is never replaced.
+const latestBrief = join(reviews, `R${latest}-brief.md`);
+const draftOfThisRound =
+  latest > 0 &&
+  existsSync(latestBrief) &&
+  !existsSync(join(reviews, `R${latest}-report.md`)) &&
+  /^Review:\s*(\d)/m.exec(readFileSync(latestBrief, "utf8"))?.[1] === String(round);
+const slot = draftOfThisRound ? latest : latest + 1;
+const briefPath = values.out ? resolve(values.out) : join(reviews, `R${slot}-brief.md`);
+const reportName = /^R\d+-brief\.md$/.test(basename(briefPath))
+  ? basename(briefPath).replace("-brief", "-report")
+  : `R${slot}-report.md`;
+const reportPath = join(task ? reviews : dirname(briefPath), reportName);
 const notes = [];
 
 // Review 2 or 3 reviews the range since the previous review's reviewed state.
 let diffBase = values.base;
 let previousReport = null;
 if (round > 1) {
-  const previousBrief = join(reviews, `R${round - 1}-brief.md`);
+  // The previous review is the one numbered just before this brief.
+  const previousBrief = join(reviews, `R${slot - 1}-brief.md`);
   const reviewed = existsSync(previousBrief)
     ? /^\s*(?:[-*]\s+)?(?:\*\*)?Reviewed state:(?:\*\*)?\s*`?([0-9a-fA-F]{7,40}|\S+?)`?(\s|$)/m.exec(
         readFileSync(previousBrief, "utf8"),
@@ -102,7 +124,7 @@ if (round > 1) {
     : null;
   if (reviewed && commitOf(reviewed)) diffBase = reviewed;
   else notes.push(`no previous brief with a Reviewed state at ${show(previousBrief)}: the diff starts at --base`);
-  const candidate = join(reviews, `R${round - 1}-report.md`);
+  const candidate = join(reviews, `R${slot - 1}-report.md`);
   if (existsSync(candidate)) previousReport = candidate;
   else notes.push(`no previous report at ${show(candidate)}: add its path and adjudication to "Previous report"`);
 }
