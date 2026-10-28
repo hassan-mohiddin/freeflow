@@ -53,7 +53,7 @@ Answer the strongest objection a reader will raise where it arises, once, with t
 
 ## What The Gate Runs
 
-`research.mjs gate` runs each check below that its rigor requires or its file makes possible. A file that is present is always checked, and its failure fails the gate, except a paper's PDF below publication, which no lower rigor requires: its result is shown and holds nothing; a claims register or outline still as `init` wrote it counts as absent. A passed check's notes (what it did not check, or a warning) are printed beneath it: read each one.
+`research.mjs gate` runs each check below that its rigor requires or its file makes possible. A file that is present is always checked, and its failure fails the gate, except a paper's PDF below publication, which no lower rigor requires: its result is shown and holds nothing; a claims register, outline, evidence table or recheck table still as `init` wrote it counts as absent. A passed check's notes (what it did not check, or a warning) are printed beneath it: read each one.
 
 | Check | Runs | Required at |
 | --- | --- | --- |
@@ -62,7 +62,8 @@ Answer the strongest objection a reader will raise where it arises, once, with t
 | Search ledger: `validate` | when it has lines | — |
 | Study plan: `validate`, then `study.mjs check` | when there is a plan; a register with a confirmatory claim and no plan fails, since a confirmatory claim is a study's | — |
 | Claims register: `validate --sources`, with `--plan`, `--search` and `--recheck` when they exist | when it is filled in | study, publication |
-| Report and paper: `sources.mjs cite-check`; `claims.mjs trace`, with `--results` when there is a plan and `--search` when there is a search ledger | for each one present; cite-check that finds no citation has not run (a paper citing only `[@S<n>]` is checked by draft-check) | cite-check at every rigor; trace when there is a register, and at study and publication |
+| Evidence table: `validate --sources` | when it is filled in (`synthesis/evidence-table.md`, or `--evidence`) | — |
+| Report and paper: `sources.mjs cite-check`; `claims.mjs trace`, with `--results` when there is a plan (`--results --cited-only` when there is none and a register row's Source names a result file) and `--search` when there is a search ledger; `--report -` or `--paper -` reads the text from stdin | for each one present; cite-check that finds no citation has not run (a paper citing only `[@S<n>]` is checked by draft-check) | cite-check at every rigor; trace when there is a register, and at study and publication |
 | Paper: its outline's `validate`; `claims.mjs draft-check` | with a paper | — |
 | Citation support: `claims.mjs support-check`, on packets that still match the report and paper; a packet for every claim either cites with a code citation or quote, except those `--unsupported-ok C<n>,...` keeps out by your choice, which it lists as not checked | at publication, or when answers exist | publication |
 | PDF: `paper.mjs check-pdf`, against the venue's `--max-pages`, `--max-words` and `--require <section>`; at publication, with none given, it is not checked | when one is built | a paper at publication |
@@ -194,7 +195,7 @@ The contract between the stages: every claim a report or paper makes is a row he
 - Validate a study's register with `--plan <study plan>` too. It refuses a confirmatory claim unless its ID is a confirmatory hypothesis of the plan, the plan is locked as it stands, and no amendment changed that hypothesis after study runs existed; and it refuses an analysis variant the plan lists, or listed in any locked version, that no row's Claim, Scope or Limit names as `variant V<n>`.
 - A claim citing `judge:<record>` is at most L1 unless that judge validation record validates and its Result is `pass`; validation checks this whenever a row cites one. When the plan lists a model as `judge` or `annotator`, validation with `--plan` refuses a claim above L1 that cites a result file and neither `judge:<record>` nor `judge:none` (no model's labels feed it).
 - With `--plan`, a confirmatory claim whose hypothesis names a `stats.mjs` Method is checked against the result files it cites that hold its numbers (every cited one, when none does): each must record `computed_by` as a part of the Method, and at least one as its last part, the correction when one is listed (`stats.mjs correct holm`; the raw test's file may sit beside it), and a receipt run under the locked plan, with `stats.mjs` as its program or node's script, must have written it as it is now. `stats.mjs --out <file>` writes the result for the receipt to declare.
-- `claims.mjs trace --results` finds each number in the Numbers column in the result files the row's Source names, at the precision written (0.83 matches 0.8333; 65% matches 0.65). A row with numbers and no result file is listed as not checked. A saved text copy of a paper (in `sources/`) serves as a result file, for the numbers a review copies from it.
+- `claims.mjs trace --results` finds each number in the Numbers column in the result files the row's Source names, at the precision written (0.83 matches 0.8333; 65% matches 0.65). A row with numbers and no result file is listed as not checked and fails, except with `--cited-only`, the gate's form when there is no plan, where it is listed without failing; a code citation `S<n>:path` is a source, not a result file. A saved text copy of a paper (in `sources/`) serves as a result file, for the numbers a review copies from it.
 
 ### Research Report
 

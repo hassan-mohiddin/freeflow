@@ -111,7 +111,7 @@
       "case_concept": "A natural request for an in-depth report or a literature review should read the skill and produce the brief, ledgers, register and checked report; a comparison of options in hand or a single lookup should not; a quick yes-or-no question should run at check rigor, not study.",
       "current_result": "One end-to-end run: a Haiku agent followed the skill to report on the Codex CLI's turn path at a pinned commit; its 93 citations passed cite-check, and a check of five claims against the code found three that dropped a guard condition, which led to revisions of the skill text (the saved report was not corrected). The run used the text at 58b44b72; later changes only say what a passing check and trace cover. The scripts have their own tests (.skill-eval/research-work/tests). Activation cases are written but not run. The study route's gates have their own tests. One study ran end to end (two Haiku agents, the Wald and Wilson coverage question): its numbers match an independent computation, and its workers' notes led to fixes recorded in the design record.",
       "source_path": "skills/research-work/SKILL.md",
-      "source_sha256": "e5a729e5cb16c879b2db3bf045940a4bc4a9a66c6306eae5c2972fab0bbc8c5b",
+      "source_sha256": "2c5a1c18636bc54553f12eaca462019e23c2f2b3eabf3f7ce93d9d5640fb8c9e",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
