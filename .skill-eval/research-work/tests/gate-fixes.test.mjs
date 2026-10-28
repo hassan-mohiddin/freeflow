@@ -128,3 +128,44 @@ test("a register citing only sources or code, with no study plan, is traced with
   const result = gate(folder);
   assert.doesNotMatch(check(result, "report-trace").command, /--results/);
 });
+
+const evidenceTable = (rows) => `# Evidence Table: Retries
+
+> **Type:** Evidence Table
+> **Status:** Draft
+> **Owner:** Hassan Mohiddin
+
+| Source | Design | n | Result | Failure condition | Level |
+| --- | --- | --- | --- | --- | --- |
+${rows.join("\n")}
+`;
+
+test("a review's evidence table is validated against the source ledger, and one as init wrote it counts as absent", () => {
+  const folder = mkdtempSync(join(tmpdir(), "research-gate-fixes-"));
+  assert.equal(
+    node("artifact.mjs", "init", "project", folder, "--title", "Retries", "--owner", "O", "--kind", "review").status,
+    0,
+  );
+  // The skeleton init wrote is not checked.
+  assert.equal(check(gate(folder), "evidence"), undefined);
+
+  const filled = project();
+  const table = join(filled, "synthesis", "evidence-table.md");
+  mkdirSync(join(filled, "synthesis"));
+  writeFileSync(table, evidenceTable(["| S9 | within-item comparison | 500 | +0.5 | no gain | L2 |"]));
+  const unknown = gate(filled);
+  assert.equal(unknown.status, 1);
+  assert.equal(check(unknown, "evidence").status, "failed");
+  assert.match(check(unknown, "evidence").command, /validate .*evidence-table\.md --sources/);
+  assert.ok(check(unknown, "evidence").output.some((line) => /no S9/.test(line)));
+
+  writeFileSync(table, evidenceTable(["| S1 | within-item comparison | 500 | +0.5 | no gain | L2 |"]));
+  const known = gate(filled);
+  assert.equal(check(known, "evidence").status, "passed", JSON.stringify(check(known, "evidence"), null, 2));
+  assert.equal(known.status, 0, JSON.stringify(known.checks, null, 2));
+
+  // --evidence names one elsewhere.
+  const elsewhere = join(filled, "table.md");
+  writeFileSync(elsewhere, evidenceTable(["| S9 | within-item comparison | 500 | +0.5 | no gain | L2 |"]));
+  assert.equal(check(gate(filled, "--evidence", elsewhere), "evidence").status, "failed");
+});

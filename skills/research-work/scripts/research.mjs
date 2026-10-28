@@ -39,8 +39,9 @@ const USAGE = [
   "a code citation or quote, except those --unsupported-ok marks out by the author's choice), and a paper's PDF",
   "(check-pdf, against the venue's --max-pages, --max-words or --require). A study plan, when present, is validated",
   "and checked with study.mjs check, and the register is validated against it; a register with a confirmatory claim",
-  "and no plan fails. A file that is present is always checked, and its failure fails the gate (a PDF below",
-  "publication is shown and holds nothing); a claims register or outline still as init wrote it counts as absent.",
+  "and no plan fails. A review's evidence table is validated with --sources. A file that is present is always",
+  "checked, and its failure fails the gate (a PDF below publication is shown and holds nothing); a claims register,",
+  "outline, evidence table or recheck table still as init wrote it counts as absent.",
   "A passed check's notes are printed beneath it. --repo, --copy and --reads go to cite-check and support; --copy,",
   "--limit and --allow to draft-check; --max-pages, --max-words and --require to check-pdf. A source's saved copy",
   "in the sources folder, named for its ID (S3.txt) or its pin without the scheme (2306.05685v4.txt), is found",
@@ -117,6 +118,8 @@ const used = {
   searches: has("searches") && (text(paths.searches) ?? "").trim() !== "",
   // A review's recheck table caps the claims resting on a mismatched source; unchanged since init, it holds no rows.
   recheck: has("recheck") && !isSkeleton("recheck", text(paths.recheck)),
+  // A review's evidence table, as init wrote it, holds no rows yet.
+  evidence: has("evidence") && !isSkeleton("evidence-table", text(paths.evidence)),
 };
 for (const file of ["brief", "sources", "plan", "report", "paper", "pdf", "packets", "verdicts"])
   used[file] = has(file);
@@ -262,6 +265,14 @@ if (atLeast("publication") && used.sources) {
 }
 
 if (used.searches) add("searches", "search ledger", true, run("artifact.mjs", ["validate", paths.searches]));
+// A review's evidence table: its rows, and with the source ledger, its sources and levels.
+if (used.evidence)
+  add(
+    "evidence",
+    "evidence table",
+    true,
+    run("artifact.mjs", ["validate", paths.evidence, ...(used.sources ? ["--sources", paths.sources] : [])]),
+  );
 
 // A study: its plan, and its lock, receipts and deviations.
 if (used.plan) {
