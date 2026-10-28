@@ -529,7 +529,7 @@ export function checkStudy(planPath) {
     const hypotheses = planHypothesesTable(text);
     if (hypotheses.confirmatory && !hypotheses.withMethod)
       notes.push(
-        "the plan's Hypotheses name no Method, so no verdict is checked against the method that computed it (add the column in an amendment)",
+        "the plan's Hypotheses name no Method, so no verdict is checked against the method that computed it (add the column by amendment before the runs that count; after them it makes the hypothesis exploratory)",
       );
     if (!has("Contamination"))
       notes.push('the plan records no contamination routes (add "## Contamination" in an amendment)');

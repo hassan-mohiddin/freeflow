@@ -213,7 +213,7 @@ test("a confirmatory verdict must come from the method the locked rule names, th
   assert.match(
     registerProblems(study({ results: [{ name: "c1", hand: { p: 0.0215, computed_by: "stats.mjs paired mcnemar" } }] }))
       .text,
-    /no receipt in the plan's run ledger wrote results\/c1\.json/,
+    /no receipt of the locked study wrote results\/c1\.json/,
   );
   // A rule computed another way is not checked against stats.mjs.
   assert.equal(
@@ -392,4 +392,97 @@ test("an arm outside the comparison is marked so, and a plan with no Method colu
   );
   node("study.mjs", "lock", plan, "--by", "Hassan Mohiddin");
   assert.match(node("study.mjs", "check", plan).stdout, /Hypotheses name no Method/);
+});
+
+test("under a corrected rule the verdict is the correction, from a stats.mjs receipt of the locked study (R17)", () => {
+  // The raw McNemar p cited under "paired mcnemar; correct holm" is refused: the plan's verdict is the Holm-adjusted p.
+  const raw = registerProblems(
+    study({
+      method: "paired mcnemar; correct holm",
+      results: [{ name: "mc", family: "paired", input: { method: "mcnemar", armOnly: 9, referenceOnly: 1 } }],
+    }),
+  );
+  assert.equal(raw.status, 1);
+  assert.match(
+    raw.text,
+    /the verdict is stats\.mjs correct holm\), but no cited result file holding its numbers was computed by stats\.mjs correct holm/,
+  );
+  // The raw p beside the adjusted p, each cited, is the usual way to report a corrected test.
+  const both = registerProblems(
+    study({
+      method: "paired mcnemar; correct holm",
+      numbers: "0.0215, 0.043",
+      results: [
+        { name: "mc", family: "paired", input: { method: "mcnemar", armOnly: 9, referenceOnly: 1 } },
+        { name: "holm", family: "correct", input: { method: "holm", pValues: [0.0215, 0.03] } },
+      ],
+    }),
+  );
+  assert.equal(both.status, 0, both.text);
+  // A receipt that only names stats.mjs while another command writes the file does not count.
+  const dir = mkdtempSync(join(tmpdir(), "research-forged-"));
+  const plan = join(dir, "plan.md");
+  writeFileSync(plan, planText());
+  node("study.mjs", "lock", plan, "--by", "Hassan Mohiddin");
+  const out = join(dir, "forged.json");
+  const write = `require("fs").writeFileSync(${JSON.stringify(out)}, JSON.stringify({ p: 0.0215, computed_by: "stats.mjs paired mcnemar" }))`;
+  node("study.mjs", "run", plan, "--output", out, "--", process.execPath, "-e", write, "stats.mjs");
+  writeFileSync(
+    join(dir, "claims.md"),
+    "# Claims Register: F\n\n> **Type:** Claims Register\n> **Status:** Draft\n> **Owner:** Hassan Mohiddin\n\n| ID | Claim | Numbers | Source | Level | Kind | Scope | Limit |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| C1 | b beats a | 0.0215 | forged.json | L4 | confirmatory | t1 | one |\n",
+  );
+  assert.match(
+    registerProblems({ register: join(dir, "claims.md"), plan }).text,
+    /no receipt of the locked study wrote forged\.json/,
+  );
+  // A citation of a folder is refused cleanly, not with a crash.
+  writeFileSync(
+    join(dir, "claims.md"),
+    readFileSync(join(dir, "claims.md"), "utf8").replace("| forged.json |", "| results/ |"),
+  );
+  mkdirSync(join(dir, "results"));
+  const folder = registerProblems({ register: join(dir, "claims.md"), plan });
+  assert.equal(folder.status, 1);
+  assert.doesNotMatch(folder.text, /EISDIR|at .*artifact\.mjs/);
+});
+
+test("a verdict computed before the lock does not count (R17)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "research-prelock-"));
+  const plan = join(dir, "plan.md");
+  writeFileSync(plan, planText());
+  const input = join(dir, "in.json");
+  const out = join(dir, "c1.json");
+  writeFileSync(input, JSON.stringify({ method: "mcnemar", armOnly: 9, referenceOnly: 1 }));
+  node(
+    "study.mjs",
+    "run",
+    plan,
+    "--input",
+    input,
+    "--output",
+    out,
+    "--",
+    process.execPath,
+    join(SCRIPTS, "stats.mjs"),
+    "paired",
+    "--input",
+    input,
+    "--out",
+    out,
+  );
+  node("study.mjs", "lock", plan, "--by", "Hassan Mohiddin");
+  writeFileSync(
+    join(dir, "claims.md"),
+    "# Claims Register: P\n\n> **Type:** Claims Register\n> **Status:** Draft\n> **Owner:** Hassan Mohiddin\n\n| ID | Claim | Numbers | Source | Level | Kind | Scope | Limit |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| C1 | b beats a | 0.0215 | c1.json | L4 | confirmatory | t1 | one |\n",
+  );
+  assert.match(
+    registerProblems({ register: join(dir, "claims.md"), plan }).text,
+    /no receipt of the locked study wrote c1\.json/,
+  );
+});
+
+test("only the exact labels control and not compared lift the equal-budget rule (R17)", () => {
+  const runs =
+    "| t1 | a | 1 | 20 prompt edits, 1M tokens |\n| t1 | b | 1 | controlled sweep, 200 prompt edits, 1M tokens |";
+  assert.ok(problems(planText({ runs })).some((problem) => problem.includes("different budgets")));
 });

@@ -642,7 +642,7 @@ function validatePlan(parsed, problems) {
     }
     // Equal budgets: unequal tuning alone has reversed published rankings, so the arms a confirmatory hypothesis
     // compares get the same tuning and compute. A do-nothing or oracle arm is marked control.
-    const outside = (budget) => /^(?:control|not compared:\s*\S)/i.test(budget);
+    const outside = (budget) => /^control$/i.test(budget.trim()) || /^not compared:\s*\S/i.test(budget.trim());
     const budgets = new Set(runs.rows.map((row) => row.cells.Budget).filter((budget) => budget && !outside(budget)));
     if (withBudget && comparison && budgets.size > 1)
       problems.push(
@@ -864,13 +864,16 @@ function validateRegister(parsed, problems, { ledger, plan, judges, searches } =
 const claimIds = (cell) => cell.match(/\bC\d+\b/g) ?? [];
 
 /**
- * The verdict must come from the methods the locked rule names (a test, and the correction applied to it): every
- * result file that holds the claim's numbers (every cited one, when none does) records `computed_by` as one of them,
- * and a receipt in the plan's run ledger wrote that file as it is now, by running stats.mjs. `resultFile(path)` gives
- * `{ numbers, computedBy, receipt }` for a path relative to the register, or null when it cannot be read.
+ * The verdict must come from the method the locked rule names: when the Method lists a test and the correction
+ * applied to it, the verdict is the corrected one: every result file that holds the claim's numbers (every cited one,
+ * when none does) records `computed_by` as a listed part, at least one of them as the last, and a receipt of the
+ * locked study that ran stats.mjs wrote each as it is now. `resultFile(path)` gives `{ numbers, computedBy, receipt }` for a path
+ * relative to the register, or null when it cannot be read.
  */
 function methodProblems(where, cells, method, resultFile) {
-  const allowed = method.split(";").map((part) => `stats.mjs ${part.trim()}`);
+  const parts = method.split(";").map((part) => `stats.mjs ${part.trim()}`);
+  const verdict = parts.at(-1);
+  const named = parts.length > 1 ? `${parts.join(", then ")} (the verdict is ${verdict})` : verdict;
   const files = resultCitations(cells.Source ?? "")
     .map((file) => ({ path: file.path, ...(resultFile(file.path) ?? { missing: true }) }))
     .filter((file) => !file.missing);
@@ -880,22 +883,28 @@ function methodProblems(where, cells, method, resultFile) {
   const problems = [];
   if (checked.length === 0)
     return [
-      `${where}: the locked plan decides ${cells.ID} with ${allowed.join(", then ")}, and Source cites no result file to check it against`,
+      `${where}: the locked plan decides ${cells.ID} with ${named}, and Source cites no result file to check it against`,
     ];
   for (const file of checked) {
     if (file.computedBy.length === 0)
       problems.push(
         `${where}: ${file.path} records no computed_by, so the method behind ${cells.ID}'s verdict is unknown; compute it with stats.mjs`,
       );
-    else if (file.computedBy.some((value) => !allowed.includes(value)))
+    else if (file.computedBy.some((value) => !parts.includes(value)))
       problems.push(
-        `${where}: the locked plan decides ${cells.ID} with ${allowed.join(", then ")}, but ${file.path} was computed by ${[...new Set(file.computedBy)].join(", ")}`,
+        `${where}: the locked plan decides ${cells.ID} with ${named}, but ${file.path} was computed by ${[...new Set(file.computedBy)].join(", ")}`,
       );
     else if (file.receipt === null)
       problems.push(
-        `${where}: no receipt in the plan's run ledger wrote ${file.path} as it is now; run the computation through study.mjs run, declaring the file as --output`,
+        `${where}: no receipt of the locked study wrote ${file.path} as it is now by running stats.mjs; run it through study.mjs run after the lock (node stats.mjs <family> --input <file> --out ${file.path}), declaring the file as --output`,
       );
   }
+  // The verdict itself (the correction, under a corrected rule) must be among the files that carry the numbers; the
+  // uncorrected test may sit beside it, as when a register states both the raw and the adjusted p.
+  if (problems.length === 0 && !checked.some((file) => file.computedBy.includes(verdict)))
+    problems.push(
+      `${where}: the locked plan decides ${cells.ID} with ${named}, but no cited result file holding its numbers was computed by ${verdict}`,
+    );
   return problems;
 }
 

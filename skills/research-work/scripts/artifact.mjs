@@ -143,8 +143,12 @@ if (command === "init" && rest[0] === "project") {
       // and the last receipt in the plan's run ledger that wrote it as it is now and ran stats.mjs (null when none).
       resultFile: (file) => {
         const full = resolve(dirname(path), file);
-        if (!existsSync(full)) return null;
-        const text = readFileSync(full, "utf8");
+        let text;
+        try {
+          text = readFileSync(full, "utf8");
+        } catch {
+          return null;
+        }
         const computedBy = [];
         try {
           const walk = (value) => {
@@ -159,12 +163,15 @@ if (command === "init" && rest[0] === "project") {
         }
         const hash = fileHash(full);
         const folder = dirname(resolve(values.plan));
+        // The receipt ran stats.mjs itself (as the program, or as node's script), under a locked version of this plan.
+        const lockedHashes = new Set((lockState(values.plan).lock?.entries ?? []).map((entry) => entry.sha256));
+        const ranStats = (argv = []) => argv.slice(0, 2).some((arg) => /(?:^|[/\\])stats\.mjs$/.test(arg));
         const receipt =
           readLedger(join(folder, "runs.jsonl"))
             .filter((record) =>
               (record.outputs ?? []).some((output) => resolve(folder, output.path) === full && output.sha256 === hash),
             )
-            .filter((record) => (record.argv ?? []).some((arg) => /(?:^|[\s/])stats\.mjs(?:\s|$)/.test(arg)))
+            .filter((record) => ranStats(record.argv) && record.plan_locked && lockedHashes.has(record.plan_sha256))
             .at(-1) ?? null;
         return { numbers: resultNumbers(text, file), computedBy, receipt };
       },
