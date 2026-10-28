@@ -63,6 +63,17 @@ const FAMILIES = {
     improvement: ({ x, y, resamples, seed, confidence }) =>
       stats.probabilityOfImprovement(x, y, { resamples, seed, confidence }),
   },
+  effect: Object.fromEntries(
+    stats.EFFECT_MEASURES.map((measure) => [
+      measure,
+      ({ studies, method: _method, ...study }) =>
+        studies !== undefined ? stats.effectSizes(measure, studies) : stats.effectSize(measure, study),
+    ]),
+  ),
+  meta: {
+    fixed: ({ yi, vi, confidence }) => stats.metaFixed(yi, vi, { confidence }),
+    random: ({ yi, vi, confidence }) => stats.metaRandom(yi, vi, { confidence }),
+  },
   tost: {
     paired: ({ differences, low, high, alpha }) => stats.tostPaired(differences, { low, high, alpha }),
   },
@@ -81,19 +92,24 @@ const FAMILIES = {
 };
 
 const USAGE = [
-  "Usage: stats.mjs <family> [--input <file|->] [--text] [--out <result.json>]",
+  "Usage: stats.mjs <family> [--input <file|->] [--method <method>] [--text] [--out <result.json>]",
   "       stats.mjs recheck <recheck.md> [--write]",
   "",
   "recheck computes each row of a Recheck Table from its Reported text (GRIM, GRIMMER, DEBIT, or p from the statistic",
   "and its degrees of freedom) and prints its Status; --write puts it in the table. It exits 1 when a row is a",
   "mismatch or a decision error, or names no check it knows.",
   "",
-  'One JSON object in; its "method" picks the calculation, the other fields are its inputs. Defaults: confidence',
-  "0.95, alpha 0.05, power 0.8, seed 1. Omitted optional fields take these defaults.",
+  'One JSON object in; its "method" (or --method, which overrides it) picks the calculation, the other fields are its',
+  "inputs. Defaults: confidence 0.95, alpha 0.05, power 0.8, seed 1. Omitted optional fields take these defaults.",
   "",
   ...Object.entries(FAMILIES).map(([family, methods]) => `  ${family.padEnd(10)} ${Object.keys(methods).join(", ")}`),
   "",
   'aggregate takes "scores", one array of run scores per task; optimality-gap takes "target" (1, for scores on 0 to 1).',
+  'meta takes "yi", one effect size per study (a log risk ratio, a standardized mean difference), and "vi", their',
+  "variances; random gives the DerSimonian-Laird tau² with the Hartung-Knapp interval as low and high.",
+  'effect makes them, the arm over the reference: unpaired from "p1", "p2", "n1", "n2"; paired from "armOnly",',
+  '"referenceOnly", "both" (items both passed) and "n"; or "studies", a list of either, giving yi and vi for',
+  "stats.mjs meta --method random --input <that file>.",
   'Example: echo \'{"method":"wilson","successes":10,"n":19}\' | stats.mjs interval',
 ].join("\n");
 
@@ -110,7 +126,20 @@ function defined(object) {
 function summary(result) {
   if (result === null) return "No result: fewer than two raters.";
   const parts = [result.method];
-  for (const name of ["estimate", "kappa", "alpha", "pabak", "p", "power", "passAtK", "passPowerK", "n", "icc"]) {
+  for (const name of [
+    "estimate",
+    "kappa",
+    "alpha",
+    "pabak",
+    "p",
+    "power",
+    "passAtK",
+    "passPowerK",
+    "n",
+    "icc",
+    "tau2",
+    "i2",
+  ]) {
     if (typeof result[name] === "number") parts.push(`${name} ${Number(result[name].toPrecision(6))}`);
   }
   if (typeof result.low === "number")
@@ -120,6 +149,7 @@ function summary(result) {
   if (Array.isArray(result.adjusted))
     parts.push(`adjusted ${result.adjusted.map((p) => Number(p.toPrecision(6))).join(", ")}`);
   if (typeof result.equivalent === "boolean") parts.push(result.equivalent ? "equivalent" : "not shown equivalent");
+  for (const warning of result.warnings ?? []) parts.push(`warning: ${warning}`);
   return parts.join("; ");
 }
 
@@ -130,6 +160,7 @@ try {
     options: {
       input: { type: "string", default: "-" },
       text: { type: "boolean", default: false },
+      method: { type: "string" },
       out: { type: "string" },
       write: { type: "boolean", default: false },
       help: { type: "boolean" },
@@ -194,6 +225,7 @@ try {
   );
 }
 if (input === null || typeof input !== "object" || Array.isArray(input)) fail("the input must be one JSON object");
+if (parsed.values.method !== undefined) input = { ...input, method: parsed.values.method };
 const calculate = Object.hasOwn(FAMILIES[family], input.method) ? FAMILIES[family][input.method] : undefined;
 if (!calculate)
   fail(`unknown method "${input.method}" for ${family}; choose one of: ${Object.keys(FAMILIES[family]).join(", ")}`);

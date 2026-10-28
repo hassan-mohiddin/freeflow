@@ -56,7 +56,7 @@ The record holds:
 - **Which model judged which**: a different model from the one graded, by default. Another family is optional: it flags different items but has not been shown to find more real defects. The same model only when no other is available (one subscription, one model), with the reason written in the record.
 - **The rubric's hash**: the record holds for that rubric only. A changed rubric needs a new record.
 
-A model that labels the data the analysis counts (an annotator coding outputs, a classifier of failures) is a judge as well: its labels carry its error into every number computed from them, and uncorrected model-coded variables have given false positives at several times the nominal rate. Declare it in the plan's Models in the method as `annotator` or `judge`; the register's validation with `--plan` then refuses a claim on the study's results above L1 that cites neither its judge record (`judge:<record>`) nor `judge:none` (no model's labels feed it).
+A model that labels the data the analysis counts (an annotator coding outputs, a classifier of failures) is a judge as well: its labels carry its error into every number computed from them, and uncorrected model-coded variables have given false positives at several times the nominal rate. Declare it in the plan's Models in the method as `annotator` or `judge`; the register's validation with `--plan` then refuses a claim on the study's results above L1 that cites neither its judge record (`judge:<record>`) nor `judge:none` (no model's labels feed it). A model that screens a review's search hits is a judge too: the search ledger names its record, and refuses the hits it screened until the record passes ([search ledger](artifacts.md#search-ledger)).
 
 In use:
 
