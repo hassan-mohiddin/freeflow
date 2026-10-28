@@ -888,3 +888,40 @@ test("YAML front matter and a header line are not first uses, a header definitio
   assert.deepEqual(wordingNotes("Its root causes are order and length (C1).", new Map([["C1", "L2"]])), []);
   assert.equal(wordingNotes("The change will likely cause a regression (C1).", new Map([["C1", "L2"]])).length, 1);
 });
+
+test("a packet carries the sentences that cite its claim, so a widened report sentence is judged, not only the register (final review A)", () => {
+  const dir = folder();
+  const copy = join(dir, "S1.txt");
+  writeFileSync(copy, "Before. The harness retries a failed call twice when the policy allows it. After.");
+  const rows = [
+    {
+      cells: {
+        ID: "C1",
+        Claim: "The harness retries a failed call twice when the policy allows it",
+        Numbers: "2",
+        Source: "S1",
+        Scope: "the design note",
+        Limit: "not run",
+      },
+    },
+  ];
+  const ledger = new Map([["S1", { Pin: "https://example.org/note (accessed 2026-10-27)" }]]);
+  const copies = new Map([["S1", copy]]);
+  const quote = '"retries a failed call twice when the policy allows it" (S1)';
+  const sound = `# R\n\nThe harness retries a failed call 2 times when the policy allows it (C1): ${quote}.\n`;
+  const widened = `# R\n\nThe harness always retries a failed call 2 times,\non every call (C1): ${quote}.\n`;
+  const [good] = buildPackets(sound, rows, ledger, { copies }).packets;
+  const [bad] = buildPackets(widened, rows, ledger, { copies }).packets;
+  assert.deepEqual(bad.stated, [`The harness always retries a failed call 2 times, on every call (C1): ${quote}.`]);
+  assert.notDeepEqual(good, bad);
+  assert.equal(bad.statement, rows[0].cells.Claim);
+  // The question asks about each stated sentence too: one that drops a condition or widens the claim is partial.
+  assert.match(bad.question, /each stated sentence/);
+  assert.match(bad.question, /drops a condition or widens the claim/);
+  // A sentence of citations before "C1, L2." carries the claim's words; the bare ID sentence adds nothing.
+  const before = buildPackets(`# R\n\nIt always retries twice: ${quote}. C1, L2.\n`, rows, ledger, { copies });
+  assert.deepEqual(before.packets[0].stated, [`It always retries twice: ${quote}.`]);
+  // The report and the paper both stating it: each sentence once.
+  const both = buildPackets(`${sound}\n\n${sound}\n\nIn short, it retries (C1).\n`, rows, ledger, { copies });
+  assert.equal(both.packets[0].stated.length, 2);
+});

@@ -95,13 +95,13 @@ function project(rigor, { report = REPORT } = {}) {
   return { folder, copy };
 }
 
-/** Build the support packets and answer each one as supported, quoting its evidence. */
-function answer(folder, copy) {
+/** Build the support packets from the documents named and answer each one as supported, quoting its evidence. */
+function answer(folder, copy, documents = ["report.md"], only = null) {
   const packets = join(folder, "reviews", "support-packets.jsonl");
   const built = node(
     "claims.mjs",
     "support",
-    join(folder, "report.md"),
+    ...documents.map((document) => join(folder, document)),
     "--register",
     join(folder, "claims.md"),
     "--ledger",
@@ -110,6 +110,7 @@ function answer(folder, copy) {
     copy,
     "--out",
     packets,
+    ...(only ? ["--only", only] : []),
   );
   assert.equal(built.status, 0, built.stdout);
   writeFileSync(
@@ -360,6 +361,9 @@ test("a paper gets its outline and draft checks, and at publication rigor its PD
     join(folder, "paper", "paper.md"),
     "# Retries\n\n## Abstract\n\nThe harness retries twice (C1).\n\n## Results\n\nThe harness retries a failed call 2 times (C1) [@S1].\n",
   );
+  // The paper states C1 in its own sentences, so packets built from the report alone are stale.
+  assert.match(check(gate(folder, "--copy", copy), "support").reason, /not what the report and paper/);
+  answer(folder, copy, ["report.md", "paper/paper.md"]);
   const result = gate(folder, "--copy", copy);
   assert.equal(check(result, "outline").status, "not run");
   assert.equal(check(result, "outline").required, true);
@@ -375,7 +379,7 @@ test("a paper gets its outline and draft checks, and at publication rigor its PD
     /paper\.mjs build .*--to pdf --out .*paper\.pdf --ledger .*runs\.jsonl --venue/,
   );
   assert.equal(result.status, 1);
-  // The packets come from the report and the paper; the paper gives C1 no other evidence, so they still match.
+  // Built from the report and the paper, the packets match both.
   assert.equal(check(result, "support").status, "passed");
   assert.equal(check(result, "coverage").status, "passed");
 
@@ -459,6 +463,7 @@ test("at publication every claim cited with a code citation or quote needs a pac
     join(folder, "paper", "paper.md"),
     '# Retries\n\n## Results\n\nThe harness retries a failed call 2 times (C1) [@S1].\n\nIt logs every retry to a file (C2): "retries a failed call twice" (S1).\n',
   );
+  answer(folder, copy, ["report.md", "paper/paper.md"], "C1");
   const paper = gate(folder, "--copy", copy);
   assert.match(check(paper, "coverage").reason, /have no packet: C2$/);
   assert.match(check(paper, "support").command ?? "", /support-check/);
@@ -583,4 +588,19 @@ test("the gate finds a source's saved copy in sources/ by its ID or its pin, so 
   writeFileSync(join(arxiv, "sources", "copies", "S1.txt"), "nothing quoted here");
   assert.equal(check(gate(arxiv), "report-cite").status, "failed");
   assert.equal(check(gate(arxiv, "--copy", `S1=${pinned}`), "report-cite").status, "passed");
+});
+
+test("at publication a report sentence reworded after its packet was answered makes the packet stale (final review A)", () => {
+  const { folder, copy } = project("publication");
+  answer(folder, copy);
+  assert.equal(check(gate(folder, "--copy", copy), "support").status, "passed");
+  // The register and the quote are unchanged; only the report's sentence now drops the condition.
+  writeFileSync(
+    join(folder, "report.md"),
+    REPORT.replace("2 times when the policy allows it", "2 times, on every call"),
+  );
+  const widened = gate(folder, "--copy", copy);
+  assert.equal(check(widened, "support").status, "failed");
+  assert.match(check(widened, "support").reason, /not what the report/);
+  assert.equal(widened.status, 1);
 });
