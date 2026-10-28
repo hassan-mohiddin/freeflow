@@ -151,16 +151,10 @@ function passage(citation, text) {
 }
 
 /**
- * One packet per claim the report cites with evidence: the claim (its sentence, numbers and scope) and every code
- * citation or quote that a passage citing the claim gives, or that the claim's register Source gives. A claim with
- * no such evidence, or whose evidence could not be read, is listed as not checked.
+ * The evidence each claim is given: every code citation or quote that a passage citing the claim gives, or that the
+ * claim's register Source gives, and the claims the report cites.
  */
-export function buildPackets(
-  reportText,
-  registerRows,
-  ledger,
-  { repos = new Map(), copies = new Map(), only = null } = {},
-) {
+function claimEvidence(reportText, registerRows) {
   const evidence = new Map();
   const add = (id, citation) => {
     if (!evidence.has(id)) evidence.set(id, new Map());
@@ -189,10 +183,33 @@ export function buildPackets(
     for (const citation of codeCitations(source)) add(id, { ...citation, kind: "code" });
     for (const citation of quoteCitations(source)) add(id, { ...citation, kind: "quote" });
   }
-  const cited = new Set(units(reportText).flatMap((unit) => claimIds(unit.text)));
+  const cited = [...new Set(units(reportText).flatMap((unit) => claimIds(unit.text)))].sort(
+    (a, b) => Number(a.slice(1)) - Number(b.slice(1)),
+  );
+  return { evidence, rows, cited };
+}
+
+/** The registered claims the report cites with a code citation or quote: the ones `buildPackets` makes packets for. */
+export function claimsWithEvidence(reportText, registerRows) {
+  const { evidence, rows, cited } = claimEvidence(reportText, registerRows);
+  return cited.filter((id) => rows.has(id) && (evidence.get(id)?.size ?? 0) > 0);
+}
+
+/**
+ * One packet per claim the report cites with evidence: the claim (its sentence, numbers and scope) and every code
+ * citation or quote that a passage citing the claim gives, or that the claim's register Source gives. A claim with
+ * no such evidence, or whose evidence could not be read, is listed as not checked.
+ */
+export function buildPackets(
+  reportText,
+  registerRows,
+  ledger,
+  { repos = new Map(), copies = new Map(), only = null } = {},
+) {
+  const { evidence, rows, cited } = claimEvidence(reportText, registerRows);
   const packets = [];
   const notChecked = [];
-  for (const id of [...cited].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)))) {
+  for (const id of cited) {
     if (only && !only.has(id)) continue;
     const cells = rows.get(id);
     if (!cells) continue;

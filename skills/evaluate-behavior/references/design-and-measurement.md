@@ -158,9 +158,9 @@ Why the rule comes first, and what any decision rule names, is in Research Work'
 - the two arms it compares, the reference first, and whether higher or lower is better;
 - the size: the minimum number of decided cases, the significance level, and optionally an adaptive trial schedule.
 
-The unit is the case: trials of one case are repeated draws of one question, so each arm's values are averaged per case and an exact sign test runs over the cases that differ. The verdict is `beats` only with at least the minimum decided cases, p below the level, and the split in the declared direction; the same evidence the other way is `worse`; anything else is `no-difference-shown`. For example, 19 better, 5 worse and 6 equal gives p ≈ 0.007. Report the verdict beside the pooled counts, and the split behind it.
+The unit is the case: each arm's values are averaged per case, as Research Work's rule combines trials, and an exact sign test runs over the cases that differ. The verdict is `beats` only with at least the minimum decided cases, p below the level, and the split in the declared direction; the same evidence the other way is `worse`; anything else is `no-difference-shown`. For example, 19 better, 5 worse and 6 equal gives p ≈ 0.007. Report the verdict beside the pooled counts, and the split behind it.
 
-The sign test ignores how much better a case was, so it is conservative for measures with large per-case differences, such as cost. A rule written after seeing results is not a decision rule: write a new suite and run it fresh.
+The sign test ignores how much better a case was, so it is conservative for measures with large per-case differences, such as cost. To change the rule after seeing results, write a new suite and run it fresh.
 
 ## Size Cases And Trials To The Decision
 
@@ -172,11 +172,10 @@ Research Work's [study design](../../research-work/references/study.md#size-to-t
 
 ## Expect Run-To-Run Noise
 
-The same baseline commit accepted 31 of 45 correct changes in one run and 38 of 45 in the next. A difference smaller than that swing, between two single runs, is not a result; how to measure the floor is in Research Work's [study design](../../research-work/references/study.md#measure-the-noise-floor).
+The same baseline commit accepted 31 of 45 correct changes in one run and 38 of 45 in the next. What such a swing means for a result, and how to pool runs, is in Research Work's [study design](../../research-work/references/study.md#measure-the-noise-floor); here a run's configuration is its commit and case versions.
 
 - Run both arms in the same batch, so they share conditions.
-- Pool every baseline run of the same commit and the same case versions, and compare a later candidate with all of them. A changed case or check starts a new series.
-- When a claim is close, run a noise check (`component: []`), with identical arms; the gap it shows is the floor a real difference must clear.
+- When a claim is close, run a noise check (`component: []`): it is that section's identical arms.
 
 ## Keep Capability And Regression Suites Apart
 
@@ -184,15 +183,15 @@ Keep them apart as Research Work's [study design](../../research-work/references
 
 ## Hold Cases Out
 
-Fix the split before any case is built or run, tune against the tuning cases only, and report held-out cases separately, as Research Work's [study design](../../research-work/references/study.md#hold-items-out) says. Cases written by the author of the guidance under test, or by the model under test, are not independent of it.
+Cases are the items of Research Work's [Hold Items Out](../../research-work/references/study.md#hold-items-out): its split, tuning and independence rules apply to them as written, and the author of the guidance under test is the author of what is under test.
 
 ## Control Mechanical Checks That Approximate Meaning
 
-A deterministic check that stands in for a meaning, such as a regex or "the review names the right file and line", needs a control where the right answer is no, as Research Work's [measurement](../../research-work/references/measurement.md#validity-does-the-measure-track-the-claim) says. A check that fires on its controls cannot measure detection. Use it as a filter, or ask a judge.
+A deterministic check that stands in for a meaning, such as a regex or a check that a review names the right file and line, needs the controls Research Work's [measurement](../../research-work/references/measurement.md#validity-does-the-measure-track-the-claim) names, and what to do when it fires on them is there.
 
 ## Read Before Counting
 
-Before reporting a count, read the transcripts of failed runs and of a sample of passing ones, as Research Work's [measurement](../../research-work/references/measurement.md#read-raw-outputs-before-counting) says: a run the check failed may hold a valid solution, a run it passed may have passed by a shortcut, and when a judge and a deterministic check disagree, fix the side that is wrong and rerun, never averaging the two.
+Before reporting a count, read the transcripts of failed runs and of a sample of passing ones: they are the raw outputs Research Work's [measurement](../../research-work/references/measurement.md#read-raw-outputs-before-counting) says to read, with what to do when one shows the check or a judge is wrong.
 
 ## Count Judge Answers With Care
 
@@ -200,7 +199,7 @@ A judge's answers are measurements, under Review Work's [Judge Contract](../../r
 
 - Count only rubric answers (`review --rubric`): each run is judged alone and blind to its arm, so no order effect arises, and a decision rule can name a dimension. Keep pairwise review questions for advisory comparison.
 - Name what to look for, such as the defect's location, expression and effect, and put the expected answer in the dimension's `reference`, which only judges see. Low agreement between judges (Cohen's kappa for two, Krippendorff's alpha for more, per dimension in the aggregate) means the question is uncertain: sharpen it and its reference before counting.
-- Choose the judge and record its relation to the subject as the Judge Contract says: a different model by default.
+- Choose the judge and record its relation to the subject as the Judge Contract says.
 - Calibrate each judge configuration with `review --calibrate <labels.json>` against runs you labelled by hand before reading the judge's answers on them, including runs where each answer is right: a set that is almost all "yes" makes a judge that always says yes look accurate. Keep some labelled runs out when you revise the rubric against the labels, and calibrate again when the kind of task changes. Calibration gives a judge validation record its agreement, and kappa per dimension; the interval comes from `stats.mjs interval wilson`, and the record's other checks (length control, decoys, repeatability, and both orders for a pairwise judge) are still needed before a judged dimension counts toward a decision. A configuration scored against labels is labelled, with its agreement; it is calibrated in Review Work's sense only with a passing record.
 - Judges are sensitive to the wording of the question and reference, and can defer to a reference over the evidence: read a sample of answers whenever the wording changes. When the arms differ in length, include the length control Research Work describes.
 - For pairwise questions, run `--swap`, or `--swap-sample` once order effects are known to be rare; when the two orders disagree, report a strict reading (yes in both orders) and a lenient one (yes in one order and no in neither).

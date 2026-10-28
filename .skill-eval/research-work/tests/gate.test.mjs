@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -363,13 +363,34 @@ test("a paper gets its outline and draft checks, and at publication rigor its PD
   const result = gate(folder, "--copy", copy);
   assert.equal(check(result, "outline").status, "not run");
   assert.equal(check(result, "outline").required, true);
-  assert.ok(["passed", "failed"].includes(check(result, "draft").status));
+  assert.equal(check(result, "draft").status, "passed");
   assert.equal(check(result, "paper-trace").status, "passed");
+  // The paper cites only with [@S1], which draft-check checks, so cite-check finding no quote is not a gap.
+  assert.equal(check(result, "paper-cite").status, "passed");
   assert.equal(check(result, "pdf").status, "not run");
   assert.match(check(result, "pdf").reason, /paper\.pdf/);
+  // The build it names is one paper.mjs build accepts.
+  assert.match(
+    check(result, "pdf").todo ?? result.todo.join("\n"),
+    /paper\.mjs build .*--to pdf --out .*paper\.pdf --ledger .*runs\.jsonl --venue/,
+  );
   assert.equal(result.status, 1);
-  // The packets come from the report while there is one, so the paper does not make them stale.
+  // The packets come from the report and the paper; the paper gives C1 no other evidence, so they still match.
   assert.equal(check(result, "support").status, "passed");
+  assert.equal(check(result, "coverage").status, "passed");
+
+  // A source the ledger lacks fails the draft check.
+  writeFileSync(
+    join(folder, "paper", "paper.md"),
+    "# Retries\n\n## Abstract\n\nThe harness retries twice (C1).\n\n## Results\n\nThe harness retries a failed call 2 times (C1) [@S9].\n",
+  );
+  const unlisted = check(gate(folder, "--copy", copy), "draft");
+  assert.equal(unlisted.status, "failed");
+  assert.match(unlisted.reason, /1 problem/);
+  writeFileSync(
+    join(folder, "paper", "paper.md"),
+    "# Retries\n\n## Abstract\n\nThe harness retries twice (C1).\n\n## Results\n\nThe harness retries a failed call 2 times (C1) [@S1].\n",
+  );
 
   // A built PDF is checked against the limits given.
   mkdirSync(join(folder, "paper", "build"));
@@ -378,6 +399,143 @@ test("a paper gets its outline and draft checks, and at publication rigor its PD
   const over = check(gate(folder, "--copy", copy, "--max-pages", "0"), "pdf");
   assert.equal(over.status, "failed");
   assert.match(over.command, /check-pdf .*--max-pages 0/);
+
+  // At publication, a PDF checked against no venue limit or required section is not checked.
+  const unchecked = gate(folder, "--copy", copy);
+  assert.equal(check(unchecked, "pdf").status, "failed");
+  assert.match(check(unchecked, "pdf").reason, /not checked against the venue/);
+  assert.ok(unchecked.todo.some((item) => /--max-pages <n>, --max-words <n>, --require <section>/.test(item)));
+});
+
+test("a PDF whose pages or words cannot be read, with no limit given, is not checked", () => {
+  const { folder, copy } = project("check");
+  mkdirSync(join(folder, "paper", "build"), { recursive: true });
+  writeFileSync(join(folder, "paper", "build", "paper.pdf"), "not a PDF at all\n");
+  const pdf = check(gate(folder, "--copy", copy), "pdf");
+  assert.equal(pdf.status, "failed");
+  assert.ok(
+    pdf.output.some((line) => /not checked: pages/.test(line)),
+    pdf.output.join("\n"),
+  );
+  const direct = node("paper.mjs", "check-pdf", join(folder, "paper", "build", "paper.pdf"));
+  assert.equal(direct.status, 1);
+  assert.match(direct.stdout, /not checked: words/);
+});
+
+test("at publication every claim cited with a code citation or quote needs a packet, unless the author marks it out", () => {
+  const { folder, copy } = project("publication");
+  answer(folder, copy);
+  // A second cited claim, quoted, added after the packets were answered: support still passes on C1 alone.
+  writeFileSync(
+    join(folder, "claims.md"),
+    `${register()}| C2 | The harness logs every retry to a file | - | S1 | L2 | exploratory | the design note | not run |\n`,
+  );
+  writeFileSync(
+    join(folder, "report.md"),
+    `${REPORT}\nThe harness logs every retry to a file (C2): "retries a failed call twice" (S1).\n`,
+  );
+  const uncovered = gate(folder, "--copy", copy);
+  assert.equal(check(uncovered, "support").status, "passed");
+  assert.equal(check(uncovered, "coverage").status, "failed");
+  assert.match(check(uncovered, "coverage").reason, /have no packet: C2$/);
+  assert.ok(uncovered.todo.some((item) => /--only C1,C2/.test(item) && /--unsupported-ok C2/.test(item)));
+  assert.equal(uncovered.status, 1);
+
+  // Marked out by the author: the gate passes and says what it did not check.
+  const marked = gate(folder, "--copy", copy, "--unsupported-ok", "C2");
+  assert.equal(check(marked, "coverage").status, "passed");
+  assert.ok(marked.todo.includes("citation support: C2 not support-checked by the author's choice (--unsupported-ok)"));
+  assert.equal(marked.status, 0, JSON.stringify(marked.checks, null, 2));
+  assert.equal(node("research.mjs", "gate", folder, "--unsupported-ok", "two").status, 2);
+
+  // A claim only the paper quotes is covered too: the packets are built from the report and the paper.
+  writeFileSync(join(folder, "report.md"), REPORT);
+  mkdirSync(join(folder, "paper"));
+  writeFileSync(
+    join(folder, "paper", "paper.md"),
+    '# Retries\n\n## Results\n\nThe harness retries a failed call 2 times (C1) [@S1].\n\nIt logs every retry to a file (C2): "retries a failed call twice" (S1).\n',
+  );
+  const paper = gate(folder, "--copy", copy);
+  assert.match(check(paper, "coverage").reason, /have no packet: C2$/);
+  assert.match(check(paper, "support").command ?? "", /support-check/);
+  assert.ok(paper.todo.some((item) => /claims\.mjs support \S*report\.md \S*paper\.md /.test(item)));
+});
+
+test("a register with a confirmatory claim and no study plan fails, naming the claims", () => {
+  const { folder, copy } = project("study");
+  writeFileSync(join(folder, "claims.md"), register().replace("| exploratory |", "| confirmatory |"));
+  const result = gate(folder, "--copy", copy);
+  assert.equal(check(result, "plan").status, "failed");
+  assert.match(check(result, "plan").reason, /confirmatory claim\(s\) C1$/);
+  assert.equal(result.status, 1);
+  // Exploratory claims need no plan.
+  writeFileSync(join(folder, "claims.md"), register());
+  const fine = gate(folder, "--copy", copy);
+  assert.equal(check(fine, "plan"), undefined);
+  assert.equal(fine.status, 0);
+});
+
+test("a passed check's notes show beneath it, and a report that cites nothing is not checked", () => {
+  const { folder, copy } = project("check");
+  mkdirSync(join(folder, "study", "results"), { recursive: true });
+  const plan = join(folder, "study", "plan.md");
+  writeFileSync(plan, PLAN);
+  assert.equal(node("study.mjs", "lock", plan, "--by", "Hassan: yes (2026-10-28)").status, 0);
+  const ran = spawnSync(
+    process.execPath,
+    [
+      join(SCRIPTS, "study.mjs"),
+      "run",
+      "plan.md",
+      "--unit",
+      "t1",
+      "--arm",
+      "a",
+      "--trial",
+      "1",
+      "--output",
+      "results/r.json",
+      "--",
+      process.execPath,
+      "-e",
+      "require('fs').writeFileSync('results/r.json', JSON.stringify({ retries: 2 }))",
+    ],
+    { cwd: join(folder, "study"), encoding: "utf8" },
+  );
+  assert.equal(ran.status, 0, ran.stderr);
+  writeFileSync(join(folder, "claims.md"), register().replace("| S1 |", "| S1; study/results/r.json |"));
+  const json = check(gate(folder, "--copy", copy), "study");
+  assert.equal(json.status, "passed");
+  assert.ok(
+    json.notes.some((note) => /not anchored in git/.test(note)),
+    json.notes.join("\n"),
+  );
+  const summary = node("research.mjs", "gate", folder, "--copy", copy).stdout;
+  assert.match(summary, /passed +study records: [^\n]*\n +note: lock is not anchored in git/);
+
+  writeFileSync(join(folder, "report.md"), "# Research: Retries\n\n## Answer\n\nThe harness retries a failed call.\n");
+  const bare = gate(folder, "--copy", copy);
+  assert.equal(check(bare, "report-cite").status, "not run");
+  assert.equal(check(bare, "report-cite").reason, "no citations found: nothing was checked");
+  assert.equal(bare.status, 1);
+});
+
+test("a check that exits 1 keeps what it wrote to stderr", () => {
+  // A copy of the scripts whose validator writes its reason to stderr and exits 1.
+  const scripts = mkdtempSync(join(tmpdir(), "research-gate-scripts-"));
+  cpSync(SCRIPTS, scripts, { recursive: true });
+  writeFileSync(join(scripts, "artifact.mjs"), 'console.error("the reason it failed"); process.exit(1);\n');
+  const { folder, copy } = project("check");
+  const result = spawnSync(
+    process.execPath,
+    [join(scripts, "research.mjs"), "gate", folder, "--copy", copy, "--json"],
+    {
+      encoding: "utf8",
+    },
+  );
+  const brief = JSON.parse(result.stdout).checks.find((each) => each.id === "brief");
+  assert.equal(brief.status, "failed");
+  assert.equal(brief.reason, "the reason it failed");
 });
 
 test("the summary names each check and what is left, and a usage error exits 2", () => {

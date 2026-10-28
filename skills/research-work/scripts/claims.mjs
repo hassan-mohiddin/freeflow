@@ -27,7 +27,7 @@ import {
 
 const USAGE = [
   "Usage: claims.mjs trace <report.md> --register <claims.md> [--results] [--json]",
-  "       claims.mjs support <report.md> --register <claims.md> --ledger <sources.md> --out <packets.jsonl>",
+  "       claims.mjs support <report.md> [<paper.md>] --register <claims.md> --ledger <sources.md> --out <packets.jsonl>",
   "                          [--only C<n>,...] [--repo <name>=<clone>]... [--copy S<n>=<file>]...",
   "       claims.mjs support-check <verdicts.jsonl> --packets <packets.jsonl> [--json]",
   "       claims.mjs draft-check <paper.md> [--outline <outline.md>] [--ledger <sources.md>] [--limit <section>=<words>]...",
@@ -43,8 +43,9 @@ const USAGE = [
   "sources the draft never cites, and statements about prior work that cite no source.",
   "",
   "support writes one packet per claim the report cites with a code citation or quote: the claim, its numbers and",
-  "scope, and only the cited evidence (code lines with the lines around them, or the passage around a quote). A",
-  "separate reader answers each packet in a verdicts file, one JSON line per packet:",
+  "scope, and only the cited evidence (code lines with the lines around them, or the passage around a quote); given a",
+  "report and a paper, a claim's packet holds what either cites for it. A separate reader answers each packet in a",
+  "verdicts file, one JSON line per packet:",
   '  {"packet": "P1", "verdict": "supported|partial|unsupported", "quote": "<four or more words of the evidence>",',
   '   "missing": "<what the evidence does not show; for partial or unsupported>"}',
   "support-check counts the answers with a Wilson interval and fails on a missing or malformed answer, a quote not",
@@ -99,11 +100,13 @@ function pairs(values, label) {
 
 if (command === "support") {
   const { register, ledger, out } = parsed.values;
-  if (!report || !register || !ledger || !out) fail(USAGE);
+  if (!report || !register || !ledger || !out || parsed.positionals.length > 3) fail(USAGE);
   let built;
   try {
     const rows = parseTable(parseMarkdown(readFileSync(register, "utf8")).lines)?.rows ?? [];
-    built = buildPackets(readFileSync(report, "utf8"), rows, ledgerRows(readFileSync(ledger, "utf8")), {
+    // A report and a paper drawn from one register: each claim's packet holds the evidence either one cites for it.
+    const documents = parsed.positionals.slice(1).map((path) => readFileSync(path, "utf8"));
+    built = buildPackets(documents.join("\n\n"), rows, ledgerRows(readFileSync(ledger, "utf8")), {
       repos: pairs(parsed.values.repo, "--repo"),
       copies: pairs(parsed.values.copy, "--copy"),
       only: parsed.values.only ? new Set(parsed.values.only.split(",").map((id) => id.trim())) : null,
