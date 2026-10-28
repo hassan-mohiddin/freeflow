@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { planVariants, skeleton, validate } from "../../../skills/research-work/scripts/lib/formats.mjs";
+import { lockAsBefore } from "./old-lock.mjs";
 
 const SCRIPTS = fileURLToPath(new URL("../../../skills/research-work/scripts/", import.meta.url));
 const node = (script, ...args) => spawnSync(process.execPath, [join(SCRIPTS, script), ...args], { encoding: "utf8" });
@@ -154,7 +155,8 @@ test("study.mjs check notes a study-rigor plan that lists no variants or models"
   const dir = mkdtempSync(join(tmpdir(), "research-fields-plan-"));
   const base = withoutNewSections(plan());
   writeFileSync(join(dir, "plan.md"), base);
-  assert.equal(node("study.mjs", "lock", join(dir, "plan.md"), "--by", "O").status, 0);
+  // A plan locked before these sections existed: a new one without them is refused (gate-fixes.test.mjs).
+  lockAsBefore(join(dir, "plan.md"), "O");
   const check = node("study.mjs", "check", join(dir, "plan.md"));
   assert.match(check.stdout, /note: the plan lists no analysis variants/);
   assert.match(check.stdout, /note: the plan declares no models in the method/);
@@ -240,7 +242,7 @@ test("a variant counts as reported only when a row names it as a variant, and an
     `${VARIANTS}## Models in the method\n\nnone\n\n## Amendments`,
   );
   writeFileSync(join(dir, "plan.md"), text);
-  assert.equal(node("study.mjs", "lock", join(dir, "plan.md"), "--by", "O").status, 0);
+  lockAsBefore(join(dir, "plan.md"), "O");
   writeFileSync(join(dir, "plan.md"), text.replace("| V2 | Per-family means | the unit |\n", ""));
   assert.equal(node("study.mjs", "amend", join(dir, "plan.md"), "--by", "O", "--reason", "tidy").status, 0);
   writeFileSync(join(dir, "claims.md"), register([row("C1", "Under variant V1 the rate is lower")]));

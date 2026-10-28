@@ -11,6 +11,7 @@ import test from "node:test";
 
 import { skeleton, validate } from "../../../skills/research-work/scripts/lib/formats.mjs";
 import { weightedKappa } from "../../../skills/research-work/scripts/lib/stats.mjs";
+import { lockAsBefore } from "./old-lock.mjs";
 
 const SCRIPTS = fileURLToPath(new URL("../../../skills/research-work/scripts/", import.meta.url));
 const node = (script, ...args) => spawnSync(process.execPath, [join(SCRIPTS, script), ...args], { encoding: "utf8" });
@@ -314,7 +315,8 @@ test("check notes a study-rigor plan with no budget or contamination record", ()
     .replace(/## Contamination[\s\S]*?## Amendments/, "## Amendments");
   writeFileSync(plan, old);
   assert.deepEqual(problems(old), []);
-  node("study.mjs", "lock", plan, "--by", "Hassan Mohiddin");
+  // A plan locked before these parts existed: a new one without them is refused (gate-fixes.test.mjs).
+  lockAsBefore(plan, "Hassan Mohiddin");
   const check = node("study.mjs", "check", plan);
   assert.match(check.stdout, /no budget per arm/);
   assert.match(check.stdout, /no contamination routes/);
@@ -348,7 +350,7 @@ test("an amendment to a plan locked before the Method column demotes nothing it 
     .replace("| --- | --- | --- | --- | --- | --- |", "| --- | --- | --- | --- | --- |")
     .replace(" paired mcnemar |", "");
   writeFileSync(plan, old);
-  assert.equal(node("study.mjs", "lock", plan, "--by", "Hassan Mohiddin").status, 0);
+  lockAsBefore(plan, "Hassan Mohiddin");
   // The lock as the scripts wrote it before the Method column: hypotheses with no method key.
   const lockFile = join(dir, "plan.lock.json");
   const lock = JSON.parse(readFileSync(lockFile, "utf8"));
@@ -390,7 +392,7 @@ test("an arm outside the comparison is marked so, and a plan with no Method colu
       .replace("| --- | --- | --- | --- | --- | --- |", "| --- | --- | --- | --- | --- |")
       .replace(" paired mcnemar |", ""),
   );
-  node("study.mjs", "lock", plan, "--by", "Hassan Mohiddin");
+  lockAsBefore(plan, "Hassan Mohiddin");
   assert.match(node("study.mjs", "check", plan).stdout, /Hypotheses name no Method/);
 });
 

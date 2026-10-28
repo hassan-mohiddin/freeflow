@@ -9,6 +9,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import { lockAsBefore } from "./old-lock.mjs";
+
 const SCRIPTS = fileURLToPath(new URL("../../../skills/research-work/scripts/", import.meta.url));
 const node = (script, ...args) => spawnSync(process.execPath, [join(SCRIPTS, script), ...args], { encoding: "utf8" });
 const gate = (...args) => {
@@ -203,4 +205,113 @@ test("--report - reads the report once from stdin, and every check runs on that 
   const paper = piped(REPORT, folder, "--paper", "-");
   assert.notEqual(check(paper, "draft").status, "not run", JSON.stringify(check(paper, "draft"), null, 2));
   assert.equal(piped(REPORT, folder, "--report", "-", "--paper", "-").status, 2);
+});
+
+const QUESTIONS = [
+  "The claim",
+  "Who uses it",
+  "The prediction",
+  "Compared to what",
+  "The unit and the count",
+  "Validity",
+  "Reliability",
+  "Raw outputs first",
+  "Rival explanations",
+  "The interval",
+  "Fixed before the data",
+  "Where it holds",
+];
+const ROUTES = ["training data", "prompts and examples", "tuning", "tools and web", "grader and harness"];
+
+/** A complete study-rigor plan, as init's skeleton lays it out, filled in. */
+const studyPlan = (rigor = "study") => `# Study Plan: Prompts
+
+> **Type:** Study Plan
+> **Status:** Draft
+> **Owner:** Hassan Mohiddin
+> **Rigor:** ${rigor}
+
+${QUESTIONS.map((name, index) => `## ${index + 1}. ${name}\n\n${index === 2 ? "We need 80 tasks: power mcnemar-cases at 80% power for a 20-point gap." : "Written before any data; see the table."}\n`).join("\n")}
+## Hypotheses
+
+| ID | Hypothesis | Kind | Metric | Decision rule | Method |
+| --- | --- | --- | --- | --- | --- |
+| C1 | The new prompt passes more tasks | confirmatory | pass rate | exact McNemar, two-sided, alpha 0.05 | paired mcnemar |
+
+## Planned runs
+
+| Unit | Arm | Trials | Budget |
+| --- | --- | --- | --- |
+| tasks | old | 1 | 10 prompt revisions |
+| tasks | new | 1 | 10 prompt revisions |
+
+## Analysis variants
+
+none
+
+## Models in the method
+
+none
+
+## Contamination
+
+| Route | Control |
+| --- | --- |
+${ROUTES.map((route) => `| ${route} | items written after the cutoff |`).join("\n")}
+
+## Amendments
+
+none
+`;
+
+const withoutMethod = (text) =>
+  text
+    .replace("| Decision rule | Method |", "| Decision rule |")
+    .replace("| --- | --- | --- | --- | --- | --- |", "| --- | --- | --- | --- | --- |")
+    .replace(" paired mcnemar |", "");
+const withoutBudget = (text) =>
+  text
+    .replace("| Trials | Budget |\n| --- | --- | --- | --- |", "| Trials |\n| --- | --- | --- |")
+    .replaceAll(" 10 prompt revisions |", "");
+const withoutSection = (name) => (text) => text.replace(new RegExp(`## ${name}\\n\\n[\\s\\S]*?(?=## )`), "");
+
+test("a study or publication plan not yet locked must have its Method, Budget, Contamination and Models", () => {
+  const write = (text) => {
+    const dir = mkdtempSync(join(tmpdir(), "research-gate-fixes-plan-"));
+    writeFileSync(join(dir, "plan.md"), text);
+    return join(dir, "plan.md");
+  };
+  const full = write(studyPlan());
+  assert.equal(node("artifact.mjs", "validate", full).status, 0, node("artifact.mjs", "validate", full).stdout);
+
+  for (const [strip, refusal, note] of [
+    [withoutMethod, /Hypotheses table has no Method column/, /Hypotheses name no Method/],
+    [withoutBudget, /Planned runs table has no Budget column/, /no budget per arm/],
+    [withoutSection("Contamination"), /missing section "## Contamination"/, /no contamination routes/],
+    [withoutSection("Models in the method"), /missing section "## Models in the method"/, /no models in the method/],
+  ]) {
+    for (const rigor of ["study", "publication"]) {
+      const text = strip(studyPlan(rigor));
+      assert.notEqual(text, studyPlan(rigor), `${refusal} strips nothing`);
+      const plan = write(text);
+      const validated = node("artifact.mjs", "validate", plan);
+      assert.equal(validated.status, 1, `${rigor}: ${validated.stdout}`);
+      assert.match(validated.stdout, refusal);
+      // Neither lock nor check lets it through.
+      const lock = node("study.mjs", "lock", plan, "--by", "Hassan Mohiddin");
+      assert.notEqual(lock.status, 0);
+      assert.match(lock.stderr, refusal);
+      assert.match(node("study.mjs", "check", plan).stdout, refusal);
+    }
+    // A plan locked before the part existed stays valid, with today's note.
+    const old = write(strip(studyPlan()));
+    lockAsBefore(old, "Hassan Mohiddin");
+    assert.equal(node("artifact.mjs", "validate", old).status, 0, node("artifact.mjs", "validate", old).stdout);
+    const checked = node("study.mjs", "check", old);
+    assert.doesNotMatch(checked.stdout, refusal);
+    assert.match(checked.stdout, note);
+    // A quick check's plan is not held to them.
+    const quick = write(strip(studyPlan("check")));
+    assert.doesNotMatch(node("artifact.mjs", "validate", quick).stdout, refusal);
+  }
 });
