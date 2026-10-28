@@ -525,6 +525,17 @@ test("buildPackets lists a cited claim whose evidence cannot be read as not chec
   assert.match(built.notChecked[0].reason, /no --repo harness=<clone> given/);
 });
 
+test("a quote holding a sentence break is still one quote for the support packets", () => {
+  const rows = [{ cells: { ID: "C1", Claim: "The path is unfinished", Numbers: "-", Source: "S1", Scope: "here" } }];
+  const ledger = new Map([["S1", { Pin: "notes (saved 2026-10-28)" }]]);
+  const dir = mkdtempSync(join(tmpdir(), "support-quote-"));
+  writeFileSync(join(dir, "s1.txt"), "Status: the path is unfinished. - src/http/missing.ts stays open.\n");
+  const report = 'The path is open (C1): "the path is unfinished. - src/http/missing.ts" (S1).\n';
+  const built = buildPackets(report, rows, ledger, { copies: new Map([["S1", join(dir, "s1.txt")]]) });
+  assert.deepEqual(built.notChecked, []);
+  assert.equal(built.packets.length, 1);
+});
+
 // Review R15's findings, each with the input that showed it.
 
 test("a regression's adjusted R2 or an adjusted mean does not mark a p as corrected (R15 NB-1)", () => {

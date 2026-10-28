@@ -404,9 +404,20 @@ function decisive(packet, quote) {
   return packet.evidence.some((piece) => evidenceLines(piece).some((line) => normalizeForQuote(line) === quote));
 }
 
-/** A text's sentences: split after . ! or ? when the next word starts a sentence. */
+/**
+ * A text's sentences: split after . ! or ? when the next word starts a sentence, never inside a double-quoted
+ * span, so a quote holding "unfinished. - src/x" stays whole.
+ */
 function sentences(text) {
-  return text.split(/(?<=[.!?])\s+(?=[A-Z"“(*-])/);
+  const pieces = text.split(/(?<=[.!?])\s+(?=[A-Z"“(*-])/);
+  const joined = [];
+  let open = false;
+  for (const piece of pieces) {
+    if (open) joined[joined.length - 1] += ` ${piece}`;
+    else joined.push(piece);
+    if ((piece.match(/["“”]/g) ?? []).length % 2 === 1) open = !open;
+  }
+  return joined;
 }
 
 /** The lines of a verdicts file, each parsed or with its error. */
