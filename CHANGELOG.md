@@ -27,7 +27,7 @@
 ### Changed
 
 - Write Skill tries a new or changed skill on a real task before measuring it: Evaluate Behavior's new Trial mode runs one agent that keeps a friction log, which Review Work adjudicates like a review. Evaluate Behavior now asks for your yes, with the run count and estimated cost, before any run that calls a model, unless the task's agreement already covers it, and never asks a measured arm for notes.
-- Research Work's guidance is in three references, one per stage (`evidence`, `study`, `reporting`), instead of seven, so each route opens one file; each artifact's format now sits beside the method that writes it.
+- Research Work's guidance is in three references, one per stage (`evidence`, `study`, `reporting`), instead of seven, so a stage's guidance and its formats are in one file and a route opens one or two files instead of three or four; each artifact's format now sits beside the method that writes it.
 
 - Write Skill explains why one capability skill that routes to its references and scripts (a trunk) beats many narrow skills, keeps a trunk's body to its routing table, common route and Rules, and asks for a design record per skill in the developer docs; Write Docs adds the skill design record shape under `dev-docs/skills/`.
 - Write Docs keeps history in git: developer docs drop their Changes lists, and decisions cite the commit where they were made.

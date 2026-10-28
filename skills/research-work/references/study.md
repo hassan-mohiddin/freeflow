@@ -15,7 +15,7 @@ The study plan is the answers to these questions, written before the first run t
 | 3 | **The prediction** | The primary metric, named now; the smallest effect worth detecting and the power to detect it; the result that counts as failure |
 | 4 | **Compared to what** | How it is done today; the baseline and a trivial baseline (a do-nothing agent, a constant answer); the tuning and compute each arm gets; the baseline's published number reproduced here, both reported |
 | 5 | **The unit and the count** | What one observation is; where its variation comes from (tasks, runs, prompts, seeds); how many; what fixed the number; the stopping rule |
-| 6 | **Validity** | Why the measure tracks the claim: an oracle scores full and a do-nothing arm near zero before any result is read; a judge has its validation record ([measurement](study.md)). For each check, its tolerance and one rule for what its failure does: stop, or make named verdicts undecided |
+| 6 | **Validity** | Why the measure tracks the claim: an oracle scores full and a do-nothing arm near zero before any result is read; a judge has its validation record ([Judges](#judges)). For each check, its tolerance and one rule for what its failure does: stop, or make named verdicts undecided |
 | 7 | **Reliability** | The noise floor, measured on a frozen pilot; each source of variance and how it is controlled: prompt format and wording, seeds and sampling, environment and versions, run order |
 | 8 | **Raw outputs first** | Which raw outputs you will read before computing any metric |
 | 9 | **Rival explanations** | For each, the check that separates it from the claim; the analysis path itself is one |

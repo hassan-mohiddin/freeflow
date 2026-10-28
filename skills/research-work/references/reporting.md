@@ -44,7 +44,7 @@ Write the report in the [Research Report](#research-report) shape, drafted from 
 - **Strength once.** When every finding has the same level, say so once in the Answer. Otherwise give each finding its level where the finding is stated, and nowhere else.
 - **Process facts are not claims.** Which checks passed, the deviations and who cleared them, how the plan was locked: these go in Method and Limits, citing the claims they bear on, not in the register.
 - **Limits in one place.** Collect the register's limits, the conflicts, what was out of scope and what was not followed into Limits. A limit stated once is honest; the same limit repeated in every section hides the answer.
-- **Every number from the register.** Copy numbers from the Numbers column; never retype one from memory. Then run `claims.mjs trace`.
+- **Every number from the register.** Copy numbers from the Numbers column; never retype one from memory. Then run `claims.mjs trace`, which counts every digit outside code (write a design constant in words, or put it in its claim's Numbers) and passes a count about the searches only after its query ID (`Q2`), as [What The Gate Runs](#what-the-gate-runs) says.
 - **Recommendations are proposals** for the reader, who decides.
 
 Answer the strongest objection a reader will raise where it arises, once, with the reason: either the evidence that settles it or the limit it marks. Do not add objections no reader would raise.
@@ -198,7 +198,7 @@ The contract between the stages: every claim a report or paper makes is a row he
 
 ### Research Report
 
-The shape of an in-depth report or a study's report, from a quick answer to a long synthesis. Its header follows Header above, with Type `Research` and the date the evidence was gathered; leave out a section with nothing to say. A quick answer may need only Question, Answer and Evidence.
+The shape of an in-depth report or a study's report, from a quick answer to a long synthesis. Its header follows the [Header](evidence.md#header), with Type `Research` and the date the evidence was gathered; leave out a section with nothing to say. A quick answer may need only Question, Answer and Evidence.
 
 ```markdown
 ## Question        what is asked, who will use the answer, and the decision or work it serves
@@ -220,7 +220,7 @@ The shape of an in-depth report or a study's report, from a quick answer to a lo
 
 ### Paper Outline
 
-Written before a paper's prose ([paper](reporting.md)). The header adds **Register:** the claims register the paper draws on, relative to the outline, and **Runs:** the run ledger holding the figures' receipts (a study's `runs.jsonl` or the paper's own), or `none`. Sections:
+Written before a paper's prose ([From The Register To An Outline](#from-the-register-to-an-outline)). The header adds **Register:** the claims register the paper draws on, relative to the outline, and **Runs:** the run ledger holding the figures' receipts (a study's `runs.jsonl` or the paper's own), or `none`. Sections:
 
 - `## Proposition`: one sentence, the paper's message, or `not yet stated` while the message is still being found.
 - `## Contributions`: a table `| ID | Contribution | Claims |`; IDs `K1`, `K2`; each row names at least one claim ID.

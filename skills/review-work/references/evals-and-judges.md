@@ -12,7 +12,7 @@ Identify the behavior and boundary under test, the arms and the one component me
 
 ### Check That It Can Measure What It Claims
 
-Goal: a correct subject passes, a wrong one fails, and the result means what its name says. Research Work's [study](../../research-work/references/study.md) explains most of these checks, and its [study](../../research-work/references/study.md) the decision rule and matched arms; a study plan's measure is reviewed against the same list.
+Goal: a correct subject passes, a wrong one fails, and the result means what its name says. Research Work's [study](../../research-work/references/study.md) explains most of these checks (Validity to Detectors), and the decision rule and matched arms (Fix The Decision Rule First, Compare Against Fair Baselines); a study plan's measure is reviewed against the same list.
 
 - **A correct answer can pass:** for each expectation, write or imagine the answer a sound subject would give and check that it passes. Text checks fail correct answers when they require one exact phrase, such as a function name, where a correct answer may quote the line or describe it instead.
 - **A wrong answer cannot pass:** an expectation that holds for an empty, generic, or opposite answer measures nothing. Nor can a shortcut: editing the tests, hard-coding the expected output, or text addressed to a judge.
