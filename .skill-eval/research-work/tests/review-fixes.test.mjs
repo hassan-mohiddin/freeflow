@@ -402,8 +402,8 @@ test("sources.mjs says its title search uses Crossref then arXiv, as the code do
 test("validate --recheck reads the quote form, exempts only by the row named in Limit, and reports the table's problems", () => {
   const flags = recheckFlags(RECHECK);
   const ledger = new Map([
-    ["S1", { Checked: "opened" }],
-    ["S2", { Checked: "opened" }],
+    ["S1", { Checked: "opened", Supports: "C1" }],
+    ["S2", { Checked: "opened", Supports: "C1" }],
   ]);
   const check = (rows, rechecks = { flags, file: "recheck.md" }) =>
     validate("claims-register", REGISTER(rows), { ledger, rechecks }).problems;
