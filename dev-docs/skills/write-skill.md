@@ -39,6 +39,8 @@ Write Skill is read before an agent creates or revises any text another agent ac
 | Write Skill's own regressions | The gate suite: revising for a tool, keeping a placement fix, classifying Rules and judgment, a justified guard, and three placement cases | `.skill-eval/gate/write-skill/` | No case covers trunk structure or design records; not run for the 2026-10-27 revision |
 | Package checks | `skill-author` validate, compare, similarity and inspect | `.skill-eval/write-skill/tests/` | Structure, not behavior |
 
+- **Try a skill on a real task before measuring it.** Evaluate In One Loop starts with Evaluate Behavior's trial: one agent uses the skill on work it serves while keeping a friction log, and Review Work adjudicates each item before it becomes a change. In the Research Work build, three trials (a code report, a literature review, a systematic review) logged about thirty friction items that became most of PRs #113 and #114; some items were the trial agent's own mistake, which is why a log is adjudicated like a review, not acted on. The trial stays apart from measurement because asking a subject for notes changes what it does.
+
 ## Rejected
 
 - **Many narrow skills, one per job type.** Their descriptions competed, and their bodies were rarely opened (ADR 0014).

@@ -65,7 +65,7 @@
       "case_concept": "Compare arms against a reference under a declared decision rule while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-behavior/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
       "source_path": "skills/evaluate-behavior/SKILL.md",
-      "source_sha256": "6aad7aa9a0a1456d6153dd892c5637e5de0265f177c77b4703ebb379c890173a",
+      "source_sha256": "4de9bf32f1357ca9a2a2568ece4664503ebba7f2de0a60e7e464d1ea5463b94b",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -249,7 +249,7 @@
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
       "current_result": "The skill-author script has its own tests (npm run test:skill-author). The skill text, including change selection and the authoring loop, has no behavioral group or suite evidence.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "a425e5e582348bf6ea27c7cfd6dfd52f6a3251e9ffd95c0582fb35670686fbb3",
+      "source_sha256": "1bcc45498085ec5b31ca8de2ef7d120161fa0e9c7feaa5381a1ebd237735445d",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

@@ -199,3 +199,34 @@ Adjudicated judgment: Blocking
   assert.equal(status, 1);
   assert.ok(report.problems.some((problem) => problem.item === "B1" && /two items/.test(problem.problem)));
 });
+
+test("adjudicates a trial's friction log written in the report shape", async () => {
+  const friction = `Review type: trial
+Judgment: Non-blocking
+
+#### Issues — Blocking
+
+- B1: \`artifact.mjs validate\` passed a register citing a source the ledger lacks (skills/x/scripts/lib/formats.mjs:120).
+
+#### Issues — Non-blocking
+
+- The brief skeleton has no Source line, so I added one by hand (skills/x/references/evidence.md:40).
+- \`init project\` wrote study folders a review does not use.
+
+#### Improvements
+
+- Name the saved copy after the source ID so the gate finds it.
+
+## Adjudication
+
+- B1: Accepted. Reran it: the register passed with S9 missing.
+- N1: Rejected, the Source line is in the header's fields; the subject missed it.
+- N2: Accepted. A review gets its own layout.
+- I1: Accepted. Copies are found by ID or pin.
+
+Adjudicated judgment: Blocking
+`;
+  const { status, report } = await check(friction);
+  assert.equal(status, 0, JSON.stringify(report?.problems));
+  assert.equal(report.reviewLine, "judgment: Blocking; Accepted: 3; Rejected: 1; Open: 0");
+});
