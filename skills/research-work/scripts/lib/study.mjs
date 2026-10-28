@@ -18,7 +18,7 @@ import { createHash } from "node:crypto";
 import { accessSync, appendFileSync, constants, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
-import { parseMarkdown, planHypotheses, plannedRuns, validate } from "./formats.mjs";
+import { parseMarkdown, planHypotheses, plannedRuns, planVariants, validate } from "./formats.mjs";
 
 export const TAIL_BYTES = 2048;
 
@@ -128,6 +128,7 @@ export function lockPlan(planPath, { by, at = now() }) {
         by,
         at,
         hypotheses: hypothesesOf(text),
+        variants: planVariants(text),
         runs: plannedRuns(text),
         git: gitAnchor(planPath),
       },
@@ -168,6 +169,7 @@ export function amendPlan(planPath, { by, reason, at = now() }) {
     at,
     reason,
     hypotheses: current,
+    variants: planVariants(text),
     runs: plannedRuns(text),
     after_runs: studyRuns,
     changed_after_runs: studyRuns > 0 ? changed : [],
@@ -487,6 +489,17 @@ export function checkStudy(planPath) {
     if (!entry.git?.commit)
       notes.push(`${label} is not anchored in git: ${entry.git?.reason ?? "it was made before anchors were recorded"}`);
   });
+  // Plans written before these sections existed stay valid; a study-rigor plan without them is noted, not refused.
+  const sections = parseMarkdown(text);
+  if (sections.header.Rigor !== "check") {
+    const has = (name) => [...sections.sections.keys()].some((heading) => heading.toLowerCase() === name.toLowerCase());
+    if (!has("Analysis variants"))
+      notes.push('the plan lists no analysis variants (add "## Analysis variants", or "none", in an amendment)');
+    if (!has("Models in the method"))
+      notes.push(
+        'the plan declares no models in the method (add "## Models in the method", or "none", in an amendment)',
+      );
+  }
   for (const [name, path] of [
     ["run ledger", runLedgerPath(planPath)],
     ["deviation log", deviationLogPath(planPath)],

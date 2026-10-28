@@ -109,12 +109,12 @@ Goal: a paper whose one message a result could contradict and whose every number
 ## Check The Report
 
 ```text
-node <research-work-directory>/scripts/artifact.mjs validate <claims.md> --sources <sources.md> [--plan <plan.md>]
+node <research-work-directory>/scripts/artifact.mjs validate <claims.md> --sources <sources.md> [--plan <plan.md>] [--search <search.jsonl>]
 node <research-work-directory>/scripts/sources.mjs cite-check <report.md> --ledger <sources.md> [--repo <name>=<clone>]... [--copy S<n>=<saved file>]...
 node <research-work-directory>/scripts/claims.mjs trace <report.md> --register <claims.md> [--results]
 ```
 
-- `artifact.mjs validate` refuses a register whose sources are missing or refuted, or whose levels exceed their sources' checking; with `--plan`, a confirmatory claim the locked plan does not hold as a confirmatory hypothesis; and a claim above L1 resting on a judge record that does not pass.
+- `artifact.mjs validate` refuses a register whose sources are missing or refuted, or whose levels exceed their sources' checking; a claim of absence (something first, new or never done) that cites no `search:Q<n>`, and with `--search` a query the ledger lacks; with `--plan`, a confirmatory claim the locked plan does not hold as a confirmatory hypothesis, and an analysis variant the plan has listed that no row names as `variant V<n>`; and a claim above L1 resting on a judge record that does not pass.
 - `cite-check` reads each cited file at the commit pinned in the ledger, using a local clone you name, and finds each quote in a saved copy of its source. Anything it could not check, it lists as not checked, never as passed. It exits 0 when nothing failed, so read its summary: the check passes only with 0 failed and 0 not checked.
 - `trace` lists every number and claim ID in the report that the register does not support. It reads the report by paragraph, list item, table row and heading, and a number passes only when the same one cites the claim it comes from. Every digit outside code counts, so write a design constant (a grid spacing, a seed) in words or put it in its claim's Numbers. It skips code spans and blocks, so a number the report states belongs outside backticks. With `--results`, it also finds each register number in the result file or log its Source names (a JSON file's numeric values only). That shows the number is there, not that the analysis computed it; it passes only with 0 problems and 0 rows not checked.
 
