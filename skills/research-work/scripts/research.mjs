@@ -13,6 +13,7 @@ import { parseArgs } from "node:util";
 
 import { ledgerRows, parseMarkdown, parseTable } from "./lib/formats.mjs";
 import { LAYOUT, isSkeleton } from "./lib/project.mjs";
+import { resultCitations } from "./lib/report.mjs";
 import { claimsWithEvidence } from "./lib/support.mjs";
 
 const SCRIPTS = dirname(fileURLToPath(import.meta.url));
@@ -31,7 +32,8 @@ const USAGE = [
   "--rigor is used only when there is no brief, and one that differs from the brief's fails the gate.",
   "",
   "Every rigor checks the brief, the source ledger and each report or paper present: cite-check, trace (with",
-  "--results when there is a study plan), and for a paper its outline and draft-check. study and publication need the",
+  "--results when there is a study plan, and --results --cited-only when a register row's Source names a result file),",
+  "and for a paper its outline and draft-check. study and publication need the",
   "claims register; publication also needs every source opened or run, the citation support verdicts",
   "(support-check, on packets that still match the report and paper, with a packet for every claim either cites with",
   "a code citation or quote, except those --unsupported-ok marks out by the author's choice), and a paper's PDF",
@@ -302,6 +304,12 @@ else
     ),
   );
 
+// A register row whose Source names a result file (not a code citation S3:path) has its numbers traced to it, plan
+// or not: a review's pooled number is computed into synthesis/, with no study plan.
+const citesResults = registerRows.some(
+  (row) => resultCitations(row.cells.Source ?? "").filter((file) => !/^S\d+:/.test(file.path)).length > 0,
+);
+
 // Each product present: its citations, its numbers and claim IDs, and for a paper its outline and draft checks.
 const products = [
   ["report", "report"],
@@ -349,7 +357,7 @@ for (const [file, name] of products) {
           paths[file],
           "--register",
           paths.claims,
-          ...(used.plan ? ["--results"] : []),
+          ...(used.plan ? ["--results"] : citesResults ? ["--results", "--cited-only"] : []),
           ...(used.searches ? ["--search", paths.searches] : []),
         ])
       : notRun(
