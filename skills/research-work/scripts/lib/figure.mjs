@@ -143,12 +143,22 @@ export function readSeries(spec, specPath) {
 }
 
 /** The figure as SVG text, and a summary of what it drew. */
+// A label's width at the 12 px font, from its characters: an estimate, enough to tell labels that touch.
+const textWidth = (text) => String(text).length * 6.6;
+
 export function drawFigure(spec, specPath) {
   if (spec?.type === "flow") return drawFlow(spec, specPath);
   const series = readSeries(spec, specPath);
   const width = spec.width ?? 640;
   const height = spec.height ?? 400;
-  const margin = { top: spec.title ? 40 : 20, right: 20, bottom: 56, left: 64 };
+  const rotate = spec.x?.rotate ?? 0;
+  if (![0, 45, 90].includes(rotate)) throw new Error("x.rotate must be 0, 45 or 90 (degrees)");
+  const warnings = [];
+  // Rotated category labels hang below the axis, so the bottom margin grows to hold the longest one.
+  const longest =
+    spec.type === "bar" ? Math.max(0, ...series.flatMap((each) => each.points.map((p) => textWidth(p.x)))) : 0;
+  const hang = rotate === 0 ? 0 : longest * Math.sin((rotate * Math.PI) / 180);
+  const margin = { top: spec.title ? 40 : 20, right: 20, bottom: Math.max(56, Math.ceil(hang) + 40), left: 64 };
   const legendWidth = series.length > 1 ? 150 : 0;
   const plot = {
     left: margin.left,
@@ -194,8 +204,32 @@ export function drawFigure(spec, specPath) {
   }
   for (const tick of xTicks) {
     parts.push(`<line x1="${fixed(tick.at)}" y1="${bottom}" x2="${fixed(tick.at)}" y2="${bottom + 4}" stroke="#333"/>`);
-    parts.push(`<text x="${fixed(tick.at)}" y="${bottom + 18}" text-anchor="middle">${escape(tick.text)}</text>`);
+    parts.push(
+      rotate === 0
+        ? `<text x="${fixed(tick.at)}" y="${bottom + 18}" text-anchor="middle">${escape(tick.text)}</text>`
+        : `<text transform="translate(${fixed(tick.at)} ${bottom + 12}) rotate(-${rotate})" text-anchor="end">${escape(tick.text)}</text>`,
+    );
   }
+  // Labels that touch, and text past the canvas, are listed: the figure is drawn either way.
+  for (let at = 1; at < xTicks.length; at += 1) {
+    const gap = xTicks[at].at - xTicks[at - 1].at;
+    const needed =
+      rotate === 0
+        ? (textWidth(xTicks[at].text) + textWidth(xTicks[at - 1].text)) / 2 + 4
+        : 14 / Math.sin((rotate * Math.PI) / 180);
+    if (gap < needed)
+      warnings.push(
+        `x labels "${xTicks[at - 1].text}" and "${xTicks[at].text}" overlap (${Math.round(gap)} px apart, ${Math.round(needed)} needed): set x.rotate to 45 or 90, shorten them, or widen the figure`,
+      );
+  }
+  if (rotate === 0 && xTicks.length > 0) {
+    const first = xTicks[0];
+    const last = xTicks[xTicks.length - 1];
+    if (first.at - textWidth(first.text) / 2 < 0 || last.at + textWidth(last.text) / 2 > width)
+      warnings.push("an x label runs past the canvas edge: widen the figure or rotate the labels");
+  }
+  if (spec.title && textWidth(spec.title) > width)
+    warnings.push("the title is wider than the figure: shorten it or widen the figure");
   parts.push(`<line x1="${plot.left}" y1="${bottom}" x2="${plot.left + plot.width}" y2="${bottom}" stroke="#333"/>`);
   parts.push(`<line x1="${plot.left}" y1="${plot.top}" x2="${plot.left}" y2="${bottom}" stroke="#333"/>`);
   if (spec.x?.label)
@@ -277,7 +311,11 @@ export function drawFigure(spec, specPath) {
     "</svg>",
     "",
   ].join("\n");
-  return { svg, series: series.map((each) => ({ label: each.label, points: each.points.length })) };
+  if (series.length > 1)
+    for (const each of series)
+      if (plot.left + plot.width + 26 + textWidth(each.label) > width)
+        warnings.push(`the legend label "${each.label}" runs past the canvas edge: shorten it or widen the figure`);
+  return { svg, series: series.map((each) => ({ label: each.label, points: each.points.length })), warnings };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

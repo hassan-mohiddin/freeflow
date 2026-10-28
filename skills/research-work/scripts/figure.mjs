@@ -59,6 +59,7 @@ if (parsed.values.json)
       out: parsed.values.out,
       series: result.series,
       ...(result.boxes ? { boxes: result.boxes } : {}),
+      ...(result.warnings?.length ? { warnings: result.warnings } : {}),
     }),
   );
 else if (spec.type === "flow") console.log(`${parsed.values.out}: flow, ${result.boxes} boxes`);
@@ -66,3 +67,4 @@ else
   console.log(
     `${parsed.values.out}: ${spec.type}, ${result.series.map((each) => `${each.label} (${each.points} points)`).join(", ")}`,
   );
+if (!parsed.values.json) for (const warning of result.warnings ?? []) console.log(`  note: ${warning}`);

@@ -622,3 +622,42 @@ test("a build that cannot find a figure fails", (t) => {
   assert.equal(built.status, 1, built.stdout);
   assert.match(built.stderr, /could not find: .*missing\.svg/);
 });
+
+test("a figure lists x labels that overlap, and rotated labels clear them (second trial)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "research-figure-labels-"));
+  const names = [
+    "GPT-4o judge",
+    "Claude-3.5-Sonnet judge",
+    "Llama-3-70B judge",
+    "Qwen2.5-72B judge",
+    "Mistral-Large judge",
+    "Gemini-1.5-Pro judge",
+  ];
+  writeFileSync(join(dir, "data.json"), JSON.stringify(names.map((judge, at) => ({ judge, share: 0.5 + at / 20 }))));
+  const spec = { type: "bar", data: "data.json", series: [{ label: "consistency", x: "judge", y: "share" }] };
+  const flat = drawFigure(spec, join(dir, "spec.json"));
+  assert.ok(
+    flat.warnings.some((warning) => /overlap/.test(warning)),
+    JSON.stringify(flat.warnings),
+  );
+  const turned = drawFigure({ ...spec, x: { rotate: 45 } }, join(dir, "spec.json"));
+  assert.deepEqual(turned.warnings, []);
+  assert.match(turned.svg, /rotate\(-45\)/);
+  // Short labels on a default figure give no warning, and its drawing is unchanged by the option's absence.
+  writeFileSync(
+    join(dir, "short.json"),
+    JSON.stringify([
+      { k: "A", v: 1 },
+      { k: "B", v: 2 },
+    ]),
+  );
+  assert.deepEqual(
+    drawFigure({ type: "bar", data: "short.json", series: [{ label: "v", x: "k", y: "v" }] }, join(dir, "spec.json"))
+      .warnings,
+    [],
+  );
+  assert.throws(
+    () => drawFigure({ ...spec, x: { rotate: 30 } }, join(dir, "spec.json")),
+    /x.rotate must be 0, 45 or 90/,
+  );
+});
