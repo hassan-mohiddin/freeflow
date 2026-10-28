@@ -71,14 +71,29 @@ test("the register is validated against a search ledger from the command line", 
 
 /** A filled study plan at study rigor, with the skeleton's variant and model sections still holding placeholders. */
 function plan() {
-  return skeleton("study-plan", { title: "P", owner: "O", rigor: "study" })
-    .replaceAll("<the answer, before any data>", "Answered before any data.")
-    .replace(/<the prediction: [^>]*>/, "One task per arm; power mcnemar-cases sized it.")
-    .replace(
-      "| C1 | <what the study tests> | confirmatory | <the primary metric> | <the rule that decides it> |",
-      "| C1 | Prompt b passes more tasks | confirmatory | pass rate | exact McNemar, two-sided p < 0.05 |",
-    )
-    .replace("| <unit> | <arm> | <trials> |", "| t1 | a | 1 |\n| t1 | b | 1 |");
+  return (
+    skeleton("study-plan", { title: "P", owner: "O", rigor: "study" })
+      .replaceAll("<the answer, before any data>", "Answered before any data.")
+      .replace(/<how it is done today[^>]*>/, "Answered before any data.")
+      .replace(/<the noise floor[^>]*>/, "Answered before any data.")
+      // Plans written before the Method column existed: the helper keeps testing them.
+      .replace("| Decision rule | Method |", "| Decision rule |")
+      .replace("| --- | --- | --- | --- | --- | --- |", "| --- | --- | --- | --- | --- |")
+      .replace(/ <the stats\.mjs family[^>]*> \|/, "")
+      // ... and before the Budget column: dedicated tests cover both.
+      .replace(
+        "| Unit | Arm | Trials | Budget |\n| --- | --- | --- | --- |",
+        "| Unit | Arm | Trials |\n| --- | --- | --- |",
+      )
+      .replace(/\| <unit> \| <arm> \| <trials> \| <[^>]*> \|/, "| <unit> | <arm> | <trials> |")
+      .replaceAll("<how this route is controlled, or unknown>", "unknown")
+      .replace(/<the prediction: [^>]*>/, "One task per arm; power mcnemar-cases sized it.")
+      .replace(
+        "| C1 | <what the study tests> | confirmatory | <the primary metric> | <the rule that decides it> |",
+        "| C1 | Prompt b passes more tasks | confirmatory | pass rate | exact McNemar, two-sided p < 0.05 |",
+      )
+      .replace("| <unit> | <arm> | <trials> |", "| t1 | a | 1 |\n| t1 | b | 1 |")
+  );
 }
 
 /** The plan without its variant and model sections, as plans written before they existed are. */

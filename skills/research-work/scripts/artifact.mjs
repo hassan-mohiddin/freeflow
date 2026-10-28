@@ -15,6 +15,7 @@ import {
   parseMarkdown,
   parseTable,
   planHypotheses,
+  planLabelsByModel,
   planVariants,
   searchCounts,
   skeleton,
@@ -136,6 +137,25 @@ if (command === "init" && rest[0] === "project") {
       locked: state.locked,
       reason: state.reason,
       demoted: demotedHypotheses(state.lock),
+      labelledByModel: planLabelsByModel(read(values.plan)),
+      // What computed a result file: every computed_by its JSON records, read relative to the register.
+      computedBy: (file) => {
+        const full = resolve(dirname(path), file);
+        if (!existsSync(full)) return [];
+        try {
+          const found = [];
+          const walk = (value) => {
+            if (value && typeof value === "object") {
+              if (typeof value.computed_by === "string") found.push(value.computed_by);
+              Object.values(value).forEach(walk);
+            }
+          };
+          walk(JSON.parse(readFileSync(full, "utf8")));
+          return found;
+        } catch {
+          return [];
+        }
+      },
       // Every variant the plan has ever listed, from each lock entry, so an amendment cannot drop one unreported.
       variants: [
         ...new Set([

@@ -31,7 +31,7 @@ const FAMILIES = {
   agreement: {
     raters: ({ units }) => stats.raterAgreement(units),
     cohen: ({ pairs }) => stats.cohenKappa(pairs),
-    weighted: ({ pairs }) => stats.linearWeightedKappa(pairs),
+    weighted: ({ pairs, weights }) => stats.weightedKappa(pairs, { weights }),
     pabak: ({ pairs, categories }) => stats.pabak(pairs, { categories }),
     krippendorff: ({ units }) => stats.krippendorffAlpha(units),
   },
@@ -203,4 +203,7 @@ try {
 } catch (error) {
   fail(error.message);
 }
+// The result records what computed it, so a register can show its verdict came from the method the plan locked.
+if (result && typeof result === "object" && !Array.isArray(result))
+  result = { ...result, computed_by: `stats.mjs ${family} ${input.method}` };
 console.log(parsed.values.text ? summary(result) : JSON.stringify(result, null, 2));

@@ -20,6 +20,19 @@ function studyFolder({ rigor = "check" } = {}) {
   const plan = join(folder, "plan.md");
   const text = skeleton("study-plan", { title: "Two prompts", owner: "Hassan Mohiddin", rigor })
     .replaceAll("<the answer, before any data>", "Answered before any data.")
+    .replace(/<how it is done today[^>]*>/, "Answered before any data.")
+    .replace(/<the noise floor[^>]*>/, "Answered before any data.")
+    // Plans written before the Method column existed: the helper keeps testing them.
+    .replace("| Decision rule | Method |", "| Decision rule |")
+    .replace("| --- | --- | --- | --- | --- | --- |", "| --- | --- | --- | --- | --- |")
+    .replace(/ <the stats\.mjs family[^>]*> \|/, "")
+    // ... and before the Budget column: dedicated tests cover both.
+    .replace(
+      "| Unit | Arm | Trials | Budget |\n| --- | --- | --- | --- |",
+      "| Unit | Arm | Trials |\n| --- | --- | --- |",
+    )
+    .replace(/\| <unit> \| <arm> \| <trials> \| <[^>]*> \|/, "| <unit> | <arm> | <trials> |")
+    .replaceAll("<how this route is controlled, or unknown>", "unknown")
     .replace(
       "<the prediction: the primary metric, the smallest effect worth detecting, and the power computation (stats.mjs power) that sized the study, or why none applies>",
       "One task per arm; power mcnemar-cases sized it.",

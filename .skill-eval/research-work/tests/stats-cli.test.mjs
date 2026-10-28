@@ -18,6 +18,7 @@ test("stats.mjs computes from a JSON object on stdin", () => {
     referenceOnly: 1,
     discordant: 10,
     p: 0.021484375,
+    computed_by: "stats.mjs paired mcnemar",
   });
 });
 
