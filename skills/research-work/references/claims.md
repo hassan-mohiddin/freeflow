@@ -53,7 +53,7 @@ Answer the strongest objection a reader will raise where it arises, once, with t
 
 ## What The Gate Runs
 
-`research.mjs gate` runs each check below that its rigor requires or its file makes possible. A file that is present is always checked, and its failure fails the gate; a claims register or outline still as `init` wrote it counts as absent. A passed check's notes (what it did not check, or a warning) are printed beneath it: read each one.
+`research.mjs gate` runs each check below that its rigor requires or its file makes possible. A file that is present is always checked, and its failure fails the gate, except a paper's PDF below publication, which no lower rigor requires: its result is shown and holds nothing; a claims register or outline still as `init` wrote it counts as absent. A passed check's notes (what it did not check, or a warning) are printed beneath it: read each one.
 
 | Check | Runs | Required at |
 | --- | --- | --- |

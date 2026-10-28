@@ -5,7 +5,7 @@
 // runs goes online or calls a model.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,10 +37,12 @@ const USAGE = [
   "a code citation or quote, except those --unsupported-ok marks out by the author's choice), and a paper's PDF",
   "(check-pdf, against the venue's --max-pages, --max-words or --require). A study plan, when present, is validated",
   "and checked with study.mjs check, and the register is validated against it; a register with a confirmatory claim",
-  "and no plan fails. A file that is present is always checked, and its failure fails the gate; a claims register or",
-  "outline still as init wrote it counts as absent. A passed check's notes are printed beneath it. --repo, --copy",
-  "and --reads go to cite-check and support; --copy, --limit and --allow to draft-check; --max-pages, --max-words",
-  "and --require to check-pdf.",
+  "and no plan fails. A file that is present is always checked, and its failure fails the gate (a PDF below",
+  "publication is shown and holds nothing); a claims register or outline still as init wrote it counts as absent.",
+  "A passed check's notes are printed beneath it. --repo, --copy and --reads go to cite-check and support; --copy,",
+  "--limit and --allow to draft-check; --max-pages, --max-words and --require to check-pdf. A source's saved copy",
+  "in the sources folder, named for its ID (S3.txt) or its pin without the scheme (2306.05685v4.txt), is found",
+  "without --copy; a --copy given wins.",
   "",
   "Exit code 0 when every required check passed, 1 when one failed or could not run, 2 on a usage error.",
 ].join("\n");
@@ -128,7 +130,44 @@ const rigorFrom = RIGORS.includes(briefRigor)
 const atLeast = (level) => RIGORS.indexOf(rigor) >= RIGORS.indexOf(level);
 
 const repeat = (flag, list) => list.flatMap((value) => [flag, value]);
-const sourceOptions = [...repeat("--repo", values.repo), ...repeat("--copy", values.copy)];
+
+// A source's saved copy, found in the sources folder by the source's ID (S3.txt) or its pin with any scheme dropped
+// (arXiv:2306.05685v4 as 2306.05685v4.txt, a DOI's / as _), so quotes are checked without a --copy for each; the
+// ID's name wins over the pin's, and a --copy given wins over both.
+const COPY_TYPES = /\.(txt|md|html?)$/i;
+function savedCopies() {
+  const found = new Map();
+  const walk = (dir, depth) => {
+    let entries = [];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory() && depth < 3) walk(path, depth + 1);
+      else if (entry.isFile() && COPY_TYPES.test(entry.name) && !found.has(entry.name.replace(COPY_TYPES, "")))
+        found.set(entry.name.replace(COPY_TYPES, ""), path);
+    }
+  };
+  walk(dirname(paths.sources), 0);
+  const given = new Set(values.copy.map((entry) => entry.split("=")[0]));
+  const copies = [];
+  for (const [id, row] of used.sources ? ledgerRows(text(paths.sources)) : []) {
+    if (given.has(id)) continue;
+    const pin = (row.Pin ?? "")
+      .split(/\s/)[0]
+      .replace(/^[a-z]+:(?!\/\/)/i, "")
+      .replaceAll("/", "_");
+    const path = found.get(id) ?? (pin ? found.get(pin) : undefined);
+    if (path) copies.push(`${id}=${shown(path)}`);
+  }
+  return copies;
+}
+const foundCopies = savedCopies();
+const allCopies = [...values.copy, ...foundCopies];
+const sourceOptions = [...repeat("--repo", values.repo), ...repeat("--copy", allCopies)];
 
 const checks = [];
 
@@ -342,7 +381,7 @@ if (used.paper)
       paths.paper,
       ...(used.outline ? ["--outline", paths.outline] : []),
       ...(used.sources ? ["--ledger", paths.sources] : []),
-      ...repeat("--copy", values.copy),
+      ...repeat("--copy", allCopies),
       ...repeat("--limit", values.limit),
       ...repeat("--allow", values.allow),
     ]),
@@ -525,6 +564,7 @@ if (values.json)
         rigor,
         rigor_from: rigorFrom,
         ready,
+        copies: foundCopies,
         checks: checks.map(({ id, label, required, status, reason, command, output, notes }) => ({
           id,
           label,
@@ -543,6 +583,7 @@ if (values.json)
   );
 else {
   console.log(`${folder}: ${rigor} rigor (from ${rigorFrom})`);
+  if (foundCopies.length) console.log(`  saved copies found in the sources folder: ${foundCopies.join(", ")}`);
   for (const check of checks) {
     const mark = check.status === "not run" && check.required ? "not run (required)" : check.status;
     console.log(`  ${mark.padEnd(18)} ${check.label}: ${check.reason}`);

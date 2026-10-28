@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -556,4 +556,31 @@ test("the summary names each check and what is left, and a usage error exits 2",
   assert.equal(node("research.mjs", "gate").status, 2);
   assert.equal(node("research.mjs", "gate", folder, "--rigor", "loose").status, 2);
   assert.equal(readFileSync(join(folder, "claims.md"), "utf8"), register("3"));
+});
+
+test("the gate finds a source's saved copy in sources/ by its ID or its pin, so quotes are checked without --copy", () => {
+  const { folder } = project("check");
+  // Without --copy, and no copy named for S1, the quote is not checked.
+  assert.equal(check(gate(folder), "report-cite").status, "failed");
+  // A copy named for the ID is found.
+  mkdirSync(join(folder, "sources", "copies"), { recursive: true });
+  cpSync(join(folder, "sources", "note.txt"), join(folder, "sources", "copies", "S1.txt"));
+  const byId = gate(folder);
+  assert.equal(check(byId, "report-cite").status, "passed", JSON.stringify(check(byId, "report-cite"), null, 2));
+  assert.match(byId.copies.join("\n"), /S1=.*copies\/S1\.txt/);
+  // A copy named for an arXiv pin is found too.
+  const arxiv = mkdtempSync(join(tmpdir(), "research-gate-"));
+  cpSync(folder, arxiv, { recursive: true });
+  writeFileSync(
+    join(arxiv, "sources", "sources.md"),
+    ledger().replace("https://example.org/note (accessed 2026-10-27)", "arXiv:2306.05685v4"),
+  );
+  const pinned = join(arxiv, "sources", "copies", "2306.05685v4.txt");
+  cpSync(join(arxiv, "sources", "copies", "S1.txt"), pinned);
+  rmSync(join(arxiv, "sources", "copies", "S1.txt"));
+  assert.equal(check(gate(arxiv), "report-cite").status, "passed");
+  // The ID's own copy wins over the pin's, as the more specific name, and a --copy given wins over both.
+  writeFileSync(join(arxiv, "sources", "copies", "S1.txt"), "nothing quoted here");
+  assert.equal(check(gate(arxiv), "report-cite").status, "failed");
+  assert.equal(check(gate(arxiv, "--copy", `S1=${pinned}`), "report-cite").status, "passed");
 });

@@ -12,7 +12,7 @@ Pin a source before relying on it, because sources change:
 
 - **Code:** clone the repository and resolve the commit (`git rev-parse HEAD`); the pin is `<repository>@<commit>`. Read at that commit only; if you move to a newer one, record it as a new source.
 - **Papers:** the DOI or arXiv ID, with the version you read (`arXiv:2306.05685v4`). Save a paper's text copy with plain `pdftotext` (no `-layout`), so a quote from a two-column page stays in one column.
-- **Pages and docs:** the URL with the date you read it. When a quote from a page matters, save a copy in the task's `sources/` so a later check can find the quote.
+- **Pages and docs:** the URL with the date you read it. When a quote from a page matters, save a copy in the task's `sources/`, named for the source's ID or its pin (`S3.txt`, `2306.05685v4.txt`), so the gate finds it and checks the quote.
 
 Record each source in the ledger when you first rely on it, not at the end: the ledger is how a later context, or a reviewer, knows what was actually read.
 
