@@ -10,7 +10,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-import { ledgerRows, parseMarkdown, parseTable, validate } from "./lib/formats.mjs";
+import { HIT_STATES, ledgerRows, parseMarkdown, parseTable, searchCounts, validate } from "./lib/formats.mjs";
 import { draftCheck, figureReceipts, stripIds } from "./lib/paper.mjs";
 import { buildPackets, checkVerdicts, readVerdicts } from "./lib/support.mjs";
 import {
@@ -27,7 +27,7 @@ import {
 } from "./lib/report.mjs";
 
 const USAGE = [
-  "Usage: claims.mjs trace <report.md> --register <claims.md> [--results] [--json]",
+  "Usage: claims.mjs trace <report.md> --register <claims.md> [--results] [--search <search ledger>] [--json]",
   "       claims.mjs support <report.md> --register <claims.md> --ledger <sources.md> --out <packets.jsonl>",
   "                          [--only C<n>,...] [--repo <name>=<clone>]... [--copy S<n>=<file>]...",
   "       claims.mjs support-check <verdicts.jsonl> --packets <packets.jsonl> [--json]",
@@ -74,6 +74,7 @@ try {
       repo: { type: "string", multiple: true, default: [] },
       copy: { type: "string", multiple: true, default: [] },
       results: { type: "boolean", default: false },
+      search: { type: "string" },
       json: { type: "boolean", default: false },
       help: { type: "boolean" },
     },
@@ -224,6 +225,20 @@ const levels = new Map(
   table.rows.filter((row) => /^L[0-5]$/.test(row.cells.Level ?? "")).map((row) => [row.cells.ID, row.cells.Level]),
 );
 
+// --search: a count the report states about its searches (hits, included, excluded) traces to the search ledger.
+const searchNumbers = new Set();
+if (parsed.values.search) {
+  const counts = searchCounts(read(parsed.values.search));
+  const perQuery = Object.values(counts.queries);
+  for (const value of [
+    perQuery.length,
+    ...Object.values(counts.total),
+    ...perQuery.flatMap((row) => HIT_STATES.map((state) => row[state])),
+  ])
+    if (Number.isFinite(value)) searchNumbers.add(String(value));
+}
+const SEARCH_WORDS = /\b(?:quer(?:y|ies)|hits?|screened|included|excluded|duplicates?|unscreened|searches?)\b/i;
+
 const problems = [];
 const notes = [];
 let checkedNumbers = 0;
@@ -252,6 +267,7 @@ for (const unit of units(read(report))) {
       for (const number of numbersIn(line)) {
         checkedNumbers += 1;
         if (supported.has(number)) continue;
+        if (searchNumbers.has(number) && SEARCH_WORDS.test(line)) continue;
         problems.push({
           line: unit.line + offset,
           kind: "untraced number",

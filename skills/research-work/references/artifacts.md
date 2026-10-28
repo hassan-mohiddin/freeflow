@@ -54,7 +54,7 @@ One row per source the work relies on, in one table with these columns, in order
 | Lookup | `verified` (found at its identifier), `unresolved` (not found, which does not make it fabricated), `refuted` (its identifier resolves to something else; only an identifier can refute), `not-looked-up` |
 | Checked | `opened` (read the source itself), `repository-read` (read the code at the pinned commit), `ran` (executed it), `abstract`, `summary-only` (a search result or someone else's summary), `memory` |
 | Read | `full`, `partial`, `abstract`, `none`. For a repository, `full` means every file the claims rest on was read whole; `partial`, only the cited ranges and what led to them |
-| Supports | The claim IDs it supports (`C1, C3`), or `-` |
+| Supports | The claim IDs it supports (`C1, C3`), or `-`. Validating a register with `--sources` refuses a row whose Supports lacks a claim of that register citing it, or lists one that does not; a claim the register lacks is another register's and is left alone |
 
 How a source was checked caps the claims resting on it: `abstract`, `summary-only` and `memory` support at most L1, whatever study stands behind the source. Write `|` inside a cell as `\|`.
 

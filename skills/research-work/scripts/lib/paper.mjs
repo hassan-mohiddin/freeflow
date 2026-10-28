@@ -283,10 +283,13 @@ export function draftCheck(
   const firstUse = new Map();
   const definedAt = new Map();
   plain.forEach((line, index) => {
-    if (/^#/.test(line)) return;
+    if (/^#/.test(line) || /^>\s*\*\*/.test(line)) return;
     for (const match of line.matchAll(ACRONYM)) {
       const acronym = match[0].replace(/s$/, "");
       if (ID_LIKE.test(acronym) || allow.has(acronym)) continue;
+      // Part of a hyphenated name (MT-Bench, GPT-4) is the name's, not an acronym to define.
+      if (/-$/.test(line.slice(0, match.index)) || /^-[A-Za-z0-9]/.test(line.slice(match.index + match[0].length)))
+        continue;
       if (!firstUse.has(acronym)) firstUse.set(acronym, index + 1);
       const before = line.slice(0, match.index);
       const after = line.slice(match.index + match[0].length);
@@ -538,7 +541,7 @@ const bibValue = (value) => `{${String(value).replace(/[{}]/g, "")}}`;
  * note saying so, and is listed. With `from` (entries of an existing .bib, such as a reference manager's export), an
  * entry with the same DOI or arXiv ID gives its type and fields; the key stays the ledger ID.
  */
-export function bibFromLedger(rows, { from = [] } = {}) {
+export function bibFromLedger(rows, { from = [], lookups = new Map() } = {}) {
   const byDoi = new Map();
   const byArxiv = new Map();
   for (const entry of from) {
@@ -560,9 +563,17 @@ export function bibFromLedger(rows, { from = [] } = {}) {
     const repository = /^([\w.-]+)@([0-9a-f]{7,40})$/.exec(pin);
     const known =
       (doi && byDoi.get(doi.toLowerCase())) || (arxiv && byArxiv.get(arxiv.toLowerCase().replace(/v\d+$/, "")));
+    const found = lookups.get(id);
     if (known) {
       type = known.type;
       Object.assign(fields, known.fields);
+      matched.push(id);
+    } else if (found?.title) {
+      // A verified lookup's record gives the title, authors and year the ledger's Source line only summarizes.
+      fields.title = found.title;
+      if (found.authors?.length) fields.author = found.authors.join(" and ");
+      if (found.year) fields.year = String(found.year);
+      if (found.venue) fields.journal = found.venue;
       matched.push(id);
     } else fields.title = row.Source;
     if (doi) fields.doi = doi;

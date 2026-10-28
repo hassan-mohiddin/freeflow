@@ -19,7 +19,7 @@ import { fileAtCommit } from "./lib/support.mjs";
 const USAGE = [
   "Usage: sources.mjs cite-check <report.md> --ledger <sources.md> [--repo <name>=<clone>]... [--copy S<n>=<file>]... [--json]",
   "       sources.mjs quote-check <judge answers .jsonl> [--json]",
-  "       sources.mjs bib <sources.md> --out <refs.bib> [--from <existing.bib>]",
+  "       sources.mjs bib <sources.md> --out <refs.bib> [--from <existing.bib>] [--cache <lookups.json>]",
   "       sources.mjs lookup <sources.md> --cache <lookups.json> [--only S<n>,...] [--search-titles] [--refresh] [--json]",
   "       sources.mjs reads <transcript.jsonl>... --ledger <sources.md> --repo <name>=<clone>... --out <reads.jsonl>",
   "",
@@ -93,10 +93,23 @@ if (command === "bib") {
   } catch (error) {
     fail(`cannot read: ${error.message}`);
   }
-  const bib = bibFromLedger(rows, { from });
+  // --cache: a verified lookup's record fills the entry's title, authors and year.
+  const lookups = new Map();
+  if (parsed.values.cache && existsSync(parsed.values.cache)) {
+    const cache = JSON.parse(readFileSync(parsed.values.cache, "utf8"));
+    // An entry counts for a row only when it looked up that row's Pin for that Source and verified it.
+    for (const entry of Object.values(cache)) {
+      const result = entry.result;
+      if (result?.lookup !== "verified" || !result.record) continue;
+      for (const [id, row] of rows)
+        if (row.Lookup === "verified" && row.Pin === result.pin && row.Source === entry.source)
+          lookups.set(id, result.record);
+    }
+  }
+  const bib = bibFromLedger(rows, { from, lookups });
   writeFileSync(parsed.values.out, bib.text);
   console.log(
-    `${parsed.values.out}: ${rows.size} entries; ${bib.matched.length} completed from ${parsed.values.from ?? "no --from file"}; ${bib.unverified.length} not verified`,
+    `${parsed.values.out}: ${rows.size} entries; ${bib.matched.length} completed from ${[parsed.values.from, parsed.values.cache].filter(Boolean).join(" and ") || "no --from file or --cache"}; ${bib.unverified.length} not verified`,
   );
   for (const id of bib.unverified)
     console.log(`  not verified: ${id} (${rows.get(id).Source}): its entry carries a note`);
@@ -153,7 +166,9 @@ if (command === "lookup") {
   );
   if (parsed.values.json) console.log(JSON.stringify({ ledger: report, results }, null, 2));
   else {
-    console.log(`${report}: ${results.length} row(s) looked up; ${flagged.length} need attention`);
+    console.log(
+      `${report}: ${results.length} row(s) looked up; ${flagged.length} need attention (a Lookup to update in the ledger, or a notice to read)`,
+    );
     for (const result of results) {
       const lookup = result.lookup ?? "not online";
       const change =
