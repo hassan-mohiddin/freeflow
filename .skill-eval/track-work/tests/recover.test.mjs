@@ -66,7 +66,7 @@ async function workspace({ branchNamed = "main", commit = null, updates = [], so
   if (updates.length)
     text = text.replace(
       "\n### Recovery sources",
-      `\n##### Material updates\n\n${updates.map((each) => `- ${each.replace("{HEAD}", head.slice(0, 8))}`).join("\n")}\n\n### Recovery sources`,
+      `\n##### Material updates\n\n${updates.map((each) => `- ${each.replace("{HEAD}", head)}`).join("\n")}\n\n### Recovery sources`,
     );
   if (sources.length)
     text = text.replace(
