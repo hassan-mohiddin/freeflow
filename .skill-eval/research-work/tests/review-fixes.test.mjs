@@ -208,8 +208,8 @@ test("validate --recheck caps at L1 a claim citing a source with a recheck misma
     "| C1 | The arm raised accuracy | 0.38 | S1, S2 | L2 | exploratory | GSM8K | five studies |",
     "| C2 | The arm raised accuracy without S1 | 0.20 | S2; pooled-no-S1.json | L2 | exploratory | GSM8K | four studies |",
     "| C3 | S1 reports a gain | 0.76 | S1 | L1 | exploratory | GSM8K | N1 is a mismatch |",
-    // The finding about the mismatch cites the recheck table itself, so it is not capped by it.
-    "| C4 | S1's 60.87% cannot be a whole number of 1319 items | 60.87%; 1319 | S1; recheck.md | L2 | exploratory | Table 2 | N assumed |",
+    // The finding about the mismatch cites the recheck table and names its row, so it is not capped by it.
+    "| C4 | S1's 60.87% cannot be a whole number of 1319 items | 60.87%; 1319 | S1; recheck.md | L2 | exploratory | Table 2 | N assumed; states N1's finding |",
     // A claim citing S1 for something other than the mismatched number says so by naming the row in its Limit.
     "| C5 | All five studies ran both prompts on the same items | 5 | S1, S2 | L2 | exploratory | GSM8K | does not rest on N1 |",
   ];
@@ -397,4 +397,87 @@ test("sources.mjs says its title search uses Crossref then arXiv, as the code do
   assert.doesNotMatch(help.stdout + help.stderr, /OpenAlex/);
   assert.match(help.stdout + help.stderr, /--search-titles searches Crossref, then arXiv's titles/);
   assert.doesNotMatch(readFileSync(join(SCRIPTS, "lib/lookup.mjs"), "utf8"), /OpenAlex/);
+});
+
+test("validate --recheck reads the quote form, exempts only by the row named in Limit, and reports the table's problems", () => {
+  const flags = recheckFlags(RECHECK);
+  // The ledger holds S1 and S2, each listing C1 when the one claim's Source cites it (not the S1 in meta-no-S1.json).
+  const ledgerFor = (rows) =>
+    new Map(
+      ["S1", "S2"].map((id) => [
+        id,
+        {
+          Checked: "opened",
+          Supports: new RegExp(`(?<![\\w-])${id}(?![\\w-])`).test(rows[0].split("|")[4]) ? "C1" : "-",
+        },
+      ]),
+    );
+  const check = (rows, rechecks = { flags, file: "recheck.md" }) =>
+    validate("claims-register", REGISTER(rows), { ledger: ledgerFor(rows), rechecks }).problems;
+  // A source cited in the quote form, or with a path, is still that source.
+  assert.deepEqual(
+    check([
+      '| C1 | The arm raised accuracy | 0.38 | "the arm raised accuracy" (S1) | L2 | exploratory | GSM8K | one study |',
+    ]),
+    [
+      "line 9: S1 has recheck row N1 (mismatch: Table 2 (N assumed: the full test set)), so a claim resting on it is at most L1; it is L2",
+    ],
+  );
+  assert.deepEqual(
+    check([
+      '| C1 | The arm raised accuracy | 0.38 | "the arm raised accuracy" (S9) | L1 | exploratory | GSM8K | one study |',
+    ]),
+    ["line 9: Source names S9, which the source ledger does not have"],
+  );
+  assert.deepEqual(
+    check(["| C1 | The loop retries | - | (S9:src/loop.ts) | L1 | exploratory | the loop | one file |"]),
+    ["line 9: Source names S9, which the source ledger does not have"],
+  );
+  // The S1 inside a file name is not a source.
+  assert.deepEqual(
+    check(["| C1 | Without S1 the gain holds | 0.2 | S2; meta-no-S1.json | L2 | exploratory | GSM8K | four studies |"]),
+    [],
+  );
+  // Citing the recheck table beside the source does not lift the cap; only the row named in Limit does.
+  assert.deepEqual(
+    check(["| C1 | The arm raised accuracy | 0.38 | S1; recheck.md | L2 | exploratory | GSM8K | one study |"]),
+    [
+      "line 9: S1 has recheck row N1 (mismatch: Table 2 (N assumed: the full test set)), so a claim resting on it is at most L1; it is L2",
+    ],
+  );
+  // A recheck table that does not validate is reported, since a row it cannot read caps nothing.
+  const bad = RECHECK.replace(
+    "| N1 | S1 | Table 2 (N assumed: the full test set) | grim |",
+    "| N1 | S1 | Table 2 (N assumed: the full test set) | GRIM |",
+  );
+  const dir = folder();
+  writeFileSync(
+    join(dir, "claims.md"),
+    REGISTER(["| C1 | The arm raised accuracy | 0.38 | S1 | L2 | exploratory | GSM8K | one study |"]),
+  );
+  writeFileSync(join(dir, "recheck.md"), bad);
+  const result = node("artifact.mjs", ["validate", join(dir, "claims.md"), "--recheck", join(dir, "recheck.md")]);
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stdout, /problem: recheck\.md: N1: Check must be one of/);
+});
+
+test("the reviewing agent cannot settle a disagreement between screeners", () => {
+  const P1 = { kind: "screener", id: "P1", person: "Hassan" };
+  const P2 = { kind: "screener", id: "P2", person: "Sam" };
+  const disagreed = (settled_by) =>
+    hit("A", {
+      state: "included",
+      stage: "title-abstract",
+      source: "S1",
+      settled_by,
+      screens: [
+        { screener: "P1", state: "included" },
+        { screener: "P2", state: "excluded", criterion: "E1" },
+      ],
+    });
+  assert.equal(problemsOf(lines(QUERY, E1, AGENT, P1, P2, disagreed("Hassan"))), "");
+  assert.match(
+    problemsOf(lines(QUERY, E1, AGENT, P1, P2, disagreed("A1"))),
+    /settled_by names A1, the reviewing agent; a person settles a disagreement/,
+  );
 });

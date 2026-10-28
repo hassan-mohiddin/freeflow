@@ -151,6 +151,7 @@ if (command === "init" && rest[0] === "project") {
   if (values.recheck && !ignored.includes("--recheck"))
     options.rechecks = {
       flags: recheckFlags(read(values.recheck)),
+      problems: validate("recheck", read(values.recheck)).problems,
       file: relative(dirname(resolve(path)), resolve(values.recheck))
         .split("\\")
         .join("/"),
