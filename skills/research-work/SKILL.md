@@ -132,7 +132,8 @@ When a result comes from a sample of items, runs or raters, compute it with `sta
 | Several runs of each task, or items grouped by source | `interval clustered` or `interval bootstrap` with clusters; `interval clustered-bayes` for pass or fail values with few clusters | counting runs as independent items |
 | Agreement between two raters | `agreement cohen`, with `agreement pabak` when one answer dominates; `agreement weighted` on an ordered scale | raw percent agreement alone |
 | Several planned comparisons | `correct holm` | reporting each p value alone |
-| pass@k or pass^k from n runs per task | `passk task` or `passk suite` | the share of runs that passed |
+| pass@k or pass^k from n runs per task | `passk task` or `passk suite`; `passk task-interval` or `passk suite-interval` for pass^k's interval | the share of runs that passed |
+| Several seeds or runs of each method on several tasks | `aggregate iqm` with its stratified interval (`aggregate mean`, `median` or `optimality-gap` alongside); `aggregate improvement` for the chance one method beats another | the mean of the best seeds, or a table of per-task means without intervals |
 | How many items a comparison needs | `power mcnemar-cases` or `power paired-cases`, before running | deciding the count after seeing results |
 
 "No significant difference" is not "no difference": say what the interval rules out, or test equivalence with `tost paired` against bounds set in advance.
