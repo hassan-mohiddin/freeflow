@@ -58,15 +58,15 @@ For each source a claim rests on, note in the report's evidence what kind of evi
 
 When a claim leans on the means, SDs, proportions or tests another study reports, and the study gives no data to recompute from, recheck the numbers it prints before relying on them: at `check` rigor the ones a key claim rests on, otherwise every one a claim rests on.
 
-1. `artifact.mjs init recheck recheck.md`, one row per reported result: the source, where it is printed, the check, and the values with their labels, each number copied exactly as printed, trailing zeros included (`5.10` is not `5.1`): `M = 5.19, SD = 1.20, N = 28`, `M = 57.4%, N = 62`, `t(28) = 2.20, p = .036`. Add `one-tailed` only when the paper says so, and `items = k` for a mean of k whole-number items.
+1. `artifact.mjs init recheck recheck.md --title <the study> --owner <owner>`, then one row per reported result: the source, where it is printed, the check, and the values with their labels, each number copied exactly as printed, trailing zeros included (`5.10` is not `5.1`): `M = 5.19, SD = 1.20, N = 28`, `M = 57.4%, N = 62`, `t(28) = 2.20, p = .036`. One result per row. Add `one-tailed` only when the paper says the test was one-tailed or directional, and `items = k` for a mean of k whole-number items. A percentage printed without its sign under a label that says it is one gets the sign, and Where says it was added.
 2. `stats.mjs recheck recheck.md --write` computes each row and writes its Status; validation refuses any Status the computation does not give.
 
 | Check | Asks | Applies to |
 | --- | --- | --- |
 | `grim` | Is the mean a whole total divided by n? | Means and percentages of whole-number data, with n × items below 10 to the power of the mean's decimals |
-| `grimmer` | Does the SD come from a whole sum of squares as well? | Single-item whole-number data, with its mean |
-| `debit` | Does the SD follow from the proportion and n? | Proportions of yes-or-no data |
-| `p` | Does the p value follow from the statistic and its degrees of freedom? | t, F, χ², r and z tests |
+| `grimmer` | Do whole numbers with that total and an SD that rounds to the printed one exist? | Single-item whole-number data, with its mean; searched exactly, and not computable when the search is too large (n in the hundreds, or an SD in the tens) |
+| `debit` | Does the SD follow from the proportion and n? | Proportions of yes-or-no data; a match with the population SD instead of the sample SD is consistent, and the detail says so |
+| `p` | Does the p value follow from the statistic and its degrees of freedom? | t, F, χ², r and z tests; a printed p = .05 counts as significant, as statcheck counts it by default |
 
 What a Status means for a claim:
 

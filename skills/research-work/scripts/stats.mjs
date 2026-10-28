@@ -72,7 +72,7 @@ const USAGE = [
   "",
   "recheck computes each row of a Recheck Table from its Reported text (GRIM, GRIMMER, DEBIT, or p from the statistic",
   "and its degrees of freedom) and prints its Status; --write puts it in the table. It exits 1 when a row is a",
-  "mismatch or a decision error.",
+  "mismatch or a decision error, or names no check it knows.",
   "",
   'One JSON object in; its "method" picks the calculation, the other fields are its inputs. Defaults: confidence',
   "0.95, alpha 0.05, power 0.8, seed 1. Omitted optional fields take these defaults.",
@@ -139,19 +139,28 @@ if (parsed.positionals[0] === "recheck") {
   const table = parseTable(parseMarkdown(text).lines);
   if (!table || table.columns.at(-1) !== "Status") fail(`${path}: no Recheck Table (its last column is Status)`);
   let flagged = 0;
+  // The Status cell is found by its column, so a row without a closing pipe keeps its Reported text.
+  const statusColumn = table.columns.indexOf("Status") + 1;
+  const setStatus = (line, status) => {
+    const cellsOfLine = lines[line - 1].split("|");
+    while (cellsOfLine.length <= statusColumn) cellsOfLine.push("");
+    cellsOfLine[statusColumn] = ` ${status} `;
+    if (cellsOfLine.length === statusColumn + 1) cellsOfLine.push("");
+    lines[line - 1] = cellsOfLine.join("|");
+  };
   for (const { line, cells } of table.rows) {
     if (!CHECKS.includes(cells.Check)) {
+      // An unchecked row fails, and a status typed into it is cleared.
       console.log(`${cells.ID}: not checked: Check must be one of ${CHECKS.join(", ")}`);
+      flagged += 1;
+      setStatus(line, "-");
       continue;
     }
     const result = recheck(cells.Check, cells.Reported);
     const status = statusCell(result);
     if (result.status === "mismatch" || result.status === "decision error") flagged += 1;
     console.log(`${cells.ID}: ${status}: ${result.detail}`);
-    // Rewrite only the Status cell, the row's last.
-    const cellsOfLine = lines[line - 1].split("|");
-    cellsOfLine[cellsOfLine.length - 2] = ` ${status} `;
-    lines[line - 1] = cellsOfLine.join("|");
+    setStatus(line, status);
   }
   if (parsed.values.write) writeFileSync(path, lines.join("\n"));
   process.exit(flagged > 0 ? 1 : 0);

@@ -159,3 +159,70 @@ test("a Recheck Table's Status is written by the computation, and a hand-written
   });
   assert.equal(JSON.parse(one.stdout).status, "consistent", one.stderr);
 });
+
+test("GRIMMER is exact: an SD passes only when whole numbers with that total and sum of squares exist", () => {
+  // Integer pairs with mean 1 have sums of squares 2, 4, 10, 20, ...: never 6, so SD 2.00 is impossible at n = 2.
+  assert.equal(recheck("grimmer", "M = 1.00, SD = 2.00, N = 2").status, "mismatch");
+  assert.equal(recheck("grimmer", "M = 0.00, SD = 2.00, N = 2").status, "mismatch");
+  assert.equal(recheck("grimmer", "M = 0.00, SD = 1.41, N = 3").status, "mismatch");
+  assert.equal(recheck("grimmer", "M = 0.00, SD = 3.06, N = 4").status, "mismatch");
+  // 0 and 2: mean 1, SD sqrt(2) = 1.41, and the detail names that dataset's sums.
+  const pair = recheck("grimmer", "M = 1.00, SD = 1.41, N = 2");
+  assert.equal(pair.status, "consistent");
+  assert.match(pair.detail, /total 2 and sum of squares 4/);
+  // Every SD of whole numbers from 1 to 5 in sets of 3: each reachable mean and SD is consistent.
+  for (let a = 1; a <= 5; a++)
+    for (let b = a; b <= 5; b++)
+      for (let c = b; c <= 5; c++) {
+        const mean = (a + b + c) / 3;
+        const sd = Math.sqrt(((a - mean) ** 2 + (b - mean) ** 2 + (c - mean) ** 2) / 2);
+        const text = `M = ${mean.toFixed(2)}, SD = ${sd.toFixed(2)}, N = 3`;
+        assert.equal(recheck("grimmer", text).status, "consistent", text);
+      }
+});
+
+test("one-tailed wordings in common use are read, and two-tailed or non-directional ones are not", () => {
+  for (const said of [
+    "one-tailed",
+    "1-tailed",
+    "one-sided",
+    "1-sided",
+    "one-tail",
+    "directional",
+    "unidirectional",
+    "one-directional",
+  ])
+    assert.equal(recheck("p", `t(28) = 1.80, p = .041, ${said}`).status, "consistent", said);
+  for (const said of ["two-tailed", "non-directional", "nondirectional", "bidirectional"])
+    assert.equal(recheck("p", `t(28) = 1.80, p = .041, ${said}`).status, "decision error", said);
+});
+
+test("thousands separators are one number in n and in degrees of freedom", () => {
+  assert.equal(recheck("grim", "M = 2.00, N = 1,200").reason, "n too large");
+  assert.equal(recheck("p", "t(1,200) = 2.20, p = .028").status, "consistent");
+  assert.equal(recheck("p", "F(1, 1,200) = 4.84, p = .028").status, "consistent");
+  assert.equal(recheck("p", "F(2,57) = 3.12, p = .052").status, "consistent");
+});
+
+test("a row with two results, or a count that is not a whole number above zero, is not computable", () => {
+  assert.equal(recheck("p", "t(28) = 2.20, p = .036; t(28) = 2.00, p = .03").reason, "not read");
+  for (const text of [
+    "M = 5.19, N = 28.5",
+    "M = 5.19, N = 28, items = 2.5",
+    "M = 5.19, N = 28, items = 0",
+    "M = 5.19, N = 0",
+  ])
+    assert.equal(recheck("grim", text).reason, "missing input", text);
+});
+
+test("recheck --write puts the Status in its own column, and an unchecked row fails and loses its typed status", () => {
+  const dir = mkdtempSync(join(tmpdir(), "research-recheck-write-"));
+  const path = join(dir, "recheck.md");
+  writeFileSync(path, table([["N1", "S1", "Table 2", "grim", "M = 5.19, N = 28", "-"]]).replace("| - |\n", "| -\n"));
+  node("stats.mjs", "recheck", path, "--write");
+  assert.match(readFileSync(path, "utf8"), /\| grim \| M = 5\.19, N = 28 \| mismatch/);
+  writeFileSync(path, table([["N1", "S1", "Table 2", "sprite", "M = 5.19, N = 28", "consistent"]]));
+  const run = node("stats.mjs", "recheck", path, "--write");
+  assert.equal(run.status, 1);
+  assert.match(readFileSync(path, "utf8"), /\| sprite \| M = 5\.19, N = 28 \| - \|/);
+});

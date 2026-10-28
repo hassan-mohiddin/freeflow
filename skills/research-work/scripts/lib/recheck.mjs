@@ -15,11 +15,12 @@ export const REASONS = ["not read", "missing input", "n too large", "not a singl
 
 const ALPHA = 0.05;
 const EPSILON = 1e-9;
-const NUMBER = String.raw`[-−]?(?:\d+(?:\.\d+)?|\.\d+)`;
+// A number as printed, with thousands separators: "1,200" is one number.
+const NUMBER = String.raw`[-−]?(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?|\.\d+)`;
 
 /** A reported number with its rounding interval: "5.19" is 5.185 to 5.195, ".036" is .0355 to .0365. */
 function reported(text) {
-  const clean = text.replace("−", "-");
+  const clean = text.replace("−", "-").replace(/,/g, "");
   const decimals = clean.includes(".") ? clean.split(".")[1].length : 0;
   const value = Number(clean);
   const half = 0.5 * 10 ** -decimals;
@@ -64,25 +65,43 @@ export function pFromStatistic({ test, value, df1, df2, tails = 2 }) {
   return Math.min(1, oneTail * tails);
 }
 
+/** Degrees of freedom as printed, "1,200" included: one number, or two for F, where the first comma separates them. */
+function degrees(test, inside) {
+  if (inside === undefined) return { df1: null, df2: null };
+  const one = String.raw`(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)`;
+  const match =
+    test === "F"
+      ? new RegExp(String.raw`^\s*(\d+(?:\.\d+)?)\s*,\s*${one}\s*$`).exec(inside)
+      : new RegExp(String.raw`^\s*${one}\s*(?:,\s*N\s*=\s*[\d,]+)?\s*$`).exec(inside);
+  if (!match) return null;
+  const number = (text) => (text === undefined ? null : Number(text.replace(/,/g, "")));
+  return { df1: number(match[1]), df2: number(match[2]) };
+}
+
+// One-tailed as statcheck reads it (one-tailed, one-sided, directional) and the other common spellings; "two-tailed",
+// "non-directional" and "bidirectional" do not count.
+const ONE_TAILED = /(?<![a-z-])(?:one|1)[- ]?(?:tailed|sided|tail)\b|(?<![a-z-])(?:uni|one-)?directional\b/i;
+
 /** The statistic and p a text reports: "t(28) = 2.20, p = .036", "F(1, 28) = 4.84, p < .05", "χ2(1, N = 90) = 3.9, ns". */
 function parseTest(text) {
   const clean = text.replace(/−/g, "-");
-  const statistic = new RegExp(
-    String.raw`(?:^|[\s,;(])(t|F|χ2|χ²|chi2|chi-square|r|z|Z)\s*(?:\(\s*([\d.]+)\s*(?:,\s*(?:N\s*=\s*\d+|([\d.]+)))?\s*\))?\s*=\s*(${NUMBER})`,
-  ).exec(clean);
+  const pattern = String.raw`(?:^|[\s,;(])(t|F|χ2|χ²|chi2|chi-square|r|z|Z)\s*(?:\(([^)]*)\))?\s*=\s*(${NUMBER})`;
+  const statistics = [...clean.matchAll(new RegExp(pattern, "g"))];
   const pMatch = /(?:^|[\s,;(])p\s*(=|<|>|≤|≥|<=|>=)\s*(\d*\.\d+|\d+)/i.exec(clean);
   const ns = /(?:^|[\s,;(])(ns|n\.s\.)(?:$|[\s,;).])/i.test(clean);
-  if (!statistic || (!pMatch && !ns)) return null;
+  if (statistics.length !== 1 || (!pMatch && !ns)) return { unread: statistics.length > 1 ? "several" : "none" };
+  const [statistic] = statistics;
   const name = statistic[1];
   const test = /^(χ2|χ²|chi2|chi-square)$/.test(name) ? "chi2" : name === "Z" ? "z" : name;
+  const df = degrees(test, statistic[2]);
+  if (!df) return { unread: "degrees" };
   return {
     test,
-    df1: statistic[2] === undefined ? null : Number(statistic[2]),
-    df2: statistic[3] === undefined ? null : Number(statistic[3]),
-    statistic: reported(statistic[4]),
+    ...df,
+    statistic: reported(statistic[3]),
     p: pMatch ? { op: { "<=": "≤", ">=": "≥" }[pMatch[1]] ?? pMatch[1], ...reported(pMatch[2]) } : null,
     ns,
-    oneTailed: /one[- ]tailed|one[- ]sided/i.test(clean),
+    oneTailed: ONE_TAILED.test(clean),
     label: statistic[0].trim().replace(/^[,;(]\s*/, ""),
   };
 }
@@ -107,7 +126,10 @@ function reportedSignificant(parsed) {
 
 function checkP(text) {
   const parsed = parseTest(text);
-  if (!parsed)
+  if (parsed.unread === "several") return notComputable("not read", "more than one statistic: give each its own row");
+  if (parsed.unread === "degrees")
+    return notComputable("not read", "the degrees of freedom are not one number (two for F)");
+  if (parsed.unread)
     return notComputable("not read", "no statistic of the forms t(df), F(df1, df2), χ2(df), r(df) or z with a p value");
   const needs = { t: ["df1"], r: ["df1"], chi2: ["df1"], F: ["df1", "df2"], z: [] }[parsed.test];
   if (needs.some((name) => parsed[name] === null))
@@ -153,9 +175,13 @@ function meanInputs(text, { sd = false } = {}) {
   return { mean, n: n?.value, items: items?.value ?? 1, sd: spread };
 }
 
+/** Whether n and the item count are whole numbers above zero, as GRIM's total needs. */
+const wholeCounts = (n, items) => Number.isInteger(n) && n > 0 && Number.isInteger(items) && items > 0;
+
 function checkGrim(text) {
   const { mean, n, items } = meanInputs(text);
   if (!mean || !n) return notComputable("missing input", "GRIM needs the mean (M) and n");
+  if (!wholeCounts(n, items)) return notComputable("missing input", "n and items must be whole numbers above zero");
   const count = n * items;
   if (count >= 10 ** mean.decimals)
     return notComputable(
@@ -178,6 +204,7 @@ function checkGrimmer(text) {
   const { mean, n, items, sd } = meanInputs(text, { sd: true });
   if (items !== 1) return notComputable("not a single item", "GRIMMER checks single-item whole-number data only");
   if (!mean || !n || !sd) return notComputable("missing input", "GRIMMER needs the mean (M), the SD and n");
+  if (!wholeCounts(n, items)) return notComputable("missing input", "n must be a whole number above zero");
   if (n < 2) return notComputable("missing input", "an SD needs n of at least 2");
   if (n >= 10 ** mean.decimals)
     return notComputable("n too large", `n = ${n} is not below 10^${mean.decimals}, so GRIM cannot fix the total`);
@@ -187,26 +214,87 @@ function checkGrimmer(text) {
       status: "mismatch",
       detail: `the mean fails GRIM: no whole total divided by ${n} rounds to ${mean.value}`,
     };
+  let searched = false;
   for (const total of totals) {
-    // The sum of squares S is a whole number with the same parity as the total, since x² and x share parity.
     const low = Math.max(sd.low, 0) ** 2 * (n - 1) + (total * total) / n;
     const high = sd.high ** 2 * (n - 1) + (total * total) / n;
-    for (let squares = Math.ceil(low - EPSILON); squares <= Math.floor(high + EPSILON); squares++)
-      if ((squares - total) % 2 === 0)
-        return {
-          status: "consistent",
-          detail: `total ${total} and sum of squares ${squares} give M ${mean.value}, SD ${sd.value}`,
-        };
+    const squares = reachableSquares(n, total, Math.ceil(low - EPSILON), Math.floor(high + EPSILON));
+    if (squares === null) continue;
+    searched = true;
+    if (squares !== undefined)
+      return {
+        status: "consistent",
+        detail: `total ${total} and sum of squares ${squares} give M ${mean.value}, SD ${sd.value}`,
+      };
   }
+  if (!searched)
+    return notComputable("n too large", `the search for whole numbers with this n and SD is too large to run`);
   return {
     status: "mismatch",
-    detail: `no whole sum of squares with the total's parity gives SD ${sd.value} with M ${mean.value} and n ${n}`,
+    detail: `no whole numbers with a total that gives M ${mean.value} have a sum of squares that gives SD ${sd.value} with n ${n}`,
   };
+}
+
+/** Upper bound on the work of one exact search, in 32-bit word operations. */
+const SEARCH_BUDGET = 3e8;
+
+/**
+ * Whether n whole numbers with the given total have a sum of squares between low and high: the first such sum, or
+ * undefined when none exists, or null when the search would be too large. Each number is written as c + y, with c
+ * the total's nearest whole mean, so the search runs over the deviations y, whose squares sum to S - 2cT + nc²; a
+ * dynamic programme over (sum of deviations, sum of their squares) keeps the reachable squares as a bitset per sum.
+ */
+function reachableSquares(n, total, low, high) {
+  if (high < low) return undefined;
+  const centre = Math.round(total / n);
+  const offset = n * centre * centre - 2 * centre * total;
+  const target = total - n * centre;
+  const lowQ = Math.max(low + offset, 0);
+  const highQ = high + offset;
+  if (highQ < 0) return undefined;
+  const reach = Math.floor(Math.sqrt(highQ));
+  const span = Math.floor(Math.sqrt(n * highQ));
+  const words = Math.floor(highQ / 32) + 1;
+  if (n * (2 * reach + 1) * (2 * span + 1) * words > SEARCH_BUDGET) return null;
+  const width = 2 * span + 1;
+  let layer = new Uint32Array(width * words);
+  layer[span * words] = 1;
+  for (let step = 0; step < n; step++) {
+    const next = new Uint32Array(width * words);
+    for (let sum = -span; sum <= span; sum++) {
+      const from = (sum + span) * words;
+      let empty = true;
+      for (let word = 0; word < words; word++) if (layer[from + word]) empty = false;
+      if (empty) continue;
+      for (let y = -reach; y <= reach; y++) {
+        const to = sum + y;
+        if (to < -span || to > span) continue;
+        // The rest of the numbers can move the sum by at most `reach` each, so a sum that cannot reach the target is dropped.
+        if (Math.abs(target - to) > (n - step - 1) * reach) continue;
+        const shift = y * y;
+        const wordShift = shift >>> 5;
+        const bitShift = shift & 31;
+        const into = (to + span) * words;
+        for (let word = words - 1 - wordShift; word >= 0; word--) {
+          const value = layer[from + word];
+          if (!value) continue;
+          next[into + word + wordShift] |= value << bitShift;
+          if (bitShift && word + wordShift + 1 < words) next[into + word + wordShift + 1] |= value >>> (32 - bitShift);
+        }
+      }
+    }
+    layer = next;
+  }
+  const at = (target + span) * words;
+  if (target < -span || target > span) return undefined;
+  for (let q = lowQ; q <= highQ; q++) if ((layer[at + (q >>> 5)] >>> (q & 31)) & 1) return q - offset;
+  return undefined;
 }
 
 function checkDebit(text) {
   const { mean, n, sd } = meanInputs(text, { sd: true });
   if (!mean || !n || !sd) return notComputable("missing input", "DEBIT needs the proportion (M), the SD and n");
+  if (!wholeCounts(n, 1)) return notComputable("missing input", "n must be a whole number above zero");
   if (mean.value < 0 || mean.value > 1) return notComputable("not binary", "a proportion lies between 0 and 1");
   if (n < 2) return notComputable("missing input", "an SD needs n of at least 2");
   const counts = grimTotals(mean, n).filter((k) => k >= 0 && k <= n);
