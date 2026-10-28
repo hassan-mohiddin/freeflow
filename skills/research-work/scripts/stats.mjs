@@ -93,6 +93,7 @@ const USAGE = [
   "",
   ...Object.entries(FAMILIES).map(([family, methods]) => `  ${family.padEnd(10)} ${Object.keys(methods).join(", ")}`),
   "",
+  'aggregate takes "scores", one array of run scores per task; optimality-gap takes "target" (1, for scores on 0 to 1).',
   'Example: echo \'{"method":"wilson","successes":10,"n":19}\' | stats.mjs interval',
 ].join("\n");
 
@@ -101,9 +102,9 @@ function fail(message) {
   process.exit(2);
 }
 
-/** Drops undefined fields so each function's own defaults apply. */
+/** Drops undefined and null fields so each function's own defaults apply. */
 function defined(object) {
-  return Object.fromEntries(Object.entries(object).filter(([, value]) => value !== undefined));
+  return Object.fromEntries(Object.entries(object).filter(([, value]) => value !== undefined && value !== null));
 }
 
 function summary(result) {
@@ -192,7 +193,7 @@ try {
   );
 }
 if (input === null || typeof input !== "object" || Array.isArray(input)) fail("the input must be one JSON object");
-const calculate = FAMILIES[family][input.method];
+const calculate = Object.hasOwn(FAMILIES[family], input.method) ? FAMILIES[family][input.method] : undefined;
 if (!calculate)
   fail(`unknown method "${input.method}" for ${family}; choose one of: ${Object.keys(FAMILIES[family]).join(", ")}`);
 
