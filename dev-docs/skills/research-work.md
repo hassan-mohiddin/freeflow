@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/research-work/`
 > **Tests:** `.skill-eval/research-work/tests/`
-> **Verified at:** `132cdad6` (2026-10-28)
+> **Verified at:** `7617f773` (2026-10-28)
 
 For anyone changing Research Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/research-work/SKILL.md); this record holds the reasons it does not.
 
