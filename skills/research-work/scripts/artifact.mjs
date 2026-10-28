@@ -15,6 +15,7 @@ import {
   parseMarkdown,
   parseTable,
   planHypotheses,
+  planVariants,
   searchCounts,
   skeleton,
   validate,
@@ -25,7 +26,7 @@ import { demotedHypotheses, lockState } from "./lib/study.mjs";
 const USAGE = [
   "Usage: artifact.mjs init <kind> <path> --title <title> --owner <owner> [--rigor check|study|publication]",
   "       artifact.mjs init project <folder> --title <title> --owner <owner> [--rigor check|study|publication]",
-  "       artifact.mjs validate <path> [--sources <source ledger>] [--plan <study plan>] [--json]",
+  "       artifact.mjs validate <path> [--sources <source ledger>] [--plan <study plan>] [--search <search ledger>] [--json]",
   "       artifact.mjs counts <search ledger .jsonl> [--json]",
   "",
   `Kinds: ${Object.keys(KINDS_OF_ARTIFACT).join(", ")}`,
@@ -54,6 +55,7 @@ try {
       rigor: { type: "string", default: "study" },
       sources: { type: "string" },
       plan: { type: "string" },
+      search: { type: "string" },
       json: { type: "boolean", default: false },
       help: { type: "boolean" },
     },
@@ -121,6 +123,7 @@ if (command === "init" && rest[0] === "project") {
   const kind = kindOf(path, text);
   if (!kind) fail(`${path}: no known Type in its header, and not a .jsonl search ledger`);
   if (values.plan && kind !== "claims-register") fail("--plan applies only to a claims register");
+  if (values.search && kind !== "claims-register") fail("--search applies only to a claims register");
   if (values.sources && !["claims-register", "evidence-table", "recheck"].includes(kind))
     fail("--sources applies only to a claims register, an evidence table or a recheck table");
   const options = {};
@@ -133,8 +136,24 @@ if (command === "init" && rest[0] === "project") {
       locked: state.locked,
       reason: state.reason,
       demoted: demotedHypotheses(state.lock),
+      variants: planVariants(read(values.plan)),
     };
   }
+  if (values.search)
+    options.searches = new Set(
+      read(values.search)
+        .split("\n")
+        .filter((line) => line.trim() !== "")
+        .map((line) => {
+          try {
+            return JSON.parse(line);
+          } catch {
+            return null;
+          }
+        })
+        .filter((record) => record?.kind === "query")
+        .map((record) => record.id),
+    );
   const rows = kind === "claims-register" ? (parseTable(parseMarkdown(text).lines)?.rows ?? []) : [];
   const cited = [...new Set(rows.flatMap((row) => judgeCitations(row.cells.Source ?? "")))];
   if (cited.length > 0) {

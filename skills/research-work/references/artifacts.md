@@ -89,15 +89,16 @@ The contract between the stages: every claim a report or paper makes is a row he
 | ID | `C1`, `C2`, … never reused |
 | Claim | The claim, in one sentence |
 | Numbers | Every number the claim states, with its interval where it has one (`0.83 [0.79, 0.86]`), or `-` |
-| Source | Source-ledger IDs, the result files or log lines the numbers come from (`S2; runs/aggregate.json`, `log.txt:40-42`), and `judge:<record>` for a claim resting on a judge's verdicts; paths are relative to the register |
+| Source | Source-ledger IDs, the result files or log lines the numbers come from (`S2; runs/aggregate.json`, `log.txt:40-42`), `judge:<record>` for a claim resting on a judge's verdicts, and `search:Q<n>` for the search a claim of absence rests on; paths are relative to the register |
 | Level | `L0` to `L5` on the evidence scale |
 | Kind | `confirmatory` (tested by a decision rule fixed before the data) or `exploratory` |
 | Scope | Where the claim holds |
 | Limit | What it does not show |
 
 - An exploratory claim is at most L3.
+- A claim worded as an absence ("the first to", "no prior work", "for the first time", "novel") cites the search behind it as `search:Q<n>`; validation refuses one that cites none, and with `--search <search ledger>` a query the ledger lacks.
 - Validate a register with `--sources <source ledger>`. That check refuses a source ID the ledger lacks, a refuted source, and a level above what the sources' checking allows.
-- Validate a study's register with `--plan <study plan>` too. It refuses a confirmatory claim unless its ID is a confirmatory hypothesis of the plan, the plan is locked as it stands, and no amendment changed that hypothesis after study runs existed.
+- Validate a study's register with `--plan <study plan>` too. It refuses a confirmatory claim unless its ID is a confirmatory hypothesis of the plan, the plan is locked as it stands, and no amendment changed that hypothesis after study runs existed; and it refuses a plan's analysis variant that no row's Claim, Scope or Limit names.
 - A claim citing `judge:<record>` is at most L1 unless that judge validation record validates and its Result is `pass`; validation checks this whenever a row cites one.
 - `claims.mjs trace --results` finds each number in the Numbers column in the result files the row's Source names, at the precision written (0.83 matches 0.8333; 65% matches 0.65). A row with numbers and no result file is listed as not checked.
 
@@ -110,7 +111,11 @@ Written at Design, before the first run that counts; `init study-plan --rigor <r
 | `## 1. The claim` … `## 12. Where it holds` | The answers to the twelve questions in [study design](study.md#answer-the-twelve-questions). At `check` rigor only 1, 3, 4, 5 and 10 are required |
 | `## Hypotheses` | One table: `ID` (the claim ID the register will use), `Hypothesis`, `Kind` (`confirmatory` or `exploratory`), `Metric`, `Decision rule`. A confirmatory row names its metric and rule; `-` is allowed only for an exploratory one |
 | `## Planned runs` | One table: `Unit`, `Arm`, `Trials` (a whole number of at least 1), and optionally `Split` (`tuning` or `held-out`), one row per unit and arm |
+| `## Analysis variants` | At `study` and `publication` rigor: `none`, or one table, `ID` (`V1`, …), `Variant`, `What it changes`: each other reasonable analysis that will be run and reported |
+| `## Models in the method` | At `study` and `publication` rigor: `none`, or one table, `Role` (judge, annotator, generator or subject), `Model`, `Snapshot`, `Accessed` (`YYYY-MM-DD`) |
 | `## Amendments` | `none`, then one line per amendment, written by `study.mjs amend` |
+
+The two sections at `study` and `publication` rigor are validated when present and noted by `study.mjs check` when absent, so plans locked before they existed stay valid; add them by amendment.
 
 `study.mjs lock` writes `<plan>.lock.json` beside the plan: the plan's sha256 (over everything but `## Amendments`), `by` (who agreed, their words and the date, and who ran the lock when that was someone else), when, its hypotheses, and `git`: the commit and path that hold the plan, or the reason it is not anchored; each amendment adds an entry with its hash, who, when, why, and every hypothesis it added or changed after study runs existed, none of which can then be confirmatory. Never edit the lock by hand.
 
@@ -200,7 +205,7 @@ Validation refuses a missing choice or reason, a "will address" without a commit
 
 ## Evidence Table
 
-For a literature review: one row per study it compares. One table, `| Source | Design | n | Result | Failure condition | Level |`. Source is a source-ledger ID; n is a whole number or `-`; Failure condition is the result that would have refuted the study's claim; Level is capped, with `--sources`, by how the source was checked, as for a claim.
+For a literature review: one row per study it compares. One table, `| Source | Design | n | Result | Failure condition | Level |`, optionally with a seventh column, `Weakness`: the study's main weakness, or `-`. Source is a source-ledger ID; n is a whole number or `-`; Failure condition is the result that would have refuted the study's claim; Level is capped, with `--sources`, by how the source was checked, as for a claim.
 
 ## Recheck Table
 

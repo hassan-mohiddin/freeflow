@@ -487,6 +487,16 @@ export function checkStudy(planPath) {
     if (!entry.git?.commit)
       notes.push(`${label} is not anchored in git: ${entry.git?.reason ?? "it was made before anchors were recorded"}`);
   });
+  // Plans written before these sections existed stay valid; a study-rigor plan without them is noted, not refused.
+  const sections = parseMarkdown(text);
+  if (sections.header.Rigor !== "check") {
+    if (!sections.sections.has("Analysis variants"))
+      notes.push('the plan lists no analysis variants (add "## Analysis variants", or "none", in an amendment)');
+    if (!sections.sections.has("Models in the method"))
+      notes.push(
+        'the plan declares no models in the method (add "## Models in the method", or "none", in an amendment)',
+      );
+  }
   for (const [name, path] of [
     ["run ledger", runLedgerPath(planPath)],
     ["deviation log", deviationLogPath(planPath)],

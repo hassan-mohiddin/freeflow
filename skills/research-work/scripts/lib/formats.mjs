@@ -57,6 +57,8 @@ const HYPOTHESIS_COLUMNS = ["ID", "Hypothesis", "Kind", "Metric", "Decision rule
 const RUN_COLUMNS = ["Unit", "Arm", "Trials"];
 // An optional fourth column says which split a planned unit belongs to.
 const RUN_COLUMNS_WITH_SPLIT = [...RUN_COLUMNS, "Split"];
+const VARIANT_COLUMNS = ["ID", "Variant", "What it changes"];
+const MODEL_COLUMNS = ["Role", "Model", "Snapshot", "Accessed"];
 export const SPLITS = ["tuning", "held-out"];
 const CONTRIBUTION_COLUMNS = ["ID", "Contribution", "Claims"];
 const PARAGRAPH_COLUMNS = ["Section", "Paragraph", "Role", "Claims"];
@@ -66,6 +68,7 @@ const REBUTTAL_COLUMNS = ["ID", "Reviewer", "Round", "Comment", "Choice", "Reaso
 export const CHOICES = ["will address", "won't", "not on point"];
 export const REBUTTAL_STAGES = ["drafted", "submitted"];
 const EVIDENCE_COLUMNS = ["Source", "Design", "n", "Result", "Failure condition", "Level"];
+const EVIDENCE_COLUMNS_WITH_WEAKNESS = [...EVIDENCE_COLUMNS, "Weakness"];
 const RECHECK_COLUMNS = ["ID", "Source", "Where", "Check", "Reported", "Status"];
 const JUDGE_FIELDS = [
   "Judge",
@@ -242,6 +245,22 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
       `| ${RUN_COLUMNS.map(() => "---").join(" | ")} |`,
       "| <unit> | <arm> | <trials> |",
       "",
+      ...(rigor === "check"
+        ? []
+        : [
+            "## Analysis variants",
+            "",
+            `| ${VARIANT_COLUMNS.join(" | ")} |`,
+            `| ${VARIANT_COLUMNS.map(() => "---").join(" | ")} |`,
+            "| V1 | <another reasonable analysis> | <what it changes: the exclusions, the unit, the metric> |",
+            "",
+            "## Models in the method",
+            "",
+            `| ${MODEL_COLUMNS.join(" | ")} |`,
+            `| ${MODEL_COLUMNS.map(() => "---").join(" | ")} |`,
+            "| <judge, annotator, generator or subject> | <the model> | <its exact snapshot> | <YYYY-MM-DD> |",
+            "",
+          ]),
       "## Amendments",
       "",
       "none",
@@ -377,6 +396,41 @@ export function planHypotheses(text) {
   );
 }
 
+/** A study plan's analysis variants, by ID: none when the section is missing or says "none". */
+export function planVariants(text) {
+  return (sectionTable(parseMarkdown(text), "Analysis variants")?.rows ?? [])
+    .map((row) => row.cells.ID)
+    .filter((id) => /^V\d+$/.test(id));
+}
+
+/** The plan's optional sections, checked when present: each is a table with its columns, or the word "none". */
+function validateOptionalPlanSections(parsed, problems) {
+  for (const [name, columns] of [
+    ["Analysis variants", VARIANT_COLUMNS],
+    ["Models in the method", MODEL_COLUMNS],
+  ]) {
+    if (!parsed.sections.has(name)) continue;
+    const body = parsed.sections.get(name).join("\n").trim();
+    if (body.toLowerCase() === "none") continue;
+    const table = parseTable(parsed.sections.get(name));
+    if (!table || table.columns.join("|") !== columns.join("|")) {
+      problems.push(`the ${name} section must be "none" or one table with the columns: ${columns.join(", ")}`);
+      continue;
+    }
+    if (table.rows.length === 0) problems.push(`the ${name} table has no rows; write "none" instead`);
+    for (const { cells } of table.rows) {
+      if (Object.values(cells).some((cell) => !cell || placeholder(cell))) {
+        problems.push(`the ${name} section still has an empty cell or a <placeholder>`);
+        continue;
+      }
+      if (name === "Analysis variants" && !/^V\d+$/.test(cells.ID))
+        problems.push(`Analysis variants row ${cells.ID}: ID must be V followed by a number`);
+      if (name === "Models in the method" && !/^\d{4}-\d{2}-\d{2}$/.test(cells.Accessed))
+        problems.push(`Models in the method row ${cells.Model}: Accessed must be a date, YYYY-MM-DD`);
+    }
+  }
+}
+
 /** A study plan's planned runs: `{ unit, arm, trials }` per row. */
 export function plannedRuns(text) {
   const table = sectionTable(parseMarkdown(text), "Planned runs");
@@ -465,6 +519,7 @@ function validatePlan(parsed, problems) {
         problems.push(`${where}: Split must be one of: ${SPLITS.join(", ")}`);
     }
   }
+  validateOptionalPlanSections(parsed, problems);
   if (!parsed.sections.has("Amendments")) problems.push('missing section "## Amendments" ("none" until the first)');
 }
 
@@ -567,7 +622,13 @@ function validateLedger(parsed, problems) {
   }
 }
 
-function validateRegister(parsed, problems, { ledger, plan, judges } = {}) {
+// A claim about absence ("the first to", "no prior work") is only as good as the search behind it (framing.md).
+const ABSENCE =
+  /\b(?:the first (?:to|study|work|paper|tool|method|system|benchmark)|for the first time|no (?:prior|previous|existing|other|published) (?:work|study|studies|paper|papers|tool|tools|method|methods|system|systems|benchmark)s?|(?:nobody|no one) has|has not been (?:studied|shown|measured|done|tested)|novel)\b/i;
+
+const searchCitations = (cell) => [...cell.matchAll(/\bsearch:(Q\d+)\b/g)].map((match) => match[1]);
+
+function validateRegister(parsed, problems, { ledger, plan, judges, searches } = {}) {
   validateHeader(parsed, "Claims Register", problems);
   const table = validateTable(parsed, REGISTER_COLUMNS, problems);
   if (!table) return;
@@ -603,6 +664,14 @@ function validateRegister(parsed, problems, { ledger, plan, judges } = {}) {
           `${where}: an amendment changed ${cells.ID} after study runs existed, so it is exploratory now (at most L3)`,
         );
     }
+    const cited = searchCitations(cells.Source ?? "");
+    if (ABSENCE.test(cells.Claim ?? "") && cited.length === 0)
+      problems.push(
+        `${where}: the claim is about absence (something new or never done), so cite the search behind it in Source as search:Q<n>`,
+      );
+    if (searches)
+      for (const id of cited)
+        if (!searches.has(id)) problems.push(`${where}: Source cites search:${id}, and the search ledger has no ${id}`);
     if (judges) {
       for (const path of judgeCitations(cells.Source)) {
         const record = judges.get(path);
@@ -630,9 +699,22 @@ function validateRegister(parsed, problems, { ledger, plan, judges } = {}) {
         problems.push(`${where}: ${id} is refuted in the source ledger and cannot support a claim`);
     }
   }
+  if (plan?.variants) problems.push(...variantProblems(table.rows, plan.variants));
 }
 
 const claimIds = (cell) => cell.match(/\bC\d+\b/g) ?? [];
+
+/** Every analysis variant a plan lists must be reported: named in some row's Claim, Scope or Limit. */
+function variantProblems(rows, variants) {
+  const named = new Set(
+    rows.flatMap(({ cells }) => [cells.Claim, cells.Scope, cells.Limit].join(" ").match(/\bV\d+\b/g) ?? []),
+  );
+  return variants
+    .filter((id) => !named.has(id))
+    .map(
+      (id) => `${id}, an analysis variant of the plan, is reported by no claim; register its result, or say why not`,
+    );
+}
 
 /** A section's table, checked against its columns; null with a problem when it is missing. */
 function sectionTableChecked(parsed, name, columns, problems) {
@@ -831,9 +913,14 @@ export function newRequests(text) {
 function validateEvidence(parsed, problems, { ledger } = {}) {
   validateHeader(parsed, "Evidence Table", problems);
   headerPlaceholders(parsed, problems);
-  const table = validateTable(parsed, EVIDENCE_COLUMNS, problems);
+  const columns = parseTable(parsed.lines)?.columns.includes("Weakness")
+    ? EVIDENCE_COLUMNS_WITH_WEAKNESS
+    : EVIDENCE_COLUMNS;
+  const table = validateTable(parsed, columns, problems);
   for (const { line, cells } of table?.rows ?? []) {
     const where = `line ${line}`;
+    if (columns === EVIDENCE_COLUMNS_WITH_WEAKNESS && (!cells.Weakness || placeholder(cells.Weakness)))
+      problems.push(`${where}: Weakness must be filled: the study's main weakness, or "-" when none stands out`);
     if (!/^S\d+$/.test(cells.Source)) problems.push(`${where}: Source must be a source-ledger ID such as S3`);
     for (const column of ["Design", "Result", "Failure condition"])
       if (!cells[column] || placeholder(cells[column])) problems.push(`${where}: ${column} must be filled`);
@@ -964,7 +1051,19 @@ export function kindOf(path, text) {
 export function validate(
   kind,
   text,
-  { ledger, plan, judges, register, registerMissing, dataExists, receipts, figureFile, specData, requireReceipts } = {},
+  {
+    ledger,
+    plan,
+    judges,
+    searches,
+    register,
+    registerMissing,
+    dataExists,
+    receipts,
+    figureFile,
+    specData,
+    requireReceipts,
+  } = {},
 ) {
   const problems = [];
   if (kind === "search-ledger") validateSearch(text, problems);
@@ -972,7 +1071,7 @@ export function validate(
     const parsed = parseMarkdown(text);
     if (kind === "research-brief") validateBrief(parsed, problems);
     else if (kind === "source-ledger") validateLedger(parsed, problems);
-    else if (kind === "claims-register") validateRegister(parsed, problems, { ledger, plan, judges });
+    else if (kind === "claims-register") validateRegister(parsed, problems, { ledger, plan, judges, searches });
     else if (kind === "study-plan") validatePlan(parsed, problems);
     else if (kind === "judge-validation") validateJudge(parsed, problems);
     else if (kind === "paper-outline")

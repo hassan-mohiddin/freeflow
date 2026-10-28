@@ -30,7 +30,7 @@ A descriptive report can still contain claims; each goes in the register with it
 
 ## Claims That Something Is New
 
-"Nobody has done X", "this is the first", "no tool does Y" are claims about absence, and absence is only as good as the search behind it. Bind every such claim to its search: the databases or sources, the queries, the date, logged in the search ledger. Write it as "within these searches, we found none", not as a fact about the world. A keyword search that finds no match does not show novelty: rephrase, search for the mechanism rather than the name, and look at what cites the closest work before saying none exists.
+"Nobody has done X", "this is the first", "no tool does Y" are claims about absence, and absence is only as good as the search behind it. Bind every such claim to its search: the databases or sources, the queries, the date, logged in the search ledger, and cite the query in the claim's Source as `search:Q3`; register validation refuses a claim worded as an absence that cites none. Write it as "within these searches, we found none", not as a fact about the world. A keyword search that finds no match does not show novelty: rephrase, search for the mechanism rather than the name, and look at what cites the closest work before saying none exists.
 
 ## Prediction
 

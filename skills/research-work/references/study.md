@@ -21,7 +21,7 @@ The study plan is the answers to these questions, written before the first run t
 | 9 | **Rival explanations** | For each, the check that separates it from the claim; the analysis path itself is one |
 | 10 | **The interval** | Its method, the variation it covers, its assumptions; for a comparison, the interval on the paired difference; whether a number is one run, a mean, or a best of N |
 | 11 | **Fixed before the data** | Who has seen how much data; which choices are fixed (hypotheses, analysis, exclusions including refused or malformed outputs, prompts, tuning and its split); everything else is exploratory |
-| 12 | **Where it holds** | The conditions covered, and one where it should fail; the exact model snapshot and access date; every planned outcome reported |
+| 12 | **Where it holds** | The conditions covered, and one where it should fail; the exact model snapshot and access date, in the `## Models in the method` table for every model that judges, annotates, generates or is studied; every planned outcome reported |
 
 A rule that hides a search is not fixed: "stop when p < 0.05" fixes nothing, and the plan's validation refuses a rule that stops when a result turns significant unless it names a sequential test built for repeated looks. The validation reads the wording, so it catches the usual ways of writing such a rule, not every one; read the rule yourself too. A plan that cannot fail tests nothing; question 3's failure result is the plan's most important line.
 
@@ -102,7 +102,7 @@ The same configuration run twice gives different results. A difference smaller t
 
 ## Separate Rival Explanations
 
-For each explanation other than the claim, name the check that would tell them apart, and run it: a placebo arm, a shuffled label, the same change on a task where it should not matter, a second model. The analysis path is a rival too: if a different reasonable analysis would change the answer, report both, or fix the analysis in the plan before seeing data.
+For each explanation other than the claim, name the check that would tell them apart, and run it: a placebo arm, a shuffled label, the same change on a task where it should not matter, a second model. The analysis path is a rival too: if a different reasonable analysis would change the answer, report both, or fix the analysis in the plan before seeing data. List each other analysis you will run in the plan's `## Analysis variants` table (V1, V2, …); register validation with `--plan` refuses a variant no claim reports, so a variant cannot be run and then left out.
 
 ## The Quick Check
 
