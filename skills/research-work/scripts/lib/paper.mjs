@@ -282,15 +282,18 @@ export function draftCheck(
   // Acronyms: defined as "Long Form (ACR)" or "ACR (long form)" at or before first use.
   const firstUse = new Map();
   const definedAt = new Map();
+  // The title, YAML front matter and header lines are not uses (a definition there still counts).
+  const frontMatterEnd = plain[0] === "---" ? plain.indexOf("---", 1) : -1;
   plain.forEach((line, index) => {
-    if (/^#/.test(line) || /^>\s*\*\*/.test(line)) return;
+    if (/^#/.test(line)) return;
+    const header = index <= frontMatterEnd || /^>\s*\*\*/.test(line);
     for (const match of line.matchAll(ACRONYM)) {
       const acronym = match[0].replace(/s$/, "");
       if (ID_LIKE.test(acronym) || allow.has(acronym)) continue;
-      // Part of a hyphenated name (MT-Bench, GPT-4) is the name's, not an acronym to define.
-      if (/-$/.test(line.slice(0, match.index)) || /^-[A-Za-z0-9]/.test(line.slice(match.index + match[0].length)))
+      // Part of a hyphenated name (MT-Bench, GPT-4) is the name's, not an acronym to define; "LLM-based" is a use.
+      if (/-$/.test(line.slice(0, match.index)) || /^-[A-Z0-9]/.test(line.slice(match.index + match[0].length)))
         continue;
-      if (!firstUse.has(acronym)) firstUse.set(acronym, index + 1);
+      if (!header && !firstUse.has(acronym)) firstUse.set(acronym, index + 1);
       const before = line.slice(0, match.index);
       const after = line.slice(match.index + match[0].length);
       if ((/\(\s*$/.test(before) && /^\s*\)/.test(after) && /\w\s*\(\s*$/.test(before)) || /^\s*\([a-z]/i.test(after))

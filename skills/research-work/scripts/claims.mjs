@@ -227,6 +227,7 @@ const levels = new Map(
 
 // --search: a count the report states about its searches (hits, included, excluded) traces to the search ledger.
 const searchNumbers = new Set();
+const queryNumbers = new Map();
 if (parsed.values.search) {
   const counts = searchCounts(read(parsed.values.search));
   const perQuery = Object.values(counts.queries);
@@ -236,6 +237,15 @@ if (parsed.values.search) {
     ...perQuery.flatMap((row) => HIT_STATES.map((state) => row[state])),
   ])
     if (Number.isFinite(value)) searchNumbers.add(String(value));
+  for (const [id, row] of Object.entries(counts.queries))
+    queryNumbers.set(
+      id,
+      new Set(
+        HIT_STATES.map((state) => String(row[state])).concat(
+          String(HIT_STATES.reduce((sum, state) => sum + row[state], 0)),
+        ),
+      ),
+    );
 }
 const SEARCH_WORDS = /\b(?:quer(?:y|ies)|hits?|screened|included|excluded|duplicates?|unscreened|searches?)\b/i;
 
@@ -267,7 +277,12 @@ for (const unit of units(read(report))) {
       for (const number of numbersIn(line)) {
         checkedNumbers += 1;
         if (supported.has(number)) continue;
-        if (searchNumbers.has(number) && SEARCH_WORDS.test(line)) continue;
+        if (SEARCH_WORDS.test(line)) {
+          // A line that names its query (Q2) passes only that query's counts; otherwise any count the ledger computes.
+          const named = [...new Set(line.match(/\bQ\d+\b/g) ?? [])].filter((id) => queryNumbers.has(id));
+          if (named.length > 0 ? named.some((id) => queryNumbers.get(id).has(number)) : searchNumbers.has(number))
+            continue;
+        }
         problems.push({
           line: unit.line + offset,
           kind: "untraced number",

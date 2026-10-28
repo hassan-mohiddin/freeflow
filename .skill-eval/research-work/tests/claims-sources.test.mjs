@@ -830,3 +830,53 @@ test("acronyms in the header and parts of hyphenated names are not listed as und
     .map((note) => note.value);
   assert.deepEqual(listed, ["RLHF"]);
 });
+
+test("a lowercase word before a hyphenated number does not hide it, and a named query passes only its own counts (R18)", () => {
+  assert.deepEqual(numbersIn("under the alpha-0.05 rule and the p-0.03 rule; CIFAR-10 and gpt-4"), [
+    "0.05",
+    "0.03",
+    "4",
+  ]);
+  const dir = folder();
+  writeFileSync(
+    join(dir, "claims.md"),
+    "# Claims Register: R\n\n| ID | Claim | Numbers | Source | Level | Kind | Scope | Limit |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| C1 | x | - | S1 | L1 | exploratory | here | none |\n",
+  );
+  writeFileSync(
+    join(dir, "searches.jsonl"),
+    [
+      { kind: "query", id: "Q1", query: "a", database: "arXiv", date: "2026-10-28" },
+      { kind: "query", id: "Q2", query: "b", database: "arXiv", date: "2026-10-28" },
+      { kind: "hit", query: "Q1", title: "A", state: "included", source: "S1" },
+      { kind: "hit", query: "Q1", title: "B", state: "excluded", reason: "off topic" },
+      { kind: "hit", query: "Q1", title: "C", state: "excluded", reason: "off topic" },
+    ]
+      .map((record) => JSON.stringify(record))
+      .join("\n") + "\n",
+  );
+  const trace = (text) => {
+    writeFileSync(join(dir, "r.md"), `# R\n\n${text} (C1).\n`);
+    return node(
+      "claims.mjs",
+      "trace",
+      join(dir, "r.md"),
+      "--register",
+      join(dir, "claims.md"),
+      "--search",
+      join(dir, "searches.jsonl"),
+    ).status;
+  };
+  assert.equal(trace("Q1 returned 3 hits, 2 of them excluded"), 0);
+  assert.equal(trace("Q2 returned 3 hits"), 1, "3 is Q1's count, not Q2's");
+});
+
+test("YAML front matter and a header line are not first uses, a header definition counts, and LLM-based is a use (R18)", () => {
+  const notes = (draft) =>
+    draftCheck(draft)
+      .notes.filter((note) => /acronym/.test(note.kind))
+      .map((note) => `${note.kind}: ${note.value}`);
+  assert.deepEqual(notes("---\ntitle: LLM judges\n---\n\n## Intro\n\nA large language model (LLM) judges.\n"), []);
+  assert.deepEqual(notes("# P\n\n> **Key:** a large language model (LLM) judge\n\n## Intro\n\nLLM judges here.\n"), []);
+  assert.equal(notes("# P\n\n## Intro\n\nLLM-based judges.\n\nThen a large language model (LLM).\n").length, 1);
+  assert.deepEqual(wordingNotes("Its root causes are order and length (C1).", new Map([["C1", "L2"]])), []);
+});
