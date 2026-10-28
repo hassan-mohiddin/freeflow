@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import { matchesSource } from "../../../skills/research-work/scripts/lib/lookup.mjs";
 import { lockAsBefore } from "./old-lock.mjs";
 
 const SCRIPTS = fileURLToPath(new URL("../../../skills/research-work/scripts/", import.meta.url));
@@ -314,4 +315,36 @@ test("a study or publication plan not yet locked must have its Method, Budget, C
     const quick = write(strip(studyPlan("check")));
     assert.doesNotMatch(node("artifact.mjs", "validate", quick).stdout, refusal);
   }
+});
+
+test("lookup's sibling check works both ways, with roman numerals", () => {
+  const record = (title) => ({ title, authors: ["Smith", "Jones"], year: 2020 });
+  const source = (title) => `Smith and Jones 2020. ${title}. Journal of Folding 12(3)`;
+  const matched = (sourceTitle, recordTitle) => matchesSource(source(sourceTitle), record(recordTitle));
+  // The same title, with the venue's volume and issue after it, matches.
+  assert.equal(
+    matched("Deep learning for protein folding: Part II", "Deep Learning for Protein Folding: Part II").matched,
+    true,
+  );
+  // A part the Source names that the record lacks is another work, as one the record adds already was.
+  for (const [named, found] of [
+    ["Deep learning for protein folding: Part II", "Deep learning for protein folding: Part I"],
+    ["Deep learning for protein folding: Part I", "Deep learning for protein folding: Part II"],
+    ["Deep learning for protein folding, part 2", "Deep learning for protein folding, part 1"],
+    ["Deep learning for protein folding IV", "Deep learning for protein folding"],
+    ["Deep learning for protein folding", "Deep learning for protein folding IX"],
+    ["Deep learning for protein folding: a reply", "Deep learning for protein folding"],
+  ]) {
+    const result = matched(named, found);
+    assert.equal(result.matched, false, `${named} against ${found}`);
+    assert.ok(
+      result.differs.some((line) => /related work/.test(line)),
+      result.differs.join("; "),
+    );
+  }
+  assert.ok(
+    matched("Deep learning for protein folding: Part II", "Deep learning for protein folding: Part I").differs.some(
+      (line) => /lacks "ii"/.test(line),
+    ),
+  );
 });
