@@ -122,7 +122,7 @@ Choose the pressure by the kind of instruction under test:
 
 ## Make Tasks Fair
 
-Research Work's [measurement](../../research-work/references/measurement.md#make-tasks-fair) says what a fair task is and how to grade one requirement at a time. For an agent's task:
+Research Work's [study](../../research-work/references/study.md#make-tasks-fair) says what a fair task is and how to grade one requirement at a time. For an agent's task:
 
 - Passing must require doing the job, not a shortcut: editing or deleting tests, hard-coding an expected output, or writing text aimed at a judge.
 - An arm that fails a case in every one of many trials usually has a broken task or check, not an incapable agent. Read its transcripts, and for a coding task run its reference solution, before revising the component.
@@ -139,7 +139,7 @@ An explicitly delivered body may support first-read behavior while a natural pro
 
 ## Claim Classes
 
-Name the strongest claim the result must support before building cases, and report the strongest one it reached, never a stronger one. The general classes and the evidence levels they reach are in Research Work's [study design](../../research-work/references/study.md#name-the-claim-class); for an agent eval they are:
+Name the strongest claim the result must support before building cases, and report the strongest one it reached, never a stronger one. The general classes and the evidence levels they reach are in Research Work's [study](../../research-work/references/study.md#name-the-claim-class); for an agent eval they are:
 
 | Claim | Minimum evidence | Not enough |
 | --- | --- | --- |
@@ -152,7 +152,7 @@ Name the strongest claim the result must support before building cases, and repo
 
 ## Fix The Decision Rule First
 
-Why the rule comes first, and what any decision rule names, is in Research Work's [study design](../../research-work/references/study.md#fix-the-decision-rule-first). Declare the rule as the suite's `decision` before the run ([authoring](authoring.md#decision) has its fields and defaults). It names:
+Why the rule comes first, and what any decision rule names, is in Research Work's [study](../../research-work/references/study.md#fix-the-decision-rule-first). Declare the rule as the suite's `decision` before the run ([authoring](authoring.md#decision) has its fields and defaults). It names:
 
 - the measure: a comparison's checks, a run metric such as cost or turns, or a judged rubric dimension;
 - the two arms it compares, the reference first, and whether higher or lower is better;
@@ -164,7 +164,7 @@ The sign test ignores how much better a case was, so it is conservative for meas
 
 ## Size Cases And Trials To The Decision
 
-Research Work's [study design](../../research-work/references/study.md#size-to-the-decision) has the sizing rules: few trials show little, pass^k against pass@k, the cases a comparison needs (`stats.mjs power`), more cases beat more trials, families are not independent, the subject's settings stay as they are, and the count is fixed before the run. For an agent eval:
+Research Work's [study](../../research-work/references/study.md#size-to-the-decision) has the sizing rules: few trials show little, pass^k against pass@k, the cases a comparison needs (`stats.mjs power`), more cases beat more trials, families are not independent, the subject's settings stay as they are, and the count is fixed before the run. For an agent eval:
 
 - **Spend trials where a miss costs most.** Cases whose miss is the costlier error can run more trials than the rest, for example nine for known-issue cases and three for clean ones.
 - **Early changes often have large effects,** so 20 to 50 cases drawn from real failures are a good start; a pilot of that size reports that it detects only large effects.
@@ -172,14 +172,14 @@ Research Work's [study design](../../research-work/references/study.md#size-to-t
 
 ## Expect Run-To-Run Noise
 
-The same baseline commit accepted 31 of 45 correct changes in one run and 38 of 45 in the next. What such a swing means for a result, and how to pool runs, is in Research Work's [study design](../../research-work/references/study.md#measure-the-noise-floor); here a run's configuration is its commit and case versions.
+The same baseline commit accepted 31 of 45 correct changes in one run and 38 of 45 in the next. What such a swing means for a result, and how to pool runs, is in Research Work's [study](../../research-work/references/study.md#measure-the-noise-floor); here a run's configuration is its commit and case versions.
 
 - Run both arms in the same batch, so they share conditions.
 - When a claim is close, run a noise check (`component: []`): the identical arms that Measure The Noise Floor describes.
 
 ## Keep Capability And Regression Suites Apart
 
-Keep them apart as Research Work's [study design](../../research-work/references/study.md#keep-capability-and-regression-studies-apart) says. In a regression suite, read the result per check and case: a sign test says `worse` only when many cases got worse, so a few broken cases show in the counts long before the verdict moves. A case that passes reliably in a capability suite can graduate into the regression suite.
+Keep them apart as Research Work's [study](../../research-work/references/study.md#keep-capability-and-regression-studies-apart) says. In a regression suite, read the result per check and case: a sign test says `worse` only when many cases got worse, so a few broken cases show in the counts long before the verdict moves. A case that passes reliably in a capability suite can graduate into the regression suite.
 
 ## Hold Cases Out
 
@@ -187,15 +187,15 @@ Cases are the items of Research Work's [Hold Items Out](../../research-work/refe
 
 ## Control Mechanical Checks That Approximate Meaning
 
-A deterministic check that stands in for a meaning, such as a regex or a check that a review names the right file and line, needs the controls Research Work's [measurement](../../research-work/references/measurement.md#validity-does-the-measure-track-the-claim) names, and what to do when it fires on them is there.
+A deterministic check that stands in for a meaning, such as a regex or a check that a review names the right file and line, needs the controls Research Work's [study](../../research-work/references/study.md#validity-does-the-measure-track-the-claim) names, and what to do when it fires on them is there.
 
 ## Read Before Counting
 
-Before reporting a count, read the transcripts of failed runs and of a sample of passing ones: they are the raw outputs Research Work's [measurement](../../research-work/references/measurement.md#read-raw-outputs-before-counting) says to read, with what to do when one shows the check or a judge is wrong.
+Before reporting a count, read the transcripts of failed runs and of a sample of passing ones: they are the raw outputs Research Work's [study](../../research-work/references/study.md#read-raw-outputs-before-counting) says to read, with what to do when one shows the check or a judge is wrong.
 
 ## Count Judge Answers With Care
 
-A judge's answers are measurements, under Review Work's [Judge Contract](../../review-work/references/evals-and-judges.md#judge-contract); what any judge needs before its answers count is in Research Work's [measurement](../../research-work/references/measurement.md#judges). In practice:
+A judge's answers are measurements, under Review Work's [Judge Contract](../../review-work/references/evals-and-judges.md#judge-contract); what any judge needs before its answers count is in Research Work's [study](../../research-work/references/study.md#judges). In practice:
 
 - Count only rubric answers (`review --rubric`): each run is judged alone and blind to its arm, so no order effect arises, and a decision rule can name a dimension. Keep pairwise review questions for advisory comparison.
 - Name what to look for, such as the defect's location, expression and effect, and put the expected answer in the dimension's `reference`, which only judges see. Low agreement between judges (Cohen's kappa for two, Krippendorff's alpha for more, per dimension in the aggregate) means the question is uncertain: sharpen it and its reference before counting.
@@ -213,20 +213,20 @@ Spend the fewest subject and judge calls that still answer the question: start f
 
 ## Under A Research Work Study Plan
 
-When a Research Work study plan's arms are agent configurations, this evaluator runs them, and the plan's rules apply to the suite. Research Work owns those rules ([study design](../../research-work/references/study.md)); this is what carries each one here:
+When a Research Work study plan's arms are agent configurations, this evaluator runs them, and the plan's rules apply to the suite. Research Work owns those rules ([study](../../research-work/references/study.md)); this is what carries each one here:
 
 - **The run and its verdict.** Run `skill-eval run` through `study.mjs run`, with `--results` inside the study's folder, so a receipt records the command and its exit code. The suite `decision` is the plan's decision rule, computed by the evaluator rather than by a `stats.mjs` receipt: write the hypothesis's `Method` as `computed: skill-eval suite decision, sign test`, and cite the aggregate in the register, so Research Work's gate traces its numbers there. Its test is the one `stats.mjs paired sign` computes; the unit, size and verdicts are this skill's, as Fix The Decision Rule First says.
 - **Budgets per arm.** Arms differ only in the component, so they share turns, tools, model and thinking unless one of those is the component; write the same Budget for every arm compared. Tuning effort is yours to equalize: a candidate revised against these cases was tuned on them, so they are tuning cases (Hold Cases Out).
 - **Validity.** For a coding task, `check-tasks` is the plan's validity check: the reference solution must pass and the unchanged fixture must fail. Run it through `study.mjs run --validity`; it exits non-zero on an unsolvable or already-solved group, and a not-checkable group needs another check. The evaluator's own validity gate ([running and evidence](running-and-evidence.md)) is a different check: it marks invalid a run that shows no model at work.
 - **Contamination.** Grader files outside the fixture, the `answer-copy` and `outside-read` flags, and `network: "none"` control the plan's `grader and harness` and `tools and web` routes; `training data` (cases from a published benchmark) and `tuning` stay yours to record.
-- **Model labels.** A judge under `review --rubric` is the plan's `judge`. Any other model whose labels the analysis counts, such as one inside a command grader, is a judge too, as Research Work's [measurement](../../research-work/references/measurement.md#judges) says.
+- **Model labels.** A judge under `review --rubric` is the plan's `judge`. Any other model whose labels the analysis counts, such as one inside a command grader, is a judge too, as Research Work's [study](../../research-work/references/study.md#judges) says.
 - **Expected answers.** The Rule that keeps criteria, graders, review questions and rubric references away from subjects covers the evaluator's own files; Research Work's [rule](../../research-work/references/study.md#close-the-routes-contamination-takes) adds the prediction: no prompt, fixture or declared context an arm receives says which arm should win.
 
 ## Defect Suites
 
 For a reviewer, checker or anything else whose job is to find problems. Sizing, noise and judges are above; this section covers what is particular to detectors.
 
-A detector is measured on two sides, as Research Work's [measurement](../../research-work/references/measurement.md#detectors-measure-both-sides) says: how often it finds real problems, and how often it rejects sound work. One side alone means nothing; a reviewer that rejects everything finds every defect.
+A detector is measured on two sides, as Research Work's [study](../../research-work/references/study.md#detectors-measure-both-sides) says: how often it finds real problems, and how often it rejects sound work. One side alone means nothing; a reviewer that rejects everything finds every defect.
 
 ### Build Both Sides
 
@@ -242,7 +242,7 @@ A detector is measured on two sides, as Research Work's [measurement](../../rese
 
 ### Keep The Answer Out Of Sight
 
-- What the detector must not see is in Research Work's [measurement](../../research-work/references/measurement.md#detectors-measure-both-sides), and the defect's class is part of it: use neutral IDs and paths, since a declared context path containing the variant name is enough to leak it.
+- What the detector must not see is in Research Work's [study](../../research-work/references/study.md#detectors-measure-both-sides), and the defect's class is part of it: use neutral IDs and paths, since a declared context path containing the variant name is enough to leak it.
 - Cases are built by someone other than the author of the guidance under test. Seeds are never written by the model under test.
 
 ### Give The Detector What Its Job Needs

@@ -4,7 +4,7 @@ This reference is judgment; Review Work's Rules still bind. Adjudication belongs
 
 ## Dispose Each Material Item
 
-For every material item, choose one disposition.
+For every material item, choose one disposition. A trial's friction log (`Review type: trial`, from Evaluate Behavior's [trial](../../evaluate-behavior/SKILL.md#trial-a-skill-on-a-real-task)) is a report like any other: check each item against the skill's text or script before accepting it.
 
 ### Accepted
 

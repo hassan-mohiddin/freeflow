@@ -40,6 +40,8 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Never change the component under test while evaluating it. Return one measured revision target to its owner.
 - After a behavioral change, rerun the complete fixed group with every arm. Never hand-pick an earlier run as the fresh counterpart or rerun only the preferred arm; an earlier run may stand in only through `--reuse`, which matches the arm's exact inputs, and the report names it as reused.
 - Judged evidence is its own class. Judge answers are stored apart from run and deterministic grade files, with each judge's identity and calibration status (labelled with its agreement, or not checked; calibrated only with a passing judge validation record), and count toward a claim only through a decision rule declared before the run. They never change run or grade files and never establish readiness.
+- Before a run that calls a model, state how many subject and judge calls it makes and what it is estimated to cost, and get the user's yes, unless the task's work agreement already covers that run. A run billed to a subscription spends the user's plan limit, which is a cost too.
+- Never ask a measured arm's subject for notes on the guidance under test: asking changes the behavior being measured. Notes belong to a trial.
 - Installing anything an eval needs, such as the VM runtime behind a confined shell, is the user's decision. Relay the evaluator's exact refusal and ask before installing; never install silently.
 - Never invoke archived evaluators.
 - Never clear a run's transcript-scan flag on your own judgment. Show the user the flag and its evidence, and run `skill-eval clear` only with their decision and their reason.
@@ -66,6 +68,7 @@ Choose the mode by where the behavior happens; modes combine:
 - **Compare:** arms run the same task once per trial; the default.
 - **Noise check:** `component: []` with identical arms; their gap is the floor a real difference must clear.
 - **Measure:** one arm; a rate on this suite, never a comparison.
+- **Trial:** one arm on a real task whose subject keeps a friction log; its output is findings to adjudicate, never a rate or a comparison ([Trial A Skill On A Real Task](#trial-a-skill-on-a-real-task)).
 - **Conversation:** a simulated user who knows only its card answers back.
 - **Pipeline:** ordered stages, each a subject that sees only what it declares.
 - **Coding task:** hidden tests or other commands grade the changed repository.
@@ -83,6 +86,15 @@ Before subject output exists:
 8. classify the failed boundary before proposing revision.
 
 If every arm passes, the pressure may be weak or the baseline already sufficient. If every arm fails, distinguish component, fixture, dependency, environment, host, isolation, and criterion failures before revising anything.
+
+## Trial A Skill On A Real Task
+
+Goal: before a new or changed skill is measured, find where it makes an agent hesitate, guess, backtrack or redo work, cheaply, on work that matters.
+
+- Give one subject a real task the skill serves, with its configuration named, through the evaluator in Measure shape when the task fits a definition, or as a fresh agent briefed with the task otherwise. Keep its transcript.
+- Its brief asks for a friction log as it works, in Review Work's [report shape](../review-work/references/work.md#review-items) with `Review type: trial`: each place the skill made it hesitate, guess, backtrack or repeat work, a check that refused correct work or passed wrong work, a step that cost more than it gave, each with the file and line of the skill text or script, what happened, the consequence and the fix it would want. A check that passed wrong work is Blocking.
+- A friction log is a reviewer's report, not evidence: adjudicate every item through Review Work's [adjudication](../review-work/references/adjudication.md) before the owner changes anything, and check it with `check-adjudication.mjs`. Some items are the subject's own mistake.
+- A trial supports no rate and no comparison. Measure after the accepted fixes, with arms that keep no notes.
 
 ## Run And Read The Evidence
 

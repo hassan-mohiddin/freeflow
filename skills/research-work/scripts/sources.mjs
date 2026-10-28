@@ -373,7 +373,7 @@ for (const loose of looseQuotes(text))
     line: loose.line,
     citation: loose.text,
     status: "not checked",
-    reason: 'a quote of four or more words beside a source ID, not in the form "the exact words" (S<n>)',
+    reason: 'a quote of four or more words beside a source ID, not in the form "the exact words" (S<n>) or [@S<n>]',
   });
 
 const count = (status) => results.filter((result) => result.status === status).length;

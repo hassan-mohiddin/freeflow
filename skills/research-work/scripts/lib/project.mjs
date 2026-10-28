@@ -15,6 +15,7 @@ export const LAYOUT = {
   paper: "paper/paper.md",
   outline: "paper/outline.md",
   pdf: "paper/build/paper.pdf",
+  evidence: "synthesis/evidence-table.md",
   recheck: "synthesis/recheck.md",
   packets: "reviews/support-packets.jsonl",
   verdicts: "reviews/support-verdicts.jsonl",
@@ -36,15 +37,15 @@ export function projectFiles({ title, owner, rigor, kind }) {
     // pooling and flow, with the receipts that made them, sit together in synthesis/.
     ...(kind === "review"
       ? {
-          "synthesis/evidence-table.md": skeleton("evidence-table", { title, owner }),
-          "synthesis/recheck.md": skeleton("recheck", { title, owner }),
+          [LAYOUT.evidence]: skeleton("evidence-table", { title, owner }),
+          [LAYOUT.recheck]: skeleton("recheck", { title, owner }),
         }
       : { [LAYOUT.outline]: outline({ title, owner }) }),
   };
 }
 
 /**
- * Whether a claims register or paper outline is still the skeleton `init` wrote, unchanged: a project that never used
+ * Whether a claims register, paper outline, evidence table or recheck table is still the skeleton `init` wrote, unchanged: a project that never used
  * it, not an artifact with problems.
  */
 export function isSkeleton(kind, text) {

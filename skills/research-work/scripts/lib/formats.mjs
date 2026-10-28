@@ -1,5 +1,5 @@
 // Research Work's artifact formats: what each file holds, a skeleton to start one, and a validator that refuses a
-// file breaking its contract. The contract itself is written for agents in references/artifacts.md; this module is
+// file breaking its contract. The contract itself is written for agents in the references' Formats sections; this module is
 // its enforcement. Markdown artifacts carry Write Docs' header (Type, Status, Owner, Source); the search ledger is
 // JSONL, one record per line. The study's run ledger and deviation log are written by study.mjs (lib/study.mjs).
 
@@ -566,7 +566,7 @@ export function planLabelsByModel(text) {
   );
 }
 
-function validatePlan(parsed, problems) {
+function validatePlan(parsed, problems, { unlocked = false } = {}) {
   validateHeader(parsed, "Study Plan", problems);
   if (!RIGOR.includes(parsed.header.Rigor)) problems.push(`the header's Rigor must be one of: ${RIGOR.join(", ")}`);
   const required = parsed.header.Rigor === "check" ? CHECK_QUESTIONS : QUESTIONS.map((_, index) => index + 1);
@@ -664,6 +664,24 @@ function validatePlan(parsed, problems) {
       );
   }
   validateOptionalPlanSections(parsed, problems);
+  // A plan not yet locked, at study or publication rigor, has the parts init writes that the checks read. Plans locked
+  // before these parts existed stay valid: study.mjs check notes what they lack.
+  if (unlocked && ["study", "publication"].includes(parsed.header.Rigor)) {
+    if (hypotheses && !hypotheses.columns.includes("Method"))
+      problems.push(
+        "the Hypotheses table has no Method column: a plan not yet locked names the stats.mjs family and method that computes each confirmatory rule, or computed: <how>, and - for an exploratory one",
+      );
+    if (runs && !runs.columns.includes("Budget"))
+      problems.push(
+        "the Planned runs table has no Budget column: a plan not yet locked states each arm's tuning and compute, control, or not compared: <why>",
+      );
+    if (!sectionNamed(parsed, "Contamination"))
+      problems.push('missing section "## Contamination": a plan not yet locked records how each route is controlled');
+    if (!sectionNamed(parsed, "Models in the method"))
+      problems.push(
+        'missing section "## Models in the method" (a table, or "none"): a plan not yet locked declares them',
+      );
+  }
   if (!parsed.sections.has("Amendments")) problems.push('missing section "## Amendments" ("none" until the first)');
 }
 
@@ -771,7 +789,7 @@ function validateLedger(parsed, problems) {
   }
 }
 
-// A claim about absence ("the first to", "no prior work") is only as good as the search behind it (framing.md). The
+// A claim about absence ("the first to", "no prior work") is only as good as the search behind it (evidence.md). The
 // check reads three classes of wording: being first, nothing or nobody having done it, and words that say it is new.
 // It reads wording, so it catches the common forms, not every one.
 const RESEARCH_VERBS =
@@ -1752,6 +1770,7 @@ export function validate(
     figureFile,
     specData,
     requireReceipts,
+    unlocked,
   } = {},
 ) {
   const problems = [];
@@ -1762,7 +1781,7 @@ export function validate(
     else if (kind === "source-ledger") validateLedger(parsed, problems);
     else if (kind === "claims-register")
       validateRegister(parsed, problems, { ledger, plan, judges, searches, rechecks });
-    else if (kind === "study-plan") validatePlan(parsed, problems);
+    else if (kind === "study-plan") validatePlan(parsed, problems, { unlocked });
     else if (kind === "judge-validation") validateJudge(parsed, problems);
     else if (kind === "paper-outline")
       validateOutline(parsed, problems, {

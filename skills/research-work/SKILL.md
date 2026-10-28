@@ -13,19 +13,16 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 | Situation | Go to |
 | --- | --- |
-| A vague or broad question, a comparison, a claim that something is new, or choosing the rigor | [framing](references/framing.md) |
-| Gathering sources: code at a pinned commit, papers or the web, judging a source, rechecking a study's printed numbers (GRIM, DEBIT, p), splitting a subject across workers | [investigation](references/investigation.md), with [stats](scripts/stats.mjs) `recheck` |
-| Findings into claims and levels, conflicting sources, an absence ("none found"), the report from the register | [claims](references/claims.md) |
-| Designing or running a study or a quick check: the twelve questions, decision rule, baselines, size, pilots, held-out items, the lock, receipts, deviations, cost | [study](references/study.md), with [study.mjs](scripts/study.mjs) |
-| Whether a measure tracks the claim: validity, fair tasks, reliability, raw outputs, a model judge and its record, a detector | [measurement](references/measurement.md) |
+| Framing the question or gathering the evidence: a vague or broad question, a comparison, a claim that something is new, the rigor; code at a pinned commit, papers or the web, judging a source, rechecking a study's printed numbers (GRIM, DEBIT, p), splitting a subject across workers; a literature or systematic review (screening, a model screener, the flow figure, the evidence table, risk of bias, pooling) | [evidence](references/evidence.md), with [stats](scripts/stats.mjs) `recheck` and `meta`, and the flow figure through [paper](scripts/paper.mjs) `run` and [figure](scripts/figure.mjs) |
+| Designing, measuring or running a study or a quick check: the twelve questions, decision rule, baselines, size, pilots, held-out items; whether a measure tracks the claim (validity, fair tasks, reliability, raw outputs, a model judge and its record, a detector); the lock, receipts, deviations, cost | [study](references/study.md), with [study.mjs](scripts/study.mjs) |
 | The arms are agent configurations run on a host: a skill, prompt, model or setting change | [Evaluate Behavior](../evaluate-behavior/SKILL.md) runs them and owns its suite decision rule; it computes with `stats.mjs` |
-| A paper from the register: outline, abstract, figures, draft, references, one review, revision, build, rebuttal; a literature or systematic review: screening, a model screener, the flow figure, evidence table, risk of bias, pooling | [paper](references/paper.md), with [paper](scripts/paper.mjs) and [figure](scripts/figure.mjs) |
-| Creating or checking any research artifact: brief, ledgers, claims register, study plan, judge record, paper outline, rebuttal, evidence or recheck table | [artifacts](references/artifacts.md), with [artifact](scripts/artifact.mjs) |
-| Checking a report or paper before it goes out: citations, quotes, numbers and claim IDs, and what its rigor still needs | Run [research](scripts/research.mjs) `gate`, as Check The Report says; each check's refusals are in [claims](references/claims.md#what-the-gate-runs) |
-| Whether the lines a key claim cites actually show it | [claims](references/claims.md#check-that-citations-support-claims), with [claims](scripts/claims.mjs) `support` |
-| Whether each judge score quotes the output it judged | Run [sources](scripts/sources.mjs) `quote-check`, as [measurement](references/measurement.md#judges) says |
+| Claims, the report and a paper: findings into claims and levels, conflicting sources, an absence ("none found"), the report from the register; a paper's outline, abstract, figures, draft, references, one review, revision, build and rebuttal | [reporting](references/reporting.md), with [paper](scripts/paper.mjs) and [figure](scripts/figure.mjs) |
+| Creating or checking any research artifact: brief, ledgers, claims register, study plan, judge record, paper outline, rebuttal, evidence or recheck table | The Formats section of the stage's reference, with [artifact](scripts/artifact.mjs): [evidence](references/evidence.md#formats) for the brief, ledgers and the evidence and recheck tables; [study](references/study.md#formats) for the plan, its ledgers and the judge record; [reporting](references/reporting.md#formats) for the register, report, outline, rebuttal, support packets, figure specs and patches |
+| Checking a report or paper before it goes out: citations, quotes, numbers and claim IDs, and what its rigor still needs | Run [research](scripts/research.mjs) `gate`, as Check The Report says; each check's refusals are in [reporting](references/reporting.md#what-the-gate-runs) |
+| Whether the lines a key claim cites actually show it | [reporting](references/reporting.md#check-that-citations-support-claims), with [claims](scripts/claims.mjs) `support` |
+| Whether each judge score quotes the output it judged | Run [sources](scripts/sources.mjs) `quote-check`, as [study](references/study.md#judges) says |
 | Numbers from a sample: an interval, a comparison, rater agreement, pass@k, power | Numbers From Samples, below, and [stats](scripts/stats.mjs) |
-| The report itself | The [Research Report](references/artifacts.md#research-report) shape |
+| The report itself | The [Research Report](references/reporting.md#research-report) shape |
 | Agreeing the brief, or a choice the user owns comes up | [Discuss Work](../discuss-work/SKILL.md) |
 | Reviewing the brief or the report | [Review Work](../review-work/SKILL.md) |
 
@@ -75,10 +72,10 @@ Default to `study` when the user does not say. Raise it when the answer will be 
 
 Goal: a report that answers the brief's question, where every claim can be traced to a source and every source says how it was checked.
 
-1. **Frame.** Create the brief with `artifact.mjs init research-brief` and agree it with the user through Discuss Work. A question someone else could not answer as written is not ready: read [framing](references/framing.md).
-2. **Survey.** Pin each source before relying on it (a repository at a commit, a paper by DOI or arXiv ID, a page by URL and access date), read the primary source, and record it in the source ledger as you go, with searches in the search ledger; cite code as `S<n>:path:line`. Split a subject too large for one context across workers as [investigation](references/investigation.md) says, and decide from their returns yourself.
-3. **Conclude.** Register each claim with its numbers, sources, level, kind, scope and limit, and settle conflicts between sources as [claims](references/claims.md) says. What you looked for and did not find is a finding too, with the search that looked.
-4. **Report.** Write the report in the Research Report shape: the answer first, each finding citing its claim IDs, strength stated once from the levels, limits in one place. A host that will not let you write the file gets the report's full text and its sha256 instead, after you run the checks on it from `/dev/stdin`, so whoever routed the work saves it unchanged and confirms the hash.
+1. **Frame.** Create the brief with `artifact.mjs init research-brief` and agree it with the user through Discuss Work. A question someone else could not answer as written is not ready: read [Make The Question Answerable](references/evidence.md#make-the-question-answerable).
+2. **Survey.** Pin each source before relying on it (a repository at a commit, a paper by DOI or arXiv ID, a page by URL and access date), read the primary source, and record it in the source ledger as you go, with searches in the search ledger; cite code as `S<n>:path:line`. Split a subject too large for one context across workers as [Splitting Across Workers](references/evidence.md#splitting-across-workers) says, and decide from their returns yourself.
+3. **Conclude.** Register each claim with its numbers, sources, level, kind, scope and limit, and settle conflicts between sources as [Conflicts And Absences](references/reporting.md#conflicts-and-absences) says. What you looked for and did not find is a finding too, with the search that looked.
+4. **Report.** Write the report in the Research Report shape: the answer first, each finding citing its claim IDs, strength stated once from the levels, limits in one place. A host that will not let you write the file gets the report's full text and its sha256 instead, after you run the gate on it from stdin (`research.mjs gate <folder> --report -`, which reads it once and checks that copy), so whoever routed the work saves it unchanged and confirms the hash.
 5. **Check.** Run the gate below, fix what it reports, and run it again.
 6. **Review.** At publication rigor, or when the user asks, review the report through Review Work's artifact review; give the reviewer the brief, the ledgers, the register and the gate's output, not your summary. When no reviewer can run (an unattended worker), say so in Limits and in the hand-over: the review is still owed before the report is published.
 
@@ -90,13 +87,13 @@ Goal: a result decided by a rule fixed before the data, where every number trace
 
 1. **Frame.** Agree the brief as for a report. The claim sought names what the study tests.
 2. **Survey.** Find what is already known at the depth the design needs: prior results, the baseline in use, a measure that already exists.
-3. **Design.** Create the plan with `artifact.mjs init study-plan --rigor <rigor>`, answer its questions and each hypothesis's decision rule as [study design](references/study.md) says, pilot the measure ([measurement](references/measurement.md)) and its cost, agree the plan with the user through Discuss Work, then lock it.
+3. **Design.** Create the plan with `artifact.mjs init study-plan --rigor <rigor>`, answer its questions and each hypothesis's decision rule as [study](references/study.md) says, pilot the measure ([Pilot, Then Lock](references/study.md#pilot-then-lock)) and its cost, agree the plan with the user through Discuss Work, then lock it.
 4. **Run.** Run every step through `study.mjs run`, each validity check with `--validity`, log deviations as they happen, and ask before any paid run, as [running](references/study.md#running-the-study) says.
 5. **Analyze.** Run `study.mjs check`, read the raw outputs, then apply the plan's decision rule with `stats.mjs`.
 6. **Conclude.** Register each claim with the result files its numbers come from; a judged claim cites its judge's record.
 7. **Report, check and review** as for a report; the gate adds the study's checks.
 
-A quick check is this route at `check` rigor: five questions, about twenty paired tasks, the paired interval ([study design](references/study.md#the-quick-check)).
+A quick check is this route at `check` rigor: five questions, about twenty paired tasks, the paired interval ([study](references/study.md#the-quick-check)).
 
 ## A Paper
 
@@ -105,7 +102,7 @@ Goal: a paper whose one message a result could contradict and whose every number
 1. **Register.** Start from a study's register, or register what existing results show, as for a report; which claims the paper makes is the user's choice. `artifact.mjs init project <folder>` lays out a new project.
 2. **Outline.** Create it with `artifact.mjs init paper-outline` (the proposition, contributions with their claim IDs, one sentence per planned paragraph, figures with their data, objections and where each is answered), validate it, and agree it and the abstract with the user; when no one can answer, list your defaults first in the hand-over, as for the brief.
 3. **Figures and draft.** Draw each figure from its data with `figure.mjs` through a receipt, named in the outline. Draft from the outline, then run the gate below, which adds `claims.mjs draft-check` on a paper.
-4. **Review once** through Review Work, then revise by patch with `paper.mjs anchor` and `apply`, naming the finding each change answers, as [paper](references/paper.md) says.
+4. **Review once** through Review Work, then revise by patch with `paper.mjs anchor` and `apply`, naming the finding each change answers, as [Revise By Patch](references/reporting.md#revise-by-patch) says.
 5. **Build and submit.** Make `refs.bib` with `sources.mjs bib`, build with `paper.mjs build --venue`, and run the gate again with the venue's limits and required sections (`--max-pages`, `--max-words`, `--require`) for the PDF. Answer the venue's reviewers in a rebuttal ledger (`artifact.mjs init rebuttal`); submission is the user's.
 
 ## Check The Report
@@ -114,9 +111,9 @@ Goal: a paper whose one message a result could contradict and whose every number
 node <research-work-directory>/scripts/research.mjs gate <folder> [--repo <name>=<clone>]... [--copy S<n>=<saved copy>]... [--json]
 ```
 
-The gate reads the folder as `artifact.mjs init project` lays it out (`--help` names an option for each file kept elsewhere, and a saved copy in `sources/` named for its source's ID or pin is found without `--copy`), takes the rigor from the brief, runs every check that rigor requires on the files present, and prints each as passed with its notes, failed, or not run with why, then what is left to do; it exits 0 only when every required check passed, and never goes online or calls a model. Pass `--repo` for each pinned repository and `--copy` for a quoted source whose copy is named otherwise: a citation it cannot read is not checked, which fails. [claims](references/claims.md#what-the-gate-runs) lists the checks and what each refuses.
+The gate reads the folder as `artifact.mjs init project` lays it out (`--help` names an option for each file kept elsewhere, and a saved copy in `sources/` named for its source's ID or pin is found without `--copy`), takes the rigor from the brief, runs every check that rigor requires on the files present, and prints each as passed with its notes, failed, or not run with why, then what is left to do; it exits 0 only when every required check passed, and never goes online or calls a model. Pass `--repo` for each pinned repository and `--copy` for a quoted source whose copy is named otherwise: a citation it cannot read is not checked, which fails. [reporting](references/reporting.md#what-the-gate-runs) lists the checks and what each refuses.
 
-Passing checks show that each cited range exists and each number is registered, not that a range shows its claim: the common failure is a claim that is true on the path you read and drops the condition that selects that path. At publication rigor, check that each key claim's citations support it, as [claims](references/claims.md#check-that-citations-support-claims) says: the gate requires the answers and names each cited claim without one, to add or keep out with `--unsupported-ok`. At other rigors, read the lines a key claim rests on again before handing the report over.
+Passing checks show that each cited range exists and each number is registered, not that a range shows its claim: the common failure is a claim that is true on the path you read and drops the condition that selects that path. At publication rigor, check that each key claim's citations support it, as [reporting](references/reporting.md#check-that-citations-support-claims) says: the gate requires the answers and names each cited claim without one, to add or keep out with `--unsupported-ok`. At other rigors, read the lines a key claim rests on again before handing the report over.
 
 ## Numbers From Samples
 

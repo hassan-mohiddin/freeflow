@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Create and check Research Work's artifacts. The formats are defined in references/artifacts.md.
+// Create and check Research Work's artifacts. The formats are defined in the Formats sections of references/evidence.md, study.md and reporting.md.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -24,7 +24,7 @@ import {
   validate,
 } from "./lib/formats.mjs";
 import { figureReceipts } from "./lib/paper.mjs";
-import { demotedHypotheses, fileHash, lockState, readLedger } from "./lib/study.mjs";
+import { demotedHypotheses, fileHash, lockState, readLedger, readLock } from "./lib/study.mjs";
 import { projectFiles } from "./lib/project.mjs";
 import { resultNumbers } from "./lib/report.mjs";
 
@@ -248,6 +248,8 @@ if (command === "init" && rest[0] === "project") {
     Object.assign(options, figureReceipts(path, parseMarkdown(text).header.Runs));
   }
   if (kind === "search-ledger") Object.assign(options, screenerFiles(path, text));
+  // A study plan with no lock file beside it is new: it is held to the parts init writes.
+  if (kind === "study-plan") options.unlocked = readLock(path) === null;
   const confirmatory = rows.some((row) => row.cells.Kind === "confirmatory");
   const result = validate(kind, text, options);
   if (values.json) console.log(JSON.stringify({ path, ...result }, null, 2));

@@ -544,7 +544,7 @@ export const CASES = [
     hit: "research-work",
     expect: ["research-work"],
     not: [],
-    parts: ["research-work/references/investigation.md"],
+    parts: ["research-work/references/evidence.md"],
     prompt:
       "Write me an in-depth report on how search works in shelf, from the query typed on the command line to the results printed, with every step cited to the lines of code.",
   },
@@ -562,7 +562,7 @@ export const CASES = [
     hit: "research-work",
     expect: ["research-work"],
     not: [],
-    parts: ["research-work/references/investigation.md"],
+    parts: ["research-work/references/evidence.md"],
     prompt:
       "Someone on the issue tracker says fuzzy matching always beats prefix matching for short titles like ours. Before we rely on that, find out what the published work actually says, with sources.",
   },

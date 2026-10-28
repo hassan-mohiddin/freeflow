@@ -65,7 +65,7 @@
       "case_concept": "Compare arms against a reference under a declared decision rule while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-behavior/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
       "source_path": "skills/evaluate-behavior/SKILL.md",
-      "source_sha256": "6aad7aa9a0a1456d6153dd892c5637e5de0265f177c77b4703ebb379c890173a",
+      "source_sha256": "4de9bf32f1357ca9a2a2568ece4664503ebba7f2de0a60e7e464d1ea5463b94b",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -111,7 +111,7 @@
       "case_concept": "A natural request for an in-depth report or a literature review should read the skill and produce the brief, ledgers, register and checked report; a comparison of options in hand or a single lookup should not; a quick yes-or-no question should run at check rigor, not study.",
       "current_result": "One end-to-end run: a Haiku agent followed the skill to report on the Codex CLI's turn path at a pinned commit; its 93 citations passed cite-check, and a check of five claims against the code found three that dropped a guard condition, which led to revisions of the skill text (the saved report was not corrected). The run used the text at 58b44b72; later changes only say what a passing check and trace cover. The scripts have their own tests (.skill-eval/research-work/tests). Activation cases are written but not run. The study route's gates have their own tests. One study ran end to end (two Haiku agents, the Wald and Wilson coverage question): its numbers match an independent computation, and its workers' notes led to fixes recorded in the design record.",
       "source_path": "skills/research-work/SKILL.md",
-      "source_sha256": "2af7badad035a3ee5cf02628f2a9e4181507d54bb658b6ef698deaa487257e48",
+      "source_sha256": "2c5a1c18636bc54553f12eaca462019e23c2f2b3eabf3f7ce93d9d5640fb8c9e",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -249,7 +249,7 @@
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
       "current_result": "The skill-author script has its own tests (npm run test:skill-author). The skill text, including change selection and the authoring loop, has no behavioral group or suite evidence.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "a425e5e582348bf6ea27c7cfd6dfd52f6a3251e9ffd95c0582fb35670686fbb3",
+      "source_sha256": "1bcc45498085ec5b31ca8de2ef7d120161fa0e9c7feaa5381a1ebd237735445d",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

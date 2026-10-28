@@ -5,15 +5,16 @@
 // runs goes online or calls a model.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { ledgerRows, parseMarkdown, parseTable } from "./lib/formats.mjs";
 import { LAYOUT, isSkeleton } from "./lib/project.mjs";
-import { claimsWithEvidence } from "./lib/support.mjs";
+import { resultCitations } from "./lib/report.mjs";
+import { citedClaims } from "./lib/support.mjs";
 
 const SCRIPTS = dirname(fileURLToPath(import.meta.url));
 const RIGORS = ["check", "study", "publication"];
@@ -27,18 +28,22 @@ const USAGE = [
   "",
   "The folder is read as artifact.mjs init project lays it out; --<file> names one elsewhere:",
   ...FILES.map((file) => `  --${file.padEnd(9)} ${LAYOUT[file]}`),
-  "A path given with --<file> is relative to the current folder. The rigor comes from the brief's header;",
+  "A path given with --<file> is relative to the current folder. --report - or --paper - reads that file once from",
+  "stdin into the gate's scratch folder, and every check runs on the copy: the form for a host that refuses the file.",
+  "The rigor comes from the brief's header;",
   "--rigor is used only when there is no brief, and one that differs from the brief's fails the gate.",
   "",
   "Every rigor checks the brief, the source ledger and each report or paper present: cite-check, trace (with",
-  "--results when there is a study plan), and for a paper its outline and draft-check. study and publication need the",
+  "--results when there is a study plan, and --results --cited-only when a register row's Source names a result file),",
+  "and for a paper its outline and draft-check. study and publication need the",
   "claims register; publication also needs every source opened or run, the citation support verdicts",
-  "(support-check, on packets that still match the report and paper, with a packet for every claim either cites with",
-  "a code citation or quote, except those --unsupported-ok marks out by the author's choice), and a paper's PDF",
+  "(support-check, on packets that still match the report and paper, with a packet for every registered claim either",
+  "cites, quoted or not, except those --unsupported-ok marks out by the author's choice), and a paper's PDF",
   "(check-pdf, against the venue's --max-pages, --max-words or --require). A study plan, when present, is validated",
   "and checked with study.mjs check, and the register is validated against it; a register with a confirmatory claim",
-  "and no plan fails. A file that is present is always checked, and its failure fails the gate (a PDF below",
-  "publication is shown and holds nothing); a claims register or outline still as init wrote it counts as absent.",
+  "and no plan fails. A review's evidence table is validated with --sources. A file that is present is always",
+  "checked, and its failure fails the gate (a PDF below publication is shown and holds nothing); a claims register,",
+  "outline, evidence table or recheck table still as init wrote it counts as absent.",
   "A passed check's notes are printed beneath it. --repo, --copy and --reads go to cite-check and support; --copy,",
   "--limit and --allow to draft-check; --max-pages, --max-words and --require to check-pdf. A source's saved copy",
   "in the sources folder, named for its ID (S3.txt) or its pin without the scheme (2306.05685v4.txt), is found",
@@ -91,6 +96,23 @@ const markedOut = (values["unsupported-ok"] ?? "")
   .filter(Boolean);
 if (markedOut.some((id) => !/^C\d+$/.test(id))) fail("--unsupported-ok takes claim IDs: C<n>,...");
 
+// --report - or --paper -: the text is read once from stdin into a scratch folder, since each check is a child process
+// that cannot read the gate's stdin; every check then runs on that copy, which is removed when the gate exits.
+const piped = ["report", "paper"].filter((file) => values[file] === "-");
+if (piped.length > 1) fail("only one of --report and --paper can be read from stdin (-)");
+if (piped.length === 1) {
+  let input;
+  try {
+    input = readFileSync(0, "utf8");
+  } catch (error) {
+    fail(`cannot read --${piped[0]} from stdin: ${error.message}`);
+  }
+  const scratch = mkdtempSync(join(tmpdir(), "research-gate-stdin-"));
+  process.on("exit", () => rmSync(scratch, { recursive: true, force: true }));
+  values[piped[0]] = join(scratch, basename(LAYOUT[piped[0]]));
+  writeFileSync(values[piped[0]], input);
+}
+
 // Every path as the commands are shown and run: relative to the current folder when inside it, so a command can be
 // copied and rerun.
 const shown = (path) => {
@@ -115,6 +137,8 @@ const used = {
   searches: has("searches") && (text(paths.searches) ?? "").trim() !== "",
   // A review's recheck table caps the claims resting on a mismatched source; unchanged since init, it holds no rows.
   recheck: has("recheck") && !isSkeleton("recheck", text(paths.recheck)),
+  // A review's evidence table, as init wrote it, holds no rows yet.
+  evidence: has("evidence") && !isSkeleton("evidence-table", text(paths.evidence)),
 };
 for (const file of ["brief", "sources", "plan", "report", "paper", "pdf", "packets", "verdicts"])
   used[file] = has(file);
@@ -260,6 +284,14 @@ if (atLeast("publication") && used.sources) {
 }
 
 if (used.searches) add("searches", "search ledger", true, run("artifact.mjs", ["validate", paths.searches]));
+// A review's evidence table: its rows, and with the source ledger, its sources and levels.
+if (used.evidence)
+  add(
+    "evidence",
+    "evidence table",
+    true,
+    run("artifact.mjs", ["validate", paths.evidence, ...(used.sources ? ["--sources", paths.sources] : [])]),
+  );
 
 // A study: its plan, and its lock, receipts and deviations.
 if (used.plan) {
@@ -301,6 +333,12 @@ else
       atLeast("study") ? "register every claim the report makes before the prose states it" : undefined,
     ),
   );
+
+// A register row whose Source names a result file (not a code citation S3:path) has its numbers traced to it, plan
+// or not: a review's pooled number is computed into synthesis/, with no study plan.
+const citesResults = registerRows.some(
+  (row) => resultCitations(row.cells.Source ?? "").filter((file) => !/^S\d+:/.test(file.path)).length > 0,
+);
 
 // Each product present: its citations, its numbers and claim IDs, and for a paper its outline and draft checks.
 const products = [
@@ -349,7 +387,7 @@ for (const [file, name] of products) {
           paths[file],
           "--register",
           paths.claims,
-          ...(used.plan ? ["--results"] : []),
+          ...(used.plan ? ["--results"] : citesResults ? ["--results", "--cited-only"] : []),
           ...(used.searches ? ["--search", paths.searches] : []),
         ])
       : notRun(
@@ -389,7 +427,8 @@ if (used.paper)
 
 // Citation support: required at publication, checked below it when answers exist. The packets come from the report
 // and the paper, whichever are present; they must still be what those and their sources give now, and at publication
-// every claim either cites with a code citation or quote needs a packet, unless the author marks it out.
+// every registered claim either cites needs a packet, with or without a code citation or quote beside it, unless the
+// author marks it out: leaving a quote out must not be a way past the check.
 const targets = products.map(([file]) => file);
 const target = targets.length > 0 ? targets.join(" and ") : null;
 const supportRequired = atLeast("publication") && target !== null;
@@ -407,10 +446,10 @@ if (target && (supportRequired || used.verdicts)) {
     ...sourceOptions,
   ];
   const buildCommand = commandLine("claims.mjs", build(paths.packets));
-  // The claims the report and paper cite with a code citation or quote, which the support check must cover.
+  // The registered claims the report and paper cite, which the support check must cover.
   const wanted =
     used.claims && supportRequired
-      ? claimsWithEvidence(targets.map((file) => text(paths[file])).join("\n\n"), registerRows).filter(
+      ? citedClaims(targets.map((file) => text(paths[file])).join("\n\n"), registerRows).filter(
           (id) => !markedOut.includes(id),
         )
       : [];
@@ -423,7 +462,7 @@ if (target && (supportRequired || used.verdicts)) {
       true,
       notRun(
         `no packets at ${paths.packets}`,
-        `build them with ${buildCommand}${wanted.length > 0 ? ` (it cites ${wanted.join(", ")} with a code citation or quote; each needs a packet, or --unsupported-ok to mark it out)` : ""}, give them to a separate reader, and save its answers to ${paths.verdicts}`,
+        `build them with ${buildCommand}${wanted.length > 0 ? ` (it cites ${wanted.join(", ")}; each needs a packet, so a code citation or quote beside it, or --unsupported-ok to mark it out)` : ""}, give them to a separate reader, and save its answers to ${paths.verdicts}`,
       ),
     );
   else {
@@ -490,12 +529,12 @@ if (target && (supportRequired || used.verdicts)) {
         uncovered.length === 0
           ? {
               status: "passed",
-              reason: `every claim cited with a code citation or quote has a packet${markedOut.length > 0 ? `, except ${markedOut.join(", ")}, marked out by --unsupported-ok` : ""}`,
+              reason: `every cited claim has a packet${markedOut.length > 0 ? `, except ${markedOut.join(", ")}, marked out by --unsupported-ok` : ""}`,
             }
           : {
               status: "failed",
-              reason: `${uncovered.length} claim(s) cited with a code citation or quote have no packet: ${uncovered.join(", ")}`,
-              todo: `add them with ${buildCommand} --only ${[...claims, ...uncovered].join(",")} and have the new packets answered, or keep them out of the support check by your choice with --unsupported-ok ${uncovered.join(",")}`,
+              reason: `${uncovered.length} cited claim(s) have no packet: ${uncovered.join(", ")}`,
+              todo: `give each a code citation or quote beside it if it has none, add them with ${buildCommand} --only ${[...claims, ...uncovered].join(",")} and have the new packets answered, or keep them out of the support check by your choice with --unsupported-ok ${uncovered.join(",")}`,
             },
       );
     }
@@ -509,7 +548,9 @@ const venueGiven = Boolean(values["max-pages"] || values["max-words"] || values.
 const venueTodo =
   "check it against the venue: run the gate again with the venue's page and word limits and its required sections (--max-pages <n>, --max-words <n>, --require <section> for each; the venue's current call and template give them)";
 if (used.pdf || (used.paper && atLeast("publication"))) {
-  const runs = join(dirname(paths.paper), "runs.jsonl");
+  // A paper read from stdin is built from where the folder keeps it, not from the gate's scratch copy.
+  const paperHome = piped.includes("paper") ? shown(resolve(folder, LAYOUT.paper)) : paths.paper;
+  const runs = join(dirname(paperHome), "runs.jsonl");
   const pdf = used.pdf
     ? run("paper.mjs", [
         "check-pdf",
@@ -522,7 +563,7 @@ if (used.pdf || (used.paper && atLeast("publication"))) {
       ])
     : notRun(
         `no ${paths.pdf}`,
-        `build it with ${commandLine("paper.mjs", ["build", paths.paper, "--to", "pdf", "--out", paths.pdf, "--ledger", shown(resolve(runs)), "--venue"])}, then run the gate again${atLeast("publication") && !venueGiven ? " with the venue's --max-pages, --max-words and --require <section>" : ""}`,
+        `build it with ${commandLine("paper.mjs", ["build", paperHome, "--to", "pdf", "--out", paths.pdf, "--ledger", shown(resolve(runs)), "--venue"])}, then run the gate again${atLeast("publication") && !venueGiven ? " with the venue's --max-pages, --max-words and --require <section>" : ""}`,
       );
   if (used.pdf && atLeast("publication") && !venueGiven)
     Object.assign(pdf, {
