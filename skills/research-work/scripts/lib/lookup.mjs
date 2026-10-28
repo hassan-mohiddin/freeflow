@@ -53,9 +53,19 @@ const SIBLING = new Set([
  * binomial proportion. Statistical Science" names the middle part), or, without that form, the whole line.
  */
 function sourceTitle(source) {
-  const match = /\b(?:19|20)\d{2}[a-z]?\)?[.:,]\s+(.+)$/.exec(String(source ?? ""));
+  const match = /\b(?:19|20)\d{2}[a-z]?\)?([.:,])\s+(.+)$/.exec(String(source ?? ""));
   if (!match) return null;
-  return match[1].split(/\.\s+(?=[A-Z])/)[0];
+  // After "2001." the title ends at the next sentence; after "(2001)," at the next comma before a capital (the venue).
+  return match[2].split(match[1] === "," ? /,\s+(?=[A-Z])|\.\s+(?=[A-Z])/ : /\.\s+(?=[A-Z])/)[0];
+}
+
+/** The family names and year a Source line gives before its title: "Chen W, Liu Y. 2024. …" gives chen, liu, 2024. */
+function sourceAuthorsAndYear(source) {
+  const text = String(source ?? "");
+  const at = /\b(?:19|20)\d{2}\b/.exec(text);
+  const before = at ? text.slice(0, at.index) : "";
+  const names = tokens(before).filter((word) => word.length > 1 && !["and", "et", "al", "others"].includes(word));
+  return { names, year: at ? at[0] : null };
 }
 
 /**
@@ -139,7 +149,12 @@ const lastRequest = new Map();
 
 /** Wait until this host's spacing has passed since the last request to it. */
 async function spaced(url) {
-  const host = new URL(url).host;
+  let host;
+  try {
+    host = new URL(url).host;
+  } catch {
+    return;
+  }
   const gap = SPACING[host] ?? 1000;
   const wait = (lastRequest.get(host) ?? 0) + gap - Date.now();
   if (wait > 0) await new Promise((done) => setTimeout(done, wait));
@@ -171,60 +186,55 @@ async function archived(get, url) {
   }
 }
 
-/** The fields of an OpenAlex work, as a ledger row is checked against them. */
-function openalexRecord(work) {
-  return {
-    title: work.title ?? work.display_name ?? "",
-    authors: (work.authorships ?? [])
-      .map((authorship) =>
-        String(authorship.author?.display_name ?? "")
-          .trim()
-          .split(/\s+/)
-          .at(-1),
-      )
-      .filter(Boolean),
-    year: work.publication_year ?? null,
-    venue: work.primary_location?.source?.display_name ?? "",
-    type: work.type ?? null,
-    doi: work.doi ? String(work.doi).replace(/^https?:\/\/doi\.org\//i, "") : null,
-  };
-}
-
 /**
- * Search OpenAlex for the title a row's Source names, for a row with no identifier. The answer is a candidate
- * identifier for a person to put in the Pin and look up; a title search never verifies a source by itself.
+ * Search for the title a row's Source names, for a row with no identifier: Crossref's bibliographic search, then
+ * arXiv's title search. Both answer without a key. The answer is a candidate identifier for a person to put in the
+ * Pin and look up; a title search never verifies a source by itself.
  */
 export async function searchTitle(row, get = httpGet) {
   const title = sourceTitle(row.Source) ?? row.Source;
   const query = tokens(title).join(" ");
   if (!query) return { candidate: null, detail: "the Source names no title to search for" };
-  const response = await politely(
+  const describe = (record, pin) =>
+    `title search found ${pin}, "${record.title}" (${record.authors.slice(0, 3).join(", ")}${record.year ? `, ${record.year}` : ""}): put it in the Pin and look the row up again`;
+  let looked = 0;
+  const failures = [];
+  const crossref = await politely(
     get,
-    `https://api.openalex.org/works?filter=title.search:${encodeURIComponent(query)}&per-page=5`,
+    `https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(String(row.Source))}&rows=5`,
   );
-  if (response.status !== 200)
-    return {
-      candidate: null,
-      unanswered: unanswered(response),
-      detail: `OpenAlex answered ${response.status || response.error}`,
-    };
-  let works;
-  try {
-    works = JSON.parse(response.body).results ?? [];
-  } catch {
-    return { candidate: null, detail: "OpenAlex's answer was not JSON" };
-  }
-  for (const work of works) {
-    const record = openalexRecord(work);
-    if (record.doi && matchesSource(row.Source, record).matched)
-      return {
-        candidate: { doi: record.doi, title: record.title, authors: record.authors.slice(0, 3), year: record.year },
-        detail: `title search found doi:${record.doi}, "${record.title}" (${record.authors.slice(0, 3).join(", ")}${record.year ? `, ${record.year}` : ""}): put it in the Pin and look the row up again`,
-      };
-  }
+  if (crossref.status === 200) {
+    let items = [];
+    try {
+      items = JSON.parse(crossref.body).message?.items ?? [];
+    } catch {
+      failures.push("Crossref's answer was not JSON");
+    }
+    for (const item of items) {
+      looked += 1;
+      const record = crossrefRecord(item);
+      if (item.DOI && matchesSource(row.Source, record).matched)
+        return { candidate: { doi: item.DOI, ...record }, detail: describe(record, `doi:${item.DOI}`) };
+    }
+  } else failures.push(`Crossref answered ${crossref.status || crossref.error}`);
+  const arxiv = await politely(
+    get,
+    `https://export.arxiv.org/api/query?search_query=${encodeURIComponent(`ti:"${query}"`)}&max_results=5`,
+  );
+  if (arxiv.status === 200)
+    for (const record of arxivRecords(arxiv.body)) {
+      looked += 1;
+      if (record.id && matchesSource(row.Source, record).matched)
+        return { candidate: { arxiv: record.id, ...record }, detail: describe(record, `arXiv:${record.id}`) };
+    }
+  else failures.push(`arXiv answered ${arxiv.status || arxiv.error}`);
+  const answered = crossref.status === 200 || arxiv.status === 200;
   return {
     candidate: null,
-    detail: `title search found no work matching the Source's title and authors (${works.length} looked at)`,
+    unanswered: !answered && [crossref, arxiv].some(unanswered),
+    detail: answered
+      ? `title search found no work matching the Source's title and authors (${looked} looked at${failures.length ? `; ${failures.join("; ")}` : ""})`
+      : failures.join("; "),
   };
 }
 
@@ -239,16 +249,28 @@ function crossrefRecord(message) {
   };
 }
 
+/** Every arXiv entry in an Atom response, each with its ID (without version). */
+export function arxivRecords(xml) {
+  const tag = (name) => /<NAME>([\s\S]*?)<\/NAME>/.source.replace(/NAME/g, name);
+  const records = [];
+  for (const match of String(xml).matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
+    const entry = match[1];
+    const title = new RegExp(tag("title")).exec(entry)?.[1]?.replace(/\s+/g, " ").trim() ?? "";
+    if (!title || /^Error$/i.test(title)) continue;
+    const authors = [...entry.matchAll(/<name>([\s\S]*?)<\/name>/g)].map((name) => name[1].trim().split(/\s+/).at(-1));
+    const year = Number(new RegExp(tag("published")).exec(entry)?.[1]?.slice(0, 4)) || null;
+    const id = /arxiv\.org\/abs\/([^<\s]+?)(?:v\d+)?\s*</.exec(entry)?.[1] ?? null;
+    records.push({ title, authors, year, venue: "arXiv", type: "preprint", id });
+  }
+  return records;
+}
+
 /** The first arXiv entry in an Atom response, or null when the response holds none. */
 export function arxivRecord(xml) {
-  const entry = /<entry>([\s\S]*?)<\/entry>/.exec(xml)?.[1];
-  if (!entry) return null;
-  const tag = (name) => /<NAME>([\s\S]*?)<\/NAME>/.source.replace(/NAME/g, name);
-  const title = new RegExp(tag("title")).exec(entry)?.[1]?.replace(/\s+/g, " ").trim() ?? "";
-  if (!title || /^Error$/i.test(title)) return null;
-  const authors = [...entry.matchAll(/<name>([\s\S]*?)<\/name>/g)].map((match) => match[1].trim().split(/\s+/).at(-1));
-  const year = Number(new RegExp(tag("published")).exec(entry)?.[1]?.slice(0, 4)) || null;
-  return { title, authors, year, venue: "arXiv", type: "preprint" };
+  const [first] = arxivRecords(xml);
+  if (!first) return null;
+  const { id, ...record } = first;
+  return record;
 }
 
 /** The identifier a ledger Pin holds: a DOI, an arXiv ID, a URL, or none that can be looked up online. */
@@ -346,14 +368,27 @@ export async function lookupRow(row, get = httpGet, { searchTitles = false } = {
         detail: `${response.status ? `answered ${response.status}` : `no answer (${response.error})`}${snapshot ? `; an archived copy exists at ${snapshot.url}: read it, save it in sources/ and pin that` : ""}`,
       };
     }
-    const page = words(String(response.body ?? "").replace(/<[^>]*>/g, " "));
-    const named = [...words(row.Source)];
+    const text = String(response.body ?? "").replace(/<[^>]*>/g, " ");
+    const page = words(text);
+    const named = [...words(sourceTitle(row.Source) ?? row.Source)];
     const found = named.filter((word) => page.has(word)).length;
-    if (named.length > 0 && found / named.length >= 0.5)
+    // A page carrying the title's words must also carry an author or the year the Source names: a topical page
+    // carries the words of many titles, including invented ones.
+    const { names, year } = sourceAuthorsAndYear(row.Source);
+    const pageTokens = new Set(tokens(text));
+    const anchored =
+      (names.length === 0 && !year) || names.some((name) => pageTokens.has(name)) || (year && pageTokens.has(year));
+    if (named.length > 0 && found / named.length >= 0.5 && anchored)
       return {
         ...result,
         lookup: "verified",
-        detail: `reachable (${response.status}), and the page carries the Source's words`,
+        detail: `reachable (${response.status}), and the page carries the Source's title words and its author or year`,
+      };
+    if (named.length > 0 && found / named.length >= 0.5)
+      return {
+        ...result,
+        lookup: "unresolved",
+        detail: `reachable (${response.status}); the page carries the Source's title words but none of the authors or the year it names: compare them by hand`,
       };
     return {
       ...result,
@@ -363,6 +398,19 @@ export async function lookupRow(row, get = httpGet, { searchTitles = false } = {
   }
   // A record that shares an author or some title words but not both is left for a person to compare: only an
   // identifier that plainly resolves to another work refutes the source.
+  // Crossref titles a retracted work "RETRACTED: <title>": the identifier is the work itself, and the mark is a notice.
+  const marked = /^(?:retracted|withdrawn)(?: article)?\s*[:.-]\s*/i.exec(result.record.title ?? "");
+  if (marked) {
+    result.record = { ...result.record, title: result.record.title.slice(marked[0].length) };
+    if (!result.notices.some((notice) => notice.type === "retraction"))
+      result.notices.push({ type: "retraction", doi: null, title: "the record's own title marks the work retracted" });
+  }
+  if (!result.record.title && result.record.authors.length === 0)
+    return {
+      ...result,
+      lookup: "unresolved",
+      detail: "the record names no title or author to compare with the Source: compare them by hand",
+    };
   const match = matchesSource(row.Source, result.record);
   const found = `"${result.record.title}" (${result.record.authors.slice(0, 3).join(", ")}${result.record.year ? `, ${result.record.year}` : ""})`;
   result.lookup = match.matched ? "verified" : match.partial ? "unresolved" : "refuted";

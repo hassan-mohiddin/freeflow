@@ -124,7 +124,19 @@ if (command === "lookup") {
     if (key && cache[key]?.rule === LOOKUP_RULE && !parsed.values.refresh)
       result = { ...cache[key].result, cached: cache[key].at };
     else {
-      result = await lookupRow({ ...row, ID: id }, undefined, { searchTitles: parsed.values["search-titles"] });
+      // One row that cannot be looked up (a malformed pin) does not stop the run or lose the answers before it.
+      try {
+        result = await lookupRow({ ...row, ID: id }, undefined, { searchTitles: parsed.values["search-titles"] });
+      } catch (error) {
+        result = {
+          id,
+          pin: row.Pin,
+          lookup: "unresolved",
+          notices: [],
+          unanswered: true,
+          detail: `could not be looked up: ${error.message}`,
+        };
+      }
       // An answer the service never gave (no reply, a rate limit, a server error) is asked again next time.
       if (key && !result.unanswered)
         cache[key] = { at: new Date().toISOString(), rule: LOOKUP_RULE, source: row.Source, result };
@@ -136,7 +148,8 @@ if (command === "lookup") {
   const flagged = results.filter(
     (result) =>
       (result.lookup && result.lookup !== result.current) ||
-      result.notices.some((notice) => notice.type === "retraction" || notice.type === "not checked"),
+      // A retraction, a correction or an erratum sends the claims leaning on the source back to be read again.
+      result.notices.some((notice) => ["retraction", "correction", "erratum", "not checked"].includes(notice.type)),
   );
   if (parsed.values.json) console.log(JSON.stringify({ ledger: report, results }, null, 2));
   else {

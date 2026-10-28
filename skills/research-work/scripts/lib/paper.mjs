@@ -114,21 +114,31 @@ export function copiedPassages(text, copies) {
       if (!shingles.has(key)) shingles.set(key, source);
     }
   }
+  // Read by paragraph, so a quotation that wraps across lines is still a quotation; block quotes are left out.
   const found = [];
-  blankCode(text)
-    .split("\n")
-    .forEach((line, index) => {
-      if (/^\s*>/.test(line)) return;
-      const unquoted = line.replace(/["“][^"“”]*["”]/g, " ");
-      const lineWords = copyWords(unquoted);
-      for (let at = 0; at + COPY_RUN <= lineWords.length; at++) {
-        const key = lineWords.slice(at, at + COPY_RUN).join(" ");
-        if (shingles.has(key)) {
-          found.push({ line: index + 1, source: shingles.get(key), words: key });
-          break;
-        }
+  const lines = blankCode(text).split("\n");
+  for (let start = 0; start < lines.length;) {
+    if (lines[start].trim() === "") {
+      start += 1;
+      continue;
+    }
+    let end = start;
+    while (end + 1 < lines.length && lines[end + 1].trim() !== "") end += 1;
+    const paragraph = lines
+      .slice(start, end + 1)
+      .filter((line) => !/^\s*>/.test(line))
+      .join(" ");
+    const unquoted = paragraph.replace(/["“][^"“”]*["”]/g, " ");
+    const paragraphWords = copyWords(unquoted);
+    for (let at = 0; at + COPY_RUN <= paragraphWords.length; at++) {
+      const key = paragraphWords.slice(at, at + COPY_RUN).join(" ");
+      if (shingles.has(key)) {
+        found.push({ line: start + 1, source: shingles.get(key), words: key });
+        break;
       }
-    });
+    }
+    start = end + 1;
+  }
   return found;
 }
 

@@ -224,7 +224,7 @@ Validation refuses a Status other than the one the Reported text computes to, an
 
 ## Support Packets And Verdicts
 
-`claims.mjs support` writes the packets, one JSON object per line: `packet` (`P1`, …), `claim` (its register ID), `statement`, `numbers` and `scope` from the register, `evidence` (each with `cite`, `text` and a `note` saying what the text is; code lines carry their line numbers, the cited ones marked `>`), `unread` (citations whose text could not be read, with why) and `question`, the same for every packet. Never edit a packet; build them again.
+`claims.mjs support` writes the packets, one JSON object per line: `packet` (`P1`, …), `claim` (its register ID), `statement`, `numbers`, `scope` and `limit` from the register, `evidence` (each with `cite`, `text` and a `note` saying what the text is; code lines carry their line numbers, the cited ones marked `>`, and the lines that open the enclosing blocks come first, before a `...` line; a range longer than 200 lines is cut, and `cut` names the lines not shown), `unread` (citations whose text could not be read, with why) and `question`, the same for every packet. Never edit a packet; build them again.
 
 The reader writes the verdicts, one JSON object per line:
 
@@ -235,9 +235,9 @@ The reader writes the verdicts, one JSON object per line:
 - `verdict` is `supported`, `partial` (the evidence shows part of the claim, or only under a condition the claim leaves out) or `unsupported`.
 - `quote` is at least four words of the packet's evidence, copied exactly (without line numbers).
 - `missing` says what the evidence does not show; required for `partial` and `unsupported`.
-- `adjudication` is added by the author only: `rejected: <reason>` for an answer the evidence shows to be wrong.
+- `adjudication` is added by the author only: `rejected: "<four or more words of the packet's evidence>" <reason>` for an answer the evidence shows to be wrong.
 
-`claims.mjs support-check` refuses an answer naming no packet, a packet answered twice or not at all, a verdict outside the list, a quote under four words or not in that packet's evidence, and a partial or unsupported answer without `missing`. It passes when every packet has a valid answer and every partial or unsupported answer is settled.
+`claims.mjs support-check` refuses an answer naming no packet, a packet answered twice or not at all, a verdict outside the list, a quote under four words or not in that packet's evidence, a partial or unsupported answer without `missing`, and a rejection whose quote is under four words or not in the packet's evidence. It passes when every packet has a valid answer and every partial or unsupported answer is settled.
 
 ## Figure Spec
 

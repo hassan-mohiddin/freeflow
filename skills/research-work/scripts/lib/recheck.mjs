@@ -92,15 +92,18 @@ function degrees(test, inside) {
 // "non-directional" and "bidirectional" do not count.
 const ONE_TAILED = /(?<![a-z-])(?:one|1)[- ]?(?:tailed|sided|tail)\b|(?<![a-z-])(?:uni|one-)?directional\b/i;
 
-// A p value adjusted for several comparisons, which can only be larger than the p its statistic gives.
-const CORRECTED = /\b(?:corrected|adjusted|bonferroni|holm|sidak|šidák|fdr|benjamini|hochberg)\b/i;
+// A p value adjusted for several comparisons, which can only be larger than the p its statistic gives: a correction
+// method's name, or "corrected p" / "adjusted p" / "p (corrected)" / "p_adj". A bare "adjusted" (adjusted R², an
+// age-adjusted mean) or "corrected" (a Greenhouse-Geisser correction of the df) does not mark the p.
+const CORRECTED =
+  /\b(?:bonferroni|holm|hommel|hochberg|benjamini|sidak|šidák|fdr)\b|\b(?:corrected|adjusted)\s+p\b|\bp\s*\((?:corrected|adjusted)\)|\bp[-_.]?adj\b/i;
 
 /** The statistic and p a text reports: "t(28) = 2.20, p = .036", "F(1, 28) = 4.84, p < .05", "χ2(1, N = 90) = 3.9, ns". */
 function parseTest(text) {
   const clean = text.replace(/−/g, "-");
   const pattern = String.raw`(?:^|[\s,;(])(t|F|χ2|χ²|chi2|chi-square|r|z|Z)\s*(?:\(([^)]*)\))?\s*=\s*(${NUMBER})`;
   const statistics = [...clean.matchAll(new RegExp(pattern, "g"))];
-  const pMatch = /(?:^|[\s,;(])p\s*(=|<|>|≤|≥|<=|>=)\s*(\d*\.\d+|\d+)/i.exec(clean);
+  const pMatch = /(?:^|[\s,;(])p\s*(?:\((?:corrected|adjusted)\)\s*)?(=|<|>|≤|≥|<=|>=)\s*(\d*\.\d+|\d+)/i.exec(clean);
   const ns = /(?:^|[\s,;(])(ns|n\.s\.)(?:$|[\s,;).])/i.test(clean);
   if (statistics.length !== 1 || (!pMatch && !ns)) return { unread: statistics.length > 1 ? "several" : "none" };
   const [statistic] = statistics;
@@ -361,7 +364,13 @@ function tStatistic(text) {
   const found = [...clean.matchAll(new RegExp(String.raw`(?:^|[\s,;(])t\s*(?:\(([^)]*)\))?\s*=\s*(${NUMBER})`, "g"))];
   if (found.length !== 1) return null;
   const df = degrees("t", found[0][1]);
-  return { statistic: reported(found[0][2]), df: df?.df1 ?? null, label: found[0][0].trim().replace(/^[,;(]\s*/, "") };
+  return {
+    statistic: reported(found[0][2]),
+    df: df?.df1 ?? null,
+    // A df printed with decimals (38.0, 36.4) is Welch's, whatever its value.
+    welch: /\d\.\d/.test(found[0][1] ?? ""),
+    label: found[0][0].trim().replace(/^[,;(]\s*/, ""),
+  };
 }
 
 // Hedges' small-sample correction J for df degrees of freedom.
@@ -386,6 +395,12 @@ function checkD(text) {
   let factor;
   let df;
   let design;
+  // Welch's t (fractional df) does not use the pooled SD, so it does not give the pooled d.
+  if (t.welch)
+    return notComputable(
+      "d type unknown",
+      "a fractional df means Welch's t, which does not give a pooled-SD d; the d check assumes Student's t",
+    );
   if (kind === "dz" || oneSample) {
     if (!total) return notComputable("missing input", "a one-sample or dz effect needs N");
     factor = 1 / Math.sqrt(total);
