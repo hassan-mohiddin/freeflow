@@ -925,3 +925,66 @@ test("a packet carries the sentences that cite its claim, so a widened report se
   const both = buildPackets(`${sound}\n\n${sound}\n\nIn short, it retries (C1).\n`, rows, ledger, { copies });
   assert.equal(both.packets[0].stated.length, 2);
 });
+
+test('a paper\'s quote form, "the exact words" [@S1], is a checked quote for cite-check and support (final review E)', () => {
+  const words = "retries a failed call twice when the policy allows it";
+  for (const [form, source] of [
+    [`"${words}" [@S1]`, "S1"],
+    [`“${words}” [@S1; @S4]`, "S1"],
+    [`"${words}" [@S1, p. 4]`, "S1"],
+    [`"${words}" (S1; C1, L2)`, "S1"],
+  ]) {
+    const [citation] = quoteCitations(`It says ${form}.`);
+    assert.equal(citation?.source, source, form);
+    assert.equal(citation.quote, words);
+    assert.equal(looseQuotes(`It says ${form}.`).length, 0, form);
+  }
+  // A source ID inside the brackets that is not the first is not the quote's source, and a bare [@S1] quotes nothing.
+  assert.equal(quoteCitations("It retries twice [@S1].").length, 0);
+  assert.equal(blankQuoteCitations('It said "No entity matched D-999" [@S2].').includes("999"), false);
+
+  const dir = folder();
+  writeFileSync(
+    join(dir, "S1.txt"),
+    "Before. The harness retries a failed call twice when the policy allows it. After.",
+  );
+  writeFileSync(
+    join(dir, "sources.md"),
+    "# Source Ledger: R\n\n| ID | Source | Pin | Lookup | Checked | Read | Supports |\n| --- | --- | --- | --- | --- | --- | --- |\n| S1 | A design note | https://example.org/note (accessed 2026-10-27) | verified | opened | full | C1 |\n",
+  );
+  writeFileSync(
+    join(dir, "claims.md"),
+    "# Claims Register: R\n\n| ID | Claim | Numbers | Source | Level | Kind | Scope | Limit |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| C1 | The harness retries a failed call twice when the policy allows it | 2 | S1 | L2 | exploratory | the design note | not run |\n",
+  );
+  writeFileSync(
+    join(dir, "paper.md"),
+    `# Paper: Retries\n\n## Body\n\nThe note says it "${words}" [@S1], so it retries 2 times (C1).\n`,
+  );
+  const cited = node(
+    "sources.mjs",
+    "cite-check",
+    join(dir, "paper.md"),
+    "--ledger",
+    join(dir, "sources.md"),
+    "--copy",
+    `S1=${join(dir, "S1.txt")}`,
+  );
+  assert.equal(cited.status, 0, cited.stdout);
+  assert.match(cited.stdout, /1 citation\(s\); 1 ok, 0 failed, 0 not checked/);
+  const out = join(dir, "packets.jsonl");
+  const built = node(
+    "claims.mjs",
+    "support",
+    join(dir, "paper.md"),
+    "--register",
+    join(dir, "claims.md"),
+    "--ledger",
+    join(dir, "sources.md"),
+    "--copy",
+    `S1=${join(dir, "S1.txt")}`,
+    "--out",
+    out,
+  );
+  assert.equal(built.status, 0, built.stdout);
+  assert.equal(JSON.parse(readFileSync(out, "utf8")).evidence[0].cite, `"${words}" [@S1]`);
+});

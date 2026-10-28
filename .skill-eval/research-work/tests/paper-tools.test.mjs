@@ -661,3 +661,35 @@ test("a figure lists x labels that overlap, and rotated labels clear them (secon
     /x.rotate must be 0, 45 or 90/,
   );
 });
+
+test("the venue build keeps a quote cited as [@S1], turning [@S1] into a citation (final review E)", (t) => {
+  if (spawnSync("pandoc", ["--version"]).status !== 0) {
+    t.skip("pandoc is not installed here");
+    return;
+  }
+  const dir = folder();
+  writeFileSync(
+    join(dir, "paper.md"),
+    '# P\n\n## Results\n\nThe note says it "retries a failed call twice when the policy allows it" [@S1] (C1).\n',
+  );
+  writeFileSync(join(dir, "refs.bib"), "@misc{S1,\n  title = {A design note on retries},\n  year = {2026}\n}\n");
+  const built = node(
+    "paper.mjs",
+    "build",
+    join(dir, "paper.md"),
+    "--to",
+    "html",
+    "--venue",
+    "--bib",
+    join(dir, "refs.bib"),
+    "--out",
+    join(dir, "build", "paper.html"),
+    "--ledger",
+    join(dir, "runs.jsonl"),
+  );
+  assert.equal(built.status, 0, built.stderr);
+  const html = readFileSync(join(dir, "build", "paper.html"), "utf8").replace(/\s+/g, " ");
+  assert.match(html, /“retries a failed call twice when the policy allows it” <span class="citation"/);
+  assert.match(html, /class="citation" data-cites="S1"/);
+  assert.doesNotMatch(html, /\[@S1\]|\(C1\)/);
+});

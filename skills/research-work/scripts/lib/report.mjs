@@ -31,16 +31,24 @@ export function codeCitations(text) {
 }
 
 // A quote followed by its source in parentheses: `(S3)`, `(S3:path)`, or the source first with more after it,
-// such as the claim it supports: `(S3; C2, L3)`.
-const QUOTE_CITATION = /["“]([^"“”\n]+)["”]\s*\((S\d+)(?::([A-Za-z0-9_./@+-]+))?(?:\s*[;,][^)\n]*)?\)/g;
+// such as the claim it supports: `(S3; C2, L3)`. A paper's citation form works the same way: `[@S3]`, or the source
+// first with more after it, such as another source or a locator: `[@S3; @S4]`, `[@S3, p. 4]`.
+const QUOTE_CITATION =
+  /["“]([^"“”\n]+)["”]\s*(?:\((S\d+)(?::([A-Za-z0-9_./@+-]+))?(?:\s*[;,][^)\n]*)?\)|\[@(S\d+)(?:\s*[;,][^\]\n]*)?\])/g;
 
-/** Quotes attributed to a source: `"the exact words" (S3)`, with straight or curly double quotes. */
+/** Quotes attributed to a source: `"the exact words" (S3)` or `[@S3]`, with straight or curly double quotes. */
 export function quoteCitations(text) {
   const plain = blankCode(text);
   const found = [];
   const pattern = new RegExp(QUOTE_CITATION.source, "g");
   for (const match of plain.matchAll(pattern)) {
-    found.push({ line: lineOf(plain, match.index), source: match[2], path: match[3], quote: match[1], text: match[0] });
+    found.push({
+      line: lineOf(plain, match.index),
+      source: match[2] ?? match[4],
+      path: match[3],
+      quote: match[1],
+      text: match[0],
+    });
   }
   return found;
 }
@@ -71,7 +79,7 @@ export function looseQuotes(text) {
 /** The text with each quote citation's quoted words blanked: digits inside a checked quote are not the report's numbers. */
 export function blankQuoteCitations(text) {
   return text.replace(new RegExp(QUOTE_CITATION.source, "g"), (match) => {
-    const close = match.search(/["”]\s*\(/);
+    const close = match.search(/["”]\s*[([]/);
     return match.slice(0, 1) + match.slice(1, close).replace(/[^\n]/g, " ") + match.slice(close);
   });
 }
