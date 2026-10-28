@@ -82,7 +82,7 @@ Nothing an arm, a worker or a judge receives states the prediction or the answer
 
 ## Pilot, Then Lock
 
-A pilot checks that the instrument works: the oracle scores full, the do-nothing arm scores near zero, the outputs can be read, and the cost per run is known. A pilot check covers the units the study will judge, or the plan says which it covered and what that leaves untested. Run it before the lock; its receipts are marked as before the lock and are not evidence for the claim. Use it to measure the noise floor (Measure The Noise Floor, below) and to size the study, never to choose the hypothesis it then confirms. The scripts cannot see whether a pilot shaped a hypothesis, so question 11 says what the pilot showed and who saw it, and a hypothesis written after seeing a pilot's result is exploratory.
+A pilot checks that the instrument works: the oracle scores full, the do-nothing arm scores near zero, the outputs can be read, and the cost per run is known. A pilot check covers the units the study will judge, or the plan says which it covered and what that leaves untested. Run it before the lock ([Lock, Then Run](#lock-then-run)). Use it to measure the noise floor (Measure The Noise Floor, below) and to size the study, never to choose the hypothesis it then confirms. The scripts cannot see whether a pilot shaped a hypothesis, so question 11 says what the pilot showed and who saw it, and a hypothesis written after seeing a pilot's result is exploratory.
 
 A study with human participants (people you recruit to rate, answer or be observed) stops for the user and their institution's ethics process before any data is collected; Research Work does not decide consent or ethics approval.
 
@@ -140,7 +140,7 @@ Grade each requirement a check covers, not only pass or fail, and note which req
 - Record every seed and source of randomness. Resampling in `stats.mjs` takes a `seed` field (1 when omitted) and reports it.
 - A judge or rater whose answers change on the same input is part of the noise: measure its agreement with itself, or with other raters (`stats.mjs agreement`).
 - **Prompt format is part of the measure.** Wording, order and format alone can move a model's score by tens of points; one study measured up to 76. When the claim is not about one exact prompt, run several formats and report the range: list each format as an analysis variant (`V<n>`) in the plan.
-- Pin what can drift: the model snapshot and the date it was called, dataset versions, tool versions. A result on "the latest model" is a result on an unknown one.
+- Pin what can drift ([Pin What Can Drift](#pin-what-can-drift)). A result on "the latest model" is a result on an unknown one.
 
 ## Read Raw Outputs Before Counting
 
