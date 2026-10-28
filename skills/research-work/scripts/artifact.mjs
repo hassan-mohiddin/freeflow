@@ -121,8 +121,8 @@ if (command === "init" && rest[0] === "project") {
   const kind = kindOf(path, text);
   if (!kind) fail(`${path}: no known Type in its header, and not a .jsonl search ledger`);
   if (values.plan && kind !== "claims-register") fail("--plan applies only to a claims register");
-  if (values.sources && !["claims-register", "evidence-table"].includes(kind))
-    fail("--sources applies only to a claims register or an evidence table");
+  if (values.sources && !["claims-register", "evidence-table", "recheck"].includes(kind))
+    fail("--sources applies only to a claims register, an evidence table or a recheck table");
   const options = {};
   if (values.sources) options.ledger = ledgerRows(read(values.sources));
   if (values.plan) {

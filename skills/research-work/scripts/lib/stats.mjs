@@ -147,6 +147,16 @@ export function tCdf(t, df) {
   return t >= 0 ? 1 - tail : tail;
 }
 
+/** The chi-square distribution's upper tail P(X ≥ x) with `df` degrees of freedom. */
+export function chiSquareSurvival(x, df) {
+  return x <= 0 ? 1 : 1 - gammaP(df / 2, x / 2);
+}
+
+/** The F distribution's upper tail P(X ≥ x) with `d1` and `d2` degrees of freedom. */
+export function fSurvival(x, d1, d2) {
+  return x <= 0 ? 1 : incompleteBeta(d2 / 2, d1 / 2, d2 / (d2 + d1 * x));
+}
+
 /** Student's t quantile, by bisection on `tCdf`. */
 export function tQuantile(p, df) {
   if (!(p > 0 && p < 1)) throw new Error(`a probability strictly between 0 and 1 is required, got ${p}`);

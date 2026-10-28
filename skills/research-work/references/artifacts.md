@@ -9,7 +9,7 @@ node <research-work-directory>/scripts/artifact.mjs validate <path> [--sources <
 node <research-work-directory>/scripts/artifact.mjs counts <search ledger .jsonl>
 ```
 
-Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`, `study-plan`, `judge-validation`, `paper-outline`, `rebuttal`, `evidence-table`. A research report has no kind: it follows the Research Report shape below and is checked by `cite-check` and `trace`. `init` never overwrites. A study's run ledger and deviation log are written only by [study](../scripts/study.mjs), as [running](study.md#running-the-study) says. Artifacts live where the user says; otherwise where the work puts them. Research done for another task (a study or report that informs a change) goes in that task's folder, under `sources/`. A task that is itself research goes in the project's research folder, laid out by `init project` when there is none. A quick question answered from facts in hand is not research and gets no research artifact.
+Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`, `study-plan`, `judge-validation`, `paper-outline`, `rebuttal`, `evidence-table`, `recheck`. A research report has no kind: it follows the Research Report shape below and is checked by `cite-check` and `trace`. `init` never overwrites. A study's run ledger and deviation log are written only by [study](../scripts/study.mjs), as [running](study.md#running-the-study) says. Artifacts live where the user says; otherwise where the work puts them. Research done for another task (a study or report that informs a change) goes in that task's folder, under `sources/`. A task that is itself research goes in the project's research folder, laid out by `init project` when there is none. A quick question answered from facts in hand is not research and gets no research artifact.
 
 `init project` lays out a research folder: `brief.md`; `sources/` (`sources.md`, `searches.jsonl`, saved copies); `study/` (the plan, its lock and ledgers, `results/`); `claims.md`; `paper/` (`outline.md`, `paper.md`, `figures/`, `refs.bib`, `build/`, `runs.jsonl` for the paper's own receipts, `rebuttal.md`); `reviews/`. Every path inside an artifact is relative, so another layout works as well.
 
@@ -201,6 +201,21 @@ Validation refuses a missing choice or reason, a "will address" without a commit
 ## Evidence Table
 
 For a literature review: one row per study it compares. One table, `| Source | Design | n | Result | Failure condition | Level |`. Source is a source-ledger ID; n is a whole number or `-`; Failure condition is the result that would have refuted the study's claim; Level is capped, with `--sources`, by how the source was checked, as for a claim.
+
+## Recheck Table
+
+For rechecking the numbers another study reports, as [investigation](investigation.md#rechecking-a-studys-numbers) says. One table, `| ID | Source | Where | Check | Reported | Status |`:
+
+| Column | Holds |
+| --- | --- |
+| ID | `N` and a number |
+| Source | A source-ledger ID |
+| Where | The page, table or line the numbers are printed on |
+| Check | `grim`, `grimmer`, `debit` or `p` |
+| Reported | The values with their labels, each number copied as printed |
+| Status | Written by `stats.mjs recheck --write`: `consistent`, `mismatch`, `decision error`, or `not computable: <reason>`. The reason is one of `not read`, `missing input`, `n too large`, `not a single item` or `not binary` |
+
+Validation refuses a Status other than the one the Reported text computes to, and, with `--sources`, a Source the ledger lacks.
 
 ## Figure Spec
 
