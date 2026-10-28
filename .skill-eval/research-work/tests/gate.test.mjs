@@ -56,7 +56,7 @@ const ledger = (checked = "opened") => `# Source Ledger: Retries
 
 | ID | Source | Pin | Lookup | Checked | Read | Supports |
 | --- | --- | --- | --- | --- | --- | --- |
-| S1 | A design note on retries | https://example.org/note (accessed 2026-10-27) | verified | ${checked} | full | C1 |
+| S1 | A design note on retries | https://example.org/note (accessed 2026-10-27) | verified | ${checked} | full | C1, C2 |
 `;
 
 const register = (numbers = "2") => `# Claims Register: Retries
