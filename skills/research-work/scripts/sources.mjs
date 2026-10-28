@@ -4,7 +4,7 @@
 // as not checked, never as passed. quote-check does the same for a judge's answers: each score's quote must appear
 // in the output it judged. bib writes a paper's .bib from the source ledger, marking every source not verified.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -14,16 +14,20 @@ import { LOOKUP_RULE, lookupRow, pinIdentifier } from "./lib/lookup.mjs";
 import { bibFromLedger, parseBib } from "./lib/paper.mjs";
 import { loadReads, readsFromTranscript, wasRead } from "./lib/reads.mjs";
 import { codeCitations, normalizeForQuote, quoteCitations } from "./lib/report.mjs";
+import { fileAtCommit } from "./lib/support.mjs";
 
 const USAGE = [
   "Usage: sources.mjs cite-check <report.md> --ledger <sources.md> [--repo <name>=<clone>]... [--copy S<n>=<file>]... [--json]",
   "       sources.mjs quote-check <judge answers .jsonl> [--json]",
   "       sources.mjs bib <sources.md> --out <refs.bib> [--from <existing.bib>]",
-  "       sources.mjs lookup <sources.md> --cache <lookups.json> [--only S<n>,...] [--refresh] [--json]",
+  "       sources.mjs lookup <sources.md> --cache <lookups.json> [--only S<n>,...] [--search-titles] [--refresh] [--json]",
   "       sources.mjs reads <transcript.jsonl>... --ledger <sources.md> --repo <name>=<clone>... --out <reads.jsonl>",
   "",
   "lookup goes online, so run it only when the user asks: a DOI through Crossref (with its retraction and correction",
-  "notices), an arXiv ID through arXiv, a URL's page. A record verifies on its title and an author the Source names.",
+  "notices), an arXiv ID through arXiv, a URL's page. A record verifies when its title matches the Source's both ways,",
+  "it is not a correction, reply or other part of the work, its year and first author agree with the Source's, and",
+  "the Source names one of its authors. --search-titles searches OpenAlex for rows with no identifier and reports a",
+  "candidate DOI, never a verdict. A dead link is looked up in the Wayback Machine. Requests to one host are spaced.",
   "Answers are cached in --cache (not a service's failure to answer); --refresh asks again. It never edits the",
   "ledger; it says what each row's Lookup should read.",
   "cite-check --reads <reads.jsonl> also fails a code citation with a line no read covers; reads makes that file",
@@ -60,6 +64,7 @@ try {
       cache: { type: "string" },
       only: { type: "string" },
       refresh: { type: "boolean", default: false },
+      "search-titles": { type: "boolean", default: false },
       reads: { type: "string" },
       out: { type: "string" },
       from: { type: "string" },
@@ -108,13 +113,30 @@ if (command === "lookup") {
     if (only && !only.has(id)) continue;
     const identifier = pinIdentifier(row.Pin);
     // Two rows can share an identifier with different Source lines, and the match depends on the Source.
-    const key = identifier.value ? `${identifier.kind}:${identifier.value}\u0000${row.Source}` : null;
+    const searching = parsed.values["search-titles"] && !identifier.value;
+    const key = identifier.value
+      ? `${identifier.kind}:${identifier.value}\u0000${row.Source}`
+      : searching
+        ? `title\u0000${row.Source}`
+        : null;
     let result;
     // An answer judged under an older match rule is asked again, so a changed rule never leaves an old verdict.
     if (key && cache[key]?.rule === LOOKUP_RULE && !parsed.values.refresh)
       result = { ...cache[key].result, cached: cache[key].at };
     else {
-      result = await lookupRow({ ...row, ID: id });
+      // One row that cannot be looked up (a malformed pin) does not stop the run or lose the answers before it.
+      try {
+        result = await lookupRow({ ...row, ID: id }, undefined, { searchTitles: parsed.values["search-titles"] });
+      } catch (error) {
+        result = {
+          id,
+          pin: row.Pin,
+          lookup: "unresolved",
+          notices: [],
+          unanswered: true,
+          detail: `could not be looked up: ${error.message}`,
+        };
+      }
       // An answer the service never gave (no reply, a rate limit, a server error) is asked again next time.
       if (key && !result.unanswered)
         cache[key] = { at: new Date().toISOString(), rule: LOOKUP_RULE, source: row.Source, result };
@@ -126,7 +148,8 @@ if (command === "lookup") {
   const flagged = results.filter(
     (result) =>
       (result.lookup && result.lookup !== result.current) ||
-      result.notices.some((notice) => notice.type === "retraction" || notice.type === "not checked"),
+      // A retraction, a correction or an erratum sends the claims leaning on the source back to be read again.
+      result.notices.some((notice) => ["retraction", "correction", "erratum", "not checked"].includes(notice.type)),
   );
   if (parsed.values.json) console.log(JSON.stringify({ ledger: report, results }, null, 2));
   else {
@@ -232,30 +255,7 @@ const repos = pairs(parsed.values.repo, "--repo");
 const copies = pairs(parsed.values.copy, "--copy");
 const reads = parsed.values.reads ? loadReads(parsed.values.reads) : null;
 
-/** The file's text and line count at the commit, or the reason it could not be read. */
-const fileCache = new Map();
-function fileAt(clone, commit, path) {
-  const key = `${clone}\0${commit}\0${path}`;
-  if (!fileCache.has(key)) {
-    try {
-      const content = execFileSync("git", ["-C", clone, "show", `${commit}:${path}`], {
-        encoding: "utf8",
-        maxBuffer: 64 * 1024 * 1024,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      fileCache.set(key, {
-        content,
-        count: content.endsWith("\n") ? content.split("\n").length - 1 : content.split("\n").length,
-      });
-    } catch (error) {
-      const message = String(error.stderr ?? error.message)
-        .trim()
-        .split("\n")[0];
-      fileCache.set(key, { error: message });
-    }
-  }
-  return fileCache.get(key);
-}
+const fileAt = fileAtCommit;
 
 const results = [];
 for (const citation of codeCitations(text)) {

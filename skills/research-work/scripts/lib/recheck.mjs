@@ -2,16 +2,26 @@
 // (Brown and Heathers 2017) asks whether a mean of whole-number data is a whole total divided by n; GRIMMER (Anaya
 // 2016) asks the same of the SD's sum of squares; DEBIT (Heathers and Brown 2019) asks whether a proportion's SD
 // follows from the proportion and n; the p check recomputes p from the reported statistic and degrees of freedom, as
-// statcheck (Epskamp and Nuijten) does. Methods reimplemented from those descriptions; no code borrowed.
+// statcheck (Epskamp and Nuijten) does; the d check recomputes Cohen's d (or Hedges' g) from t and the group sizes;
+// the n-df check asks whether the degrees of freedom follow from the sample size. Methods reimplemented from those
+// descriptions; no code borrowed.
 //
 // A reported value with d decimals stands for the interval within half a unit of its last digit, so a check passes
 // when any value in the reported intervals gives the reported result: a tie rounded either way passes.
 
 import { chiSquareSurvival, fSurvival, normalCdf, tCdf } from "./stats.mjs";
 
-export const CHECKS = ["grim", "grimmer", "debit", "p"];
+export const CHECKS = ["grim", "grimmer", "debit", "p", "d", "n-df"];
 export const STATUSES = ["consistent", "mismatch", "decision error", "not computable"];
-export const REASONS = ["not read", "missing input", "n too large", "not a single item", "not binary"];
+export const REASONS = [
+  "not read",
+  "missing input",
+  "n too large",
+  "not a single item",
+  "not binary",
+  "d type unknown",
+  "design unknown",
+];
 
 const ALPHA = 0.05;
 const EPSILON = 1e-9;
@@ -82,12 +92,18 @@ function degrees(test, inside) {
 // "non-directional" and "bidirectional" do not count.
 const ONE_TAILED = /(?<![a-z-])(?:one|1)[- ]?(?:tailed|sided|tail)\b|(?<![a-z-])(?:uni|one-)?directional\b/i;
 
+// A p value adjusted for several comparisons, which can only be larger than the p its statistic gives: a correction
+// method's name, or "corrected p" / "adjusted p" / "p (corrected)" / "p_adj". A bare "adjusted" (adjusted R², an
+// age-adjusted mean) or "corrected" (a Greenhouse-Geisser correction of the df) does not mark the p.
+const CORRECTED =
+  /\b(?:bonferroni|holm|hommel|hochberg|benjamini|sidak|šidák|fdr)\b|\b(?:corrected|adjusted)\s+p\b|\bp\s*\((?:corrected|adjusted)\)|\bp[-_.]?adj\b/i;
+
 /** The statistic and p a text reports: "t(28) = 2.20, p = .036", "F(1, 28) = 4.84, p < .05", "χ2(1, N = 90) = 3.9, ns". */
 function parseTest(text) {
   const clean = text.replace(/−/g, "-");
   const pattern = String.raw`(?:^|[\s,;(])(t|F|χ2|χ²|chi2|chi-square|r|z|Z)\s*(?:\(([^)]*)\))?\s*=\s*(${NUMBER})`;
   const statistics = [...clean.matchAll(new RegExp(pattern, "g"))];
-  const pMatch = /(?:^|[\s,;(])p\s*(=|<|>|≤|≥|<=|>=)\s*(\d*\.\d+|\d+)/i.exec(clean);
+  const pMatch = /(?:^|[\s,;(])p\s*(?:\((?:corrected|adjusted)\)\s*)?(=|<|>|≤|≥|<=|>=)\s*(\d*\.\d+|\d+)/i.exec(clean);
   const ns = /(?:^|[\s,;(])(ns|n\.s\.)(?:$|[\s,;).])/i.test(clean);
   if (statistics.length !== 1 || (!pMatch && !ns)) return { unread: statistics.length > 1 ? "several" : "none" };
   const [statistic] = statistics;
@@ -148,6 +164,18 @@ function checkP(text) {
   const computed = range(tails);
   const p = pFromStatistic({ ...parsed, value: size, tails });
   const said = parsed.p ? `p ${parsed.p.op} ${parsed.p.value}` : "ns";
+  if (CORRECTED.test(text) && parsed.p) {
+    // A corrected p is the statistic's p raised by the correction, so it can be larger but never smaller.
+    const { op, value } = parsed.p;
+    const fitsCorrected =
+      op === "="
+        ? computed.low <= Math.min(parsed.p.high, 1) + EPSILON
+        : op === "<" || op === "≤"
+          ? computed.low < value + EPSILON
+          : true;
+    const detail = `${parsed.label} gives an uncorrected p = ${formatP(p)} (${formatP(computed.low)} to ${formatP(computed.high)}${tails === 1 ? ", one-tailed" : ""}); reported ${said}, corrected, which can only be at least that`;
+    return { status: fitsCorrected ? "consistent" : "mismatch", detail };
+  }
   const detail = `${parsed.label} gives p = ${formatP(p)} (${formatP(computed.low)} to ${formatP(computed.high)}${tails === 1 ? ", one-tailed" : ""}); reported ${said}`;
   if (fits(computed, parsed)) return { status: "consistent", detail };
   const significant = reportedSignificant(parsed);
@@ -320,12 +348,156 @@ function checkDebit(text) {
   };
 }
 
+/** The sizes a text reports: n1 and n2 for two groups, and N for the whole sample. */
+function sizes(text) {
+  const whole = (found) => (found && Number.isInteger(found.value) && found.value > 0 ? found.value : null);
+  return {
+    n1: whole(field(text, "n1|n_1|n₁")),
+    n2: whole(field(text, "n2|n_2|n₂")),
+    total: whole(field(text, "N|n")),
+  };
+}
+
+/** The t statistic a text reports, with its degrees of freedom, or the reason it could not be read. */
+function tStatistic(text) {
+  const clean = text.replace(/−/g, "-");
+  const found = [...clean.matchAll(new RegExp(String.raw`(?:^|[\s,;(])t\s*(?:\(([^)]*)\))?\s*=\s*(${NUMBER})`, "g"))];
+  if (found.length !== 1) return null;
+  const df = degrees("t", found[0][1]);
+  return {
+    statistic: reported(found[0][2]),
+    df: df?.df1 ?? null,
+    // A df printed with decimals (38.0, 36.4) is Welch's, whatever its value.
+    welch: /\d\.\d/.test(found[0][1] ?? ""),
+    label: found[0][0].trim().replace(/^[,;(]\s*/, ""),
+  };
+}
+
+// Hedges' small-sample correction J for df degrees of freedom.
+const hedgesJ = (df) => 1 - 3 / (4 * df - 1);
+
+/**
+ * Cohen's d (or Hedges' g) from t: d = t·√(1/n1 + 1/n2) for two independent groups, d = t/√N for one sample or for
+ * a paired d labelled dz. A paired d of another kind (d_av, d_rm) needs the correlation between the measures, which
+ * papers rarely print, so it is not computable.
+ */
+function checkD(text) {
+  const t = tStatistic(text);
+  if (!t) return notComputable("not read", "the d check needs exactly one t statistic, written t(df) = value");
+  const effect = /(?:^|[\s,;(])(d_?z|dz|d|g)\s*=\s*/i.exec(text.replace(/−/g, "-"));
+  if (!effect) return notComputable("missing input", "the d check needs the reported d (or dz, or Hedges' g)");
+  const kind = effect[1].toLowerCase().replace("_", "");
+  const value = field(text, effect[1]);
+  if (!value) return notComputable("missing input", "the reported effect size has no value");
+  const { n1, n2, total } = sizes(text);
+  const paired = /\b(?:paired|within|repeated|dependent)\b/i.test(text);
+  const oneSample = /\bone[- ]sample\b/i.test(text);
+  let factor;
+  let df;
+  let design;
+  // Welch's t (fractional df) does not use the pooled SD, so it does not give the pooled d.
+  if (t.welch)
+    return notComputable(
+      "d type unknown",
+      "a fractional df means Welch's t, which does not give a pooled-SD d; the d check assumes Student's t",
+    );
+  if (kind === "dz" || oneSample) {
+    if (!total) return notComputable("missing input", "a one-sample or dz effect needs N");
+    factor = 1 / Math.sqrt(total);
+    df = total - 1;
+    design = kind === "dz" ? `dz = t / √${total}` : `d = t / √${total} (one sample)`;
+  } else if (paired) {
+    return notComputable(
+      "d type unknown",
+      "a paired d other than dz needs the correlation between the measures; label it dz if it is t / √N",
+    );
+  } else {
+    if (!n1 || !n2) return notComputable("missing input", "an independent-groups d needs both group sizes, n1 and n2");
+    factor = Math.sqrt(1 / n1 + 1 / n2);
+    df = n1 + n2 - 2;
+    design = `d = t × √(1/${n1} + 1/${n2})`;
+  }
+  const correction = kind === "g" ? hedgesJ(df) : 1;
+  const half = 0.5 * 10 ** -t.statistic.decimals;
+  const size = Math.abs(t.statistic.value);
+  const low = Math.max(size - half, 0) * factor * correction;
+  const high = (size + half) * factor * correction;
+  const reportedSize = {
+    low: Math.abs(value.value) - 0.5 * 10 ** -value.decimals,
+    high: Math.abs(value.value) + 0.5 * 10 ** -value.decimals,
+  };
+  const name = kind === "g" ? "g" : kind === "dz" ? "dz" : "d";
+  const detail = `${t.label} gives ${name} = ${(size * factor * correction).toFixed(3)} (${low.toFixed(3)} to ${high.toFixed(3)}), by ${design}${kind === "g" ? " × J" : ""}; reported ${name} = ${value.value}`;
+  const overlap = low <= reportedSize.high + EPSILON && high >= reportedSize.low - EPSILON;
+  return { status: overlap ? "consistent" : "mismatch", detail };
+}
+
+/**
+ * Whether the degrees of freedom follow from the sample size: for t, N - 1 (one sample or paired) or N - 2 (two
+ * groups, or less for Welch's test); for r, N - 2; for a one-way between-groups F, df2 = N - df1 - 1. Other designs
+ * (repeated-measures F, χ²) do not fix df by N.
+ */
+function checkNdf(text) {
+  const parsed = parseTest(`${text}${/\bp\s*[=<>]/i.test(text) ? "" : ", p = 1"}`);
+  if (parsed.unread)
+    return notComputable(
+      "not read",
+      "the n-df check needs one statistic with its degrees of freedom: t(df), r(df) or F(df1, df2)",
+    );
+  const { n1, n2, total: printed } = sizes(text);
+  const total = printed ?? (n1 && n2 ? n1 + n2 : null);
+  if (!total) return notComputable("missing input", "the n-df check needs N (or n1 and n2)");
+  const df = parsed.test === "F" ? parsed.df2 : parsed.df1;
+  if (df === null) return notComputable("missing input", `${parsed.test} needs its degrees of freedom`);
+  let allowed;
+  let rule;
+  if (parsed.test === "t") {
+    if (n1 && n2) {
+      allowed = (value) =>
+        Number.isInteger(value)
+          ? value === total - 2
+          : value <= total - 2 + EPSILON && value >= Math.min(n1, n2) - 1 - EPSILON;
+      rule = `two groups of ${n1} and ${n2}: df = ${total - 2}, or less for Welch's test`;
+    } else {
+      allowed = (value) =>
+        Number.isInteger(value) ? value === total - 1 || value === total - 2 : value <= total - 2 + EPSILON;
+      rule = `N = ${total}: df = ${total - 1} (one sample or paired) or ${total - 2} (two groups), or less for Welch's test`;
+    }
+  } else if (parsed.test === "r") {
+    allowed = (value) => value === total - 2;
+    rule = `N = ${total}: df = ${total - 2}`;
+  } else if (parsed.test === "F" && /\b(?:between|one-way|independent groups)\b/i.test(text)) {
+    allowed = (value) => value === total - parsed.df1 - 1;
+    rule = `a one-way between-groups F with ${parsed.df1 + 1} groups and N = ${total}: df2 = ${total - parsed.df1 - 1}`;
+  } else
+    return notComputable(
+      "design unknown",
+      parsed.test === "F"
+        ? "df2 follows from N only for a one-way between-groups F; say between-groups if it is one"
+        : `${parsed.test} has no degrees of freedom set by N`,
+    );
+  const implied =
+    parsed.test === "t" && !(n1 && n2)
+      ? `N = ${df + 1} or ${df + 2}`
+      : parsed.test === "F"
+        ? `N = ${df + parsed.df1 + 1}`
+        : `N = ${df + 2}`;
+  return allowed(df)
+    ? { status: "consistent", detail: `${parsed.label.split("=")[0].trim()} fits ${rule}` }
+    : {
+        status: "mismatch",
+        detail: `${parsed.label.split("=")[0].trim()} implies ${implied}, but the text reports ${printed ? `N = ${printed}` : `n1 = ${n1}, n2 = ${n2}`} (${rule})`,
+      };
+}
+
 /** Recheck one reported text: {status, reason (when not computable), detail}. */
 export function recheck(check, text) {
   if (check === "grim") return checkGrim(String(text));
   if (check === "grimmer") return checkGrimmer(String(text));
   if (check === "debit") return checkDebit(String(text));
   if (check === "p") return checkP(String(text));
+  if (check === "d") return checkD(String(text));
+  if (check === "n-df") return checkNdf(String(text));
   throw new Error(`unknown check "${check}"; choose one of: ${CHECKS.join(", ")}`);
 }
 

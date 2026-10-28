@@ -188,3 +188,79 @@ export function numberInResults(token, numbers) {
   const matches = (candidate) => Math.abs(candidate - value) <= tolerance;
   return numbers.some((number) => matches(number) || (percent && matches(number * 100)));
 }
+
+/**
+ * Percentages printed beside their counts that do not follow from them: "12 of 40 (35%)" is 30%. A percentage
+ * matches when a/b rounds to it at the decimals printed.
+ */
+export function percentMismatches(line) {
+  const found = [];
+  const pattern =
+    /(?<![\w.])(\d[\d,]*)\s*(?:of|out of|\/)\s*(\d[\d,]*)\s*(?:\(|,\s*|=\s*)\s*(\d+(?:\.\d+)?)\s*%\s*\)?/g;
+  for (const match of line.matchAll(pattern)) {
+    const [a, b] = [match[1], match[2]].map((value) => Number(value.replace(/,/g, "")));
+    if (!(b > 0) || a > b) continue;
+    const printed = match[3];
+    const decimals = printed.includes(".") ? printed.split(".")[1].length : 0;
+    const exact = (100 * a) / b;
+    if (Math.abs(exact - Number(printed)) > 0.5 * 10 ** -decimals + 1e-9)
+      found.push({ text: match[0].trim(), exact: Number(exact.toFixed(decimals + 1)) });
+  }
+  return found;
+}
+
+// Wording that says one thing made another better or caused it: it needs a controlled comparison (L4) behind it.
+const STRONG =
+  /\b(?:improv(?:e|es|ed|ing|ement|ements)|increas(?:e|es|ed)|rais(?:e|es|ed)|boost(?:s|ed)?|outperform(?:s|ed)?|beats?|better than|superior to|caus(?:e|es|ed)|leads? to|results? in)\b/gi;
+// Wording that says a change was for the better, which a negative number contradicts.
+const BETTER = /\b(?:improv(?:e|es|ed|ing|ement|ements)|gains?|boost(?:s|ed)?|better|outperform(?:s|ed)?)\b/i;
+
+/** The strong words a text uses, lowercased. */
+export const strongWords = (text) => [
+  ...new Set((blankCode(text).match(STRONG) ?? []).map((word) => word.toLowerCase())),
+];
+
+/**
+ * Wording the evidence may not support, listed for the author and never failing: comparative or causal wording on a
+ * claim below L4, and wording of improvement in a sentence that states a negative number. `levels` maps claim IDs to
+ * their levels (`L2`).
+ */
+export function wordingNotes(text, levels = new Map()) {
+  const notes = [];
+  const plain = blankCode(text);
+  const ids = claimIds(plain).filter((id) => levels.has(id));
+  const strong = strongWords(plain);
+  if (strong.length > 0) {
+    const low = ids.filter((id) => Number(String(levels.get(id)).slice(1)) < 4);
+    if (low.length > 0)
+      notes.push({
+        kind: "wording above the level",
+        value: `"${strong.join('", "')}" on ${low.map((id) => `${id} (${levels.get(id)})`).join(", ")}: comparative or causal wording needs L4`,
+      });
+  }
+  for (const sentence of plain.split(/(?<=[.!?])\s+/)) {
+    if (!BETTER.test(sentence)) continue;
+    const negative = numbersIn(sentence).find((number) => number.startsWith("-"));
+    if (negative)
+      notes.push({
+        kind: "wording against the sign",
+        value: `"${BETTER.exec(sentence)[0]}" beside ${negative}`,
+      });
+  }
+  return notes;
+}
+
+// A claim about the newest or present state of something, which is true only at the moment it names.
+const CURRENT =
+  /\b(?:the\s+)?(?:latest|current|newest|most recent)\s+(?:version|release|model|commit|build|snapshot|api|docs|documentation|state|main branch)\b/i;
+// What pins such a claim: a date, a version number, a commit, a pinned source citation, or "as of".
+const ANCHOR = /\b\d{4}-\d{2}(?:-\d{2})?\b|\bv?\d+\.\d+(?:\.\d+)?\b|\b[0-9a-f]{7,40}\b|\bS\d+:|\bas of\b/i;
+
+/** A "latest" or "current" claim in a unit that names no date, version or commit, which goes stale unseen. */
+export function currentNotes(text) {
+  const plain = blankCode(text);
+  const match = CURRENT.exec(plain);
+  return match && !ANCHOR.test(plain)
+    ? [{ kind: "current without a date", value: `"${match[0].trim()}" names no date, version or commit` }]
+    : [];
+}

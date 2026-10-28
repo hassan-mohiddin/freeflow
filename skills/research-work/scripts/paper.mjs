@@ -8,13 +8,16 @@ import { basename, dirname, extname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { spawnSync } from "node:child_process";
 
+import { parseMarkdown, parseTable } from "./lib/formats.mjs";
 import { anchor, applyPatch, stripIds } from "./lib/paper.mjs";
+import { strongWords, wordingNotes } from "./lib/report.mjs";
 import { recordRun, resolveProgram } from "./lib/study.mjs";
 
 const USAGE = [
   "Usage: paper.mjs run --ledger <runs.jsonl> [--input <path>]... [--output <path>]... -- <command> [args...]",
   "       paper.mjs anchor <draft.md> [--out <draft.blocks.json>]",
   "       paper.mjs apply <draft.md> --patch <patch.json> --out <revised.md> [--manifest <draft.blocks.json>]",
+  "                       [--register <claims.md>]",
   "       paper.mjs build <paper.md> --to pdf|docx|latex|html --out <file> --ledger <runs.jsonl> [--venue]",
   "                       [--bib <refs.bib>] [--csl <style.csl>] [--template <file>] [--engine latex|browser]",
   "                       [--pdf-engine <program>] [--browser <program>]",
@@ -47,6 +50,7 @@ try {
       out: { type: "string" },
       patch: { type: "string" },
       manifest: { type: "string" },
+      register: { type: "string" },
       to: { type: "string" },
       venue: { type: "boolean", default: false },
       bib: { type: "string" },
@@ -112,12 +116,36 @@ if (command === "run") {
   } catch (error) {
     fail(`${values.patch}: ${error.message}`, 1);
   }
+  // The changed text, read for wording the evidence may not support and for wording stronger than the reviewed text.
+  const levels = new Map();
+  if (values.register)
+    for (const row of parseTable(parseMarkdown(read(values.register)).lines)?.rows ?? [])
+      if (/^L[0-5]$/.test(row.cells.Level ?? "")) levels.set(row.cells.ID, row.cells.Level);
+  const manifest = JSON.parse(read(manifestPath));
+  const before = new Map(manifest.blocks.map((block) => [block.id, block]));
+  const reviewed = read(target).split("\n");
+  const patch = JSON.parse(read(values.patch));
+  const notes = [];
+  for (const change of patch.changes.filter((each) => each.op !== "delete")) {
+    for (const note of wordingNotes(change.text, levels)) notes.push({ block: change.block, ...note });
+    const block = before.get(change.block);
+    const old = change.op === "replace" ? reviewed.slice(block.start - 1, block.end).join("\n") : "";
+    const added = strongWords(change.text).filter((word) => !strongWords(old).includes(word));
+    if (added.length > 0)
+      notes.push({
+        block: change.block,
+        kind: "stronger than the reviewed text",
+        value: `"${added.join('", "')}" is new; the review did not see this wording`,
+      });
+  }
+  result.report.notes = notes;
   writeFileSync(values.out, result.text);
   const reportPath = `${values.out.replace(/\.md$/, "")}.apply.json`;
   writeFileSync(reportPath, `${JSON.stringify(result.report, null, 2)}\n`);
   console.log(
     `${values.out}: ${result.report.changes.length} change(s) applied, ${result.report.untouched_blocks} block(s) untouched; report ${reportPath}`,
   );
+  for (const note of notes) console.log(`  note: ${note.block}: ${note.kind}: ${note.value}`);
 } else if (command === "build") {
   if (!target || !values.out || !values.ledger || !["pdf", "docx", "latex", "html"].includes(values.to)) fail(USAGE);
   if (!resolveProgram("pandoc", process.cwd())) fail("pandoc is not on PATH: install Pandoc to build the paper", 1);
