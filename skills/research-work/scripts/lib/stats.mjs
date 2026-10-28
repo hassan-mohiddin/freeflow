@@ -821,6 +821,154 @@ export function suitePassK(tasks, k) {
 // ---------------------------------------------------------------------------------------------------------------
 // Equivalence
 
+// Aggregates over several seeds, as Agarwal et al. (2021, "Deep reinforcement learning at the edge of the statistical
+// precipice") define them for a runs × tasks score matrix: `scores` holds one array of run scores per task. Their
+// intervals come from a stratified bootstrap, which resamples runs within each task and never across tasks, so a
+// task with few runs is not swamped by one with many. Reimplemented from the paper; no rliable code is used.
+
+export const AGGREGATES = ["mean", "median", "iqm", "optimality-gap"];
+
+function checkScores(scores, label = "scores") {
+  if (!Array.isArray(scores) || scores.length === 0) throw new Error(`${label} must be a non-empty array of tasks`);
+  for (const runs of scores) {
+    if (!Array.isArray(runs) || runs.length === 0) throw new Error(`${label}: every task needs at least one run`);
+    finiteNumbers(runs, label);
+  }
+}
+
+/** The mean of the middle of the sorted values, with `fraction` of them cut from each end (rounded down). */
+function trimmedMean(values, fraction) {
+  const sorted = [...values].sort((left, right) => left - right);
+  const cut = Math.floor(sorted.length * fraction);
+  return mean(sorted.slice(cut, sorted.length - cut));
+}
+
+function aggregateOf(statistic, scores, target) {
+  if (statistic === "iqm") return trimmedMean(scores.flat(), 0.25);
+  if (statistic === "optimality-gap") return target - mean(scores.flat().map((score) => Math.min(score, target)));
+  const taskMeans = scores.map(mean);
+  if (statistic === "mean") return mean(taskMeans);
+  return quantileOfSorted(
+    [...taskMeans].sort((left, right) => left - right),
+    0.5,
+  );
+}
+
+/** Resample each task's runs with replacement, keeping each task's count. */
+function resampleWithin(scores, random) {
+  return scores.map((runs) => runs.map(() => runs[Math.floor(random() * runs.length)]));
+}
+
+function percentileInterval(estimates, confidence) {
+  const sorted = Array.from(estimates).sort((left, right) => left - right);
+  const tail = (1 - confidence) / 2;
+  return { low: quantileOfSorted(sorted, tail), high: quantileOfSorted(sorted, 1 - tail) };
+}
+
+/**
+ * One aggregate of a runs × tasks score matrix with its stratified bootstrap interval: `mean` and `median` of the
+ * per-task means, `iqm` (the interquartile mean of all runs pooled) and `optimality-gap` (how far scores fall short
+ * of `target`, 1 by default, with scores above it counted as the target).
+ */
+export function aggregateScores(
+  scores,
+  { statistic, target = 1, resamples = 10000, seed = 1, confidence = 0.95 } = {},
+) {
+  if (!AGGREGATES.includes(statistic)) throw new Error(`statistic must be one of: ${AGGREGATES.join(", ")}`);
+  checkScores(scores);
+  checkConfidence(confidence);
+  checkSeed(seed);
+  const random = seededRandom(seed);
+  const estimates = new Float64Array(resamples);
+  for (let draw = 0; draw < resamples; draw += 1)
+    estimates[draw] = aggregateOf(statistic, resampleWithin(scores, random), target);
+  return {
+    method: "stratified-bootstrap-percentile",
+    statistic,
+    tasks: scores.length,
+    runs: scores.reduce((sum, runs) => sum + runs.length, 0),
+    ...(statistic === "optimality-gap" ? { target } : {}),
+    estimate: aggregateOf(statistic, scores, target),
+    resamples,
+    seed,
+    confidence,
+    ...percentileInterval(estimates, confidence),
+  };
+}
+
+/** Per task, the chance a run of X beats a run of Y (ties count half), averaged over tasks. */
+function improvementOf(x, y) {
+  return mean(
+    x.map((runs, task) => {
+      let wins = 0;
+      for (const a of runs) for (const b of y[task]) wins += a > b ? 1 : a === b ? 0.5 : 0;
+      return wins / (runs.length * y[task].length);
+    }),
+  );
+}
+
+/**
+ * The probability of improvement P(X > Y): for each task the Mann-Whitney probability that a run of X scores above a
+ * run of Y, averaged over tasks, with a stratified bootstrap interval resampling each method's runs within each task.
+ */
+export function probabilityOfImprovement(x, y, { resamples = 10000, seed = 1, confidence = 0.95 } = {}) {
+  checkScores(x, "x");
+  checkScores(y, "y");
+  if (x.length !== y.length) throw new Error("x and y must hold the same tasks, in the same order");
+  checkConfidence(confidence);
+  checkSeed(seed);
+  const random = seededRandom(seed);
+  const estimates = new Float64Array(resamples);
+  for (let draw = 0; draw < resamples; draw += 1)
+    estimates[draw] = improvementOf(resampleWithin(x, random), resampleWithin(y, random));
+  return {
+    method: "probability-of-improvement",
+    tasks: x.length,
+    estimate: improvementOf(x, y),
+    resamples,
+    seed,
+    confidence,
+    ...percentileInterval(estimates, confidence),
+  };
+}
+
+/**
+ * pass^k for one task, with c passes in n trials: the unbiased estimate C(c, k) / C(n, k), and the exact
+ * (Clopper-Pearson) interval for the pass rate p raised to the power k, since p^k rises with p.
+ */
+export function passPowerKInterval(n, c, k, { confidence = 0.95 } = {}) {
+  checkTrials(n, c, k);
+  const rate = exactBinomialInterval(c, n, { confidence });
+  return {
+    method: "pass-power-k-exact",
+    n,
+    c,
+    k,
+    estimate: passPowerK(n, c, k),
+    confidence,
+    low: rate.low ** k,
+    high: rate.high ** k,
+  };
+}
+
+/** pass^k for a suite: the mean of the tasks' unbiased estimates, with a bootstrap interval over tasks. */
+export function suitePassPowerKInterval(tasks, k, { resamples = 10000, seed = 1, confidence = 0.95 } = {}) {
+  if (!Array.isArray(tasks) || tasks.length === 0) throw new Error("tasks must be a non-empty array of { n, c }");
+  const values = tasks.map(({ n, c }) => passPowerK(n, c, k));
+  const interval = bootstrapMean(values, { resamples, seed, confidence });
+  return {
+    method: "suite-pass-power-k-bootstrap",
+    tasks: tasks.length,
+    k,
+    estimate: interval.estimate,
+    resamples,
+    seed,
+    confidence,
+    low: interval.low,
+    high: interval.high,
+  };
+}
+
 /**
  * Two one-sided tests (Schuirmann 1987; Lakens 2017) on paired differences: is the mean difference inside the
  * equivalence bounds [low, high], set in advance as the smallest difference that would matter? Equivalent when

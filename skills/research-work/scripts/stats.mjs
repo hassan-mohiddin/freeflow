@@ -48,6 +48,20 @@ const FAMILIES = {
       passPowerK: stats.passPowerK(n, c, k),
     }),
     suite: ({ tasks, k }) => stats.suitePassK(tasks, k),
+    "task-interval": ({ n, c, k, confidence }) => stats.passPowerKInterval(n, c, k, { confidence }),
+    "suite-interval": ({ tasks, k, resamples, seed, confidence }) =>
+      stats.suitePassPowerKInterval(tasks, k, { resamples, seed, confidence }),
+  },
+  aggregate: {
+    ...Object.fromEntries(
+      stats.AGGREGATES.map((statistic) => [
+        statistic,
+        ({ scores, target, resamples, seed, confidence }) =>
+          stats.aggregateScores(scores, { statistic, target, resamples, seed, confidence }),
+      ]),
+    ),
+    improvement: ({ x, y, resamples, seed, confidence }) =>
+      stats.probabilityOfImprovement(x, y, { resamples, seed, confidence }),
   },
   tost: {
     paired: ({ differences, low, high, alpha }) => stats.tostPaired(differences, { low, high, alpha }),
