@@ -12,7 +12,7 @@ Identify the behavior and boundary under test, the arms and the one component me
 
 ### Check That It Can Measure What It Claims
 
-Goal: a correct subject passes, a wrong one fails, and the result means what its name says. Research Work's [measurement](../../research-work/references/measurement.md) explains most of these checks, and its [study](../../research-work/references/study.md) the decision rule and matched arms; a study plan's measure is reviewed against the same list.
+Goal: a correct subject passes, a wrong one fails, and the result means what its name says. Research Work's [study](../../research-work/references/study.md) explains most of these checks, and its [study](../../research-work/references/study.md) the decision rule and matched arms; a study plan's measure is reviewed against the same list.
 
 - **A correct answer can pass:** for each expectation, write or imagine the answer a sound subject would give and check that it passes. Text checks fail correct answers when they require one exact phrase, such as a function name, where a correct answer may quote the line or describe it instead.
 - **A wrong answer cannot pass:** an expectation that holds for an empty, generic, or opposite answer measures nothing. Nor can a shortcut: editing the tests, hard-coding the expected output, or text addressed to a judge.
@@ -45,7 +45,7 @@ Revise the definition before running it. After a run, a fault found in a definit
 
 When an item cannot be met, say which, and treat the verdict as weaker evidence rather than presenting it as if the item held.
 
-Research Work's citation-support reader, which answers the packets `claims.mjs support` builds ([claims](../../research-work/references/claims.md#check-that-citations-support-claims)), is a judge under this contract: record it as any other, and without a passing record its answers are advisory, weighed when the author settles each one.
+Research Work's citation-support reader, which answers the packets `claims.mjs support` builds ([reporting](../../research-work/references/reporting.md#check-that-citations-support-claims)), is a judge under this contract: record it as any other, and without a passing record its answers are advisory, weighed when the author settles each one.
 
 ### Record And Do For Every Judge
 
@@ -55,7 +55,7 @@ Research Work's citation-support reader, which answers the packets `claims.mjs s
 4. **Verdict with evidence:** each verdict cites the evidence it rests on. Give no benefit of the doubt; "unclear" is a valid answer and is reported as such.
 5. **Order:** when comparing outputs, record the order shown, and swap it to check that position did not decide the verdict.
 6. **Combining rule:** when more than one verdict exists, name the rule (unanimous, majority, or any) before seeing them. Stricter rules cost detection; looser rules mostly add false alarms.
-7. **Calibration:** a judge configuration is calibrated when it has a passing judge validation record, in Research Work's [format](../../research-work/references/artifacts.md#judge-validation-record), whose checks its [measurement](../../research-work/references/measurement.md#judges) explains: agreement with cases whose answers are known, both orders for a judge that compares outputs, length control, decoys, and repeatability. A judge that disagrees with itself on a rerun is not calibrated. Record the record's path, or that there is none. An uncalibrated judge's verdict is advisory: evidence that adjudication weighs, never a verdict acted on alone, so an uncalibrated reviewer's Blocking is adjudicated, not obeyed. Advisory review needs no record.
+7. **Calibration:** a judge configuration is calibrated when it has a passing judge validation record, in Research Work's [format](../../research-work/references/study.md#judge-validation-record), whose checks its [study](../../research-work/references/study.md#judges) explains: agreement with cases whose answers are known, both orders for a judge that compares outputs, length control, decoys, and repeatability. A judge that disagrees with itself on a rerun is not calibrated. Record the record's path, or that there is none. An uncalibrated judge's verdict is advisory: evidence that adjudication weighs, never a verdict acted on alone, so an uncalibrated reviewer's Blocking is adjudicated, not obeyed. Advisory review needs no record.
 
 A judge's verdict is evidence for adjudication or for a measured comparison. It is never canonical grading, acceptance, or authority to change the work.
 

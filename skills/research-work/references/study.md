@@ -1,8 +1,8 @@
-# Study
+# Study: Design, Measurement And Running
 
-This reference is judgment about designing and running a study: adapt it to the question and to the decision the result must support. Its binding parts are the Rules in [Research Work](../SKILL.md#rules) and the formats `study.mjs` writes and enforces, a contract in [artifacts](artifacts.md): the [study plan](artifacts.md#study-plan), the [run ledger](artifacts.md#run-ledger) and the [deviation log](artifacts.md#deviation-log).
+This reference is judgment about designing, measuring and running a study: adapt it to the question and to the decision the result must support. Its binding parts are the Rules in [Research Work](../SKILL.md#rules) and its Formats section, a contract that `study.mjs` writes and enforces: the [study plan](#study-plan), the [run ledger](#run-ledger), the [deviation log](#deviation-log) and the [judge validation record](#judge-validation-record), without which the register's validation caps a judged claim.
 
-Goal: a plan, written and locked before any data exists, whose result can only come out one of a few ways, each of which tells the reader what to do; and a record in which every number traces to a command that produced it, under the plan that was locked, with nothing that went wrong missing.
+Goal: a plan, written and locked before any data exists, whose result can only come out one of a few ways, each of which tells the reader what to do; every number it reports measuring what the claim is about, and coming out the same if measured again; and a record in which every number traces to a command that produced it, under the plan that was locked, with nothing that went wrong missing.
 
 ## Answer The Twelve Questions
 
@@ -15,7 +15,7 @@ The study plan is the answers to these questions, written before the first run t
 | 3 | **The prediction** | The primary metric, named now; the smallest effect worth detecting and the power to detect it; the result that counts as failure |
 | 4 | **Compared to what** | How it is done today; the baseline and a trivial baseline (a do-nothing agent, a constant answer); the tuning and compute each arm gets; the baseline's published number reproduced here, both reported |
 | 5 | **The unit and the count** | What one observation is; where its variation comes from (tasks, runs, prompts, seeds); how many; what fixed the number; the stopping rule |
-| 6 | **Validity** | Why the measure tracks the claim: an oracle scores full and a do-nothing arm near zero before any result is read; a judge has its validation record ([measurement](measurement.md)). For each check, its tolerance and one rule for what its failure does: stop, or make named verdicts undecided |
+| 6 | **Validity** | Why the measure tracks the claim: an oracle scores full and a do-nothing arm near zero before any result is read; a judge has its validation record ([measurement](study.md)). For each check, its tolerance and one rule for what its failure does: stop, or make named verdicts undecided |
 | 7 | **Reliability** | The noise floor, measured on a frozen pilot; each source of variance and how it is controlled: prompt format and wording, seeds and sampling, environment and versions, run order |
 | 8 | **Raw outputs first** | Which raw outputs you will read before computing any metric |
 | 9 | **Rival explanations** | For each, the check that separates it from the claim; the analysis path itself is one |
@@ -86,7 +86,7 @@ A pilot checks that the instrument works: the oracle scores full, the do-nothing
 
 A study with human participants (people you recruit to rate, answer or be observed) stops for the user and their institution's ethics process before any data is collected; Research Work does not decide consent or ethics approval.
 
-Lock the plan when the twelve answers are written and the user has agreed them. The plan's open choices (the claim sought, each decision rule and its method, the arms and their budgets, the count) go in the task's decision list as the brief's do ([framing](framing.md#agree-it)), so the agreement shows them. The lock is the user's decision at `study` and `publication` rigor, recorded as a decision Checkpoint through [Track Work](../../track-work/SKILL.md), and `study.mjs lock --by` names who locked it ([running](#running-the-study)).
+Lock the plan when the twelve answers are written and the user has agreed them. The plan's open choices (the claim sought, each decision rule and its method, the arms and their budgets, the count) go in the task's decision list as the brief's do ([evidence](evidence.md#agree-it)), so the agreement shows them. The lock is the user's decision at `study` and `publication` rigor, recorded as a decision Checkpoint through [Track Work](../../track-work/SKILL.md), and `study.mjs lock --by` names who locked it ([running](#running-the-study)).
 
 ## Measure The Noise Floor
 
@@ -112,6 +112,82 @@ The same configuration run twice gives different results. A difference smaller t
 ## Separate Rival Explanations
 
 For each explanation other than the claim, name the check that would tell them apart, and run it: a placebo arm, a shuffled label, the same change on a task where it should not matter, a second model. The analysis path is a rival too: if a different reasonable analysis would change the answer, report both, or fix the analysis in the plan before seeing data. List each other analysis you will run in the plan's `## Analysis variants` table (V1, V2, …); report each in a register row that names it as `variant V2`. The lock records the variants, and register validation with `--plan` refuses one that no row names, even after an amendment removed it.
+
+## Validity: Does The Measure Track The Claim?
+
+A measure is a proxy for the thing the claim is about. Before reading any result, show it can tell the cases apart:
+
+- **An oracle scores full.** The reference solution, a gold answer, or a known-good run passes every check.
+- **A do-nothing arm scores near zero.** An empty answer, a constant output, or an agent that does nothing fails. A measure a do-nothing arm passes is measuring the task's leniency.
+- **A measure a trivial answer maxes out needs its cost beside it.** An interval covering everything has full coverage, and a reviewer that flags everything finds every defect: report coverage with width, detection with false rejection, and include the trivial answer as a control.
+- **Stable under refinement.** A result computed on a grid or by simulation should not move on a finer grid or with more draws: check it at a tolerance fixed in the plan.
+- **Controls where the right answer is no.** A check that stands in for a meaning (a regex, "the answer names the right file and line") needs runs where the meaning is absent. In one review study, a check that a review named the seeded line "found" the seed in 30% to 46% of reviews of the clean version, because seeds sit where reviewers comment anyway. A check that fires on its controls cannot measure detection: use it as a filter, or ask a validated judge.
+
+## Make Tasks Fair
+
+A task is fair when an agent or method that does the job correctly passes, and one that does not, fails.
+
+- Everything a check requires is stated in the task or follows from it. A check that expects a name the task never gives fails a correct answer.
+- Two people who know the domain would give each output the same grade. When they would not, sharpen the task or the check before running.
+- Passing requires doing the job, not a shortcut around the check.
+- An arm that fails an item in every one of many trials usually has a broken item or check. Read its outputs, and run the reference solution, before blaming the arm.
+
+Grade each requirement a check covers, not only pass or fail, and note which requirements follow from the task and which only the checker knows; a failure on the second kind says little. For a task with parts, check each part, so a run that does most of the task reads differently from one that fails at once. Keep the checks separate; do not combine them into one weighted score.
+
+## Reliability: Would It Repeat?
+
+- Measure the noise floor on a frozen pilot before the study ([Measure The Noise Floor](#measure-the-noise-floor)).
+- Record every seed and source of randomness. Resampling in `stats.mjs` takes a `seed` field (1 when omitted) and reports it.
+- A judge or rater whose answers change on the same input is part of the noise: measure its agreement with itself, or with other raters (`stats.mjs agreement`).
+- **Prompt format is part of the measure.** Wording, order and format alone can move a model's score by tens of points; one study measured up to 76. When the claim is not about one exact prompt, run several formats and report the range: list each format as an analysis variant (`V<n>`) in the plan.
+- Pin what can drift: the model snapshot and the date it was called, dataset versions, tool versions. A result on "the latest model" is a result on an unknown one.
+
+## Read Raw Outputs Before Counting
+
+Before computing any metric, read a sample of the raw outputs: the failures, and some passes. A failure should look fair: it is clear what went wrong and why. When it does not, the task, the check or the harness is at fault, and the count measures that instead.
+
+- A failed output may hold a valid answer the check did not foresee. Fix the check, then rerun; never adjust the count by hand.
+- A passed output may have passed by a shortcut. Fix the check before counting it.
+- When a judge and a deterministic check disagree, find which is wrong (the subject, the check or the judge), fix that one, and rerun; never average the two.
+
+## Judges
+
+A model judge's answers are measurements of an instrument whose error is unknown until measured. This section says what any judge needs before its answers count; Review Work's Judge Contract says what to record each time one is used, and Evaluate Behavior's design-and-measurement reference how its evaluator runs and calibrates one. A judge's verdict counts toward a claim only with a judge validation record that passes; without one, a claim resting on the judge is at most L1, and `artifact.mjs validate` refuses more for a register row whose Source cites `judge:<record>`.
+
+The record holds:
+
+- **Agreement with a gold set**: the share of gold items the judge got right, with its Wilson interval (`stats.mjs interval wilson`), and kappa beside it when one answer dominates the gold set (`agreement cohen`, `agreement pabak`; on an ordered scale, `agreement weighted` with `"weights": "quadratic"` for ratings; it defaults to linear). Report the raw agreement beside every kappa: kappa alone hides how often the raters agree. The gold answers come from people, or from an oracle, never from the judge or the model under test.
+- **The required lower bound**, fixed before scoring. The gold set's size follows from it: at 90% agreement the 95% interval is about 79–96% on 50 items, 83–94% on 100, and 85–93% on 200. There is no fixed minimum; there is the bound the study needs.
+- **Both answer orders**, for a judge comparing two outputs: run each pair both ways, and treat an answer that flips with the order as no answer. A judge that rates one output at a time records `not applicable`.
+- **Length control**: judges favor longer answers. Include gold items where the right answer is the shorter one.
+- **Decoys** the judge must pass: outputs that look right and are wrong, and the reverse.
+- **Repeatability**: the judge, run again on the gold set, agrees with its own first answers.
+- **Which model judged which**: a different model from the one graded, by default. Another family is optional: it flags different items but has not been shown to find more real defects. The same model only when no other is available (one subscription, one model), with the reason written in the record.
+- **The rubric's hash**: the record holds for that rubric only. A changed rubric needs a new record.
+
+A model that labels the data the analysis counts (an annotator coding outputs, a classifier of failures) is a judge as well: its labels carry its error into every number computed from them, and uncorrected model-coded variables have given false positives at several times the nominal rate. Declare it in the plan's Models in the method as `annotator` or `judge`; the register's validation with `--plan` then refuses a claim on the study's results above L1 that cites neither its judge record (`judge:<record>`) nor `judge:none` (no model's labels feed it). A model that screens a review's search hits is a judge too: the search ledger names its record, and refuses the hits it screened until the record passes ([search ledger](evidence.md#search-ledger)).
+
+In use:
+
+- Check first and judge only what a check cannot answer.
+- Ask the judge to quote, verbatim, the words in the judged output that support each score, and run `sources.mjs quote-check` on its answers before counting: a score whose quote is not in that output does not count.
+- Make each question answerable from the material in front of the judge, with the expected answer in a reference only the judge sees.
+- The judged output is untrusted input to the judge. A subject that writes to its grader is gaming the measure, whatever the judge answers. Revising something until a judge's scores rise can raise scores without raising quality: hand-check judged gains before relying on them.
+- Before counting, hand-check a sample of decisive answers against the evidence, and report how many were right.
+
+## Detectors: Measure Both Sides
+
+For anything whose job is to find problems (a reviewer, a checker, a classifier of defects), measure how often it finds real problems and how often it rejects sound work. One side alone means nothing: a reviewer that rejects everything finds every defect.
+
+- **Clean controls**, put through the same detector, measure false rejection.
+- **Seeded defects**, planted in otherwise sound work in named classes, measure detection per class.
+- **Real defects**, taken from history, keep the measure honest: seeded and real defects can differ in detection by an order of magnitude, so report them separately and keep real ones in every comparison.
+- **Prove every label**: show each defect is real (a test that passes on the sound state and fails on the defective one) and audit the clean labels too.
+- **Keep the answer out of sight**: nothing the detector sees may name the variant or the defect.
+
+## Count The Cost
+
+Count the runs before running: units × arms × trials, plus every judge call. Run the smallest batch that answers the question first, and state the count and the estimated cost to the user before a paid run. Record what was spent and what could not be measured (a subscription's usage, for one), apart.
 
 ## The Quick Check
 
@@ -174,3 +250,56 @@ Before a paid run, give the user the count of runs and calls and the estimated c
 ### Analyze Only After The Check
 
 Run `study.mjs check` before the analysis. It refuses a plan that changed since its lock, an uncleared deviation, and a planned trial (each trial number up to the plan's count, run with `--trial`) with neither a receipt nor a cleared deviation covering it. It does not read the exit code of a derived step, except a validity check run with `--validity`, whose failure logged its own deviation; any other failed check holds the analysis only once you log it as a deviation. Then compute every statistic with `stats.mjs` as the plan's decision rule says, register each claim with its numbers and the result file they come from, and run the gate in [Research Work](../SKILL.md#check-the-report), which validates the register with `--plan` and traces with `--results` when the plan is in the project.
+
+## Formats
+
+This section is a contract: the files below follow it as written. Every format starts with the [header](evidence.md#header); creating and checking them is in [the formats' commands](evidence.md#formats).
+
+### Study Plan
+
+Written at Design, before the first run that counts; `init study-plan --rigor <rigor>` creates the sections for that rigor. The header adds **Rigor**. Sections, none empty:
+
+| Section | Holds |
+| --- | --- |
+| `## 1. The claim` … `## 12. Where it holds` | The answers to the twelve questions in [Answer The Twelve Questions](#answer-the-twelve-questions). At `check` rigor only 1, 3, 4, 5 and 10 are required |
+| `## Hypotheses` | One table: `ID` (the claim ID the register will use), `Hypothesis`, `Kind` (`confirmatory` or `exploratory`), `Metric`, `Decision rule`, and optionally `Method`: the `stats.mjs` family and method that computes the rule (`paired mcnemar`), followed by any correction applied to it (`paired mcnemar; correct holm`), or `computed: <how>`. A confirmatory row names its metric, rule and, with the column, its method; `-` is allowed only for an exploratory one |
+| `## Planned runs` | One table: `Unit`, `Arm`, `Trials` (a whole number of at least 1), then optionally `Split` (`tuning` or `held-out`), then optionally `Budget` (the tuning effort and compute the arm gets; `control` for a do-nothing or oracle arm; `not compared: <why>` for an arm outside the comparison), one row per unit and arm. With a confirmatory hypothesis, every Budget other than those two must be the same |
+| `## Analysis variants` | At `study` and `publication` rigor: `none`, or one table, `ID` (`V1`, …, each once), `Variant`, `What it changes`: each other reasonable analysis that will be run and reported. The lock records them, so an amendment cannot drop one unreported |
+| `## Models in the method` | At `study` and `publication` rigor: `none`, or one table, `Role` (`judge`, `annotator`, `generator` or `subject`), `Model`, `Snapshot` (the exact version, never `latest`), `Accessed` (`YYYY-MM-DD`, no later than today) |
+| `## Contamination` | At `study` and `publication` rigor: one table, `Route`, `Control`, with one row for each of `training data`, `prompts and examples`, `tuning`, `tools and web` and `grader and harness`, and its control or `unknown` ([Close The Routes Contamination Takes](#close-the-routes-contamination-takes)) |
+| `## Amendments` | `none`, then one line per amendment, written by `study.mjs amend` |
+
+The three sections at `study` and `publication` rigor, the `Method` column and the `Budget` column are validated when present and noted by `study.mjs check` when absent, so plans locked before they existed stay valid; add them by amendment. A Method added after study runs changes its hypothesis, which becomes exploratory, so add it before the runs that count.
+
+`study.mjs lock` writes `<plan>.lock.json` beside the plan: the plan's sha256 (over everything but `## Amendments`), `by` (who agreed, their words and the date, and who ran the lock when that was someone else), when, its hypotheses, and `git`: the commit and path that hold the plan, or the reason it is not anchored; each amendment adds an entry with its hash, who, when, why, and every hypothesis it added or changed after study runs existed, none of which can then be confirmatory. Never edit the lock by hand.
+
+### Run Ledger
+
+`runs.jsonl` beside the plan, one receipt per line, appended by `study.mjs run` and never edited. A receipt holds: `id` (`R1`, …), `unit`, `arm`, `trial`, `split` (from the plan, or null), `validity` (true on a validity check run with `--validity`), `plan_sha256` and `plan_locked` (whether that hash was locked when it ran), `argv`, `cwd`, `program` (the resolved path and its sha256), `inputs` and `outputs` (each path, relative to the plan's folder, with its sha256, or null when absent), `started_at`, `finished_at`, `duration_ms`, `exit_code` (null when the command could not start), `signal`, `error`, the last 2 KB of stdout and stderr, and `prev_sha256`, the sha256 of the line before it (null on the first). The chain makes an edited, removed or reordered line visible: `study.mjs check` reports where it breaks.
+
+### Deviation Log
+
+`deviations.jsonl` beside the plan, appended by `study.mjs deviation` and `study.mjs clear`. A `deviation` line has `id` (`D1`, …), `what`, `unit` and `arm` (or null), `by` (who logged it) and `at`; a `clearance` line has the deviation's `id`, `by` (who cleared it) and `at`. Its lines are hash-chained like the run ledger's. A deviation without a clearance holds `study.mjs check`. A cleared deviation naming a unit (and arm) covers that unit's missing trials.
+
+### Judge Validation Record
+
+One per judge configuration and rubric, made before any of the judge's answers count. The header adds these fields, all filled:
+
+| Field | Holds |
+| --- | --- |
+| Judge | The model, its version and settings |
+| Rubric | The path of the frozen rubric |
+| Rubric sha256 | Its sha256, 64 lowercase hex characters |
+| Gold items | How many items with known answers it was scored on |
+| Agreement | Its agreement with the gold answers, 0 to 1 |
+| Interval | `[low, high]` and the method, from `stats.mjs` |
+| Required lower bound | The lowest interval bound the study accepts, fixed before scoring |
+| Both orders, Length control, Decoys, Repeatability | `passed`, `failed` or `not run`; Both orders may also be `not applicable`, for a judge that rates one output at a time; Repeatability is the judge's agreement with itself on a rerun |
+| Judge and graded | `different family`, `different model`, or `same model: <why no other model was available>` |
+| Result | `pass` or `fail` |
+
+Result can be `pass` only when the interval's lower bound reaches the required bound and all four controls `passed` (Both orders may be `not applicable`); validation refuses a record that says otherwise. A `## Notes` section says how the gold set was built and what the decoys were.
+
+### Judge Answers
+
+A JSONL file, one answer per line: `item`, `score`, `quote` (the judged output's own words supporting the score, at least four of them) and `output` (the judged output's path, relative to the answers file). `sources.mjs quote-check <answers.jsonl>` refuses an answer with no quote, a quote under four words, or one not found in its output.

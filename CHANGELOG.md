@@ -26,6 +26,8 @@
 
 ### Changed
 
+- Research Work's guidance is in three references, one per stage (`evidence`, `study`, `reporting`), instead of seven, so each route opens one file; each artifact's format now sits beside the method that writes it.
+
 - Write Skill explains why one capability skill that routes to its references and scripts (a trunk) beats many narrow skills, keeps a trunk's body to its routing table, common route and Rules, and asks for a design record per skill in the developer docs; Write Docs adds the skill design record shape under `dev-docs/skills/`.
 - Write Docs keeps history in git: developer docs drop their Changes lists, and decisions cite the commit where they were made.
 - Model judges follow one rule across Review Work, Evaluate Behavior and Research Work: Research Work says what a judge needs before its answers count, a judge counts as calibrated only with a passing judge validation record (repeatability included; an advisory review needs none), and by default the judge is a different model from the one it grades, another family being optional. Literature reviews and other research that needs checked sources now route to Research Work, which still writes its report in Write Docs' Research shape.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Create and check Research Work's artifacts. The formats are defined in references/artifacts.md.
+// Create and check Research Work's artifacts. The formats are defined in the Formats sections of references/evidence.md, study.md and reporting.md.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";

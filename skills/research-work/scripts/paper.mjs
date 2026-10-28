@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // A paper's tools: receipts for the commands that make its figures and builds, revision by patch, the build through
-// Pandoc, and the check of the built PDF. The paper route is in references/paper.md; the formats in
-// references/artifacts.md.
+// Pandoc, and the check of the built PDF. The paper route and its formats are in
+// references/reporting.md.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";

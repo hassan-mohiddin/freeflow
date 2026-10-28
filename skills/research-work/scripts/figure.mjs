@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Draw a figure as SVG from a JSON spec and the data file it names. Run it through a receipt so the outline can show
 // the figure came from its data: `paper.mjs run --ledger <runs.jsonl> --input <spec> --input <data> --output <svg>
-// -- node figure.mjs draw <spec> --out <svg>`. The spec format is in references/artifacts.md (Figure Spec).
+// -- node figure.mjs draw <spec> --out <svg>`. The spec format is in references/reporting.md (Figure Spec).
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";

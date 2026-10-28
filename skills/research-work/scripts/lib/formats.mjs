@@ -1,5 +1,5 @@
 // Research Work's artifact formats: what each file holds, a skeleton to start one, and a validator that refuses a
-// file breaking its contract. The contract itself is written for agents in references/artifacts.md; this module is
+// file breaking its contract. The contract itself is written for agents in the references' Formats sections; this module is
 // its enforcement. Markdown artifacts carry Write Docs' header (Type, Status, Owner, Source); the search ledger is
 // JSONL, one record per line. The study's run ledger and deviation log are written by study.mjs (lib/study.mjs).
 
@@ -771,7 +771,7 @@ function validateLedger(parsed, problems) {
   }
 }
 
-// A claim about absence ("the first to", "no prior work") is only as good as the search behind it (framing.md). The
+// A claim about absence ("the first to", "no prior work") is only as good as the search behind it (evidence.md). The
 // check reads three classes of wording: being first, nothing or nobody having done it, and words that say it is new.
 // It reads wording, so it catches the common forms, not every one.
 const RESEARCH_VERBS =

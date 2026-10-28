@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// A study's plan lock, run receipts and deviation log. The formats are in references/artifacts.md; the rules for
+// A study's plan lock, run receipts and deviation log. The formats are in references/study.md (Formats); the rules for
 // using them are in references/study.md.
 
 import { parseArgs } from "node:util";
