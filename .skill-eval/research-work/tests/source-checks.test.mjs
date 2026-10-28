@@ -54,9 +54,16 @@ test("a DOI that resolves to the work the Source names is verified, and a retrac
       },
     ],
   ]);
-  const found = await lookupRow({ ID: "S1", Source: "Brown, Cai and DasGupta 2001", Pin: "doi:10.1214/ss/1" }, get);
+  const found = await lookupRow(
+    {
+      ID: "S1",
+      Source: "Brown, Cai and DasGupta 2001. Interval estimation for a binomial proportion",
+      Pin: "doi:10.1214/ss/1",
+    },
+    get,
+  );
   assert.equal(found.lookup, "verified");
-  assert.match(found.detail, /author and year/);
+  assert.match(found.detail, /title and author/);
   assert.deepEqual(
     found.notices.map((notice) => notice.type),
     ["retraction"],
@@ -89,7 +96,10 @@ test("arXiv entries and URLs are looked up, and a busy service is asked once mor
   const busy = recorded([
     ["https://export.arxiv.org/", () => (++calls === 1 ? { status: 429, body: "" } : { status: 200, body: xml })],
   ]);
-  const paper = await lookupRow({ ID: "S1", Source: "Zheng et al. 2023", Pin: "arXiv:2306.05685" }, busy.get);
+  const paper = await lookupRow(
+    { ID: "S1", Source: "Zheng et al. 2023. Judging LLM-as-a-judge with MT-Bench", Pin: "arXiv:2306.05685" },
+    busy.get,
+  );
   assert.equal(paper.lookup, "verified");
   assert.equal(busy.asked.length, 2);
   const gone = await lookupRow(
@@ -117,7 +127,7 @@ test("lookup answers from its cache, says so, and exits non-zero when a row's Lo
   writeFileSync(
     join(dir, "lookups.json"),
     JSON.stringify({
-      "doi:10.1214/ss/1\u0000Brown, Cai and DasGupta 2001": { at: "2026-10-27T00:00:00Z", result },
+      "doi:10.1214/ss/1\u0000Brown, Cai and DasGupta 2001": { at: "2026-10-27T00:00:00Z", rule: 2, result },
     }),
   );
   const run = node("sources.mjs", "lookup", join(dir, "sources.md"), "--cache", join(dir, "lookups.json"));
@@ -285,4 +295,203 @@ test("a plan that stops when a result turns significant, or a comparison without
   const unsized = text.replace("One task per arm; power mcnemar-cases sized it.", "One task per arm.");
   assert.ok(validate("study-plan", unsized).problems.some((problem) => problem.includes("needs its size")));
   assert.deepEqual(validate("study-plan", text).problems, []);
+});
+
+/** A Crossref answer for one DOI, with no notices. */
+const crossrefWith = (message) =>
+  recorded([
+    ["https://api.crossref.org/works?filter=", { status: 200, body: JSON.stringify({ message: { items: [] } }) }],
+    ["https://api.crossref.org/works/", { status: 200, body: JSON.stringify({ message }) }],
+  ]).get;
+
+test("a DOI verifies only on the title and an author the Source names, as whole names with accents folded", async () => {
+  // The title the Source names contradicts the record, though the author and year agree.
+  const feline = await lookupRow(
+    { ID: "S1", Source: "Brown 2001. A survey of feline behaviour", Pin: "doi:10.1214/ss/1" },
+    crossrefWith(BROWN),
+  );
+  assert.equal(feline.lookup, "unresolved");
+  // A short surname inside a longer word is not the author.
+  const li = {
+    title: ["Graph neural networks for chemistry"],
+    author: [{ family: "Li" }],
+    issued: { "date-parts": [[2019]] },
+  };
+  const multilingual = await lookupRow(
+    { ID: "S2", Source: "Smith 2019. Multilingual evaluation of reviewers", Pin: "doi:10.1/li" },
+    crossrefWith(li),
+  );
+  assert.equal(multilingual.lookup, "refuted");
+  // An unaccented spelling names the same author; with no title in the Source, a person compares them.
+  const muller = {
+    title: ["Interval estimation for a binomial proportion"],
+    author: [{ family: "Müller" }],
+    issued: { "date-parts": [[2003]] },
+  };
+  const ascii = await lookupRow({ ID: "S3", Source: "Muller 2003", Pin: "doi:10.1/mu" }, crossrefWith(muller));
+  assert.equal(ascii.lookup, "unresolved");
+  assert.match(ascii.detail, /names no title/);
+  const titled = await lookupRow(
+    { ID: "S4", Source: "Muller 2003. Interval estimation for a binomial proportion", Pin: "doi:10.1/mu" },
+    crossrefWith(muller),
+  );
+  assert.equal(titled.lookup, "verified");
+  // The title alone, with an author the record does not list, is not enough.
+  const borrowed = await lookupRow(
+    { ID: "S5", Source: "Jones 2001. Interval estimation for a binomial proportion", Pin: "doi:10.1214/ss/1" },
+    crossrefWith(BROWN),
+  );
+  assert.equal(borrowed.lookup, "unresolved");
+});
+
+test("a reachable URL verifies only when the page carries the Source's words", async () => {
+  const page = { status: 200, body: "<html><title>SWE-bench Verified · Datasets</title><p>dataset card</p></html>" };
+  const named = await lookupRow(
+    { ID: "S1", Source: "SWE-bench Verified dataset", Pin: "https://example.org/swe" },
+    recorded([["https://example.org/", page]]).get,
+  );
+  assert.equal(named.lookup, "verified");
+  const elsewhere = await lookupRow(
+    { ID: "S2", Source: "Codex sandboxing documentation", Pin: "https://example.org/swe" },
+    recorded([["https://example.org/", page]]).get,
+  );
+  assert.equal(elsewhere.lookup, "unresolved");
+  assert.match(elsewhere.detail, /reachable \(200\)/);
+});
+
+test("a lookup the service could not answer is not cached", () => {
+  const dir = folder();
+  writeFileSync(
+    join(dir, "sources.md"),
+    "# Source Ledger: S\n\n| ID | Source | Pin | Lookup | Checked | Read | Supports |\n| --- | --- | --- | --- | --- | --- | --- |\n| S1 | Nowhere 2001. A page | https://127.0.0.1:9/x | not-looked-up | opened | full | x |\n",
+  );
+  const run = node("sources.mjs", "lookup", join(dir, "sources.md"), "--cache", join(dir, "lookups.json"));
+  assert.match(run.stdout, /S1: unresolved/);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "lookups.json"), "utf8")), {});
+});
+
+test("a citation must lie wholly inside what was read, from a clone at its pin, and sed scripts with several ranges count", () => {
+  const reads = [
+    { source: "S1", path: "a.rs", start: 1, end: 15 },
+    { source: "S1", path: "a.rs", start: 16, end: 30 },
+  ];
+  assert.ok(wasRead(reads, { source: "S1", path: "a.rs", start: 10, end: 30 }));
+  assert.ok(!wasRead(reads, { source: "S1", path: "a.rs", start: 10, end: 40 }));
+  assert.deepEqual(readsInCommand("sed -n '1,60p;300,400p' src/a.rs"), [
+    { path: "src/a.rs", start: 1, end: 60 },
+    { path: "src/a.rs", start: 300, end: 400 },
+  ]);
+  const { clone, commit } = repoFolder();
+  const transcript = JSON.stringify({
+    message: { content: [{ type: "tool_use", name: "Read", input: { file_path: join(clone, "src/turn.rs") } }] },
+  });
+  const pins = new Map([["S1", { repo: "codex", commit }]]);
+  const clones = new Map([["codex", clone]]);
+  assert.equal(readsFromTranscript(transcript, { clones, pins, heads: new Map([["codex", commit]]) }).length, 1);
+  assert.equal(
+    readsFromTranscript(transcript, { clones, pins, heads: new Map([["codex", "f".repeat(40)]]) }).length,
+    0,
+  );
+});
+
+test("the stop-rule and size checks catch other wordings, and a negated sequential test does not lift them", () => {
+  const { plan } = planRepo();
+  const text = readFileSync(plan, "utf8");
+  const at10 = (answer) =>
+    text.replace("## 10. The interval\n\nAnswered before any data.", `## 10. The interval\n\n${answer}`);
+  for (const answer of [
+    "Keep collecting until p < 0.05.",
+    "Halt the run once the result is significant.",
+    "End the study as soon as p<.05.",
+    "Stop when the difference is significant. We do not use a sequential test.",
+  ])
+    assert.ok(
+      validate("study-plan", at10(answer)).problems.some((problem) => problem.includes("turns significant")),
+      answer,
+    );
+  for (const answer of [
+    "At the end, the result is significant if p < 0.05.",
+    "Each task runs once, and p < 0.05 decides.",
+  ])
+    assert.ok(
+      !validate("study-plan", at10(answer)).problems.some((problem) => problem.includes("turns significant")),
+      answer,
+    );
+  const vague = text.replace("One task per arm; power mcnemar-cases sized it.", "Power is high for these prompts.");
+  assert.ok(validate("study-plan", vague).problems.some((problem) => problem.includes("needs its size")));
+  const numbered = text.replace(
+    "One task per arm; power mcnemar-cases sized it.",
+    "62 tasks give 80% power for 20 points.",
+  );
+  assert.ok(!validate("study-plan", numbered).problems.some((problem) => problem.includes("needs its size")));
+});
+
+test("--refresh asks again only for the rows it looks up, and an answer cached under an older rule is asked again", () => {
+  const dir = folder();
+  writeFileSync(
+    join(dir, "sources.md"),
+    "# Source Ledger: S\n\n| ID | Source | Pin | Lookup | Checked | Read | Supports |\n| --- | --- | --- | --- | --- | --- | --- |\n| S1 | Nowhere 2001. A page | https://127.0.0.1:9/x | not-looked-up | opened | full | x |\n| S2 | Elsewhere 2002. Another page | https://127.0.0.1:9/y | not-looked-up | opened | full | x |\n",
+  );
+  const old = { id: "S1", kind: "url", lookup: "verified", detail: "reachable (200)", notices: [] };
+  writeFileSync(
+    join(dir, "lookups.json"),
+    JSON.stringify({
+      "url:https://127.0.0.1:9/x\u0000Nowhere 2001. A page": { at: "2026-10-27T00:00:00Z", result: old },
+      "url:https://127.0.0.1:9/y\u0000Elsewhere 2002. Another page": {
+        at: "2026-10-27T00:00:00Z",
+        rule: 2,
+        result: { ...old, id: "S2" },
+      },
+    }),
+  );
+  const run = node("sources.mjs", "lookup", join(dir, "sources.md"), "--cache", join(dir, "lookups.json"));
+  assert.match(run.stdout, /S1: unresolved/);
+  assert.match(run.stdout, /S2: verified .*\[cached/);
+  node(
+    "sources.mjs",
+    "lookup",
+    join(dir, "sources.md"),
+    "--cache",
+    join(dir, "lookups.json"),
+    "--only",
+    "S1",
+    "--refresh",
+  );
+  assert.ok(Object.keys(JSON.parse(readFileSync(join(dir, "lookups.json"), "utf8"))).some((key) => key.includes("/y")));
+});
+
+test("reads follow a command's cd and the transcript's working folder, and a pipe into sed keeps only its range", () => {
+  assert.deepEqual(readsInCommand("cd /r/codex-rs && sed -n 1,80p core/a.rs | cat -n | sed -n 1,80p", "/elsewhere"), [
+    { path: "/r/codex-rs/core/a.rs", start: 1, end: 80 },
+  ]);
+  assert.deepEqual(readsInCommand("nl -ba core/a.rs | sed -n '440,500p'; cat b.rs", "/r"), [
+    { path: "/r/core/a.rs", start: 440, end: 500 },
+    { path: "/r/b.rs", start: 1, end: null },
+  ]);
+  assert.deepEqual(readsInCommand("tail -n +30 a.rs", "/r"), [{ path: "/r/a.rs", start: 30, end: null }]);
+  // Output written to a file was not shown; output with only its errors redirected was.
+  assert.deepEqual(readsInCommand("git -C /r show abcdef12:a.rs >> saved.txt; cat b.rs > c.txt", "/"), []);
+  assert.deepEqual(readsInCommand("cat b.rs 2>/dev/null", "/r"), [{ path: "/r/b.rs", start: 1, end: null }]);
+  assert.deepEqual(readsInCommand("cd /r && \necho x\nsed -n 3,4p a.rs | grep fn", "/"), []);
+  assert.deepEqual(readsInCommand("cd /r && \necho x\nsed -n 3,4p a.rs", "/"), [{ path: "/r/a.rs", start: 3, end: 4 }]);
+  const { clone, commit } = repoFolder();
+  const transcript = [
+    {
+      cwd: clone,
+      message: { content: [{ type: "tool_use", name: "Bash", input: { command: "sed -n 5,9p src/turn.rs" } }] },
+    },
+    {
+      cwd: "/",
+      message: {
+        content: [{ type: "tool_use", name: "Bash", input: { command: `cd ${clone}/src && head -n 3 turn.rs` } }],
+      },
+    },
+  ]
+    .map((entry) => JSON.stringify(entry))
+    .join("\n");
+  const pins = new Map([["S1", { repo: "codex", commit }]]);
+  assert.deepEqual(readsFromTranscript(transcript, { clones: new Map([["codex", clone]]), pins }), [
+    { source: "S1", path: "src/turn.rs", start: 5, end: 9 },
+    { source: "S1", path: "src/turn.rs", start: 1, end: 3 },
+  ]);
 });

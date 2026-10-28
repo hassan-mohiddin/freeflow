@@ -23,7 +23,7 @@ The study plan is the answers to these questions, written before the first run t
 | 11 | **Fixed before the data** | Who has seen how much data; which choices are fixed (hypotheses, analysis, exclusions including refused or malformed outputs, prompts, tuning and its split); everything else is exploratory |
 | 12 | **Where it holds** | The conditions covered, and one where it should fail; the exact model snapshot and access date; every planned outcome reported |
 
-A rule that hides a search is not fixed: "stop when p < 0.05" fixes nothing, and the plan's validation refuses a rule that stops when a result turns significant unless it names a sequential test built for repeated looks. A plan that cannot fail tests nothing; question 3's failure result is the plan's most important line.
+A rule that hides a search is not fixed: "stop when p < 0.05" fixes nothing, and the plan's validation refuses a rule that stops when a result turns significant unless it names a sequential test built for repeated looks. The validation reads the wording, so it catches the usual ways of writing such a rule, not every one; read the rule yourself too. A plan that cannot fail tests nothing; question 3's failure result is the plan's most important line.
 
 ## Name The Claim Class
 
@@ -62,7 +62,7 @@ Several planned comparisons share the error rate: name them in the plan and corr
 
 - **Few trials show little.** Three passes in three trials is consistent with a true rate near 0.3: the exact two-sided 95% lower bound is about 0.29 (`stats.mjs interval`, method `exact-binomial`).
 - **pass^k and pass@k diverge.** At 75% per trial, all three of three succeed about 42% of the time and at least one about 98%. Report pass^k for behavior relied on every time; pass@k fits only when a retry or a checker stands between the result and its user (`stats.mjs passk`).
-- **Items set what a comparison can detect.** Compute the count before running (`stats.mjs power mcnemar-cases` or `power paired-cases`) and state it in question 3; the plan's validation refuses a confirmatory hypothesis whose plan states no power computation or why none applies. A 20-point difference at 80% power needs roughly 62 to 93 items per arm, depending on the base rate; a pilot of 20 or 30 detects only large effects, and says so.
+- **Items set what a comparison can detect.** Compute the count before running (`stats.mjs power mcnemar-cases` or `power paired-cases`) and state it in question 3; the plan's validation refuses a confirmatory hypothesis whose plan states no power computation (its numbers, or the `stats.mjs power` command that gave them) or why none applies. A 20-point difference at 80% power needs roughly 62 to 93 items per arm, depending on the base rate; a pilot of 20 or 30 detects only large effects, and says so.
 - **More items beat more trials.** Past a few trials per item, extra trials narrow the result little; extra items narrow it more.
 - **Items that share a source are not independent.** Count the families as well as the items, spread items across families, and analyze with clusters (`stats.mjs interval clustered` or `interval bootstrap` with clusters; for pass or fail values with few clusters, `interval clustered-bayes`, since the cluster-robust interval undercovers there).
 - **Keep the subject's settings.** Lowering temperature or effort to cut variance changes the subject; do it only when that setting is the question.

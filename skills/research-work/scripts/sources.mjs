@@ -4,13 +4,13 @@
 // as not checked, never as passed. quote-check does the same for a judge's answers: each score's quote must appear
 // in the output it judged. bib writes a paper's .bib from the source ledger, marking every source not verified.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { ledgerRows } from "./lib/formats.mjs";
-import { lookupRow, pinIdentifier } from "./lib/lookup.mjs";
+import { LOOKUP_RULE, lookupRow, pinIdentifier } from "./lib/lookup.mjs";
 import { bibFromLedger, parseBib } from "./lib/paper.mjs";
 import { loadReads, readsFromTranscript, wasRead } from "./lib/reads.mjs";
 import { codeCitations, normalizeForQuote, quoteCitations } from "./lib/report.mjs";
@@ -23,10 +23,11 @@ const USAGE = [
   "       sources.mjs reads <transcript.jsonl>... --ledger <sources.md> --repo <name>=<clone>... --out <reads.jsonl>",
   "",
   "lookup goes online, so run it only when the user asks: a DOI through Crossref (with its retraction and correction",
-  "notices), an arXiv ID through arXiv, a URL's reachability. Answers are cached in --cache; --refresh asks again.",
-  "It never edits the ledger; it says what each row's Lookup should read.",
-  "cite-check --reads <reads.jsonl> also fails a code citation whose range no read overlaps; reads makes that file",
-  "from Claude Code transcripts.",
+  "notices), an arXiv ID through arXiv, a URL's page. A record verifies on its title and an author the Source names.",
+  "Answers are cached in --cache (not a service's failure to answer); --refresh asks again. It never edits the",
+  "ledger; it says what each row's Lookup should read.",
+  "cite-check --reads <reads.jsonl> also fails a code citation with a line no read covers; reads makes that file",
+  "from Claude Code transcripts, counting a clone's files only when the clone is at the pinned commit.",
   "",
   "--repo maps a ledger pin's repository name (the part before @) to a local clone holding that commit.",
   "--copy maps a source ID to a saved copy of its text, for quote checks.",
@@ -100,10 +101,8 @@ if (command === "lookup") {
   if (!report || !parsed.values.cache) fail(USAGE);
   const rows = ledgerRows(readFileSync(report, "utf8"));
   const only = parsed.values.only ? new Set(parsed.values.only.split(",").map((id) => id.trim())) : null;
-  const cache =
-    existsSync(parsed.values.cache) && !parsed.values.refresh
-      ? JSON.parse(readFileSync(parsed.values.cache, "utf8"))
-      : {};
+  // --refresh asks again for the rows looked up; the cache keeps every other row's answer.
+  const cache = existsSync(parsed.values.cache) ? JSON.parse(readFileSync(parsed.values.cache, "utf8")) : {};
   const results = [];
   for (const [id, row] of rows) {
     if (only && !only.has(id)) continue;
@@ -111,10 +110,14 @@ if (command === "lookup") {
     // Two rows can share an identifier with different Source lines, and the match depends on the Source.
     const key = identifier.value ? `${identifier.kind}:${identifier.value}\u0000${row.Source}` : null;
     let result;
-    if (key && cache[key]) result = { ...cache[key].result, cached: cache[key].at };
+    // An answer judged under an older match rule is asked again, so a changed rule never leaves an old verdict.
+    if (key && cache[key]?.rule === LOOKUP_RULE && !parsed.values.refresh)
+      result = { ...cache[key].result, cached: cache[key].at };
     else {
       result = await lookupRow({ ...row, ID: id });
-      if (key) cache[key] = { at: new Date().toISOString(), source: row.Source, result };
+      // An answer the service never gave (no reply, a rate limit, a server error) is asked again next time.
+      if (key && !result.unanswered)
+        cache[key] = { at: new Date().toISOString(), rule: LOOKUP_RULE, source: row.Source, result };
     }
     results.push({ ...result, id, current: row.Lookup });
   }
@@ -150,7 +153,19 @@ if (command === "reads") {
     if (pin) pins.set(id, { repo: pin[1], commit: pin[2] });
   }
   const clones = pairs(parsed.values.repo, "--repo");
-  const reads = transcripts.flatMap((path) => readsFromTranscript(readFileSync(path, "utf8"), { clones, pins }));
+  const heads = new Map();
+  for (const [repo, clone] of clones) {
+    const head = spawnSync("git", ["-C", clone, "rev-parse", "HEAD"], { encoding: "utf8" });
+    if (head.status === 0) heads.set(repo, head.stdout.trim());
+  }
+  for (const [id, pin] of pins) {
+    const head = heads.get(pin.repo);
+    if (head && !head.startsWith(pin.commit) && !pin.commit.startsWith(head))
+      console.error(
+        `${id}: the ${pin.repo} clone is at ${head.slice(0, 12)}, not the pinned ${pin.commit.slice(0, 12)}, so reads of its files do not count (git show <pin>:<path> reads still do)`,
+      );
+  }
+  const reads = transcripts.flatMap((path) => readsFromTranscript(readFileSync(path, "utf8"), { clones, pins, heads }));
   writeFileSync(parsed.values.out, reads.map((read) => JSON.stringify(read)).join("\n") + (reads.length ? "\n" : ""));
   console.log(
     `${parsed.values.out}: ${reads.length} read(s) of ${new Set(reads.map((read) => read.source)).size} source(s)`,

@@ -414,15 +414,24 @@ function validatePlan(parsed, problems) {
     ...(hypotheses?.rows ?? []).map((row) => row.cells["Decision rule"] ?? ""),
   ].join("\n");
   // Stopping when a result turns significant inflates false positives unless the test is built for looking often.
-  if (
-    /stop\w*[^.\n]{0,60}(significan|p\s*[<≤]|p-value)|until[^.\n]{0,40}significan/i.test(planText) &&
-    !/sequential|alpha[- ]spending|group sequential|always[- ]valid/i.test(planText)
-  )
+  // These checks read the wording, so they catch the common ways of writing it, not every one.
+  const stopsOnSignificance =
+    /\b(stop\w*|halt\w*|terminat\w*|end(s|ed|ing)? (the |this )?(study|run|collection|data|trials?|experiment)|until|as soon as|once (the|a|it|p)\b)[^.;\n]{0,60}(significan|\bp\s*[<≤]|p-value)/i;
+  const sequentialTests =
+    /group[- ]sequential|alpha[- ]spending|always[- ]valid|o['’]?brien[- ]fleming|pocock|\bsprt\b|sequential probability ratio|confidence sequences?|\be-values?\b|sequential test/gi;
+  const namesSequentialTest = [...planText.matchAll(sequentialTests)].some(
+    (match) =>
+      !/\b(no|not|without|never|nor)\b[^.\n]*$/i.test(planText.slice(Math.max(0, match.index - 40), match.index)),
+  );
+  if (stopsOnSignificance.test(planText) && !namesSequentialTest)
     problems.push(
       "the plan stops when a result turns significant; fix the count in advance, or name a sequential test built for repeated looks",
     );
+  // A size is a computation: power with its numbers, the stats.mjs command that computed it, or why none applies.
   const comparison = (hypotheses?.rows ?? []).some((row) => row.cells.Kind === "confirmatory");
-  if (comparison && !/\bpower\b|not a sampling question|computed,? not (sampled|estimated)/i.test(planText))
+  const statesSize =
+    /\bpower\b[^.\n]{0,80}\d|\d[^.\n]{0,80}\bpower\b|\bpower (mcnemar|paired)-cases\b|not a sampling question|computed,? not (sampled|estimated)/i;
+  if (comparison && !statesSize.test(planText))
     problems.push(
       "a confirmatory hypothesis needs its size: a power computation (stats.mjs power) in question 3, or the reason none applies (a computed quantity, not a sample)",
     );
