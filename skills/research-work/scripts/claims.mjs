@@ -48,7 +48,7 @@ const USAGE = [
   "evidence (code lines with the lines around them, or the passage around a quote); given a report and a paper, a",
   "claim's packet holds what either states and cites for it. A separate reader answers each packet in a",
   "verdicts file, one JSON line per packet:",
-  '  {"packet": "P1", "verdict": "supported|partial|unsupported", "quote": "<four or more words of the evidence>",',
+  '  {"packet": "P1", "verdict": "supported|partial|unsupported", "quote": "<four or more words, or one whole line, of the evidence>",',
   '   "missing": "<what the evidence does not show; for partial or unsupported>"}',
   "support-check counts the answers with a Wilson interval and fails on a missing or malformed answer, a quote not",
   'in its packet, and a partial or unsupported answer not yet settled; add "adjudication": "rejected: <reason>" to an',

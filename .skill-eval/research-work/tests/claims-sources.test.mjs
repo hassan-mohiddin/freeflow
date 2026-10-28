@@ -988,3 +988,59 @@ test('a paper\'s quote form, "the exact words" [@S1], is a checked quote for cit
   assert.equal(built.status, 0, built.stdout);
   assert.equal(JSON.parse(readFileSync(out, "utf8")).evidence[0].cite, `"${words}" [@S1]`);
 });
+
+test("a quote under four words is accepted when it is one whole line of the evidence (support rerun 2)", () => {
+  const packets = [
+    {
+      packet: "P1",
+      claim: "C1",
+      evidence: [
+        {
+          cite: "S1:src/cli.mjs:552",
+          text: ' 550: try {\n 551:   if (command === "view") {\n>552:     process.stdout.write(await runCore(command, rest));\n 553:   }',
+        },
+      ],
+    },
+  ];
+  const line = (answer, at = 1) => ({ line: at, answer });
+  const whole = { packet: "P1", verdict: "supported", quote: "process.stdout.write(await runCore(command, rest));" };
+  assert.deepEqual(checkVerdicts(packets, [line(whole)]).problems, []);
+  // Part of a line is still too short to decide anything.
+  const part = checkVerdicts(packets, [line({ ...whole, quote: "await runCore(command, rest));" })]);
+  assert.match(part.problems[0].problem, /at least four words, or one whole line/);
+  // A line of punctuation alone decides nothing.
+  assert.match(checkVerdicts(packets, [line({ ...whole, quote: "}" })]).problems[0].problem, /at least four words/);
+  // An adjudication may quote the whole line too.
+  const settled = checkVerdicts(packets, [
+    line({
+      packet: "P1",
+      verdict: "partial",
+      quote: 'if (command === "view") {',
+      missing: "that the write is the only one",
+      adjudication: 'rejected: "process.stdout.write(await runCore(command, rest));" is the single write',
+    }),
+  ]);
+  assert.deepEqual(settled.problems, []);
+  assert.equal(settled.settled.length, 1);
+});
+
+test("a quote's passage from a saved copy keeps the copy's line breaks (support rerun 4)", () => {
+  const dir = folder();
+  const copy = join(dir, "runs.txt");
+  writeFileSync(
+    copy,
+    "$ node recover.mjs view recover --record a.md\ndocs/spec-missing.md: missing\nexit=0\n\n$ node recover.mjs view recover --record b.md\nresolved\nexit=1\n",
+  );
+  const rows = [
+    { cells: { ID: "C1", Claim: "A missing pointer exits 0", Numbers: "-", Source: "S2", Scope: "here", Limit: "-" } },
+  ];
+  const ledger = new Map([["S2", { Pin: "run/recover-runs.txt" }]]);
+  const report = '# R\n\nA missing pointer is not fatal (C1): "docs/spec-missing.md: missing exit=0" (S2).\n';
+  const built = buildPackets(report, rows, ledger, { copies: new Map([["S2", copy]]) });
+  const [piece] = built.packets[0].evidence;
+  // The quote is found across the line break, and the passage shows which output follows which command.
+  assert.match(piece.text, /--record a\.md\ndocs\/spec-missing\.md: missing\nexit=0\n\n\$ node recover\.mjs/);
+  // A quote spanning the copy's lines is still found in the packet.
+  const verdict = { packet: "P1", verdict: "supported", quote: "--record a.md docs/spec-missing.md: missing exit=0" };
+  assert.deepEqual(checkVerdicts(built.packets, [{ line: 1, answer: verdict }]).problems, []);
+});
