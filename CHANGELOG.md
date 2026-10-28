@@ -11,6 +11,7 @@
 
 - Research Work has tools for writing the paper: figures drawn from their data files with a receipt the outline checks, a bibliography from the source ledger that marks every source not verified, checks a draft must pass before review (abstract numbers in the body, citations, figure and section references, word limits), a venue copy without claim IDs, revision by patch where each change names its finding, a build to PDF, Word, LaTeX or HTML through Pandoc, a check of the built PDF's pages, words and required sections, and a default project layout.
 
+- Research Work rechecks the numbers another study reports: whether a mean, a percentage or an SD is possible for its sample size (GRIM, GRIMMER, DEBIT), and whether a p value follows from its test statistic, in a table whose verdicts only the computation can write.
 - Research Work looks sources up online when you ask: a DOI through Crossref with any retraction or correction notice, an arXiv ID, whether a link's page names the source, each matched on the title and an author, cached so a second run stays offline, and never marking a source fabricated because nothing was found. A code citation can be checked against the lines the agent actually read. A study plan's lock names the git commit that holds it when the plan is committed, and a plan is refused when it stops as soon as a result turns significant or gives a comparison no sample size.
 
 ### Changed

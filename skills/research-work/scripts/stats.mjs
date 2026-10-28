@@ -2,9 +2,11 @@
 // Command line for Research Work's statistics. Input is one JSON object (a file, or "-" for stdin); output is the
 // result as JSON. The object's "method" picks the calculation within the family; its other fields are the inputs.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
+import { parseMarkdown, parseTable } from "./lib/formats.mjs";
+import { CHECKS, recheck, statusCell } from "./lib/recheck.mjs";
 import * as stats from "./lib/stats.mjs";
 
 const FAMILIES = {
@@ -50,6 +52,9 @@ const FAMILIES = {
   tost: {
     paired: ({ differences, low, high, alpha }) => stats.tostPaired(differences, { low, high, alpha }),
   },
+  consistency: Object.fromEntries(
+    CHECKS.map((check) => [check, ({ text }) => ({ check, text, ...recheck(check, text) })]),
+  ),
   power: {
     mcnemar: ({ n, armOnly, referenceOnly, alpha }) => stats.mcnemarPower({ n, armOnly, referenceOnly, alpha }),
     "mcnemar-cases": ({ armOnly, referenceOnly, alpha, power, maximum }) =>
@@ -63,6 +68,11 @@ const FAMILIES = {
 
 const USAGE = [
   "Usage: stats.mjs <family> [--input <file|->] [--text]",
+  "       stats.mjs recheck <recheck.md> [--write]",
+  "",
+  "recheck computes each row of a Recheck Table from its Reported text (GRIM, GRIMMER, DEBIT, or p from the statistic",
+  "and its degrees of freedom) and prints its Status; --write puts it in the table. It exits 1 when a row is a",
+  "mismatch or a decision error.",
   "",
   'One JSON object in; its "method" picks the calculation, the other fields are its inputs. Defaults: confidence',
   "0.95, alpha 0.05, power 0.8, seed 1. Omitted optional fields take these defaults.",
@@ -105,6 +115,7 @@ try {
     options: {
       input: { type: "string", default: "-" },
       text: { type: "boolean", default: false },
+      write: { type: "boolean", default: false },
       help: { type: "boolean" },
     },
   });
@@ -114,6 +125,36 @@ try {
 if (parsed.values.help) {
   console.log(USAGE);
   process.exit(0);
+}
+if (parsed.positionals[0] === "recheck") {
+  const [, path] = parsed.positionals;
+  if (!path || parsed.positionals.length !== 2) fail(USAGE);
+  let text;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    fail(`could not read ${path}: ${error.message}`);
+  }
+  const lines = text.split(/\r?\n/);
+  const table = parseTable(parseMarkdown(text).lines);
+  if (!table || table.columns.at(-1) !== "Status") fail(`${path}: no Recheck Table (its last column is Status)`);
+  let flagged = 0;
+  for (const { line, cells } of table.rows) {
+    if (!CHECKS.includes(cells.Check)) {
+      console.log(`${cells.ID}: not checked: Check must be one of ${CHECKS.join(", ")}`);
+      continue;
+    }
+    const result = recheck(cells.Check, cells.Reported);
+    const status = statusCell(result);
+    if (result.status === "mismatch" || result.status === "decision error") flagged += 1;
+    console.log(`${cells.ID}: ${status}: ${result.detail}`);
+    // Rewrite only the Status cell, the row's last.
+    const cellsOfLine = lines[line - 1].split("|");
+    cellsOfLine[cellsOfLine.length - 2] = ` ${status} `;
+    lines[line - 1] = cellsOfLine.join("|");
+  }
+  if (parsed.values.write) writeFileSync(path, lines.join("\n"));
+  process.exit(flagged > 0 ? 1 : 0);
 }
 const [family] = parsed.positionals;
 if (parsed.positionals.length !== 1 || !(family in FAMILIES)) fail(USAGE);

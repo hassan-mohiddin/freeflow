@@ -3,6 +3,8 @@
 // its enforcement. Markdown artifacts carry Write Docs' header (Type, Status, Owner, Source); the search ledger is
 // JSONL, one record per line. The study's run ledger and deviation log are written by study.mjs (lib/study.mjs).
 
+import { CHECKS, recheck, statusCell } from "./recheck.mjs";
+
 export const STATUSES = ["Draft", "Reviewed", "Accepted", "Rejected", "Superseded", "Retired"];
 export const RIGOR = ["check", "study", "publication"];
 export const LOOKUP = ["verified", "unresolved", "refuted", "not-looked-up"];
@@ -64,6 +66,7 @@ const REBUTTAL_COLUMNS = ["ID", "Reviewer", "Round", "Comment", "Choice", "Reaso
 export const CHOICES = ["will address", "won't", "not on point"];
 export const REBUTTAL_STAGES = ["drafted", "submitted"];
 const EVIDENCE_COLUMNS = ["Source", "Design", "n", "Result", "Failure condition", "Level"];
+const RECHECK_COLUMNS = ["ID", "Source", "Where", "Check", "Reported", "Status"];
 const JUDGE_FIELDS = [
   "Judge",
   "Rubric",
@@ -90,6 +93,7 @@ export const KINDS_OF_ARTIFACT = {
   "paper-outline": { type: "Paper Outline", file: "outline.md" },
   rebuttal: { type: "Rebuttal", file: "rebuttal.md" },
   "evidence-table": { type: "Evidence Table", file: "evidence.md" },
+  recheck: { type: "Recheck Table", file: "recheck.md" },
 };
 
 const levelRank = (level) => LEVELS.indexOf(level);
@@ -176,6 +180,13 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
       ...table(
         EVIDENCE_COLUMNS,
         "| <S ID> | <the study's design> | <n, or -> | <its result> | <the result that would have refuted it> | <L0 to L5> |",
+      ),
+    );
+  } else if (kind === "recheck") {
+    lines.push(
+      ...table(
+        RECHECK_COLUMNS,
+        `| N1 | <S ID> | <page, table or line> | <${CHECKS.join(", ")}> | <the reported text, copied exactly> | - |`,
       ),
     );
   } else if (kind === "research-brief") {
@@ -838,6 +849,37 @@ function validateEvidence(parsed, problems, { ledger } = {}) {
   }
 }
 
+/**
+ * A recheck table: one reported result per row, transcribed exactly. Its Status is the computation's
+ * (`stats.mjs recheck --write`); a status that differs from what the reported text gives is refused.
+ */
+function validateRecheck(parsed, problems, { ledger } = {}) {
+  validateHeader(parsed, "Recheck Table", problems);
+  headerPlaceholders(parsed, problems);
+  const table = validateTable(parsed, RECHECK_COLUMNS, problems);
+  const seen = new Set();
+  for (const { cells } of table?.rows ?? []) {
+    const where = cells.ID || "a row";
+    if (!/^N\d+$/.test(cells.ID)) problems.push(`${where}: ID must be N followed by a number`);
+    else if (seen.has(cells.ID)) problems.push(`${where}: duplicate ID`);
+    seen.add(cells.ID);
+    if (!/^S\d+$/.test(cells.Source)) problems.push(`${where}: Source must be a source-ledger ID such as S3`);
+    else if (ledger && !ledger.get(cells.Source)) problems.push(`${where}: the source ledger has no ${cells.Source}`);
+    for (const column of ["Where", "Reported"])
+      if (!cells[column] || placeholder(cells[column])) problems.push(`${where}: ${column} must be filled`);
+    if (!CHECKS.includes(cells.Check)) {
+      problems.push(`${where}: Check must be one of: ${CHECKS.join(", ")}`);
+      continue;
+    }
+    if (!cells.Reported || placeholder(cells.Reported)) continue;
+    const computed = statusCell(recheck(cells.Check, cells.Reported));
+    if (!cells.Status || cells.Status === "-")
+      problems.push(`${where}: Status is not computed yet; run stats.mjs recheck --write`);
+    else if (cells.Status !== computed)
+      problems.push(`${where}: Status says ${cells.Status}, but the computation gives ${computed}`);
+  }
+}
+
 /** One parsed line of a search ledger, or a problem with it. */
 function validateSearch(text, problems) {
   const queries = new Set();
@@ -945,6 +987,7 @@ export function validate(
       });
     else if (kind === "rebuttal") validateRebuttal(parsed, problems);
     else if (kind === "evidence-table") validateEvidence(parsed, problems, { ledger });
+    else if (kind === "recheck") validateRecheck(parsed, problems, { ledger });
     else problems.push(`unknown artifact kind "${kind}"`);
   }
   return { kind, valid: problems.length === 0, problems };

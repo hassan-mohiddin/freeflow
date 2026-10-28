@@ -54,6 +54,29 @@ For each source a claim rests on, note in the report's evidence what kind of evi
 - **Watch for the common failures in what you read:** a number in the abstract that the results do not contain, an interval labeled one way and computed another, replicates counted as separate items, a baseline given less tuning than the method. Note what you find; do not repeat the number as if it held.
 - **Retractions and errata:** for a paper a claim leans on heavily, check whether it was retracted or corrected.
 
+## Rechecking A Study's Numbers
+
+When a claim leans on the means, SDs, proportions or tests another study reports, and the study gives no data to recompute from, recheck the numbers it prints before relying on them: at `check` rigor the ones a key claim rests on, otherwise every one a claim rests on.
+
+1. `artifact.mjs init recheck recheck.md`, one row per reported result: the source, where it is printed, the check, and the values with their labels, each number copied exactly as printed, trailing zeros included (`5.10` is not `5.1`): `M = 5.19, SD = 1.20, N = 28`, `M = 57.4%, N = 62`, `t(28) = 2.20, p = .036`. Add `one-tailed` only when the paper says so, and `items = k` for a mean of k whole-number items.
+2. `stats.mjs recheck recheck.md --write` computes each row and writes its Status; validation refuses any Status the computation does not give.
+
+| Check | Asks | Applies to |
+| --- | --- | --- |
+| `grim` | Is the mean a whole total divided by n? | Means and percentages of whole-number data, with n × items below 10 to the power of the mean's decimals |
+| `grimmer` | Does the SD come from a whole sum of squares as well? | Single-item whole-number data, with its mean |
+| `debit` | Does the SD follow from the proportion and n? | Proportions of yes-or-no data |
+| `p` | Does the p value follow from the statistic and its degrees of freedom? | t, F, χ², r and z tests |
+
+What a Status means for a claim:
+
+- **Consistent** shows only that the numbers could be right.
+- **Mismatch** means they cannot all be as printed: a typo, a wrong n, or worse. The claim that rests on that number stays L1, and its Limit names the row.
+- **Decision error** means significance at .05 changes. The claim stays L1, and the report says the conclusion does not follow from the printed numbers.
+- **Not computable** is not a pass. Its reason says what is missing.
+
+One mismatch may be a typo; many in one paper weigh more. Do not run `grim` on data that are not whole numbers, such as ages, weights or money.
+
 ## Looking Sources Up Online
 
 When the user asks for it, `sources.mjs lookup <sources.md> --cache <lookups.json>` looks each row's pin up: a DOI through Crossref, with any retraction or correction notice that updates it; an arXiv ID through arXiv; a URL's page. Answers are cached, so a second run asks nothing unless `--refresh`; a service that did not answer is asked again next time. It never edits the ledger; it says what each row's Lookup should read, and you change the row:
