@@ -401,12 +401,15 @@ test("sources.mjs says its title search uses Crossref then arXiv, as the code do
 
 test("validate --recheck reads the quote form, exempts only by the row named in Limit, and reports the table's problems", () => {
   const flags = recheckFlags(RECHECK);
-  // The ledger holds S1 and S2, each listing C1 when the one claim cites it (not the S1 in meta-no-S1.json).
+  // The ledger holds S1 and S2, each listing C1 when the one claim's Source cites it (not the S1 in meta-no-S1.json).
   const ledgerFor = (rows) =>
     new Map(
       ["S1", "S2"].map((id) => [
         id,
-        { Checked: "opened", Supports: new RegExp(`(?<![\\w-])${id}(?![\\w-])`).test(rows.join("")) ? "C1" : "-" },
+        {
+          Checked: "opened",
+          Supports: new RegExp(`(?<![\\w-])${id}(?![\\w-])`).test(rows[0].split("|")[4]) ? "C1" : "-",
+        },
       ]),
     );
   const check = (rows, rechecks = { flags, file: "recheck.md" }) =>
