@@ -14,6 +14,7 @@ import { ledgerRows, parseMarkdown, parseTable, validate } from "./lib/formats.m
 import { draftCheck, figureReceipts, stripIds } from "./lib/paper.mjs";
 import { buildPackets, checkVerdicts, readVerdicts } from "./lib/support.mjs";
 import {
+  blankQuoteCitations,
   claimIds,
   currentNotes,
   numberInResults,
@@ -244,18 +245,21 @@ for (const unit of units(read(report))) {
       problems.push({ line: unit.line, kind: "unknown claim", value: id, detail: `${id} is not in the register` });
   }
   const supported = new Set(ids.flatMap((id) => [...(register.get(id) ?? [])]));
-  unit.text.split("\n").forEach((line, offset) => {
-    for (const number of numbersIn(line)) {
-      checkedNumbers += 1;
-      if (supported.has(number)) continue;
-      problems.push({
-        line: unit.line + offset,
-        kind: "untraced number",
-        value: number,
-        detail: ids.length === 0 ? "the passage cites no claim ID" : `not in the Numbers of ${ids.join(", ")}`,
-      });
-    }
-  });
+  // Digits inside a quote the report cites are the source's words, not numbers the report states.
+  blankQuoteCitations(unit.text)
+    .split("\n")
+    .forEach((line, offset) => {
+      for (const number of numbersIn(line)) {
+        checkedNumbers += 1;
+        if (supported.has(number)) continue;
+        problems.push({
+          line: unit.line + offset,
+          kind: "untraced number",
+          value: number,
+          detail: ids.length === 0 ? "the passage cites no claim ID" : `not in the Numbers of ${ids.join(", ")}`,
+        });
+      }
+    });
 }
 
 // Register numbers against the result files their Source names.

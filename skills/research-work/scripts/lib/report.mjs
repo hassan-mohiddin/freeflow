@@ -30,15 +30,50 @@ export function codeCitations(text) {
   return found;
 }
 
+// A quote followed by its source in parentheses: `(S3)`, `(S3:path)`, or the source first with more after it,
+// such as the claim it supports: `(S3; C2, L3)`.
+const QUOTE_CITATION = /["“]([^"“”\n]+)["”]\s*\((S\d+)(?::([A-Za-z0-9_./@+-]+))?(?:\s*[;,][^)\n]*)?\)/g;
+
 /** Quotes attributed to a source: `"the exact words" (S3)`, with straight or curly double quotes. */
 export function quoteCitations(text) {
   const plain = blankCode(text);
   const found = [];
-  const pattern = /["“]([^"“”\n]+)["”]\s*\((S\d+)(?::([A-Za-z0-9_./@+-]+))?\)/g;
+  const pattern = new RegExp(QUOTE_CITATION.source, "g");
   for (const match of plain.matchAll(pattern)) {
     found.push({ line: lineOf(plain, match.index), source: match[2], path: match[3], quote: match[1], text: match[0] });
   }
   return found;
+}
+
+/**
+ * Quoted passages of four or more words in a sentence that names a source (`S3`) but are not in a citation form,
+ * such as `printed "the exact words" and exited (S2)`: a check that skipped them would pass what it never checked.
+ */
+export function looseQuotes(text) {
+  const plain = blankCode(text);
+  const cited = new Set(quoteCitations(text).map((citation) => `${citation.line}\u0000${citation.quote}`));
+  const found = [];
+  for (const match of plain.matchAll(/["“]([^"“”\n]+)["”]/g)) {
+    if (match[1].trim().split(/\s+/).length < 4) continue;
+    const line = lineOf(plain, match.index);
+    if (cited.has(`${line}\u0000${match[1]}`)) continue;
+    const start = Math.max(plain.lastIndexOf(". ", match.index), plain.lastIndexOf("\n", match.index), 0);
+    const ends = [
+      plain.indexOf(". ", match.index + match[0].length),
+      plain.indexOf("\n", match.index + match[0].length),
+    ].filter((at) => at >= 0);
+    const sentence = plain.slice(start, ends.length ? Math.min(...ends) : plain.length);
+    if (/\bS\d+\b/.test(sentence)) found.push({ line, quote: match[1], text: match[0] });
+  }
+  return found;
+}
+
+/** The text with each quote citation's quoted words blanked: digits inside a checked quote are not the report's numbers. */
+export function blankQuoteCitations(text) {
+  return text.replace(new RegExp(QUOTE_CITATION.source, "g"), (match) => {
+    const close = match.search(/["”]\s*\(/);
+    return match.slice(0, 1) + match.slice(1, close).replace(/[^\n]/g, " ") + match.slice(close);
+  });
 }
 
 /** Text normalized for quote matching: curly quotes and dashes made plain, whitespace collapsed. */

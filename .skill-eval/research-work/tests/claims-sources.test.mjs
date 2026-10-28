@@ -13,7 +13,14 @@ import test from "node:test";
 import { lookupRow, matchesSource, searchTitle } from "../../../skills/research-work/scripts/lib/lookup.mjs";
 import { draftCheck } from "../../../skills/research-work/scripts/lib/paper.mjs";
 import { recheck } from "../../../skills/research-work/scripts/lib/recheck.mjs";
-import { currentNotes, percentMismatches, wordingNotes } from "../../../skills/research-work/scripts/lib/report.mjs";
+import {
+  blankQuoteCitations,
+  currentNotes,
+  looseQuotes,
+  percentMismatches,
+  quoteCitations,
+  wordingNotes,
+} from "../../../skills/research-work/scripts/lib/report.mjs";
 import { buildPackets, checkVerdicts } from "../../../skills/research-work/scripts/lib/support.mjs";
 
 const SCRIPTS = fileURLToPath(new URL("../../../skills/research-work/scripts/", import.meta.url));
@@ -668,4 +675,29 @@ test("a malformed pin does not stop a lookup run, and a correction notice needs 
   assert.equal(run.status, 1, run.stderr);
   assert.match(run.stdout, /S1: unresolved/);
   assert.ok(existsSync(join(dir, "lookups.json")));
+});
+
+// From the code-report trial (scratch/reports/trial-report.md), each with the form that misfired.
+
+test("a citation sentence before its claim's sentence counts for that claim (trial friction 1)", () => {
+  const rows = [{ cells: { ID: "C1", Claim: "x", Numbers: "-", Source: "S1", Scope: "here", Limit: "-" } }];
+  const ledger = new Map([["S1", { Pin: "harness@1a2b3c4d" }]]);
+  // Citation first, then "C1, L2.": the citation belongs to C1 (here unreadable, so C1 is not checked for that reason).
+  const built = buildPackets("# R\n\n- The loop retries twice (S1:src/loop.rs:3). C1, L2.\n", rows, ledger);
+  assert.match(built.notChecked[0].reason, /no --repo harness=<clone> given/);
+  // A claim sentence followed by its citation still works.
+  const after = buildPackets("# R\n\n- The loop retries twice (C1). See S1:src/loop.rs:3.\n", rows, ledger);
+  assert.match(after.notChecked[0].reason, /no --repo harness=<clone> given/);
+});
+
+test("a quote beside a source in another form is listed as not checked, and a citation may carry its claim (trial friction 2)", () => {
+  assert.equal(quoteCitations('"the run exited with code zero" (S2; C2, L3)')[0].source, "S2");
+  assert.equal(looseQuotes('It printed "the run exited with code zero" and stopped (S2).').length, 1);
+  assert.equal(looseQuotes('It printed "the run exited with code zero" (S2).').length, 0);
+  assert.equal(looseQuotes('The phrase "a b c d e" appears here without any source.').length, 0);
+});
+
+test("digits inside a cited quote are not the report's numbers (trial friction 8)", () => {
+  assert.equal(blankQuoteCitations('It said "No entity matched D-999" (S2), as C8 records.').includes("999"), false);
+  assert.ok(blankQuoteCitations("It made 12 calls (C8).").includes("12"));
 });

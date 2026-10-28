@@ -40,7 +40,7 @@ Written at Frame, inside Discuss Work's agreement, before the first search or ru
 | `## Claim sought` | The claim the work should let you make; `none: a descriptive report` for a report with no claim to test |
 | `## Prediction` | What you expect and the result that counts as failure, written now; `none: a descriptive report` when there is no prediction |
 | `## Scope` | A `- In:` line and a `- Out:` line |
-| `## Constraints` | Each constraint in the user's words, with the date given; `none` when there are none |
+| `## Constraints` | Each constraint in the user's words, with the date given; `none` when there are none. On an unattended run, each default you set goes here too, marked `(default: unattended run)`, as does the answer to the lookup question at publication rigor when a constraint settles it |
 
 ## Source Ledger
 
@@ -77,7 +77,8 @@ A JSONL file, one record per line, appended as the search runs:
 A report, a worker's return and the claims register's Source column cite in these forms, which the checks read:
 
 - **Code:** `S<n>:path:line` or `S<n>:path:start-end`, where `S<n>` is a ledger row pinned as `<repository>@<commit>` and the path is relative to the repository root (`S1:codex-rs/core/src/codex.rs:120-145`).
-- **A quote:** the quoted words in double quotes followed by the source ID, `"the exact words" (S3)`, or for a repository the file too, `"the exact words" (S1:path)`. Quote at least four words, copied exactly; the check looks for them in the saved copy of S3, or in the file at the pinned commit.
+- **A quote:** the quoted words in double quotes followed by the source ID, `"the exact words" (S3)`, or for a repository the file too, `"the exact words" (S1:path)`; the parenthesis may carry more after the source, as `(S3; C2, L3)`. Quote at least four words, copied exactly; the check looks for them in the saved copy of S3, or in the file at the pinned commit, after collapsing whitespace, so a quote may span lines of a saved log. A quote of four or more words in a sentence that names a source in any other form is listed as not checked.
+- **Which claim a citation supports:** put the claim's ID in the same sentence as its citations, or in the sentence right after (`... (S1:path:12). C1, L2.`); the support check reads them that way.
 - **A claim:** its register ID, `C4`, or several, `C4, C7`, where a finding states it.
 
 ## Claims Register

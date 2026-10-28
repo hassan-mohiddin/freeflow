@@ -13,7 +13,7 @@ import { ledgerRows } from "./lib/formats.mjs";
 import { LOOKUP_RULE, lookupRow, pinIdentifier } from "./lib/lookup.mjs";
 import { bibFromLedger, parseBib } from "./lib/paper.mjs";
 import { loadReads, readsFromTranscript, wasRead } from "./lib/reads.mjs";
-import { codeCitations, normalizeForQuote, quoteCitations } from "./lib/report.mjs";
+import { codeCitations, looseQuotes, normalizeForQuote, quoteCitations } from "./lib/report.mjs";
 import { fileAtCommit } from "./lib/support.mjs";
 
 const USAGE = [
@@ -352,6 +352,15 @@ for (const citation of quoteCitations(text)) {
   );
 }
 
+// A quote beside a source that is not in a citation form is listed, so it is never passed unchecked.
+for (const loose of looseQuotes(text))
+  results.push({
+    line: loose.line,
+    citation: loose.text,
+    status: "not checked",
+    reason: 'a quote of four or more words beside a source ID, not in the form "the exact words" (S<n>)',
+  });
+
 const count = (status) => results.filter((result) => result.status === status).length;
 const summary = {
   citations: results.length,
@@ -365,7 +374,9 @@ else {
     `${report}: ${summary.citations} citation(s); ${summary.ok} ok, ${summary.failed} failed, ${summary.notChecked} not checked`,
   );
   if (!reads && codeCitations(text).length > 0)
-    console.log("  read ranges: not checked (pass --reads to check each code citation against what was read)");
+    console.log(
+      "  note: read ranges were not checked (no --reads); this note does not count against the check, which passes on 0 failed and 0 not checked",
+    );
   for (const result of results.filter((entry) => entry.status !== "ok")) {
     console.log(`  ${result.status}: line ${result.line}: ${result.citation} (${result.reason})`);
   }
