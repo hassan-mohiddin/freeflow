@@ -792,6 +792,14 @@ const isAbsenceClaim = (claim) => ABSENCE.some((pattern) => pattern.test(claim))
 
 const searchCitations = (cell) => [...cell.matchAll(/\bsearch:(Q\d+)\b/g)].map((match) => match[1]);
 
+/** Source IDs as whole entries of a Source cell (S3, or S3:path for code), not the S3 inside a file name such as no-S3.json. */
+function sourceIds(cell) {
+  return (cell ?? "")
+    .split(/[;,\s]+/)
+    .map((entry) => /^(S\d+)(?::|$)/.exec(entry)?.[1])
+    .filter(Boolean);
+}
+
 function validateRegister(parsed, problems, { ledger, plan, judges, searches, rechecks } = {}) {
   validateHeader(parsed, "Claims Register", problems);
   const table = validateTable(parsed, REGISTER_COLUMNS, problems);
@@ -864,19 +872,15 @@ function validateRegister(parsed, problems, { ledger, plan, judges, searches, re
     // A claim that cites the recheck table itself states the recheck's finding, so it does not rest on the number.
     const citesRecheck = (cells.Source ?? "").split(/[;,\s]+/).includes(rechecks?.file);
     if (rechecks && !citesRecheck && levelRank(cells.Level) > levelRank("L1"))
-      // Source IDs as whole entries (S3, or S3:path for code), not the S3 inside a file name such as no-S3.json.
-      for (const id of new Set(
-        (cells.Source ?? "")
-          .split(/[;,\s]+/)
-          .map((entry) => /^(S\d+)(?::|$)/.exec(entry)?.[1])
-          .filter(Boolean),
-      ))
+      for (const id of new Set(sourceIds(cells.Source)))
         for (const row of rechecks.flags.get(id) ?? [])
-          problems.push(
-            `${where}: ${id} has recheck row ${row.id} (${row.status}: ${row.where}), so a claim resting on it is at most L1; it is ${cells.Level}`,
-          );
+          // A claim that cites the source for something else names the row in its Limit ("does not rest on N6").
+          if (!new RegExp(`\\b${row.id}\\b`).test(cells.Limit ?? ""))
+            problems.push(
+              `${where}: ${id} has recheck row ${row.id} (${row.status}: ${row.where}), so a claim resting on it is at most L1; it is ${cells.Level}`,
+            );
     if (!ledger) continue;
-    for (const id of cells.Source.match(/\bS\d+\b/g) ?? []) {
+    for (const id of sourceIds(cells.Source)) {
       const source = ledger.get(id);
       if (!source) {
         problems.push(`${where}: Source names ${id}, which the source ledger does not have`);

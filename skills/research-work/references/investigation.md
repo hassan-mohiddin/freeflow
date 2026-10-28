@@ -76,7 +76,7 @@ When a claim leans on the means, SDs, proportions or tests another study reports
 What a Status means for a claim:
 
 - **Consistent** shows only that the numbers could be right.
-- **Mismatch** means they cannot all be as printed: a typo, a wrong n, or worse. The claim that rests on that number stays L1, and its Limit names the row; `artifact.mjs validate --recheck` refuses a claim above L1 that cites the source. When the n is assumed rather than printed (a benchmark's full size), Where says so, and the Limit names the assumption.
+- **Mismatch** means they cannot all be as printed: a typo, a wrong n, or worse. The claim that rests on that number stays L1, and its Limit names the row; `artifact.mjs validate --recheck` refuses a claim above L1 that cites the source, unless its Limit names the row because the claim does not rest on that number. When the n is assumed rather than printed (a benchmark's full size), Where says so, and the Limit names the assumption.
 - **Decision error** means significance at .05 changes. The claim stays L1, and the report says the conclusion does not follow from the printed numbers.
 - **Not computable** is not a pass. Its reason says what is missing.
 

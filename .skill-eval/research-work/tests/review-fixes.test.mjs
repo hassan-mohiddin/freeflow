@@ -210,6 +210,8 @@ test("validate --recheck caps at L1 a claim citing a source with a recheck misma
     "| C3 | S1 reports a gain | 0.76 | S1 | L1 | exploratory | GSM8K | N1 is a mismatch |",
     // The finding about the mismatch cites the recheck table itself, so it is not capped by it.
     "| C4 | S1's 60.87% cannot be a whole number of 1319 items | 60.87%; 1319 | S1; recheck.md | L2 | exploratory | Table 2 | N assumed |",
+    // A claim citing S1 for something other than the mismatched number says so by naming the row in its Limit.
+    "| C5 | All five studies ran both prompts on the same items | 5 | S1, S2 | L2 | exploratory | GSM8K | does not rest on N1 |",
   ];
   const problems = validate("claims-register", REGISTER(rows), { rechecks: { flags, file: "recheck.md" } }).problems;
   assert.deepEqual(problems, [
