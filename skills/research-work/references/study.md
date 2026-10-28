@@ -13,10 +13,10 @@ The study plan is the answers to these questions, written before the first run t
 | 1 | **The claim** | One sentence, without jargon, naming the quantity, the comparison and the scope |
 | 2 | **Who uses it** | Who acts on the result, and what changes under each outcome |
 | 3 | **The prediction** | The primary metric, named now; the smallest effect worth detecting and the power to detect it; the result that counts as failure |
-| 4 | **Compared to what** | How it is done today; the baseline and a trivial baseline (a do-nothing agent, a constant answer); the tuning and compute each arm gets |
+| 4 | **Compared to what** | How it is done today; the baseline and a trivial baseline (a do-nothing agent, a constant answer); the tuning and compute each arm gets; the baseline's published number reproduced here, both reported |
 | 5 | **The unit and the count** | What one observation is; where its variation comes from (tasks, runs, prompts, seeds); how many; what fixed the number; the stopping rule |
 | 6 | **Validity** | Why the measure tracks the claim: an oracle scores full and a do-nothing arm near zero before any result is read; a judge has its validation record ([measurement](measurement.md)). For each check, its tolerance and one rule for what its failure does: stop, or make named verdicts undecided |
-| 7 | **Reliability** | The noise floor, measured on a frozen pilot; seeds and other randomness controls |
+| 7 | **Reliability** | The noise floor, measured on a frozen pilot; each source of variance and how it is controlled: prompt format and wording, seeds and sampling, environment and versions, run order |
 | 8 | **Raw outputs first** | Which raw outputs you will read before computing any metric |
 | 9 | **Rival explanations** | For each, the check that separates it from the claim; the analysis path itself is one |
 | 10 | **The interval** | Its method, the variation it covers, its assumptions; for a comparison, the interval on the paired difference; whether a number is one run, a mean, or a best of N |
@@ -45,7 +45,7 @@ The decision rule turns the data into a verdict, and it is written into the plan
 - the metric, and which direction is better;
 - the arms, the reference first;
 - the unit the test runs over, and how repeated trials of one unit combine (usually averaged per unit, since trials of one item are repeated draws of one question);
-- the test and its level, and the minimum number of decided units;
+- the test and its level, and the minimum number of decided units; and in the Hypotheses' `Method` column, the `stats.mjs` family and method that computes it (`paired mcnemar`), followed by the correction applied to it when several comparisons share the error rate (`paired mcnemar; correct holm`), or `computed: <how>` for a quantity computed another way. Compute the verdict through a receipt (`study.mjs run --output <result.json> -- node stats.mjs <family> --input <in.json> --out <result.json>`): every `stats.mjs` result records `computed_by`, and the register's validation with `--plan` refuses a confirmatory verdict whose result file (the one holding the claim's numbers) was computed by another method (under a corrected rule, by anything but the correction) or written by no receipt of the locked study that ran `stats.mjs`. Name the Method before the runs that count: adding one by amendment after them changes the hypothesis, which then is exploratory;
 - what each outcome licenses: the claim, its opposite, "no difference shown", and "undecided" when fewer units are decided than the minimum. An undecided claim stays confirmatory in the register, its result stated as undecided at L2 (a computed status, not a comparison); it supports neither the claim nor "no difference".
 
 For paired pass or fail outcomes, the exact McNemar test on the discordant items (`stats.mjs paired mcnemar`); for paired scores, the paired difference with its interval, or a sign-flip permutation for few items. A rule written after seeing results is not a decision rule: amend the plan and the hypothesis it changes becomes exploratory, which `study.mjs amend` records and the register's validation enforces.
@@ -55,7 +55,8 @@ Several planned comparisons share the error rate: name them in the plan and corr
 ## Compare Against Fair Baselines
 
 - **A trivial baseline** shows what the measure gives for nothing: a do-nothing agent, a constant answer, the majority class. A method that barely beats it has not shown much.
-- **Equal budgets.** For a confirmatory comparison, every arm gets the same tuning effort and compute budget. Standards ask only that tuning be disclosed; this rule is stricter because unequal tuning alone has reversed published rankings.
+- **Equal budgets.** For a confirmatory comparison, every arm gets the same tuning effort and compute budget. Standards ask only that tuning be disclosed; this rule is stricter because unequal tuning alone has reversed published rankings. Write each arm's budget in Planned runs' `Budget` column, mark a do-nothing or oracle arm `control`, and an arm outside the comparison (a baseline at its published settings) `not compared: <why>`; the plan's validation refuses a confirmatory plan whose other arms' budgets differ.
+- **A baseline as strong as published.** Reproduce the baseline's published number in your setup before comparing, and report both; a baseline that runs below its published number makes any method look better.
 - **The same conditions.** Run the arms in the same batch, on the same items, in an order that does not favor one.
 
 ## Size To The Decision
@@ -73,9 +74,17 @@ Several planned comparisons share the error rate: name them in the plan and corr
 
 Some studies compute their quantity instead of sampling it: an interval's coverage summed over every outcome, an error rate by enumeration, a property of an algorithm over a grid. There is no sampling error, so no test, interval or power calculation applies. The decision rule is a threshold on the computed value, with its margin fixed in the plan, and the plan states the numerical error in its place: the gap to a finer grid, or a simulation's agreement with the exact value, each with a tolerance. Validity checks still apply, and an oracle with a known answer (an interval guaranteed to cover) is the strongest. A computed value under a stated model is L2, a plain fact within that model; a comparison of computed values whose rule the locked plan fixed is L4 at its boundary.
 
+## Close The Routes Contamination Takes
+
+A model can score well because it has seen the answers. Record in the plan's `## Contamination` table how each route is controlled, or `unknown`: `training data` (the items or their answers published before the model's cutoff), `prompts and examples` (a test item or its answer in a prompt or a few-shot example), `tuning` (prompts or settings tuned on the items that score them), `tools and web` (a tool, search or file the arm can reach that holds the answer), `grader and harness` (an expected answer or a hint in what the harness or grader shows the arm). A route left `unknown` is a limit the report states.
+
+Nothing an arm, a worker or a judge receives states the prediction or the answer the study expects, beyond the reference a judge scores against: text that does is a deviation. A prompt that leans toward an answer moves a model's verdict.
+
 ## Pilot, Then Lock
 
 A pilot checks that the instrument works: the oracle scores full, the do-nothing arm scores near zero, the outputs can be read, and the cost per run is known. A pilot check covers the units the study will judge, or the plan says which it covered and what that leaves untested. Run it before the lock; its receipts are marked as before the lock and are not evidence for the claim. Use it to measure the noise floor (Measure The Noise Floor, below) and to size the study, never to choose the hypothesis it then confirms. The scripts cannot see whether a pilot shaped a hypothesis, so question 11 says what the pilot showed and who saw it, and a hypothesis written after seeing a pilot's result is exploratory.
+
+A study with human participants (people you recruit to rate, answer or be observed) stops for the user and their institution's ethics process before any data is collected; Research Work does not decide consent or ethics approval.
 
 Lock the plan when the twelve answers are written and the user has agreed them: the lock is the user's decision at `study` and `publication` rigor, recorded as a decision Checkpoint through [Track Work](../../track-work/SKILL.md), and `study.mjs lock --by` names who locked it ([running](#running-the-study)).
 
@@ -134,7 +143,7 @@ Run each command that produces data through `study.mjs run`, with its unit, arm 
 - **Every attempt stays.** A command that could not start, a run cut short, a run you would rather forget: each has its receipt. The manifest counts only runs that started toward a planned trial.
 - **Turn off a harness's own retries,** or record each retry: a harness that retries a failed evaluation until it passes (some do, by default) hides the failures the study must count.
 - **Blocked is not zero.** A run that produced no score stays missing in the analysis; never impute a value for it, and say how many there were.
-- **Derived steps get receipts too, without a unit:** combining per-unit outputs, the validity checks that read study outputs, the verdicts. The order is the planned runs, then the validity checks on their outputs, then the verdicts; a verdict computed before its validity check is read before the measure is known to work.
+- **Derived steps get receipts too, without a unit:** combining per-unit outputs, the validity checks that read study outputs, the verdicts. Run each validity check with `study.mjs run --validity`, as a command that exits non-zero when the check fails (the oracle does not score full, the do-nothing arm does not score near zero): `study.mjs` reads only the exit code, so a script that prints a failure and exits 0 passes. A failing one logs a deviation that holds `check` until it is cleared with what the plan's question 6 says its failure means, and `check` notes a study with no validity check run. The order is the planned runs, then the validity checks on their outputs, then the verdicts; a verdict computed before its validity check is read before the measure is known to work.
 - **One command, one receipt.** A script that runs every arm in one process hides which arm failed. Run per unit and arm when the plan's units are what the analysis counts.
 - **Read what a model arm actually received.** When agents are the arms, read the first turns of one transcript per batch, pilots included, before counting anything: an orchestration tool can add its own text to what a worker receives, such as the user's latest message framed as instructions, and a batch started at another moment can receive different text. Text the locked prompts do not hold is a difference in inputs; log it as a deviation for the user, even when both arms received it.
 
@@ -164,4 +173,4 @@ Before a paid run, give the user the count of runs and calls and the estimated c
 
 ### Analyze Only After The Check
 
-Run `study.mjs check` before the analysis. It refuses a plan that changed since its lock, an uncleared deviation, and a planned trial (each trial number up to the plan's count, run with `--trial`) with neither a receipt nor a cleared deviation covering it. It does not read the exit code of a derived step: a validity check that failed holds the analysis only once you log it as a deviation. Then compute every statistic with `stats.mjs` as the plan's decision rule says, register each claim with its numbers and the result file they come from, and run the checks in [Research Work](../SKILL.md#check-the-report), with `--plan` and `--results`.
+Run `study.mjs check` before the analysis. It refuses a plan that changed since its lock, an uncleared deviation, and a planned trial (each trial number up to the plan's count, run with `--trial`) with neither a receipt nor a cleared deviation covering it. It does not read the exit code of a derived step, except a validity check run with `--validity`, whose failure logged its own deviation; any other failed check holds the analysis only once you log it as a deviation. Then compute every statistic with `stats.mjs` as the plan's decision rule says, register each claim with its numbers and the result file they come from, and run the checks in [Research Work](../SKILL.md#check-the-report), with `--plan` and `--results`.

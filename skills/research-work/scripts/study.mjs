@@ -18,14 +18,15 @@ import {
 const USAGE = [
   "Usage: study.mjs lock <plan.md> --by <who locked it>",
   "       study.mjs amend <plan.md> --by <who> --reason <why the plan changed>",
-  "       study.mjs run <plan.md> [--unit <unit> --arm <arm> --trial <n>] [--input <path>]... [--output <path>]... -- <command> [args...]",
+  "       study.mjs run <plan.md> [--unit <unit> --arm <arm> --trial <n> | --validity] [--input <path>]... [--output <path>]... -- <command> [args...]",
   "       study.mjs deviation <plan.md> --what <what departed from the plan> --by <who logged it> [--unit <unit>] [--arm <arm>]",
   "       study.mjs clear <plan.md> <D-id> --by <who cleared it>",
   "       study.mjs check <plan.md> [--json]",
   "       study.mjs manifest <plan.md> [--json]",
   "",
   "The lock is <plan>.lock.json; receipts go to runs.jsonl and deviations to deviations.jsonl, beside the plan.",
-  "run exits with the command's own exit code; its receipt records it either way.",
+  "run exits with the command's own exit code; its receipt records it either way. --validity marks a validity check",
+  "(an oracle scores full, a do-nothing arm near zero); one that fails logs a deviation, which holds check until cleared.",
 ].join("\n");
 
 function fail(message) {
@@ -49,6 +50,7 @@ try {
       unit: { type: "string" },
       arm: { type: "string" },
       trial: { type: "string" },
+      validity: { type: "boolean", default: false },
       input: { type: "string", multiple: true, default: [] },
       output: { type: "string", multiple: true, default: [] },
       json: { type: "boolean", default: false },
@@ -87,13 +89,14 @@ if (action === "lock") {
   const entry = attempt(() => amendPlan(plan, { by: values.by, reason: values.reason }));
   console.log(`Amended ${plan} (sha256 ${entry.sha256}) by ${entry.by}: ${entry.reason}`);
 } else if (action === "run") {
-  const { receipt, stdout, stderr } = attempt(() =>
+  const { receipt, stdout, stderr, deviation } = attempt(() =>
     runStep(plan, command, {
       inputs: values.input,
       outputs: values.output,
       unit: values.unit,
       arm: values.arm,
       trial: values.trial,
+      validity: values.validity,
     }),
   );
   if (stdout) process.stdout.write(stdout);
@@ -102,6 +105,10 @@ if (action === "lock") {
   console.error(
     `study.mjs: receipt ${receipt.id}, ${outcome}, ${receipt.duration_ms} ms${receipt.plan_locked ? "" : " (plan not locked: a pilot or exploratory run)"}`,
   );
+  if (deviation)
+    console.error(
+      `study.mjs: the validity check failed; logged ${deviation.id}, which holds the analysis until cleared`,
+    );
   process.exit(receipt.exit_code ?? 1);
 } else if (action === "deviation") {
   const record = attempt(() =>

@@ -678,6 +678,40 @@ export function linearWeightedKappa(pairs) {
 }
 
 /**
+ * Weighted kappa on an ordered numeric scale, with linear (|a - b|) or quadratic ((a - b)²) disagreement weights
+ * (Cohen 1968; the quadratic form equals the intraclass correlation for two raters, Fleiss and Cohen 1973). It
+ * reports the raw agreement (the share of exact matches) beside kappa, since kappa alone hides how often the raters
+ * agree. Only pairs where both answers are numbers count. `kappa` is null when no disagreement is expected.
+ *
+ * @param {Array<[unknown, unknown]>} pairs
+ * @param {{weights?: "linear" | "quadratic"}} options
+ */
+export function weightedKappa(pairs, { weights = "linear" } = {}) {
+  if (!["linear", "quadratic"].includes(weights)) throw new Error('weights must be "linear" or "quadratic"');
+  const numeric = (value) => typeof value === "number" && Number.isFinite(value);
+  const rated = pairs.filter(([first, second]) => numeric(first) && numeric(second));
+  const items = rated.length;
+  const method = `${weights}-weighted-kappa`;
+  if (items === 0) return { method, weights, items, observed: null, kappa: null };
+  const cost = (a, b) => (weights === "linear" ? Math.abs(a - b) : (a - b) ** 2);
+  const first = new Map();
+  const second = new Map();
+  let disagreement = 0;
+  let exact = 0;
+  for (const [left, right] of rated) {
+    disagreement += cost(left, right);
+    if (left === right) exact += 1;
+    first.set(left, (first.get(left) ?? 0) + 1);
+    second.set(right, (second.get(right) ?? 0) + 1);
+  }
+  let expected = 0;
+  for (const [left, leftCount] of first)
+    for (const [right, rightCount] of second) expected += leftCount * rightCount * cost(left, right);
+  const kappa = expected === 0 ? null : 1 - disagreement / items / (expected / (items * items));
+  return { method, weights, items, observed: exact / items, kappa };
+}
+
+/**
  * Prevalence- and bias-adjusted kappa (Byrt, Bishop and Carlin 1993): (k · observed - 1) / (k - 1) for k
  * categories. Report it beside Cohen's kappa when one answer dominates, where kappa collapses although the raters
  * agree almost always. `categories` defaults to the number of distinct answers seen, and at least 2.

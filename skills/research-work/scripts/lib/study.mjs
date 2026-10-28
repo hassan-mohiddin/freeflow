@@ -18,7 +18,7 @@ import { createHash } from "node:crypto";
 import { accessSync, appendFileSync, constants, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
-import { parseMarkdown, planHypotheses, plannedRuns, planVariants, validate } from "./formats.mjs";
+import { parseMarkdown, planHypotheses, planHypothesesTable, plannedRuns, planVariants, validate } from "./formats.mjs";
 
 export const TAIL_BYTES = 2048;
 
@@ -155,8 +155,19 @@ export function amendPlan(planPath, { by, reason, at = now() }) {
   const current = hypothesesOf(text);
   // Any hypothesis added, removed or changed: a new or promoted confirmatory hypothesis was chosen after the data
   // as surely as a changed one.
+  // A lock written before the Method column holds no method: an absent method and none are the same, so adding an
+  // optional section to such a plan changes no hypothesis. Adding a method to a hypothesis after runs does change it.
+  const comparable = (hypothesis) =>
+    hypothesis === undefined
+      ? null
+      : JSON.stringify({
+          kind: hypothesis.kind,
+          metric: hypothesis.metric,
+          rule: hypothesis.rule,
+          method: hypothesis.method ?? null,
+        });
   const changed = [...new Set([...Object.keys(previous), ...Object.keys(current)])].filter(
-    (id) => JSON.stringify(previous[id]) !== JSON.stringify(current[id]),
+    (id) => comparable(previous[id]) !== comparable(current[id]),
   );
   const hashes = new Set(lockedHashes(lock));
   const studyRuns = readLedger(runLedgerPath(planPath)).filter(
@@ -306,10 +317,16 @@ export function recordRun(
  * Run one command of the study and append its receipt to the run ledger. The receipt names the plan hash and whether
  * that hash was locked when the command ran, so runs before the lock (pilots) stay apart from the study's runs.
  */
-export function runStep(planPath, argv, { inputs = [], outputs = [], unit, arm, trial, cwd = process.cwd() } = {}) {
+export function runStep(
+  planPath,
+  argv,
+  { inputs = [], outputs = [], unit, arm, trial, validity = false, cwd = process.cwd() } = {},
+) {
   if (argv.length === 0) throw new Error("run needs a command after --");
+  if (validity && unit !== undefined)
+    throw new Error("a validity check reads the study's outputs, so it is a derived step: run it without --unit");
   const state = lockState(planPath);
-  return recordRun(runLedgerPath(planPath), dirname(resolve(planPath)), argv, {
+  const run = recordRun(runLedgerPath(planPath), dirname(resolve(planPath)), argv, {
     inputs,
     outputs,
     cwd,
@@ -321,8 +338,18 @@ export function runStep(planPath, argv, { inputs = [], outputs = [], unit, arm, 
         plannedRuns(readFileSync(planPath, "utf8")).find((run) => run.unit === unit && run.arm === arm)?.split ?? null,
       plan_sha256: state.current,
       plan_locked: state.locked,
+      ...(validity ? { validity: true } : {}),
     },
   });
+  // A validity check that fails (the oracle does not score full, the do-nothing arm does not score near zero) holds
+  // the analysis as an uncleared deviation does, until someone clears it with what the plan says its failure means.
+  const failed = run.receipt.exit_code !== 0 || run.receipt.error;
+  if (validity && failed)
+    run.deviation = addDeviation(planPath, {
+      what: `validity check ${run.receipt.id} failed (${run.receipt.error ? `could not start: ${run.receipt.error}` : `exit ${run.receipt.exit_code ?? run.receipt.signal}`}): ${argv.join(" ")}`,
+      by: "study.mjs run --validity",
+    });
+  return run;
 }
 
 /** Log a departure from the plan. It holds the analysis until someone clears it. */
@@ -499,6 +526,18 @@ export function checkStudy(planPath) {
       notes.push(
         'the plan declares no models in the method (add "## Models in the method", or "none", in an amendment)',
       );
+    const hypotheses = planHypothesesTable(text);
+    if (hypotheses.confirmatory && !hypotheses.withMethod)
+      notes.push(
+        "the plan's Hypotheses name no Method, so no verdict is checked against the method that computed it (add the column by amendment before the runs that count; after them it makes the hypothesis exploratory)",
+      );
+    if (!has("Contamination"))
+      notes.push('the plan records no contamination routes (add "## Contamination" in an amendment)');
+    const runs = plannedRuns(text);
+    if (runs.length > 0 && runs.every((run) => run.budget === null))
+      notes.push("the plan states no budget per arm (add a Budget column to Planned runs in an amendment)");
+    if (!readLedger(runLedgerPath(planPath)).some((receipt) => receipt.validity))
+      notes.push("no validity check has run (study.mjs run --validity): the measure is not yet shown to work");
   }
   for (const [name, path] of [
     ["run ledger", runLedgerPath(planPath)],

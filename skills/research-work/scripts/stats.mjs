@@ -31,7 +31,7 @@ const FAMILIES = {
   agreement: {
     raters: ({ units }) => stats.raterAgreement(units),
     cohen: ({ pairs }) => stats.cohenKappa(pairs),
-    weighted: ({ pairs }) => stats.linearWeightedKappa(pairs),
+    weighted: ({ pairs, weights }) => stats.weightedKappa(pairs, { weights }),
     pabak: ({ pairs, categories }) => stats.pabak(pairs, { categories }),
     krippendorff: ({ units }) => stats.krippendorffAlpha(units),
   },
@@ -81,7 +81,7 @@ const FAMILIES = {
 };
 
 const USAGE = [
-  "Usage: stats.mjs <family> [--input <file|->] [--text]",
+  "Usage: stats.mjs <family> [--input <file|->] [--text] [--out <result.json>]",
   "       stats.mjs recheck <recheck.md> [--write]",
   "",
   "recheck computes each row of a Recheck Table from its Reported text (GRIM, GRIMMER, DEBIT, or p from the statistic",
@@ -130,6 +130,7 @@ try {
     options: {
       input: { type: "string", default: "-" },
       text: { type: "boolean", default: false },
+      out: { type: "string" },
       write: { type: "boolean", default: false },
       help: { type: "boolean" },
     },
@@ -203,4 +204,9 @@ try {
 } catch (error) {
   fail(error.message);
 }
+// The result records what computed it, so a register can show its verdict came from the method the plan locked.
+if (result && typeof result === "object" && !Array.isArray(result))
+  result = { ...result, computed_by: `stats.mjs ${family} ${input.method}` };
+// --out writes the JSON result to a file, so a study receipt can declare it as an output.
+if (parsed.values.out) writeFileSync(parsed.values.out, `${JSON.stringify(result, null, 2)}\n`);
 console.log(parsed.values.text ? summary(result) : JSON.stringify(result, null, 2));

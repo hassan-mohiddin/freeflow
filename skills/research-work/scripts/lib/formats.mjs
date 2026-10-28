@@ -4,6 +4,7 @@
 // JSONL, one record per line. The study's run ledger and deviation log are written by study.mjs (lib/study.mjs).
 
 import { CHECKS, recheck, statusCell } from "./recheck.mjs";
+import { numberInResults, numbersIn, resultCitations } from "./report.mjs";
 
 export const STATUSES = ["Draft", "Reviewed", "Accepted", "Rejected", "Superseded", "Retired"];
 export const RIGOR = ["check", "study", "publication"];
@@ -54,9 +55,31 @@ const BRIEF_SECTIONS = ["Question", "Reader and decision", "Claim sought", "Pred
 const LEDGER_COLUMNS = ["ID", "Source", "Pin", "Lookup", "Checked", "Read", "Supports"];
 const REGISTER_COLUMNS = ["ID", "Claim", "Numbers", "Source", "Level", "Kind", "Scope", "Limit"];
 const HYPOTHESIS_COLUMNS = ["ID", "Hypothesis", "Kind", "Metric", "Decision rule"];
+// The Method column, optional so plans locked before it existed stay valid: the stats.mjs family and method that
+// computes the decision rule ("paired mcnemar"), or "computed: <how>" for a quantity computed another way.
+const HYPOTHESIS_COLUMNS_WITH_METHOD = [...HYPOTHESIS_COLUMNS, "Method"];
+// A test and the correction applied to it are listed in order, separated by ";": "paired mcnemar; correct holm".
+const METHOD =
+  /^(?:[a-z]+(?:-[a-z]+)* [a-z0-9]+(?:-[a-z0-9]+)*(?:\s*;\s*[a-z]+(?:-[a-z]+)* [a-z0-9]+(?:-[a-z0-9]+)*)*|computed: \S.*)$/;
 const RUN_COLUMNS = ["Unit", "Arm", "Trials"];
 // An optional fourth column says which split a planned unit belongs to.
 const RUN_COLUMNS_WITH_SPLIT = [...RUN_COLUMNS, "Split"];
+// Budget, optional: the tuning effort and compute an arm gets, or "control" for a do-nothing or oracle arm.
+const RUN_COLUMN_SETS = [
+  RUN_COLUMNS,
+  RUN_COLUMNS_WITH_SPLIT,
+  [...RUN_COLUMNS, "Budget"],
+  [...RUN_COLUMNS_WITH_SPLIT, "Budget"],
+];
+const CONTAMINATION_COLUMNS = ["Route", "Control"];
+// The ways a measured answer can leak into what is measured, each with its control or "unknown".
+export const CONTAMINATION_ROUTES = [
+  "training data",
+  "prompts and examples",
+  "tuning",
+  "tools and web",
+  "grader and harness",
+];
 const VARIANT_COLUMNS = ["ID", "Variant", "What it changes"];
 const MODEL_COLUMNS = ["Role", "Model", "Snapshot", "Accessed"];
 export const SPLITS = ["tuning", "held-out"];
@@ -229,21 +252,25 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
         "",
         number === 3
           ? "<the prediction: the primary metric, the smallest effect worth detecting, and the power computation (stats.mjs power) that sized the study, or why none applies>"
-          : "<the answer, before any data>",
+          : number === 4
+            ? "<how it is done today; the baseline and a trivial baseline; the tuning and compute each arm gets; the baseline's number reproduced here beside its published one>"
+            : number === 7
+              ? "<the noise floor, measured on a frozen pilot; each source of variance and how it is controlled: prompt format and wording, seeds and sampling, environment and versions, run order>"
+              : "<the answer, before any data>",
         "",
       );
     lines.push(
       "## Hypotheses",
       "",
-      `| ${HYPOTHESIS_COLUMNS.join(" | ")} |`,
-      `| ${HYPOTHESIS_COLUMNS.map(() => "---").join(" | ")} |`,
-      "| C1 | <what the study tests> | confirmatory | <the primary metric> | <the rule that decides it> |",
+      `| ${HYPOTHESIS_COLUMNS_WITH_METHOD.join(" | ")} |`,
+      `| ${HYPOTHESIS_COLUMNS_WITH_METHOD.map(() => "---").join(" | ")} |`,
+      "| C1 | <what the study tests> | confirmatory | <the primary metric> | <the rule that decides it> | <the stats.mjs family and method that computes it, such as paired mcnemar, or computed: how> |",
       "",
       "## Planned runs",
       "",
-      `| ${RUN_COLUMNS.join(" | ")} |`,
-      `| ${RUN_COLUMNS.map(() => "---").join(" | ")} |`,
-      "| <unit> | <arm> | <trials> |",
+      `| ${[...RUN_COLUMNS, "Budget"].join(" | ")} |`,
+      `| ${[...RUN_COLUMNS, "Budget"].map(() => "---").join(" | ")} |`,
+      "| <unit> | <arm> | <trials> | <the tuning effort and compute this arm gets, the same for every arm compared; control for a do-nothing or oracle arm> |",
       "",
       ...(rigor === "check"
         ? []
@@ -259,6 +286,12 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
             `| ${MODEL_COLUMNS.join(" | ")} |`,
             `| ${MODEL_COLUMNS.map(() => "---").join(" | ")} |`,
             "| <judge, annotator, generator or subject> | <the model> | <its exact snapshot> | <YYYY-MM-DD> |",
+            "",
+            "## Contamination",
+            "",
+            `| ${CONTAMINATION_COLUMNS.join(" | ")} |`,
+            `| ${CONTAMINATION_COLUMNS.map(() => "---").join(" | ")} |`,
+            ...CONTAMINATION_ROUTES.map((route) => `| ${route} | <how this route is controlled, or unknown> |`),
             "",
           ]),
       "## Amendments",
@@ -391,7 +424,12 @@ export function planHypotheses(text) {
   return new Map(
     (table?.rows ?? []).map((row) => [
       row.cells.ID,
-      { kind: row.cells.Kind, metric: row.cells.Metric, rule: row.cells["Decision rule"] },
+      {
+        kind: row.cells.Kind,
+        metric: row.cells.Metric,
+        rule: row.cells["Decision rule"],
+        method: row.cells.Method && row.cells.Method !== "-" ? row.cells.Method : null,
+      },
     ]),
   );
 }
@@ -422,6 +460,25 @@ function pastDate(text) {
 
 /** The plan's optional sections, checked when present: each is a table with its columns, or the word "none". */
 function validateOptionalPlanSections(parsed, problems) {
+  const contamination = sectionNamed(parsed, "Contamination");
+  if (contamination) {
+    const table = parseTable(contamination);
+    if (!table || table.columns.join("|") !== CONTAMINATION_COLUMNS.join("|"))
+      problems.push(
+        `the Contamination section must be one table with the columns: ${CONTAMINATION_COLUMNS.join(", ")}`,
+      );
+    else {
+      const routes = table.rows.map((row) => String(row.cells.Route ?? "").toLowerCase());
+      for (const route of CONTAMINATION_ROUTES)
+        if (!routes.includes(route)) problems.push(`the Contamination table has no row for "${route}"`);
+      for (const route of routes)
+        if (!CONTAMINATION_ROUTES.includes(route))
+          problems.push(`the Contamination table's Route "${route}" is not one of: ${CONTAMINATION_ROUTES.join(", ")}`);
+      for (const { cells } of table.rows)
+        if (!cells.Control || cells.Control === "-" || placeholder(cells.Control))
+          problems.push(`Contamination row ${cells.Route}: Control must say how the route is controlled, or unknown`);
+    }
+  }
   for (const [name, columns] of [
     ["Analysis variants", VARIANT_COLUMNS],
     ["Models in the method", MODEL_COLUMNS],
@@ -474,7 +531,25 @@ export function plannedRuns(text) {
     arm: row.cells.Arm,
     trials: Number(row.cells.Trials),
     split: row.cells.Split ?? null,
+    budget: row.cells.Budget ?? null,
   }));
+}
+
+/** Whether a plan's Hypotheses table has the Method column, and whether any hypothesis is confirmatory. */
+export function planHypothesesTable(text) {
+  const table = sectionTable(parseMarkdown(text), "Hypotheses");
+  return {
+    withMethod: table?.columns.includes("Method") ?? false,
+    confirmatory: (table?.rows ?? []).some((row) => row.cells.Kind === "confirmatory"),
+  };
+}
+
+/** Whether a plan lists a model whose labels or verdicts feed the analysis: a judge or an annotator. */
+export function planLabelsByModel(text) {
+  const lines = sectionNamed(parseMarkdown(text), "Models in the method");
+  return (lines ? (parseTable(lines)?.rows ?? []) : []).some((row) =>
+    ["judge", "annotator"].includes(String(row.cells.Role ?? "").toLowerCase()),
+  );
 }
 
 function validatePlan(parsed, problems) {
@@ -491,8 +566,11 @@ function validatePlan(parsed, problems) {
   const hypotheses = sectionTable(parsed, "Hypotheses");
   if (!hypotheses) problems.push(`missing "## Hypotheses" with the table: ${HYPOTHESIS_COLUMNS.join(", ")}`);
   else {
-    if (hypotheses.columns.join("|") !== HYPOTHESIS_COLUMNS.join("|"))
-      problems.push(`the Hypotheses table's columns must be, in order: ${HYPOTHESIS_COLUMNS.join(", ")}`);
+    const withMethod = hypotheses.columns.join("|") === HYPOTHESIS_COLUMNS_WITH_METHOD.join("|");
+    if (hypotheses.columns.join("|") !== HYPOTHESIS_COLUMNS.join("|") && !withMethod)
+      problems.push(
+        `the Hypotheses table's columns must be, in order: ${HYPOTHESIS_COLUMNS.join(", ")}, and optionally Method`,
+      );
     if (hypotheses.rows.length === 0) problems.push("the Hypotheses table has no rows");
     const seen = new Set();
     for (const { cells } of hypotheses.rows) {
@@ -506,6 +584,10 @@ function validatePlan(parsed, problems) {
       }
       if (cells.Kind === "confirmatory" && [cells.Metric, cells["Decision rule"]].some((cell) => !cell || cell === "-"))
         problems.push(`${where}: a confirmatory hypothesis names its metric and its decision rule`);
+      if (withMethod && cells.Kind === "confirmatory" && !METHOD.test(cells.Method ?? ""))
+        problems.push(
+          `${where}: Method names the stats.mjs family and method that computes the rule (such as paired mcnemar), or "computed: <how>"`,
+        );
     }
   }
   // The plan's own text: the twelve answers and the decision rules, where a stop rule or a size would be stated.
@@ -538,10 +620,11 @@ function validatePlan(parsed, problems) {
   const runs = sectionTable(parsed, "Planned runs");
   if (!runs) problems.push(`missing "## Planned runs" with the table: ${RUN_COLUMNS.join(", ")}`);
   else {
-    const withSplit = runs.columns.join("|") === RUN_COLUMNS_WITH_SPLIT.join("|");
-    if (runs.columns.join("|") !== RUN_COLUMNS.join("|") && !withSplit)
+    const withSplit = runs.columns.includes("Split");
+    const withBudget = runs.columns.includes("Budget");
+    if (!RUN_COLUMN_SETS.some((set) => set.join("|") === runs.columns.join("|")))
       problems.push(
-        `the Planned runs table's columns must be, in order: ${RUN_COLUMNS.join(", ")}, and optionally Split`,
+        `the Planned runs table's columns must be, in order: ${RUN_COLUMNS.join(", ")}, then optionally Split, then optionally Budget`,
       );
     if (runs.rows.length === 0) problems.push("the Planned runs table has no rows");
     for (const { cells } of runs.rows) {
@@ -552,7 +635,19 @@ function validatePlan(parsed, problems) {
         problems.push(`${where}: Trials must be a whole number of at least 1`);
       if (withSplit && !SPLITS.includes(cells.Split))
         problems.push(`${where}: Split must be one of: ${SPLITS.join(", ")}`);
+      if (withBudget && (!cells.Budget || cells.Budget === "-" || placeholder(cells.Budget)))
+        problems.push(
+          `${where}: Budget must say the tuning and compute this arm gets, control, or not compared: <why>`,
+        );
     }
+    // Equal budgets: unequal tuning alone has reversed published rankings, so the arms a confirmatory hypothesis
+    // compares get the same tuning and compute. A do-nothing or oracle arm is marked control.
+    const outside = (budget) => /^control$/i.test(budget.trim()) || /^not compared:\s*\S/i.test(budget.trim());
+    const budgets = new Set(runs.rows.map((row) => row.cells.Budget).filter((budget) => budget && !outside(budget)));
+    if (withBudget && comparison && budgets.size > 1)
+      problems.push(
+        `the arms get different budgets (${[...budgets].join("; ")}); a confirmatory comparison gives every arm it compares the same tuning and compute, and marks a do-nothing or oracle arm as control, and an arm outside the comparison (a baseline at its published settings) as "not compared: <why>"`,
+      );
   }
   validateOptionalPlanSections(parsed, problems);
   if (!parsed.sections.has("Amendments")) problems.push('missing section "## Amendments" ("none" until the first)');
@@ -612,7 +707,8 @@ export function judgeCounts(text) {
 }
 
 /** The judge records a register row's Source cites as `judge:<path>`. */
-export const judgeCitations = (source) => [...source.matchAll(/\bjudge:(\S+?)(?=[;,]|\s|$)/g)].map((match) => match[1]);
+export const judgeCitations = (source) =>
+  [...source.matchAll(/\bjudge:(\S+?)(?=[;,]|\s|$)/g)].map((match) => match[1]).filter((path) => path !== "none");
 
 const PIN = {
   doi: /^doi:10\.\d{4,9}\/\S+$/i,
@@ -713,7 +809,20 @@ function validateRegister(parsed, problems, { ledger, plan, judges, searches } =
         problems.push(
           `${where}: an amendment changed ${cells.ID} after study runs existed, so it is exploratory now (at most L3)`,
         );
+      else if (hypothesis.method && !hypothesis.method.startsWith("computed:") && plan.resultFile)
+        problems.push(...methodProblems(where, cells, hypothesis.method, plan.resultFile));
     }
+    // A model that judges or annotates what the analysis counts is a judge: a claim on the study's results cites its
+    // validation record, or says no model's labels feed it.
+    if (
+      plan?.labelledByModel &&
+      levelRank(cells.Level) > levelRank("L1") &&
+      resultCitations(cells.Source ?? "").length > 0 &&
+      !/\bjudge:\S/.test(cells.Source ?? "")
+    )
+      problems.push(
+        `${where}: the plan lists a model that judges or annotates, so a claim on the study's results cites its judge record (judge:<record>), or judge:none when no model's labels feed it; without either it is at most L1`,
+      );
     const cited = searchCitations(cells.Source ?? "");
     if (isAbsenceClaim(cells.Claim ?? "") && cited.length === 0)
       problems.push(
@@ -753,6 +862,51 @@ function validateRegister(parsed, problems, { ledger, plan, judges, searches } =
 }
 
 const claimIds = (cell) => cell.match(/\bC\d+\b/g) ?? [];
+
+/**
+ * The verdict must come from the method the locked rule names: when the Method lists a test and the correction
+ * applied to it, the verdict is the corrected one: every result file that holds the claim's numbers (every cited one,
+ * when none does) records `computed_by` as a listed part, at least one of them as the last, and a receipt of the
+ * locked study that ran stats.mjs wrote each as it is now. `resultFile(path)` gives `{ numbers, computedBy, receipt }` for a path
+ * relative to the register, or null when it cannot be read.
+ */
+function methodProblems(where, cells, method, resultFile) {
+  const parts = method.split(";").map((part) => `stats.mjs ${part.trim()}`);
+  const verdict = parts.at(-1);
+  const named = parts.length > 1 ? `${parts.join(", then ")} (the verdict is ${verdict})` : verdict;
+  const files = resultCitations(cells.Source ?? "")
+    .map((file) => ({ path: file.path, ...(resultFile(file.path) ?? { missing: true }) }))
+    .filter((file) => !file.missing);
+  const wanted = numbersIn(cells.Numbers ?? "");
+  const carrying = files.filter((file) => wanted.some((number) => numberInResults(number, file.numbers)));
+  const checked = carrying.length > 0 ? carrying : files;
+  const problems = [];
+  if (checked.length === 0)
+    return [
+      `${where}: the locked plan decides ${cells.ID} with ${named}, and Source cites no result file to check it against`,
+    ];
+  for (const file of checked) {
+    if (file.computedBy.length === 0)
+      problems.push(
+        `${where}: ${file.path} records no computed_by, so the method behind ${cells.ID}'s verdict is unknown; compute it with stats.mjs`,
+      );
+    else if (file.computedBy.some((value) => !parts.includes(value)))
+      problems.push(
+        `${where}: the locked plan decides ${cells.ID} with ${named}, but ${file.path} was computed by ${[...new Set(file.computedBy)].join(", ")}`,
+      );
+    else if (file.receipt === null)
+      problems.push(
+        `${where}: no receipt of the locked study wrote ${file.path} as it is now by running stats.mjs; run it through study.mjs run after the lock (node stats.mjs <family> --input <file> --out ${file.path}), declaring the file as --output`,
+      );
+  }
+  // The verdict itself (the correction, under a corrected rule) must be among the files that carry the numbers; the
+  // uncorrected test may sit beside it, as when a register states both the raw and the adjusted p.
+  if (problems.length === 0 && !checked.some((file) => file.computedBy.includes(verdict)))
+    problems.push(
+      `${where}: the locked plan decides ${cells.ID} with ${named}, but no cited result file holding its numbers was computed by ${verdict}`,
+    );
+  return problems;
+}
 
 /** Every analysis variant a plan lists must be reported: named in some row's Claim, Scope or Limit. */
 function variantProblems(rows, variants) {
