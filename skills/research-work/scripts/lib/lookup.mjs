@@ -1,7 +1,7 @@
 // Online lookups for the source ledger, run only on request and cached: a DOI through Crossref (its record and any
 // retraction or correction notice that updates it), an arXiv ID through arXiv's API, and a URL's page. A
 // lookup that finds nothing makes a source unresolved, never fabricated; only an identifier that resolves to a
-// different work refutes it. A row with no identifier can be searched by its title (OpenAlex), which yields a candidate
+// different work refutes it. A row with no identifier can be searched by its title (Crossref, then arXiv), which yields a candidate
 // identifier, never a verdict; a dead link is looked up in the Wayback Machine. Requests to one host are spaced.
 // Nothing here edits the ledger: the result says what the Lookup column should read.
 

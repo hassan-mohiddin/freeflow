@@ -45,6 +45,8 @@ Revise the definition before running it. After a run, a fault found in a definit
 
 When an item cannot be met, say which, and treat the verdict as weaker evidence rather than presenting it as if the item held.
 
+Research Work's citation-support reader, which answers the packets `claims.mjs support` builds ([claims](../../research-work/references/claims.md#check-that-citations-support-claims)), is a judge under this contract: record it as any other, and without a passing record its answers are advisory, weighed when the author settles each one.
+
 ### Record And Do For Every Judge
 
 1. **Identity:** the model ID, provider, model family, thinking or effort setting, prompt hash, date, and anything loaded into the judge that can change what it is sent, such as an extension that rewrites the system prompt.

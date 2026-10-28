@@ -257,9 +257,14 @@ if (command === "run") {
       problems.push(`${pages} pages, over the limit of ${values["max-pages"]}`);
   }
   if (values["max-words"]) {
-    if (words === null) notChecked.push("words (pdftotext is not on PATH)");
+    if (words === null) notChecked.push("words (pdftotext is not on PATH, or could not read the file)");
     else if (words > Number(values["max-words"]))
       problems.push(`${words} words, over the limit of ${values["max-words"]}`);
+  }
+  // With no limit and no required section, the counts are all it checks: one it could not read is not checked.
+  if (!values["max-pages"] && !values["max-words"] && values.require.length === 0) {
+    if (pages === null) notChecked.push("pages (no pdfinfo, and no page objects found in the file)");
+    if (words === null) notChecked.push("words (pdftotext is not on PATH, or could not read the file)");
   }
   if (values.require.length > 0) {
     if (!values.source) fail("--require needs --source, the Markdown the PDF was built from");

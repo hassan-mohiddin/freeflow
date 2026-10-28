@@ -54,6 +54,10 @@ Propose a rigor level with the reason, and let the user choose:
 
 When unsure between two, propose the lower one and say what would raise it. Overdoing costs as much as underdoing: a check run at publication rigor spends the user's time on ledgers nobody reads.
 
+## A Premise The Sources Do Not Fit
+
+When the sources show that the brief assumes something false (it asks for randomized trials and the field has none, or for a comparison nobody ran), do not answer a different question in silence. Register what the sources do show as a claim, put the mismatch in the report's Limits, and tell the user; when they can answer, ask whether to keep the question or change it, which is a new agreement.
+
 ## Agree It
 
-Send the brief to the user through Discuss Work's agreement, with your defaults marked, and wait. Record the agreed brief's status as `Accepted` with its Source naming the user's reply. A change to the question later is a new agreement, not an edit you make on your own; record the old and new question in the brief's Constraints or a note, so the report can say which question it answers.
+Send the brief to the user through Discuss Work's agreement, with your defaults marked, and wait. The brief's open choices (the question you proposed, the claim sought, the scope, the rigor) are the user's: each is a plain item in the task's decision list, as Discuss Work's [Build The Decision List](../../discuss-work/SKILL.md#build-the-decision-list) keeps it, so the agreement shows it with your default. Record the agreed brief's status as `Accepted` with its Source naming the user's reply. A change to the question later is a new agreement, not an edit you make on your own; record the old and new question in the brief's Constraints or a note, so the report can say which question it answers.

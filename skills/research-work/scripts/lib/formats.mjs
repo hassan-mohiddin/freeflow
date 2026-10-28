@@ -3,8 +3,13 @@
 // its enforcement. Markdown artifacts carry Write Docs' header (Type, Status, Owner, Source); the search ledger is
 // JSONL, one record per line. The study's run ledger and deviation log are written by study.mjs (lib/study.mjs).
 
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+
 import { CHECKS, recheck, statusCell } from "./recheck.mjs";
 import { numberInResults, numbersIn, resultCitations } from "./report.mjs";
+import { cohenKappa } from "./stats.mjs";
 
 export const STATUSES = ["Draft", "Reviewed", "Accepted", "Rejected", "Superseded", "Retired"];
 export const RIGOR = ["check", "study", "publication"];
@@ -92,6 +97,15 @@ export const CHOICES = ["will address", "won't", "not on point"];
 export const REBUTTAL_STAGES = ["drafted", "submitted"];
 const EVIDENCE_COLUMNS = ["Source", "Design", "n", "Result", "Failure condition", "Level"];
 const EVIDENCE_COLUMNS_WITH_WEAKNESS = [...EVIDENCE_COLUMNS, "Weakness"];
+// Risk of bias, optional: the tool that assessed it for the study's design, and the tool's overall judgment.
+const BIAS_COLUMNS = ["Bias tool", "Risk of bias"];
+const EVIDENCE_COLUMN_SETS = [
+  EVIDENCE_COLUMNS,
+  EVIDENCE_COLUMNS_WITH_WEAKNESS,
+  [...EVIDENCE_COLUMNS, ...BIAS_COLUMNS],
+  [...EVIDENCE_COLUMNS_WITH_WEAKNESS, ...BIAS_COLUMNS],
+];
+export const RISK_OF_BIAS = ["low", "some concerns", "high", "not assessed"];
 const RECHECK_COLUMNS = ["ID", "Source", "Where", "Check", "Reported", "Status"];
 const JUDGE_FIELDS = [
   "Judge",
@@ -700,10 +714,14 @@ function validateJudge(parsed, problems) {
   }
 }
 
-/** Whether a judge validation record lets the judge's verdicts count: valid, and its Result is pass. */
+/**
+ * Whether a judge validation record lets the judge's verdicts count: valid, and its Result is pass. `rubricSha256` is
+ * the hash of the rubric it was validated on, so a use of the judge can be held to that rubric.
+ */
 export function judgeCounts(text) {
   const { valid, problems } = validate("judge-validation", text);
-  return { counts: valid && parseMarkdown(text).header.Result === "pass", problems };
+  const { header } = parseMarkdown(text);
+  return { counts: valid && header.Result === "pass", problems, rubricSha256: header["Rubric sha256"] };
 }
 
 /** The judge records a register row's Source cites as `judge:<path>`. */
@@ -774,8 +792,21 @@ const isAbsenceClaim = (claim) => ABSENCE.some((pattern) => pattern.test(claim))
 
 const searchCitations = (cell) => [...cell.matchAll(/\bsearch:(Q\d+)\b/g)].map((match) => match[1]);
 
-function validateRegister(parsed, problems, { ledger, plan, judges, searches } = {}) {
+/**
+ * Source IDs as whole entries of a Source cell (S3, S3:path for code, or the (S3) of a quote), not the S3 inside a
+ * file name such as no-S3.json.
+ */
+function sourceIds(cell) {
+  return (cell ?? "")
+    .split(/[;,\s]+/)
+    .map((entry) => /^\(?(S\d+)(?::|\)?$)/.exec(entry)?.[1])
+    .filter(Boolean);
+}
+
+function validateRegister(parsed, problems, { ledger, plan, judges, searches, rechecks } = {}) {
   validateHeader(parsed, "Claims Register", problems);
+  // A recheck row the table cannot read caps nothing, so the table's own problems are the register's.
+  for (const problem of rechecks?.problems ?? []) problems.push(`${rechecks.file}: ${problem}`);
   const table = validateTable(parsed, REGISTER_COLUMNS, problems);
   if (!table) return;
   const seen = new Set();
@@ -841,8 +872,19 @@ function validateRegister(parsed, problems, { ledger, plan, judges, searches } =
           );
       }
     }
+    // A source whose printed numbers cannot all be as printed (a recheck mismatch or decision error) caps the claims
+    // resting on it at L1.
+    if (rechecks && levelRank(cells.Level) > levelRank("L1"))
+      for (const id of new Set(sourceIds(cells.Source)))
+        for (const row of rechecks.flags.get(id) ?? [])
+          // A claim that cites the source for something else, or states the recheck's finding, names the row in its
+          // Limit ("does not rest on N6").
+          if (!new RegExp(`\\b${row.id}\\b`).test(cells.Limit ?? ""))
+            problems.push(
+              `${where}: ${id} has recheck row ${row.id} (${row.status}: ${row.where}), so a claim resting on it is at most L1; it is ${cells.Level}`,
+            );
     if (!ledger) continue;
-    for (const id of cells.Source.match(/\bS\d+\b/g) ?? []) {
+    for (const id of sourceIds(cells.Source)) {
       const source = ledger.get(id);
       if (!source) {
         problems.push(`${where}: Source names ${id}, which the source ledger does not have`);
@@ -864,7 +906,7 @@ function validateRegister(parsed, problems, { ledger, plan, judges, searches } =
   if (ledger) {
     const citing = new Map();
     for (const { cells } of table.rows)
-      for (const id of new Set(cells.Source.match(/\bS\d+\b/g) ?? [])) {
+      for (const id of new Set(sourceIds(cells.Source))) {
         if (!citing.has(id)) citing.set(id, new Set());
         citing.get(id).add(cells.ID);
       }
@@ -1139,25 +1181,68 @@ export function newRequests(text) {
     .map((row) => row.cells.ID);
 }
 
+// RoB 2 is built for randomized trials and ROBINS-I (or ROBINS-E) for studies that did not randomize; a tool named
+// against the other kind of design, as the Design cell's leading words name it, is a slip. Only the words before the
+// first ",", ";", "(" or " with " name the design, so "randomized trial with an observational follow-up" is a trial.
+const designKind = (design) => (design ?? "").split(/[,;(]| with /i)[0];
+const NOT_RANDOMIZED = /\bnon-?randomi[sz]ed\b|\bobservational\b|\bcohort\b|\bcase-control\b|\bcross-sectional\b/i;
+const RANDOMIZED = /\brandomi[sz]ed\b|\bRCT\b/i;
+
 /** An evidence table for a literature review: one row per study, with its level capped by how its source was checked. */
 function validateEvidence(parsed, problems, { ledger } = {}) {
   validateHeader(parsed, "Evidence Table", problems);
   headerPlaceholders(parsed, problems);
-  const columns = parseTable(parsed.lines)?.columns.includes("Weakness")
-    ? EVIDENCE_COLUMNS_WITH_WEAKNESS
-    : EVIDENCE_COLUMNS;
+  const found = parseTable(parsed.lines)?.columns ?? [];
+  const columns =
+    EVIDENCE_COLUMN_SETS.find((set) => set.join("|") === found.join("|")) ??
+    (found.includes("Weakness") ? EVIDENCE_COLUMNS_WITH_WEAKNESS : EVIDENCE_COLUMNS);
   const table = validateTable(parsed, columns, problems);
+  if (
+    BIAS_COLUMNS.some((column) => found.includes(column)) &&
+    !BIAS_COLUMNS.every((column) => columns.includes(column))
+  )
+    problems.push(
+      `risk of bias takes both columns, "Bias tool" then "Risk of bias", after Level (and Weakness, when present)`,
+    );
   for (const { line, cells } of table?.rows ?? []) {
     const where = `line ${line}`;
-    if (columns === EVIDENCE_COLUMNS_WITH_WEAKNESS && (!cells.Weakness || placeholder(cells.Weakness)))
+    if (columns.includes("Weakness") && (!cells.Weakness || placeholder(cells.Weakness)))
       problems.push(`${where}: Weakness must be filled: the study's main weakness, or "-" when none stands out`);
     if (!/^S\d+$/.test(cells.Source)) problems.push(`${where}: Source must be a source-ledger ID such as S3`);
     for (const column of ["Design", "Result", "Failure condition"])
       if (!cells[column] || placeholder(cells[column])) problems.push(`${where}: ${column} must be filled`);
     if (cells.n !== "-" && !/^[1-9]\d*$/.test(cells.n)) problems.push(`${where}: n must be a whole number, or "-"`);
     if (!LEVELS.includes(cells.Level)) problems.push(`${where}: Level must be one of: ${LEVELS.join(", ")}`);
+    if (columns.includes("Risk of bias")) {
+      const tool = cells["Bias tool"] ?? "";
+      const risk = cells["Risk of bias"];
+      if (!RISK_OF_BIAS.includes(risk))
+        problems.push(`${where}: Risk of bias must be one of: ${RISK_OF_BIAS.join(", ")}`);
+      if (tool === "" || placeholder(tool))
+        problems.push(
+          `${where}: Bias tool must name the tool that assessed it (RoB 2, ROBINS-I), or "-" when not assessed`,
+        );
+      else if (tool === "-" && RISK_OF_BIAS.includes(risk) && risk !== "not assessed")
+        problems.push(`${where}: a risk of bias judged ${risk} names the tool that judged it`);
+      else if (tool !== "-" && risk === "not assessed")
+        problems.push(`${where}: Risk of bias is not assessed, so Bias tool is "-"`);
+      else if (/\bRoB ?2\b/i.test(tool) && NOT_RANDOMIZED.test(designKind(cells.Design)))
+        problems.push(`${where}: RoB 2 is for randomized trials, and the design reads "${cells.Design}"; use ROBINS-I`);
+      else if (
+        /\bROBINS-[IE]\b/i.test(tool) &&
+        RANDOMIZED.test(designKind(cells.Design).replace(/\bnon-?randomi[sz]ed\b/gi, ""))
+      )
+        problems.push(
+          `${where}: ${tool} is for studies that did not randomize, and the design reads "${cells.Design}"; use RoB 2`,
+        );
+    }
     const source = ledger?.get(cells.Source);
     if (ledger && !source) problems.push(`${where}: the source ledger has no ${cells.Source}`);
+    // An abstract shows little of a study's weaknesses, so a weakness judged from one says where it came from.
+    if (source?.Read === "abstract" && columns.includes("Weakness") && !/\(read: abstract\)/.test(cells.Weakness ?? ""))
+      problems.push(
+        `${where}: ${cells.Source} was read only at its abstract, so Weakness says so: "not assessed (read: abstract)", or the weakness the abstract shows, marked "(read: abstract)"`,
+      );
     const cap = source && LEVEL_CAP[source.Checked];
     if (cap && levelRank(cells.Level) > levelRank(cap))
       problems.push(
@@ -1197,10 +1282,102 @@ function validateRecheck(parsed, problems, { ledger } = {}) {
   }
 }
 
-/** One parsed line of a search ledger, or a problem with it. */
-function validateSearch(text, problems) {
+/**
+ * The rows of a recheck table whose computation is a mismatch or a decision error, by source: each with its `id`,
+ * its `status` and its `where`. The status is computed from the Reported text, not read from the Status cell.
+ */
+export function recheckFlags(text) {
+  const flags = new Map();
+  for (const { cells } of parseTable(parseMarkdown(text).lines)?.rows ?? []) {
+    if (!CHECKS.includes(cells.Check) || !/^S\d+$/.test(cells.Source ?? "")) continue;
+    const { status } = recheck(cells.Check, cells.Reported ?? "");
+    if (status === "mismatch" || status === "decision error")
+      flags.set(cells.Source, [...(flags.get(cells.Source) ?? []), { id: cells.ID, status, where: cells.Where }]);
+  }
+  return flags;
+}
+
+// The stages a hit is screened at. A criterion tagged full-text needs the full text to apply, so it cannot exclude a
+// hit at the title-and-abstract stage; a title-abstract criterion applies at either stage.
+export const SCREENING_STAGES = ["title-abstract", "full-text"];
+const CITATION_DIRECTIONS = ["backward", "forward"];
+const SCREEN_STATES = ["included", "excluded"];
+
+/**
+ * The files a search ledger's model screeners cite, read relative to the ledger at `path`: `judges` maps each judge
+ * validation record to `judgeCounts` of it, and `rubrics` each rubric to its sha256; a file that cannot be read maps
+ * to undefined.
+ */
+export function screenerFiles(path, text) {
+  const judges = new Map();
+  const rubrics = new Map();
+  const file = (cited) => resolve(dirname(path), cited);
+  for (const raw of text.split(/\r?\n/)) {
+    let record;
+    try {
+      record = JSON.parse(raw);
+    } catch {
+      continue; // not JSON: validation reports it
+    }
+    if (record?.kind !== "screener" || typeof record.model !== "string") continue;
+    if (typeof record.judge === "string" && !judges.has(record.judge))
+      judges.set(
+        record.judge,
+        existsSync(file(record.judge)) ? judgeCounts(readFileSync(file(record.judge), "utf8")) : undefined,
+      );
+    if (typeof record.rubric === "string" && !rubrics.has(record.rubric))
+      rubrics.set(
+        record.rubric,
+        existsSync(file(record.rubric))
+          ? createHash("sha256")
+              .update(readFileSync(file(record.rubric)))
+              .digest("hex")
+          : undefined,
+      );
+  }
+  return { judges, rubrics };
+}
+
+const lineList = (lines) => (lines.length > 5 ? `${lines.slice(0, 5).join(", ")}, …` : lines.join(", "));
+
+/**
+ * Parse and check a search ledger: its queries, the screening criteria with their stage, the screeners (a person,
+ * or a model with the rubric it was given and the judge validation record that lets its decisions count), and the
+ * hits. `judges` and `rubrics` are as `screenerFiles` returns them; a file not in its map is treated as unread.
+ */
+function validateSearch(text, problems, { judges, rubrics } = {}) {
   const queries = new Set();
+  const returned = new Map();
+  const criteria = new Map();
+  const screeners = new Map();
   const records = [];
+  // The lines of the hits each model screener decided, so its record is checked once for all of them.
+  const byModel = new Map();
+  const usesScreener = (line, id, where) => {
+    const screener = screeners.get(id);
+    if (!screener) {
+      problems.push(`line ${line}: ${where} names screener ${id}, which no earlier line defines`);
+      return null;
+    }
+    if (screener.model) byModel.set(id, [...(byModel.get(id) ?? []), line]);
+    return screener;
+  };
+  const checkCriterion = (line, record, criterion, state, where) => {
+    const found = criteria.get(criterion);
+    if (!found) {
+      problems.push(`line ${line}: ${where} cites criterion ${criterion}, which no earlier line defines`);
+      return;
+    }
+    if (state !== "excluded") problems.push(`line ${line}: ${where} cites a criterion, but only an exclusion has one`);
+    if (!SCREENING_STAGES.includes(record.stage))
+      problems.push(
+        `line ${line}: ${where} cites criterion ${criterion}, so the hit needs the stage it was screened at`,
+      );
+    else if (found.stage === "full-text" && record.stage === "title-abstract")
+      problems.push(
+        `line ${line}: ${where} is excluded at title-abstract by ${criterion}, a full-text criterion, which the title and abstract cannot settle`,
+      );
+  };
   text.split(/\r?\n/).forEach((raw, index) => {
     const line = index + 1;
     if (raw.trim() === "") return;
@@ -1216,50 +1393,329 @@ function validateSearch(text, problems) {
       if (!/^Q\d+$/.test(record.id ?? "")) problems.push(`line ${line}: a query needs an id Q followed by a number`);
       else if (queries.has(record.id)) problems.push(`line ${line}: duplicate query id ${record.id}`);
       queries.add(record.id);
-      for (const field of ["query", "database", "date"])
+      // Citation chasing is its own method, as PRISMA counts it: from the sources it started at, in one direction,
+      // in place of a database.
+      if (record.method !== undefined && record.method !== "citation")
+        problems.push(
+          `line ${line}: a query's method, when given, is "citation"; a database search names its database`,
+        );
+      if (record.method === "citation") {
+        if (record.database !== undefined)
+          problems.push(`line ${line}: a citation query names from and direction instead of a database`);
+        if (!Array.isArray(record.from) || record.from.length === 0 || !record.from.every((id) => /^S\d+$/.test(id)))
+          problems.push(
+            `line ${line}: a citation query needs from: the source-ledger IDs it started at, such as ["S2"]`,
+          );
+        if (!CITATION_DIRECTIONS.includes(record.direction))
+          problems.push(`line ${line}: a citation query's direction is one of: ${CITATION_DIRECTIONS.join(", ")}`);
+      }
+      for (const field of record.method === "citation" ? ["date"] : ["query", "database", "date"])
         if (!record[field]) problems.push(`line ${line}: a query needs ${field}`);
+      if (record.returned !== undefined && !(Number.isInteger(record.returned) && record.returned >= 0))
+        problems.push(
+          `line ${line}: returned is a whole number, copied from the service's own count of the records it returned`,
+        );
+      else if (record.returned !== undefined) returned.set(record.id, { line, returned: record.returned });
       if (record.date && !/^\d{4}-\d{2}-\d{2}$/.test(record.date))
         problems.push(`line ${line}: date must be YYYY-MM-DD`);
       if ("hits" in record)
         problems.push(`line ${line}: do not type a hit count; counts are computed from the hit lines`);
+    } else if (record.kind === "criterion") {
+      if (!/^E\d+$/.test(record.id ?? ""))
+        problems.push(`line ${line}: a criterion needs an id E followed by a number`);
+      else if (criteria.has(record.id)) problems.push(`line ${line}: duplicate criterion id ${record.id}`);
+      if (!record.text) problems.push(`line ${line}: a criterion needs its text`);
+      if (!SCREENING_STAGES.includes(record.stage))
+        problems.push(`line ${line}: a criterion's stage must be one of: ${SCREENING_STAGES.join(", ")}`);
+      if (/^E\d+$/.test(record.id ?? "") && !criteria.has(record.id)) criteria.set(record.id, record);
+    } else if (record.kind === "screener") {
+      if (!/^[A-Za-z][A-Za-z0-9-]*$/.test(record.id ?? ""))
+        problems.push(`line ${line}: a screener needs an id of letters, digits and hyphens`);
+      else if (screeners.has(record.id)) problems.push(`line ${line}: duplicate screener id ${record.id}`);
+      const person = typeof record.person === "string" && record.person.trim() !== "";
+      const model = typeof record.model === "string" && record.model.trim() !== "";
+      // The reviewing agent itself: the author of the review, not a judge it delegated to, so it needs no judge
+      // record; counts and the flow say which hits it screened alone, for the report's Limits.
+      const agent = typeof record.agent === "string" && record.agent.trim() !== "";
+      if ([person, model, agent].filter(Boolean).length !== 1)
+        problems.push(
+          `line ${line}: a screener names just one of: either a person or a model (a delegated judge), or agent (the reviewing agent itself, its model and version)`,
+        );
+      if (model && !(typeof record.judge === "string" && record.judge.trim() !== ""))
+        problems.push(
+          `line ${line}: a model screener needs judge: the path of the judge validation record that lets its decisions count`,
+        );
+      if (model && !(typeof record.rubric === "string" && record.rubric.trim() !== ""))
+        problems.push(
+          `line ${line}: a model screener needs rubric: the path of the screening instructions it was given, which hold the ledger's criteria`,
+        );
+      if (record.id && !screeners.has(record.id))
+        screeners.set(record.id, {
+          ...record,
+          model: model && !person && !agent,
+          agent: agent && !person && !model ? record.agent.trim() : false,
+        });
     } else if (record.kind === "hit") {
       if (!queries.has(record.query))
         problems.push(`line ${line}: hit names query ${record.query}, which no earlier line defines`);
       if (!record.title) problems.push(`line ${line}: a hit needs a title`);
       if (!HIT_STATES.includes(record.state))
         problems.push(`line ${line}: state must be one of: ${HIT_STATES.join(", ")}`);
-      if (["excluded", "duplicate"].includes(record.state) && !record.reason)
-        problems.push(`line ${line}: an ${record.state} hit needs a reason`);
+      if (record.state === "duplicate" && !record.reason) problems.push(`line ${line}: a duplicate hit needs a reason`);
+      if (record.state === "excluded" && !record.reason && !record.criterion)
+        problems.push(`line ${line}: an excluded hit needs a reason or the criterion it was excluded by`);
       if (record.source !== undefined && !/^S\d+$/.test(record.source))
         problems.push(`line ${line}: source must be a source-ledger ID such as S3`);
+      if (record.stage !== undefined && !SCREENING_STAGES.includes(record.stage))
+        problems.push(`line ${line}: stage must be one of: ${SCREENING_STAGES.join(", ")}`);
+      if (record.criterion !== undefined) checkCriterion(line, record, record.criterion, record.state, "the hit");
+      if (record.screener !== undefined) usesScreener(line, record.screener, "the hit");
+      if (record.screens !== undefined) {
+        const screens = record.screens;
+        if (!Array.isArray(screens) || screens.length !== 2) {
+          problems.push(`line ${line}: screens holds the two screeners' decisions, as an array of two`);
+        } else {
+          if (record.screener !== undefined)
+            problems.push(`line ${line}: a hit with two screens names its screeners there, not in screener`);
+          if (record.state === "duplicate")
+            problems.push(`line ${line}: a duplicate is removed before screening, so it has no screens`);
+          screens.forEach((screen, at) => {
+            const where = `screen ${at + 1}`;
+            if (!screen || typeof screen !== "object") {
+              problems.push(`line ${line}: ${where} must be an object with screener and state`);
+              return;
+            }
+            usesScreener(line, screen.screener, where);
+            if (!SCREEN_STATES.includes(screen.state))
+              problems.push(`line ${line}: ${where}'s state must be one of: ${SCREEN_STATES.join(", ")}`);
+            if (screen.criterion !== undefined) checkCriterion(line, record, screen.criterion, screen.state, where);
+          });
+          if (screens[0]?.screener !== undefined && screens[0]?.screener === screens[1]?.screener)
+            problems.push(`line ${line}: the two screens need two different screeners`);
+          // The hit's own state is the decision that counts. Where the screeners disagree, or it departs from what
+          // they both said (unscreened included), a person settles it and is named.
+          const agreed = screens[0]?.state === screens[1]?.state ? screens[0]?.state : null;
+          const settled = typeof record.settled_by === "string" && record.settled_by.trim() !== "";
+          const departs = agreed ? record.state !== agreed : SCREEN_STATES.includes(record.state);
+          if (departs && record.state !== "duplicate" && !settled)
+            problems.push(
+              `line ${line}: ${agreed ? `the screeners agreed the hit is ${agreed}, and its state is ${record.state}` : "the screeners disagree"}, so settled_by names the person who settled it`,
+            );
+          const settler = settled ? screeners.get(record.settled_by) : undefined;
+          if (settler?.model || settler?.agent)
+            problems.push(
+              `line ${line}: settled_by names ${record.settled_by}, ${settler.model ? "a model" : "the reviewing agent"}; a person settles a disagreement`,
+            );
+        }
+      }
     } else {
-      problems.push(`line ${line}: kind must be "query" or "hit"`);
+      problems.push(`line ${line}: kind must be "query", "criterion", "screener" or "hit"`);
     }
   });
-  return records;
+  // Criteria fixed for the review are its only grounds for exclusion: once the ledger defines them, every excluded
+  // hit cites the one that excluded it.
+  if (criteria.size > 0)
+    for (const { line, record } of records)
+      if (record.kind === "hit" && record.state === "excluded" && record.criterion === undefined)
+        problems.push(
+          `line ${line}: the ledger defines criteria, so an excluded hit cites the criterion it was excluded by`,
+        );
+  // A query's returned count is the service's own; fewer than the hits logged under it is a count typed wrong.
+  for (const [id, { line, returned: count }] of returned) {
+    const hits = records.filter(({ record }) => record.kind === "hit" && record.query === id).length;
+    if (count < hits)
+      problems.push(
+        `line ${line}: ${id} says the service returned ${count} records, and ${hits} hits are logged under it; copy returned from the service's own count`,
+      );
+  }
+  // A model's decisions count only under a passing judge record for the rubric it was given: a record validated on
+  // other instructions says nothing about these.
+  for (const [id, lines] of byModel) {
+    const screener = screeners.get(id);
+    if (!screener.judge || !screener.rubric) continue;
+    const record = judges?.get(screener.judge);
+    const rubric = rubrics?.get(screener.rubric);
+    let why = null;
+    if (!record) why = `its judge record ${screener.judge} cannot be read`;
+    else if (!record.counts)
+      why = `its judge record ${screener.judge} does not pass (${record.problems.length > 0 ? record.problems.join("; ") : "its Result is not pass"})`;
+    else if (rubric === undefined) why = `its rubric ${screener.rubric} cannot be read`;
+    else if (record.rubricSha256 !== rubric)
+      why = `its judge record ${screener.judge} was validated on a rubric with sha256 ${record.rubricSha256}, not on its rubric ${screener.rubric} (sha256 ${rubric})`;
+    if (why)
+      problems.push(
+        `screener ${id} is a model, and ${why}, so the ${lines.length} hit${lines.length === 1 ? "" : "s"} it screened (line${lines.length === 1 ? "" : "s"} ${lineList(lines)}) do not count`,
+      );
+  }
+  return { records, criteria, screeners };
 }
 
-/** Hit counts per query and state, computed from a search ledger's hit lines. */
-export function searchCounts(text) {
+/** The exclusions in `hits`, grouped by the criterion that excluded them (in the ledger's order), then by reason. */
+function exclusionReasons(hits, criteria) {
+  const groups = new Map();
+  for (const id of criteria.keys()) groups.set(`criterion:${id}`, null);
+  for (const hit of hits) {
+    const key = hit.criterion !== undefined ? `criterion:${hit.criterion}` : `reason:${hit.reason ?? ""}`;
+    const group = groups.get(key) ?? {
+      ...(hit.criterion !== undefined ? { criterion: hit.criterion } : {}),
+      reason:
+        hit.criterion !== undefined ? (criteria.get(hit.criterion)?.text ?? hit.reason ?? "") : (hit.reason ?? ""),
+      records: 0,
+    };
+    group.records += 1;
+    groups.set(key, group);
+  }
+  return [...groups.values()].filter(Boolean);
+}
+
+const total = (reasons) => reasons.reduce((sum, reason) => sum + reason.records, 0);
+
+/**
+ * The review's flow from identification to inclusion, PRISMA-style, as data `figure.mjs` draws: the records each
+ * database gave, and, when there are any, those found by other methods (citation chasing) and those a service
+ * returned that no hit line logs (from a query's `returned`); the duplicates removed, those awaiting screening, those
+ * screened, the exclusions at each stage with their reasons, and the studies included. The full-text step appears
+ * only when some hit records the full-text stage; `agent_alone` only when the reviewing agent screened hits with no
+ * second screener, so the report names it in its Limits.
+ */
+export function searchFlow(records, criteria, screeners = new Map()) {
+  const databases = new Map();
+  const otherMethods = new Map();
+  const queryOf = new Map();
+  for (const { record } of records) {
+    if (record.kind === "query" && !queryOf.has(record.id)) queryOf.set(record.id, record);
+  }
+  const hits = records
+    .map(({ record }) => record)
+    .filter((record) => record.kind === "hit" && queryOf.has(record.query) && HIT_STATES.includes(record.state));
+  const logged = new Map();
+  for (const hit of hits) logged.set(hit.query, (logged.get(hit.query) ?? 0) + 1);
+  // A query's records: those its service returned when the ledger copies that count, otherwise the hits it logs.
+  let notScreened = 0;
+  let anyReturned = false;
+  for (const [id, query] of queryOf) {
+    const hitsOf = logged.get(id) ?? 0;
+    const returned = Number.isInteger(query.returned) && query.returned >= hitsOf ? query.returned : null;
+    if (returned !== null) {
+      anyReturned = true;
+      notScreened += returned - hitsOf;
+    }
+    const records = returned ?? hitsOf;
+    if (query.method === "citation") {
+      if (records === 0) continue;
+      const key = `citation, ${query.direction}`;
+      otherMethods.set(key, (otherMethods.get(key) ?? 0) + records);
+    } else if (records > 0) databases.set(query.database, (databases.get(query.database) ?? 0) + records);
+  }
+  const excluded = hits.filter((hit) => hit.state === "excluded");
+  const atStage = (stage) => excluded.filter((hit) => hit.stage === stage);
+  const titleAbstract = exclusionReasons(atStage("title-abstract"), criteria);
+  const fullText = exclusionReasons(atStage("full-text"), criteria);
+  const unstaged = exclusionReasons(
+    excluded.filter((hit) => !SCREENING_STAGES.includes(hit.stage)),
+    criteria,
+  );
+  const count = (state) => hits.filter((hit) => hit.state === state).length;
+  const included = count("included");
+  const fullTextStage = hits.some((hit) => hit.stage === "full-text");
+  // Hits the reviewing agent screened with no second screener.
+  const agents = new Set();
+  let agentAlone = 0;
+  for (const hit of hits) {
+    const agent = screeners.get(hit.screener)?.agent;
+    if (agent && SCREEN_STATES.includes(hit.state)) {
+      agentAlone += 1;
+      agents.add(agent);
+    }
+  }
+  return {
+    kind: "search-flow",
+    computed_by: "artifact.mjs counts --flow",
+    identified: {
+      records: hits.length + notScreened,
+      databases: [...databases].map(([database, n]) => ({ database, records: n })),
+      ...(otherMethods.size > 0
+        ? { other_methods: [...otherMethods].map(([method, n]) => ({ method, records: n })) }
+        : {}),
+    },
+    ...(anyReturned ? { not_screened: notScreened } : {}),
+    duplicates: count("duplicate"),
+    awaiting: count("unscreened"),
+    screened: included + excluded.length,
+    ...(agentAlone > 0 ? { agent_alone: { records: agentAlone, agents: [...agents] } } : {}),
+    excluded_title_abstract: { records: total(titleAbstract), reasons: titleAbstract },
+    excluded_stage_not_recorded: { records: total(unstaged), reasons: unstaged },
+    full_text: fullTextStage
+      ? { assessed: included + total(fullText), excluded: { records: total(fullText), reasons: fullText } }
+      : null,
+    included,
+  };
+}
+
+/**
+ * Agreement between two screeners on the hits both screened, per pair of screeners and stage: raw agreement, Cohen's
+ * kappa, and the disagreements, each of which a person settles (`unsettled` counts those still open).
+ */
+function screeningAgreement(records) {
+  const groups = new Map();
+  for (const { record } of records) {
+    if (record.kind !== "hit" || !Array.isArray(record.screens) || record.screens.length !== 2) continue;
+    const [first, second] = [...record.screens].sort((a, b) => String(a?.screener).localeCompare(String(b?.screener)));
+    if (!SCREEN_STATES.includes(first?.state) || !SCREEN_STATES.includes(second?.state)) continue;
+    const stage = SCREENING_STAGES.includes(record.stage) ? record.stage : "stage not recorded";
+    const key = JSON.stringify([first.screener, second.screener, stage]);
+    const group = groups.get(key) ?? { screeners: [first.screener, second.screener], stage, pairs: [], unsettled: 0 };
+    group.pairs.push([first.state, second.state]);
+    if (first.state !== second.state && !(typeof record.settled_by === "string" && record.settled_by.trim() !== ""))
+      group.unsettled += 1;
+    groups.set(key, group);
+  }
+  return [...groups.values()].map(({ screeners, stage, pairs, unsettled }) => {
+    const kappa = cohenKappa(pairs);
+    return {
+      screeners,
+      stage,
+      items: kappa.items,
+      observed: kappa.observed,
+      kappa: kappa.kappa,
+      disagreements: pairs.filter(([a, b]) => a !== b).length,
+      unsettled,
+    };
+  });
+}
+
+/**
+ * Hit counts per query and state, computed from a search ledger's hit lines; the agreement between two screeners
+ * where hits carry both decisions; and the review's flow (`searchFlow`). `judges` and `rubrics` are as for validation.
+ */
+export function searchCounts(text, { judges, rubrics } = {}) {
   const problems = [];
-  const records = validateSearch(text, problems);
+  const { records, criteria, screeners } = validateSearch(text, problems, { judges, rubrics });
   const perQuery = new Map();
-  const total = Object.fromEntries(HIT_STATES.map((state) => [state, 0]));
+  const totals = Object.fromEntries(HIT_STATES.map((state) => [state, 0]));
   for (const { record } of records) {
     if (record.kind === "query")
       perQuery.set(record.id, {
         query: record.query,
         database: record.database,
+        ...(record.method === "citation" ? { method: "citation", from: record.from, direction: record.direction } : {}),
+        ...(record.returned !== undefined ? { returned: record.returned } : {}),
         date: record.date,
         ...Object.fromEntries(HIT_STATES.map((state) => [state, 0])),
       });
     if (record.kind === "hit" && perQuery.has(record.query) && HIT_STATES.includes(record.state)) {
       perQuery.get(record.query)[record.state] += 1;
-      total[record.state] += 1;
+      totals[record.state] += 1;
     }
   }
-  const hits = Object.values(total).reduce((sum, count) => sum + count, 0);
-  return { queries: Object.fromEntries(perQuery), total: { hits, ...total }, problems };
+  const hits = Object.values(totals).reduce((sum, count) => sum + count, 0);
+  return {
+    queries: Object.fromEntries(perQuery),
+    total: { hits, ...totals },
+    agreement: screeningAgreement(records),
+    flow: searchFlow(records, criteria, screeners),
+    problems,
+  };
 }
 
 /** The kind of an artifact, from its file name (`.jsonl`) or its header's Type. */
@@ -1276,7 +1732,8 @@ export function kindOf(path, text) {
  * confirmatory claim is a confirmatory hypothesis of a locked plan that no amendment changed after study runs:
  * `plan` is `{ hypotheses, locked, reason, demoted }`), and
  * its judge records (a claim resting on a judge record that does not pass is at most L1: `judges` maps each cited
- * path to `{ counts }`).
+ * path to `{ counts }`). A search ledger's model screeners are checked against `judges` and `rubrics`, as
+ * `screenerFiles` reads them.
  */
 export function validate(
   kind,
@@ -1285,7 +1742,9 @@ export function validate(
     ledger,
     plan,
     judges,
+    rubrics,
     searches,
+    rechecks,
     register,
     registerMissing,
     dataExists,
@@ -1296,12 +1755,13 @@ export function validate(
   } = {},
 ) {
   const problems = [];
-  if (kind === "search-ledger") validateSearch(text, problems);
+  if (kind === "search-ledger") validateSearch(text, problems, { judges, rubrics });
   else {
     const parsed = parseMarkdown(text);
     if (kind === "research-brief") validateBrief(parsed, problems);
     else if (kind === "source-ledger") validateLedger(parsed, problems);
-    else if (kind === "claims-register") validateRegister(parsed, problems, { ledger, plan, judges, searches });
+    else if (kind === "claims-register")
+      validateRegister(parsed, problems, { ledger, plan, judges, searches, rechecks });
     else if (kind === "study-plan") validatePlan(parsed, problems);
     else if (kind === "judge-validation") validateJudge(parsed, problems);
     else if (kind === "paper-outline")

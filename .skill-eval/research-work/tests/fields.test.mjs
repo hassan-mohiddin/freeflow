@@ -175,6 +175,19 @@ test("an evidence table may add a Weakness column", () => {
   );
 });
 
+test("a study read only at its abstract says so in Weakness", () => {
+  const table = (weakness) =>
+    `# Evidence Table: E\n\n> **Type:** Evidence Table\n> **Status:** Draft\n> **Owner:** O\n\n| Source | Design | n | Result | Failure condition | Level | Weakness |\n| --- | --- | --- | --- | --- | --- | --- |\n| S1 | RCT | 40 | helped | no gain | L1 | ${weakness} |\n`;
+  const ledger = (read) => new Map([["S1", { Checked: "abstract", Read: read }]]);
+  const problems = (weakness, read) => validate("evidence-table", table(weakness), { ledger: ledger(read) }).problems;
+  assert.deepEqual(problems("one site", "abstract"), [
+    'line 9: S1 was read only at its abstract, so Weakness says so: "not assessed (read: abstract)", or the weakness the abstract shows, marked "(read: abstract)"',
+  ]);
+  assert.deepEqual(problems("not assessed (read: abstract)", "abstract"), []);
+  assert.deepEqual(problems("one site (read: abstract)", "abstract"), []);
+  assert.deepEqual(problems("one site", "full"), []);
+});
+
 test("the absence check reads the wording classes, not a phrase list", () => {
   const refused = (claim) =>
     validate("claims-register", register([row("C1", claim)])).problems.some((problem) =>

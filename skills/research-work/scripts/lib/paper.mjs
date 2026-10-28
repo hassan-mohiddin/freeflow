@@ -35,7 +35,7 @@ export function figureReceipts(outlinePath, runs) {
         const absolute = resolve(ledgerFolder, input.path);
         try {
           const spec = JSON.parse(readFileSync(absolute, "utf8"));
-          if (typeof spec?.data !== "string" || !Array.isArray(spec.series)) return [];
+          if (typeof spec?.data !== "string" || !(Array.isArray(spec.series) || spec.type === "flow")) return [];
           return [
             {
               spec: input.path,
