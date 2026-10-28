@@ -10,10 +10,11 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-import { ledgerRows, parseMarkdown, parseTable, validate } from "./lib/formats.mjs";
+import { HIT_STATES, ledgerRows, parseMarkdown, parseTable, searchCounts, validate } from "./lib/formats.mjs";
 import { draftCheck, figureReceipts, stripIds } from "./lib/paper.mjs";
 import { buildPackets, checkVerdicts, readVerdicts } from "./lib/support.mjs";
 import {
+  blankQuoteCitations,
   claimIds,
   currentNotes,
   numberInResults,
@@ -26,7 +27,7 @@ import {
 } from "./lib/report.mjs";
 
 const USAGE = [
-  "Usage: claims.mjs trace <report.md> --register <claims.md> [--results] [--json]",
+  "Usage: claims.mjs trace <report.md> --register <claims.md> [--results] [--search <search ledger>] [--json]",
   "       claims.mjs support <report.md> --register <claims.md> --ledger <sources.md> --out <packets.jsonl>",
   "                          [--only C<n>,...] [--repo <name>=<clone>]... [--copy S<n>=<file>]...",
   "       claims.mjs support-check <verdicts.jsonl> --packets <packets.jsonl> [--json]",
@@ -73,6 +74,7 @@ try {
       repo: { type: "string", multiple: true, default: [] },
       copy: { type: "string", multiple: true, default: [] },
       results: { type: "boolean", default: false },
+      search: { type: "string" },
       json: { type: "boolean", default: false },
       help: { type: "boolean" },
     },
@@ -223,6 +225,64 @@ const levels = new Map(
   table.rows.filter((row) => /^L[0-5]$/.test(row.cells.Level ?? "")).map((row) => [row.cells.ID, row.cells.Level]),
 );
 
+// --search: a count the report states about its searches (hits, included, excluded) traces to the search ledger.
+const searchNumbers = new Set();
+const queryNumbers = new Map();
+const queryCounts = new Map();
+if (parsed.values.search) {
+  const counts = searchCounts(read(parsed.values.search));
+  const perQuery = Object.values(counts.queries);
+  for (const value of [
+    perQuery.length,
+    ...Object.values(counts.total),
+    ...perQuery.flatMap((row) => HIT_STATES.map((state) => row[state])),
+  ])
+    if (Number.isFinite(value)) searchNumbers.add(String(value));
+  for (const [id, row] of Object.entries(counts.queries))
+    queryCounts.set(id, { ...row, total: HIT_STATES.reduce((sum, state) => sum + row[state], 0) });
+  for (const [id, row] of Object.entries(counts.queries))
+    queryNumbers.set(
+      id,
+      new Set(
+        HIT_STATES.map((state) => String(row[state])).concat(
+          String(HIT_STATES.reduce((sum, state) => sum + row[state], 0)),
+        ),
+      ),
+    );
+}
+/**
+ * The numbers in a line that its searches account for, with how many times each may pass. A number after a query ID
+ * (Q2) counts for that query, or for the sum over the queries the line names ("Q1 and Q2 returned 4 hits in total");
+ * a number before any query ID counts as any count the ledger computes; a query the ledger lacks accounts for none.
+ */
+function searchCountsIn(line) {
+  const mentions = [...line.matchAll(/\bQ\d+\b/g)];
+  const named = [...new Set(mentions.map((match) => match[0]))];
+  const known = named.filter((id) => queryNumbers.has(id));
+  const sums = new Set(
+    [...HIT_STATES, "total"].map((state) =>
+      String(known.reduce((sum, id) => sum + Number(queryCounts.get(id)[state]), 0)),
+    ),
+  );
+  const allowed = new Map();
+  const count = (number) => allowed.set(number, (allowed.get(number) ?? 0) + 1);
+  const before = mentions.length > 0 ? line.slice(0, mentions[0].index) : line;
+  for (const number of numbersIn(before)) if (searchNumbers.has(number)) count(number);
+  // The sum counts only when the queries are named together, with no count between them ("Q1 and Q2 returned 4").
+  let listed = true;
+  mentions.forEach((match, at) => {
+    const segment = line.slice(match.index, mentions[at + 1]?.index ?? line.length);
+    const own = queryNumbers.get(match[0]);
+    const numbers = numbersIn(segment);
+    for (const number of numbers)
+      if (own && (own.has(number) || (listed && known.length > 1 && sums.has(number)))) count(number);
+    if (numbers.length > 0) listed = false;
+  });
+  return allowed;
+}
+
+const SEARCH_WORDS = /\b(?:quer(?:y|ies)|hits?|screened|included|excluded|duplicates?|unscreened|searches?)\b/i;
+
 const problems = [];
 const notes = [];
 let checkedNumbers = 0;
@@ -244,18 +304,26 @@ for (const unit of units(read(report))) {
       problems.push({ line: unit.line, kind: "unknown claim", value: id, detail: `${id} is not in the register` });
   }
   const supported = new Set(ids.flatMap((id) => [...(register.get(id) ?? [])]));
-  unit.text.split("\n").forEach((line, offset) => {
-    for (const number of numbersIn(line)) {
-      checkedNumbers += 1;
-      if (supported.has(number)) continue;
-      problems.push({
-        line: unit.line + offset,
-        kind: "untraced number",
-        value: number,
-        detail: ids.length === 0 ? "the passage cites no claim ID" : `not in the Numbers of ${ids.join(", ")}`,
-      });
-    }
-  });
+  // Digits inside a quote the report cites are the source's words, not numbers the report states.
+  blankQuoteCitations(unit.text)
+    .split("\n")
+    .forEach((line, offset) => {
+      const searchCounted = parsed.values.search && SEARCH_WORDS.test(line) ? searchCountsIn(line) : new Map();
+      for (const number of numbersIn(line)) {
+        checkedNumbers += 1;
+        if (supported.has(number)) continue;
+        if ((searchCounted.get(number) ?? 0) > 0) {
+          searchCounted.set(number, searchCounted.get(number) - 1);
+          continue;
+        }
+        problems.push({
+          line: unit.line + offset,
+          kind: "untraced number",
+          value: number,
+          detail: ids.length === 0 ? "the passage cites no claim ID" : `not in the Numbers of ${ids.join(", ")}`,
+        });
+      }
+    });
 }
 
 // Register numbers against the result files their Source names.

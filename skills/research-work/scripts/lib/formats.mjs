@@ -859,6 +859,26 @@ function validateRegister(parsed, problems, { ledger, plan, judges, searches } =
     }
   }
   if (plan?.variants) problems.push(...variantProblems(table.rows, plan.variants));
+  // The source ledger's Supports lists the claims of this register that cite each source, so a reader can go either
+  // way. A claim ID this register lacks is another register's (one ledger can serve a report and a paper), and is left.
+  if (ledger) {
+    const citing = new Map();
+    for (const { cells } of table.rows)
+      for (const id of new Set(cells.Source.match(/\bS\d+\b/g) ?? [])) {
+        if (!citing.has(id)) citing.set(id, new Set());
+        citing.get(id).add(cells.ID);
+      }
+    for (const [id, source] of ledger) {
+      const listed = new Set(source.Supports && source.Supports !== "-" ? source.Supports.split(/,\s*/) : []);
+      const cited = citing.get(id) ?? new Set();
+      const missing = [...cited].filter((claim) => !listed.has(claim));
+      const extra = [...listed].filter((claim) => seen.has(claim) && !cited.has(claim));
+      if (missing.length > 0 || extra.length > 0)
+        problems.push(
+          `the source ledger's Supports for ${id} ${[missing.length ? `lacks ${missing.join(", ")}, which cite it` : "", extra.length ? `lists ${extra.join(", ")}, which do not cite it` : ""].filter(Boolean).join(" and ")}`,
+        );
+    }
+  }
 }
 
 const claimIds = (cell) => cell.match(/\bC\d+\b/g) ?? [];

@@ -235,7 +235,7 @@ test("a code citation must fall in a range the worker read, and reads come from 
     "--repo",
     `codex=${clone}`,
   );
-  assert.match(without.stdout, /read ranges: not checked/);
+  assert.match(without.stdout, /read ranges were not checked \(no --reads\); this note does not count/);
   assert.deepEqual(readsFromTranscript("not json\n", { clones: new Map(), pins: new Map() }), []);
 });
 
