@@ -95,14 +95,16 @@ const numbered = existsSync(reviews)
       .map(Number)
   : [];
 const latest = numbered.length > 0 ? Math.max(...numbered) : 0;
-// The latest brief is written again only while it is a draft of this same round (no report yet, the same Review
-// number); a review that has reported, or a brief for another round, is never replaced.
+// The latest brief is written again only while it is a draft of this same review (no report yet, the same Review
+// number and Boundary); a review that has reported, a brief for another round, or another change's brief that may be
+// out with a reviewer, is never replaced.
 const latestBrief = join(reviews, `R${latest}-brief.md`);
+const latestText = latest > 0 && existsSync(latestBrief) ? readFileSync(latestBrief, "utf8") : "";
 const draftOfThisRound =
-  latest > 0 &&
-  existsSync(latestBrief) &&
+  latestText !== "" &&
   !existsSync(join(reviews, `R${latest}-report.md`)) &&
-  /^Review:\s*(\d)/m.exec(readFileSync(latestBrief, "utf8"))?.[1] === String(round);
+  /^Review:\s*(\d)/m.exec(latestText)?.[1] === String(round) &&
+  /^Boundary:[ \t]*(.*)$/m.exec(latestText)?.[1].trim() === (values.boundary ?? "").trim();
 const slot = draftOfThisRound ? latest : latest + 1;
 const briefPath = values.out ? resolve(values.out) : join(reviews, `R${slot}-brief.md`);
 const reportName = /^R\d+-brief\.md$/.test(basename(briefPath))
@@ -115,18 +117,33 @@ const notes = [];
 let diffBase = values.base;
 let previousReport = null;
 if (round > 1) {
-  // The previous review is the one numbered just before this brief.
-  const previousBrief = join(reviews, `R${slot - 1}-brief.md`);
-  const reviewed = existsSync(previousBrief)
-    ? /^\s*(?:[-*]\s+)?(?:\*\*)?Reviewed state:(?:\*\*)?\s*`?([0-9a-fA-F]{7,40}|\S+?)`?(\s|$)/m.exec(
-        readFileSync(previousBrief, "utf8"),
-      )?.[1]
-    : null;
-  if (reviewed && commitOf(reviewed)) diffBase = reviewed;
-  else notes.push(`no previous brief with a Reviewed state at ${show(previousBrief)}: the diff starts at --base`);
-  const candidate = join(reviews, `R${slot - 1}-report.md`);
-  if (existsSync(candidate)) previousReport = candidate;
-  else notes.push(`no previous report at ${show(candidate)}: add its path and adjudication to "Previous report"`);
+  // The previous review is the latest earlier brief of the round before whose reviewed state is in this change's
+  // history, so a review of another change numbered in between is passed over.
+  const reviewedState = (text) =>
+    /^\s*(?:[-*]\s+)?(?:\*\*)?Reviewed state:(?:\*\*)?\s*`?([0-9a-fA-F]{7,40}|\S+?)`?(\s|$)/m.exec(text)?.[1];
+  const inHistory = (commit) =>
+    spawnSync("git", ["merge-base", "--is-ancestor", commit, head], { cwd: root }).status === 0;
+  let previous = null;
+  for (let n = slot - 1; n >= 1 && !previous; n -= 1) {
+    const path = join(reviews, `R${n}-brief.md`);
+    if (!existsSync(path)) continue;
+    const text = readFileSync(path, "utf8");
+    const state = reviewedState(text);
+    const commit = state && commitOf(state);
+    if (/^Review:\s*(\d)/m.exec(text)?.[1] === String(round - 1) && commit && inHistory(commit))
+      previous = { n, path, state };
+  }
+  if (previous) {
+    diffBase = previous.state;
+    if (previous.n !== slot - 1)
+      notes.push(`the previous review is R${previous.n}; the briefs numbered after it review another change`);
+    const candidate = join(reviews, `R${previous.n}-report.md`);
+    if (existsSync(candidate)) previousReport = candidate;
+    else notes.push(`no previous report at ${show(candidate)}: add its path and adjudication to "Previous report"`);
+  } else
+    notes.push(
+      `no earlier Review ${round - 1} brief whose Reviewed state is in this change's history: the diff starts at --base; fill "Previous report" by hand`,
+    );
 }
 
 const agreement = values.agreement.length
@@ -157,16 +174,21 @@ if (changed.length && existsSync(DOCS_CHECK)) {
   else notes.push("docs-check could not run: fill Docs by hand");
 }
 
-// The project's Review Rules, read from the base: a file named for them, or a tracked Markdown file with a
-// "## Review Rules" section, written as path#review-rules.
-const rules = [
+// The project's Review Rules, read from the base, so a change never supplies the rules that review it: a file named
+// for them, or a tracked Markdown file with a "## Review Rules" section, written as path#review-rules. When the change
+// edits one, the line says to read the base's copy.
+const rulesAt = commitOf(values.base);
+const rulePaths = [
   ...new Set([
-    ...git(root, ["ls-files"])
+    ...git(root, ["ls-tree", "-r", "--name-only", rulesAt])
       .split("\n")
       .filter((path) => /(^|\/)(REVIEW\.md|review-rules\.md|REVIEW_RULES\.md)$/i.test(path)),
-    ...reviewRulesSections(root, commitOf(values.base)).map((path) => `${path}#review-rules`),
+    ...reviewRulesSections(root, rulesAt).map((path) => `${path}#review-rules`),
   ]),
-].map((path) => resolve(root, path));
+];
+const changedSinceBase = new Set(git(root, ["diff", "--name-only", rulesAt, head]).split("\n"));
+const rulesEdited = rulePaths.some((path) => changedSinceBase.has(path.replace(/#review-rules$/, "")));
+const rules = rulePaths.map((path) => resolve(root, path));
 
 // The default "May run": the project's declared checks and probes of the changed code on scratch copies.
 const PROBES = "probes of the changed code on copies in your own scratch folder, with no edits to the repository";
@@ -255,7 +277,7 @@ const lines = [
   `Method: ${method}`,
   `Agreement: ${tick(agreement)}`,
   `Docs: ${docs.length ? tick(docs) : "none"}`,
-  `Review rules: ${rules.length ? tick(rules) : "none"}`,
+  `Review rules: ${rules.length ? `${tick(rules)}${rulesEdited ? `, read from the base ${rulesAt.slice(0, 12)} (git show ${rulesAt.slice(0, 12)}:<path>)` : ""}` : "none"}`,
   `Diff: ${commitOf(diffBase).slice(0, 12)}..${head.slice(0, 12)}`,
   `Evidence: ${values.evidence.length ? tick(values.evidence) : "none"}`,
   `May run: ${mayRun}`,

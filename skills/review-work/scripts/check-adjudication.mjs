@@ -7,7 +7,8 @@
 // Usage: check-adjudication.mjs <report> [--json]
 // An item is named by the ID the report gives it (B1, N-2, Q1, NE1); a numbered or bulleted item without one is named by
 // its class letter and position in its section: B, N, Q, NE or I, then 1, 2, ... (so N3 is the third Non-blocking
-// Issue). A disposition line reads "B1: Accepted. <reason>", optionally as a list item, in bold, or naming several items
+// Issue). In a section whose items carry IDs or numbers, a bullet after an item is part of it (its location, evidence);
+// a bullet before the first is an item. A repeated ID is refused. A disposition line reads "B1: Accepted. <reason>", optionally as a list item, in bold, or naming several items
 // ("B2, B3: Rejected, <reason>"). Pre-existing items are reported to the user and need no disposition.
 // Exit code 0 when every item is disposed of, 1 when one is not, 2 on a usage error.
 import { existsSync, readFileSync } from "node:fs";
@@ -63,26 +64,26 @@ for (const line of body) {
 }
 
 const items = [];
+const itemStart = new RegExp(`^(?:[-*]\\s+)?(?:\\*\\*)?(${ID}|\\d+)(?:\\*\\*)?(?:[.:)]|\\s+\\()`);
 for (const { spec, lines } of sections) {
-  const itemStart = new RegExp(`^(?:[-*]\\s+)?(?:\\*\\*)?(${ID}|\\d+)(?:\\*\\*)?(?:[.:)]|\\s+\\()`);
-  const withIds = lines.filter((line) => itemStart.test(line));
-  let found;
-  if (withIds.length) {
-    found = withIds.map((line, index) => {
-      const id = itemStart.exec(line)[1];
-      return { id: /^\d+$/.test(id) ? `${spec.prefix}${id}` : id, ordinal: index + 1, line };
-    });
-  } else {
-    // Plain bullets: the top-level ones, up to the first top-level paragraph that follows them.
-    found = [];
-    for (const line of lines) {
-      if (/^[-*]\s+\S/.test(line)) found.push(line);
-      else if (found.length && /^\S/.test(line)) break;
-    }
-    found = found.map((line, index) => ({ id: `${spec.prefix}${index + 1}`, ordinal: index + 1, line }));
+  // In a section whose items carry IDs (or numbers), a line with one starts an item, and a bullet after it is part of
+  // that item (its location, evidence, sub-points); a bullet before the first is an item of its own. In a section of
+  // plain bullets, every top-level bullet is an item, and an unindented line between them continues the one above.
+  // An item without an ID is named by its class letter and position.
+  const labelled = lines.some((line) => itemStart.test(line));
+  const found = [];
+  for (const line of lines) {
+    const match = itemStart.exec(line);
+    if (match) found.push({ label: match[1], line });
+    else if (/^[-*]\s+\S/.test(line) && !(labelled && found.some((item) => item.label !== null)))
+      found.push({ label: null, line });
   }
-  for (const item of found.filter((each) => !/^(?:[-*]\s+)?(?:\*\*)?None\b/i.test(each.line)))
-    items.push({ id: item.id, class: spec.name, text: item.line.replace(/^\s*[-*]\s+/, "").slice(0, 100) });
+  found.forEach((item, index) => {
+    if (/^(?:[-*]\s+)?(?:\*\*)?None\b/i.test(item.line)) return;
+    const id =
+      item.label === null || /^\d+$/.test(item.label) ? `${spec.prefix}${item.label ?? index + 1}` : item.label;
+    items.push({ id, class: spec.name, text: item.line.replace(/^\s*[-*]\s+/, "").slice(0, 100) });
+  });
 }
 
 // Dispositions and the adjudicated judgment, after the Adjudication heading.
@@ -120,6 +121,10 @@ if (adjudicationAt !== -1 && !judgment && !problems.some((each) => each.item ===
     problem: 'is missing: add "Adjudicated judgment: <Pass | Non-blocking | Inconclusive | Blocking>"',
   });
 
+const named = new Map();
+for (const item of items) named.set(key(item.id), (named.get(key(item.id)) ?? 0) + 1);
+for (const [id, count] of named)
+  if (count > 1) problems.push({ item: id, problem: `names ${count} items: two items need two IDs, each disposed of` });
 for (const item of items) {
   item.disposition = dispositions.get(key(item.id)) ?? null;
   if (!item.disposition && adjudicationAt !== -1)

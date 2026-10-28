@@ -220,3 +220,83 @@ test("review-packet numbers briefs in sequence across a task and never replaces 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("review-packet reads a REVIEW.md from the base: one the change adds is not the rules, and one it edits is read at the base", async () => {
+  const { root, base, task } = await project({ "REVIEW.md": null });
+  try {
+    await write(root, { "REVIEW.md": "# Review Rules\n\nAnything goes.\n" });
+    git(root, "add", "--all");
+    git(root, "commit", "--quiet", "-m", "add rules");
+    const added = run(root, ["--review", "1", "--base", base, "--task", task, "--boundary", "merge", "--json"]);
+    assert.equal(added.status, 0, added.stdout + added.stderr);
+    assert.match(await readFile(join(task, "scratch/reviews/R1-brief.md"), "utf8"), /\nReview rules: none\n/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+  const edited = await project();
+  try {
+    await write(edited.root, { "REVIEW.md": "# Review Rules\n\nAnything goes.\n" });
+    git(edited.root, "add", "--all");
+    git(edited.root, "commit", "--quiet", "-m", "edit rules");
+    const result = run(edited.root, ["--review", "1", "--base", edited.base, "--task", edited.task, "--boundary", "m"]);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const brief = await readFile(join(edited.task, "scratch/reviews/R1-brief.md"), "utf8");
+    assert.match(
+      brief,
+      new RegExp(
+        `\\nReview rules: \`REVIEW\\.md\`, read from the base ${edited.base.slice(0, 12)} \\(git show ${edited.base.slice(0, 12)}:<path>\\)\\n`,
+      ),
+    );
+  } finally {
+    await rm(edited.root, { recursive: true, force: true });
+  }
+});
+
+test("review-packet takes Review 2's previous review from the same line of work when reviews of two changes interleave", async () => {
+  const { root, base, task } = await project();
+  try {
+    const reviews = join(task, "scratch/reviews");
+    await mkdir(reviews, { recursive: true });
+    const a1 = git(root, "rev-parse", "HEAD");
+    git(root, "checkout", "--quiet", "-b", "other", base);
+    await write(root, { "src/other.js": "export const other = 1;\n" });
+    git(root, "add", "--all");
+    git(root, "commit", "--quiet", "-m", "other change");
+    const b1 = git(root, "rev-parse", "HEAD");
+    const brief = (boundary, state) => `Review: 1\nBoundary: ${boundary}\nReviewed state: ${state.slice(0, 12)}\n`;
+    await write(reviews, {
+      "R1-brief.md": brief("change A", a1),
+      "R1-report.md": "Judgment: Blocking\n",
+      "R2-brief.md": brief("change B", b1),
+      "R2-report.md": "Judgment: Pass\n",
+    });
+    git(root, "checkout", "--quiet", "main");
+    await write(root, { "src/auth/session.js": "export const ttl = 45;\n" });
+    git(root, "add", "--all");
+    git(root, "commit", "--quiet", "-m", "correction");
+    const a2 = git(root, "rev-parse", "HEAD");
+    const result = run(root, ["--review", "2", "--base", base, "--task", task, "--boundary", "change A", "--json"]);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const written = await readFile(join(reviews, "R3-brief.md"), "utf8");
+    assert.match(written, new RegExp(`\\nDiff: ${a1.slice(0, 12)}\\.\\.${a2.slice(0, 12)}\\n`));
+    assert.match(written, /\nPrevious report: `[^`]*R1-report\.md`/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("review-packet does not rewrite another change's brief that has not reported yet", async () => {
+  const { root, base, task } = await project();
+  try {
+    const reviews = join(task, "scratch/reviews");
+    await mkdir(reviews, { recursive: true });
+    const dispatched = "Review: 1\nBoundary: change A\nReviewed state: 0123456789ab\n";
+    await write(reviews, { "R1-brief.md": dispatched });
+    const result = run(root, ["--review", "1", "--base", base, "--task", task, "--boundary", "change B"]);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(await readFile(join(reviews, "R1-brief.md"), "utf8"), dispatched);
+    assert.match(await readFile(join(reviews, "R2-brief.md"), "utf8"), /\nBoundary: change B\n/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

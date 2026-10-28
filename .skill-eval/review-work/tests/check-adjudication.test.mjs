@@ -145,3 +145,57 @@ test("exits 2 on a usage error", () => {
   assert.equal(result.status, 2);
   assert.match(result.stderr, /Usage/);
 });
+
+test("counts an unlabelled item before the labelled ones, and an item after an unindented continuation line", async () => {
+  // An unlabelled bullet before the first labelled item is an item (B1, by position); the bullet after B2 is its field.
+  const mixed = `Judgment: Blocking
+
+#### Issues — Blocking
+
+- The writer truncates long names.
+- B2: The parser drops the last row.
+- Location: src/parse.js:12
+
+#### Issues — Non-blocking
+
+- The doc names the wrong flag,
+which the CLI renamed.
+- A message is unclear.
+
+## Adjudication
+
+- B2: Accepted. Reran it.
+- N1: Accepted. The flag is --out.
+
+Adjudicated judgment: Blocking
+`;
+  const { status, report } = await check(mixed);
+  assert.equal(status, 1);
+  assert.deepEqual(
+    report.items.map((item) => item.id),
+    ["B1", "B2", "N1", "N2"],
+  );
+  assert.deepEqual(
+    report.problems.map((problem) => problem.item),
+    ["B1", "N2"],
+  );
+});
+
+test("refuses two items with the same ID", async () => {
+  const duplicated = `Judgment: Blocking
+
+#### Issues — Blocking
+
+- B1: The parser drops the last row.
+- B1: The writer truncates long names.
+
+## Adjudication
+
+- B1: Accepted. Reran it.
+
+Adjudicated judgment: Blocking
+`;
+  const { status, report } = await check(duplicated);
+  assert.equal(status, 1);
+  assert.ok(report.problems.some((problem) => problem.item === "B1" && /two items/.test(problem.problem)));
+});
