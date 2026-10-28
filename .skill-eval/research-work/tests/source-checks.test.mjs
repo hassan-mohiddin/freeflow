@@ -10,7 +10,14 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { skeleton, validate } from "../../../skills/research-work/scripts/lib/formats.mjs";
-import { arxivRecord, lookupRow, pinIdentifier } from "../../../skills/research-work/scripts/lib/lookup.mjs";
+import {
+  LOOKUP_RULE,
+  arxivRecord,
+  lookupRow,
+  matchesSource,
+  pinIdentifier,
+  searchTitle,
+} from "../../../skills/research-work/scripts/lib/lookup.mjs";
 import { readsFromTranscript, readsInCommand, wasRead } from "../../../skills/research-work/scripts/lib/reads.mjs";
 
 const SCRIPTS = fileURLToPath(new URL("../../../skills/research-work/scripts/", import.meta.url));
@@ -127,7 +134,7 @@ test("lookup answers from its cache, says so, and exits non-zero when a row's Lo
   writeFileSync(
     join(dir, "lookups.json"),
     JSON.stringify({
-      "doi:10.1214/ss/1\u0000Brown, Cai and DasGupta 2001": { at: "2026-10-27T00:00:00Z", rule: 2, result },
+      "doi:10.1214/ss/1\u0000Brown, Cai and DasGupta 2001": { at: "2026-10-27T00:00:00Z", rule: LOOKUP_RULE, result },
     }),
   );
   const run = node("sources.mjs", "lookup", join(dir, "sources.md"), "--cache", join(dir, "lookups.json"));
@@ -439,7 +446,7 @@ test("--refresh asks again only for the rows it looks up, and an answer cached u
       "url:https://127.0.0.1:9/x\u0000Nowhere 2001. A page": { at: "2026-10-27T00:00:00Z", result: old },
       "url:https://127.0.0.1:9/y\u0000Elsewhere 2002. Another page": {
         at: "2026-10-27T00:00:00Z",
-        rule: 2,
+        rule: LOOKUP_RULE,
         result: { ...old, id: "S2" },
       },
     }),

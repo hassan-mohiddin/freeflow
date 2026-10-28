@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Trace a report to its claims register: every claim ID the report cites exists, and every number it states appears
 // in the Numbers of a claim cited in the same paragraph, list item or table row. With --results, also trace each
-// register number to the result file or log its Source names. draft-check runs a paper draft's checks before review;
+// register number to the result file or log its Source names. It also fails a percentage that does not follow from
+// the counts beside it, and lists, without failing, comparative or causal wording on a claim below L4, wording of
+// improvement beside a negative number, and a "latest" or "current" claim with no date or version. draft-check runs a paper draft's checks before review;
 // strip-ids writes the venue copy without the claim-ID parentheses.
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -10,20 +12,44 @@ import { parseArgs } from "node:util";
 
 import { ledgerRows, parseMarkdown, parseTable, validate } from "./lib/formats.mjs";
 import { draftCheck, figureReceipts, stripIds } from "./lib/paper.mjs";
-import { claimIds, numberInResults, numbersIn, resultCitations, resultNumbers, units } from "./lib/report.mjs";
+import { buildPackets, checkVerdicts, readVerdicts } from "./lib/support.mjs";
+import {
+  claimIds,
+  currentNotes,
+  numberInResults,
+  numbersIn,
+  percentMismatches,
+  resultCitations,
+  resultNumbers,
+  units,
+  wordingNotes,
+} from "./lib/report.mjs";
 
 const USAGE = [
   "Usage: claims.mjs trace <report.md> --register <claims.md> [--results] [--json]",
+  "       claims.mjs support <report.md> --register <claims.md> --ledger <sources.md> --out <packets.jsonl>",
+  "                          [--only C<n>,...] [--repo <name>=<clone>]... [--copy S<n>=<file>]...",
+  "       claims.mjs support-check <verdicts.jsonl> --packets <packets.jsonl> [--json]",
   "       claims.mjs draft-check <paper.md> [--outline <outline.md>] [--ledger <sources.md>] [--limit <section>=<words>]...",
-  "                              [--allow <acronym or process word>]... [--json]",
+  "                              [--allow <acronym or process word>]... [--copy S<n>=<saved copy>]... [--json]",
   "       claims.mjs strip-ids <paper.md> --out <venue.md>",
   "",
   "draft-check fails on an abstract number missing from the body, a [@S<n>] citation not in the ledger, a figure or",
   "table reference the outline lacks (or an outline figure never named), figures numbered out of the order the text",
   "first names them, a Section reference with no heading, a",
   "section over its limit (--limit total=<words> for the whole body), and, with --outline, an outline that does not",
-  "validate or a figure without a valid receipt. It lists, without failing, acronyms not defined before use and",
-  "process words.",
+  "validate or a figure without a valid receipt, and a run of twelve or more words copied from a --copy source",
+  "outside quotation marks. It lists, without failing, acronyms not defined before use, process words, ledger",
+  "sources the draft never cites, and statements about prior work that cite no source.",
+  "",
+  "support writes one packet per claim the report cites with a code citation or quote: the claim, its numbers and",
+  "scope, and only the cited evidence (code lines with the lines around them, or the passage around a quote). A",
+  "separate reader answers each packet in a verdicts file, one JSON line per packet:",
+  '  {"packet": "P1", "verdict": "supported|partial|unsupported", "quote": "<four or more words of the evidence>",',
+  '   "missing": "<what the evidence does not show; for partial or unsupported>"}',
+  "support-check counts the answers with a Wilson interval and fails on a missing or malformed answer, a quote not",
+  'in its packet, and a partial or unsupported answer not yet settled; add "adjudication": "rejected: <reason>" to an',
+  "answer the author shows to be wrong, or fix the claim or its citation and build the packets again.",
 ].join("\n");
 
 function fail(message) {
@@ -42,6 +68,10 @@ try {
       limit: { type: "string", multiple: true, default: [] },
       allow: { type: "string", multiple: true, default: [] },
       out: { type: "string" },
+      packets: { type: "string" },
+      only: { type: "string" },
+      repo: { type: "string", multiple: true, default: [] },
+      copy: { type: "string", multiple: true, default: [] },
       results: { type: "boolean", default: false },
       json: { type: "boolean", default: false },
       help: { type: "boolean" },
@@ -55,6 +85,70 @@ if (parsed.values.help) {
   process.exit(0);
 }
 const [command, report] = parsed.positionals;
+
+/** --repo and --copy pairs as a map. */
+function pairs(values, label) {
+  const map = new Map();
+  for (const value of values) {
+    const at = value.indexOf("=");
+    if (at < 1) fail(`${label} needs <key>=<value>, got "${value}"`);
+    map.set(value.slice(0, at), value.slice(at + 1));
+  }
+  return map;
+}
+
+if (command === "support") {
+  const { register, ledger, out } = parsed.values;
+  if (!report || !register || !ledger || !out) fail(USAGE);
+  let built;
+  try {
+    const rows = parseTable(parseMarkdown(readFileSync(register, "utf8")).lines)?.rows ?? [];
+    built = buildPackets(readFileSync(report, "utf8"), rows, ledgerRows(readFileSync(ledger, "utf8")), {
+      repos: pairs(parsed.values.repo, "--repo"),
+      copies: pairs(parsed.values.copy, "--copy"),
+      only: parsed.values.only ? new Set(parsed.values.only.split(",").map((id) => id.trim())) : null,
+    });
+  } catch (error) {
+    fail(`cannot build the packets: ${error.message}`);
+  }
+  writeFileSync(
+    out,
+    built.packets.map((packet) => JSON.stringify(packet)).join("\n") + (built.packets.length ? "\n" : ""),
+  );
+  console.log(`${out}: ${built.packets.length} packet(s); ${built.notChecked.length} cited claim(s) not checked`);
+  for (const entry of built.notChecked) console.log(`  not checked: ${entry.claim}: ${entry.reason}`);
+  process.exit(built.notChecked.length === 0 ? 0 : 1);
+}
+
+if (command === "support-check") {
+  if (!report || !parsed.values.packets) fail(USAGE);
+  let result;
+  try {
+    const packets = readFileSync(parsed.values.packets, "utf8")
+      .split("\n")
+      .filter((line) => line.trim() !== "")
+      .map((line) => JSON.parse(line));
+    result = checkVerdicts(packets, readVerdicts(readFileSync(report, "utf8")));
+  } catch (error) {
+    fail(`cannot check the verdicts: ${error.message}`);
+  }
+  if (parsed.values.json) console.log(JSON.stringify({ verdicts: report, ...result }, null, 2));
+  else {
+    const rate = result.interval
+      ? ` (${(result.supported / result.answered).toFixed(2)}, 95% Wilson interval ${result.interval.low.toFixed(2)} to ${result.interval.high.toFixed(2)})`
+      : "";
+    console.log(
+      `${report}: ${result.supported} of ${result.answered} answered packet(s) supported${rate}; ${result.open.length} open, ${result.settled.length} settled, ${result.problems.length} problem(s)`,
+    );
+    for (const entry of result.open)
+      console.log(`  open: ${entry.packet} ${entry.claim}: ${entry.verdict}: ${entry.missing}`);
+    for (const entry of result.settled)
+      console.log(`  settled: ${entry.packet} ${entry.claim}: ${entry.verdict}: ${entry.adjudication}`);
+    for (const problem of result.problems)
+      console.log(`  problem: ${problem.line ? `line ${problem.line}: ` : ""}${problem.problem}`);
+  }
+  process.exit(result.problems.length === 0 && result.open.length === 0 ? 0 : 1);
+}
 
 if (command === "draft-check" || command === "strip-ids") {
   if (!report) fail(USAGE);
@@ -74,7 +168,8 @@ if (command === "draft-check" || command === "strip-ids") {
     for (const left of venue.remaining) console.log(`  line ${left.line}: ${left.id} left in running text`);
     process.exit(venue.remaining.length === 0 ? 0 : 1);
   }
-  const options = { allow: new Set(parsed.values.allow), limits: new Map() };
+  const options = { allow: new Set(parsed.values.allow), limits: new Map(), copies: new Map() };
+  for (const [id, path] of pairs(parsed.values.copy, "--copy")) options.copies.set(id, readFileSync(path, "utf8"));
   for (const limit of parsed.values.limit) {
     const match = /^(.+)=(\d+)$/.exec(limit);
     if (!match) fail(`--limit needs <section>=<words>, got "${limit}"`);
@@ -124,10 +219,25 @@ if (!table || !table.columns.includes("ID") || !table.columns.includes("Numbers"
   fail(`${parsed.values.register} has no claims table with ID and Numbers columns`);
 }
 const register = new Map(table.rows.map((row) => [row.cells.ID, new Set(numbersIn(row.cells.Numbers))]));
+const levels = new Map(
+  table.rows.filter((row) => /^L[0-5]$/.test(row.cells.Level ?? "")).map((row) => [row.cells.ID, row.cells.Level]),
+);
 
 const problems = [];
+const notes = [];
 let checkedNumbers = 0;
 for (const unit of units(read(report))) {
+  for (const note of [...wordingNotes(unit.text, levels), ...currentNotes(unit.text)])
+    notes.push({ line: unit.line, ...note });
+  unit.text.split("\n").forEach((line, offset) => {
+    for (const mismatch of percentMismatches(line))
+      problems.push({
+        line: unit.line + offset,
+        kind: "percentage not from its counts",
+        value: mismatch.text,
+        detail: `the counts give ${mismatch.exact}%`,
+      });
+  });
   const ids = claimIds(unit.text);
   for (const id of ids) {
     if (!register.has(id))
@@ -188,9 +298,9 @@ if (parsed.values.results) {
   }
 }
 
-if (parsed.values.json) console.log(JSON.stringify({ report, checkedNumbers, results, problems }, null, 2));
+if (parsed.values.json) console.log(JSON.stringify({ report, checkedNumbers, results, problems, notes }, null, 2));
 else {
-  console.log(`${report}: ${checkedNumbers} number(s) checked; ${problems.length} problem(s)`);
+  console.log(`${report}: ${checkedNumbers} number(s) checked; ${problems.length} problem(s), ${notes.length} note(s)`);
   if (parsed.values.results) {
     console.log(
       `  results: ${results.checked} register number(s) traced to their files; ${results.notChecked.length} row(s) not checked`,
@@ -199,5 +309,7 @@ else {
   }
   for (const problem of problems)
     console.log(`  line ${problem.line}: ${problem.kind} ${problem.value} (${problem.detail})`);
+  // Notes are for the author to read: wording a number or a level may not support. They never fail the trace.
+  for (const note of notes) console.log(`  note: line ${note.line}: ${note.kind}: ${note.value}`);
 }
 process.exit(problems.length === 0 && results.notChecked.length === 0 ? 0 : 1);

@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-import { blankCode, numbersIn } from "./report.mjs";
+import { blankCode, normalizeForQuote, numbersIn } from "./report.mjs";
 import { fileHash, readLedger, receiptPath } from "./study.mjs";
 
 const sha256 = (data) => createHash("sha256").update(data).digest("hex");
@@ -86,6 +86,52 @@ const words = (text) => (text.match(/[^\s|#>*_`-][^\s|]*/g) ?? []).length;
 const ACRONYM = /\b(?=[A-Z0-9]*[A-Z][A-Z0-9]*[A-Z])[A-Z][A-Z0-9]{1,}s?\b/g;
 const ID_LIKE = /^(?:[A-Z]\d+|[A-Z]{1,2}-\d+)$/;
 
+// A sentence that states what earlier work found or what is known, which needs a source.
+const PRIOR_WORK =
+  /\b(?:prior|previous|earlier|existing|recent) (?:work|studies|research|methods|approaches)\b|\b(?:studies|research|work|authors) (?:have |has )?(?:shown|found|reported|demonstrated)\b|\bit is (?:well[- ])?known\b|\bis widely (?:used|known|believed|accepted)\b/i;
+
+// The run of words a passage must share with a source to count as copied.
+const COPY_RUN = 12;
+
+const copyWords = (text) =>
+  normalizeForQuote(text)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+/**
+ * Runs of twelve or more words the draft shares with a saved source copy outside quotation marks and block quotes:
+ * text taken from a source must be quoted and cited, or rewritten.
+ */
+export function copiedPassages(text, copies) {
+  if (copies.size === 0) return [];
+  const shingles = new Map();
+  for (const [source, copy] of copies) {
+    const sourceWords = copyWords(copy);
+    for (let at = 0; at + COPY_RUN <= sourceWords.length; at++) {
+      const key = sourceWords.slice(at, at + COPY_RUN).join(" ");
+      if (!shingles.has(key)) shingles.set(key, source);
+    }
+  }
+  const found = [];
+  blankCode(text)
+    .split("\n")
+    .forEach((line, index) => {
+      if (/^\s*>/.test(line)) return;
+      const unquoted = line.replace(/["“][^"“”]*["”]/g, " ");
+      const lineWords = copyWords(unquoted);
+      for (let at = 0; at + COPY_RUN <= lineWords.length; at++) {
+        const key = lineWords.slice(at, at + COPY_RUN).join(" ");
+        if (shingles.has(key)) {
+          found.push({ line: index + 1, source: shingles.get(key), words: key });
+          break;
+        }
+      }
+    });
+  return found;
+}
+
 /** Words that usually belong to the work's own process, not to the paper; listed for the author, never removed. */
 export const PROCESS_WORDS = [
   "TODO",
@@ -110,7 +156,10 @@ export const PROCESS_WORDS = [
  * acknowledgements). Notes (listed, never failing): acronyms used before their definition or never defined, and
  * process words; `allow` silences an acronym or a process word that belongs to the paper.
  */
-export function draftCheck(text, { ledger = null, figures = null, limits = new Map(), allow = new Set() } = {}) {
+export function draftCheck(
+  text,
+  { ledger = null, figures = null, limits = new Map(), allow = new Set(), copies = new Map() } = {},
+) {
   const problems = [];
   const notes = [];
   const parts = sections(text);
@@ -244,6 +293,28 @@ export function draftCheck(text, { ledger = null, figures = null, limits = new M
         value: `${acronym} (defined at line ${definedAt.get(acronym)})`,
       });
   }
+
+  // Ledger sources the draft never cites: read but unused, or cited under another form.
+  if (ledger) {
+    const cited = new Set([...plain.join("\n").matchAll(/@(S\d+)\b/g)].map((match) => match[1]));
+    for (const id of ledger) if (!cited.has(id)) notes.push({ line: 1, kind: "ledger source never cited", value: id });
+  }
+
+  // Statements about prior work that cite no source.
+  plain.forEach((line, index) => {
+    if (/^#/.test(line)) return;
+    for (const sentence of line.split(/(?<=[.!?])\s+/))
+      if (PRIOR_WORK.test(sentence) && !/@S\d+|\bS\d+\b|\bC\d+\b/.test(sentence))
+        notes.push({ line: index + 1, kind: "prior work without a citation", value: sentence.trim().slice(0, 80) });
+  });
+
+  // Passages copied from a saved source without quotation marks.
+  for (const copied of copiedPassages(text, copies))
+    problems.push({
+      line: copied.line,
+      kind: "copied without quotation marks",
+      value: `${copied.source}: "${copied.words}"`,
+    });
 
   // Process words.
   plain.forEach((line, index) => {

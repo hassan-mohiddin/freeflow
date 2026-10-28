@@ -48,3 +48,18 @@ Write the report in the [Research Report](artifacts.md#research-report) shape, d
 - **Recommendations are proposals** for the reader, who decides.
 
 Answer the strongest objection a reader will raise where it arises, once, with the reason: either the evidence that settles it or the limit it marks. Do not add objections no reader would raise.
+
+`claims.mjs trace` lists wording a claim's level may not support: "improves" or "causes" on a claim below L4, improvement beside a negative number, "the latest version" with no date or version. Rewrite the sentence at the claim's level, or keep it when the level supports it.
+
+## Check That Citations Support Claims
+
+Goal: each key claim says what its cited lines or passage actually show, conditions included.
+
+A citation can exist, be read, and still not show its claim: the claim drops a condition, widens the scope, or states a number the source does not. Writers miss this in their own work, because they read the source with the claim in mind. So a separate reader, who sees only the claim and its evidence, answers for each:
+
+1. `claims.mjs support <report.md> --register <claims.md> --ledger <sources.md> --repo <name>=<clone> --copy S<n>=<saved copy> --out packets.jsonl` writes one packet per claim the report cites with a code citation or a quote: the claim with its numbers and scope, and only its evidence (the cited code with the lines around it, so a condition that selects the path shows; or the passage around a quote). `--only C3,C7` limits it to the key claims. A cited claim with no code citation or quote is listed as not checked: quote the lines it rests on.
+2. Give the packets file to a reader in a separate context, by default a different model from the writer's, as Review Work's [Judge Contract](../../review-work/references/evals-and-judges.md#judge-contract) says. Give it nothing else: not the report, not your view of the claim. It writes one answer per packet to a verdicts file, in the format [artifacts](artifacts.md#support-packets-and-verdicts) defines.
+3. `claims.mjs support-check <verdicts.jsonl> --packets packets.jsonl` finds each answer's quote in its packet and counts the answers, k of n supported, with a Wilson interval.
+4. Settle each partial or unsupported answer: correct the claim (its wording, scope or level) or its citation, and build the packets again; or, when the evidence shows the reader is wrong, add `"adjudication": "rejected: <the lines that show it>"` to that answer. Report the rate and what was corrected in Method.
+
+At publication rigor, check every claim the answer or the contributions rest on; below it, check the claims a costly decision rests on, or none. The reader's verdicts are not validated against a gold set: they find claims to re-read, and a `supported` answer does not raise a claim's level.
