@@ -18,7 +18,7 @@ import { createHash } from "node:crypto";
 import { accessSync, appendFileSync, constants, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
-import { parseMarkdown, planHypotheses, plannedRuns, planVariants, validate } from "./formats.mjs";
+import { parseMarkdown, planHypotheses, planHypothesesTable, plannedRuns, planVariants, validate } from "./formats.mjs";
 
 export const TAIL_BYTES = 2048;
 
@@ -155,8 +155,19 @@ export function amendPlan(planPath, { by, reason, at = now() }) {
   const current = hypothesesOf(text);
   // Any hypothesis added, removed or changed: a new or promoted confirmatory hypothesis was chosen after the data
   // as surely as a changed one.
+  // A lock written before the Method column holds no method: an absent method and none are the same, so adding an
+  // optional section to such a plan changes no hypothesis. Adding a method to a hypothesis after runs does change it.
+  const comparable = (hypothesis) =>
+    hypothesis === undefined
+      ? null
+      : JSON.stringify({
+          kind: hypothesis.kind,
+          metric: hypothesis.metric,
+          rule: hypothesis.rule,
+          method: hypothesis.method ?? null,
+        });
   const changed = [...new Set([...Object.keys(previous), ...Object.keys(current)])].filter(
-    (id) => JSON.stringify(previous[id]) !== JSON.stringify(current[id]),
+    (id) => comparable(previous[id]) !== comparable(current[id]),
   );
   const hashes = new Set(lockedHashes(lock));
   const studyRuns = readLedger(runLedgerPath(planPath)).filter(
@@ -514,6 +525,11 @@ export function checkStudy(planPath) {
     if (!has("Models in the method"))
       notes.push(
         'the plan declares no models in the method (add "## Models in the method", or "none", in an amendment)',
+      );
+    const hypotheses = planHypothesesTable(text);
+    if (hypotheses.confirmatory && !hypotheses.withMethod)
+      notes.push(
+        "the plan's Hypotheses name no Method, so no verdict is checked against the method that computed it (add the column in an amendment)",
       );
     if (!has("Contamination"))
       notes.push('the plan records no contamination routes (add "## Contamination" in an amendment)');

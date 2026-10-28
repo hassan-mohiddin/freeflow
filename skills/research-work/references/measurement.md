@@ -47,7 +47,7 @@ A model judge's answers are measurements of an instrument whose error is unknown
 
 The record holds:
 
-- **Agreement with a gold set**: the share of gold items the judge got right, with its Wilson interval (`stats.mjs interval wilson`), and kappa beside it when one answer dominates the gold set (`agreement cohen`, `agreement pabak`; on an ordered scale, `agreement weighted` with quadratic weights for ratings). Report the raw agreement beside every kappa: kappa alone hides how often the raters agree. The gold answers come from people, or from an oracle, never from the judge or the model under test.
+- **Agreement with a gold set**: the share of gold items the judge got right, with its Wilson interval (`stats.mjs interval wilson`), and kappa beside it when one answer dominates the gold set (`agreement cohen`, `agreement pabak`; on an ordered scale, `agreement weighted` with `"weights": "quadratic"` for ratings; it defaults to linear). Report the raw agreement beside every kappa: kappa alone hides how often the raters agree. The gold answers come from people, or from an oracle, never from the judge or the model under test.
 - **The required lower bound**, fixed before scoring. The gold set's size follows from it: at 90% agreement the 95% interval is about 79–96% on 50 items, 83–94% on 100, and 85–93% on 200. There is no fixed minimum; there is the bound the study needs.
 - **Both answer orders**, for a judge comparing two outputs: run each pair both ways, and treat an answer that flips with the order as no answer. A judge that rates one output at a time records `not applicable`.
 - **Length control**: judges favor longer answers. Include gold items where the right answer is the shorter one.

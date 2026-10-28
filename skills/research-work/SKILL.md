@@ -134,7 +134,7 @@ When a result comes from a sample of items, runs or raters, compute it with `sta
 | Two arms on the same items, pass or fail | `paired mcnemar` on the items where the arms disagree | two separate rates compared by eye |
 | Two arms on the same items, a score | `paired difference`, or `paired permutation` for few items | an unpaired comparison |
 | Several runs of each task, or items grouped by source | `interval clustered` or `interval bootstrap` with clusters; `interval clustered-bayes` for pass or fail values with few clusters | counting runs as independent items |
-| Agreement between two raters | `agreement cohen`, with `agreement pabak` when one answer dominates; `agreement weighted` on an ordered scale (quadratic weights for ratings); the raw agreement beside every kappa | raw percent agreement alone, or kappa alone |
+| Agreement between two raters | `agreement cohen`, with `agreement pabak` when one answer dominates; `agreement weighted` on an ordered scale (name quadratic weights for ratings; linear is the default); the raw agreement beside every kappa | raw percent agreement alone, or kappa alone |
 | Several planned comparisons | `correct holm` | reporting each p value alone |
 | pass@k or pass^k from n runs per task | `passk task` or `passk suite`; `passk task-interval` or `passk suite-interval` for pass^k's interval | the share of runs that passed |
 | Several seeds or runs of each method on several tasks | `aggregate iqm` with its stratified interval (`aggregate mean`, `median` or `optimality-gap` alongside); `aggregate improvement` for the chance one method beats another | the mean of the best seeds, or a table of per-task means without intervals |

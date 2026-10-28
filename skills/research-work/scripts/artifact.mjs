@@ -22,7 +22,8 @@ import {
   validate,
 } from "./lib/formats.mjs";
 import { figureReceipts } from "./lib/paper.mjs";
-import { demotedHypotheses, lockState } from "./lib/study.mjs";
+import { demotedHypotheses, fileHash, lockState, readLedger } from "./lib/study.mjs";
+import { resultNumbers } from "./lib/report.mjs";
 
 const USAGE = [
   "Usage: artifact.mjs init <kind> <path> --title <title> --owner <owner> [--rigor check|study|publication]",
@@ -138,23 +139,34 @@ if (command === "init" && rest[0] === "project") {
       reason: state.reason,
       demoted: demotedHypotheses(state.lock),
       labelledByModel: planLabelsByModel(read(values.plan)),
-      // What computed a result file: every computed_by its JSON records, read relative to the register.
-      computedBy: (file) => {
+      // A result file the register cites (relative to the register): its numbers, every computed_by its JSON records,
+      // and the last receipt in the plan's run ledger that wrote it as it is now and ran stats.mjs (null when none).
+      resultFile: (file) => {
         const full = resolve(dirname(path), file);
-        if (!existsSync(full)) return [];
+        if (!existsSync(full)) return null;
+        const text = readFileSync(full, "utf8");
+        const computedBy = [];
         try {
-          const found = [];
           const walk = (value) => {
             if (value && typeof value === "object") {
-              if (typeof value.computed_by === "string") found.push(value.computed_by);
+              if (typeof value.computed_by === "string") computedBy.push(value.computed_by);
               Object.values(value).forEach(walk);
             }
           };
-          walk(JSON.parse(readFileSync(full, "utf8")));
-          return found;
+          walk(JSON.parse(text));
         } catch {
-          return [];
+          // not JSON: no computed_by
         }
+        const hash = fileHash(full);
+        const folder = dirname(resolve(values.plan));
+        const receipt =
+          readLedger(join(folder, "runs.jsonl"))
+            .filter((record) =>
+              (record.outputs ?? []).some((output) => resolve(folder, output.path) === full && output.sha256 === hash),
+            )
+            .filter((record) => (record.argv ?? []).some((arg) => /(?:^|[\s/])stats\.mjs(?:\s|$)/.test(arg)))
+            .at(-1) ?? null;
+        return { numbers: resultNumbers(text, file), computedBy, receipt };
       },
       // Every variant the plan has ever listed, from each lock entry, so an amendment cannot drop one unreported.
       variants: [
