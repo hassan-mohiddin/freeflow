@@ -115,7 +115,7 @@ export function anchorProblems(planPath, entry, label) {
 export function lockPlan(planPath, { by, at = now() }) {
   if (!by) throw new Error("lock needs --by: who locked the plan");
   const text = readFileSync(planPath, "utf8");
-  const { problems } = validate("study-plan", text);
+  const { problems } = validate("study-plan", text, { unlocked: !existsSync(lockPath(planPath)) });
   if (problems.length > 0) throw new Error(`the plan does not validate:\n  ${problems.join("\n  ")}`);
   if (existsSync(lockPath(planPath)))
     throw new Error(`${lockPath(planPath)} exists; a plan is locked once, and later changes are amendments`);
@@ -479,7 +479,9 @@ export function changedOutputs(planPath) {
 export function checkStudy(planPath) {
   const problems = [];
   const text = readFileSync(planPath, "utf8");
-  for (const problem of validate("study-plan", text).problems) problems.push(`plan: ${problem}`);
+  // A plan with no lock file is held to the parts a new plan has; a locked one keeps the notes below.
+  const locked = readLock(planPath) !== null;
+  for (const problem of validate("study-plan", text, { unlocked: !locked }).problems) problems.push(`plan: ${problem}`);
   const state = lockState(planPath);
   if (!state.locked) problems.push(`plan: ${state.reason}`);
   for (const deviation of deviations(planPath)) {
@@ -516,25 +518,26 @@ export function checkStudy(planPath) {
     if (!entry.git?.commit)
       notes.push(`${label} is not anchored in git: ${entry.git?.reason ?? "it was made before anchors were recorded"}`);
   });
-  // Plans written before these sections existed stay valid; a study-rigor plan without them is noted, not refused.
+  // Plans locked before these sections existed stay valid; a locked study-rigor plan without them is noted, not
+  // refused (validation refuses one not yet locked).
   const sections = parseMarkdown(text);
   if (sections.header.Rigor !== "check") {
     const has = (name) => [...sections.sections.keys()].some((heading) => heading.toLowerCase() === name.toLowerCase());
     if (!has("Analysis variants"))
       notes.push('the plan lists no analysis variants (add "## Analysis variants", or "none", in an amendment)');
-    if (!has("Models in the method"))
+    if (locked && !has("Models in the method"))
       notes.push(
         'the plan declares no models in the method (add "## Models in the method", or "none", in an amendment)',
       );
     const hypotheses = planHypothesesTable(text);
-    if (hypotheses.confirmatory && !hypotheses.withMethod)
+    if (locked && hypotheses.confirmatory && !hypotheses.withMethod)
       notes.push(
         "the plan's Hypotheses name no Method, so no verdict is checked against the method that computed it (add the column by amendment before the runs that count; after them it makes the hypothesis exploratory)",
       );
-    if (!has("Contamination"))
+    if (locked && !has("Contamination"))
       notes.push('the plan records no contamination routes (add "## Contamination" in an amendment)');
     const runs = plannedRuns(text);
-    if (runs.length > 0 && runs.every((run) => run.budget === null))
+    if (locked && runs.length > 0 && runs.every((run) => run.budget === null))
       notes.push("the plan states no budget per arm (add a Budget column to Planned runs in an amendment)");
     if (!readLedger(runLedgerPath(planPath)).some((receipt) => receipt.validity))
       notes.push("no validity check has run (study.mjs run --validity): the measure is not yet shown to work");

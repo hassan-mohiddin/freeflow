@@ -8,7 +8,7 @@
 import { spawnSync } from "node:child_process";
 
 /** The match rule's version, kept in each cached answer: an answer judged under another version is asked again. */
-export const LOOKUP_RULE = 3;
+export const LOOKUP_RULE = 4;
 
 /** Tokens of a title, name or source line: lowercased, accents folded (Müller and Muller are one name). */
 const tokens = (text) =>
@@ -23,8 +23,8 @@ const tokens = (text) =>
 /** The longer words of a title or source line, which carry what it is about. */
 const words = (text) => new Set(tokens(text).filter((word) => word.length > 3));
 
-// Words that mark a record as a sibling of the work a Source names (a correction notice, a reply, a later part), when
-// the Source's title does not carry them too.
+// Words that mark a record as a sibling of the work a Source names (a correction notice, a reply, another part), when
+// one title carries them and the other does not; with the roman numerals I to X, as numerals are.
 const SIBLING = new Set([
   "correction",
   "corrigendum",
@@ -42,10 +42,16 @@ const SIBLING = new Set([
   "part",
   "volume",
   "vol",
+  "i",
   "ii",
   "iii",
   "iv",
+  "v",
   "vi",
+  "vii",
+  "viii",
+  "ix",
+  "x",
 ]);
 
 /**
@@ -71,7 +77,8 @@ function sourceAuthorsAndYear(source) {
 /**
  * Whether a found record matches the ledger's Source. It matches when the titles agree both ways (most of the
  * record title's longer words are in the Source, and most of the Source title's are in the record), the record is
- * not a sibling of the work (a correction, a reply, another part), its year is within one of a year the Source
+ * not a sibling of the work (a correction, a reply, another part: a part word or numeral one title has and the other
+ * lacks, either way), its year is within one of a year the Source
  * names, and its first author is among the names the Source gives. A Source that names an author but no title is
  * left for a person to compare, as is one that differs in title, year or first author; only a record that shares
  * nothing with it refutes.
@@ -96,11 +103,19 @@ export function matchesSource(source, record) {
   const namesTitle = [...sourceWords].some((word) => !allNames.has(word) && !/^\d+$/.test(word) && word !== "others");
   const differs = [];
   const sourceAll = new Set(tokens(named ?? source));
-  const sibling = tokens(record.title).filter(
-    (word) => (SIBLING.has(word) || /^\d+$/.test(word)) && !sourceAll.has(word),
-  );
+  const partWord = (word) => SIBLING.has(word) || /^\d+$/.test(word);
+  const sibling = tokens(record.title).filter((word) => partWord(word) && !sourceAll.has(word));
   if (sibling.length > 0)
     differs.push(`its title adds "${[...new Set(sibling)].join('", "')}", so it may be a related work`);
+  // The other way: the title the Source names has a part word or numeral the record's lacks ("Part II" against a
+  // record titled "Part I"). Only a title the Source names is read, since the rest of its line holds the year and
+  // the venue's volume.
+  const recordAll = new Set(tokens(record.title));
+  const lacking = named ? tokens(named).filter((word) => partWord(word) && !recordAll.has(word)) : [];
+  if (lacking.length > 0)
+    differs.push(
+      `its title lacks "${[...new Set(lacking)].join('", "')}", which the Source's has, so it may be a related work`,
+    );
   if (record.year && sourceYears.length > 0 && !sourceYears.some((year) => Math.abs(year - Number(record.year)) <= 1))
     differs.push(`its year is ${record.year}, the Source's ${sourceYears.join(" or ")}`);
   if (byAuthor && family.length > 0 && !names(family[0]))

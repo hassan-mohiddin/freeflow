@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Trace a report to its claims register: every claim ID the report cites exists, and every number it states appears
 // in the Numbers of a claim cited in the same paragraph, list item or table row. With --results, also trace each
-// register number to the result file or log its Source names. It also fails a percentage that does not follow from
+// register number to the result file or log its Source names (with --cited-only, only the rows that name one). It also fails a percentage that does not follow from
 // the counts beside it, and lists, without failing, comparative or causal wording on a claim below L4, wording of
 // improvement beside a negative number, and a "latest" or "current" claim with no date or version. draft-check runs a paper draft's checks before review;
 // strip-ids writes the venue copy without the claim-ID parentheses.
@@ -27,13 +27,18 @@ import {
 } from "./lib/report.mjs";
 
 const USAGE = [
-  "Usage: claims.mjs trace <report.md> --register <claims.md> [--results] [--search <search ledger>] [--json]",
+  "Usage: claims.mjs trace <report.md> --register <claims.md> [--results [--cited-only]] [--search <search ledger>]",
+  "                        [--json]",
   "       claims.mjs support <report.md> [<paper.md>] --register <claims.md> --ledger <sources.md> --out <packets.jsonl>",
   "                          [--only C<n>,...] [--repo <name>=<clone>]... [--copy S<n>=<file>]...",
   "       claims.mjs support-check <verdicts.jsonl> --packets <packets.jsonl> [--json]",
   "       claims.mjs draft-check <paper.md> [--outline <outline.md>] [--ledger <sources.md>] [--limit <section>=<words>]...",
   "                              [--allow <acronym or process word>]... [--copy S<n>=<saved copy>]... [--json]",
   "       claims.mjs strip-ids <paper.md> --out <venue.md>",
+  "",
+  "trace --results also finds each register number in the result files its row's Source names (a code citation",
+  "S<n>:path is a source's, not a result file); a row with numbers and no result file is not checked and fails the",
+  "trace, or with --cited-only is listed beneath it without failing.",
   "",
   "draft-check fails on an abstract number missing from the body, a [@S<n>] citation not in the ledger, a figure or",
   "table reference the outline lacks (or an outline figure never named), figures numbered out of the order the text",
@@ -75,6 +80,7 @@ try {
       repo: { type: "string", multiple: true, default: [] },
       copy: { type: "string", multiple: true, default: [] },
       results: { type: "boolean", default: false },
+      "cited-only": { type: "boolean", default: false },
       search: { type: "string" },
       json: { type: "boolean", default: false },
       help: { type: "boolean" },
@@ -330,15 +336,20 @@ for (const unit of units(read(report))) {
 }
 
 // Register numbers against the result files their Source names.
-const results = { checked: 0, notChecked: [] };
+const results = { checked: 0, notChecked: [], listed: [] };
 if (parsed.values.results) {
   const folder = dirname(resolve(parsed.values.register));
   for (const row of table.rows) {
     const numbers = numbersIn(row.cells.Numbers);
     if (numbers.length === 0) continue;
-    const files = resultCitations(row.cells.Source ?? "");
+    // A code citation (S3:path:12) names a file in a source's repository, not a result file of the project.
+    const files = resultCitations(row.cells.Source ?? "").filter((file) => !/^S\d+:/.test(file.path));
     if (files.length === 0) {
-      results.notChecked.push({ id: row.cells.ID, detail: "its Source names no result file" });
+      // With --cited-only, a row that names no result file is listed, not failed: its numbers come from a source.
+      (parsed.values["cited-only"] ? results.listed : results.notChecked).push({
+        id: row.cells.ID,
+        detail: "its Source names no result file",
+      });
       continue;
     }
     const found = [];
@@ -374,9 +385,10 @@ else {
   console.log(`${report}: ${checkedNumbers} number(s) checked; ${problems.length} problem(s), ${notes.length} note(s)`);
   if (parsed.values.results) {
     console.log(
-      `  results: ${results.checked} register number(s) traced to their files; ${results.notChecked.length} row(s) not checked`,
+      `  results: ${results.checked} register number(s) traced to their files; ${results.notChecked.length} row(s) not checked${results.listed.length > 0 ? `, ${results.listed.length} citing no result file` : ""}`,
     );
     for (const row of results.notChecked) console.log(`  not checked: ${row.id} (${row.detail})`);
+    for (const row of results.listed) console.log(`  note: not traced to a result file: ${row.id} (${row.detail})`);
   }
   for (const problem of problems)
     console.log(`  line ${problem.line}: ${problem.kind} ${problem.value} (${problem.detail})`);
