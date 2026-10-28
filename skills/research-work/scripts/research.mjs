@@ -5,9 +5,9 @@
 // runs goes online or calls a model.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -28,7 +28,9 @@ const USAGE = [
   "",
   "The folder is read as artifact.mjs init project lays it out; --<file> names one elsewhere:",
   ...FILES.map((file) => `  --${file.padEnd(9)} ${LAYOUT[file]}`),
-  "A path given with --<file> is relative to the current folder. The rigor comes from the brief's header;",
+  "A path given with --<file> is relative to the current folder. --report - or --paper - reads that file once from",
+  "stdin into the gate's scratch folder, and every check runs on the copy: the form for a host that refuses the file.",
+  "The rigor comes from the brief's header;",
   "--rigor is used only when there is no brief, and one that differs from the brief's fails the gate.",
   "",
   "Every rigor checks the brief, the source ledger and each report or paper present: cite-check, trace (with",
@@ -93,6 +95,23 @@ const markedOut = (values["unsupported-ok"] ?? "")
   .map((id) => id.trim())
   .filter(Boolean);
 if (markedOut.some((id) => !/^C\d+$/.test(id))) fail("--unsupported-ok takes claim IDs: C<n>,...");
+
+// --report - or --paper -: the text is read once from stdin into a scratch folder, since each check is a child process
+// that cannot read the gate's stdin; every check then runs on that copy, which is removed when the gate exits.
+const piped = ["report", "paper"].filter((file) => values[file] === "-");
+if (piped.length > 1) fail("only one of --report and --paper can be read from stdin (-)");
+if (piped.length === 1) {
+  let input;
+  try {
+    input = readFileSync(0, "utf8");
+  } catch (error) {
+    fail(`cannot read --${piped[0]} from stdin: ${error.message}`);
+  }
+  const scratch = mkdtempSync(join(tmpdir(), "research-gate-stdin-"));
+  process.on("exit", () => rmSync(scratch, { recursive: true, force: true }));
+  values[piped[0]] = join(scratch, basename(LAYOUT[piped[0]]));
+  writeFileSync(values[piped[0]], input);
+}
 
 // Every path as the commands are shown and run: relative to the current folder when inside it, so a command can be
 // copied and rerun.
@@ -528,7 +547,9 @@ const venueGiven = Boolean(values["max-pages"] || values["max-words"] || values.
 const venueTodo =
   "check it against the venue: run the gate again with the venue's page and word limits and its required sections (--max-pages <n>, --max-words <n>, --require <section> for each; the venue's current call and template give them)";
 if (used.pdf || (used.paper && atLeast("publication"))) {
-  const runs = join(dirname(paths.paper), "runs.jsonl");
+  // A paper read from stdin is built from where the folder keeps it, not from the gate's scratch copy.
+  const paperHome = piped.includes("paper") ? shown(resolve(folder, LAYOUT.paper)) : paths.paper;
+  const runs = join(dirname(paperHome), "runs.jsonl");
   const pdf = used.pdf
     ? run("paper.mjs", [
         "check-pdf",
@@ -541,7 +562,7 @@ if (used.pdf || (used.paper && atLeast("publication"))) {
       ])
     : notRun(
         `no ${paths.pdf}`,
-        `build it with ${commandLine("paper.mjs", ["build", paths.paper, "--to", "pdf", "--out", paths.pdf, "--ledger", shown(resolve(runs)), "--venue"])}, then run the gate again${atLeast("publication") && !venueGiven ? " with the venue's --max-pages, --max-words and --require <section>" : ""}`,
+        `build it with ${commandLine("paper.mjs", ["build", paperHome, "--to", "pdf", "--out", paths.pdf, "--ledger", shown(resolve(runs)), "--venue"])}, then run the gate again${atLeast("publication") && !venueGiven ? " with the venue's --max-pages, --max-words and --require <section>" : ""}`,
       );
   if (used.pdf && atLeast("publication") && !venueGiven)
     Object.assign(pdf, {

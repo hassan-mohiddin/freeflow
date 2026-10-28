@@ -3,7 +3,7 @@
 // sibling check both ways.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -168,4 +168,39 @@ test("a review's evidence table is validated against the source ledger, and one 
   const elsewhere = join(filled, "table.md");
   writeFileSync(elsewhere, evidenceTable(["| S9 | within-item comparison | 500 | +0.5 | no gain | L2 |"]));
   assert.equal(check(gate(filled, "--evidence", elsewhere), "evidence").status, "failed");
+});
+
+const piped = (input, ...args) => {
+  const result = spawnSync(process.execPath, [join(SCRIPTS, "research.mjs"), "gate", ...args, "--json"], {
+    encoding: "utf8",
+    input,
+  });
+  return { status: result.status, stderr: result.stderr, ...(result.stdout ? JSON.parse(result.stdout) : {}) };
+};
+
+test("--report - reads the report once from stdin, and every check runs on that copy", () => {
+  const folder = project();
+  rmSync(join(folder, "report.md"));
+  const passed = piped(REPORT, folder, "--report", "-");
+  assert.equal(passed.status, 0, JSON.stringify(passed.checks, null, 2));
+  for (const id of ["report-cite", "report-trace"]) assert.equal(check(passed, id).status, "passed", id);
+  // Both checks read the one copy, which the gate removes when it exits.
+  const copy = /\S*research-gate-stdin-[^/\s]+\/report\.md/.exec(check(passed, "report-trace").command)?.[0];
+  assert.ok(copy, check(passed, "report-trace").command);
+  assert.match(check(passed, "report-cite").command, new RegExp(copy.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.equal(existsSync(copy), false);
+
+  const misquoted = piped(
+    REPORT.replace('twice when the policy allows it" (S1)', 'three times on every call" (S1)'),
+    folder,
+    "--report",
+    "-",
+  );
+  assert.equal(misquoted.status, 1);
+  assert.equal(check(misquoted, "report-cite").status, "failed");
+
+  // A paper from stdin gets its draft checks on the copy too; only one of the two can come from stdin.
+  const paper = piped(REPORT, folder, "--paper", "-");
+  assert.notEqual(check(paper, "draft").status, "not run", JSON.stringify(check(paper, "draft"), null, 2));
+  assert.equal(piped(REPORT, folder, "--report", "-", "--paper", "-").status, 2);
 });
