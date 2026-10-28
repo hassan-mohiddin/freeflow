@@ -49,7 +49,28 @@ Write the report in the [Research Report](artifacts.md#research-report) shape, d
 
 Answer the strongest objection a reader will raise where it arises, once, with the reason: either the evidence that settles it or the limit it marks. Do not add objections no reader would raise.
 
-`claims.mjs trace` lists wording a claim's level may not support: "improves" or "causes" on a claim below L4, improvement beside a negative number, "the latest version" with no date or version. Rewrite the sentence at the claim's level, or keep it when the level supports it.
+`claims.mjs trace` lists wording a claim's level may not support: "improves" or "causes" on a claim below L4, improvement beside a negative number, "the latest version" or a "current" claim with no date, version or commit. Rewrite the sentence at the claim's level, or keep it when the level supports it.
+
+## What The Gate Runs
+
+`research.mjs gate` runs each check below that its rigor requires or its file makes possible. A file that is present is always checked, and its failure fails the gate; a claims register or outline still as `init` wrote it counts as absent.
+
+| Check | Runs | Required at |
+| --- | --- | --- |
+| Brief and source ledger: `artifact.mjs validate` | always | every rigor |
+| Every source opened or run: no ledger row checked from an `abstract`, a `summary-only` or `memory` | at publication | publication |
+| Search ledger: `validate` | when it has lines | — |
+| Study plan: `validate`, then `study.mjs check` | when there is a plan | — |
+| Claims register: `validate --sources`, with `--plan` and `--search` when they exist | when it is filled in | study, publication |
+| Report and paper: `sources.mjs cite-check`; `claims.mjs trace`, with `--results` when there is a plan | for each one present | cite-check at every rigor; trace when there is a register, and at study and publication |
+| Paper: its outline's `validate`; `claims.mjs draft-check` | with a paper | — |
+| Citation support: `claims.mjs support-check`, on packets that still match the report | at publication, or when answers exist | publication |
+| PDF: `paper.mjs check-pdf` | when one is built | a paper at publication |
+
+- `artifact.mjs validate` refuses a register whose sources are missing or refuted, or whose levels exceed their sources' checking; a claim of absence (something first, new or never done) that cites no `search:Q<n>`, and with `--search` a query the ledger lacks; with `--plan`, a confirmatory claim the locked plan does not hold as a confirmatory hypothesis, and an analysis variant the plan has listed that no row names as `variant V<n>`; and a claim above L1 resting on a judge record that does not pass.
+- `cite-check` reads each cited file at the commit pinned in the ledger, using a local clone you name, and finds each quote in a saved copy of its source. Anything it could not check, it lists as not checked, never as passed; the gate fails a check with 0 failed and any not checked.
+- `trace` lists every number and claim ID in the report that the register does not support. It reads the report by paragraph, list item, table row and heading, and a number passes only when the same one cites the claim it comes from. Every digit outside code counts, so write a design constant (a grid spacing, a seed) in words or put it in its claim's Numbers. It skips code spans and blocks, so a number the report states belongs outside backticks. With `--results`, it also finds each register number in the result file or log its Source names (a JSON file's numeric values only). That shows the number is there, not that the analysis computed it; it passes only with 0 problems and 0 rows not checked.
+- `trace` also fails a percentage that does not follow from the counts beside it ("12 of 40 (35%)"), and lists, without failing, wording a claim's level may not support, as [Write The Report From The Register](#write-the-report-from-the-register) says. Read each listed line; a listed word that the claim's level supports stays.
 
 ## Check That Citations Support Claims
 
@@ -57,9 +78,9 @@ Goal: each key claim says what its cited lines or passage actually show, conditi
 
 A citation can exist, be read, and still not show its claim: the claim drops a condition, widens the scope, or states a number the source does not. Writers miss this in their own work, because they read the source with the claim in mind. So a separate reader, who sees only the claim and its evidence, answers for each:
 
-1. `claims.mjs support <report.md> --register <claims.md> --ledger <sources.md> --repo <name>=<clone> --copy S<n>=<saved copy> --out packets.jsonl` writes one packet per claim the report cites with a code citation or a quote: the claim with its numbers, scope and limit, and only its evidence (the cited code with the lines around it and the lines that open its enclosing blocks, so a condition that selects the path shows; or the passage around a quote). A citation counts for the claims cited in its own sentence, or in the sentence before when its own cites none, so put each claim's citation beside it. `--only C3,C7` limits it to the key claims. A cited claim with no code citation or quote is listed as not checked: quote the lines it rests on.
-2. Give the packets file to a reader in a separate context, by default a different model from the writer's, as Review Work's [Judge Contract](../../review-work/references/evals-and-judges.md#judge-contract) says. Give it nothing else: not the report, not your view of the claim. It writes one answer per packet to a verdicts file, in the format [artifacts](artifacts.md#support-packets-and-verdicts) defines.
-3. `claims.mjs support-check <verdicts.jsonl> --packets packets.jsonl` finds each answer's quote in its packet and counts the answers, k of n supported, with a Wilson interval.
-4. Settle each partial or unsupported answer: correct the claim (its wording, scope or level) or its citation, and build the packets again; or, when the evidence shows the reader is wrong, add `"adjudication": "rejected: \"<four or more words of the packet's evidence>\" <why they show it>"` to that answer; a rejection that quotes nothing settles nothing. Report the rate and what was corrected in Method.
+1. `claims.mjs support <report.md> --register <claims.md> --ledger <sources.md> --repo <name>=<clone> --copy S<n>=<saved copy> --out reviews/support-packets.jsonl` writes one packet per claim the report cites with a code citation or a quote: the claim with its numbers, scope and limit, and only its evidence (the cited code with the lines around it and the lines that open its enclosing blocks, so a condition that selects the path shows; or the passage around a quote). A citation counts for the claims cited in its own sentence, or in the sentence before when its own cites none, so put each claim's citation beside it. `--only C3,C7` limits it to the key claims. A cited claim with no code citation or quote is listed as not checked: quote the lines it rests on.
+2. Give the packets file to a reader in a separate context, by default a different model from the writer's, as Review Work's [Judge Contract](../../review-work/references/evals-and-judges.md#judge-contract) says. Give it nothing else: not the report, not your view of the claim. It writes one answer per packet to a verdicts file (`reviews/support-verdicts.jsonl`, where the gate reads it), in the format [artifacts](artifacts.md#support-packets-and-verdicts) defines.
+3. `claims.mjs support-check <verdicts.jsonl> --packets <packets.jsonl>` finds each answer's quote in its packet and counts the answers, k of n supported, with a Wilson interval.
+4. Settle each partial or unsupported answer: correct the claim (its wording, scope or level) or its citation, and build the packets again (the gate refuses packets the report, register and sources no longer give); or, when the evidence shows the reader is wrong, add `"adjudication": "rejected: \"<four or more words of the packet's evidence>\" <why they show it>"` to that answer; a rejection that quotes nothing settles nothing. Report the rate and what was corrected in Method.
 
 At publication rigor, check every claim the answer or the contributions rest on; below it, check the claims a costly decision rests on, or none. The reader's verdicts are not validated against a gold set: they find claims to re-read, and a `supported` answer does not raise a claim's level. The reader sees only what is cited, so a condition in code the claim does not cite stays invisible: cite the line where a value takes the form the claim states (where a flag is finally set, not where it is first assigned).

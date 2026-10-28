@@ -212,6 +212,17 @@ Count subjects before running: groups × arms × trials, times the stages of a p
 
 Spend the fewest subject and judge calls that still answer the question: start from saved evidence; run `check-tasks`, which calls no model, while a dry run still runs subjects; run the smallest batch first with `--pilot` or one `--group`; let `--reuse` take unchanged arms, but run every arm fresh when a claim is close, since a reused run did not share the fresh arm's batch; remember that `--jobs` saves time, not spend; let a decision's adaptive `trials` schedule add trials only where the sign is unsettled; grade deterministically first, swap only a sample once order effects are known to be rare, and calibrate each judge configuration once. A cheaper judge that calibrates well is a valid choice.
 
+## Under A Research Work Study Plan
+
+When a Research Work study plan's arms are agent configurations, this evaluator runs them, and the plan's rules apply to the suite. Research Work owns those rules ([study design](../../research-work/references/study.md)); this is what carries each one here:
+
+- **The run and its verdict.** Run `skill-eval run` through `study.mjs run`, with `--results` inside the study's folder, so a receipt records the command and its exit code. The suite `decision` is the plan's decision rule, computed by the evaluator rather than by a `stats.mjs` receipt: write the hypothesis's `Method` as `computed: skill-eval suite decision, sign test`, and cite the aggregate in the register, so Research Work's gate traces its numbers there. Its test is the one `stats.mjs paired sign` computes; the unit, size and verdicts are this skill's, as Fix The Decision Rule First says.
+- **Budgets per arm.** Arms differ only in the component, so they share turns, tools, model and thinking unless one of those is the component; write the same Budget for every arm compared. Tuning effort is yours to equalize: a candidate revised against these cases was tuned on them, so they are tuning cases (Hold Cases Out).
+- **Validity.** For a coding task, `check-tasks` is the plan's validity check: the reference solution must pass and the unchanged fixture must fail. Run it through `study.mjs run --validity`; it exits non-zero on an unsolvable or already-solved group, and a not-checkable group needs another check. The evaluator's own validity gate ([running and evidence](running-and-evidence.md)) is a different check: it marks invalid a run that shows no model at work.
+- **Contamination.** Grader files outside the fixture, the `answer-copy` and `outside-read` flags, and `network: "none"` control the plan's `grader and harness` and `tools and web` routes; `training data` (cases from a published benchmark) and `tuning` stay yours to record.
+- **Model labels.** A judge under `review --rubric` is the plan's `judge`. Any other model whose labels the analysis counts, such as one inside a command grader, is a judge too, as Research Work's [measurement](../../research-work/references/measurement.md#judges) says.
+- **Expected answers.** The Rule that keeps criteria, graders, review questions and rubric references away from subjects covers the evaluator's own files; Research Work's [rule](../../research-work/references/study.md#close-the-routes-contamination-takes) adds the prediction: no prompt, fixture or declared context an arm receives says which arm should win.
+
 ## Defect Suites
 
 For a reviewer, checker or anything else whose job is to find problems. Sizing, noise and judges are above; this section covers what is particular to detectors.
@@ -232,7 +243,7 @@ A detector is measured on two sides, as Research Work's [measurement](../../rese
 
 ### Keep The Answer Out Of Sight
 
-- Nothing the detector sees may name the variant, the class or the defect: use neutral IDs and paths. A declared context path containing the variant name is enough to leak it.
+- What the detector must not see is in Research Work's [measurement](../../research-work/references/measurement.md#detectors-measure-both-sides), and the defect's class is part of it: use neutral IDs and paths, since a declared context path containing the variant name is enough to leak it.
 - Cases are built by someone other than the author of the guidance under test. Seeds are never written by the model under test.
 
 ### Give The Detector What Its Job Needs

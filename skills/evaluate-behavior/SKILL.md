@@ -19,6 +19,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | --- | --- |
 | The question, evidence class, arms, pressure or component; what the result can claim, the decision rule, cases and trials, noise, judge counts, cost | [design and measurement](references/design-and-measurement.md) |
 | Measuring a reviewer, checker, or other detector | its [Defect Suites](references/design-and-measurement.md#defect-suites) |
+| A Research Work study plan's arms run here: its method, budgets, validity check, contamination and judges | its [Under A Research Work Study Plan](references/design-and-measurement.md#under-a-research-work-study-plan) |
 | Writing or checking group, suite, or configuration JSON | [authoring](references/authoring.md) |
 | A coding task (hidden tests, declared commands, a shell, a container, network), or the Claude Code host | [coding tasks](references/coding-tasks.md) |
 | A conversation, a pipeline, a rubric and judges, or a runtime profile | [conversations, pipelines and judges](references/conversations-pipelines-judges.md) |

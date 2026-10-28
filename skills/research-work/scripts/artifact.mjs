@@ -23,6 +23,7 @@ import {
 } from "./lib/formats.mjs";
 import { figureReceipts } from "./lib/paper.mjs";
 import { demotedHypotheses, fileHash, lockState, readLedger } from "./lib/study.mjs";
+import { projectFiles } from "./lib/project.mjs";
 import { resultNumbers } from "./lib/report.mjs";
 
 const USAGE = [
@@ -73,21 +74,13 @@ if (values.help) {
 const [command, ...rest] = positionals;
 
 if (command === "init" && rest[0] === "project") {
-  // The default layout of a research project: the brief and ledgers, the study, the register, the paper and its
+  // The default layout of a research project (lib/project.mjs): the brief and ledgers, the study, the register, the paper and its
   // reviews. Paths in the artifacts are relative, so another layout works too.
   const [, folder] = rest;
   if (!folder) fail(USAGE);
   if (!values.title || !values.owner) fail("init needs --title and --owner");
   if (existsSync(folder) && readdirSync(folder).length > 0) fail(`${folder} is not empty; init never overwrites`);
-  const files = {
-    "brief.md": skeleton("research-brief", { title: values.title, owner: values.owner, rigor: values.rigor }),
-    "sources/sources.md": skeleton("source-ledger", { title: values.title, owner: values.owner }),
-    "sources/searches.jsonl": "",
-    "claims.md": skeleton("claims-register", { title: values.title, owner: values.owner }),
-    "paper/outline.md": skeleton("paper-outline", { title: values.title, owner: values.owner })
-      .replace("<path to the claims register the paper draws on>", "../claims.md")
-      .replace("<the run ledger holding the figures' receipts, or none>", "runs.jsonl"),
-  };
+  const files = projectFiles({ title: values.title, owner: values.owner, rigor: values.rigor });
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(dirname(join(folder, file)), { recursive: true });
     writeFileSync(join(folder, file), text);
@@ -100,8 +93,10 @@ if (command === "init" && rest[0] === "project") {
     "  sources/                sources.md (source ledger), searches.jsonl (search ledger), saved copies",
     "  study/                  plan.md (artifact.mjs init study-plan), runs.jsonl, deviations.jsonl, results/",
     "  claims.md               the claims register",
+    "  report.md               the research report, when there is one",
     "  paper/                  outline.md, paper.md, figures/ (specs and SVGs), refs.bib, build/, runs.jsonl, rebuttal.md",
-    "  reviews/                review briefs and reports",
+    "  reviews/                review briefs and reports; support-packets.jsonl and support-verdicts.jsonl",
+    "Check it with research.mjs gate <folder>.",
   ])
     console.log(line);
 } else if (command === "init") {

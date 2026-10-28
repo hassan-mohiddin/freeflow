@@ -86,7 +86,7 @@ A pilot checks that the instrument works: the oracle scores full, the do-nothing
 
 A study with human participants (people you recruit to rate, answer or be observed) stops for the user and their institution's ethics process before any data is collected; Research Work does not decide consent or ethics approval.
 
-Lock the plan when the twelve answers are written and the user has agreed them: the lock is the user's decision at `study` and `publication` rigor, recorded as a decision Checkpoint through [Track Work](../../track-work/SKILL.md), and `study.mjs lock --by` names who locked it ([running](#running-the-study)).
+Lock the plan when the twelve answers are written and the user has agreed them. The plan's open choices (the claim sought, each decision rule and its method, the arms and their budgets, the count) go in the task's decision list as the brief's do ([framing](framing.md#agree-it)), so the agreement shows them. The lock is the user's decision at `study` and `publication` rigor, recorded as a decision Checkpoint through [Track Work](../../track-work/SKILL.md), and `study.mjs lock --by` names who locked it ([running](#running-the-study)).
 
 ## Measure The Noise Floor
 
@@ -173,4 +173,4 @@ Before a paid run, give the user the count of runs and calls and the estimated c
 
 ### Analyze Only After The Check
 
-Run `study.mjs check` before the analysis. It refuses a plan that changed since its lock, an uncleared deviation, and a planned trial (each trial number up to the plan's count, run with `--trial`) with neither a receipt nor a cleared deviation covering it. It does not read the exit code of a derived step, except a validity check run with `--validity`, whose failure logged its own deviation; any other failed check holds the analysis only once you log it as a deviation. Then compute every statistic with `stats.mjs` as the plan's decision rule says, register each claim with its numbers and the result file they come from, and run the checks in [Research Work](../SKILL.md#check-the-report), with `--plan` and `--results`.
+Run `study.mjs check` before the analysis. It refuses a plan that changed since its lock, an uncleared deviation, and a planned trial (each trial number up to the plan's count, run with `--trial`) with neither a receipt nor a cleared deviation covering it. It does not read the exit code of a derived step, except a validity check run with `--validity`, whose failure logged its own deviation; any other failed check holds the analysis only once you log it as a deviation. Then compute every statistic with `stats.mjs` as the plan's decision rule says, register each claim with its numbers and the result file they come from, and run the gate in [Research Work](../SKILL.md#check-the-report), which validates the register with `--plan` and traces with `--results` when the plan is in the project.
