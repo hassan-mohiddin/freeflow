@@ -63,6 +63,10 @@ const FAMILIES = {
     improvement: ({ x, y, resamples, seed, confidence }) =>
       stats.probabilityOfImprovement(x, y, { resamples, seed, confidence }),
   },
+  meta: {
+    fixed: ({ yi, vi, confidence }) => stats.metaFixed(yi, vi, { confidence }),
+    random: ({ yi, vi, confidence }) => stats.metaRandom(yi, vi, { confidence }),
+  },
   tost: {
     paired: ({ differences, low, high, alpha }) => stats.tostPaired(differences, { low, high, alpha }),
   },
@@ -94,6 +98,8 @@ const USAGE = [
   ...Object.entries(FAMILIES).map(([family, methods]) => `  ${family.padEnd(10)} ${Object.keys(methods).join(", ")}`),
   "",
   'aggregate takes "scores", one array of run scores per task; optimality-gap takes "target" (1, for scores on 0 to 1).',
+  'meta takes "yi", one effect size per study (a log risk ratio, a standardized mean difference), and "vi", their',
+  "variances; random gives the DerSimonian-Laird tau² with the Hartung-Knapp interval as low and high.",
   'Example: echo \'{"method":"wilson","successes":10,"n":19}\' | stats.mjs interval',
 ].join("\n");
 
@@ -110,7 +116,20 @@ function defined(object) {
 function summary(result) {
   if (result === null) return "No result: fewer than two raters.";
   const parts = [result.method];
-  for (const name of ["estimate", "kappa", "alpha", "pabak", "p", "power", "passAtK", "passPowerK", "n", "icc"]) {
+  for (const name of [
+    "estimate",
+    "kappa",
+    "alpha",
+    "pabak",
+    "p",
+    "power",
+    "passAtK",
+    "passPowerK",
+    "n",
+    "icc",
+    "tau2",
+    "i2",
+  ]) {
     if (typeof result[name] === "number") parts.push(`${name} ${Number(result[name].toPrecision(6))}`);
   }
   if (typeof result.low === "number")
@@ -120,6 +139,7 @@ function summary(result) {
   if (Array.isArray(result.adjusted))
     parts.push(`adjusted ${result.adjusted.map((p) => Number(p.toPrecision(6))).join(", ")}`);
   if (typeof result.equivalent === "boolean") parts.push(result.equivalent ? "equivalent" : "not shown equivalent");
+  for (const warning of result.warnings ?? []) parts.push(`warning: ${warning}`);
   return parts.join("; ");
 }
 

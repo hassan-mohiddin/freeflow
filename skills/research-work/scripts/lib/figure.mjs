@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 
-export const TYPES = ["line", "points", "bar", "scatter"];
+export const TYPES = ["line", "points", "bar", "scatter", "flow"];
 // Okabe and Ito's palette, distinguishable with the common colour-vision deficiencies.
 const COLORS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9", "#000000", "#F0E442"];
 const MARKERS = ["circle", "square", "triangle", "diamond"];
@@ -140,6 +140,7 @@ export function readSeries(spec, specPath) {
 
 /** The figure as SVG text, and a summary of what it drew. */
 export function drawFigure(spec, specPath) {
+  if (spec?.type === "flow") return drawFlow(spec, specPath);
   const series = readSeries(spec, specPath);
   const width = spec.width ?? 640;
   const height = spec.height ?? 400;
@@ -273,4 +274,218 @@ export function drawFigure(spec, specPath) {
     "",
   ].join("\n");
   return { svg, series: series.map((each) => ({ label: each.label, points: each.points.length })) };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// A review's flow diagram
+
+const FLOW_KEYS = ["type", "data", "title", "description", "width"];
+const whole = (value) => Number.isInteger(value) && value >= 0;
+
+/** Check a group of exclusions: whole counts that add up to its total. */
+function checkGroup(group, name, problems) {
+  if (!group || !whole(group.records) || !Array.isArray(group.reasons)) {
+    problems.push(`${name} needs records and reasons`);
+    return;
+  }
+  for (const reason of group.reasons)
+    if (!whole(reason?.records) || typeof reason?.reason !== "string")
+      problems.push(`${name}: each reason needs its text and a whole count`);
+  const sum = group.reasons.reduce((total, reason) => total + (whole(reason?.records) ? reason.records : 0), 0);
+  if (sum !== group.records) problems.push(`${name}: its reasons count ${sum}, its total ${group.records}`);
+}
+
+/**
+ * Read a flow written by `artifact.mjs counts --flow`, refusing counts that do not add up: a flow typed or edited by
+ * hand usually breaks one of these sums.
+ */
+export function readFlow(spec, specPath) {
+  for (const key of Object.keys(spec))
+    if (!FLOW_KEYS.includes(key))
+      throw new Error(
+        `a flow spec takes ${FLOW_KEYS.join(", ")}; "${key}" is not one, and its counts come from the data file`,
+      );
+  if (typeof spec.data !== "string" || spec.data.trim() === "")
+    throw new Error("data must name the flow file artifact.mjs counts --flow wrote; a figure never takes typed values");
+  const file = resolve(dirname(resolve(specPath)), spec.data);
+  const flow = JSON.parse(readFileSync(file, "utf8"));
+  if (flow?.kind !== "search-flow") throw new Error(`${spec.data} is not a flow written by artifact.mjs counts --flow`);
+  const problems = [];
+  for (const name of ["duplicates", "awaiting", "screened", "included"])
+    if (!whole(flow[name])) problems.push(`${name} must be a whole number`);
+  const databases = flow.identified?.databases;
+  if (!whole(flow.identified?.records) || !Array.isArray(databases) || databases.length === 0)
+    problems.push("identified needs records and at least one database");
+  else {
+    const sum = databases.reduce((total, each) => total + (whole(each?.records) ? each.records : NaN), 0);
+    if (sum !== flow.identified.records)
+      problems.push(`identified: its databases count ${sum}, its total ${flow.identified.records}`);
+  }
+  checkGroup(flow.excluded_title_abstract, "excluded_title_abstract", problems);
+  checkGroup(flow.excluded_stage_not_recorded, "excluded_stage_not_recorded", problems);
+  if (flow.full_text !== null) {
+    checkGroup(flow.full_text?.excluded, "full_text.excluded", problems);
+    if (!whole(flow.full_text?.assessed)) problems.push("full_text.assessed must be a whole number");
+    else if (flow.full_text.assessed !== (flow.full_text.excluded?.records ?? 0) + flow.included)
+      problems.push("full_text: those assessed are not those excluded at full text plus those included");
+  }
+  if (problems.length === 0) {
+    if (flow.identified.records !== flow.duplicates + flow.awaiting + flow.screened)
+      problems.push("identified is not duplicates plus awaiting plus screened");
+    const afterScreening = flow.full_text ? flow.full_text.assessed : flow.included;
+    if (
+      flow.screened !==
+      flow.excluded_title_abstract.records + flow.excluded_stage_not_recorded.records + afterScreening
+    )
+      problems.push("screened is not those excluded at screening plus those that went on");
+  }
+  if (problems.length > 0)
+    throw new Error(
+      `${spec.data}: the flow's counts do not add up (${problems.join("; ")}); write it with artifact.mjs counts --flow`,
+    );
+  return flow;
+}
+
+/** Words wrapped to lines of at most `width` characters; a longer word stays whole on its own line. */
+function wrap(text, width) {
+  const lines = [];
+  let current = "";
+  for (const word of String(text).split(/\s+/).filter(Boolean)) {
+    if (current && current.length + 1 + word.length > width) {
+      lines.push(current);
+      current = word;
+    } else current = current ? `${current} ${word}` : word;
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+/** The flow as boxes and arrows: the main steps down the left, what leaves at each step to the right. */
+export function drawFlow(spec, specPath) {
+  const flow = readFlow(spec, specPath);
+  const width = spec.width ?? 720;
+  const gutter = 20;
+  const join = 40;
+  const mainWidth = Math.round((width - 2 * gutter - join) * 0.45);
+  const sideWidth = width - 2 * gutter - join - mainWidth;
+  const lineHeight = 16;
+  const pad = 8;
+  const characters = (boxWidth) => Math.max(10, Math.floor((boxWidth - 2 * pad) / 6.6));
+  const reasonLines = (group) =>
+    group.reasons.map(
+      (reason) => `${reason.criterion ? `${reason.criterion}, ` : ""}${reason.reason}: ${reason.records}`,
+    );
+  const box = (heading, details, boxWidth) => {
+    const lines = [
+      ...wrap(heading, characters(boxWidth)).map((text) => ({ text, bold: true })),
+      ...details.flatMap((detail) => wrap(detail, characters(boxWidth)).map((text) => ({ text, bold: false }))),
+    ];
+    return { lines, width: boxWidth, height: lines.length * lineHeight + 2 * pad };
+  };
+  const staged = flow.full_text !== null || flow.excluded_title_abstract.records > 0;
+  const rows = [];
+  rows.push({
+    main: box(
+      `Records identified (n = ${flow.identified.records})`,
+      flow.identified.databases.map((each) => `${each.database}: ${each.records}`),
+      mainWidth,
+    ),
+    side: [
+      box(`Duplicates removed (n = ${flow.duplicates})`, [], sideWidth),
+      ...(flow.awaiting > 0 ? [box(`Awaiting screening (n = ${flow.awaiting})`, [], sideWidth)] : []),
+    ],
+  });
+  const atScreening = [];
+  if (staged)
+    atScreening.push(
+      box(
+        `Excluded at title and abstract (n = ${flow.excluded_title_abstract.records})`,
+        reasonLines(flow.excluded_title_abstract),
+        sideWidth,
+      ),
+    );
+  if (!staged || flow.excluded_stage_not_recorded.records > 0)
+    atScreening.push(
+      box(
+        `${staged ? "Excluded, stage not recorded" : "Excluded"} (n = ${flow.excluded_stage_not_recorded.records})`,
+        reasonLines(flow.excluded_stage_not_recorded),
+        sideWidth,
+      ),
+    );
+  rows.push({ main: box(`Records screened (n = ${flow.screened})`, [], mainWidth), side: atScreening });
+  if (flow.full_text)
+    rows.push({
+      main: box(`Full texts assessed (n = ${flow.full_text.assessed})`, [], mainWidth),
+      side: [
+        box(
+          `Excluded at full text (n = ${flow.full_text.excluded.records})`,
+          reasonLines(flow.full_text.excluded),
+          sideWidth,
+        ),
+      ],
+    });
+  rows.push({ main: box(`Studies included (n = ${flow.included})`, [], mainWidth), side: [] });
+
+  const parts = [];
+  const mainX = gutter;
+  const sideX = gutter + mainWidth + join;
+  const stack = 10;
+  const rowGap = 32;
+  let y = spec.title ? 44 : gutter;
+  const drawBox = (each, x, top) => {
+    parts.push(
+      `<rect x="${x}" y="${fixed(top)}" width="${each.width}" height="${each.height}" fill="#ffffff" stroke="#333"/>`,
+    );
+    each.lines.forEach((line, index) =>
+      parts.push(
+        `<text x="${x + pad}" y="${fixed(top + pad + 12 + index * lineHeight)}"${line.bold ? ' font-weight="bold"' : ""}>${escape(line.text)}</text>`,
+      ),
+    );
+  };
+  const arrow = (x1, y1, x2, y2) =>
+    parts.push(
+      `<line x1="${fixed(x1)}" y1="${fixed(y1)}" x2="${fixed(x2)}" y2="${fixed(y2)}" stroke="#333" marker-end="url(#arrow)"/>`,
+    );
+  let previousBottom = null;
+  for (const row of rows) {
+    if (previousBottom !== null) arrow(mainX + mainWidth / 2, previousBottom, mainX + mainWidth / 2, y);
+    drawBox(row.main, mainX, y);
+    const middle = y + row.main.height / 2;
+    let sideTop = y;
+    const middles = [];
+    for (const each of row.side) {
+      drawBox(each, sideX, sideTop);
+      middles.push(sideTop + each.height / 2);
+      sideTop += each.height + stack;
+    }
+    if (middles.length > 0) {
+      const elbow = mainX + mainWidth + join / 2;
+      parts.push(
+        `<line x1="${mainX + mainWidth}" y1="${fixed(middle)}" x2="${elbow}" y2="${fixed(middle)}" stroke="#333"/>`,
+      );
+      const top = Math.min(middle, ...middles);
+      const bottom = Math.max(middle, ...middles);
+      if (bottom > top)
+        parts.push(`<line x1="${elbow}" y1="${fixed(top)}" x2="${elbow}" y2="${fixed(bottom)}" stroke="#333"/>`);
+      for (const each of middles) arrow(elbow, each, sideX, each);
+    }
+    const rowHeight = Math.max(row.main.height, sideTop - stack - y);
+    previousBottom = y + row.main.height;
+    y += rowHeight + rowGap;
+  }
+  const height = Math.ceil(y - rowGap + gutter);
+  const svg = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="Helvetica, Arial, sans-serif" font-size="12">`,
+    ...(spec.title ? [`<title>${escape(spec.title)}</title>`] : []),
+    ...(spec.description ? [`<desc>${escape(spec.description)}</desc>`] : []),
+    '<defs><marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker></defs>',
+    `<rect width="${width}" height="${height}" fill="#ffffff"/>`,
+    ...(spec.title
+      ? [`<text x="${fixed(width / 2)}" y="24" text-anchor="middle" font-weight="bold">${escape(spec.title)}</text>`]
+      : []),
+    ...parts,
+    "</svg>",
+    "",
+  ].join("\n");
+  return { svg, series: [], boxes: rows.reduce((count, row) => count + 1 + row.side.length, 0) };
 }

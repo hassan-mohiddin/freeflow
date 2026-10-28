@@ -25,7 +25,7 @@ Draw each figure from its data file, never from numbers typed in: write a [figur
 
 ## Draft
 
-Write the abstract from the proposition and the contributions, before the body. Then draft the body from the outline, paragraph by paragraph, from the register as [claims](claims.md#write-the-report-from-the-register) says: each paragraph that states a number cites its claim IDs, and process facts such as the lock and the deviations go in Method and Limits. A paper from a study reports every outcome its plan says to report, its checks and controls included, whether they passed or failed.
+Write the abstract from the proposition and the contributions, before the body. It holds the proposition, the method, the key numbers with their levels, and the main limit, within the venue's length, fetched at use. Then draft the body from the outline, paragraph by paragraph, from the register as [claims](claims.md#write-the-report-from-the-register) says: each paragraph that states a number cites its claim IDs, and process facts such as the lock and the deviations go in Method and Limits. A paper from a study reports every outcome its plan says to report, its checks and controls included, whether they passed or failed.
 
 Each technique below carries its basis: **guide** (established writing guidance agrees), **measured** (a study bears on the failure it prevents), or **one case** (only one paper's drafting supports it). None has been measured on paper quality; treat them as defaults.
 
@@ -80,4 +80,12 @@ Answer each comment once, with the evidence or the limit it marks. Do not add ca
 
 ## A Literature Review
 
-A literature review is research: frame it, search and screen with the search ledger (each hit's state and reason recorded, the counts computed), and register its claims as for any report. For the studies it compares, add an evidence table (`artifact.mjs init evidence-table`): one row per study with its design, n, result, the result that would have refuted it, and its level, capped by how its source was checked. The table goes in the review beside the findings that cite it.
+A literature review is research: frame it, search with the search ledger (each hit's state and reason recorded, the counts computed), and register its claims as for any report. A systematic review makes its screening repeatable, each step in the [search ledger](artifacts.md#search-ledger):
+
+- **Criteria before screening.** Write each exclusion criterion, with the stage that can apply it, before the first hit is screened, and cite it on each exclusion. A criterion only the full text can settle (the outcome measured, the design) cannot exclude at the title and abstract; validation refuses that, and the flow counts each criterion's exclusions.
+- **A model screener is a judge.** Its decisions count only once a person has screened a sample and its agreement with them passes a judge validation record ([measurement](measurement.md#judges)), which the ledger names. When two screeners decide the same hits, `artifact.mjs counts` gives their raw agreement, kappa and disagreements; a person settles each disagreement.
+- **The flow figure from the ledger.** Write the flow with `artifact.mjs counts --flow` and draw it as a `flow` figure through a receipt, as any figure; its counts are never typed.
+
+For the studies it compares, add an evidence table (`artifact.mjs init evidence-table`): one row per study with its design, n, result, the result that would have refuted it, and its level, capped by how its source was checked. The table goes in the review beside the findings that cite it. For studies of an intervention's effect, add each study's risk-of-bias tool and judgment. A study judged at high risk keeps its level, since the level says what kind of evidence it is and how it was checked, and risk of bias how well it was run; keeping the two apart keeps one scale. A synthesis states its result with and without the high-risk studies, and a finding that holds only with them says so in its Limit.
+
+To combine effect sizes, pool them with `stats.mjs meta` (Numbers From Samples in the skill): random effects, reported with the Hartung-Knapp interval, tau² and I². Pool only studies that estimate the same quantity on the same scale. With I² high, say why the studies differ before relying on the pooled estimate; with fewer than five studies, tau² is rough, and `meta` says so.

@@ -1076,6 +1076,149 @@ export function tostPaired(differences, { low, high, alpha = 0.05 }) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Pooling effect sizes across studies (meta-analysis)
+
+/** The heterogeneity I² above which pooled studies are read as disagreeing beyond chance (Higgins et al. 2003). */
+const HIGH_I2 = 0.75;
+
+function checkEffects(yi, vi) {
+  finiteNumbers(yi, "yi");
+  finiteNumbers(vi, "vi");
+  if (yi.length !== vi.length)
+    throw new Error(`yi and vi must have the same length, got ${yi.length} and ${vi.length}`);
+  if (yi.length < 2) throw new Error("pooling needs at least two studies");
+  if (vi.some((value) => !(value > 0))) throw new Error("every variance in vi must be greater than 0");
+}
+
+/** The inverse-variance weighted mean of `yi` under weights `weights`, with its standard error. */
+function inverseVariance(yi, weights) {
+  let total = 0;
+  let weighted = 0;
+  for (let i = 0; i < yi.length; i += 1) {
+    total += weights[i];
+    weighted += weights[i] * yi[i];
+  }
+  return { estimate: weighted / total, se: Math.sqrt(1 / total), total };
+}
+
+/** Cochran's Q, its p value and I², from the fixed-effect fit. */
+function heterogeneity(yi, vi) {
+  const weights = vi.map((value) => 1 / value);
+  const fixed = inverseVariance(yi, weights);
+  let q = 0;
+  let squares = 0;
+  for (let i = 0; i < yi.length; i += 1) {
+    q += weights[i] * (yi[i] - fixed.estimate) ** 2;
+    squares += weights[i] ** 2;
+  }
+  const df = yi.length - 1;
+  return {
+    weights,
+    fixed,
+    q,
+    df,
+    pQ: chiSquareSurvival(q, df),
+    i2: q > 0 ? Math.max(0, (q - df) / q) : 0,
+    c: fixed.total - squares / fixed.total,
+  };
+}
+
+function poolingWarnings(k, i2, model) {
+  const warnings = [];
+  if (k < 5)
+    warnings.push(
+      `fewer than five studies (${k}): tau² is estimated from too few values to be reliable, so read the between-study spread and the random-effects interval as rough`,
+    );
+  if (i2 > HIGH_I2)
+    warnings.push(
+      model === "fixed"
+        ? `I² is ${Number(i2.toPrecision(3))}, high: the studies disagree beyond chance, so a fixed effect (one true effect shared by all) does not fit; pool with "random" and say why they differ`
+        : `I² is ${Number(i2.toPrecision(3))}, high: the studies disagree beyond chance, so the pooled mean may describe none of them; say why they differ before relying on it`,
+    );
+  return warnings;
+}
+
+/**
+ * Fixed-effect (common-effect) inverse-variance pooling of study effect sizes `yi` with their sampling variances
+ * `vi`: the weighted mean with weights 1 / vi, its normal interval, and Cochran's Q and I² for heterogeneity.
+ * It assumes every study estimates one true effect; Q and I² say how well that holds.
+ */
+export function metaFixed(yi, vi, { confidence = 0.95 } = {}) {
+  checkConfidence(confidence);
+  checkEffects(yi, vi);
+  const { fixed, q, df, pQ, i2 } = heterogeneity(yi, vi);
+  const z = normalQuantile(1 - (1 - confidence) / 2);
+  const warnings = poolingWarnings(yi.length, i2, "fixed");
+  return {
+    method: "meta-fixed",
+    k: yi.length,
+    estimate: fixed.estimate,
+    se: fixed.se,
+    confidence,
+    low: fixed.estimate - z * fixed.se,
+    high: fixed.estimate + z * fixed.se,
+    p: 2 * (1 - normalCdf(Math.abs(fixed.estimate / fixed.se))),
+    q,
+    df,
+    pQ,
+    i2,
+    ...(warnings.length > 0 ? { warnings } : {}),
+  };
+}
+
+/**
+ * Random-effects pooling: the between-study variance tau² by DerSimonian and Laird's moment estimator (1986), the
+ * weighted mean with weights 1 / (vi + tau²), and the Hartung-Knapp-Sidik-Jonkman interval (Hartung and Knapp 2001;
+ * Sidik and Jonkman 2002), a t interval on k - 1 degrees of freedom around a weighted residual variance, which keeps
+ * its coverage with few studies where the normal interval does not. `low` and `high` are the Hartung-Knapp
+ * interval; `normal` holds the DerSimonian-Laird normal interval beside it, and `fixed` the fixed-effect fit.
+ */
+export function metaRandom(yi, vi, { confidence = 0.95 } = {}) {
+  checkConfidence(confidence);
+  checkEffects(yi, vi);
+  const k = yi.length;
+  const { fixed, q, df, pQ, i2, c } = heterogeneity(yi, vi);
+  const tau2 = c > 0 ? Math.max(0, (q - df) / c) : 0;
+  const weights = vi.map((value) => 1 / (value + tau2));
+  const pooled = inverseVariance(yi, weights);
+  let residual = 0;
+  for (let i = 0; i < k; i += 1) residual += weights[i] * (yi[i] - pooled.estimate) ** 2;
+  const seHartungKnapp = Math.sqrt(residual / ((k - 1) * pooled.total));
+  const t = tQuantile(1 - (1 - confidence) / 2, k - 1);
+  const z = normalQuantile(1 - (1 - confidence) / 2);
+  const warnings = poolingWarnings(k, i2, "random");
+  return {
+    method: "meta-random",
+    tau2Method: "dersimonian-laird",
+    interval: "hartung-knapp-sidik-jonkman",
+    k,
+    estimate: pooled.estimate,
+    se: pooled.se,
+    confidence,
+    low: pooled.estimate - t * seHartungKnapp,
+    high: pooled.estimate + t * seHartungKnapp,
+    p:
+      seHartungKnapp > 0
+        ? 2 * (1 - tCdf(Math.abs(pooled.estimate / seHartungKnapp), k - 1))
+        : Number(pooled.estimate === 0),
+    hartungKnapp: { se: seHartungKnapp, df: k - 1 },
+    normal: {
+      low: pooled.estimate - z * pooled.se,
+      high: pooled.estimate + z * pooled.se,
+      p: 2 * (1 - normalCdf(Math.abs(pooled.estimate / pooled.se))),
+    },
+    tau2,
+    tau: Math.sqrt(tau2),
+    q,
+    df,
+    pQ,
+    i2,
+    fixed: { estimate: fixed.estimate, se: fixed.se },
+    ...(warnings.length > 0 ? { warnings } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Power and sample size
 
 function checkProbability(value, label) {

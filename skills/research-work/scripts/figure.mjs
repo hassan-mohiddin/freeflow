@@ -12,7 +12,8 @@ import { drawFigure, TYPES } from "./lib/figure.mjs";
 const USAGE = [
   "Usage: figure.mjs draw <spec.json> --out <figure.svg> [--json]",
   "",
-  `Types: ${TYPES.join(", ")}. The spec names its data file (JSON rows, JSONL or CSV); values typed into the spec are refused.`,
+  `Types: ${TYPES.join(", ")}. The spec names its data file (JSON rows, JSONL or CSV; for flow, the file`,
+  "artifact.mjs counts --flow wrote); values typed into the spec are refused.",
 ].join("\n");
 
 function fail(message) {
@@ -51,7 +52,16 @@ try {
 }
 mkdirSync(dirname(parsed.values.out), { recursive: true });
 writeFileSync(parsed.values.out, result.svg);
-if (parsed.values.json) console.log(JSON.stringify({ spec: specPath, out: parsed.values.out, series: result.series }));
+if (parsed.values.json)
+  console.log(
+    JSON.stringify({
+      spec: specPath,
+      out: parsed.values.out,
+      series: result.series,
+      ...(result.boxes ? { boxes: result.boxes } : {}),
+    }),
+  );
+else if (spec.type === "flow") console.log(`${parsed.values.out}: flow, ${result.boxes} boxes`);
 else
   console.log(
     `${parsed.values.out}: ${spec.type}, ${result.series.map((each) => `${each.label} (${each.points} points)`).join(", ")}`,

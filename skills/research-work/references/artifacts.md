@@ -6,7 +6,7 @@ This reference is a contract: every Research Work artifact follows it as written
 node <research-work-directory>/scripts/artifact.mjs init <kind> <path> --title <title> --owner <owner> [--rigor check|study|publication]
 node <research-work-directory>/scripts/artifact.mjs init project <folder> --title <title> --owner <owner> [--rigor check|study|publication]
 node <research-work-directory>/scripts/artifact.mjs validate <path> [--sources <source ledger>]
-node <research-work-directory>/scripts/artifact.mjs counts <search ledger .jsonl>
+node <research-work-directory>/scripts/artifact.mjs counts <search ledger .jsonl> [--flow <flow.json>]
 ```
 
 Kinds: `research-brief`, `source-ledger`, `search-ledger`, `claims-register`, `study-plan`, `judge-validation`, `paper-outline`, `rebuttal`, `evidence-table`, `recheck`. A research report has no kind: it follows the Research Report shape below and is checked by `cite-check` and `trace`. `init` never overwrites. A study's run ledger and deviation log are written only by [study](../scripts/study.mjs), as [running](study.md#running-the-study) says. Artifacts live where the user says; otherwise where the work puts them. Research done for another task (a study or report that informs a change) goes in that task's folder, under `sources/`. A task that is itself research goes in the project's research folder, laid out by `init project` when there is none. A quick question answered from facts in hand is not research and gets no research artifact.
@@ -69,8 +69,35 @@ A JSONL file, one record per line, appended as the search runs:
 ```
 
 - A query has `id` (`Q1`, …), `query`, `database` and `date` (`YYYY-MM-DD`). It never carries a typed hit count.
-- A hit names its `query` (defined on an earlier line) and its `title`. Its `state` is `included`, `excluded`, `duplicate` or `unscreened`; `excluded` and `duplicate` need a `reason`. An included hit's `source` is its source-ledger ID.
+- A hit names its `query` (defined on an earlier line) and its `title`. Its `state` is `included`, `excluded`, `duplicate` or `unscreened`; `duplicate` needs a `reason`, `excluded` a `reason` or a `criterion`. An included hit's `source` is its source-ledger ID.
 - `artifact.mjs counts` computes the counts per query and in total. Report those counts, never hand-counted ones.
+
+A screened review adds its criteria, its screeners and each hit's stage. All are optional, so a ledger without them stays valid:
+
+```json
+{"kind":"criterion","id":"E1","text":"not about model judges","stage":"title-abstract"}
+{"kind":"criterion","id":"E2","text":"no agreement measured against people","stage":"full-text"}
+{"kind":"screener","id":"P1","person":"Hassan Mohiddin"}
+{"kind":"screener","id":"M1","model":"claude-haiku-5-5 (2026-10-01)","judge":"screening-judge.md"}
+{"kind":"hit","query":"Q1","title":"…","state":"excluded","criterion":"E2","stage":"full-text","screener":"M1"}
+{"kind":"hit","query":"Q1","title":"…","state":"included","stage":"full-text","source":"S5","screens":[{"screener":"P1","state":"included"},{"screener":"M1","state":"excluded","criterion":"E2"}],"settled_by":"Hassan Mohiddin"}
+```
+
+- A **criterion** (`E1`, …) is a ground for exclusion, written before screening, with its `text` and the `stage` that can apply it: `title-abstract` (it applies at either stage) or `full-text` (only the full text can settle it). Once the ledger defines criteria, every excluded hit cites the one that excluded it, as `criterion`, defined on an earlier line.
+- A hit's **stage** is where it was last screened: `title-abstract` or `full-text`. A hit that cites a criterion names its stage, and a full-text criterion cannot exclude at `title-abstract`.
+- A **screener** is a `person` or a `model`. A model screener names, as `judge`, its [judge validation record](#judge-validation-record), relative to the ledger: a sample of hits screened by a person is the gold set. Until that record passes, every hit the model screened is refused. A hit names who screened it as `screener`.
+- **Two screeners:** `screens` holds both decisions (`screener`, `state` of `included` or `excluded`, and the `criterion` for an exclusion), and the hit's own `state` is the decision that counts. Where the two disagree, or the state is not the one they both gave, `settled_by` names the person who settled it; a disagreement not yet settled leaves the hit `unscreened`. The screens are at the hit's stage.
+
+`counts` also reports, for each pair of screeners and stage, their raw agreement, Cohen's kappa and the disagreements, with how many no person has settled. `counts --flow <flow.json>` writes the review's flow, PRISMA-style, for `figure.mjs` to draw (Figure Spec, below), and writes nothing from a ledger with problems:
+
+| Field | Holds |
+| --- | --- |
+| `kind`, `computed_by` | `search-flow`, `artifact.mjs counts --flow` |
+| `identified` | `records`, every hit line, and `databases`: each database's `database` and `records` |
+| `duplicates`, `awaiting`, `screened` | Hits marked duplicate, still unscreened, and screened (included or excluded) |
+| `excluded_title_abstract`, `excluded_stage_not_recorded` | `records` and `reasons`: each criterion's (or free reason's) `criterion`, `reason` and `records` |
+| `full_text` | `assessed` and `excluded` as above, or `null` when no hit records the full-text stage |
+| `included` | Hits included |
 
 ## Citations In A Report
 
@@ -207,7 +234,7 @@ Validation refuses a missing choice or reason, a "will address" without a commit
 
 ## Evidence Table
 
-For a literature review: one row per study it compares. One table, `| Source | Design | n | Result | Failure condition | Level |`, optionally with a seventh column, `Weakness`: the study's main weakness, or `-`. Source is a source-ledger ID; n is a whole number or `-`; Failure condition is the result that would have refuted the study's claim; Level is capped, with `--sources`, by how the source was checked, as for a claim.
+For a literature review: one row per study it compares. One table, `| Source | Design | n | Result | Failure condition | Level |`, optionally followed by `Weakness`: the study's main weakness, or `-`; then optionally by both `Bias tool` and `Risk of bias`: the tool that assessed the study's risk of bias, chosen for its design (RoB 2 for a randomized trial, ROBINS-I for a study that did not randomize), and the tool's overall judgment, `low`, `some concerns`, `high` or `not assessed` (with Bias tool `-`). Source is a source-ledger ID; n is a whole number or `-`; Failure condition is the result that would have refuted the study's claim; Level is capped, with `--sources`, by how the source was checked, as for a claim. Validation refuses a judgment outside the four, a judgment with no tool, and RoB 2 or ROBINS-I named against a design that reads the other way.
 
 ## Recheck Table
 
@@ -247,13 +274,15 @@ The JSON that [figure](../scripts/figure.mjs) draws an SVG from: `node figure.mj
 
 | Field | Holds |
 | --- | --- |
-| `type` | `line`, `points`, `bar` (categories on x) or `scatter` |
+| `type` | `line`, `points`, `bar` (categories on x) or `scatter`; or `flow`, below |
 | `data` | The data file, relative to the spec: a JSON array of rows (at the dotted path `rows` names inside the file, when given), JSONL, or CSV with a header row. Values typed into the spec are refused |
 | `series` | One entry per series: `label`, the `x` and `y` columns, optional `low` and `high` columns for an interval, optional `where` (column values a row must have) |
 | `x`, `y` | Optional `label`, `min` and `max` for each axis |
 | `title`, `description`, `reference`, `width`, `height` | Optional: a title and a description, written into the SVG as its title and alternative text; reference lines `[{ "y": 0.95, "label": "nominal" }]`; the size in pixels (640 by 400) |
 
 The output is the same bytes for the same spec and data. Colors follow Okabe and Ito's palette, with a different marker per series.
+
+A review's flow is a spec of `type` `flow` whose `data` is the file `counts --flow` wrote, with only `title`, `description` and `width` beside them. It draws the steps down the left (identified, screened, full texts assessed, included) and what leaves at each step to the right (duplicates, those awaiting screening, the exclusions with their reasons), and refuses a flow whose counts do not add up. Run `counts --flow` through the same receipt route, with the ledger as input.
 
 ## Revision Patch
 

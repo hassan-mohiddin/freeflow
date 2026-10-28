@@ -18,6 +18,7 @@ import {
   planLabelsByModel,
   planVariants,
   searchCounts,
+  searchJudges,
   skeleton,
   validate,
 } from "./lib/formats.mjs";
@@ -29,7 +30,7 @@ const USAGE = [
   "Usage: artifact.mjs init <kind> <path> --title <title> --owner <owner> [--rigor check|study|publication]",
   "       artifact.mjs init project <folder> --title <title> --owner <owner> [--rigor check|study|publication]",
   "       artifact.mjs validate <path> [--sources <source ledger>] [--plan <study plan>] [--search <search ledger>] [--json]",
-  "       artifact.mjs counts <search ledger .jsonl> [--json]",
+  "       artifact.mjs counts <search ledger .jsonl> [--flow <flow.json>] [--json]",
   "",
   `Kinds: ${Object.keys(KINDS_OF_ARTIFACT).join(", ")}`,
 ].join("\n");
@@ -47,6 +48,16 @@ function read(path) {
   }
 }
 
+/** The judge records a search ledger's model screeners cite, read relative to the ledger. */
+function screenerJudges(path, text) {
+  return new Map(
+    searchJudges(text).map((judge) => {
+      const file = resolve(dirname(path), judge);
+      return [judge, existsSync(file) ? judgeCounts(readFileSync(file, "utf8")) : undefined];
+    }),
+  );
+}
+
 let parsed;
 try {
   parsed = parseArgs({
@@ -58,6 +69,7 @@ try {
       sources: { type: "string" },
       plan: { type: "string" },
       search: { type: "string" },
+      flow: { type: "string" },
       json: { type: "boolean", default: false },
       help: { type: "boolean" },
     },
@@ -221,6 +233,7 @@ if (command === "init" && rest[0] === "project") {
     options.dataExists = (file) => existsSync(resolve(dirname(path), file));
     Object.assign(options, figureReceipts(path, parseMarkdown(text).header.Runs));
   }
+  if (kind === "search-ledger") options.judges = screenerJudges(path, text);
   const confirmatory = rows.some((row) => row.cells.Kind === "confirmatory");
   const result = validate(kind, text, options);
   if (values.json) console.log(JSON.stringify({ path, ...result }, null, 2));
@@ -249,7 +262,13 @@ if (command === "init" && rest[0] === "project") {
 } else if (command === "counts") {
   const [path] = rest;
   if (!path || !path.endsWith(".jsonl")) fail(USAGE);
-  const result = searchCounts(read(path));
+  const text = read(path);
+  const result = searchCounts(text, { judges: screenerJudges(path, text) });
+  // The flow is written only from a ledger that validates, so a figure drawn from it never shows a refused count.
+  if (values.flow && result.problems.length === 0) {
+    mkdirSync(dirname(values.flow), { recursive: true });
+    writeFileSync(values.flow, `${JSON.stringify(result.flow, null, 2)}\n`);
+  }
   if (values.json) console.log(JSON.stringify({ path, ...result }, null, 2));
   else {
     const { total } = result;
@@ -261,7 +280,30 @@ if (command === "init" && rest[0] === "project") {
         `  ${id} ${query.database} ${query.date}: included ${query.included}, excluded ${query.excluded}, duplicate ${query.duplicate}, unscreened ${query.unscreened} (${query.query})`,
       );
     }
+    const { flow } = result;
+    const reasons = (group) =>
+      group.reasons.map(
+        (reason) => `${reason.criterion ? `${reason.criterion} ` : ""}${reason.reason}: ${reason.records}`,
+      );
+    for (const [label, group] of [
+      ["at title-abstract", flow.excluded_title_abstract],
+      ["at full-text", flow.full_text?.excluded],
+      ["with no stage recorded", flow.excluded_stage_not_recorded],
+    ])
+      if (group && group.records > 0 && (group !== flow.excluded_stage_not_recorded || group.records < total.excluded))
+        console.log(`  excluded ${label}: ${group.records} (${reasons(group).join("; ")})`);
+    for (const agreement of result.agreement) {
+      const kappa =
+        agreement.kappa === null ? "kappa undefined (one answer only)" : `kappa ${agreement.kappa.toFixed(3)}`;
+      console.log(
+        `  agreement ${agreement.screeners.join(" and ")} (${agreement.stage}): ${agreement.items} hits, raw ${agreement.observed.toFixed(3)}, ${kappa}, ${agreement.disagreements} disagreement${agreement.disagreements === 1 ? "" : "s"}${agreement.unsettled > 0 ? `, ${agreement.unsettled} not yet settled by a person` : ""}`,
+      );
+    }
     for (const problem of result.problems) console.log(`  problem: ${problem}`);
+    if (values.flow)
+      console.log(
+        result.problems.length === 0 ? `  flow: ${values.flow}` : "  flow: not written, since the ledger has problems",
+      );
   }
   process.exit(result.problems.length === 0 ? 0 : 1);
 } else {

@@ -5,6 +5,7 @@
 
 import { CHECKS, recheck, statusCell } from "./recheck.mjs";
 import { numberInResults, numbersIn, resultCitations } from "./report.mjs";
+import { cohenKappa } from "./stats.mjs";
 
 export const STATUSES = ["Draft", "Reviewed", "Accepted", "Rejected", "Superseded", "Retired"];
 export const RIGOR = ["check", "study", "publication"];
@@ -92,6 +93,15 @@ export const CHOICES = ["will address", "won't", "not on point"];
 export const REBUTTAL_STAGES = ["drafted", "submitted"];
 const EVIDENCE_COLUMNS = ["Source", "Design", "n", "Result", "Failure condition", "Level"];
 const EVIDENCE_COLUMNS_WITH_WEAKNESS = [...EVIDENCE_COLUMNS, "Weakness"];
+// Risk of bias, optional: the tool that assessed it for the study's design, and the tool's overall judgment.
+const BIAS_COLUMNS = ["Bias tool", "Risk of bias"];
+const EVIDENCE_COLUMN_SETS = [
+  EVIDENCE_COLUMNS,
+  EVIDENCE_COLUMNS_WITH_WEAKNESS,
+  [...EVIDENCE_COLUMNS, ...BIAS_COLUMNS],
+  [...EVIDENCE_COLUMNS_WITH_WEAKNESS, ...BIAS_COLUMNS],
+];
+export const RISK_OF_BIAS = ["low", "some concerns", "high", "not assessed"];
 const RECHECK_COLUMNS = ["ID", "Source", "Where", "Check", "Reported", "Status"];
 const JUDGE_FIELDS = [
   "Judge",
@@ -1119,23 +1129,59 @@ export function newRequests(text) {
     .map((row) => row.cells.ID);
 }
 
+// RoB 2 is built for randomized trials and ROBINS-I (or ROBINS-E) for studies that did not randomize; a tool named
+// against the other kind of design, as the Design cell words it, is a slip.
+const NOT_RANDOMIZED = /\bnon-?randomi[sz]ed\b|\bobservational\b|\bcohort\b|\bcase-control\b|\bcross-sectional\b/i;
+const RANDOMIZED = /\brandomi[sz]ed\b|\bRCT\b/i;
+
 /** An evidence table for a literature review: one row per study, with its level capped by how its source was checked. */
 function validateEvidence(parsed, problems, { ledger } = {}) {
   validateHeader(parsed, "Evidence Table", problems);
   headerPlaceholders(parsed, problems);
-  const columns = parseTable(parsed.lines)?.columns.includes("Weakness")
-    ? EVIDENCE_COLUMNS_WITH_WEAKNESS
-    : EVIDENCE_COLUMNS;
+  const found = parseTable(parsed.lines)?.columns ?? [];
+  const columns =
+    EVIDENCE_COLUMN_SETS.find((set) => set.join("|") === found.join("|")) ??
+    (found.includes("Weakness") ? EVIDENCE_COLUMNS_WITH_WEAKNESS : EVIDENCE_COLUMNS);
   const table = validateTable(parsed, columns, problems);
+  if (
+    BIAS_COLUMNS.some((column) => found.includes(column)) &&
+    !BIAS_COLUMNS.every((column) => columns.includes(column))
+  )
+    problems.push(
+      `risk of bias takes both columns, "Bias tool" then "Risk of bias", after Level (and Weakness, when present)`,
+    );
   for (const { line, cells } of table?.rows ?? []) {
     const where = `line ${line}`;
-    if (columns === EVIDENCE_COLUMNS_WITH_WEAKNESS && (!cells.Weakness || placeholder(cells.Weakness)))
+    if (columns.includes("Weakness") && (!cells.Weakness || placeholder(cells.Weakness)))
       problems.push(`${where}: Weakness must be filled: the study's main weakness, or "-" when none stands out`);
     if (!/^S\d+$/.test(cells.Source)) problems.push(`${where}: Source must be a source-ledger ID such as S3`);
     for (const column of ["Design", "Result", "Failure condition"])
       if (!cells[column] || placeholder(cells[column])) problems.push(`${where}: ${column} must be filled`);
     if (cells.n !== "-" && !/^[1-9]\d*$/.test(cells.n)) problems.push(`${where}: n must be a whole number, or "-"`);
     if (!LEVELS.includes(cells.Level)) problems.push(`${where}: Level must be one of: ${LEVELS.join(", ")}`);
+    if (columns.includes("Risk of bias")) {
+      const tool = cells["Bias tool"] ?? "";
+      const risk = cells["Risk of bias"];
+      if (!RISK_OF_BIAS.includes(risk))
+        problems.push(`${where}: Risk of bias must be one of: ${RISK_OF_BIAS.join(", ")}`);
+      if (tool === "" || placeholder(tool))
+        problems.push(
+          `${where}: Bias tool must name the tool that assessed it (RoB 2, ROBINS-I), or "-" when not assessed`,
+        );
+      else if (tool === "-" && RISK_OF_BIAS.includes(risk) && risk !== "not assessed")
+        problems.push(`${where}: a risk of bias judged ${risk} names the tool that judged it`);
+      else if (tool !== "-" && risk === "not assessed")
+        problems.push(`${where}: Risk of bias is not assessed, so Bias tool is "-"`);
+      else if (/\bRoB ?2\b/i.test(tool) && NOT_RANDOMIZED.test(cells.Design ?? ""))
+        problems.push(`${where}: RoB 2 is for randomized trials, and the design reads "${cells.Design}"; use ROBINS-I`);
+      else if (
+        /\bROBINS-[IE]\b/i.test(tool) &&
+        RANDOMIZED.test((cells.Design ?? "").replace(/\bnon-?randomi[sz]ed\b/gi, ""))
+      )
+        problems.push(
+          `${where}: ${tool} is for studies that did not randomize, and the design reads "${cells.Design}"; use RoB 2`,
+        );
+    }
     const source = ledger?.get(cells.Source);
     if (ledger && !source) problems.push(`${where}: the source ledger has no ${cells.Source}`);
     const cap = source && LEVEL_CAP[source.Checked];
@@ -1177,10 +1223,66 @@ function validateRecheck(parsed, problems, { ledger } = {}) {
   }
 }
 
-/** One parsed line of a search ledger, or a problem with it. */
-function validateSearch(text, problems) {
+// The stages a hit is screened at. A criterion tagged full-text needs the full text to apply, so it cannot exclude a
+// hit at the title-and-abstract stage; a title-abstract criterion applies at either stage.
+export const SCREENING_STAGES = ["title-abstract", "full-text"];
+const SCREEN_STATES = ["included", "excluded"];
+
+/** The judge validation records a search ledger's model screeners cite, as written (relative to the ledger). */
+export function searchJudges(text) {
+  const paths = new Set();
+  for (const raw of text.split(/\r?\n/)) {
+    try {
+      const record = JSON.parse(raw);
+      if (record?.kind === "screener" && typeof record.model === "string" && typeof record.judge === "string")
+        paths.add(record.judge);
+    } catch {
+      // not JSON: validation reports it
+    }
+  }
+  return [...paths];
+}
+
+const lineList = (lines) => (lines.length > 5 ? `${lines.slice(0, 5).join(", ")}, …` : lines.join(", "));
+
+/**
+ * Parse and check a search ledger: its queries, the screening criteria with their stage, the screeners (a person,
+ * or a model with the judge validation record that lets its decisions count), and the hits. `judges` maps each
+ * judge path a model screener cites to `{ counts, problems }`, or to undefined when the record cannot be read; a
+ * record not in the map is treated as unread.
+ */
+function validateSearch(text, problems, { judges } = {}) {
   const queries = new Set();
+  const criteria = new Map();
+  const screeners = new Map();
   const records = [];
+  // The lines of the hits each model screener decided, so its record is checked once for all of them.
+  const byModel = new Map();
+  const usesScreener = (line, id, where) => {
+    const screener = screeners.get(id);
+    if (!screener) {
+      problems.push(`line ${line}: ${where} names screener ${id}, which no earlier line defines`);
+      return null;
+    }
+    if (screener.model) byModel.set(id, [...(byModel.get(id) ?? []), line]);
+    return screener;
+  };
+  const checkCriterion = (line, record, criterion, state, where) => {
+    const found = criteria.get(criterion);
+    if (!found) {
+      problems.push(`line ${line}: ${where} cites criterion ${criterion}, which no earlier line defines`);
+      return;
+    }
+    if (state !== "excluded") problems.push(`line ${line}: ${where} cites a criterion, but only an exclusion has one`);
+    if (!SCREENING_STAGES.includes(record.stage))
+      problems.push(
+        `line ${line}: ${where} cites criterion ${criterion}, so the hit needs the stage it was screened at`,
+      );
+    else if (found.stage === "full-text" && record.stage === "title-abstract")
+      problems.push(
+        `line ${line}: ${where} is excluded at title-abstract by ${criterion}, a full-text criterion, which the title and abstract cannot settle`,
+      );
+  };
   text.split(/\r?\n/).forEach((raw, index) => {
     const line = index + 1;
     if (raw.trim() === "") return;
@@ -1202,29 +1304,207 @@ function validateSearch(text, problems) {
         problems.push(`line ${line}: date must be YYYY-MM-DD`);
       if ("hits" in record)
         problems.push(`line ${line}: do not type a hit count; counts are computed from the hit lines`);
+    } else if (record.kind === "criterion") {
+      if (!/^E\d+$/.test(record.id ?? ""))
+        problems.push(`line ${line}: a criterion needs an id E followed by a number`);
+      else if (criteria.has(record.id)) problems.push(`line ${line}: duplicate criterion id ${record.id}`);
+      if (!record.text) problems.push(`line ${line}: a criterion needs its text`);
+      if (!SCREENING_STAGES.includes(record.stage))
+        problems.push(`line ${line}: a criterion's stage must be one of: ${SCREENING_STAGES.join(", ")}`);
+      if (/^E\d+$/.test(record.id ?? "") && !criteria.has(record.id)) criteria.set(record.id, record);
+    } else if (record.kind === "screener") {
+      if (!/^[A-Za-z][A-Za-z0-9-]*$/.test(record.id ?? ""))
+        problems.push(`line ${line}: a screener needs an id of letters, digits and hyphens`);
+      else if (screeners.has(record.id)) problems.push(`line ${line}: duplicate screener id ${record.id}`);
+      const person = typeof record.person === "string" && record.person.trim() !== "";
+      const model = typeof record.model === "string" && record.model.trim() !== "";
+      if (person === model) problems.push(`line ${line}: a screener names either a person or a model`);
+      if (model && !(typeof record.judge === "string" && record.judge.trim() !== ""))
+        problems.push(
+          `line ${line}: a model screener needs judge: the path of the judge validation record that lets its decisions count`,
+        );
+      if (record.id && !screeners.has(record.id)) screeners.set(record.id, { ...record, model: model && !person });
     } else if (record.kind === "hit") {
       if (!queries.has(record.query))
         problems.push(`line ${line}: hit names query ${record.query}, which no earlier line defines`);
       if (!record.title) problems.push(`line ${line}: a hit needs a title`);
       if (!HIT_STATES.includes(record.state))
         problems.push(`line ${line}: state must be one of: ${HIT_STATES.join(", ")}`);
-      if (["excluded", "duplicate"].includes(record.state) && !record.reason)
-        problems.push(`line ${line}: an ${record.state} hit needs a reason`);
+      if (record.state === "duplicate" && !record.reason) problems.push(`line ${line}: a duplicate hit needs a reason`);
+      if (record.state === "excluded" && !record.reason && !record.criterion)
+        problems.push(`line ${line}: an excluded hit needs a reason or the criterion it was excluded by`);
       if (record.source !== undefined && !/^S\d+$/.test(record.source))
         problems.push(`line ${line}: source must be a source-ledger ID such as S3`);
+      if (record.stage !== undefined && !SCREENING_STAGES.includes(record.stage))
+        problems.push(`line ${line}: stage must be one of: ${SCREENING_STAGES.join(", ")}`);
+      if (record.criterion !== undefined) checkCriterion(line, record, record.criterion, record.state, "the hit");
+      if (record.screener !== undefined) usesScreener(line, record.screener, "the hit");
+      if (record.screens !== undefined) {
+        const screens = record.screens;
+        if (!Array.isArray(screens) || screens.length !== 2) {
+          problems.push(`line ${line}: screens holds the two screeners' decisions, as an array of two`);
+        } else {
+          if (record.screener !== undefined)
+            problems.push(`line ${line}: a hit with two screens names its screeners there, not in screener`);
+          if (record.state === "duplicate")
+            problems.push(`line ${line}: a duplicate is removed before screening, so it has no screens`);
+          screens.forEach((screen, at) => {
+            const where = `screen ${at + 1}`;
+            if (!screen || typeof screen !== "object") {
+              problems.push(`line ${line}: ${where} must be an object with screener and state`);
+              return;
+            }
+            usesScreener(line, screen.screener, where);
+            if (!SCREEN_STATES.includes(screen.state))
+              problems.push(`line ${line}: ${where}'s state must be one of: ${SCREEN_STATES.join(", ")}`);
+            if (screen.criterion !== undefined) checkCriterion(line, record, screen.criterion, screen.state, where);
+          });
+          if (screens[0]?.screener !== undefined && screens[0]?.screener === screens[1]?.screener)
+            problems.push(`line ${line}: the two screens need two different screeners`);
+          // The hit's own state is the decision that counts. Where the screeners disagree, or it departs from what
+          // they both said, a person settles it and is named.
+          const agreed = screens[0]?.state === screens[1]?.state ? screens[0]?.state : null;
+          const settled = typeof record.settled_by === "string" && record.settled_by.trim() !== "";
+          if (SCREEN_STATES.includes(record.state) && record.state !== agreed && !settled)
+            problems.push(
+              `line ${line}: ${agreed ? `the screeners agreed the hit is ${agreed}, and its state is ${record.state}` : "the screeners disagree"}, so settled_by names the person who settled it`,
+            );
+          if (settled && screeners.get(record.settled_by)?.model)
+            problems.push(
+              `line ${line}: settled_by names ${record.settled_by}, a model; a person settles a disagreement`,
+            );
+        }
+      }
     } else {
-      problems.push(`line ${line}: kind must be "query" or "hit"`);
+      problems.push(`line ${line}: kind must be "query", "criterion", "screener" or "hit"`);
     }
   });
-  return records;
+  // Criteria fixed for the review are its only grounds for exclusion: once the ledger defines them, every excluded
+  // hit cites the one that excluded it.
+  if (criteria.size > 0)
+    for (const { line, record } of records)
+      if (record.kind === "hit" && record.state === "excluded" && record.criterion === undefined)
+        problems.push(
+          `line ${line}: the ledger defines criteria, so an excluded hit cites the criterion it was excluded by`,
+        );
+  for (const [id, lines] of byModel) {
+    const screener = screeners.get(id);
+    if (!screener.judge) continue;
+    const record = judges?.get(screener.judge);
+    if (record?.counts) continue;
+    problems.push(
+      `screener ${id} is a model, and its judge record ${screener.judge} ${record ? `does not pass (${record.problems.length > 0 ? record.problems.join("; ") : "its Result is not pass"})` : "cannot be read"}, so the ${lines.length} hit${lines.length === 1 ? "" : "s"} it screened (line${lines.length === 1 ? "" : "s"} ${lineList(lines)}) do not count`,
+    );
+  }
+  return { records, criteria, screeners };
 }
 
-/** Hit counts per query and state, computed from a search ledger's hit lines. */
-export function searchCounts(text) {
+/** The exclusions in `hits`, grouped by the criterion that excluded them (in the ledger's order), then by reason. */
+function exclusionReasons(hits, criteria) {
+  const groups = new Map();
+  for (const id of criteria.keys()) groups.set(`criterion:${id}`, null);
+  for (const hit of hits) {
+    const key = hit.criterion !== undefined ? `criterion:${hit.criterion}` : `reason:${hit.reason ?? ""}`;
+    const group = groups.get(key) ?? {
+      ...(hit.criterion !== undefined ? { criterion: hit.criterion } : {}),
+      reason:
+        hit.criterion !== undefined ? (criteria.get(hit.criterion)?.text ?? hit.reason ?? "") : (hit.reason ?? ""),
+      records: 0,
+    };
+    group.records += 1;
+    groups.set(key, group);
+  }
+  return [...groups.values()].filter(Boolean);
+}
+
+const total = (reasons) => reasons.reduce((sum, reason) => sum + reason.records, 0);
+
+/**
+ * The review's flow from identification to inclusion, PRISMA-style, as data `figure.mjs` draws: the records each
+ * database gave, the duplicates removed, those awaiting screening, those screened, the exclusions at each stage with
+ * their reasons, and the studies included. The full-text step appears only when some hit records the full-text stage.
+ */
+export function searchFlow(records, criteria) {
+  const databases = new Map();
+  const queryDatabase = new Map();
+  for (const { record } of records) {
+    if (record.kind === "query") queryDatabase.set(record.id, record.database);
+  }
+  const hits = records
+    .map(({ record }) => record)
+    .filter((record) => record.kind === "hit" && queryDatabase.has(record.query) && HIT_STATES.includes(record.state));
+  for (const hit of hits) {
+    const database = queryDatabase.get(hit.query);
+    databases.set(database, (databases.get(database) ?? 0) + 1);
+  }
+  const excluded = hits.filter((hit) => hit.state === "excluded");
+  const atStage = (stage) => excluded.filter((hit) => hit.stage === stage);
+  const titleAbstract = exclusionReasons(atStage("title-abstract"), criteria);
+  const fullText = exclusionReasons(atStage("full-text"), criteria);
+  const unstaged = exclusionReasons(
+    excluded.filter((hit) => !SCREENING_STAGES.includes(hit.stage)),
+    criteria,
+  );
+  const count = (state) => hits.filter((hit) => hit.state === state).length;
+  const included = count("included");
+  const fullTextStage = hits.some((hit) => hit.stage === "full-text");
+  return {
+    kind: "search-flow",
+    computed_by: "artifact.mjs counts --flow",
+    identified: { records: hits.length, databases: [...databases].map(([database, n]) => ({ database, records: n })) },
+    duplicates: count("duplicate"),
+    awaiting: count("unscreened"),
+    screened: included + excluded.length,
+    excluded_title_abstract: { records: total(titleAbstract), reasons: titleAbstract },
+    excluded_stage_not_recorded: { records: total(unstaged), reasons: unstaged },
+    full_text: fullTextStage
+      ? { assessed: included + total(fullText), excluded: { records: total(fullText), reasons: fullText } }
+      : null,
+    included,
+  };
+}
+
+/**
+ * Agreement between two screeners on the hits both screened, per pair of screeners and stage: raw agreement, Cohen's
+ * kappa, and the disagreements, each of which a person settles (`unsettled` counts those still open).
+ */
+function screeningAgreement(records) {
+  const groups = new Map();
+  for (const { record } of records) {
+    if (record.kind !== "hit" || !Array.isArray(record.screens) || record.screens.length !== 2) continue;
+    const [first, second] = [...record.screens].sort((a, b) => String(a?.screener).localeCompare(String(b?.screener)));
+    if (!SCREEN_STATES.includes(first?.state) || !SCREEN_STATES.includes(second?.state)) continue;
+    const stage = SCREENING_STAGES.includes(record.stage) ? record.stage : "stage not recorded";
+    const key = JSON.stringify([first.screener, second.screener, stage]);
+    const group = groups.get(key) ?? { screeners: [first.screener, second.screener], stage, pairs: [], unsettled: 0 };
+    group.pairs.push([first.state, second.state]);
+    if (first.state !== second.state && !(typeof record.settled_by === "string" && record.settled_by.trim() !== ""))
+      group.unsettled += 1;
+    groups.set(key, group);
+  }
+  return [...groups.values()].map(({ screeners, stage, pairs, unsettled }) => {
+    const kappa = cohenKappa(pairs);
+    return {
+      screeners,
+      stage,
+      items: kappa.items,
+      observed: kappa.observed,
+      kappa: kappa.kappa,
+      disagreements: pairs.filter(([a, b]) => a !== b).length,
+      unsettled,
+    };
+  });
+}
+
+/**
+ * Hit counts per query and state, computed from a search ledger's hit lines; the agreement between two screeners
+ * where hits carry both decisions; and the review's flow (`searchFlow`). `judges` is as for validation.
+ */
+export function searchCounts(text, { judges } = {}) {
   const problems = [];
-  const records = validateSearch(text, problems);
+  const { records, criteria } = validateSearch(text, problems, { judges });
   const perQuery = new Map();
-  const total = Object.fromEntries(HIT_STATES.map((state) => [state, 0]));
+  const totals = Object.fromEntries(HIT_STATES.map((state) => [state, 0]));
   for (const { record } of records) {
     if (record.kind === "query")
       perQuery.set(record.id, {
@@ -1235,11 +1515,17 @@ export function searchCounts(text) {
       });
     if (record.kind === "hit" && perQuery.has(record.query) && HIT_STATES.includes(record.state)) {
       perQuery.get(record.query)[record.state] += 1;
-      total[record.state] += 1;
+      totals[record.state] += 1;
     }
   }
-  const hits = Object.values(total).reduce((sum, count) => sum + count, 0);
-  return { queries: Object.fromEntries(perQuery), total: { hits, ...total }, problems };
+  const hits = Object.values(totals).reduce((sum, count) => sum + count, 0);
+  return {
+    queries: Object.fromEntries(perQuery),
+    total: { hits, ...totals },
+    agreement: screeningAgreement(records),
+    flow: searchFlow(records, criteria),
+    problems,
+  };
 }
 
 /** The kind of an artifact, from its file name (`.jsonl`) or its header's Type. */
@@ -1276,7 +1562,7 @@ export function validate(
   } = {},
 ) {
   const problems = [];
-  if (kind === "search-ledger") validateSearch(text, problems);
+  if (kind === "search-ledger") validateSearch(text, problems, { judges });
   else {
     const parsed = parseMarkdown(text);
     if (kind === "research-brief") validateBrief(parsed, problems);
