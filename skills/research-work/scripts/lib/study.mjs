@@ -72,6 +72,45 @@ export function lockState(planPath) {
 
 const now = () => new Date().toISOString();
 
+const git = (folder, args) => {
+  const result = spawnSync("git", ["-C", folder, ...args], { encoding: "utf8" });
+  return { ok: result.status === 0, out: (result.stdout ?? "").trim() };
+};
+
+/**
+ * Where the plan stands in git, so the lock can name a commit that holds it: the commit and the plan's path when the
+ * plan is tracked and committed as it is, otherwise the reason it is not anchored. A lock with no anchor still
+ * works; it only cannot show that the plan was not locked again with a rewritten lock file.
+ */
+export function gitAnchor(planPath) {
+  const folder = dirname(resolve(planPath));
+  const root = git(folder, ["rev-parse", "--show-toplevel"]);
+  if (!root.ok) return { reason: "the plan is not in a git repository" };
+  const path = relative(root.out, resolve(planPath));
+  if (!git(root.out, ["ls-files", "--error-unmatch", "--", path]).ok)
+    return { reason: "git does not track the plan (a task folder is usually ignored)" };
+  if (!git(root.out, ["diff", "--quiet", "HEAD", "--", path]).ok)
+    return { reason: "the plan has changes not committed; commit it before locking to anchor the lock" };
+  return { commit: git(root.out, ["rev-parse", "HEAD"]).out, path };
+}
+
+/** Problems with a lock entry's git anchor: its commit must be in HEAD's history and hold the plan it hashed. */
+export function anchorProblems(planPath, entry, label) {
+  if (!entry.git?.commit) return [];
+  const folder = dirname(resolve(planPath));
+  const root = git(folder, ["rev-parse", "--show-toplevel"]);
+  if (!root.ok)
+    return [`${label}: anchored at ${entry.git.commit.slice(0, 12)}, but the plan is no longer in a git repository`];
+  if (!git(root.out, ["merge-base", "--is-ancestor", entry.git.commit, "HEAD"]).ok)
+    return [
+      `${label}: its commit ${entry.git.commit.slice(0, 12)} is not in HEAD's history; the lock may have been rewritten`,
+    ];
+  const shown = git(root.out, ["show", `${entry.git.commit}:${entry.git.path}`]);
+  if (!shown.ok || planHash(shown.out + "\n") !== entry.sha256)
+    return [`${label}: the plan at commit ${entry.git.commit.slice(0, 12)} does not have the hash the lock records`];
+  return [];
+}
+
 /** Lock a valid plan. Refuses a plan that does not validate, and a plan already locked. */
 export function lockPlan(planPath, { by, at = now() }) {
   if (!by) throw new Error("lock needs --by: who locked the plan");
@@ -83,7 +122,15 @@ export function lockPlan(planPath, { by, at = now() }) {
   const lock = {
     plan: basename(planPath),
     entries: [
-      { kind: "lock", sha256: planHash(text), by, at, hypotheses: hypothesesOf(text), runs: plannedRuns(text) },
+      {
+        kind: "lock",
+        sha256: planHash(text),
+        by,
+        at,
+        hypotheses: hypothesesOf(text),
+        runs: plannedRuns(text),
+        git: gitAnchor(planPath),
+      },
     ],
   };
   writeFileSync(lockPath(planPath), `${JSON.stringify(lock, null, 2)}\n`);
@@ -124,6 +171,8 @@ export function amendPlan(planPath, { by, reason, at = now() }) {
     runs: plannedRuns(text),
     after_runs: studyRuns,
     changed_after_runs: studyRuns > 0 ? changed : [],
+    // Anchored before the Amendments line is written: that section is outside the hash, so the commit still holds it.
+    git: gitAnchor(planPath),
   });
   const line = `- ${at.slice(0, 10)}, by ${by}: ${reason} (plan ${hash.slice(0, 12)})`;
   const parsed = parseMarkdown(text);
@@ -431,6 +480,13 @@ export function checkStudy(planPath) {
     problems.push(
       `${changed.path} changed after ${changed.receipt} wrote it; rewrite a result only through a new receipt, or give it a new name`,
     );
+  const notes = [];
+  (state.lock ?? readLock(planPath))?.entries.forEach((entry, index) => {
+    const label = index === 0 ? "lock" : `amendment ${index}`;
+    problems.push(...anchorProblems(planPath, entry, label));
+    if (!entry.git?.commit)
+      notes.push(`${label} is not anchored in git: ${entry.git?.reason ?? "it was made before anchors were recorded"}`);
+  });
   for (const [name, path] of [
     ["run ledger", runLedgerPath(planPath)],
     ["deviation log", deviationLogPath(planPath)],
@@ -438,5 +494,5 @@ export function checkStudy(planPath) {
     for (const line of chainBreaks(path))
       problems.push(`${name}: the hash chain breaks at line ${line}; a line was edited, removed or reordered`);
   }
-  return { ok: problems.length === 0, problems, state, manifest: view };
+  return { ok: problems.length === 0, problems, notes, state, manifest: view };
 }

@@ -54,14 +54,24 @@ For each source a claim rests on, note in the report's evidence what kind of evi
 - **Watch for the common failures in what you read:** a number in the abstract that the results do not contain, an interval labeled one way and computed another, replicates counted as separate items, a baseline given less tuning than the method. Note what you find; do not repeat the number as if it held.
 - **Retractions and errata:** for a paper a claim leans on heavily, check whether it was retracted or corrected.
 
+## Looking Sources Up Online
+
+When the user asks for it, `sources.mjs lookup <sources.md> --cache <lookups.json>` looks each row's pin up: a DOI through Crossref, with any retraction or correction notice that updates it; an arXiv ID through arXiv; a URL's page. Answers are cached, so a second run asks nothing unless `--refresh`; a service that did not answer is asked again next time. It never edits the ledger; it says what each row's Lookup should read, and you change the row:
+
+- `verified` when the identifier resolves to the work the Source names: its title and one of its authors (a page: most of the Source's words);
+- `unresolved` when nothing is found, the service does not answer, the Source names no title, or the record matches it only in part (compare them yourself);
+- `refuted` only when the identifier plainly resolves to another work.
+
+A retraction notice goes in the source's Supports or the claim's Limit, and the claim that leans on it is re-read. Keep each row's Source a citation with its title ("Brown, Cai and DasGupta 2001. Interval estimation for a binomial proportion"), so the match has something to compare; author and year alone stay unresolved.
+
 ## Splitting Across Workers
 
 Split the survey when the subject is larger than one context can read well: many components, many papers, several repositories. Do not split a subject one agent can read in an hour; each split costs a brief, a return and a merge.
 
 - **Split by part of the subject,** not by step: one worker per component, per paper cluster, per repository. For code, split along the dependency order, so a worker reading a component can rely on its dependencies' returns.
 - **Brief each worker with:** its part of the question; the pinned sources and where they are; the ledger and citation forms it must use (point it to [artifacts](artifacts.md)); what to return; and its limits (read-only, no paid calls, no files outside its output). Name the model and effort the worker runs on in the brief.
-- **Ask for a file, not a chat reply:** its findings as claims with `S<n>:path:line` citations and levels, its ledger rows, what it read and what it did not, and the questions it could not answer. The reply is just the file's path and whether its part was covered. Where the host refuses files from a worker, ask for the same content as its reply and save it unchanged before checking it.
-- **Check returns before using them.** Run `sources.mjs cite-check` on each return, read the citations a key claim rests on yourself, and send a gap back to its worker rather than filling it with your guess.
+- **Ask for a file, not a chat reply:** its findings as claims with `S<n>:path:line` citations and levels, each citing lines the worker printed (a Read, or `sed -n`; lines seen only in `grep` output do not count as read), its ledger rows, what it read and what it did not, and the questions it could not answer. The reply is just the file's path and whether its part was covered. Where the host refuses files from a worker, ask for the same content as its reply and save it unchanged before checking it.
+- **Check returns before using them.** Run `sources.mjs cite-check` on each return, with `--reads` from the worker's transcript (`sources.mjs reads <transcript.jsonl> --ledger <sources.md> --repo <name>=<clone> --out reads.jsonl`) so a citation with a line the worker never read fails (a clone's files count only while the clone is at the pinned commit), read the citations a key claim rests on yourself, and send a gap back to its worker rather than filling it with your guess.
 - **One decider.** You merge the returns, settle conflicts between them, and write the claims register. Workers gather; they do not decide what the report concludes.
 
 ## Stop Gathering

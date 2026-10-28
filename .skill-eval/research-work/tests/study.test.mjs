@@ -21,6 +21,10 @@ function studyFolder({ rigor = "check" } = {}) {
   const text = skeleton("study-plan", { title: "Two prompts", owner: "Hassan Mohiddin", rigor })
     .replaceAll("<the answer, before any data>", "Answered before any data.")
     .replace(
+      "<the prediction: the primary metric, the smallest effect worth detecting, and the power computation (stats.mjs power) that sized the study, or why none applies>",
+      "One task per arm; power mcnemar-cases sized it.",
+    )
+    .replace(
       "| C1 | <what the study tests> | confirmatory | <the primary metric> | <the rule that decides it> |",
       "| C1 | Prompt b passes more tasks than prompt a | confirmatory | pass rate | exact McNemar, two-sided p < 0.05 |\n| C2 | Prompt b is faster | exploratory | - | - |",
     )

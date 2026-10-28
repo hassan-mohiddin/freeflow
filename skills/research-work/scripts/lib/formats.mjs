@@ -208,7 +208,16 @@ export function skeleton(kind, { title, owner, rigor = "study" }) {
     );
   } else if (kind === "study-plan") {
     const numbers = rigor === "check" ? CHECK_QUESTIONS : QUESTIONS.map((_, index) => index + 1);
-    for (const number of numbers) lines.push(`## ${questionHeading(number)}`, "", "<the answer, before any data>", "");
+    // Question 3 states the size, so its placeholder asks for the power computation the validator looks for.
+    for (const number of numbers)
+      lines.push(
+        `## ${questionHeading(number)}`,
+        "",
+        number === 3
+          ? "<the prediction: the primary metric, the smallest effect worth detecting, and the power computation (stats.mjs power) that sized the study, or why none applies>"
+          : "<the answer, before any data>",
+        "",
+      );
     lines.push(
       "## Hypotheses",
       "",
@@ -399,6 +408,33 @@ function validatePlan(parsed, problems) {
         problems.push(`${where}: a confirmatory hypothesis names its metric and its decision rule`);
     }
   }
+  // The plan's own text: the twelve answers and the decision rules, where a stop rule or a size would be stated.
+  const planText = [
+    ...QUESTIONS.map((_, index) => (parsed.sections.get(questionHeading(index + 1)) ?? []).join("\n")),
+    ...(hypotheses?.rows ?? []).map((row) => row.cells["Decision rule"] ?? ""),
+  ].join("\n");
+  // Stopping when a result turns significant inflates false positives unless the test is built for looking often.
+  // These checks read the wording, so they catch the common ways of writing it, not every one.
+  const stopsOnSignificance =
+    /\b(stop\w*|halt\w*|terminat\w*|end(s|ed|ing)? (the |this )?(study|run|collection|data|trials?|experiment)|until|as soon as|once (the|a|it|p)\b)[^.;\n]{0,60}(significan|\bp\s*[<≤]|p-value)/i;
+  const sequentialTests =
+    /group[- ]sequential|alpha[- ]spending|always[- ]valid|o['’]?brien[- ]fleming|pocock|\bsprt\b|sequential probability ratio|confidence sequences?|\be-values?\b|sequential test/gi;
+  const namesSequentialTest = [...planText.matchAll(sequentialTests)].some(
+    (match) =>
+      !/\b(no|not|without|never|nor)\b[^.\n]*$/i.test(planText.slice(Math.max(0, match.index - 40), match.index)),
+  );
+  if (stopsOnSignificance.test(planText) && !namesSequentialTest)
+    problems.push(
+      "the plan stops when a result turns significant; fix the count in advance, or name a sequential test built for repeated looks",
+    );
+  // A size is a computation: power with its numbers, the stats.mjs command that computed it, or why none applies.
+  const comparison = (hypotheses?.rows ?? []).some((row) => row.cells.Kind === "confirmatory");
+  const statesSize =
+    /\bpower\b[^.\n]{0,80}\d|\d[^.\n]{0,80}\bpower\b|\bpower (mcnemar|paired)-cases\b|not a sampling question|computed,? not (sampled|estimated)/i;
+  if (comparison && !statesSize.test(planText))
+    problems.push(
+      "a confirmatory hypothesis needs its size: a power computation (stats.mjs power) in question 3, or the reason none applies (a computed quantity, not a sample)",
+    );
   const runs = sectionTable(parsed, "Planned runs");
   if (!runs) problems.push(`missing "## Planned runs" with the table: ${RUN_COLUMNS.join(", ")}`);
   else {
