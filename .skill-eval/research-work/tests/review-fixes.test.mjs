@@ -401,12 +401,16 @@ test("sources.mjs says its title search uses Crossref then arXiv, as the code do
 
 test("validate --recheck reads the quote form, exempts only by the row named in Limit, and reports the table's problems", () => {
   const flags = recheckFlags(RECHECK);
-  const ledger = new Map([
-    ["S1", { Checked: "opened", Supports: "C1" }],
-    ["S2", { Checked: "opened", Supports: "C1" }],
-  ]);
+  // The ledger holds S1 and S2, each listing C1 when the one claim cites it (not the S1 in meta-no-S1.json).
+  const ledgerFor = (rows) =>
+    new Map(
+      ["S1", "S2"].map((id) => [
+        id,
+        { Checked: "opened", Supports: new RegExp(`(?<![\\w-])${id}(?![\\w-])`).test(rows.join("")) ? "C1" : "-" },
+      ]),
+    );
   const check = (rows, rechecks = { flags, file: "recheck.md" }) =>
-    validate("claims-register", REGISTER(rows), { ledger, rechecks }).problems;
+    validate("claims-register", REGISTER(rows), { ledger: ledgerFor(rows), rechecks }).problems;
   // A source cited in the quote form, or with a path, is still that source.
   assert.deepEqual(
     check([
