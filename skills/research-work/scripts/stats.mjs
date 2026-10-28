@@ -73,6 +73,8 @@ const FAMILIES = {
   meta: {
     fixed: ({ yi, vi, confidence }) => stats.metaFixed(yi, vi, { confidence }),
     random: ({ yi, vi, confidence }) => stats.metaRandom(yi, vi, { confidence }),
+    "leave-one-out": ({ yi, vi, model, labels, confidence }) =>
+      stats.metaLeaveOneOut(yi, vi, { model, labels, confidence }),
   },
   tost: {
     paired: ({ differences, low, high, alpha }) => stats.tostPaired(differences, { low, high, alpha }),
@@ -106,7 +108,8 @@ const USAGE = [
   "",
   'aggregate takes "scores", one array of run scores per task; optimality-gap takes "target" (1, for scores on 0 to 1).',
   'meta takes "yi", one effect size per study (a log risk ratio, a standardized mean difference), and "vi", their',
-  "variances; random gives the DerSimonian-Laird tau² with the Hartung-Knapp interval as low and high.",
+  "variances; random gives the DerSimonian-Laird tau² with the Hartung-Knapp interval as low and high;",
+  'leave-one-out refits without each study in turn ("model" random or fixed, "labels" the studies\' IDs).',
   'effect makes them, the arm over the reference: unpaired from "p1", "p2", "n1", "n2"; paired from "armOnly",',
   '"referenceOnly", "both" (items both passed) and "n"; or "studies", a list of either, giving yi and vi for',
   "stats.mjs meta --method random --input <that file>.",

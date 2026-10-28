@@ -1346,6 +1346,55 @@ export function metaRandom(yi, vi, { confidence = 0.95 } = {}) {
   };
 }
 
+/**
+ * Leave-one-out pooling: the fit of `model` ("random" or "fixed") without each study in turn, so a review can say
+ * whether its pooled answer rests on one study. Each omission's `changes` is true when its interval's relation to 0
+ * (excluding it or not) differs from the full fit's; a warning names each such study. `labels` names the studies
+ * (their source IDs); without them a study is its index.
+ */
+export function metaLeaveOneOut(yi, vi, { model = "random", labels, confidence = 0.95 } = {}) {
+  checkEffects(yi, vi);
+  if (yi.length < 3) throw new Error("leave-one-out needs at least three studies, so each fit keeps two");
+  if (labels !== undefined && (!Array.isArray(labels) || labels.length !== yi.length))
+    throw new Error(`labels must name each of the ${yi.length} studies`);
+  const pools = { random: metaRandom, fixed: metaFixed };
+  const pool = pools[model];
+  if (!pool) throw new Error(`model must be one of: ${Object.keys(pools).join(", ")}`);
+  const excludesZero = (fit) => fit.low > 0 || fit.high < 0;
+  const full = pool(yi, vi, { confidence });
+  const omitted = yi.map((_, at) => {
+    const keep = (_value, index) => index !== at;
+    const fit = pool(yi.filter(keep), vi.filter(keep), { confidence });
+    return {
+      omitted: labels?.[at] ?? at,
+      estimate: fit.estimate,
+      low: fit.low,
+      high: fit.high,
+      i2: fit.i2,
+      changes: excludesZero(fit) !== excludesZero(full),
+    };
+  });
+  const estimates = omitted.map((fit) => fit.estimate);
+  const warnings = omitted
+    .filter((fit) => fit.changes)
+    .map(
+      (fit) =>
+        `without study ${fit.omitted} the interval ${excludesZero(full) ? "includes" : "excludes"} 0 (${Number(fit.low.toPrecision(4))} to ${Number(fit.high.toPrecision(4))}), so the pooled answer rests on it`,
+    );
+  return {
+    method: "meta-leave-one-out",
+    model,
+    k: yi.length,
+    estimate: full.estimate,
+    confidence,
+    low: full.low,
+    high: full.high,
+    range: { low: Math.min(...estimates), high: Math.max(...estimates) },
+    omitted,
+    ...(warnings.length > 0 ? { warnings } : {}),
+  };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Power and sample size
 

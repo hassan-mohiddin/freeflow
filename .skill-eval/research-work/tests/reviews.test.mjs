@@ -12,7 +12,7 @@ import test from "node:test";
 
 import { drawFigure } from "../../../skills/research-work/scripts/lib/figure.mjs";
 import { judgeCounts, searchCounts, validate } from "../../../skills/research-work/scripts/lib/formats.mjs";
-import { metaFixed, metaRandom } from "../../../skills/research-work/scripts/lib/stats.mjs";
+import { metaFixed, metaLeaveOneOut, metaRandom } from "../../../skills/research-work/scripts/lib/stats.mjs";
 
 const SCRIPTS = fileURLToPath(new URL("../../../skills/research-work/scripts/", import.meta.url));
 const node = (script, ...args) => spawnSync(process.execPath, [join(SCRIPTS, script), ...args], { encoding: "utf8" });
@@ -665,4 +665,47 @@ test("stats.mjs meta runs from the command line and records what computed it", (
     encoding: "utf8",
   });
   assert.match(text.stdout, /^meta-fixed; estimate 0\.166667; .*warning: fewer than five studies \(2\)/);
+});
+
+test("meta leave-one-out pools without each study in turn, matching statsmodels, and names an omission that moves the verdict", () => {
+  const labels = BCG.yi.map((_, i) => `S${i + 1}`);
+  const result = metaLeaveOneOut(BCG.yi, BCG.vi, { labels });
+  assert.equal(result.method, "meta-leave-one-out");
+  assert.equal(result.omitted.length, 13);
+  close(result.estimate, -0.7141172220732269);
+  // statsmodels 0.15.0 combine_effects(method_re="dl", use_t=True), "random effect wls", without studies 1, 8 and 13.
+  for (const [at, estimate, low, high] of [
+    [0, -0.7051251984174507, -1.1307178396627717, -0.27953255717212966],
+    [7, -0.7900865998537004, -1.186410271967213, -0.3937629277401879],
+    [12, -0.7789237400570723, -1.1879596477130738, -0.36988783240107076],
+  ]) {
+    assert.equal(result.omitted[at].omitted, labels[at]);
+    close(result.omitted[at].estimate, estimate);
+    close(result.omitted[at].low, low);
+    close(result.omitted[at].high, high);
+  }
+  assert.ok(result.range.low <= result.range.high);
+  assert.equal(result.warnings, undefined);
+  // Two strong studies and two null ones: without any one of them the interval still excludes zero.
+  const fragile = metaLeaveOneOut([0.9, 0.8, 0.05, 0.0], [0.02, 0.02, 0.02, 0.02], { model: "fixed" });
+  assert.ok(fragile.low > 0);
+  assert.deepEqual(
+    fragile.omitted.filter((fit) => fit.changes).map((fit) => fit.omitted),
+    [],
+  );
+  const flipped = metaLeaveOneOut([0.5, 0.02, 0.0, -0.01], [0.01, 0.05, 0.05, 0.05], { model: "fixed" });
+  assert.ok(flipped.low > 0);
+  assert.deepEqual(
+    flipped.omitted.filter((fit) => fit.changes).map((fit) => fit.omitted),
+    [0],
+  );
+  assert.match(flipped.warnings[0], /without study 0 the interval includes 0/);
+  assert.throws(() => metaLeaveOneOut([0.1, 0.2], [0.01, 0.01]), /at least three studies/);
+  // From the command line.
+  const cli = spawnSync(process.execPath, [join(SCRIPTS, "stats.mjs"), "meta"], {
+    input: JSON.stringify({ method: "leave-one-out", ...BCG }),
+    encoding: "utf8",
+  });
+  assert.equal(cli.status, 0, cli.stderr);
+  assert.equal(JSON.parse(cli.stdout).computed_by, "stats.mjs meta leave-one-out");
 });

@@ -1234,6 +1234,11 @@ function validateEvidence(parsed, problems, { ledger } = {}) {
     }
     const source = ledger?.get(cells.Source);
     if (ledger && !source) problems.push(`${where}: the source ledger has no ${cells.Source}`);
+    // An abstract shows little of a study's weaknesses, so a weakness judged from one says where it came from.
+    if (source?.Read === "abstract" && columns.includes("Weakness") && !/\(read: abstract\)/.test(cells.Weakness ?? ""))
+      problems.push(
+        `${where}: ${cells.Source} was read only at its abstract, so Weakness says so: "not assessed (read: abstract)", or the weakness the abstract shows, marked "(read: abstract)"`,
+      );
     const cap = source && LEVEL_CAP[source.Checked];
     if (cap && levelRank(cells.Level) > levelRank(cap))
       problems.push(
