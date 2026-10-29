@@ -109,6 +109,7 @@ Guides (how to do maintainer work):
 
 Skill design records (what a skill is meant to change, why it is shaped that way, and its evidence; the shape is in Write Docs):
 
+- [Execute Work](skills/execute-work.md): the delegation reference: handing work out only where it pays, models by tier, briefs that point, one writer per file, and checked returns.
 - [Research Work](skills/research-work.md): one trunk for research, the evidence scale and its caps, formats enforced by a script, checks that call no model, and the shared statistics.
 - [Write Docs](skills/write-docs.md): task artifacts and documentation kept apart, research documents handed to Research Work, history in git.
 - [Write Skill](skills/write-skill.md): trunks over many skills and why, descriptions for recall, a light body, design records, and the evaluation behind them.

@@ -243,7 +243,7 @@ Repetition for emphasis, author reassurance, or stylistic consistency does not e
 
 Goal: every revision answers observed evidence and is checked against it.
 
-Before measuring a new or substantially changed skill, try it on a real task it serves through Evaluate Behavior's [trial](../evaluate-behavior/SKILL.md#trial-a-skill-on-a-real-task): one agent uses it while keeping a friction log, and each item is adjudicated through Review Work before it becomes a change. A trial finds where the skill costs its user time; it measures nothing.
+Before measuring a new or substantially changed skill, try it on a real task it serves through Evaluate Behavior's [trial](../evaluate-behavior/SKILL.md#trial-a-skill-on-a-real-task): one agent uses it while keeping a friction log, and each item is adjudicated through Review Work before it becomes a change. Start and run that agent as Execute Work's [delegation](../execute-work/references/delegation.md) reference says. A trial finds where the skill costs its user time; it measures nothing.
 
 1. Start from the source: the evidence a change answers (Choose What To Change), or for a new skill, its behavioral claim.
 2. Name the exact claim: description activation, first-read body behavior, nearby behavior, dependency composition, retained use, artifact outcome, or cross-host behavior.
