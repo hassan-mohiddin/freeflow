@@ -492,7 +492,7 @@ export function repositoryState(directory) {
 /** The store's local/repositories.json: where each repository a task names in Space is on this machine. */
 export const REPOSITORIES_FILE = join("local", "repositories.json");
 
-async function rememberRepository(home, state) {
+export async function rememberRepository(home, state) {
   const path = join(home, REPOSITORIES_FILE);
   const known = JSON.parse(await readFile(path, "utf8").catch(() => "{}"));
   if (known[state.name] === state.top) return;

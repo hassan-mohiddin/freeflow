@@ -7,6 +7,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { storeStatus } from "./freeflow-store.mjs";
 import { contextFor, gitRoot, sourceEntries } from "./recover.mjs";
+import { readSessions, sessionIdentity } from "./projects5.mjs";
 import { budgets5, loadTask5, parseRecord5, warnings5 } from "./record5.mjs";
 import { freeflowStoreOf, storeOf } from "./store.mjs";
 import { REPOSITORIES_FILE, repositoryState } from "./transitions5.mjs";
@@ -122,6 +123,14 @@ function spaceChecks(task, home) {
   });
 }
 
+function holdCheck(path) {
+  const { hold } = readSessions(dirname(path));
+  if (!hold) return "- Hold: no session holds this task.";
+  const identity = sessionIdentity();
+  if (identity && hold.short === identity.short) return `- Hold: this session holds it, since ${hold.from}.`;
+  return `- Hold: session ${hold.short} (${hold.harness}, ${hold.where}) holds it, since ${hold.from}; ask the user before taking it over.`;
+}
+
 async function storeCheck(home) {
   if (!home) return "- Store: this task is not in a Freeflow store; nothing is committed or pushed.";
   const status = await storeStatus({ home });
@@ -207,6 +216,7 @@ export async function renderRecover5({ root, path, text }) {
       .filter((warning) => !/ words, over /.test(warning))
       .map((warning) => `- Warning: ${warning}`),
     ...(unresolved.length ? unresolved : ["- Pointers: every Read on recovery and Read when pointer resolves."]),
+    holdCheck(path),
     await storeCheck(home),
     ...(work.space.length ? spaceChecks(task, home) : ["- Space: the record names no repository."]),
     "",

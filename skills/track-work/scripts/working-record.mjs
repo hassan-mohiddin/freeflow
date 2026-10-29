@@ -14,28 +14,33 @@ import {
   readRecord,
   resolveRecordPath,
   storeOf,
+  isFreeflowStore,
   writeInitialAtomically,
-  writeTaskFile,
 } from "./lib/store.mjs";
 import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
 import { checkEvidencePointers, checkLinePointers, renderRecover } from "./lib/recover.mjs";
-import {
-  DECISIONS_FILE,
-  EMPTY_DECISIONS,
-  HISTORY_FILE,
-  cueProblem,
-  emptyHistory,
-  loadTask5,
-  parseRecord5,
-  schemaOf,
-  skeleton5,
-  warnings5,
-} from "./lib/record5.mjs";
+import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { runTransition5 } from "./lib/transitions5.mjs";
 import { renderEntries5, renderIndex5, renderRecover5 } from "./lib/views5.mjs";
 import { PROJECT_LINK, Registry, TASK_ID, removalText, startCommand } from "./lib/registry.mjs";
 import { searchRecords } from "./lib/search.mjs";
-import { addStoreRemote, initStore, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
+import { addStoreRemote, initStore, storeHome, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
+import {
+  createProject,
+  createTask,
+  createTaskFolder5,
+  listProjects,
+  menu,
+  releaseTask,
+  removeProject,
+  removeTask,
+  searchTasks,
+  sessionIdentity,
+  showProject,
+  storeRecordPath,
+  switchTask,
+  takeTask,
+} from "./lib/projects5.mjs";
 
 const ROOT_HELP =
   "--record is resolved against --root, which defaults to the current directory; an absolute --record path finds its own root.";
@@ -52,6 +57,7 @@ function usage() {
     "  working-record.mjs checkpoint --record <record.md> [--repo <path>] (Schema 5)",
     "  working-record.mjs project <new|link|show|list|remove> ...",
     "  working-record.mjs task <create|import|search|env|here|fanout|remove> ...",
+    "  working-record.mjs task <create|take|release|switch|here|search|remove> ... (in a Freeflow store)",
     "  working-record.mjs store <init|remote|status|sync> ...",
     "",
     ROOT_HELP,
@@ -94,6 +100,7 @@ const COMMAND_HELP = new Map([
     [
       "Usage: working-record.mjs task <operation> ...",
       "Operations: task set-state; and for projects: task create, task import, task search, task env, task here, task fanout, task remove.",
+      "In a Freeflow store: task create, take, release, switch, here, search and remove. A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
     ].join("\n"),
   ],
@@ -147,11 +154,11 @@ const COMMAND_HELP = new Map([
   ],
   [
     "project",
-    "Usage: working-record.mjs project <operation> ...\nOperations: project new, project link, project show, project list, project remove.\nA project groups tasks; its records live in a store under the Freeflow home (FREEFLOW_HOME, default ~/.freeflow), outside any repository. Create or link a project only when the user asks.",
+    "Usage: working-record.mjs project <operation> ...\nOperations: project new, project link, project show, project list, project remove.\nA project groups tasks; its records live in a store under the Freeflow home (FREEFLOW_HOME, default ~/.freeflow), outside any repository. Create or link a project only when the user asks.\nIn a Freeflow store (store init), projects are folders under projects/ and the operations are project new, project remove, project list and project show; every change is committed and, in a cloud store, pushed. Elsewhere they act on Pi's Task Memory registry.",
   ],
   [
     "project new",
-    "Usage: project new --name <name> [--cwd <directory>] [--worktrees <directory>]\nCreates the project and links the repository containing --cwd (default: the current directory) to it. --worktrees is where fan-out puts children's worktrees (default: the repository's parent directory).",
+    "Usage: project new --name <name> [--cwd <directory>] [--worktrees <directory>]\nCreates the project and links the repository containing --cwd (default: the current directory) to it. --worktrees is where fan-out puts children's worktrees (default: the repository's parent directory).\nIn a Freeflow store: project new --name <name> makes projects/<slug>/ with rules/ and tasks/, then commits and pushes. Only on the user's word.",
   ],
   [
     "project link",
@@ -163,7 +170,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task here",
-    "Usage: task here [--cwd <directory>]\nPrints the registered tasks whose primary directory contains the directory, deepest first.",
+    "Usage: task here [--cwd <directory>]\nPrints the registered tasks whose primary directory contains the directory, deepest first.\nIn a Freeflow store: the session-start menu. It opens by saying the record is memory and the user's message decides the work; says which task this session holds, if any; then lists the open tasks of each project whose tasks name --cwd's repository (newest activity first, at most 15), each with who holds it and when it last synced, and its cue; or the projects, when none matches. It takes nothing.",
   ],
   [
     "task fanout",
@@ -171,20 +178,35 @@ const COMMAND_HELP = new Map([
   ],
   [
     "project show",
-    "Usage: project show [--cwd <directory>] [--name <project>]\nPrints a project and its tasks: ID, title, parent, and whether a session owns it. Without --name, the project linked to the repository containing --cwd.",
+    "Usage: project show [--cwd <directory>] [--name <project>]\nPrints a project and its tasks: ID, title, parent, and whether a session owns it. Without --name, the project linked to the repository containing --cwd.\nIn a Freeflow store: project show --name <project> lists every task of the project: ID, title, state, who holds it and when it last synced, and its cue; without --name, the menu for --cwd (see task here).",
   ],
-  ["project list", "Usage: project list\nPrints every project: name, number of tasks, and linked repositories."],
+  [
+    "project list",
+    "Usage: project list\nPrints every project: name, number of tasks, and linked repositories.\nIn a Freeflow store: each project with its number of tasks and the repositories its tasks name in Space.",
+  ],
   [
     "project remove",
-    "Usage: project remove --name <project>\nMoves the project's store (every task's record) to the trash under the Freeflow home, removes the project and its tasks from the registry, and removes its .freeflow/project links. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that project. Never empty the trash: the user does.",
+    "Usage: project remove --name <project>\nMoves the project's store (every task's record) to the trash under the Freeflow home, removes the project and its tasks from the registry, and removes its .freeflow/project links. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that project. Never empty the trash: the user does.\nIn a Freeflow store: project remove --name <project> deletes the project's folder and every task in it, then commits and pushes; Git history keeps them, and the output says how to bring them back. Only when the user asked.",
   ],
   [
     "task remove",
-    "Usage: task remove --id <task ID>\nMoves the task's record, and its children's, to the trash under the Freeflow home and removes them from the registry. Task numbers are never reused. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that task. Never empty the trash: the user does.",
+    "Usage: task remove --id <task ID>\nMoves the task's record, and its children's, to the trash under the Freeflow home and removes them from the registry. Task numbers are never reused. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that task. Never empty the trash: the user does.\nIn a Freeflow store: task remove --id <project/task-NNN> deletes the task's folder, then commits and pushes; Git history keeps it, and the output says how to bring it back. Only when the user asked.",
+  ],
+  [
+    "task take",
+    "Usage: task take --id <project/task-NNN> [--takeover]\nIn a Freeflow store: takes the remote's commits, then writes this session's hold in the task's sessions.md, commits and pushes. Refused while another session holds the task, naming it and when it last synced: ask the user, then --takeover closes that hold as taken over. Refused while this session holds another task: use task switch.",
+  ],
+  [
+    "task release",
+    "Usage: task release [--id <project/task-NNN>]\nIn a Freeflow store: closes this session's hold on the task it holds (or --id) as released, commits and pushes.",
+  ],
+  [
+    "task switch",
+    "Usage: task switch --id <project/task-NNN> [--takeover]\nIn a Freeflow store: releases the task this session holds, then takes the other. Checkpoint the held task first.",
   ],
   [
     "task create",
-    "Usage: task create --title <title> --goal <goal> [--parent <task-id>] [--cwd <directory>]\nCreates a registered record in the project linked to --cwd, or with --parent a child of that task in its project, and prints its ID and path. A child has no children.",
+    "Usage: task create --title <title> --goal <goal> [--parent <task-id>] [--cwd <directory>]\nCreates a registered record in the project linked to --cwd, or with --parent a child of that task in its project, and prints its ID and path. A child has no children.\nIn a Freeflow store: task create --title <title> --goal <goal> --cue <cue> [--project <project>] [--cwd <directory>] [--next-action <text>] makes a Schema 5 task in the project (by default the one whose tasks name --cwd's repository), names that repository in its Space, and this session takes it; then commits and pushes. Only when the user asks or says yes to a one-line proposal.",
   ],
   [
     "task import",
@@ -192,7 +214,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task search",
-    "Usage: task search --query <text> (--id <task-id> --scope task|tree|project | --project <name>)\nPrints matching lines with the record, entry heading and state. tree is the task's root (its parent, or itself) and the root's children. Read-only.",
+    "Usage: task search --query <text> (--id <task-id> --scope task|tree|project | --project <name>)\nPrints matching lines with the record, entry heading and state. tree is the task's root (its parent, or itself) and the root's children. Read-only.\nIn a Freeflow store: task search --query <text> [--project <project>] searches every task's record.md, history.md and decisions.md.",
   ],
   [
     "slice propose",
@@ -276,7 +298,7 @@ function parseOptions(args) {
       continue;
     }
     if (options[token] !== undefined) throw new CliError(`Duplicate option: ${token}`);
-    if (token === "--help" || token === "--strict" || token === "--pull" || token === "--resolved") {
+    if (["--help", "--strict", "--pull", "--resolved", "--takeover"].includes(token)) {
       options[token] = true;
       continue;
     }
@@ -453,8 +475,6 @@ async function initialize5(options) {
   const root = rootOption(options);
   const name = requireOption(options, "--name");
   const cue = requireOption(options, "--cue").replace(/\s+/g, " ").trim();
-  const problem = cueProblem(cue);
-  if (problem) throw new CliError(`--cue: ${problem}`);
   const input = (await readInput(options["--input"], cwd())).replace(/\r\n?/g, "\n");
   const sections = {};
   let current = null;
@@ -471,18 +491,7 @@ async function initialize5(options) {
     } else if (current) sections[current].push(line);
     else if (line.trim()) throw new CliError(`Initialization text outside a heading would be lost: ${line.trim()}`);
   }
-  const text = skeleton5({ name, cue, stateAsOf: new Date().toISOString(), sections });
-  parseRecord5(text);
-  const created = await createRecordPath(root, name, slugify(name));
-  try {
-    await writeInitialAtomically(root, created.path, text);
-    await writeTaskFile(root, created.path, HISTORY_FILE, null, emptyHistory(name));
-    await writeTaskFile(root, created.path, DECISIONS_FILE, null, EMPTY_DECISIONS);
-  } catch (error) {
-    if (error?.exitCode !== 2) await rm(dirname(created.path), { recursive: true, force: true }).catch(() => undefined);
-    throw error;
-  }
-  return `${created.path}\n`;
+  return `${await createTaskFolder5(root, { name, cue, sections })}\n`;
 }
 
 async function readExisting(options) {
@@ -675,10 +684,73 @@ async function runStore(operation, options) {
   throw new CliError(`Unknown command: store ${operation}`);
 }
 
+/** The project and task commands in a Freeflow store, with the options each takes there. */
+const STORE_OPTIONS = new Map([
+  ["project new", ["--name"]],
+  ["project remove", ["--name"]],
+  ["project list", []],
+  ["project show", ["--name", "--cwd"]],
+  ["task create", ["--title", "--goal", "--cue", "--project", "--cwd", "--next-action"]],
+  ["task take", ["--id", "--takeover"]],
+  ["task release", ["--id"]],
+  ["task switch", ["--id", "--takeover"]],
+  ["task here", ["--cwd"]],
+  ["task search", ["--query", "--project"]],
+  ["task remove", ["--id"]],
+]);
+
+async function runProjects5(command, operation, options, home) {
+  const allowed = new Set([...STORE_OPTIONS.get(`${command} ${operation}`), "--home"]);
+  for (const name of Object.keys(options))
+    if (!allowed.has(name))
+      throw new CliError(`Unknown option ${name} for ${command} ${operation} in a Freeflow store`);
+  const identity = sessionIdentity();
+  const where = resolve(options["--cwd"] ?? cwd());
+  const key = `${command} ${operation}`;
+  if (key === "project new") return createProject(home, requireOption(options, "--name"));
+  if (key === "project remove") return removeProject(home, requireOption(options, "--name"));
+  if (key === "project list") return listProjects(home);
+  if (key === "project show") {
+    if (options["--name"]) return showProject(home, options["--name"], identity);
+    return menu(home, where, identity);
+  }
+  if (key === "task create")
+    return createTask(
+      home,
+      {
+        project: options["--project"],
+        directory: where,
+        title: requireOption(options, "--title"),
+        goal: requireOption(options, "--goal"),
+        cue: requireOption(options, "--cue"),
+        nextAction: options["--next-action"],
+      },
+      identity,
+    );
+  if (key === "task take")
+    return takeTask(home, requireOption(options, "--id"), identity, { takeover: options["--takeover"] === true });
+  if (key === "task release") return releaseTask(home, identity, options["--id"] ?? null);
+  if (key === "task switch")
+    return switchTask(home, requireOption(options, "--id"), identity, { takeover: options["--takeover"] === true });
+  if (key === "task here") return menu(home, where, identity);
+  if (key === "task search") return searchTasks(home, requireOption(options, "--query"), options["--project"] ?? null);
+  if (key === "task remove") return removeTask(home, requireOption(options, "--id"));
+  throw new CliError(`Unknown command: ${key}`);
+}
+
 async function runCore(command, rest) {
   const { options, positionals } = parseOptions(rest);
   const operation = positionals[0];
   if (options["--help"]) return commandHelp(command, operation);
+  // In a Freeflow store, projects and tasks are its folders; elsewhere the registry of Pi's Task Memory keeps them.
+  if (STORE_OPTIONS.has(`${command} ${operation}`)) {
+    const home = storeHome(options["--home"]);
+    if (isFreeflowStore(home)) return runProjects5(command, operation, options, home);
+    if (["take", "release", "switch"].includes(operation) || options["--home"])
+      throw new CliError(
+        `${command} ${operation}${options["--home"] ? " --home" : ""} works in a Freeflow store; ${home} is not one (store init makes one)`,
+      );
+  }
   validateCommandOptions(command, operation, options);
   if (command === "store") return runStore(operation, options);
   if (
@@ -687,7 +759,9 @@ async function runCore(command, rest) {
   )
     return runRegistry(command, operation, options);
   // A registered task's ID stands for its record's path.
-  if (typeof options["--record"] === "string" && TASK_ID.test(options["--record"])) {
+  if (typeof options["--record"] === "string" && TASK_ID.test(options["--record"]) && isFreeflowStore(storeHome()))
+    options["--record"] = storeRecordPath(storeHome(), options["--record"]);
+  else if (typeof options["--record"] === "string" && TASK_ID.test(options["--record"])) {
     const task = await new Registry().task(options["--record"]);
     if (!task) throw new CliError(`No task ${options["--record"]} in the registry.`);
     options["--record"] = task.record;
