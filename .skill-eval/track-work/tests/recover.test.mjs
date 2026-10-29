@@ -115,13 +115,14 @@ test("view recover reports a record naming another branch and a commit HEAD does
     git(root, "checkout", "--quiet", "other");
     const text = (await readFile(recordPath, "utf8")).replace(
       /Starting state: on main at [0-9a-f]+/,
-      `Starting state: on feature at ${feature.slice(0, 8)}`,
+      `Starting state: on feature at ${feature}`,
     );
     await writeFile(recordPath, text);
     const result = run(root, ["view", "recover", "--record", recordPath]);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /the record names branch feature; HEAD is on other/);
-    assert.match(result.stdout, new RegExp(`names commit ${feature.slice(0, 8)}, which is not in HEAD's history`));
+    // The full hash: a digit-only prefix would not read as a commit, and the test would flake.
+    assert.match(result.stdout, new RegExp(`names commit ${feature}, which is not in HEAD's history`));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
