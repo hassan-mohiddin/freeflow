@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -197,7 +198,7 @@ test("view recover prints the opening line, rules, record, decisions, History an
     assert.match(
       checks,
       new RegExp(
-        `- github.com/acme/widget at ${work}: now main at [0-9a-f]{8}, not pushed; the record says schema-5 at 1a2b3c4d, not pushed`,
+        `- github.com/acme/widget at ${realpathSync(work)}: now main at [0-9a-f]{8}, not pushed; the record says schema-5 at 1a2b3c4d, not pushed`,
       ),
     );
     assert.ok(
@@ -243,11 +244,14 @@ test("checkpoint remembers where each Space repository is, so recover finds it f
     git(work, ["remote", "add", "origin", "git@github.com:acme/widget.git"]);
     ok(run(folder, ["checkpoint", "--record", record, "--repo", work]));
     assert.deepEqual(JSON.parse(await readFile(join(home, "local", "repositories.json"), "utf8")), {
-      "github.com/acme/widget": work,
+      // Git names a repository by its real path: on macOS the temporary folder is reached through a symlink.
+      "github.com/acme/widget": realpathSync(work),
     });
     assert.match(
       ok(run(folder, ["view", "recover", "--record", record])),
-      new RegExp(`- github.com/acme/widget at ${work}: schema-5 at [0-9a-f]{8}, not pushed, as recorded\\n`),
+      new RegExp(
+        `- github.com/acme/widget at ${realpathSync(work)}: schema-5 at [0-9a-f]{8}, not pushed, as recorded\\n`,
+      ),
     );
   });
 });
