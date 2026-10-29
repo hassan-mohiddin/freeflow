@@ -32,6 +32,7 @@ import {
   warnings5,
 } from "./lib/record5.mjs";
 import { runTransition5 } from "./lib/transitions5.mjs";
+import { renderEntries5, renderIndex5, renderRecover5 } from "./lib/views5.mjs";
 import { PROJECT_LINK, Registry, TASK_ID, removalText, startCommand } from "./lib/registry.mjs";
 import { searchRecords } from "./lib/search.mjs";
 import { addStoreRemote, initStore, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
@@ -118,7 +119,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "view",
-    "Usage: view resume|recover|full --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\nresume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
+    "Usage: view resume|recover|full|index --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\nSchema 5: recover prints an opening line (the record is memory; the user's latest message decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (newest 30, and any the record names), the project's other tasks with their cues, and the checks: budgets, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored.\nSchema 4: resume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
   ],
   [
     "validate",
@@ -699,18 +700,24 @@ async function runCore(command, rest) {
   }
   if (command === "view") {
     const view = positionals[0] ?? options["--view"];
-    if (!view || !["resume", "recover", "full", "entry"].includes(view))
-      throw new CliError("View must be resume, recover, full, or entry");
+    if (!view || !["resume", "recover", "full", "entry", "index"].includes(view))
+      throw new CliError("View must be resume, recover, full, entry, or index");
     const ids = positionals.slice(1);
     if (view === "entry") {
-      if (!ids.length) throw new CliError("View entry needs at least one S-NNN, C-NNN, or D-NNN ID");
-      const invalid = ids.find((id) => !/^[SCD]-\d{3,}$/.test(id));
+      if (!ids.length) throw new CliError("View entry needs at least one S-NNN, C-NNN, D-NNN, or A-NNN ID");
+      const invalid = ids.find((id) => !/^[SCDA]-\d{3,}$/.test(id));
       if (invalid) throw new CliError(`Not an entry ID: ${invalid}`);
     } else if (ids.length) throw new CliError(`View ${view} accepts no further arguments`);
     const loaded = await readExisting(options);
     if (view === "full") return renderFull(loaded.text);
-    if (schemaOf(loaded.text) === 5)
-      throw new CliError(`View ${view} for Schema 5 records is not built yet; use view full`);
+    if (schemaOf(loaded.text) === 5) {
+      if (view === "recover") return renderRecover5(loaded);
+      if (view === "entry") return renderEntries5(loaded, ids);
+      if (view === "index") return renderIndex5(loaded);
+      throw new CliError("Schema 5 has no resume view: read record.md, or after context loss view recover");
+    }
+    if (view === "index")
+      throw new CliError("View index is for Schema 5 records; Schema 4's resume view holds its index");
     if (view === "entry") return renderEntries(loaded.text, ids);
     if (view === "recover") return renderRecover(loaded.text, { root: loaded.root, recordPath: loaded.path });
     return renderResume(loaded.text);

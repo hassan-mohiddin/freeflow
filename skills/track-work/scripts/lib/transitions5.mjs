@@ -4,7 +4,8 @@
 // store when the task lives in one.
 
 import { execFileSync } from "node:child_process";
-import { basename, dirname, resolve } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
 import { syncStore } from "./freeflow-store.mjs";
 import {
@@ -468,8 +469,12 @@ export function remoteName(url) {
   return parsed ? `${parsed[1]}/${parsed[2]}` : value;
 }
 
-/** The Space line for the repository holding directory: remote, branch, commit, and whether a remote has the commit. */
-function spaceLine(directory) {
+/**
+ * Where the repository holding directory stands: its remote as host/owner/repo (or its path when it has none), branch,
+ * commit, whether a remote has the commit, and how many paths are uncommitted; null outside a repository or in the
+ * Freeflow store.
+ */
+export function repositoryState(directory) {
   const top = git(directory, ["rev-parse", "--show-toplevel"]);
   if (!top || isFreeflowStore(top)) return null;
   const remotes = (git(top, ["remote"]) ?? "").split("\n").filter(Boolean);
@@ -479,7 +484,20 @@ function spaceLine(directory) {
   if (!commit) return null;
   const pushed = (git(top, ["branch", "-r", "--contains", "HEAD"]) ?? "").trim() ? "pushed" : "not pushed";
   const name = url ? remoteName(url) : top;
-  return { name, line: `- ${name} · ${git(top, ["branch", "--show-current"]) || "detached"} · ${commit} · ${pushed}` };
+  const branch = git(top, ["branch", "--show-current"]) || "detached";
+  const dirty = (git(top, ["status", "--porcelain"]) ?? "").split("\n").filter(Boolean).length;
+  return { name, top, branch, commit, pushed, dirty, line: `- ${name} · ${branch} · ${commit} · ${pushed}` };
+}
+
+/** The store's local/repositories.json: where each repository a task names in Space is on this machine. */
+export const REPOSITORIES_FILE = join("local", "repositories.json");
+
+async function rememberRepository(home, state) {
+  const path = join(home, REPOSITORIES_FILE);
+  const known = JSON.parse(await readFile(path, "utf8").catch(() => "{}"));
+  if (known[state.name] === state.top) return;
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify({ ...known, [state.name]: state.top }, null, 2)}\n`);
 }
 
 async function checkpoint(options, loaded) {
@@ -487,7 +505,7 @@ async function checkpoint(options, loaded) {
   assertNotInterrupted(task);
   const { record } = task;
   const directory = resolve(options["--repo"] ?? process.cwd());
-  const space = spaceLine(directory);
+  const space = repositoryState(directory);
   if (options["--repo"] && !space)
     fail(
       "invalid-repository",
@@ -512,6 +530,8 @@ async function checkpoint(options, loaded) {
     );
   }
   const candidate = await publish(task, { record: edit(record, replacements) });
+  const home = freeflowStoreOf(dirname(loaded.path));
+  if (home && space) await rememberRepository(home, space);
   const after = { ...task, record: candidate };
   const lines = [
     `Checkpoint: ${basename(dirname(loaded.path))}, State as of ${candidate.header.stateAsOf}.`,

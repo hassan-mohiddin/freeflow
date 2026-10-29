@@ -114,7 +114,7 @@ function checkPointer(pointer, context) {
 
 const bullets = (lines) => lines.filter((line) => /^\s*[-*]\s+\S/.test(line));
 
-function sourceEntries(lines, context) {
+export function sourceEntries(lines, context) {
   return bullets(lines).map((line) => {
     const text = line.trim().replace(/^[-*]\s+/, "");
     const trigger = /\bread (?:only )?(?:when|if) ([^.;]+)/i.exec(text)?.[1]?.trim() ?? null;
@@ -164,7 +164,7 @@ function liveState(document, context) {
   return { git: true, branch, head, subject, dirty, namedBranches: named, mismatches, notes };
 }
 
-function contextFor(root, recordPath) {
+export function contextFor(root, recordPath) {
   return {
     root,
     taskDir: dirname(recordPath),
@@ -172,7 +172,7 @@ function contextFor(root, recordPath) {
   };
 }
 
-function gitRoot(root) {
+export function gitRoot(root) {
   return git(root, ["rev-parse", "--show-toplevel"]) ?? root;
 }
 
