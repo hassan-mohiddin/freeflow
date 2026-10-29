@@ -7,16 +7,18 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
-import { syncStore } from "./freeflow-store.mjs";
+import { budgetFor, contextWindow, measureTask, measuredLines } from "./budget5.mjs";
+import { storeHome, syncStore } from "./freeflow-store.mjs";
 import {
   CLOSED_STATES,
   DECISIONS_FILE,
   EMPTY_DECISIONS,
+  BUDGET_MODES,
   ENTRY_ORDER,
   HISTORY_FILE,
+  IN_FLIGHT_LABELS,
   PROPOSED5_ORDER,
   SLICE5_ORDER,
-  budgets5,
   cueProblem,
   emptyHistory,
   fieldLines5,
@@ -27,8 +29,10 @@ import {
   parseHistory5,
   parseRecord5,
   renderFields5,
+  stateLine5,
   warnings5,
 } from "./record5.mjs";
+import { closedBlocks } from "./discussion5.mjs";
 import { freeflowStoreOf, isFreeflowStore, writeAtomically, writeTaskFile } from "./store.mjs";
 
 function fail(code, message) {
@@ -500,10 +504,29 @@ export async function rememberRepository(home, state) {
   await writeFile(path, `${JSON.stringify({ ...known, [state.name]: state.top }, null, 2)}\n`);
 }
 
-async function checkpoint(options, loaded) {
+/** In flight's new lines from the checkpoint's input: bullets, each with its label (P59); "none" leaves it empty. */
+function inFlightLines(text) {
+  const lines = String(text ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/\s+$/, ""))
+    .filter((line) => line.trim());
+  if (lines.length === 1 && /^-?\s*(none|\(none\))\.?$/i.test(lines[0].trim())) return [];
+  for (const line of lines)
+    if (!line.startsWith("- "))
+      fail(
+        "invalid-input",
+        `checkpoint --input takes In flight's lines, each "- <${IN_FLIGHT_LABELS.join("|")}>: …", or "none": ${line}`,
+      );
+  return lines;
+}
+
+async function checkpoint(options, text, loaded) {
   const task = await load(loaded);
   assertNotInterrupted(task);
   const { record } = task;
+  const rewrite = options["--input"] !== undefined;
+  const flight = rewrite ? inFlightLines(text) : null;
   const directory = resolve(options["--repo"] ?? process.cwd());
   const space = repositoryState(directory);
   if (options["--repo"] && !space)
@@ -518,6 +541,10 @@ async function checkpoint(options, loaded) {
       lines: [`State as of: ${new Date().toISOString()}`],
     },
   ];
+  if (rewrite) {
+    const section = record.work.headings.get("In flight");
+    replacements.push({ start: section.start, end: section.end, lines: flight.length ? ["", ...flight, ""] : [""] });
+  }
   if (space) {
     const known = record.work.space.find((item) => item.text.split(" · ")[0] === space.name);
     const section = record.work.headings.get("Space");
@@ -533,13 +560,22 @@ async function checkpoint(options, loaded) {
   const home = freeflowStoreOf(dirname(loaded.path));
   if (home && space) await rememberRepository(home, space);
   const after = { ...task, record: candidate };
+  const measure = measureTask(after, { root: loaded.root, path: loaded.path, window: contextWindow() });
+  const measured = measuredLines(measure);
   const lines = [
     `Checkpoint: ${basename(dirname(loaded.path))}, State as of ${candidate.header.stateAsOf}.`,
-    ...budgets5(candidate).map(
-      (each) => `${each.name}: ${each.words} words (${each.soft ? "soft budget" : "budget"} about ${each.budget})`,
-    ),
+    `Budget: ${measured.summary}.`,
+    rewrite
+      ? `In flight: rewritten, ${flight.length} line(s).`
+      : "In flight: unchanged; pass --input with its lines to rewrite it whole.",
     space ? `Space: ${space.line.slice(2)}` : "Space: unchanged (no work repository at this folder; pass --repo)",
+    ...(measured.warning ? [`Warning: ${measured.warning}`] : []),
+    ...measure.files.carry.filter((file) => file.problem).map((file) => `Warning: Carry: ${file.problem}`),
     ...warnings5(after).map((warning) => `Warning: ${warning}`),
+    ...closedBlocks(loaded.path, task.history).map(
+      (block) =>
+        `Discussion block ${block.id} shaped ${block.shapes.join(", ")}, now closed: drop it (discussion drop --block ${block.id}) once nothing open rests on it.`,
+    ),
     await syncAfter(task, "checkpoint"),
   ];
   return `${lines.join("\n")}\n`;
@@ -565,7 +601,11 @@ async function setTaskState(options, loaded) {
   if (["completed", "abandoned"].includes(state) && slice)
     fail("invalid-task-state", `A ${state} task has no Slice; close ${slice.id} first`);
   const replacements = [
-    { start: record.header.stateLine, end: record.header.stateLine + 1, lines: [`Schema: 5 · State: ${state}`] },
+    {
+      start: record.header.stateLine,
+      end: record.header.stateLine + 1,
+      lines: [stateLine5(state, record.header.budget)],
+    },
     nextActionEdit(record, nextAction),
   ];
   if (state === "paused" && slice && fieldText(slice, "State") === "in_progress") {
@@ -579,6 +619,86 @@ async function setTaskState(options, loaded) {
   }
   await publish(task, { record: edit(record, replacements) });
   return `Set task state: ${state}\n`;
+}
+
+/** `task set-budget`: the task's budget mode, normal or expanded (P62, P67), changed only on the user's word. */
+async function setBudget(options, loaded) {
+  const task = await load(loaded);
+  assertNotInterrupted(task);
+  const { record } = task;
+  const mode = requiredOption(options, "--mode", "task set-budget");
+  if (!BUDGET_MODES.has(mode)) fail("invalid-budget", "--mode is normal or expanded");
+  const window = contextWindow();
+  const total = budgetFor({ window: window.tokens, mode }).total.toLocaleString("en-US");
+  if (mode === record.header.budget) return `No change: the task's budget is already ${mode} (about ${total} words).\n`;
+  await publish(task, {
+    record: edit(record, [
+      {
+        start: record.header.stateLine,
+        end: record.header.stateLine + 1,
+        lines: [stateLine5(record.header.state, mode)],
+      },
+    ]),
+  });
+  return `Set budget: ${mode}, about ${total} words at a ${window.tokens.toLocaleString("en-US")}-token window.\n`;
+}
+
+/** The session summary's headings (P64), in order: Schema 5's, for a session that holds no task. */
+export const SESSION_SUMMARY_HEADINGS = [
+  "Goal",
+  "Settled",
+  "Open",
+  "Agreement",
+  "In flight",
+  "Read when",
+  "Next action",
+];
+
+/** Where this session's summary goes when it holds no task (T15): <store>/sessions/<session ID>/summary.md. */
+export function sessionSummaryPath(home, identity) {
+  return join(home, "sessions", identity.id, "summary.md");
+}
+
+/**
+ * `checkpoint --session`: without a held task, the session's own summary, which Freeflow's compaction installs and
+ * then removes. Every heading is present, in order; Goal and Next action say something; In flight's lines are labelled.
+ */
+export async function checkpointSession({ home: explicit, identity, text }) {
+  if (!identity)
+    fail(
+      "missing-session",
+      "No session ID: Claude Code sets CLAUDE_CODE_SESSION_ID; other harnesses set FREEFLOW_SESSION.",
+    );
+  const lines = String(text ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n");
+  const found = [];
+  for (const [index, line] of lines.entries()) {
+    const heading = /^## (.+?)\s*$/.exec(line);
+    if (heading) found.push({ title: heading[1], index });
+    else if (!found.length && line.trim()) fail("invalid-input", `The session summary starts with ## Goal: ${line}`);
+  }
+  if (found.map((each) => each.title).join("\n") !== SESSION_SUMMARY_HEADINGS.join("\n"))
+    fail(
+      "invalid-input",
+      `The session summary has these headings, in order: ${SESSION_SUMMARY_HEADINGS.map((each) => `## ${each}`).join(", ")}`,
+    );
+  const body = (title) => {
+    const at = found.findIndex((each) => each.title === title);
+    return lines.slice(found[at].index + 1, found[at + 1]?.index ?? lines.length).filter((line) => line.trim());
+  };
+  for (const title of ["Goal", "Next action"])
+    if (!body(title).some((line) => line.replace(/^-\s*/, "").trim() && !/^\(none\)$/i.test(line.trim())))
+      fail("invalid-input", `The session summary's ${title} must say something`);
+  const labelled = new RegExp(`^- (${IN_FLIGHT_LABELS.join("|")}):\\s+\\S`);
+  for (const line of body("In flight"))
+    if (!/^\(none\)$/i.test(line.trim()) && !labelled.test(line))
+      fail("invalid-input", `An In flight line starts with ${IN_FLIGHT_LABELS.join(", ")} and a colon: ${line}`);
+  const home = storeHome(explicit);
+  const path = sessionSummaryPath(home, identity);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `# Session summary\n\nAs of: ${new Date().toISOString()}\n\n${lines.join("\n").trim()}\n`);
+  return `Session summary: ${path}. Freeflow's compaction installs it and removes it; nothing becomes a task.\n`;
 }
 
 export async function runTransition5(command, positionals, options, text, loaded) {
@@ -597,7 +717,8 @@ export async function runTransition5(command, positionals, options, text, loaded
     if (operation === "update") return updateAgreement(options, text, loaded);
     if (operation === "close") return closeAgreement(options, text, loaded);
   }
-  if (command === "checkpoint" && operation === undefined) return checkpoint(options, loaded);
+  if (command === "checkpoint" && operation === undefined) return checkpoint(options, text, loaded);
   if (command === "task" && operation === "set-state") return setTaskState(options, loaded);
+  if (command === "task" && operation === "set-budget") return setBudget(options, loaded);
   fail("unknown-command", `Not a Schema 5 command: ${command} ${operation ?? ""}`.trim());
 }

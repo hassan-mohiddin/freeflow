@@ -49,7 +49,7 @@
     "test:skill-author": "node --test $(find .skill-eval/write-skill/tests -name '*.test.mjs' | sort)",
     "test:skill-eval": "node --test $(find .skill-eval/evaluate-behavior/tests -name '*.test.mjs' | sort)",
     "test:research-work": "node --test $(find .skill-eval/research-work/tests -name '*.test.mjs' | sort)",
-    "test:track-work": "node --test .skill-eval/track-work/tests/*.test.mjs",
+    "test:track-work": "node scripts/validation/with-symlinked-tmp.mjs node --test .skill-eval/track-work/tests/*.test.mjs",
     "test:discuss-work": "node --test .skill-eval/discuss-work/tests/*.test.mjs",
     "test:execute-work": "node --test .skill-eval/execute-work/tests/*.test.mjs",
     "test:deliver-work": "node --test .skill-eval/deliver-work/tests/*.test.mjs",

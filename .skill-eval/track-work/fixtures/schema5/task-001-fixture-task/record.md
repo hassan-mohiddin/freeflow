@@ -50,6 +50,15 @@ State as of: 2026-10-29T09:00:00.000Z
 
 - github.com/acme/widget · schema-5 · 1a2b3c4d · not pushed
 
+### In flight
+
+- Now: the parser reads record.md; history.md is next.
+- Carry: history.md — the entries the parser reads next
+
+### Defined by
+
+- decisions.md — the open agreement's decision list.
+
 ### Read on recovery
 
 - record.md — this file.

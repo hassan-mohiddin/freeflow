@@ -44,7 +44,7 @@ async function withTask(run) {
         ],
         "### Goal\n- Hand work out.\n### Next action\n- Delegate.\n",
       ),
-    ).trim();
+    ).split("\n")[0];
     ok(
       cli(
         [

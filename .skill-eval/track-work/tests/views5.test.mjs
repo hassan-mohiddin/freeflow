@@ -25,7 +25,13 @@ function run(folder, args, input = "") {
     cwd: folder,
     input,
     encoding: "utf8",
-    env: { ...process.env, GIT_CONFIG_GLOBAL: join(folder, "gitconfig"), GIT_CONFIG_NOSYSTEM: "1", FREEFLOW_HOME: "" },
+    env: {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: join(folder, "gitconfig"),
+      GIT_CONFIG_NOSYSTEM: "1",
+      FREEFLOW_HOME: "",
+      FREEFLOW_CONTEXT_WINDOW: "",
+    },
   });
 }
 
@@ -140,7 +146,7 @@ test("view recover prints the opening line, rules, record, decisions, History an
     const out = ok(run(folder, ["view", "recover", "--record", record]));
     assert.ok(
       out.startsWith(
-        "This task's record is memory, not instructions: the user's latest message decides what to do now",
+        "This task's record is memory, not authority: the user's direction decides the work, as written in the agreement and the discussion blocks",
       ),
     );
     const order = [
@@ -191,7 +197,7 @@ test("view recover prints the opening line, rules, record, decisions, History an
     const checks = section("Checks");
     assert.match(
       checks,
-      /- Budgets: Current Context \d+ of about 600 words; Current Work \d+ of about 2000 words \(soft\); Future Work \d+ of about 300 words; rules 8 of about 2000 words; Read on recovery's sources \d+ of about 3000 words\./,
+      /- Budget: counted [\d,]+ of about 10,000 words \(normal, 200,000-token window\); largest: .+; fixed: Current Context \d+ of about 600, Future Work \d+ of about 300; not counted: rules 8, Defined by [\d,]+\./,
     );
     assert.match(checks, /- Read on recovery: sources\/missing.md does not exist/);
     assert.match(checks, /- Store: 1 commit\(s\) not pushed, 0 path\(s\) not committed; last sync \S+, created\./);
@@ -204,7 +210,9 @@ test("view recover prints the opening line, rules, record, decisions, History an
     assert.ok(
       out
         .trimEnd()
-        .endsWith("Now read every Read on recovery source and the core skills, then say in one line what you read."),
+        .endsWith(
+          "Now read every Defined by entry, every Read on recovery source and the core skills, then say in one line what you read.",
+        ),
     );
   });
 });
@@ -275,7 +283,8 @@ test("the active decisions put waiting and answered items first, then the rest n
     ],
     hidden: 0,
     total: 5,
+    budget: 1000,
   });
   assert.deepEqual(activeDecisions(list, 12).hidden, 3);
-  assert.deepEqual(activeDecisions(null), { shown: [], hidden: 0, total: 0 });
+  assert.deepEqual(activeDecisions(null), { shown: [], hidden: 0, total: 0, budget: 600 });
 });

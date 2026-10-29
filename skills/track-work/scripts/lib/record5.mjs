@@ -12,12 +12,30 @@ export const DECISIONS_FILE = "decisions.md";
 
 export const TASK_STATES5 = new Set(["active", "paused", "completed", "abandoned"]);
 export const CONTEXT5_HEADINGS = ["Goal", "Settled", "Open"];
-export const WORK5_HEADINGS = ["Delegations", "Space", "Read on recovery", "Read when", "Next action"];
+export const WORK5_HEADINGS = [
+  "Delegations",
+  "Space",
+  "In flight",
+  "Defined by",
+  "Read on recovery",
+  "Read when",
+  "Next action",
+];
 export const TOP5_SECTIONS = ["Current Context", "Current Work", "Future Work"];
 
-/** Starting budgets in words (P32); tuned by the continuity test. Current Work's is soft, a warning. */
-export const BUDGETS = { "Current Context": 600, "Current Work": 2000, "Future Work": 300 };
+/**
+ * The parts of the record with a fixed budget in words, in every mode and window (P32); the rest of the record shares
+ * the recovery budget (budget5.mjs). Tuned by the continuity test.
+ */
+export const FIXED_BUDGETS = { "Current Context": 600, "Future Work": 300 };
 export const CUE_WORDS = 25;
+export const BUDGET_MODES = new Set(["normal", "expanded"]);
+
+/** In flight's lines (P59): where the step in progress stands, and what the next step rests on, labelled as on Pi. */
+export const IN_FLIGHT_LABELS = ["Now", "Observed", "Hypothesis", "Dropped", "Pending", "Carry"];
+const IN_FLIGHT_LINE = new RegExp(`^- (${IN_FLIGHT_LABELS.join("|")}):\\s+\\S`);
+/** A Carry line: `- Carry: <path> (lines 40–118) — why`, the lines optional. */
+const CARRY_LINE = /^- Carry:\s+(\S+)(?:\s+\(lines?\s+(\d+)(?:\s*[–-]\s*(\d+))?\))?\s+—\s+\S/;
 
 export const SLICE5_ORDER = [
   "State",
@@ -252,7 +270,7 @@ function parseHeader5(lines, end) {
   for (let index = 1; index < end; index += 1) {
     const line = lines[index];
     if (line.trim() === "") continue;
-    const schema = /^Schema:\s*(\d+)\s*·\s*State:\s*(\S+)\s*$/.exec(line);
+    const schema = /^Schema:\s*(\d+)\s*·\s*State:\s*(\S+)(?:\s*·\s*Budget:\s*(\S+))?\s*$/.exec(line);
     const cue = /^Cue:\s*(.*?)\s*$/.exec(line);
     const asOf = /^State as of:\s*(\S+)\s*$/.exec(line);
     const key = schema ? "schema" : cue ? "cue" : asOf ? "stateAsOf" : null;
@@ -261,6 +279,7 @@ function parseHeader5(lines, end) {
     if (schema) {
       header.schema = Number(schema[1]);
       header.state = schema[2];
+      header.budget = schema[3] ?? "normal";
       header.stateLine = index;
     } else if (cue) {
       header.cue = cue[1];
@@ -272,6 +291,8 @@ function parseHeader5(lines, end) {
   }
   if (header.schema !== SCHEMA5) fail("unsupported-schema", `Expected Schema 5, found ${header.schema ?? "none"}`);
   if (!TASK_STATES5.has(header.state)) fail("invalid-state", `Invalid task State: ${header.state}`);
+  if (!BUDGET_MODES.has(header.budget))
+    fail("invalid-budget", `Invalid Budget: ${header.budget}; it is normal or expanded`);
   if (!header.cue) fail("missing-field", "The header needs a Cue line: read when <situations this task matters to>");
   if (!header.stateAsOf || !TIMESTAMP.test(header.stateAsOf) || Number.isNaN(Date.parse(header.stateAsOf)))
     fail("invalid-timestamp", `The header needs State as of: <UTC timestamp>; found ${header.stateAsOf ?? "none"}`);
@@ -340,6 +361,26 @@ function parseCurrentWork5(lines, section) {
     if (!/\bread when\b/i.test(line))
       fail("invalid-source", `A Read when line names its trigger, "read when …": ${line}`);
   });
+  const flight = work.headings.get("In flight");
+  work.inFlight = bulletsOnly(lines, flight.start, flight.end, "In flight", (line) => {
+    if (!IN_FLIGHT_LINE.test(line))
+      fail("invalid-in-flight", `An In flight line starts with ${IN_FLIGHT_LABELS.join(", ")} and a colon: ${line}`);
+    if (line.startsWith("- Carry:") && !CARRY_LINE.test(line))
+      fail("invalid-carry", `A Carry line is "- Carry: <path> (lines <a>–<b>) — <why>", the lines optional: ${line}`);
+  });
+  work.carry = work.inFlight
+    .filter((item) => item.text.startsWith("Carry:"))
+    .map((item) => {
+      const [, path, from, to] = CARRY_LINE.exec(`- ${item.text}`);
+      return {
+        index: item.index,
+        path,
+        from: from ? Number(from) : null,
+        to: to ? Number(to) : from ? Number(from) : null,
+      };
+    });
+  const defined = work.headings.get("Defined by");
+  work.definedBy = bulletsOnly(lines, defined.start, defined.end, "Defined by");
   const now = work.headings.get("Read on recovery");
   work.readNow = bulletsOnly(lines, now.start, now.end, "Read on recovery");
   const next = work.headings.get("Next action");
@@ -470,22 +511,28 @@ export function nextId5(task, letter) {
   return `${letter}-${String(highest + 1).padStart(3, "0")}`;
 }
 
-/** Each budgeted section's size: Current Context and Future Work against their budgets, Current Work softly. */
+/** Each section's size in words, with the fixed budget of Current Context and Future Work; Current Work has none. */
 export function budgets5(record) {
   return TOP5_SECTIONS.map((name) => {
     const section = record.sections[name];
     const words = wordCount(record.lines.slice(section.start, section.end));
-    return { name, words, budget: BUDGETS[name], over: words > BUDGETS[name], soft: name === "Current Work" };
+    const budget = FIXED_BUDGETS[name] ?? null;
+    return { name, words, budget, over: budget !== null && words > budget };
   });
 }
 
-/** Warnings validate and checkpoint print: sections over budget and cues that are too long or not cues. */
+/** The header's first line, with the task state and the budget mode. */
+export function stateLine5(state, budget) {
+  return `Schema: 5 · State: ${state} · Budget: ${budget}`;
+}
+
+/** Warnings validate and checkpoint print: fixed parts over budget and cues that are too long or not cues. */
 export function warnings5(task) {
   const warnings = budgets5(task.record)
     .filter((each) => each.over)
     .map(
       (each) =>
-        `${each.name} has ${each.words} words, over its ${each.soft ? "soft " : ""}budget of about ${each.budget}${each.name === "Current Context" ? ": distill it at the next checkpoint" : ""}`,
+        `${each.name} has ${each.words} words, over its fixed budget of about ${each.budget}: distill it at the next checkpoint`,
     );
   const cue = cueProblem(task.record.header.cue);
   if (cue) warnings.push(`the header's Cue: ${cue}`);
@@ -521,7 +568,7 @@ export function skeleton5({ name, cue, stateAsOf, sections = {} }) {
   return [
     `# ${name}`,
     "",
-    `Schema: 5 · State: active`,
+    stateLine5("active", "normal"),
     `Cue: ${cue}`,
     `State as of: ${stateAsOf}`,
     "",
@@ -539,6 +586,10 @@ export function skeleton5({ name, cue, stateAsOf, sections = {} }) {
     ...part("Delegations"),
     "### Space",
     ...part("Space"),
+    "### In flight",
+    ...part("In flight"),
+    "### Defined by",
+    ...part("Defined by"),
     "### Read on recovery",
     ...part("Read on recovery"),
     "### Read when",
