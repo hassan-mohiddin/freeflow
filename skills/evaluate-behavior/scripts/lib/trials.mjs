@@ -6,6 +6,7 @@ import { budgetEvidence, createBudget } from "./budget.mjs";
 import { decide, decisionClaim, undecidedCases } from "./decision.mjs";
 import { loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, writeJson } from "./evidence.mjs";
+import { harnessLines } from "./harness.mjs";
 import { aggregateSections, hasAggregators } from "./hooks.mjs";
 import { createLimiter } from "./queue.mjs";
 import { createRunReuse, refreshSelectedLogins, resultsDirectory, runEvaluation } from "./runner.mjs";
@@ -92,9 +93,13 @@ export async function runTrials(definitionFile, selectors, options = {}) {
   const tasks = [];
   let pilotRecord = null;
   if (pilot !== null) {
-    const outcome = await invoke(selectors, { part: "pilot" }, { groupRange: [0, pilot] });
+    // The pilot runs the harness check before its first subject (lib/harness.mjs).
+    const outcome = await invoke(selectors, { part: "pilot" }, { groupRange: [0, pilot], harness: true });
     const problems = await pilotProblems(outcome.result);
-    pilotRecord = { id: outcome.result.id, groups: outcome.result.summary.groups.length, problems };
+    const harness = (outcome.result.summary?.groups ?? []).flatMap((group) =>
+      group.harness ? harnessLines(group.id, group.harness) : [],
+    );
+    pilotRecord = { id: outcome.result.id, groups: outcome.result.summary.groups.length, problems, harness };
     if (problems.length > 0)
       return { id: null, path: null, state: "pilot-stopped", pilot: pilotRecord, aggregate: null };
     results.push(outcome.result);

@@ -102,11 +102,12 @@ Run the canonical [skill evaluator](scripts/skill-eval.mjs) from the definition 
 
 1. Count the runs: groups × arms × trials, and the judge calls.
 2. For a coding task, run `check-tasks`, which calls no model.
-3. Run a pilot first, `--pilot <n>`: it stops on a broken run, grade or comparison before the batch, and measures the cost per run.
+3. Run a pilot first, `--pilot <n>`. Before its first subject it checks each shell arm's harness with no model call: a command in the workspace, one naming a path outside it, the first again, a write under `/tmp`, and which of `node`, `python3` and `git` the shell has. It stops when the shell stopped working after a probe, when the arms found different things, or on a broken run, grade or comparison; otherwise it prints the harness findings, which apply to every arm, and measures the cost per run.
 4. Set `--max-cost` from the pilot's cost per run, and give the user the count and the estimated cost before the batch (Rules). `--max-cost` counts list price, not a subscription's usage, so a large batch still waits for the user's yes; subjects already running when it is reached still finish.
 5. Run the batch in the background and keep working. Subjects run four at once by default, fewer when arms run in containers; `--jobs 1` runs one at a time. An agent you hand the run to can be the smallest capable model ([delegation](../execute-work/references/delegation.md)).
 6. After a stop, rerun the same command with `--reuse`: finished runs are not paid for again.
 7. Hold the runs the transcript scan flags out of the counts until the user clears them (Rules).
+8. For a Research Work study, write the pilot's result in the plan before the lock: `study.mjs lock` refuses a plan whose reference arm passed every pilot unit ([study](../research-work/references/study.md#pilot-then-lock)).
 
 Use `--trials <n>` before claiming a difference. Canonical results live under `<definition-root>/.skill-eval/runs/<result-id>`; a view is a projection of them. A failed check is behavioral evidence; a transition such as `fail-to-pass` is a fact, not a verdict.
 

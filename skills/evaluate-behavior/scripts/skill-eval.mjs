@@ -478,17 +478,18 @@ async function run(operation) {
       pilot: operation.pilot,
     });
     if (aggregate.state === "pilot-stopped") {
-      reportPilot(aggregate.pilot.id, aggregate.pilot.problems);
+      reportPilot(aggregate.pilot);
       return;
     }
-    if (aggregate.aggregate.pilot) reportPilot(aggregate.aggregate.pilot.id, []);
+    if (aggregate.aggregate.pilot) reportPilot(aggregate.aggregate.pilot);
     process.stdout.write(`Aggregate: ${aggregate.id}\nPath: ${aggregate.path}\nState: ${aggregate.state}\n`);
     if (aggregate.state !== "complete") process.exitCode = 1;
   });
 }
 
-/** Prints a pilot's outcome; false (and a failing exit) when its problems stop the run. */
-function reportPilot(id, problems) {
+/** Prints a pilot's outcome and its harness findings; false (and a failing exit) when its problems stop the run. */
+function reportPilot({ id, problems, harness = [] }) {
+  for (const line of harness) process.stdout.write(`Harness: ${line}\n`);
   if (problems.length === 0) {
     process.stdout.write(`Pilot: ${id} passed\n`);
     return true;

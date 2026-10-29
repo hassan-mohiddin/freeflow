@@ -111,14 +111,43 @@ export function anchorProblems(planPath, entry, label) {
   return [];
 }
 
-/** Lock a valid plan. Refuses a plan that does not validate, and a plan already locked. */
-export function lockPlan(planPath, { by, at = now() }) {
+/**
+ * The pilot's result as the plan records it, in one line: `Pilot result: <arm> <passed> of <units>, ...`, the
+ * reference arm first. Null when the plan has no such line; throws when the line names no arm in that form.
+ */
+export function pilotResult(text) {
+  const line = /^[-*\s]*Pilot result:\s*(.*)$/m.exec(text)?.[1];
+  if (line === undefined) return null;
+  const arms = [...line.matchAll(/([^\s,;]+) (\d+) of (\d+)/g)].map(([, arm, passed, units]) => ({
+    arm,
+    passed: Number(passed),
+    units: Number(units),
+  }));
+  if (arms.length === 0)
+    throw new Error(
+      `the plan's "Pilot result:" line needs "<arm> <passed> of <units>", the reference arm first: ${line}`,
+    );
+  return arms;
+}
+
+/**
+ * Lock a valid plan. Refuses a plan that does not validate, a plan already locked, and a plan whose pilot result
+ * shows the reference arm passing every pilot unit, unless `saturated` gives the reason it should run anyway: such
+ * a study has no room to show a gain.
+ */
+export function lockPlan(planPath, { by, saturated = null, at = now() }) {
   if (!by) throw new Error("lock needs --by: who locked the plan");
   const text = readFileSync(planPath, "utf8");
   const { problems } = validate("study-plan", text, { unlocked: !existsSync(lockPath(planPath)) });
   if (problems.length > 0) throw new Error(`the plan does not validate:\n  ${problems.join("\n  ")}`);
   if (existsSync(lockPath(planPath)))
     throw new Error(`${lockPath(planPath)} exists; a plan is locked once, and later changes are amendments`);
+  const pilot = pilotResult(text);
+  const reference = pilot?.[0];
+  if (reference && reference.units > 0 && reference.passed >= reference.units && !saturated)
+    throw new Error(
+      `the pilot's reference arm ${reference.arm} passed ${reference.passed} of ${reference.units} pilot units, so the study has no room to show a gain: harden or add units, make it a regression study, or lock with --saturated "<why it should run anyway>"`,
+    );
   const lock = {
     plan: basename(planPath),
     entries: [
@@ -130,6 +159,8 @@ export function lockPlan(planPath, { by, at = now() }) {
         hypotheses: hypothesesOf(text),
         variants: planVariants(text),
         runs: plannedRuns(text),
+        ...(pilot === null ? {} : { pilot }),
+        ...(saturated ? { saturated } : {}),
         git: gitAnchor(planPath),
       },
     ],
