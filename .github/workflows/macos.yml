@@ -1,0 +1,52 @@
+name: macOS tests
+
+# The Track Work and Pi extension suites hold Freeflow's platform-specific code (paths, symlinks, process handling), so
+# they also run on macOS. Other changes cannot fail here differently from Linux, so a pull request runs this only when
+# that code changes; every push to main runs it, which catches what the path list misses. Not a required check.
+on:
+  pull_request:
+    paths:
+      - "pi-extension/**"
+      - "skills/track-work/**"
+      - ".skill-eval/track-work/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/macos.yml"
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: Tests on macos-latest
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        # actions/setup-node v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Track Work tests
+        run: npm run test:track-work
+
+      - name: Pi extension tests
+        # Runs even when Track Work's tests fail, so one run shows every platform failure.
+        if: success() || failure()
+        run: npm run test:pi-extension

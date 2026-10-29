@@ -113,34 +113,3 @@ jobs:
         run: |
           echo "check gate: $GATE; test shards: $TESTS"
           test "$GATE" = success && test "$TESTS" = success
-
-  # The suites with platform-specific code (paths, symlinks) on macOS, where most development happens. Not a required
-  # check: "Deterministic checks" alone gates merging. Windows runs only on demand (windows.yml).
-  platforms:
-    name: Tests on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-latest]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Node
-        # actions/setup-node v7.0.0
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: "24"
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Track Work tests
-        run: npm run test:track-work
-
-      - name: Pi extension tests
-        # Runs even when Track Work's tests fail, so one run shows every platform failure.
-        if: success() || failure()
-        run: npm run test:pi-extension
