@@ -1,6 +1,6 @@
 ---
 name: execute-work
-description: "Use for any task that uses tools: reading or searching a repository, running commands, diagnosing, and any work that changes code, files or settings: implementing a feature, fixing a bug, adding or changing behavior, configuring, prototyping, refactoring, simplifying or cleaning up code, deleting dead code, or maintaining a project. Also use when designing or changing modules, interfaces, data models, state, error handling or dependencies; when something fails, breaks, regresses or slows down and the cause is unknown, or a fix did not hold; when migrating users, data, a schema, a service or traffic to a replacement and removing the old path; and when adding edge-case handling or code comments. Read it before your first tool call on a task, even a small or read-only one: it reads the request for its asks and implied requirements, finds what the change touches before you edit, and reviews and reports the result."
+description: "Use for any task that uses tools: reading or searching a repository, running commands, diagnosing, and any work that changes code, files or settings: implementing a feature, fixing a bug, adding or changing behavior, configuring, prototyping, refactoring, simplifying or cleaning up code, deleting dead code, or maintaining a project. Also use when designing or changing modules, interfaces, data models, state, error handling or dependencies; when something fails, breaks, regresses or slows down and the cause is unknown, or a fix did not hold; when migrating users, data, a schema, a service or traffic to a replacement and removing the old path; when adding edge-case handling or code comments; and when handing work to subagents or parallel workers, or working from another agent's brief. Read it before your first tool call on a task, even a small or read-only one: it reads the request for its asks and implied requirements, finds what the change touches before you edit, and reviews and reports the result."
 ---
 
 # Execute Work
@@ -31,6 +31,7 @@ Read a reference only when its situation arises.
 | Choosing the checks that will show the change works, reproducing the problem before a fix, running the existing tests before and after, what a check shows, or a claim beyond its evidence | [Verify Work](../verify-work/SKILL.md) |
 | An empirical question to answer before building on it | Discuss Work's [learning action](../discuss-work/references/learning-action.md) |
 | A choice that is the user's, or a step the agreement does not cover | [Discuss Work](../discuss-work/SKILL.md) |
+| Handing work to another agent (a subagent, parallel workers, a reviewer, a trial, eval or research agent, a fan-out), or working from another agent's brief | [delegation](references/delegation.md) |
 | Committing, pushing, merging, releasing or deploying | [Deliver Work](../deliver-work/SKILL.md) |
 
 ## Rules

@@ -41,4 +41,4 @@ An H1 title and one paragraph on what the user sees, then four sections in this 
 - [Task Memory commands](task-memory-commands.md): `/freeflow project` and `/freeflow task` creating a project, a Working Record, and attaching it.
 - [Workflow commands](workflow-commands.md): `/verify-work`, `/discuss-work` and the other skill commands. Each run is a model call; only completion is driven.
 - [Track Work CLI](track-work-cli.md): `working-record.mjs`, the record surface on Claude Code, Codex and other hosts.
-- [Evaluator dry run](evaluator-dry-run.md): `skill-eval run`'s plan, the refusal of uncommitted inputs, and `--dry-run`.
+- [Evaluator uncommitted run](evaluator-uncommitted-run.md): `skill-eval run`'s plan, the refusal of uncommitted inputs, `--uncommitted`, and the refused `--dry-run`.

@@ -12,6 +12,7 @@ import { hostAdapter } from "./hosts/index.mjs";
 import { identityRefusal, inputIdentity } from "./identity.mjs";
 import { prepareSourceExtensions } from "./build-source.mjs";
 import { armParticipants, runParticipants } from "./participants.mjs";
+import { harnessProblems, prepareHarness } from "./harness.mjs";
 import { prepareShell } from "./shell.mjs";
 import { enforceReferenceChecks } from "./reference.mjs";
 import { createLimiter, withCpuSlot } from "./queue.mjs";
@@ -63,7 +64,10 @@ export function createRunReuse(runsDirectory, enabled) {
  *
  * @param {string} definitionFile
  * @param {any} selectors
- * @param {{root?: string, signal?: AbortSignal, budget?: any, dryRun?: boolean, jobs?: number, subjects?: ReturnType<typeof createLimiter>, results?: string | null, reuse?: any, groupRange?: [number, number] | null, loginsRefreshed?: boolean}} options
+ * With `harness`, as for a pilot, each group whose subjects have a shell runs the harness check (`lib/harness.mjs`)
+ * after its confinement probes and before any subject; a problem it finds makes the group invalid.
+ *
+ * @param {{root?: string, signal?: AbortSignal, budget?: any, dryRun?: boolean, jobs?: number, subjects?: ReturnType<typeof createLimiter>, results?: string | null, reuse?: any, groupRange?: [number, number] | null, loginsRefreshed?: boolean, harness?: boolean}} options
  */
 export async function runEvaluation(definitionFile, selectors = {}, options = {}) {
   const { root = process.cwd(), signal, budget = null, dryRun = false, groupRange = null } = options;
@@ -81,7 +85,8 @@ export async function runEvaluation(definitionFile, selectors = {}, options = {}
   applySourceOverrides(selection, sources);
   assertSupportedSelection(selection);
 
-  // Canonical evidence needs every working-tree input recoverable from one commit; anything else is a dry run.
+  // Canonical evidence needs every working-tree input recoverable from one commit; anything else runs only with
+  // --uncommitted (stored as dryRun, the name older results use).
   const identity = await inputIdentity(root, workingTreeInputs(selection, definitionPath, root));
   const refusal = identityRefusal(identity);
   if (refusal !== null && !dryRun) throw new Error(refusal);
@@ -130,6 +135,7 @@ export async function runEvaluation(definitionFile, selectors = {}, options = {}
     dryRun,
     indexEntries: [],
     sources,
+    harness: options.harness === true,
     // This invocation's own spend, apart from the run's shared budget, which every trial charges.
     cost: { spent: 0, subjects: 0, unmeasured: 0 },
   };
@@ -333,6 +339,7 @@ async function runGroup({
   dryRun,
   indexEntries,
   sources = null,
+  harness: checkHarness = false,
   cost,
 }) {
   const { group } = selected;
@@ -347,6 +354,7 @@ async function runGroup({
   let resourceError = null;
   let resourceDetails = null;
   let confinement = {};
+  let harness = {};
   if (!stopped()) {
     try {
       fixture = await prepareFixture({ declaredPath: group.fixture, root, groupDirectory });
@@ -363,6 +371,13 @@ async function runGroup({
       confinement = await withCpuSlot(() =>
         prepareShell({ group, variants: selected.variants, hostExtensions: built, groupDirectory, signal }),
       );
+      if (checkHarness) {
+        harness = await withCpuSlot(() =>
+          prepareHarness({ group, variants: selected.variants, hostExtensions: built, groupDirectory, signal }),
+        );
+        const problems = harnessProblems(group.id, harness);
+        if (problems.length > 0) throw new Error(problems.join("; "));
+      }
       if (group.revision === "description-only") {
         await verifyDescriptionOnlyRevision({
           variants: group.variants,
@@ -466,6 +481,12 @@ async function runGroup({
     errors: persistedGrade.errors,
   };
   if (Object.keys(reusedFrom).length > 0) groupResult.reused = reusedFrom;
+  // What the harness check found per arm, for the pilot's report; the probes' records are under harness/<arm>/.
+  if (Object.keys(harness).length > 0) {
+    groupResult.harness = Object.fromEntries(
+      Object.entries(harness).map(([arm, { findings, shellStopped }]) => [arm, { findings, shellStopped }]),
+    );
+  }
   // Why each invalid arm is invalid, so a pilot or a view can say it without opening the run.
   const invalid = Object.fromEntries(
     arms.filter((arm) => runs[arm].state === "invalid").map((arm) => [arm, runs[arm].error?.message ?? "invalid"]),

@@ -806,15 +806,25 @@ emit({ type: "agent_settled" });
 }
 
 function runCli(root, bin, args) {
-  return spawnSync(process.execPath, [entrypoint, ...args, "--dry-run", "--yes"], {
-    cwd: root,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
-      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+  return spawnSync(
+    process.execPath,
+    [
+      entrypoint,
+      ...args,
+      ...(args[0] === "run" && !args.includes("--jobs") ? ["--jobs", "1"] : []),
+      "--uncommitted",
+      "--yes",
+    ],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+      },
     },
-  });
+  );
 }
 
 async function readAggregate(root, stdout) {
@@ -844,7 +854,7 @@ test("the CLI runs a suite's decision schedule without --trials, through the rea
     // The plan states the initial trials and the most the adaptive rounds could add.
     assert.match(
       result.stdout,
-      /^Plan: 8 to 16 subjects \(2 groups, 4 arms, 2 trials, adaptive up to 4 per case\); models: host default; dry run$/m,
+      /^Plan: 8 to 16 subjects \(2 groups, 4 arms, 2 trials, adaptive up to 4 per case\); models: host default; uncommitted inputs$/m,
     );
     // The candidate reads its skill and the baseline has none, so both cases are decided after two trials.
     assert.equal(await starts(root), 8);
@@ -853,7 +863,7 @@ test("the CLI runs a suite's decision schedule without --trials, through the rea
     assert.deepEqual([aggregate.decision.better, aggregate.decision.verdict], [2, "no-difference-shown"]);
     // A dry run supports no claim, whatever the split.
     assert.equal(aggregate.claim.class, "none");
-    assert.equal(aggregate.claim.reason, "dry run");
+    assert.equal(aggregate.claim.reason, "uncommitted inputs");
   });
 });
 

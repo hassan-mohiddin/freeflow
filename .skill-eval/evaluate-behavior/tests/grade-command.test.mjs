@@ -173,15 +173,19 @@ async function writeRepository(root, group = calcGroup()) {
 }
 
 function runCli(root, bin, args) {
-  return spawnSync(process.execPath, [entrypoint, ...args], {
-    cwd: root,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-      SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+  return spawnSync(
+    process.execPath,
+    [entrypoint, ...args, ...(args[0] === "run" && !args.includes("--jobs") ? ["--jobs", "1"] : [])],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+      },
     },
-  });
+  );
 }
 
 test("hidden node tests pass on the right fix and fail on the wrong one, without touching the workspace", async () => {
@@ -189,11 +193,14 @@ test("hidden node tests pass on the right fix and fail on the wrong one, without
     const bin = await installFakePi(root);
     const definition = await writeRepository(root);
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     // The plan says, before anything starts, that the graders will run the subject's code on this machine.
-    assert.match(result.stdout, /^Plan: .+; unsealed: 2 arms run declared commands or graders on the host; dry run$/m);
+    assert.match(
+      result.stdout,
+      /^Plan: .+; unsealed: 2 arms run declared commands or graders on the host; uncommitted inputs$/m,
+    );
     const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/calc");
     const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"));
     assert.deepEqual(grade.errors, []);
@@ -288,7 +295,7 @@ test("links a subject makes are recorded with their targets, never followed, and
     // A declared fixture's relative link is copied as it is, not rewritten into an absolute one.
     await symlink("add.mjs", path.join(root, "fixtures/calc/src/alias.mjs"));
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/calc");

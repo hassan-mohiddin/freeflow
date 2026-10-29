@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,7 +8,7 @@ import test from "node:test";
 
 import { judgeCounts, skeleton, validate } from "../../../skills/research-work/scripts/lib/formats.mjs";
 import { numberInResults, resultCitations } from "../../../skills/research-work/scripts/lib/report.mjs";
-import { planHash } from "../../../skills/research-work/scripts/lib/study.mjs";
+import { lockPath, planHash } from "../../../skills/research-work/scripts/lib/study.mjs";
 
 const script = (name) => fileURLToPath(new URL(`../../../skills/research-work/scripts/${name}`, import.meta.url));
 const run = (name, ...args) => spawnSync(process.execPath, [script(name), ...args], { encoding: "utf8" });
@@ -130,6 +130,49 @@ test("lock refuses an invalid plan and a second lock; check refuses an unlocked 
     readFileSync(plan, "utf8"),
     /## Amendments\n\n- \d{4}-\d{2}-\d{2}, by Hassan: stricter alpha \(plan [0-9a-f]{12}\)/,
   );
+});
+
+test("lock refuses a plan whose pilot's reference arm passed every unit, unless a written reason overrides it", () => {
+  const withPilot = (line) => {
+    const { folder, plan } = studyFolder();
+    writeFileSync(plan, readFileSync(plan, "utf8").replace("## Hypotheses", `${line}\n\n## Hypotheses`));
+    return { folder, plan };
+  };
+  const saturated = withPilot("Pilot result: a 4 of 4, b 4 of 4");
+  const refused = study("lock", saturated.plan, "--by", "Hassan");
+  assert.equal(refused.status, 2);
+  assert.match(refused.stderr, /reference arm a passed 4 of 4 pilot units, so the study has no room to show a gain/);
+  assert.match(refused.stderr, /--saturated/);
+  assert.equal(existsSync(lockPath(saturated.plan)), false);
+  const overridden = study(
+    "lock",
+    saturated.plan,
+    "--by",
+    "Hassan",
+    "--saturated",
+    "a regression check, not a capability study",
+  );
+  assert.equal(overridden.status, 0, overridden.stderr);
+  assert.match(overridden.stdout, /locked with a saturated pilot: a regression check/);
+  const lock = JSON.parse(readFileSync(lockPath(saturated.plan), "utf8"));
+  assert.equal(lock.entries[0].saturated, "a regression check, not a capability study");
+  assert.deepEqual(lock.entries[0].pilot, [
+    { arm: "a", passed: 4, units: 4 },
+    { arm: "b", passed: 4, units: 4 },
+  ]);
+
+  // Room to improve: the reference failed a pilot unit, so the plan locks and records the pilot.
+  const room = withPilot("Pilot result: a 3 of 4, b 4 of 4");
+  assert.equal(study("lock", room.plan, "--by", "Hassan").status, 0);
+  const roomLock = JSON.parse(readFileSync(lockPath(room.plan), "utf8"));
+  assert.deepEqual(roomLock.entries[0].pilot[0], { arm: "a", passed: 3, units: 4 });
+  assert.equal(roomLock.entries[0].saturated, undefined);
+
+  // A line in another form is refused rather than read as no pilot.
+  const malformed = withPilot("Pilot result: both arms passed everything");
+  const unreadable = study("lock", malformed.plan, "--by", "Hassan");
+  assert.equal(unreadable.status, 2);
+  assert.match(unreadable.stderr, /needs "<arm> <passed> of <units>", the reference arm first/);
 });
 
 test("run records a receipt for every attempt, passes the command's exit code through, and counts only started runs", () => {

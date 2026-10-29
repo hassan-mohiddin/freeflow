@@ -13,7 +13,7 @@ import {
   reserve,
 } from "../../../skills/evaluate-behavior/scripts/lib/budget.mjs";
 import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
-import { createLimiter, withCpuSlot } from "../../../skills/evaluate-behavior/scripts/lib/queue.mjs";
+import { createLimiter, defaultJobs, withCpuSlot } from "../../../skills/evaluate-behavior/scripts/lib/queue.mjs";
 import { readIndex, reuseKey } from "../../../skills/evaluate-behavior/scripts/lib/reuse.mjs";
 import { runEvaluation } from "../../../skills/evaluate-behavior/scripts/lib/runner.mjs";
 import { toV2 } from "./helpers/to-v2.mjs";
@@ -171,8 +171,10 @@ function environment(root, bin, extra = {}) {
   };
 }
 
-function runCli(root, bin, args, extra = {}, { dryRun = true } = {}) {
-  const flags = args[0] === "run" ? [...(dryRun ? ["--dry-run"] : []), "--yes"] : [];
+// Runs are serial unless a test names --jobs or asks for the default, so a test reads subjects in a fixed order.
+function runCli(root, bin, args, extra = {}, { dryRun = true, serial = true } = {}) {
+  const jobs = serial && !args.includes("--jobs") ? ["--jobs", "1"] : [];
+  const flags = args[0] === "run" ? [...(dryRun ? ["--uncommitted"] : []), "--yes", ...jobs] : [];
   return spawnSync(process.execPath, [entrypoint, ...args, ...flags], {
     cwd: root,
     encoding: "utf8",
@@ -235,7 +237,7 @@ test("--jobs 3 runs subjects across groups, arms and trials, never more than 3 a
     const suite = await writeSuite(root, [group("one"), group("two"), group("three")]);
     const result = runCli(root, bin, ["run", suite, "--trials", "2", "--jobs", "3"], { FAKE_PI_SLEEP_MS: "300" });
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /^Plan: 12 subjects .*; 3 subjects at once; dry run$/m);
+    assert.match(result.stdout, /^Plan: 12 subjects .*; 3 subjects at once; uncommitted inputs$/m);
     const log = await events(root);
     assert.equal(log.filter((entry) => entry.kind === "start").length, 12);
     assert.equal(peakConcurrency(log), 3);
@@ -257,11 +259,32 @@ test("--jobs 3 runs subjects across groups, arms and trials, never more than 3 a
   });
 });
 
+test("without --jobs, subjects run four at once, or one per two CPUs when an arm runs in containers", () => {
+  assert.equal(defaultJobs({ containers: false }), 4);
+  assert.equal(defaultJobs({ containers: false, cpus: 1 }), 4);
+  assert.equal(defaultJobs({ containers: true, cpus: 16 }), 4);
+  assert.equal(defaultJobs({ containers: true, cpus: 4 }), 2);
+  assert.equal(defaultJobs({ containers: true, cpus: 3 }), 1);
+  assert.equal(defaultJobs({ containers: true, cpus: 1 }), 1);
+});
+
+test("without --jobs, a run starts several subjects at once and never more than four", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    const suite = await writeSuite(root, [group("one"), group("two"), group("three")]);
+    const result = runCli(root, bin, ["run", suite, "--trials", "2"], { FAKE_PI_SLEEP_MS: "300" }, { serial: false });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^Plan: 12 subjects .*; 4 subjects at once; uncommitted inputs$/m);
+    const peak = peakConcurrency(await events(root));
+    assert.ok(peak > 1 && peak <= 4, `peak ${peak}`);
+  });
+});
+
 test("one job keeps the serial order: each subject ends before the next starts", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installFakePi(root);
     const suite = await writeSuite(root, [group("one"), group("two")]);
-    const result = runCli(root, bin, ["run", suite, "--trials", "2"], { FAKE_PI_SLEEP_MS: "50" });
+    const result = runCli(root, bin, ["run", suite, "--trials", "2", "--jobs", "1"], { FAKE_PI_SLEEP_MS: "50" });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(peakConcurrency(await events(root)), 1);
   });

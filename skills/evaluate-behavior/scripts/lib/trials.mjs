@@ -6,6 +6,7 @@ import { budgetEvidence, createBudget } from "./budget.mjs";
 import { decide, decisionClaim, undecidedCases } from "./decision.mjs";
 import { loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, writeJson } from "./evidence.mjs";
+import { harnessLines } from "./harness.mjs";
 import { aggregateSections, hasAggregators } from "./hooks.mjs";
 import { createLimiter } from "./queue.mjs";
 import { createRunReuse, refreshSelectedLogins, resultsDirectory, runEvaluation } from "./runner.mjs";
@@ -92,9 +93,13 @@ export async function runTrials(definitionFile, selectors, options = {}) {
   const tasks = [];
   let pilotRecord = null;
   if (pilot !== null) {
-    const outcome = await invoke(selectors, { part: "pilot" }, { groupRange: [0, pilot] });
+    // The pilot runs the harness check before its first subject (lib/harness.mjs).
+    const outcome = await invoke(selectors, { part: "pilot" }, { groupRange: [0, pilot], harness: true });
     const problems = await pilotProblems(outcome.result);
-    pilotRecord = { id: outcome.result.id, groups: outcome.result.summary.groups.length, problems };
+    const harness = (outcome.result.summary?.groups ?? []).flatMap((group) =>
+      group.harness ? harnessLines(group.id, group.harness) : [],
+    );
+    pilotRecord = { id: outcome.result.id, groups: outcome.result.summary.groups.length, problems, harness };
     if (problems.length > 0)
       return { id: null, path: null, state: "pilot-stopped", pilot: pilotRecord, aggregate: null };
     results.push(outcome.result);
@@ -273,10 +278,10 @@ async function loadSelection(definitionFile, selectors, root) {
 /**
  * The strongest claim the aggregate supports. Without a decision rule, counts over complete trials support a rate
  * on this suite. With one, the claim is the rule's verdict ("beats", "worse" or "no-difference-shown") with its
- * split, p and rule hash. A dry run read inputs no commit identifies, so it supports no claim either way. A
- * decision cut short (by the budget, a stop, or fewer trials than planned: the aggregate is `cancelled`) supports
- * no verdict either: its claim keeps the split that ran, with `k` the trials that completed rather than those asked
- * for. Everything it reads is kept in the aggregate, so a rebuild reaches the same claim.
+ * split, p and rule hash. A run with --uncommitted read inputs no commit identifies, so it supports no claim either
+ * way. A decision cut short (by the budget, a stop, or fewer trials than planned: the aggregate is `cancelled`)
+ * supports no verdict either: its claim keeps the split that ran, with `k` the trials that completed rather than
+ * those asked for. Everything it reads is kept in the aggregate, so a rebuild reaches the same claim.
  *
  * @param {any[]} results the trials' results, each with its `state`
  * @param {any} aggregate its `state`, `dryRun`, `trials` entries and `decision`
@@ -290,13 +295,19 @@ function claimFor(results, aggregate, k, held = 0) {
   const heldNote = held > 0 ? { held } : {};
   if (decision !== undefined) {
     const cancelled = aggregate.state === "cancelled";
-    const reason = dryRun ? "dry run" : complete === 0 ? "no complete trial" : cancelled ? "cancelled" : null;
+    const reason = dryRun
+      ? "uncommitted inputs"
+      : complete === 0
+        ? "no complete trial"
+        : cancelled
+          ? "cancelled"
+          : null;
     const trials = cancelled ? completedTrials(aggregate.trials) : k;
     return { ...decisionClaim(decision, { k: trials, supported: reason === null, reason }), ...heldNote };
   }
   return {
     class: complete > 0 && !dryRun ? "rate-on-suite" : "none",
-    ...(dryRun ? { reason: "dry run" } : {}),
+    ...(dryRun ? { reason: "uncommitted inputs" } : {}),
     k,
     beats: "not supported: the suite declares no decision rule",
     ...heldNote,

@@ -36,7 +36,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Declare every part of the configuration that can change behavior. Ambient installation, settings, or context are not declared composition.
 - Claim only what the evidence class observed; one class never proves another.
 - Never write that one arm beats another without paired runs on the same cases and a suite `decision` declared before the run; the evaluator reports "beats" only from that rule. Below that, report counts.
-- Never cite a dry run as evidence. When a run is refused for uncommitted inputs, commit the candidate and the definition, or keep the run as a dry run for your own checking only.
+- Never cite a run made with `--uncommitted` as evidence. When a run is refused for uncommitted inputs, commit the candidate and the definition, or run with `--uncommitted` for your own checking only; its subjects still run and call models.
 - Never change the component under test while evaluating it. Return one measured revision target to its owner.
 - After a behavioral change, rerun the complete fixed group with every arm. Never hand-pick an earlier run as the fresh counterpart or rerun only the preferred arm; an earlier run may stand in only through `--reuse`, which matches the arm's exact inputs, and the report names it as reused.
 - Judged evidence is its own class. Judge answers are stored apart from run and deterministic grade files, with each judge's identity and calibration status (labelled with its agreement, or not checked; calibrated only with a passing judge validation record), and count toward a claim only through a decision rule declared before the run. They never change run or grade files and never establish readiness.
@@ -98,7 +98,18 @@ Goal: before a new or changed skill is measured, find where it makes an agent he
 
 ## Run And Read The Evidence
 
-Run the canonical [skill evaluator](scripts/skill-eval.mjs) from the definition root: `node <evaluate-behavior-directory>/scripts/skill-eval.mjs <run|check-tasks|view|review|clear> ...`. Run `check-tasks`, which calls no model, before spending on a coding task; use `--trials <n>` before claiming a difference, and `--max-cost` when a batch could spend more than intended. Canonical results live under `<definition-root>/.skill-eval/runs/<result-id>`; a view is a projection of them. A failed check is behavioral evidence; a transition such as `fail-to-pass` is a fact, not a verdict.
+Run the canonical [skill evaluator](scripts/skill-eval.mjs) from the definition root: `node <evaluate-behavior-directory>/scripts/skill-eval.mjs <run|check-tasks|view|review|clear> ...`. Run every eval this way, so it finishes fast and nothing is paid for twice:
+
+1. Count the runs: groups × arms × trials, and the judge calls.
+2. For a coding task, run `check-tasks`, which calls no model.
+3. Run a pilot first, `--pilot <n>`. Before its first subject it checks each shell arm's harness with no model call: a command in the workspace, one naming a path outside it, the first again, a write under `/tmp`, and which of `node`, `python3` and `git` the shell has. It stops when the shell stopped working after a probe, when the arms found different things, or on a broken run, grade or comparison; otherwise it prints the harness findings, which apply to every arm, and measures the cost per run.
+4. Set `--max-cost` from the pilot's cost per run, and give the user the count and the estimated cost before the batch (Rules). `--max-cost` counts list price, not a subscription's usage, so a large batch still waits for the user's yes; subjects already running when it is reached still finish.
+5. Run the batch in the background and keep working. Subjects run four at once by default, fewer when arms run in containers; `--jobs 1` runs one at a time. An agent you hand the run to can be the smallest capable model ([delegation](../execute-work/references/delegation.md)).
+6. After a stop, rerun the same command with `--reuse`: finished runs are not paid for again.
+7. Hold the runs the transcript scan flags out of the counts until the user clears them (Rules).
+8. For a Research Work study, write the pilot's result in the plan before the lock: `study.mjs lock` refuses a plan whose reference arm passed every pilot unit ([study](../research-work/references/study.md#pilot-then-lock)).
+
+Use `--trials <n>` before claiming a difference. Canonical results live under `<definition-root>/.skill-eval/runs/<result-id>`; a view is a projection of them. A failed check is behavioral evidence; a transition such as `fail-to-pass` is a fact, not a verdict.
 
 ## Report And Stop
 

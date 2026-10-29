@@ -16,7 +16,7 @@ import {
 } from "./lib/study.mjs";
 
 const USAGE = [
-  "Usage: study.mjs lock <plan.md> --by <who locked it>",
+  "Usage: study.mjs lock <plan.md> --by <who locked it> [--saturated <why a saturated pilot should run anyway>]",
   "       study.mjs amend <plan.md> --by <who> --reason <why the plan changed>",
   "       study.mjs run <plan.md> [--unit <unit> --arm <arm> --trial <n> | --validity] [--input <path>]... [--output <path>]... -- <command> [args...]",
   "       study.mjs deviation <plan.md> --what <what departed from the plan> --by <who logged it> [--unit <unit>] [--arm <arm>]",
@@ -45,6 +45,7 @@ try {
     allowPositionals: true,
     options: {
       by: { type: "string" },
+      saturated: { type: "string" },
       reason: { type: "string" },
       what: { type: "string" },
       unit: { type: "string" },
@@ -77,8 +78,9 @@ const attempt = (work) => {
 };
 
 if (action === "lock") {
-  const lock = attempt(() => lockPlan(plan, { by: values.by }));
+  const lock = attempt(() => lockPlan(plan, { by: values.by, saturated: values.saturated }));
   console.log(`Locked ${plan} (sha256 ${lock.entries[0].sha256}) by ${values.by}: ${lockPath(plan)}`);
+  if (values.saturated) console.log(`  locked with a saturated pilot: ${values.saturated}`);
   const anchor = lock.entries[0].git;
   console.log(
     anchor.commit

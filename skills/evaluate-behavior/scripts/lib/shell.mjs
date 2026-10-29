@@ -418,53 +418,24 @@ export async function verifyConfinement({ arm, host = "pi", shell, extensions, d
     },
   ];
 
-  // A container shell is probed in its own container, started on the probe workspace like a subject's.
-  let container = null;
-  if (shell.container !== undefined) {
-    try {
-      container = await startContainer({ container: shell.container, workspace, purpose: "probe" });
-    } catch (error) {
-      await listener.close();
-      throw error;
-    }
-  }
-  // The guard's contract, as for a subject: only bash, confined to the probe workspace.
-  const guard = {
-    PWD: workspace,
-    SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify([workspace]),
-    SKILL_EVAL_WRITABLE_ROOT: workspace,
-    SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(["bash"]),
-    SKILL_EVAL_CONTEXT_MANIFEST: "",
-    SKILL_EVAL_HOST: host,
-    SKILL_EVAL_PROMPT_MODE: "isolated",
-    SKILL_EVAL_SHELL: JSON.stringify(shell),
-    [PROBE_VARIABLE]: nonce,
-    ...(container === null ? {} : { SKILL_EVAL_CONTAINER: containerTarget(container) }),
-  };
-  const timeout = AbortSignal.timeout(PROBE_TIMEOUT_MS);
-  const eventsFile = path.join(directory, "events.jsonl");
-  const stderrFile = path.join(directory, "stderr.log");
-  let probed = { observation: null, launchError: null, results: new Map() };
-  let launchError = null;
+  let probed;
   try {
-    probed = await adapter.probeShell({
-      probes,
+    probed = await runShellProbes({
+      host,
+      shell,
+      extensions,
+      directory,
       workspace,
       isolation,
-      extensions,
-      guard,
-      eventsFile,
-      stderrFile,
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      probes,
+      environment: { [PROBE_VARIABLE]: nonce },
+      signal,
     });
-  } catch (error) {
-    launchError = error instanceof Error ? error.message : String(error);
   } finally {
-    await Promise.all([listener.close(), container?.remove()]);
+    await listener.close();
   }
 
-  const { observation, results } = probed;
-  launchError ??= probed.launchError;
+  const { observation, results, launchError, timedOut } = probed;
   const judged = probes.map((probe) => ({ ...probe, ...results.get(probe.id) }));
   const control = await readFile(path.join(workspace, "confinement-control"), "utf8").catch(() => null);
   const leakedWrite = await stat(written).then(
@@ -497,14 +468,80 @@ export async function verifyConfinement({ arm, host = "pi", shell, extensions, d
     // The host process that ran the probes, recorded under the host's name.
     [host]: {
       exitCode: observation?.exitCode ?? null,
-      terminationReason: observation?.terminationReason ?? (timeout.aborted ? "timeout" : null),
+      terminationReason: observation?.terminationReason ?? (timedOut ? "timeout" : null),
       error: launchError,
-      stderr: (await readFile(stderrFile, "utf8").catch(() => "")).slice(-OUTPUT_TAIL),
+      stderr: probed.stderr,
     },
   };
   record.verified = record.probes.every((probe) => probe.held);
   await writeFile(path.join(directory, "confinement.json"), `${JSON.stringify(record, null, 2)}\n`);
   return record;
+}
+
+/**
+ * Runs `probes` as Bash calls through the arm's own host and extensions, with the host adapter's local scripted
+ * model, under the guard's contract for a subject: only bash, confined to `workspace`. A container shell runs them in
+ * its own container, started on `workspace` and removed afterwards. `environment` is planted in the host's own
+ * environment. Returns each probe's result, the host's observation, a launch error, whether the probes timed out,
+ * and the tail of the host's stderr.
+ */
+export async function runShellProbes({
+  host,
+  shell,
+  extensions,
+  directory,
+  workspace,
+  isolation,
+  probes,
+  environment = {},
+  signal,
+}) {
+  // A container shell is probed in its own container, started on the probe workspace like a subject's.
+  const container =
+    shell.container === undefined
+      ? null
+      : await startContainer({ container: shell.container, workspace, purpose: "probe" });
+  // The guard's contract, as for a subject: only bash, confined to the probe workspace.
+  const guard = {
+    PWD: workspace,
+    SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify([workspace]),
+    SKILL_EVAL_WRITABLE_ROOT: workspace,
+    SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(["bash"]),
+    SKILL_EVAL_CONTEXT_MANIFEST: "",
+    SKILL_EVAL_HOST: host,
+    SKILL_EVAL_PROMPT_MODE: "isolated",
+    SKILL_EVAL_SHELL: JSON.stringify(shell),
+    ...environment,
+    ...(container === null ? {} : { SKILL_EVAL_CONTAINER: containerTarget(container) }),
+  };
+  const timeout = AbortSignal.timeout(PROBE_TIMEOUT_MS);
+  const eventsFile = path.join(directory, "events.jsonl");
+  const stderrFile = path.join(directory, "stderr.log");
+  let probed = { observation: null, launchError: null, results: new Map() };
+  let launchError = null;
+  try {
+    probed = await hostAdapter(host).probeShell({
+      probes,
+      workspace,
+      isolation,
+      extensions,
+      guard,
+      eventsFile,
+      stderrFile,
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    });
+  } catch (error) {
+    launchError = error instanceof Error ? error.message : String(error);
+  } finally {
+    await container?.remove();
+  }
+  return {
+    observation: probed.observation,
+    results: probed.results,
+    launchError: launchError ?? probed.launchError,
+    timedOut: timeout.aborted,
+    stderr: (await readFile(stderrFile, "utf8").catch(() => "")).slice(-OUTPUT_TAIL),
+  };
 }
 
 function includes(probe, nonce) {

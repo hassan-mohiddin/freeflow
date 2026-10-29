@@ -40,6 +40,29 @@ test("skill-eval rejects the removed command-execution approval flag", () => {
   assert.doesNotMatch(result.stderr, /\n\s+at /);
 });
 
+test("skill-eval refuses --dry-run and names --uncommitted, since subjects still run and call models", () => {
+  const result = spawnSync(process.execPath, [entrypoint, "run", "group.json", "--dry-run"], {
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /--dry-run is now --uncommitted/);
+  assert.match(result.stderr, /subjects still run and call models/);
+  assert.doesNotMatch(result.stderr, /\n\s+at /);
+});
+
+test("skill-eval accepts --uncommitted and lists it in its help, with no --dry-run", () => {
+  const help = spawnSync(process.execPath, [entrypoint, "--help"], { encoding: "utf8" });
+  assert.match(help.stdout, /--uncommitted {7}Allow uncommitted inputs; subjects still run and call models/);
+  assert.doesNotMatch(help.stdout, /--dry-run/);
+  // Parsing accepts the flag: the run gets as far as loading its (missing) definition.
+  const result = spawnSync(process.execPath, [entrypoint, "run", "missing.json", "--uncommitted"], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 1);
+  assert.doesNotMatch(result.stderr, /Unknown option|--dry-run/);
+});
+
 test("skill-eval rejects unknown commands without a stack trace", () => {
   const result = spawnSync(process.execPath, [entrypoint, "legacy-command"], {
     encoding: "utf8",

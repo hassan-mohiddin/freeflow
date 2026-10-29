@@ -98,7 +98,7 @@ test("each subject gets its own home, temp and agent directory with only its pro
       other: { type: "api_key", key: "other-secret-key" },
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1", "--uncommitted"], {
       cwd: root,
       encoding: "utf8",
       env,
@@ -139,7 +139,7 @@ test("a provider with no stored login still runs, with nothing copied", async ()
   await withTempDirectory(async (root) => {
     const { log, definition, env } = await setUp(root, { other: { type: "api_key", key: "k" } });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1", "--uncommitted"], {
       cwd: root,
       encoding: "utf8",
       env,
@@ -178,7 +178,7 @@ test("an OAuth login close to expiry is refreshed once, centrally, before any su
     });
     env.SKILL_EVAL_LOGIN_REFRESH = await installFakeRefresh(root);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1", "--uncommitted"], {
       cwd: root,
       encoding: "utf8",
       env,
@@ -201,7 +201,7 @@ test("a login the refresh cannot renew refuses the run before anything starts", 
     });
     env.SKILL_EVAL_LOGIN_REFRESH = await installFakeRefresh(root, { fail: true });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1", "--uncommitted"], {
       cwd: root,
       encoding: "utf8",
       env,
@@ -232,14 +232,14 @@ test("declared host extensions load from the installed Pi packages, right after 
     const plugin = await installPiPackage(env, "auth-plugin", "2.0.0");
     await declareHost(definition, { extensions: [{ package: "auth-plugin", version: "2.0.0" }] });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1", "--uncommitted"], {
       cwd: root,
       encoding: "utf8",
       env,
     });
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
-    assert.match(result.stdout, /^Plan: .+; extensions: auth-plugin@2\.0\.0; dry run$/m);
+    assert.match(result.stdout, /^Plan: .+; extensions: auth-plugin@2\.0\.0; uncommitted inputs$/m);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     for (const variant of ["baseline", "candidate"]) {
       const run = JSON.parse(
@@ -261,7 +261,7 @@ test("a declared extension that is missing or another version refuses the run be
     await installPiPackage(env, "auth-plugin", "2.0.0");
     await declareHost(definition, { extensions: [{ package: "auth-plugin", version: "1.0.0" }] });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1", "--uncommitted"], {
       cwd: root,
       encoding: "utf8",
       env,
@@ -278,7 +278,7 @@ test("declared host settings become each subject's Pi settings, and cannot load 
     const { log, definition, env } = await setUp(root, { fake: { type: "api_key", key: "k" } });
     await declareHost(definition, { settings: { retry: { enabled: false }, defaultThinkingLevel: "low" } });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1", "--uncommitted"], {
       cwd: root,
       encoding: "utf8",
       env,
@@ -299,7 +299,7 @@ test("declared host settings become each subject's Pi settings, and cannot load 
     }
 
     await declareHost(definition, { settings: { packages: ["npm:anything"] } });
-    const refused = spawnSync(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
+    const refused = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1", "--uncommitted"], {
       cwd: root,
       encoding: "utf8",
       env,

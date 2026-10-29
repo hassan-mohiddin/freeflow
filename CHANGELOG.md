@@ -2,7 +2,15 @@
 
 ## Unreleased
 
+### Breaking Changes
+
+- Evaluate Behavior's `skill-eval run --dry-run` is now `--uncommitted`: it always ran subjects and called models, and only allowed uncommitted inputs, so the old name promised a run that spends nothing. `--dry-run` is refused with a message naming the new flag; stored results keep their `dryRun` field and still read.
+
 ### Added
+- Evaluate Behavior's pilot (`--pilot`) checks each shell arm's harness before its first subject, with no model call: a command in the workspace, one naming a path outside it, the first command again, a write under `/tmp`, and which of `node`, `python3` and `git` the shell has. It stops the pilot when the shell stops working after a probe or the arms found different things, and otherwise prints the findings, which apply to every arm.
+- Evaluate Behavior refuses a run before any subject when a container image an arm runs in, or the engine that runs it, is missing, saying what to install or pull; nothing is pulled.
+- Research Work's `study.mjs lock` refuses a study plan whose pilot shows the reference arm passing every unit, since such a study has no room to show a gain, unless `--saturated` gives a written reason, which the lock records. The plan records the pilot in one `Pilot result:` line.
+- Execute Work has a delegation reference for handing work to other agents (subagents, parallel workers, reviewers, trial and eval agents): when handing work out pays, the smallest capable model by default and the strongest only with your yes, briefs that point to files, one folder per delegation holding its brief, progress and return, writers in their own worktrees, a return checked before it is accepted, and each delegation's model, effort, tokens and minutes recorded. A worker may hand mechanical checks, gathering or research to sub-workers on the smallest model, three levels at most, and only the agent you talk to asks you anything. Write Skill's trials, Review Work's reviewers and Research Work's workers point to it.
 - Research Work's figures list x labels that overlap and text past the canvas, and an `x.rotate` option turns long category labels.
 
 - Research Work, a new skill (`/research-work`) for answering a question from evidence gathered and checked first, starting with in-depth reports on code, papers or docs: a research brief agreed with you, a source ledger saying how each source was checked, a claims register with an evidence level per claim, and checks that every `path:line` citation exists at its pinned commit, every quote appears in its source and every number in the report traces to a registered claim. Its statistics script gives intervals, paired comparisons, clustered runs, rater agreement, multiple-comparison correction, pass@k and power, and Evaluate Behavior now uses it.
@@ -26,6 +34,7 @@
 
 ### Changed
 
+- Evaluate Behavior runs four subjects at once by default, or one per two CPUs when arms run in containers; `--jobs 1` runs one at a time. Its skill gives every eval one route: count the runs, `check-tasks` for a coding task, a pilot, `--max-cost` from the pilot's cost per run and your yes, the batch in the background, `--reuse` after a stop, and flagged runs held out until you clear them.
 - Write Docs' docs check can move a stale document's `Verified at` itself (`docs-check.mjs <docs> --stamp`), so the document goes into the same commit as the code it covers instead of a commit of its own. Feature files, which only driving updates, are left alone.
 
 - Write Skill tries a new or changed skill on a real task before measuring it: Evaluate Behavior's new Trial mode runs one agent that keeps a friction log, which Review Work adjudicates like a review. Evaluate Behavior now asks for your yes, with the run count and estimated cost, before any run that calls a model, unless the task's agreement already covers it, and never asks a measured arm for notes.

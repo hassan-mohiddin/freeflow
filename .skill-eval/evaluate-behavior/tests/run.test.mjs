@@ -35,7 +35,7 @@ const FAKE_PI_ENVIRONMENT_KEYS = [
 function spawnSync(command, args, options) {
   if (command === process.execPath && args?.includes(entrypoint)) {
     // Test inputs live in temporary directories outside Git, so every test run is a dry run.
-    if (args[1] === "run" && !args.includes("--dry-run")) args = [...args, "--dry-run"];
+    if (args[1] === "run" && !args.includes("--uncommitted")) args = [...args, "--uncommitted"];
     const env = { ...(options?.env ?? process.env) };
     for (const key of FAKE_PI_ENVIRONMENT_KEYS) env[key] ??= "";
     // Never copy the developer's real Pi logins into test runs.
@@ -287,7 +287,7 @@ printf invoked > ${JSON.stringify(marker)}
     group.runtime.host = "piflow";
     const definition = await writeJson(root, "groups/removed-piflow.json", group);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -320,7 +320,7 @@ test("runtime bundles are snapshotted once between the base guard and final obse
     });
     const definition = await writeJson(root, "groups/extensions.json", group);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -377,17 +377,21 @@ test("inherited runtime environment reaches the child without entering run evide
     const group = descriptionGroup();
     group.runtime = fakeRuntime({ session: true, inherit: ["EVAL_SECRET"] });
     const definition = await writeJson(root, "groups/inherited-environment.json", group);
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_PI_CAPTURE_ENV: "EVAL_SECRET",
-        EVAL_SECRET: "do-not-persist-this-value",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_PI_CAPTURE_ENV: "EVAL_SECRET",
+          EVAL_SECRET: "do-not-persist-this-value",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 0, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -419,17 +423,21 @@ test("undeclared parent environment values stay out of the subject process", asy
       description: "Use when choosing how to deliver a completed software change.",
     });
     const definition = await writeJson(root, "groups/undeclared-environment.json", descriptionGroup());
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_PI_CAPTURE_ENV: "UNDECLARED_SECRET",
-        UNDECLARED_SECRET: "must-not-reach-subject",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_PI_CAPTURE_ENV: "UNDECLARED_SECRET",
+          UNDECLARED_SECRET: "must-not-reach-subject",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 0, result.stderr);
     const log = (await readFile(fakeLog, "utf8"))
@@ -450,7 +458,7 @@ test("forbidden native tools are rejected even when an extension is declared", a
       extensions: [{ entry: "extensions/probe.mjs", resources: ["extensions"] }],
     });
     const definition = await writeJson(root, "groups/forbidden-tool.json", group);
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -475,7 +483,7 @@ test("description groups reject custom tools even when an extension is declared"
       extensions: [{ entry: "extensions/probe.mjs", resources: ["extensions"] }],
     });
     const definition = await writeJson(root, "groups/description-custom-tool.json", group);
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: { ...process.env },
@@ -501,7 +509,7 @@ test("fixture copies are fresh per variant and preserve declared materialization
     group.fixture = "fixtures/project";
     const definition = await writeJson(root, "groups/fixture.json", group);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -559,16 +567,20 @@ test("immutable declared resources are verified after subject execution", async 
       description: "Use when choosing how to deliver a completed software change.",
     });
     const definition = await writeJson(root, "groups/immutable.json", descriptionGroup());
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_PI_MUTATE_SKILL: "1",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_PI_MUTATE_SKILL: "1",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -613,15 +625,19 @@ test("Git-backed skill snapshots use the exact commit and preserve unusual valid
     group.variants.candidate.skills = [unusualSkill];
     group.variants.candidate.context = [unusualContext];
     const definition = await writeJson(root, "groups/git-source.json", group);
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 0, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -664,15 +680,19 @@ test("Git-backed resource symlink escapes fail closed before Pi starts", async (
     group.variants.candidate.source = { kind: "git", ref: commit };
     const definition = await writeJson(root, "groups/git-escape.json", group);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -701,7 +721,7 @@ test(
       });
       const definition = await writeJson(root, "groups/natural-activation.json", descriptionGroup());
 
-      const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+      const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
         cwd: root,
         encoding: "utf8",
         env: {
@@ -745,7 +765,7 @@ test("each run and grade is persisted before the next selected work starts", asy
       groups: ["groups/first.json", "groups/second.json"],
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -801,7 +821,7 @@ test("ten-group suites run twenty isolated subjects serially in declared order",
       groups: references,
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -868,7 +888,7 @@ test("ordinary failed checks keep the batch complete and do not stop later group
       groups: ["groups/failed-check.json", "groups/later.json"],
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -924,7 +944,7 @@ test("grade errors preserve completed runs and do not stop later suite groups", 
       groups: ["groups/grade-error.json", "groups/later.json"],
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -977,7 +997,7 @@ test("variant-local setup failure preserves the safe counterpart and later group
       groups: ["groups/invalid-candidate.json", "groups/later.json"],
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1035,7 +1055,7 @@ test("shared group setup failure is invalid and later suite groups still run", a
       groups: ["groups/invalid.json", "groups/later.json"],
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1088,7 +1108,7 @@ test("variant persistence failure is recorded without stopping its counterpart o
       groups: ["groups/first.json", "groups/later.json"],
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1164,7 +1184,7 @@ test("recoverable grade and group persistence failures use fallback evidence and
       groups: ["groups/first.json", "groups/later.json"],
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1247,7 +1267,7 @@ test("unrecoverable grade fallback persistence stops queued work without claimin
       groups: ["groups/first.json", "groups/later.json"],
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1291,7 +1311,7 @@ test("unrecoverable run persistence stops queued work without claiming a batch r
       groups: ["groups/first.json", "groups/later.json"],
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1336,7 +1356,7 @@ test("cancellation records queued variants and groups without starting more Pi s
       groups: ["groups/first.json", "groups/second.json"],
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1381,7 +1401,7 @@ test("run rejects unsupported evaluation types before starting subjects or creat
     definitionValue.type = "end-to-end";
     const definition = await writeJson(root, "groups/end-to-end.json", definitionValue);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1408,16 +1428,20 @@ test("one-shot description evaluation fails closed when the guard extension erro
     });
     const definition = await writeJson(root, "groups/natural-activation.json", descriptionGroup());
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_PI_EXTENSION_ERROR: "1",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_PI_EXTENSION_ERROR: "1",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1442,16 +1466,20 @@ test("settled Pi provider errors are infrastructure failures even when JSON mode
     });
     const definition = await writeJson(root, "groups/natural-activation.json", descriptionGroup());
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_PI_ERROR_SKILL: "1",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_PI_ERROR_SKILL: "1",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1487,16 +1515,20 @@ test("description activation counts only the exact canonical target SKILL.md", a
     ];
     const definition = await writeJson(root, "groups/natural-activation.json", definitionValue);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_PI_READ_SKILL_INDEX: "0",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_PI_READ_SKILL_INDEX: "0",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 0, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1531,7 +1563,7 @@ test("one variant infrastructure failure preserves its evidence and the complete
     });
     const definition = await writeJson(root, "groups/natural-activation.json", descriptionGroup());
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1584,15 +1616,19 @@ test("grade errors remain separate from completed subject evidence", async () =>
     definitionValue.expectations = [{ id: "future-check", kind: "path-exists", path: "result.json" }];
     const definition = await writeJson(root, "groups/natural-activation.json", definitionValue);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1645,11 +1681,15 @@ test("suite group and variant selectors preserve original position through run a
       FAKE_PI_LOG: fakeLog,
     };
 
-    const run = spawnSync(process.execPath, [entrypoint, "run", suite, "--group", "2", "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: environment,
-    });
+    const run = spawnSync(
+      process.execPath,
+      [entrypoint, "run", suite, "--jobs", "1", "--group", "2", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: environment,
+      },
+    );
     assert.equal(run.status, 0, run.stderr);
     const resultDirectory = run.stdout.match(/^Path: (.+)$/m)?.[1];
     assert.ok(resultDirectory);
@@ -1691,7 +1731,7 @@ test("view renders a direct result grade-first and filters one variant", async (
       PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
       FAKE_PI_LOG: fakeLog,
     };
-    const run = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+    const run = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"], {
       cwd: root,
       encoding: "utf8",
       env: environment,
@@ -1735,7 +1775,7 @@ test("omitted runtime defaults to an explicit non-session profile", async () => 
       description: "Use when choosing how to deliver a completed software change.",
     });
     const definition = await writeJson(root, "groups/default-runtime.json", group);
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1793,11 +1833,15 @@ test("one-shot description runs keep their reads and tool activity for grading a
       },
     ];
     const definition = await writeJson(root, "groups/one-shot-reads.json", group);
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },
-    });
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },
+      },
+    );
     assert.equal(result.status, 0, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     assert.ok(resultDirectory);
@@ -1829,11 +1873,15 @@ test("a run whose selected checks are all unavailable exits non-zero", async () 
     // Only baseline checks, but only the candidate runs: nothing selected can be observed.
     group.expectations = [{ id: "baseline-no-read", kind: "skill-read", variant: "baseline", expect: "never" }];
     const definition = await writeJson(root, "groups/nothing-observed.json", group);
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },
-    });
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },
+      },
+    );
     assert.equal(result.status, 1, result.stdout);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     assert.ok(resultDirectory);
@@ -1857,7 +1905,7 @@ test("run persists isolated one-shot description evidence before deterministic a
     });
     const definition = await writeJson(root, "groups/natural-activation.json", descriptionGroup());
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1870,7 +1918,7 @@ test("run persists isolated one-shot description evidence before deterministic a
     assert.equal(result.status, 0, result.stderr);
     assert.match(
       result.stdout,
-      /^Plan: 2 subjects \(1 group, 2 arms, 1 trial\); models: fake\/model \(low\); dry run\nResult: .+\nPath: .+\nState: complete\n$/,
+      /^Plan: 2 subjects \(1 group, 2 arms, 1 trial\); models: fake\/model \(low\); uncommitted inputs\nResult: .+\nPath: .+\nState: complete\n$/,
     );
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     assert.ok(resultDirectory);
@@ -1950,7 +1998,7 @@ test("a description-only revision runs only when the targets differ in their des
     group.variants.candidate.skills = ["skills/after"];
     const definition = await writeJson(root, "groups/description-only.json", group);
     const run = () =>
-      spawnSync(process.execPath, [entrypoint, "run", definition], {
+      spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
         cwd: root,
         encoding: "utf8",
         env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, FAKE_PI_LOG: fakeLog },

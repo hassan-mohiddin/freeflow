@@ -166,16 +166,20 @@ function rubricGroup(changes = {}) {
 }
 
 function cli(root, bin, args) {
-  if (args[0] === "run") args = [...args, "--dry-run"];
-  return spawnSync(process.execPath, [entrypoint, ...args], {
-    cwd: root,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-      SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+  if (args[0] === "run") args = [...args, "--uncommitted"];
+  return spawnSync(
+    process.execPath,
+    [entrypoint, ...args, ...(args[0] === "run" && !args.includes("--jobs") ? ["--jobs", "1"] : [])],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+      },
     },
-  });
+  );
 }
 
 /** Runs the group with the fake subject and returns the result path and its group directory. */
@@ -900,7 +904,7 @@ test("a rubric reference file is a run input, so the commit check covers it", as
     git(["commit", "--quiet", "-m", "fixture"]);
     await writeFile(path.join(root, "references/route.md"), "The route has four steps.\n");
 
-    const refused = spawnSync(process.execPath, [entrypoint, "run", file, "--yes"], {
+    const refused = spawnSync(process.execPath, [entrypoint, "run", file, "--jobs", "1", "--yes"], {
       cwd: root,
       encoding: "utf8",
       env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },

@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import registerSkillEvalGuard from "../../../skills/evaluate-behavior/scripts/pi-guard.mjs";
 import { installFakePi } from "./helpers/fake-pi.mjs";
 import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
+import { harnessProblems } from "../../../skills/evaluate-behavior/scripts/lib/harness.mjs";
 import { sealing } from "../../../skills/evaluate-behavior/scripts/lib/seal.mjs";
 import {
   missingPrerequisites,
@@ -43,10 +44,12 @@ async function readJson(file) {
 /**
  * A stand-in isolation extension. It refuses any command that names an absolute path or an HTTP client and runs
  * the rest in the workspace with only PATH set; with `passEnvironment` it hands the shell Pi's whole environment,
- * as Pi's original Gondolin example does.
+ * as Pi's original Gondolin example does; with `stopAfterDenial` it refuses every command after its first refusal,
+ * as Claude Code's don't-ask mode can deny the shell for the rest of a run.
  */
-function isolationExtension({ passEnvironment = false, exposeAgentDirectory = false } = {}) {
+function isolationExtension({ passEnvironment = false, exposeAgentDirectory = false, stopAfterDenial = false } = {}) {
   return `import { spawnSync } from "node:child_process";
+let stopped = false;
 export default function (pi) {
   pi.registerTool({
     name: "bash",
@@ -57,7 +60,8 @@ export default function (pi) {
       const command = String(params.command);
       // An isolation that mounts Pi's agent directory, where a subject's copied login lives, into its shell.
       const exposed = ${exposeAgentDirectory} && command.includes(process.env.PI_CODING_AGENT_DIR);
-      if (!exposed && /(^|[\\s'"=>])\\/|curl|wget/.test(command)) {
+      if (stopped || (!exposed && /(^|[\\s'"=>])\\/|curl|wget/.test(command))) {
+        stopped = ${stopAfterDenial};
         return { content: [{ type: "text", text: "denied by the stand-in isolation" }], details: {} };
       }
       const env = ${passEnvironment ? "process.env" : '{ PATH: process.env.PATH ?? "/usr/bin:/bin" }'};
@@ -100,16 +104,20 @@ function shellGroup(changes = {}) {
 }
 
 function runCli(root, bin, args) {
-  return spawnSync(process.execPath, [entrypoint, ...args], {
-    cwd: root,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-      SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
-      SKILL_EVAL_PROBE_PUBLIC_URL: "",
+  return spawnSync(
+    process.execPath,
+    [entrypoint, ...args, ...(args[0] === "run" && !args.includes("--jobs") ? ["--jobs", "1"] : [])],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+        SKILL_EVAL_PROBE_PUBLIC_URL: "",
+      },
     },
-  });
+  );
 }
 
 test("a declared shell is validated at load, and bash without one is refused before any subject starts", async () => {
@@ -153,7 +161,7 @@ test("a declared shell is validated at load, and bash without one is refused bef
       shellGroup({ configuration: { host: { name: "pi" }, subject: { kind: "none" } } }),
     );
     await loadDefinition(unshelled, { root });
-    const refused = runCli(root, bin, ["run", unshelled, "--dry-run"]);
+    const refused = runCli(root, bin, ["run", unshelled, "--uncommitted"]);
     assert.notEqual(refused.status, 0);
     assert.match(
       refused.stderr,
@@ -248,7 +256,7 @@ test("a group whose shell prerequisite is missing is invalid before any subject 
     group.configuration.shell.requires = requires;
     const definition = await write(path.join(root, "groups/shell.json"), group);
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.notEqual(result.status, 0);
     await assert.rejects(readFile(log), { code: "ENOENT" });
@@ -268,7 +276,7 @@ test("a confining isolation passes every probe, its runs record confinement, and
     await write(path.join(root, ISOLATION, "index.mjs"), isolationExtension());
     const definition = await write(path.join(root, "groups/shell.json"), shellGroup());
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const modes = (await readFile(log, "utf8"))
@@ -300,13 +308,119 @@ test("a confining isolation passes every probe, its runs record confinement, and
   });
 });
 
+test("a pilot runs the harness check before its first subject and prints what each arm's shell did", async () => {
+  await withTempDirectory(async (root) => {
+    const { bin, log } = await installFakePi(root);
+    await write(path.join(root, ISOLATION, "index.mjs"), isolationExtension());
+    const definition = await write(path.join(root, "groups/shell.json"), shellGroup());
+
+    const result = runCli(root, bin, ["run", definition, "--uncommitted", "--pilot", "1"]);
+
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    // The stand-in refuses any command naming an absolute path, so the path outside and the /tmp write are refused
+    // and the shell keeps running.
+    for (const arm of ["baseline", "candidate"]) {
+      assert.match(
+        result.stdout,
+        new RegExp(
+          `^Harness: shell ${arm}: workspace ran; path outside refused; workspace after it ran; /tmp write refused; node (yes|no), python3 (yes|no), git (yes|no)$`,
+          "m",
+        ),
+      );
+    }
+    assert.ok(result.stdout.indexOf("Harness: ") < result.stdout.indexOf("Pilot: "));
+    assert.match(result.stdout, /^Pilot: .+ passed$/m);
+    const pilotId = result.stdout.match(/^Pilot: (\S+) passed$/m)[1];
+    const groupDirectory = path.join(root, ".skill-eval/runs", pilotId, "groups/shell");
+    const record = await readJson(path.join(groupDirectory, "harness/baseline/harness.json"));
+    assert.equal(record.shellStopped, false);
+    assert.deepEqual(
+      record.probes.map(({ id }) => id),
+      ["workspace", "outside-path", "workspace-again", "tmp-write", "tools"],
+    );
+    const summary = await readJson(path.join(root, ".skill-eval/runs", pilotId, "summary.json"));
+    assert.deepEqual(Object.keys(summary.groups[0].harness), ["baseline", "candidate"]);
+    // Probes run in JSON mode with the scripted model; then the subjects run.
+    const modes = (await readFile(log, "utf8"))
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line).mode);
+    assert.deepEqual(modes, ["json", "json", "json", "json", "rpc", "rpc"]);
+  });
+});
+
+test("without a pilot, no harness check runs", async () => {
+  await withTempDirectory(async (root) => {
+    const { bin } = await installFakePi(root);
+    await write(path.join(root, ISOLATION, "index.mjs"), isolationExtension());
+    const definition = await write(path.join(root, "groups/shell.json"), shellGroup());
+
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
+
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    assert.doesNotMatch(result.stdout, /^Harness: /m);
+    const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/shell");
+    await assert.rejects(readFile(path.join(groupDirectory, "harness/baseline/harness.json")), { code: "ENOENT" });
+  });
+});
+
+test("a shell that stops working after a path outside the workspace stops the pilot before any subject", async () => {
+  await withTempDirectory(async (root) => {
+    const { bin, log } = await installFakePi(root);
+    await write(path.join(root, ISOLATION, "index.mjs"), isolationExtension({ stopAfterDenial: true }));
+    const definition = await write(path.join(root, "groups/shell.json"), shellGroup());
+
+    const result = runCli(root, bin, ["run", definition, "--uncommitted", "--pilot", "1"]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stdout,
+      /^Harness: shell baseline: workspace ran; path outside refused; workspace after it refused;/m,
+    );
+    assert.match(result.stdout, /^Pilot: .+ stopped the run$/m);
+    assert.match(
+      result.stdout,
+      /arm baseline's shell stopped working after a command naming a path outside the workspace/,
+    );
+    assert.doesNotMatch(result.stdout, /^Aggregate: /m);
+    const modes = (await readFile(log, "utf8"))
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line).mode);
+    assert.ok(!modes.includes("rpc"), `no subject runs: ${modes.join(", ")}`);
+  });
+});
+
+test("the harness check stops a pilot whose arms found different things, naming each arm's findings", () => {
+  const findings = (tools) => ({
+    workspace: "ran",
+    outsidePath: "refused",
+    workspaceAgain: "ran",
+    tmpWrite: "ran",
+    tools: { node: true, python3: tools, git: true },
+  });
+  const records = {
+    baseline: { arm: "baseline", shellStopped: false, findings: findings(false) },
+    candidate: { arm: "candidate", shellStopped: false, findings: findings(true) },
+  };
+  const [problem, ...rest] = harnessProblems("g1", records);
+  assert.equal(rest.length, 0);
+  assert.match(problem, /^g1: the arms' harness differs, so they differ in more than their component:/);
+  assert.match(problem, /g1 baseline: .*python3 no/);
+  assert.match(problem, /g1 candidate: .*python3 yes/);
+  assert.deepEqual(
+    harnessProblems("g1", { baseline: records.baseline, candidate: { ...records.baseline, arm: "candidate" } }),
+    [],
+  );
+});
+
 test("an isolation that exposes Pi's agent directory fails the login probe, and the group is invalid", async () => {
   await withTempDirectory(async (root) => {
     const { bin } = await installFakePi(root);
     await write(path.join(root, ISOLATION, "index.mjs"), isolationExtension({ exposeAgentDirectory: true }));
     const definition = await write(path.join(root, "groups/shell.json"), shellGroup());
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.notEqual(result.status, 0);
     const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/shell");
@@ -351,7 +465,7 @@ test("an isolation that leaks one probe makes the group invalid with the probe o
     await write(path.join(root, ISOLATION, "index.mjs"), isolationExtension({ passEnvironment: true }));
     const definition = await write(path.join(root, "groups/shell.json"), shellGroup());
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.notEqual(result.status, 0);
     const modes = (await readFile(log, "utf8"))

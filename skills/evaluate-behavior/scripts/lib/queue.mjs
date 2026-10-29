@@ -1,6 +1,10 @@
 // Bounded queues for work the evaluator runs at once: subjects (model calls, `--jobs`) and local CPU work that is
 // not a model call (`--cpu-jobs`), such as command graders and container work. Waiters start in arrival order.
 
+import os from "node:os";
+
+import { CONTAINER_LIMITS } from "./container.mjs";
+
 /**
  * A FIFO limiter: `run(work)` starts `work` once fewer than `limit` are running. `peak` is the most that ever ran
  * at once, recorded so a test or a summary can show the bound held.
@@ -41,6 +45,20 @@ export function createLimiter(limit) {
       }
     },
   };
+}
+
+/** Subjects at once when `--jobs` is not given. */
+export const DEFAULT_JOBS = 4;
+
+/**
+ * How many subjects run at once by default: four, or, when a selected arm runs in containers, one per container's
+ * CPUs on this machine (each container gets `CONTAINER_LIMITS.cpus`), never fewer than one.
+ *
+ * @param {{ containers: boolean, cpus?: number }} options
+ */
+export function defaultJobs({ containers, cpus = os.availableParallelism() }) {
+  if (!containers) return DEFAULT_JOBS;
+  return Math.max(1, Math.min(DEFAULT_JOBS, Math.floor(cpus / Number(CONTAINER_LIMITS.cpus))));
 }
 
 export const DEFAULT_CPU_JOBS = 2;

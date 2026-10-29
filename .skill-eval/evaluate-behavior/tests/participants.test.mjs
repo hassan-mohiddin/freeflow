@@ -185,15 +185,19 @@ async function writeTask(root, group) {
 }
 
 function cli(root, bin, args) {
-  return spawnSync(process.execPath, [entrypoint, ...args, ...(args[0] === "run" ? ["--dry-run"] : [])], {
-    cwd: root,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-      SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+  return spawnSync(
+    process.execPath,
+    [entrypoint, ...args, ...(args[0] === "run" ? ["--uncommitted", "--jobs", "1"] : [])],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+      },
     },
-  });
+  );
 }
 
 function installGuard(roots, workspace) {

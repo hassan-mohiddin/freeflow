@@ -122,16 +122,20 @@ function descriptionGroup(changes = {}) {
 function runCli(root, bins, args, environment = {}) {
   const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !AMBIENT.includes(key)));
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [entrypoint, ...args], {
-      cwd: root,
-      env: {
-        ...inherited,
-        PATH: [...bins, process.env.PATH ?? ""].join(path.delimiter),
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
-        SKILL_EVAL_PROBE_PUBLIC_URL: "",
-        ...environment,
+    const child = spawn(
+      process.execPath,
+      [entrypoint, ...args, ...(args[0] === "run" && !args.includes("--jobs") ? ["--jobs", "1"] : [])],
+      {
+        cwd: root,
+        env: {
+          ...inherited,
+          PATH: [...bins, process.env.PATH ?? ""].join(path.delimiter),
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+          SKILL_EVAL_PROBE_PUBLIC_URL: "",
+          ...environment,
+        },
       },
-    });
+    );
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => {
@@ -264,7 +268,7 @@ test("a Claude Code body group probes its container, runs both arms there, and r
     );
     try {
       const definition = await write(path.join(root, "groups/boxed.json"), boxedGroup());
-      const result = await runCli(root, [claude.bin, docker.bin], ["run", definition, "--dry-run"], {
+      const result = await runCli(root, [claude.bin, docker.bin], ["run", definition, "--uncommitted"], {
         CLAUDE_CODE_OAUTH_TOKEN: "test-token",
         ANTHROPIC_BASE_URL: api.url,
         PARENT_ONLY: "parent",
@@ -352,7 +356,7 @@ test("a Claude Code description run lists the declared skill and records the tar
     });
     try {
       const definition = await write(path.join(root, "groups/activation.json"), descriptionGroup());
-      const result = await runCli(root, [claude.bin], ["run", definition, "--dry-run"], {
+      const result = await runCli(root, [claude.bin], ["run", definition, "--uncommitted"], {
         CLAUDE_CODE_OAUTH_TOKEN: "test-token",
         ANTHROPIC_BASE_URL: api.url,
       });
@@ -385,7 +389,7 @@ test("a Claude Code body run with turns keeps one session, delivers the target s
         ],
       });
       const definition = await write(path.join(root, "groups/turns.json"), group);
-      const result = await runCli(root, [claude.bin], ["run", definition, "--dry-run"], {
+      const result = await runCli(root, [claude.bin], ["run", definition, "--uncommitted"], {
         CLAUDE_CODE_OAUTH_TOKEN: "test-token",
         ANTHROPIC_BASE_URL: api.url,
       });

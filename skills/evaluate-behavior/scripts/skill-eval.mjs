@@ -9,8 +9,10 @@ import { clearRun } from "./lib/clear.mjs";
 import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
 import "./lib/metrics.mjs";
 import { createBudget } from "./lib/budget.mjs";
-import { createLimiter, setCpuJobs } from "./lib/queue.mjs";
+import { createLimiter, defaultJobs, setCpuJobs } from "./lib/queue.mjs";
 import { checkSelection } from "./lib/reference.mjs";
+import { missingContainerPrerequisites } from "./lib/container.mjs";
+import { packageManager, prerequisiteRefusal } from "./lib/shell.mjs";
 import { applySourceOverrides, parseSourceOverrides } from "./lib/source-override.mjs";
 import { createRunReuse, resultsDirectory, runEvaluation } from "./lib/runner.mjs";
 import { armSealing } from "./lib/seal.mjs";
@@ -26,7 +28,7 @@ const OPTIONS = {
     "--trials",
     "--max-cost",
     "--yes",
-    "--dry-run",
+    "--uncommitted",
     "--skip-reference-check",
     "--jobs",
     "--cpu-jobs",
@@ -84,9 +86,11 @@ Run options:
                       (a suite's decision always aggregates; its trials schedule sets n)
   --max-cost <total>  Stop starting subjects once host-reported cost reaches the total
   --yes               Start without asking (the plan is printed either way; scripts never ask)
-  --dry-run           Allow uncommitted inputs; the result is marked as a dry run and supports no claim
+  --uncommitted       Allow uncommitted inputs; subjects still run and call models, and the result is marked
+                      uncommitted and supports no claim
   --skip-reference-check  Run even when a declared reference_solution fails check-tasks (the result records it)
-  --jobs <n>         Run up to n subjects at once across groups, arms and trials (default 1)
+  --jobs <n>          Run up to n subjects at once across groups, arms and trials (default 4, or one per two
+                      CPUs when an arm runs in containers; --jobs 1 runs one at a time)
   --cpu-jobs <n>      Run up to n local CPU tasks at once, such as hidden test commands (default 2)
   --reuse             Count matching complete canonical runs from the results index as trials instead of
                       running them again (each once per run, listed as reused), and index this run's own
@@ -128,7 +132,7 @@ Current run support:
   Description tools: read; body tools: read, write, edit, run_command for declared commands, or declared extension tools
   Runtime profiles: Pi hosts, isolated or host system prompt, ordered immutable extension bundles, environment overrides
   Deterministic reads, paths, changed paths, text, JSON, tool calls, context observations, and factual comparisons
-  Ordered suites run serially (or --jobs subjects at once) and continue after isolated variant, group, or
+  Ordered suites run --jobs subjects at once (default 4) and continue after isolated variant, group, or
   post-processing failures
   Grade-first views show compact criterion details, usage, and result-relative artifact paths
 `,
@@ -165,7 +169,7 @@ function parseOperation(values) {
   let rubric = false;
   const limits = {};
   let yes = false;
-  let dryRun = false;
+  let uncommitted = false;
   let reuse = false;
   let skipReferenceCheck = false;
   let all = false;
@@ -191,6 +195,11 @@ function parseOperation(values) {
   for (let index = 0; index < options.length; index += 1) {
     const option = options[index];
     const value = options[index + 1];
+    if (option === "--dry-run" && allowed.includes("--uncommitted")) {
+      throw new Error(
+        "--dry-run is now --uncommitted: it allows uncommitted inputs, and subjects still run and call models; to check definitions without a model, run check-tasks or npm run check:eval-definitions",
+      );
+    }
     if (!allowed.includes(option)) throw new Error(`Unknown option: ${option}`);
     if (option === "--swap") {
       swap = true;
@@ -228,8 +237,8 @@ function parseOperation(values) {
       yes = true;
       continue;
     }
-    if (option === "--dry-run") {
-      dryRun = true;
+    if (option === "--uncommitted") {
+      uncommitted = true;
       continue;
     }
     if (option === "--reuse") {
@@ -262,7 +271,8 @@ function parseOperation(values) {
     if (!/^\d+$/.test(value) || Number(value) < 1) throw new Error(`${name} must be a positive integer`);
     return Number(value);
   };
-  const jobs = positive("--jobs", parsed.jobs, 1);
+  // Null when omitted: the plan sets the default from what the selected arms run in.
+  const jobs = positive("--jobs", parsed.jobs, null);
   const cpuJobs = positive("--cpu-jobs", parsed.cpuJobs, null);
   const pilot = positive("--pilot", parsed.pilot, null);
   const swapSample = parsed.swapSample === null ? null : Number(parsed.swapSample);
@@ -297,7 +307,7 @@ function parseOperation(values) {
     calibrate: parsed.calibrate,
     limits,
     yes,
-    dryRun,
+    uncommitted,
     jobs,
     cpuJobs,
     pilot,
@@ -327,8 +337,11 @@ function printResult(result) {
 
 /**
  * What a run will start, from the definition alone: subjects, the models they use, and any Freeflow builds.
- * Printed before anything starts; an interactive terminal is asked to confirm unless --yes was given.
- * Returns null when not confirmed, else the selected suite's decision rule (null when it declares none).
+ * Printed before anything starts; an interactive terminal is asked to confirm unless --yes was given. Then the
+ * preflight: every container image an arm runs in, with the engine that runs it, must be here before any subject
+ * starts, so a missing one refuses the whole run rather than one group after others have spent.
+ * Returns null when not confirmed, else the selected suite's decision rule (null when it declares none) and how
+ * many subjects run at once.
  */
 async function planRun(operation, root) {
   // Resolved the way the runner resolves it, so the plan loads exactly what will run.
@@ -352,12 +365,18 @@ async function planRun(operation, root) {
   const models = new Set();
   const freeflow = new Set();
   const extensions = new Set();
+  // Each distinct container an arm runs in, with the first arm that names it, for the preflight.
+  const containers = new Map();
   for (const { group, variants } of selection.groups) {
     const builds = new Set();
     for (const [arm, state] of Object.entries(variants)) {
       if (state !== "selected") continue;
       arms += 1;
       if (armSealing(group, arm).network === "host") unsealed += 1;
+      const container = group.variants[arm].shell?.container;
+      if (container !== undefined && !containers.has(container.image)) {
+        containers.set(container.image, { group: group.id, arm, shell: group.variants[arm].shell });
+      }
       const model = group.variants[arm].model;
       models.add(model ? `${model.model}${model.thinking ? ` (${model.thinking})` : ""}` : "host default");
       if (group.variants[arm].freeflow) freeflow.add(group.variants[arm].freeflow.source.ref);
@@ -374,15 +393,18 @@ async function planRun(operation, root) {
   const groups = selection.groups.length;
   let counts = `${groups} group${groups === 1 ? "" : "s"}, ${arms} arm${arms === 1 ? "" : "s"}, ${trials} trial${trials === 1 ? "" : "s"}`;
   let subjects = `${arms * trials}`;
+  let most = arms * trials;
+  const jobs = operation.jobs ?? defaultJobs({ containers: containers.size > 0 });
   if (schedule !== null && schedule.max > schedule.initial) {
     // Adaptive rounds add trials only to undecided cases, so the count is a range up to every case at max.
     counts += `, adaptive up to ${schedule.max} per case`;
     subjects += ` to ${arms * schedule.max}`;
+    most = arms * schedule.max;
   }
   let line = `Plan: ${subjects} subjects (${counts}); models: ${[...models].join(", ")}`;
   if (freeflow.size > 0) line += `; Freeflow builds: ${[...freeflow].join(", ")}`;
   if (extensions.size > 0) line += `; extensions: ${[...extensions].join(", ")}`;
-  if (operation.jobs > 1) line += `; ${operation.jobs} subjects at once`;
+  if (Math.min(jobs, most) > 1) line += `; ${Math.min(jobs, most)} subjects at once`;
   if (operation.pilot !== null) line += `; pilot of the first ${Math.min(operation.pilot, groups)} groups`;
   if (operation.reuse) line += "; reusing matching runs";
   // Said before anything starts: code the subject writes, and each extension build, will run on this machine, with
@@ -397,13 +419,21 @@ async function planRun(operation, root) {
   if (outside.length > 0) line += `; unsealed: ${outside.join(", and ")}`;
   const overridden = Object.entries(operation.sources ?? {});
   if (overridden.length > 0) line += `; sources: ${overridden.map(([arm, commit]) => `${arm}=${commit}`).join(", ")}`;
-  if (operation.dryRun) line += "; dry run";
+  if (operation.uncommitted) line += "; uncommitted inputs";
   process.stdout.write(`${line}\n`);
-  if (operation.yes || !process.stdin.isTTY || !process.stdout.isTTY) return { decision };
+  if (containers.size > 0) {
+    const manager = await packageManager(process.env);
+    for (const { group, arm, shell } of containers.values()) {
+      const missing = await missingContainerPrerequisites(shell.container, manager);
+      if (missing.length > 0)
+        throw new Error(`Preflight: nothing started.\n${prerequisiteRefusal(group, arm, shell, missing)}`);
+    }
+  }
+  if (operation.yes || !process.stdin.isTTY || !process.stdout.isTTY) return { decision, jobs };
   const readline = createInterface({ input: process.stdin, output: process.stdout });
   const answer = await readline.question("Start? [y/N] ");
   readline.close();
-  return /^y(es)?$/i.test(answer.trim()) ? { decision } : null;
+  return /^y(es)?$/i.test(answer.trim()) ? { decision, jobs } : null;
 }
 
 async function run(operation) {
@@ -419,8 +449,8 @@ async function run(operation) {
     const common = {
       root,
       signal,
-      dryRun: operation.dryRun,
-      jobs: operation.jobs,
+      dryRun: operation.uncommitted,
+      jobs: plan.jobs,
       results: operation.results,
       skipReferenceCheck: operation.skipReferenceCheck,
       sources: operation.sources,
@@ -431,7 +461,7 @@ async function run(operation) {
       const shared = {
         ...common,
         budget: createBudget(operation.maxCost),
-        subjects: createLimiter(operation.jobs),
+        subjects: createLimiter(plan.jobs),
         reuse: createRunReuse(resultsDirectory(root, operation.results), operation.reuse),
       };
       const result = await runEvaluation(operation.target, operation.selectors, shared);
@@ -448,17 +478,18 @@ async function run(operation) {
       pilot: operation.pilot,
     });
     if (aggregate.state === "pilot-stopped") {
-      reportPilot(aggregate.pilot.id, aggregate.pilot.problems);
+      reportPilot(aggregate.pilot);
       return;
     }
-    if (aggregate.aggregate.pilot) reportPilot(aggregate.aggregate.pilot.id, []);
+    if (aggregate.aggregate.pilot) reportPilot(aggregate.aggregate.pilot);
     process.stdout.write(`Aggregate: ${aggregate.id}\nPath: ${aggregate.path}\nState: ${aggregate.state}\n`);
     if (aggregate.state !== "complete") process.exitCode = 1;
   });
 }
 
-/** Prints a pilot's outcome; false (and a failing exit) when its problems stop the run. */
-function reportPilot(id, problems) {
+/** Prints a pilot's outcome and its harness findings; false (and a failing exit) when its problems stop the run. */
+function reportPilot({ id, problems, harness = [] }) {
+  for (const line of harness) process.stdout.write(`Harness: ${line}\n`);
   if (problems.length === 0) {
     process.stdout.write(`Pilot: ${id} passed\n`);
     return true;

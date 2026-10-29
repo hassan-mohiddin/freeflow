@@ -826,14 +826,18 @@ test("check-tasks and run refuse a misplaced expectation before anything starts,
       "group broken-group (groups/broken.json): group.expectations[0] (misplaced): invalid path expectation: it needs a body group\n";
     for (const args of [
       ["check-tasks", "suite.json"],
-      ["run", "suite.json", "--yes", "--dry-run"],
+      ["run", "suite.json", "--yes", "--uncommitted"],
     ]) {
       // No Pi on PATH: anything that tried to start a subject would fail differently.
-      const result = spawnSync(process.execPath, [entrypoint, ...args], {
-        cwd: root,
-        encoding: "utf8",
-        env: { ...process.env, PATH: path.dirname(process.execPath) },
-      });
+      const result = spawnSync(
+        process.execPath,
+        [entrypoint, ...args, ...(args[0] === "run" && !args.includes("--jobs") ? ["--jobs", "1"] : [])],
+        {
+          cwd: root,
+          encoding: "utf8",
+          env: { ...process.env, PATH: path.dirname(process.execPath) },
+        },
+      );
       assert.equal(result.status, 1, args[0]);
       assert.equal(result.stderr, expected, args[0]);
       assert.equal(result.stdout, "", args[0]);
