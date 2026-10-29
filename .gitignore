@@ -25,3 +25,5 @@ tmp/
 
 # Local Serena MCP/project state.
 .serena/
+# Claude Code writes this beside the plugin when a session loads its mod from this checkout; it extends .claude-plugin/types/, which Claude Code also writes and ignores.
+/tsconfig.json

@@ -114,6 +114,7 @@
     "command-surface.json",
     "hooks/adapters/**",
     "hooks/claude/hooks.json",
+    "hooks/claude/freeflow.mjs",
     "hooks/codex/hooks.json",
     "hooks/cursor/hooks.json",
     "hooks/freeflow-runtime-context.mjs",

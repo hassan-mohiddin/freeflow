@@ -10,6 +10,7 @@ const requiredFiles = [
   ".cursor-plugin/plugin.json",
   "com.github.copilot/hooks/hooks.json",
   "hooks/claude/hooks.json",
+  "hooks/claude/freeflow.mjs",
   "hooks/codex/hooks.json",
   "hooks/hooks.json",
   "hooks/cursor/hooks.json",
