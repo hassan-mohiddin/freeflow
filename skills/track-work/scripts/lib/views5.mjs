@@ -15,6 +15,7 @@ import {
   indexLine,
   measureTask,
   measuredLines,
+  real,
   rules,
   words,
 } from "./budget5.mjs";
@@ -174,10 +175,13 @@ export async function renderBundle5({ root, path, text }, { window = contextWind
   const measured = measureTask(task, { root, path, window });
   const { files } = measured;
   const repository = measured.material.context.root;
-  const label = (file) => (relative(repository, file).startsWith("..") ? file : relative(repository, file));
+  const label = (file) => {
+    const inside = relative(real(repository), real(file));
+    return inside.startsWith("..") ? file : inside;
+  };
   // A core skill Defined by already printed is not printed again.
-  const printed = new Set(files.definedBy.map((file) => file.path));
-  const skills = CORE_SKILLS.filter((skill) => existsSync(skill) && !printed.has(skill)).map((skill) => ({
+  const printed = new Set(files.definedBy.map((file) => real(file.path)));
+  const skills = CORE_SKILLS.filter((skill) => existsSync(skill) && !printed.has(real(skill))).map((skill) => ({
     path: skill,
     text: readFileSync(skill, "utf8"),
   }));

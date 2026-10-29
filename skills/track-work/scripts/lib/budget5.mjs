@@ -5,7 +5,7 @@
 // Defined by are read whole and never counted. The budget only warns: recovery still reads everything it lists.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { contextFor, gitRoot, resolvePointer, sourceEntries } from "./recover.mjs";
@@ -20,6 +20,15 @@ export const EXPANDED_FACTOR = 1.5;
 /** The core skills every recovery reads whole, beside this script's own skill; method, never counted. */
 const SKILLS = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 export const CORE_SKILLS = ["track-work", "discuss-work", "execute-work"].map((name) => join(SKILLS, name, "SKILL.md"));
+
+/** A path with its symlinks resolved, so one file reached two ways compares equal (macOS's /var is /private/var). */
+export function real(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
 
 export const words = (text) =>
   String(text ?? "")
@@ -152,8 +161,8 @@ export function sourceFiles(entries, context, skip = new Set()) {
     for (const pointer of entry.pointers) {
       if (pointer.kind !== "path" || pointer.state !== "resolves") continue;
       const { path } = resolvePointer(pointer.value, context);
-      if (skip.has(path)) continue;
-      skip.add(path);
+      if (skip.has(real(path))) continue;
+      skip.add(real(path));
       const text = fileText(path);
       files.push({ pointer: pointer.value, path, text, words: text === null ? 0 : words(text) });
     }
@@ -215,7 +224,7 @@ export function measureTask(task, { root, path, window = contextWindow() }) {
   const taken = new Set();
   const definedFiles = sourceFiles(definedBy, context, taken);
   // A core skill is read whole and never counted, wherever the record names it.
-  for (const skill of CORE_SKILLS) taken.add(skill);
+  for (const skill of CORE_SKILLS) taken.add(real(skill));
   const readNowFiles = sourceFiles(readNow, context, taken);
   const carry = carriedFiles(work.carry, context);
   const sum = (items) => items.reduce((total, item) => total + item.words, 0);
