@@ -21,6 +21,7 @@ import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
 import { checkEvidencePointers, checkLinePointers, renderRecover } from "./lib/recover.mjs";
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { runTransition5 } from "./lib/transitions5.mjs";
+import { migrateTask, readCues } from "./lib/migrate5.mjs";
 import { renderEntries5, renderIndex5, renderRecover5 } from "./lib/views5.mjs";
 import {
   amendDelegation,
@@ -63,6 +64,7 @@ function usage() {
     "  working-record.mjs agreement <open|update|close> ... (Schema 5)",
     "  working-record.mjs checkpoint --record <record.md> [--repo <path>] (Schema 5)",
     "  working-record.mjs delegate <open|amend|status|check-return|close> ... (Schema 5)",
+    "  working-record.mjs migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name>] (Schema 4 to 5)",
     "  working-record.mjs project <new|link|show|list|remove> ...",
     "  working-record.mjs task <create|import|search|env|here|fanout|remove> ...",
     "  working-record.mjs task <create|take|release|switch|here|search|remove> ... (in a Freeflow store)",
@@ -115,6 +117,10 @@ const COMMAND_HELP = new Map([
   [
     "init",
     'Usage: init --root <path> --name <task name> [--schema 5 --cue <cue>] [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings, Work agreement (written only when given) and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.\nWith --schema 5: the task folder gets record.md, history.md and decisions.md. --cue (required) says when the task matters, starting "read when", in at most 25 words. Input: Goal and Next action required; Settled, Open, Space, Read on recovery and Read when accepted. --root may be a project\'s folder in the Freeflow store (<store>/projects/<project>), whose tasks/ then holds the task.',
+  ],
+  [
+    "migrate",
+    'Usage: migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name> [--home <folder>]]\nConverts a Schema 4 record to Schema 5: Goal, Settled (with the active Decisions) and Open (with Tentative and pending Checkpoints); the Work agreement and Boundaries become the open agreement A-001; What defines this task and the Recovery sources become Read on recovery and Read when; the Current Slice and its Material updates carry over; proposed Slices stay in Future Work, with Current direction as one more; closed Slices become history.md entries. The Schema 4 record is kept whole in sources/schema4-record.md, Notes move to sources/notes.md, and the decision list moves to decisions.md when an agreement is open. --cue is the task\'s cue; --cues is a file of "S-NNN: read when …" lines for closed Slices, and a Slice without one is marked missing. Without --project the folder converts in place; with it, the folder is copied into that project in the Freeflow store as its next task, converted there and pushed, and the original stays as it was.',
   ],
   [
     "delegate",
@@ -347,6 +353,7 @@ function allowedOptions(command, operation) {
   const withNextAction = new Set([...common, "--next-action"]);
   if (command === "init") return new Set(["--root", "--name", "--input", "--schema", "--cue", "--help"]);
   if (command === "view") return new Set(["--root", "--record", "--view", "--delegation", "--help"]);
+  if (command === "migrate") return new Set(["--root", "--record", "--cue", "--cues", "--project", "--home", "--help"]);
   if (command === "delegate") {
     const record = ["--root", "--record", "--help"];
     if (operation === "open")
@@ -822,6 +829,22 @@ async function runCore(command, rest) {
     const task = await new Registry().task(options["--record"]);
     if (!task) throw new CliError(`No task ${options["--record"]} in the registry.`);
     options["--record"] = task.record;
+  }
+  if (command === "migrate") {
+    const loaded = await readExisting(options);
+    if (schemaOf(loaded.text) !== 4)
+      throw new CliError(
+        `migrate converts a Schema 4 record; this one is Schema ${schemaOf(loaded.text) ?? "unknown"}`,
+      );
+    return migrateTask({
+      recordPath: loaded.path,
+      text: loaded.text,
+      root: loaded.root,
+      cue: requireOption(options, "--cue").replace(/\s+/g, " ").trim(),
+      cues: await readCues(options["--cues"]),
+      home: storeHome(options["--home"]),
+      project: options["--project"] ?? null,
+    });
   }
   if (command === "delegate") {
     const loaded = await readExisting(options);
