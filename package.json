@@ -17,7 +17,7 @@
   "type": "module",
   "scripts": {
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --check . --cache --cache-strategy content",
     "format:pi-extension-dist": "prettier --write pi-extension/dist",
     "build:pi-extension": "node -e \"require('node:fs').rmSync('pi-extension/dist', { recursive: true, force: true })\" && tsc -p pi-extension/tsconfig.json && npm run format:pi-extension-dist",
     "build": "npm run build:pi-extension",

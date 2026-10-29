@@ -154,3 +154,42 @@ test("--driven counts a covered change committed together with its doc, which th
   assert.equal(driven.status, 1);
   assert.match(driven.stdout, /covered code changed since [0-9a-f]+:\n {4}src\/a\.js/);
 });
+
+test("--stamp moves a stale doc's Verified at to HEAD, so the doc and the code go in one commit", async (t) => {
+  const { root } = await repository();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const run = (...args) =>
+    spawnSync(process.execPath, [scriptPath, "dev-docs", ...args], { cwd: root, env: gitEnv, encoding: "utf8" });
+  // lib.md is stale from the committed change; a.md is current and an uncommitted change to it makes it stale too.
+  await write(root, { "src/a.js": "export const a = 3;\n" });
+  assert.equal(run("--strict").status, 1);
+  const stamped = run("--stamp");
+  assert.equal(stamped.status, 0, stamped.stdout + stamped.stderr);
+  const head = git(root, "rev-parse", "--short", "HEAD");
+  assert.match(stamped.stdout, new RegExp(`stamped dev-docs/subsystems/a\\.md at ${head}`));
+  assert.match(stamped.stdout, new RegExp(`stamped dev-docs/subsystems/lib\\.md at ${head}`));
+  // One commit with the code and the restamped docs leaves nothing stale.
+  git(root, "commit", "--quiet", "-am", "change a, with its doc restamped");
+  assert.equal(run("--strict").status, 0, run("--strict").stdout);
+  // A current doc is left as it was.
+  const again = run("--stamp");
+  assert.doesNotMatch(again.stdout, /stamped/);
+});
+
+test("--stamp leaves a feature file alone, since its Verified at is the commit it was driven at", async (t) => {
+  const { root, base } = await repository();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await write(root, { "dev-docs/features/f.md": doc("F", ["src/lib/"], base) });
+  git(root, "add", "--all");
+  git(root, "commit", "--quiet", "-m", "feature file");
+  await write(root, { "src/lib/b.js": "export const b = 3;\n" });
+  const stamped = spawnSync(process.execPath, [scriptPath, "dev-docs", "--stamp"], {
+    cwd: root,
+    env: gitEnv,
+    encoding: "utf8",
+  });
+  assert.match(
+    stamped.stdout,
+    /not stamped: dev-docs\/features\/f\.md \(a feature file: drive it, then move its Verified at\)/,
+  );
+});

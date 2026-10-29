@@ -9,12 +9,15 @@
 // (holding README.md), `ARCHITECTURE.md`, and `docs/` (holding README.md).
 // With --driven, a covered change counts even when it was made together with the document: for a feature file, whose
 // Verified at is the last commit it was driven live at, editing its text is not driving it.
-// Usage: docs-check.mjs <file-or-directory>... [--root <repository>] [--strict] [--driven] [--json]
+// With --stamp, each stale document's Verified at moves to HEAD with today's date, so the document goes into the same
+// commit as the code it covers (a change committed with its document counts as reviewed with it). Run it after
+// reading each listed document against the change; it stamps no feature file, whose Verified at only driving moves.
+// Usage: docs-check.mjs <file-or-directory>... [--root <repository>] [--strict] [--driven] [--stamp] [--json]
 //        docs-check.mjs [<file-or-directory>...] --covering <path> [--covering <path>]... [--root <repository>] [--json]
 // Exit code 1 when a named path is missing, a header is invalid, or (with --strict) covered code changed. A --covering
 // lookup reports and exits 0, or 2 when no documents can be found.
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -24,13 +27,14 @@ const { values, positionals } = parseArgs({
     root: { type: "string" },
     strict: { type: "boolean", default: false },
     driven: { type: "boolean", default: false },
+    stamp: { type: "boolean", default: false },
     json: { type: "boolean", default: false },
     covering: { type: "string", multiple: true },
   },
 });
 const usage = () => {
   console.error(
-    "Usage: docs-check.mjs <file-or-directory>... [--root <repository>] [--strict] [--driven] [--json]\n" +
+    "Usage: docs-check.mjs <file-or-directory>... [--root <repository>] [--strict] [--driven] [--stamp] [--json]\n" +
       "       docs-check.mjs [<file-or-directory>...] --covering <path> [--covering <path>]... [--root <repository>] [--json]",
   );
   process.exit(2);
@@ -200,6 +204,25 @@ for (const input of positionals)
   for (const file of markdownFiles(input))
     if (typeof file === "object") inputErrors.push(`no such file or directory: ${file.missingInput}`);
     else documents.push(check(file));
+
+if (values.stamp) {
+  const head = git(root, ["rev-parse", "--short=8", "HEAD"]).trim();
+  const today = new Date().toISOString().slice(0, 10);
+  for (const doc of documents.filter((each) => each.stale?.changed.length)) {
+    if (/(^|\/)features\//.test(doc.path)) {
+      console.log(`not stamped: ${doc.path} (a feature file: drive it, then move its Verified at)`);
+      continue;
+    }
+    const file = join(root, doc.path);
+    const text = readFileSync(file, "utf8").replace(
+      /^(>\s*\*\*Verified at:\*\*\s*)`[^`]+`(\s*\([^)]*\))?/m,
+      (_match, lead) => `${lead}\`${head}\` (${today})`,
+    );
+    writeFileSync(file, text);
+    console.log(`stamped ${doc.path} at ${head} (covered code changed: ${doc.stale.changed.join(", ")})`);
+    doc.stale = { since: head, changed: [] };
+  }
+}
 
 const failed =
   inputErrors.length > 0 ||
