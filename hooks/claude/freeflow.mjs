@@ -8,6 +8,8 @@ const FIRST_NOTICE = 0.75; // of the window (P50)
 const NOTICE_STEP = 0.05; // then every 5% of it
 const THRESHOLD_LEAD = 0.1; // and the first comes at least a tenth of the window before Claude's own threshold (T13)
 const DELEGATION = /\bD-\d{3,}(?:\.\d+)?\b/; // the delegation an Agent call's prompt names (T7)
+const FILE_TOOLS = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit", "Glob", "Grep"]);
+const STORE_REASON = "Freeflow's store, which holds the task memory the agent keeps";
 const CONTINUE =
   "Freeflow compacted the session after your checkpoint: the conversation is now your task's bundle. Continue from In flight and the Next action.";
 
@@ -21,6 +23,8 @@ let contextWindow = null;
 let threshold = null;
 /** @type {Map<string, { delegation: string, nextNotice: number | null }> | null} agent ID -> its delegation, kept in the store's sessions/ folder too */
 let workers = null;
+/** @type {string | null | undefined} where the store really is; null where there is none, undefined until read */
+let storeRoot = undefined;
 
 /**
  * Runs Track Work's script for this session (or the one ending), as its commands run in the session's shell.
@@ -50,6 +54,49 @@ async function status($, options) {
     return state.store ? state : null;
   } catch {
     return null;
+  }
+}
+
+/** @param {string} path */
+const separatorOf = (path) => (path.includes("\\") && !path.includes("/") ? "\\" : "/");
+
+/**
+ * Where the store really is, from session status the first time; null where there is none.
+ * @param {any} $
+ * @param {any} [state] session status, when the caller has it
+ */
+async function storeRootOf($, state) {
+  if (state !== undefined || storeRoot === undefined) {
+    const known = state === undefined ? await status($) : state;
+    storeRoot = known
+      ? ((await $.fs.stat(known.home, { resolve: true }).catch(() => undefined))?.realPath ?? null)
+      : null;
+  }
+  return storeRoot;
+}
+
+/**
+ * Where a tool's path really lands, or undefined: an absolute path's own real path, or for one not there yet (a Write
+ * makes the folders it needs) its nearest existing folder's real path plus the names below it. A spelling it cannot
+ * place lands nowhere: a relative path, or a "." or ".." among the names not there yet.
+ * @param {any} $
+ * @param {unknown} path
+ */
+async function placed($, path) {
+  if (typeof path !== "string" || !/^(\/|[A-Za-z]:[\\/])/.test(path)) return undefined;
+  const missing = [];
+  let at = path;
+  for (;;) {
+    const stat = await $.fs.stat(at, { resolve: true }).catch(() => undefined);
+    if (stat?.realPath) {
+      const root = stat.realPath.replace(/[\\/]$/, "");
+      return missing.length ? [root, ...missing.reverse()].join(separatorOf(stat.realPath)) : stat.realPath;
+    }
+    const cut = Math.max(at.lastIndexOf("/"), at.lastIndexOf("\\"));
+    const name = at.slice(cut + 1);
+    if (cut <= 0 || name === "" || name === "." || name === "..") return undefined;
+    missing.push(name);
+    at = at.slice(0, cut);
   }
 }
 
@@ -255,7 +302,9 @@ export function register(on) {
     await newCycle($);
     workers = null;
     await readWindow($);
-    if (!(await status($, { session: e.session_id }))) return result;
+    const state = await status($, { session: e.session_id });
+    await storeRootOf($, state);
+    if (!state) return result;
     await script($, ["store", "sync", "--pull"], { session: e.session_id });
     const menu = await script($, ["task", "here", "--cwd", e.cwd], { session: e.session_id });
     if (menu.exitCode !== 0) return result;
@@ -285,6 +334,19 @@ export function register(on) {
       $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
     }
     return result;
+  });
+
+  // The store holds the task memory the agent keeps, so a file tool on a path that really lands inside it runs where
+  // the mode would ask, as in a working directory with edits allowed; any deny, a rule's or a hook's, still stands.
+  on("tool.check", async ($, e, next) => {
+    const verdict = await next(e);
+    if (verdict.decision !== "ask" || !FILE_TOOLS.has(e.tool)) return verdict;
+    const input = /** @type {Record<string, unknown>} */ (e.input ?? {});
+    const root = await storeRootOf($);
+    if (!root) return verdict;
+    const real = await placed($, input.file_path ?? input.notebook_path ?? input.path);
+    const inside = real !== undefined && (real === root || real.startsWith(root + separatorOf(root)));
+    return inside ? { decision: /** @type {const} */ ("allow"), reason: STORE_REASON } : verdict;
   });
 
   on("session.compact", async ($, e, next) => {

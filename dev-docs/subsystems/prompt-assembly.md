@@ -86,7 +86,7 @@ Hook delivery does not enforce Freeflow policy, block tools, grant permissions, 
 
 ### Gemini CLI
 
-Gemini uses `gemini-extension.json`, the root `skills/` directory, and its `hooks/hooks.json` `SessionStart` adapter. The adapter returns Gemini’s `hookSpecificOutput.additionalContext` field. Gemini’s documented startup, resume, and clear lifecycle is host-specific; local fixtures do not prove extension dispatch.
+Gemini uses `gemini-extension.json`, the root `skills/` directory, and its `hooks/hooks.json` `SessionStart` adapter. The adapter returns Gemini’s `hookSpecificOutput.additionalContext` field. Claude Code reads the same root `hooks/hooks.json` beside its own hooks file, so the adapter stays silent when Claude Code runs it (`CLAUDE_PLUGIN_ROOT` set, `GEMINI_PROJECT_DIR` not), and Claude Code's own adapter delivers the context there. Gemini’s documented startup, resume, and clear lifecycle is host-specific; local fixtures do not prove extension dispatch.
 
 ### Cursor
 

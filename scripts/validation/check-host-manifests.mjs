@@ -248,7 +248,7 @@ function validateClaudeCodexHook(config, label, variable, adapter, { matcher, pa
   });
 }
 
-function validateGeminiHook(config, label, errors) {
+export function validateGeminiHook(config, label, errors) {
   const groups = hookHandlers(config, "SessionStart", label, errors);
   if (groups.length === 0) return;
   const group = groups[0];
@@ -264,9 +264,11 @@ function validateGeminiHook(config, label, errors) {
   if (handler.name !== "freeflow-runtime-context") errors.push(`${label} must name the runtime-context hook`);
   if (
     typeof handler.command !== "string" ||
-    !handler.command.includes("${extensionPath}/hooks/adapters/gemini-session-start.mjs")
+    !handler.command.includes("${extensionPath}${CLAUDE_PLUGIN_ROOT}/hooks/adapters/gemini-session-start.mjs")
   ) {
-    errors.push(`${label} must invoke the Gemini adapter through ${extensionPath}`);
+    // Claude Code reads this file too, from the plugin's root: ${CLAUDE_PLUGIN_ROOT} lets the path resolve there, where
+    // the adapter stays silent, and is empty under Gemini.
+    errors.push(`${label} must invoke the Gemini adapter through \${extensionPath}\${CLAUDE_PLUGIN_ROOT}`);
   }
   if (handler.timeout !== 5000) errors.push(`${label} must use a 5000ms timeout`);
 }

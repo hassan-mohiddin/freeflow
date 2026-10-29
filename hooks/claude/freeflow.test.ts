@@ -47,6 +47,21 @@ function world(on: any) {
     session: mock.session(on),
     commands: () => w.runs.map((run) => run.args.join(" ")),
     beforeRun: (_key: string): unknown => undefined,
+    // Paths that exist, each with where it really lands; a stat of anything else is refused as missing.
+    files: new Map<string, string>([
+      ["/store", "/store"],
+      ["/store/projects/widget/tasks/task-001-probe", "/store/projects/widget/tasks/task-001-probe"],
+      [
+        "/store/projects/widget/tasks/task-001-probe/record.md",
+        "/store/projects/widget/tasks/task-001-probe/record.md",
+      ],
+      ["/store/projects/widget/tasks/task-001-probe/sources", "/store/projects/widget/tasks/task-001-probe/sources"],
+      ["/store/../etc/passwd", "/etc/passwd"],
+      ["/work/widget/src.mjs", "/work/widget/src.mjs"],
+      ["/work/widget/memory", "/store/projects/widget"],
+      ["/store-other/notes.md", "/store-other/notes.md"],
+    ]),
+    verdict: { decision: "ask" } as { decision: string; rule?: string },
   };
   on("process.run", async (_: any, e: any) => {
     const script = e.argv[0] === "node" && String(e.argv[1]).endsWith("working-record.mjs");
@@ -84,6 +99,15 @@ function world(on: any) {
     return { value: {} };
   });
   on("fs.exists", () => ({ value: false }));
+  on("fs.stat", (_: any, e: any) => {
+    // A relative path resolves against a working directory, here one standing at "/", which the mod cannot tell from a
+    // tool's own: the mod never asks where one lands.
+    const real = w.files.get(e.path) ?? (String(e.path).endsWith("store/x.md") ? "/store/x.md" : undefined);
+    return real === undefined
+      ? { deny: `ENOENT: ${e.path}` }
+      : { value: { kind: "file", size: 1, mtimeMs: 0, isLink: false, ...(e.resolve ? { realPath: real } : {}) } };
+  });
+  on("tool.check", () => ({ ...w.verdict }));
   on("fs.write", (_: any, e: any) => {
     w.writes.push({ path: e.path ?? e[0], text: e.text ?? e[1] });
     return { value: undefined };
@@ -433,4 +457,46 @@ test("the session ends: release the hold and push, as the ending session", async
   w.status = store({ changed: true });
   await $.session.end({ reason: "clear", sessionId: "sess-old", resume: { id: "sess-old" } });
   expect(w.commands()).toEqual(["session status", "store sync"]);
+});
+
+test("the store is the agent's to keep: file tools inside it are allowed where the mode would ask, and nothing else changes", async ($, on) => {
+  const w = world(on);
+  const check = (tool: string, input: object) => $.tool.check({ tool, input } as any);
+  const record = "/store/projects/widget/tasks/task-001-probe/record.md";
+
+  // Without a store, the engine's verdict stands.
+  expect((await check("Edit", { file_path: record })).decision).toBe("ask");
+
+  w.status = held(at(-30));
+  await start($);
+  const allowed = await check("Edit", { file_path: record });
+  expect(allowed.decision).toBe("allow");
+  expect(allowed.reason).toContain("Freeflow's store");
+  // A file not there yet lands in its folder, or its nearest folder that is; a Read, a Grep of the store itself, and a
+  // path through a link into it.
+  expect(
+    (await check("Write", { file_path: "/store/projects/widget/tasks/task-001-probe/sources/words.md" })).decision,
+  ).toBe("allow");
+  expect(
+    (await check("Write", { file_path: "/store/projects/widget/tasks/task-001-probe/notes/2026/talk.md" })).decision,
+  ).toBe("allow");
+  expect((await check("Read", { file_path: record })).decision).toBe("allow");
+  expect((await check("Grep", { pattern: "x", path: "/store" })).decision).toBe("allow");
+  expect((await check("Read", { file_path: "/work/widget/memory" })).decision).toBe("allow");
+
+  // Outside the store, a path that only spells its way in, a relative path, a folder beside the store, a shell
+  // command: the verdict stands.
+  expect((await check("Edit", { file_path: "/work/widget/src.mjs" })).decision).toBe("ask");
+  expect((await check("Edit", { file_path: "/store/../etc/passwd" })).decision).toBe("ask");
+  expect((await check("Edit", { file_path: "store/x.md" })).decision).toBe("ask");
+  expect((await check("Edit", { file_path: "/store-other/notes.md" })).decision).toBe("ask");
+  expect(
+    (await check("Write", { file_path: "/store/projects/widget/tasks/task-001-probe/none/../../../../../../../etc/x" }))
+      .decision,
+  ).toBe("ask");
+  expect((await check("Bash", { command: `cat ${record}` })).decision).toBe("ask");
+
+  // A deny stands, inside the store too.
+  w.verdict = { decision: "deny", rule: "Edit(/store/**)" };
+  expect((await check("Edit", { file_path: record })).decision).toBe("deny");
 });
