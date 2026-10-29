@@ -34,6 +34,8 @@ async function assertGitSafePath(root, path, { directory = false } = {}) {
   const repository = await gitCommand(root, ["rev-parse", "--show-toplevel"]);
   if (!repository.ok) return;
   const repositoryRoot = canonicalPath(repository.stdout.trim());
+  // The Freeflow store tracks its records on purpose; every other repository must ignore them.
+  if (isFreeflowStore(repositoryRoot)) return;
   const relativePath = relative(repositoryRoot, canonicalPath(path)).split(sep).join("/");
   // A trailing slash lets a directory-only rule such as `.freeflow/*/` match a folder that does not exist yet.
   const ignorePath = directory ? `${relativePath}/` : relativePath;
@@ -69,8 +71,21 @@ async function assertNoSymlinkPath(target, stopAt) {
   }
 }
 
-/** The marker a project store keeps at its root; see registry.mjs. */
+/** The marker a project store keeps at its root; see registry.mjs. The Freeflow store's root marker has the same name. */
 export const STORE_MARKER = "store.json";
+
+/** The `kind` in the Freeflow store's root marker (lib/freeflow-store.mjs). */
+export const FREEFLOW_STORE_KIND = "freeflow-store";
+
+/** Whether root is the Freeflow store: one Git repository whose records are tracked on purpose. */
+export function isFreeflowStore(root) {
+  try {
+    const marker = JSON.parse(readFileSync(join(root, STORE_MARKER), "utf8"));
+    return marker?.kind === FREEFLOW_STORE_KIND && marker.version === 1;
+  } catch {
+    return false;
+  }
+}
 
 /** In a tasks directory: the highest task number a removal took away, so numbering never goes back. */
 export const LAST_TASK_NUMBER = ".last-task-number";
