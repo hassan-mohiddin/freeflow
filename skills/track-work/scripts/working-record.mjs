@@ -20,6 +20,7 @@ import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
 import { checkEvidencePointers, renderRecover } from "./lib/recover.mjs";
 import { PROJECT_LINK, Registry, TASK_ID, removalText, startCommand } from "./lib/registry.mjs";
 import { searchRecords } from "./lib/search.mjs";
+import { initStore, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
 
 const ROOT_HELP =
   "--record is resolved against --root, which defaults to the current directory; an absolute --record path finds its own root.";
@@ -34,6 +35,7 @@ function usage() {
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
     "  working-record.mjs project <new|link|show|list|remove> ...",
     "  working-record.mjs task <create|import|search|env|here|fanout|remove> ...",
+    "  working-record.mjs store <init|status|sync> ...",
     "",
     ROOT_HELP,
     "A registered task's ID (such as my-project/task-003) may be given as --record.",
@@ -87,6 +89,22 @@ const COMMAND_HELP = new Map([
   [
     "validate",
     "Usage: validate --record <record.md> [--strict]\nChecks the record's structure, and whether the pointers in Material updates resolve: files (from the repository root or the task folder) and commits. An unresolved pointer is a warning, since it may name a planned path or a commit not fetched yet; with --strict, one on an Evidence or Result line fails. Pointers outside the repository are listed, not checked.",
+  ],
+  [
+    "store",
+    "Usage: working-record.mjs store <operation> ...\nOperations: store init, store status, store sync.\nThe Freeflow store is one private Git repository at the Freeflow home (FREEFLOW_HOME, default ~/.freeflow, or --home) that holds every task's memory and syncs itself; its records are tracked on purpose.",
+  ],
+  [
+    "store init",
+    "Usage: store init --remote <url> [--home <folder>] [--git-name <name> --git-email <email>]\nClones the private repository at --remote into the store's folder. An empty repository gets the store's layout (store.json, .gitignore, .gitattributes, rules/, projects/) and a first commit authored as you, pushed to main; a repository that already holds a store is joined as it is. Refuses a folder that holds Pi's Task Memory (registry.json) or anything else, and a repository that is not a store. Without --git-name and --git-email, your Git configuration's identity is used.",
+  ],
+  [
+    "store status",
+    "Usage: store status [--home <folder>]\nPrints the store's folder, remote and branch, how many paths are not committed and commits not pushed or not yet taken (as of the last sync), and the last sync. Reaches no network.",
+  ],
+  [
+    "store sync",
+    "Usage: store sync [--home <folder>] [--message <commit message>]\nCommits every change in the store as you, takes the remote's commits under the local ones, and pushes. A push that fails leaves the commit here for the next sync, and says why.",
   ],
   [
     "project",
@@ -198,7 +216,7 @@ const COMMAND_HELP = new Map([
 function commandHelp(command, operation) {
   const help = COMMAND_HELP.get([command, operation].filter(Boolean).join(" ")) ?? COMMAND_HELP.get(command);
   if (!help) return `${usage()}\n`;
-  return command === "init" ? `${help}\n` : `${help}\n${ROOT_HELP}\n`;
+  return command === "init" || command === "store" ? `${help}\n` : `${help}\n${ROOT_HELP}\n`;
 }
 
 class CliError extends Error {
@@ -275,6 +293,10 @@ function allowedOptions(command, operation) {
   if (command === "project" && operation === "list") return new Set(["--help"]);
   if (command === "task" && operation === "remove") return new Set(["--id", "--help"]);
   if (command === "project" && operation === "remove") return new Set(["--name", "--help"]);
+  if (command === "store" && operation === "init")
+    return new Set(["--remote", "--home", "--git-name", "--git-email", "--help"]);
+  if (command === "store" && operation === "status") return new Set(["--home", "--help"]);
+  if (command === "store" && operation === "sync") return new Set(["--home", "--message", "--help"]);
   return null;
 }
 
@@ -485,11 +507,50 @@ async function runRegistry(command, operation, options) {
   throw new CliError(`Unknown command: ${command} ${operation}`);
 }
 
+/** The Freeflow store: init, status and sync (lib/freeflow-store.mjs). */
+async function runStore(operation, options) {
+  if (operation === "init") {
+    const made = await initStore({
+      home: options["--home"],
+      remote: requireOption(options, "--remote"),
+      name: options["--git-name"],
+      email: options["--git-email"],
+    });
+    const pushed = made.pushed ? "pushed" : `not pushed (${made.reason}); the next store sync pushes it`;
+    return made.joined
+      ? `Joined the Freeflow store at ${made.home} from ${made.remote}; commits are authored as ${made.author.name} <${made.author.email}>.\n`
+      : `Created the Freeflow store at ${made.home} from ${made.remote}, first commit ${pushed}; commits are authored as ${made.author.name} <${made.author.email}>.\n`;
+  }
+  if (operation === "status") {
+    const status = await storeStatus({ home: options["--home"] });
+    const count = (value) => (value === null ? "unknown (no upstream)" : String(value));
+    const last = status.lastSync
+      ? `${status.lastSync.at}, ${status.lastSync.result}${status.lastSync.reason ? ` (${status.lastSync.reason})` : ""}`
+      : "never";
+    return `${[
+      `Store: ${status.home}`,
+      `Remote: ${status.remote ?? "none"} · branch ${status.branch ?? "none"}`,
+      `Not committed: ${status.uncommitted} path(s)`,
+      `Not pushed: ${count(status.unpushed)} commit(s); not yet taken: ${count(status.behind)}, as of the last sync`,
+      `Last sync: ${last}`,
+    ].join("\n")}\n`;
+  }
+  if (operation === "sync") {
+    const synced = await syncStore({ home: options["--home"], message: options["--message"] });
+    const committed = synced.committed ? `committed ${synced.committed} path(s), ` : "nothing to commit, ";
+    return synced.pushed
+      ? `Synced ${synced.home}: ${committed}pushed.\n`
+      : `Synced ${synced.home}: ${committed}not pushed (${synced.reason}); the next store sync pushes it.\n`;
+  }
+  throw new CliError(`Unknown command: store ${operation}`);
+}
+
 async function runCore(command, rest) {
   const { options, positionals } = parseOptions(rest);
   const operation = positionals[0];
   if (options["--help"]) return commandHelp(command, operation);
   validateCommandOptions(command, operation, options);
+  if (command === "store") return runStore(operation, options);
   if (
     command === "project" ||
     (command === "task" && ["create", "import", "search", "env", "here", "fanout", "remove"].includes(operation))
