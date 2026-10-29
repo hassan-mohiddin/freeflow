@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Execute Work has a delegation reference for handing work to other agents (subagents, parallel workers, reviewers, trial and eval agents): when handing work out pays, the smallest capable model by default and the strongest only with your yes, briefs that point to files, one folder per delegation holding its brief, progress and return, writers in their own worktrees, a return checked before it is accepted, and each delegation's model, effort, tokens and minutes recorded. A worker may hand mechanical checks, gathering or research to sub-workers on the smallest model, three levels at most, and only the agent you talk to asks you anything. Write Skill's trials, Review Work's reviewers and Research Work's workers point to it.
 - Research Work's figures list x labels that overlap and text past the canvas, and an `x.rotate` option turns long category labels.
 
 - Research Work, a new skill (`/research-work`) for answering a question from evidence gathered and checked first, starting with in-depth reports on code, papers or docs: a research brief agreed with you, a source ledger saying how each source was checked, a claims register with an evidence level per claim, and checks that every `path:line` citation exists at its pinned commit, every quote appears in its source and every number in the report traces to a registered claim. Its statistics script gives intervals, paired comparisons, clustered runs, rater agreement, multiple-comparison correction, pass@k and power, and Evaluate Behavior now uses it.
