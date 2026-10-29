@@ -32,7 +32,7 @@ const FAKE_RPC_ENVIRONMENT_KEYS = [
 function spawnSync(command, args, options) {
   if (command === process.execPath && args?.includes(entrypoint)) {
     // Test inputs live in temporary directories outside Git, so every test run is a dry run.
-    if (args[1] === "run" && !args.includes("--dry-run")) args = [...args, "--dry-run"];
+    if (args[1] === "run" && !args.includes("--uncommitted")) args = [...args, "--uncommitted"];
     const env = { ...(options?.env ?? process.env) };
     for (const key of FAKE_RPC_ENVIRONMENT_KEYS) env[key] ??= "";
     return rawSpawnSync(command, args, { ...options, env });
@@ -350,7 +350,7 @@ test("body evaluation explicitly delivers only the selected target body and pres
     await writeSkill(root, "skills/release-route");
     const definition = await writeJson(root, "groups/body.json", group);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -423,16 +423,20 @@ test("body evaluation preserves ordered multi-skill and declared-context materia
     group.variants.candidate.context = ["runtime/interaction-contract.md"];
     const definition = await writeJson(root, "groups/body-environment.json", group);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+        },
       },
-    });
+    );
 
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     assert.ok(resultDirectory, `${result.stderr}\n${result.stdout}`);
@@ -483,16 +487,20 @@ test("multi-skill body evaluation fails before prompting when the target command
     group.variants.candidate.target = 1;
     const definition = await writeJson(root, "groups/body-ambiguous.json", group);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -518,17 +526,21 @@ test("body delivery remains unavailable when RPC fails before prompt acceptance"
     await writeSkill(root, "skills/release-route");
     const definition = await writeJson(root, "groups/body-before-prompt.json", bodyGroup());
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_RPC_EXIT_ON_START: "1",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_RPC_EXIT_ON_START: "1",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -553,17 +565,21 @@ test("body evaluation fails closed before prompting when the guard extension err
     definitionValue.tools = ["write"];
     const definition = await writeJson(root, "groups/body-guard.json", definitionValue);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_RPC_EXTENSION_ERROR: "1",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_RPC_EXTENSION_ERROR: "1",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -590,17 +606,21 @@ test("body evaluation fails before prompting when Pi cannot identify the exact t
     await writeSkill(root, "skills/release-route");
     const definition = await writeJson(root, "groups/body-command.json", bodyGroup());
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_RPC_COMMAND_PATH: path.join(root, "missing/SKILL.md"),
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_RPC_COMMAND_PATH: path.join(root, "missing/SKILL.md"),
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -666,7 +686,7 @@ test("multi-turn body evaluation explicitly loads each previous and updated snap
     ];
     const definition = await writeJson(root, "groups/body-versions.json", definitionValue);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -804,18 +824,22 @@ test("multi-turn body grading preserves intermediate workspace evidence by turn"
     ];
     const definition = await writeJson(root, "groups/body-turn-evidence.json", definitionValue);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_RPC_TURN_EFFECTS: "1",
-        FAKE_RPC_DIRECTORY_EFFECTS: "1",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_RPC_TURN_EFFECTS: "1",
+          FAKE_RPC_DIRECTORY_EFFECTS: "1",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 0, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -863,17 +887,21 @@ test("body evaluation preserves declared tool activity and exact workspace effec
     definitionValue.tools = ["write"];
     const definition = await writeJson(root, "groups/body-effect.json", definitionValue);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_RPC_WRITE_EFFECT: "1",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_RPC_WRITE_EFFECT: "1",
+        },
       },
-    });
+    );
 
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     assert.ok(resultDirectory, `${result.stderr}\n${result.stdout}`);
@@ -919,7 +947,7 @@ test("declared commands load the evaluator command tool immediately after the gu
     group.commands = [{ id: "unit-tests", argv: ["node", "--test"], timeout_ms: 30000 }];
     const definition = await writeJson(root, "groups/body-commands.json", group);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -957,7 +985,7 @@ test("groups without declared commands do not load the command tool", async () =
     await writeSkill(root, "skills/release-route");
     const definition = await writeJson(root, "groups/body.json", bodyGroup());
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -990,7 +1018,7 @@ test("the host prompt mode reaches the guard and is recorded in run evidence", a
     group.runtime.prompt = "host";
     const definition = await writeJson(root, "groups/body-host.json", group);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1035,7 +1063,7 @@ test("a malformed command expectation is refused before any subject or command s
     ];
     const definition = await writeJson(root, "groups/body-command.json", definitionValue);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1089,7 +1117,7 @@ test("public body execution persists runs before broader deterministic grading",
     ];
     const definition = await writeJson(root, "groups/body-grading.json", definitionValue);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--jobs", "1"], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -1160,16 +1188,20 @@ test("a failed body response check remains separate from the completed subject r
     ];
     const definition = await writeJson(root, "groups/body-response.json", definitionValue);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 0, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1224,16 +1256,20 @@ test("a body response check outside the declared turn range is refused before an
     ];
     const definition = await writeJson(root, "groups/body-turn-range.json", definitionValue);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1, result.stderr);
     assert.match(
@@ -1256,16 +1292,20 @@ test("a context-text check fails the body subject when the observer artifact is 
     ];
     const definition = await writeJson(root, "groups/missing-context-observer.json", definitionValue);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1288,16 +1328,20 @@ test("persistent description evaluation sends declared turns through one Pi RPC 
     const sourceSkill = await writeSkill(root, "skills/release-route");
     const definition = await writeJson(root, "groups/multi-turn.json", multiTurnGroup());
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 0, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1443,17 +1487,21 @@ test("split UTF-8 code points remain exact across RPC stdout chunks", async () =
     group.expectations = [{ id: "no-read", kind: "skill-read", variant: "candidate", expect: "never" }];
     const definition = await writeJson(root, "groups/split-utf8.json", group);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_RPC_SPLIT_UTF8: "1",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_RPC_SPLIT_UTF8: "1",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 0, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1481,17 +1529,21 @@ test("RPC framing and response-correlation failures preserve inspectable subject
       await writeSkill(root, "skills/release-route");
       const definition = await writeJson(root, "groups/multi-turn.json", multiTurnGroup());
 
-      const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-        cwd: root,
-        encoding: "utf8",
-        env: {
-          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-          ...process.env,
-          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-          FAKE_PI_LOG: fakeLog,
-          [scenario.variable]: "1",
+      const result = spawnSync(
+        process.execPath,
+        [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+        {
+          cwd: root,
+          encoding: "utf8",
+          env: {
+            SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+            ...process.env,
+            PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+            FAKE_PI_LOG: fakeLog,
+            [scenario.variable]: "1",
+          },
         },
-      });
+      );
 
       assert.equal(result.status, 1, result.stderr);
       const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1517,17 +1569,21 @@ test("an interrupted active turn preserves only its directly observed evidence",
     await writeSkill(root, "skills/release-route");
     const definition = await writeJson(root, "groups/multi-turn.json", multiTurnGroup());
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_RPC_EXIT_BEFORE_SETTLEMENT: "1",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_RPC_EXIT_BEFORE_SETTLEMENT: "1",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1591,17 +1647,21 @@ test("an oversized incomplete RPC frame triggers the emergency transport safegua
     group.expectations = group.expectations.filter((expectation) => expectation.turn === undefined);
     const definition = await writeJson(root, "groups/incomplete-frame.json", group);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_RPC_INCOMPLETE_FRAME: "1",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_RPC_INCOMPLETE_FRAME: "1",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1625,17 +1685,21 @@ test("an RPC process that exits before accepting commands becomes persisted infr
     await writeSkill(root, "skills/release-route");
     const definition = await writeJson(root, "groups/multi-turn.json", multiTurnGroup());
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_RPC_EXIT_ON_START: "1",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_RPC_EXIT_ON_START: "1",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1657,17 +1721,21 @@ test("a settled provider error stops later declared turns and remains infrastruc
     await writeSkill(root, "skills/release-route");
     const definition = await writeJson(root, "groups/multi-turn.json", multiTurnGroup());
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
-        FAKE_RPC_PROVIDER_ERROR: "1",
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+          FAKE_RPC_PROVIDER_ERROR: "1",
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 1, result.stderr);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -1710,18 +1778,22 @@ test(
       await writeSkill(root, "skills/release-route");
       const definition = await writeJson(root, "groups/multi-turn.json", multiTurnGroup());
 
-      const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-        cwd: root,
-        encoding: "utf8",
-        env: {
-          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-          ...process.env,
-          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-          FAKE_PI_LOG: fakeLog,
-          FAKE_RPC_CANCEL_PARENT: "1",
-          FAKE_RPC_DESCENDANT_PID: descendantPidFile,
+      const result = spawnSync(
+        process.execPath,
+        [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+        {
+          cwd: root,
+          encoding: "utf8",
+          env: {
+            SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+            ...process.env,
+            PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+            FAKE_PI_LOG: fakeLog,
+            FAKE_RPC_CANCEL_PARENT: "1",
+            FAKE_RPC_DESCENDANT_PID: descendantPidFile,
+          },
         },
-      });
+      );
 
       const descendantPid = Number(await readFile(descendantPidFile, "utf8"));
       try {
@@ -1767,16 +1839,20 @@ test("declared Pi settings decide the RPC session's retry and compaction instead
     value.configuration.host = { name: "pi", settings: { retry: { enabled: true } } };
     await writeFile(definition, `${JSON.stringify(value, null, 2)}\n`);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "candidate"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 0, result.stderr);
     const log = (await readFile(fakeLog, "utf8"))
@@ -1804,16 +1880,20 @@ test("a body group resumes its session from its file before each turn resume_bef
     await writeSkill(root, "skills/release-route");
     const definition = await writeJson(root, "groups/body.json", group);
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "baseline"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
-        ...process.env,
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-        FAKE_PI_LOG: fakeLog,
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--jobs", "1", "--variant", "baseline"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          FAKE_PI_LOG: fakeLog,
+        },
       },
-    });
+    );
 
     assert.equal(result.status, 0, result.stderr);
     const commands = (await readJsonLines(fakeLog, "fake Pi log"))

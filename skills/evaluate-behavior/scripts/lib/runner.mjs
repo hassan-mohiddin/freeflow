@@ -81,7 +81,8 @@ export async function runEvaluation(definitionFile, selectors = {}, options = {}
   applySourceOverrides(selection, sources);
   assertSupportedSelection(selection);
 
-  // Canonical evidence needs every working-tree input recoverable from one commit; anything else is a dry run.
+  // Canonical evidence needs every working-tree input recoverable from one commit; anything else runs only with
+  // --uncommitted (stored as dryRun, the name older results use).
   const identity = await inputIdentity(root, workingTreeInputs(selection, definitionPath, root));
   const refusal = identityRefusal(identity);
   if (refusal !== null && !dryRun) throw new Error(refusal);

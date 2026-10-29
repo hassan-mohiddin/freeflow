@@ -101,16 +101,20 @@ function measureGroup(changes = {}) {
 }
 
 function cli(root, bin, args) {
-  const extra = args[0] === "run" ? ["--dry-run", "--yes"] : [];
-  return spawnSync(process.execPath, [entrypoint, ...args, ...extra], {
-    cwd: root,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
-      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+  const extra = args[0] === "run" ? ["--uncommitted", "--yes"] : [];
+  return spawnSync(
+    process.execPath,
+    [entrypoint, ...args, ...(args[0] === "run" && !args.includes("--jobs") ? ["--jobs", "1"] : []), ...extra],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+      },
     },
-  });
+  );
 }
 
 test("a one-arm group loads: its arm is its own reference, and component may be absent or empty", async () => {
@@ -195,7 +199,7 @@ test("a one-arm group runs, aggregates checks and metrics with no comparison, an
     assert.deepEqual(group.metrics.differences, {});
     assert.equal(aggregate.claim.k, 2);
     assert.equal(aggregate.claim.class, "none");
-    assert.equal(aggregate.claim.reason, "dry run");
+    assert.equal(aggregate.claim.reason, "uncommitted inputs");
 
     const view = cli(root, bin, ["view", aggregateId]);
     assert.equal(view.status, 0, view.stderr);

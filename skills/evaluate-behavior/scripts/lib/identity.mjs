@@ -62,12 +62,12 @@ export async function inputIdentity(root, inputs) {
 /** The message that refuses a canonical run whose inputs cannot be recovered from a commit. */
 export function identityRefusal(identity) {
   if (!identity.repository) {
-    return "the evaluation inputs are not in a Git repository, so no commit identifies them; run with --dry-run";
+    return "the evaluation inputs are not in a Git repository, so no commit identifies them; run with --uncommitted";
   }
   if (identity.uncommitted.length === 0) return null;
   const shown = identity.uncommitted.slice(0, 10).join(", ");
   const more = identity.uncommitted.length > 10 ? ` and ${identity.uncommitted.length - 10} more` : "";
-  return `uncommitted inputs: ${shown}${more}; commit them, or run with --dry-run`;
+  return `uncommitted inputs: ${shown}${more}; commit them, or run with --uncommitted`;
 }
 
 /** The installed host's version, as `pi --version` prints it. */

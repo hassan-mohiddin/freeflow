@@ -11,6 +11,7 @@ import registerSkillEvalContainerRoute from "../../../skills/evaluate-behavior/s
 import registerSkillEvalGuard from "../../../skills/evaluate-behavior/scripts/pi-guard.mjs";
 import { missingContainerPrerequisites } from "../../../skills/evaluate-behavior/scripts/lib/container.mjs";
 import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
+import { runEvaluation } from "../../../skills/evaluate-behavior/scripts/lib/runner.mjs";
 import { verifyConfinement } from "../../../skills/evaluate-behavior/scripts/lib/shell.mjs";
 import { dockerCalls, installFakeDocker } from "./helpers/fake-docker.mjs";
 import { installFakePi } from "./helpers/fake-pi.mjs";
@@ -78,11 +79,15 @@ function cliEnvironment(root, bins) {
 }
 
 function runCli(root, bins, args) {
-  return spawnSync(process.execPath, [entrypoint, ...args], {
-    cwd: root,
-    encoding: "utf8",
-    env: cliEnvironment(root, bins),
-  });
+  return spawnSync(
+    process.execPath,
+    [entrypoint, ...args, ...(args[0] === "run" && !args.includes("--jobs") ? ["--jobs", "1"] : [])],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: cliEnvironment(root, bins),
+    },
+  );
 }
 
 test("a container environment needs a digest-pinned image and loads as the arms' shell", async () => {
@@ -414,7 +419,7 @@ test("a container subject with background tools loads the route last and can rea
       ),
     );
 
-    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--dry-run"]);
+    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--uncommitted"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const run = await readJson(path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed/baseline/run.json"));
@@ -459,7 +464,7 @@ test("background tools are refused before anything runs when an arm has no conta
     delete group.configuration.environment;
     const definition = await write(path.join(root, "groups/boxed.json"), group);
 
-    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--dry-run"]);
+    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--uncommitted"]);
 
     assert.notEqual(result.status, 0);
     assert.match(result.stderr + result.stdout, /bash_background run only in a container environment/);
@@ -467,42 +472,42 @@ test("background tools are refused before anything runs when an arm has no conta
   });
 });
 
-test("a stopped engine or a missing image makes the group invalid before anything starts, and nothing is pulled", async () => {
+test("a stopped engine or a missing image refuses the run before anything starts, and nothing is pulled", async () => {
   await withTempDirectory(async (root) => {
     const pi = await installFakePi(root);
     const definition = await write(path.join(root, "groups/boxed.json"), containerGroup());
 
     const down = await installFakeDocker(path.join(root, "down"), { daemonDown: true });
-    const stopped = runCli(root, [pi.bin, down.bin], ["run", definition, "--dry-run"]);
+    const stopped = runCli(root, [pi.bin, down.bin], ["run", definition, "--uncommitted"]);
     assert.notEqual(stopped.status, 0);
-    let groupDirectory = path.join(stopped.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed");
-    let run = await readJson(path.join(groupDirectory, "baseline/run.json"));
-    assert.equal(run.state, "invalid");
+    // The preflight runs after the plan and before any subject, so no result is written.
+    assert.match(stopped.stdout, /^Plan: /m);
+    assert.doesNotMatch(stopped.stdout, /^Path: /m);
+    assert.match(stopped.stderr, /^Preflight: nothing started\.$/m);
     assert.match(
-      run.error.message,
+      stopped.stderr,
       /arm baseline runs in the container image example\.org\/task@sha256:a+, and this machine is missing:/,
     );
     assert.match(
-      run.error.message,
+      stopped.stderr,
       /- a running container engine: needs a docker daemon that answers `docker version` \(found Cannot connect/,
     );
-    assert.match(run.error.message, /Ask the user before installing anything, then run again\.$/);
+    assert.match(stopped.stderr, /Ask the user before installing anything, then run again\.$/m);
     assert.deepEqual(
       (await dockerCalls(down.log)).map((args) => args[0]),
       ["version"],
     );
 
     const absent = await installFakeDocker(path.join(root, "absent"), { imageMissing: true });
-    const refused = runCli(root, [pi.bin, absent.bin], ["run", definition, "--dry-run"]);
+    const refused = runCli(root, [pi.bin, absent.bin], ["run", definition, "--uncommitted"]);
     assert.notEqual(refused.status, 0);
-    groupDirectory = path.join(refused.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed");
-    run = await readJson(path.join(groupDirectory, "baseline/run.json"));
+    assert.doesNotMatch(refused.stdout, /^Path: /m);
     assert.match(
-      run.error.message,
+      refused.stderr,
       new RegExp(`- the image ${IMAGE.replace(".", "\\.")}: needs the image present locally`),
     );
-    assert.match(run.error.message, new RegExp(`Install: docker pull ${IMAGE.replace(".", "\\.")}`));
-    assert.match(run.error.message, /Download: about 4 MB compressed, from docker manifest inspect\./);
+    assert.match(refused.stderr, new RegExp(`Install: docker pull ${IMAGE.replace(".", "\\.")}`));
+    assert.match(refused.stderr, /Download: about 4 MB compressed, from docker manifest inspect\./);
     const calls = await dockerCalls(absent.log);
     assert.deepEqual(
       calls.map((args) => args[0]),
@@ -513,13 +518,36 @@ test("a stopped engine or a missing image makes the group invalid before anythin
   });
 });
 
+test("called without the CLI's preflight, the runner still makes a group invalid when its engine is stopped", async () => {
+  await withTempDirectory(async (root) => {
+    const pi = await installFakePi(root);
+    const definition = await write(path.join(root, "groups/boxed.json"), containerGroup());
+    const down = await installFakeDocker(path.join(root, "down"), { daemonDown: true });
+    const saved = { ...process.env };
+    Object.assign(process.env, cliEnvironment(root, [pi.bin, down.bin]));
+    try {
+      const result = await runEvaluation(definition, {}, { root, dryRun: true });
+      const run = await readJson(path.join(result.path, "groups/boxed/baseline/run.json"));
+      assert.equal(run.state, "invalid");
+      assert.match(
+        run.error.message,
+        /- a running container engine: needs a docker daemon that answers `docker version` \(found Cannot connect/,
+      );
+    } finally {
+      for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+      Object.assign(process.env, saved);
+    }
+    await assert.rejects(readFile(pi.log), { code: "ENOENT" });
+  });
+});
+
 test("probes, subjects and graders run in containers with the declared limits, in order, and are removed", async () => {
   await withTempDirectory(async (root) => {
     const pi = await installFakePi(root);
     const docker = await installFakeDocker(root);
     const definition = await write(path.join(root, "groups/boxed.json"), containerGroup());
 
-    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--dry-run"]);
+    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--uncommitted", "--jobs", "1"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed");
@@ -539,7 +567,9 @@ test("probes, subjects and graders run in containers with the declared limits, i
       "rm",
     ];
     const subject = ["context", "create", "start", "exec", "rm"];
-    assert.deepEqual(verbs, [...probe, ...probe, ...subject, "run", "rm", ...subject, "run", "rm"]);
+    // The run's preflight checks the engine and the image once before anything starts.
+    const preflight = ["version", "image"];
+    assert.deepEqual(verbs, [...preflight, ...probe, ...probe, ...subject, "run", "rm", ...subject, "run", "rm"]);
 
     for (const created of calls.filter((args) => args[0] === "create")) {
       const option = (name) => created[created.indexOf(name) + 1];
@@ -600,15 +630,26 @@ test("a container group without bash still runs its declared commands in a subje
       containerGroup({ tools: ["read", "run_command"], commands: [{ id: "unit-tests", argv: ["npm", "test"] }] }),
     );
 
-    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--dry-run"]);
+    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--uncommitted", "--jobs", "1"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const calls = await dockerCalls(docker.log);
     const verbs = calls.map((args) => (args[0] === "--host" ? `host ${args[2]}` : args[0]));
     // No shell to probe; each arm gets a subject container, then its grader runs in a fresh one.
+    const preflight = ["version", "image"];
     const prerequisites = ["version", "image", "run"];
     const subject = ["context", "create", "start", "exec", "rm"];
-    assert.deepEqual(verbs, [...prerequisites, ...prerequisites, ...subject, "run", "rm", ...subject, "run", "rm"]);
+    assert.deepEqual(verbs, [
+      ...preflight,
+      ...prerequisites,
+      ...prerequisites,
+      ...subject,
+      "run",
+      "rm",
+      ...subject,
+      "run",
+      "rm",
+    ]);
   });
 });
 
@@ -652,7 +693,7 @@ test("a container subject's bash runs a declared skill's script at the path it w
       ),
     );
 
-    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--dry-run"]);
+    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--uncommitted"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed");
@@ -706,7 +747,7 @@ test("a container subject's bash starts where Pi says it works, and bash and the
       }),
     );
 
-    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--dry-run"]);
+    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--uncommitted"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed");
@@ -765,7 +806,7 @@ test("network none is sealed on every path, refused where commands or graders wo
     );
 
     // Each run records what held: every path in the container, so no network and the login out of reach.
-    const result = runCli(root, [pi.bin, docker.bin], ["run", sealed, "--dry-run"]);
+    const result = runCli(root, [pi.bin, docker.bin], ["run", sealed, "--uncommitted"]);
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed");
     const run = await readJson(path.join(groupDirectory, "baseline/run.json"));
@@ -801,7 +842,7 @@ test("cancelling a running subject removes its container", async () => {
     );
     const definition = await write(path.join(root, "groups/boxed.json"), group);
 
-    const child = spawn(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
+    const child = spawn(process.execPath, [entrypoint, "run", definition, "--jobs", "1", "--uncommitted"], {
       cwd: root,
       env: cliEnvironment(root, [pi.bin, docker.bin]),
       stdio: "ignore",

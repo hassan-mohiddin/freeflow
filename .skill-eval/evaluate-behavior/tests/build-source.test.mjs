@@ -139,15 +139,19 @@ function group({ arms, component, configuration = {} }) {
 }
 
 function runCli(root, bin, args) {
-  return spawnSync(process.execPath, [entrypoint, ...args], {
-    cwd: root,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-      SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "..", "no-credentials"),
+  return spawnSync(
+    process.execPath,
+    [entrypoint, ...args, ...(args[0] === "run" && !args.includes("--jobs") ? ["--jobs", "1"] : [])],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "..", "no-credentials"),
+      },
     },
-  });
+  );
 }
 
 test("arms built from two commits load different extension code, each distinct source built once", async () => {
@@ -168,7 +172,7 @@ test("arms built from two commits load different extension code, each distinct s
       }),
     );
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     assert.match(
@@ -219,10 +223,10 @@ test("the plan says how many extension builds run on the host, outside the seal"
       }),
     );
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
-    assert.match(result.stdout, /^Plan: .+; unsealed: 2 extension builds run on the host; dry run$/m);
+    assert.match(result.stdout, /^Plan: .+; unsealed: 2 extension builds run on the host; uncommitted inputs$/m);
   });
 });
 
@@ -244,7 +248,7 @@ test("a failed build invalidates the group before any subject starts", async () 
       }),
     );
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.notEqual(result.status, 0);
     await assert.rejects(readFile(log), { code: "ENOENT" });
@@ -345,7 +349,7 @@ test("runtime environment literals may differ between arms only where the compon
       message: /runtime\.session, which both arms must share/,
     });
 
-    const result = runCli(root, bin, ["run", declared, "--dry-run"]);
+    const result = runCli(root, bin, ["run", declared, "--uncommitted"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     assert.deepEqual(

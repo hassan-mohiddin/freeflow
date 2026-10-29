@@ -123,15 +123,19 @@ function group(id) {
 
 function runCli(root, bin, args, env = {}) {
   // Test inputs live in temporary directories outside Git, so every test run is a dry run.
-  if (args[0] === "run" && !args.includes("--dry-run")) args = [...args, "--dry-run"];
+  if (args[0] === "run" && !args.includes("--uncommitted")) args = [...args, "--uncommitted"];
   const fakeEnv = Object.fromEntries(FAKE_KEYS.map((key) => [key, ""]));
   // Never copy the developer's real Pi logins into test runs.
   fakeEnv.SKILL_EVAL_CREDENTIALS_DIR = path.join(root, "no-credentials");
-  return spawnSync(process.execPath, [entrypoint, ...args], {
-    cwd: root,
-    encoding: "utf8",
-    env: { ...process.env, ...fakeEnv, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, ...env },
-  });
+  return spawnSync(
+    process.execPath,
+    [entrypoint, ...args, ...(args[0] === "run" && !args.includes("--jobs") ? ["--jobs", "1"] : [])],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, ...fakeEnv, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, ...env },
+    },
+  );
 }
 
 async function spawnCount(log) {
@@ -149,7 +153,10 @@ test("--trials runs independent complete invocations and aggregates pass rates",
 
     assert.equal(result.status, 0, result.stderr);
     // The plan comes first, and matches what then runs: 1 group x 2 arms x 3 trials.
-    assert.match(result.stdout, /^Plan: 6 subjects \(1 group, 2 arms, 3 trials\); models: host default; dry run$/m);
+    assert.match(
+      result.stdout,
+      /^Plan: 6 subjects \(1 group, 2 arms, 3 trials\); models: host default; uncommitted inputs$/m,
+    );
     assert.ok(result.stdout.indexOf("Plan: ") < result.stdout.indexOf("Result: "));
     assert.equal(result.stdout.match(/^Result: /gm)?.length, 3);
     assert.equal(await spawnCount(log), 6);
@@ -192,7 +199,10 @@ test("--max-cost stops starting subjects once host-reported cost reaches the cei
       groups: ["groups/one.json", "groups/two.json"],
     });
 
-    const result = runCli(root, bin, ["run", suite, "--max-cost", "0.5"], { FAKE_PI_LOG: log, FAKE_PI_COST: "0.4" });
+    const result = runCli(root, bin, ["run", suite, "--max-cost", "0.5", "--jobs", "1"], {
+      FAKE_PI_LOG: log,
+      FAKE_PI_COST: "0.4",
+    });
 
     assert.equal(result.status, 1);
     assert.equal(await spawnCount(log), 2);
@@ -212,7 +222,7 @@ test("the cost ceiling is shared across trials", async () => {
     const log = path.join(root, "fake.jsonl");
     const definition = await writeJson(root, "groups/activation.json", group("activation"));
 
-    const result = runCli(root, bin, ["run", definition, "--trials", "3", "--max-cost", "1"], {
+    const result = runCli(root, bin, ["run", definition, "--trials", "3", "--max-cost", "1", "--jobs", "1"], {
       FAKE_PI_LOG: log,
       FAKE_PI_COST: "0.4",
     });
@@ -255,7 +265,9 @@ test("each trial records its own cost, apart from the run's running total", asyn
     await writeSkill(root);
     const definition = await writeJson(root, "groups/activation.json", group("activation"));
 
-    const result = runCli(root, bin, ["run", definition, "--trials", "3", "--max-cost", "10"], { FAKE_PI_COST: "0.4" });
+    const result = runCli(root, bin, ["run", definition, "--trials", "3", "--max-cost", "10", "--jobs", "1"], {
+      FAKE_PI_COST: "0.4",
+    });
 
     assert.equal(result.status, 0, result.stderr);
     const aggregateId = result.stdout.match(/^Aggregate: (.+)$/m)?.[1];

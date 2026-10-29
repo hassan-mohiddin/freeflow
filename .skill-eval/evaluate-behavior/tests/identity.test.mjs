@@ -89,7 +89,7 @@ async function setUp(root, options = {}) {
 }
 
 function run(repo, bin, extra = []) {
-  return spawnSync(process.execPath, [entrypoint, "run", "group.json", ...extra], {
+  return spawnSync(process.execPath, [entrypoint, "run", "group.json", "--jobs", "1", ...extra], {
     cwd: repo,
     encoding: "utf8",
     env: {
@@ -131,14 +131,14 @@ test("an uncommitted input refuses a run before anything starts, unless it is a 
 
     assert.notEqual(refused.status, 0);
     assert.match(refused.stderr, /uncommitted inputs: fixtures\/task\/new\.md, skills\/target\/SKILL\.md/);
-    assert.match(refused.stderr, /commit them, or run with --dry-run/);
+    assert.match(refused.stderr, /commit them, or run with --uncommitted/);
     assert.doesNotMatch(refused.stdout, /^Result:/m);
     await assert.rejects(readFile(log), { code: "ENOENT" });
 
-    const dry = run(repo, bin, ["--dry-run"]);
+    const dry = run(repo, bin, ["--uncommitted"]);
 
     assert.equal(dry.status, 0, dry.stderr + dry.stdout);
-    assert.match(dry.stdout, /^Plan: .+; dry run$/m);
+    assert.match(dry.stdout, /^Plan: .+; uncommitted inputs$/m);
     const { summary } = await summaryOf(dry);
     assert.equal(summary.dryRun, true);
     assert.deepEqual(summary.inputs.uncommitted, ["fixtures/task/new.md", "skills/target/SKILL.md"]);
@@ -150,7 +150,7 @@ test("a dry run's trials support no claim", async () => {
     const { repo, bin } = await setUp(root);
     await writeFile(path.join(repo, "fixtures/task/notes.md"), "Edited.\n");
 
-    const result = run(repo, bin, ["--dry-run", "--trials", "2"]);
+    const result = run(repo, bin, ["--uncommitted", "--trials", "2"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const aggregateId = result.stdout.match(/^Aggregate: (.+)$/m)?.[1];

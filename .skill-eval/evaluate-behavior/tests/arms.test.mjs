@@ -109,16 +109,25 @@ function threeArmGroup(changes = {}) {
 }
 
 function runCli(root, bin, args, { preload = null } = {}) {
-  if (args[0] === "run") args = [...args, "--dry-run"];
-  return spawnSync(process.execPath, [...(preload === null ? [] : ["--import", preload]), entrypoint, ...args], {
-    cwd: root,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-      SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+  if (args[0] === "run") args = [...args, "--uncommitted"];
+  return spawnSync(
+    process.execPath,
+    [
+      ...(preload === null ? [] : ["--import", preload]),
+      entrypoint,
+      ...args,
+      ...(args[0] === "run" && !args.includes("--jobs") ? ["--jobs", "1"] : []),
+    ],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+      },
     },
-  });
+  );
 }
 
 async function spawnCount(root) {
@@ -233,7 +242,10 @@ test("a three-arm A/A/B group runs every arm and keys runs, grades, comparisons 
     const result = runCli(root, bin, ["run", definition, "--trials", "2"]);
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /^Plan: 6 subjects \(1 group, 3 arms, 2 trials\); models: host default; dry run$/m);
+    assert.match(
+      result.stdout,
+      /^Plan: 6 subjects \(1 group, 3 arms, 2 trials\); models: host default; uncommitted inputs$/m,
+    );
     assert.equal(await spawnCount(root), 6);
     const trialDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     const summary = await readJson(path.join(trialDirectory, "summary.json"));

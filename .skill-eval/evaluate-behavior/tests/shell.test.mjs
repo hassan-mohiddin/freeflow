@@ -100,16 +100,20 @@ function shellGroup(changes = {}) {
 }
 
 function runCli(root, bin, args) {
-  return spawnSync(process.execPath, [entrypoint, ...args], {
-    cwd: root,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-      SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
-      SKILL_EVAL_PROBE_PUBLIC_URL: "",
+  return spawnSync(
+    process.execPath,
+    [entrypoint, ...args, ...(args[0] === "run" && !args.includes("--jobs") ? ["--jobs", "1"] : [])],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+        SKILL_EVAL_PROBE_PUBLIC_URL: "",
+      },
     },
-  });
+  );
 }
 
 test("a declared shell is validated at load, and bash without one is refused before any subject starts", async () => {
@@ -153,7 +157,7 @@ test("a declared shell is validated at load, and bash without one is refused bef
       shellGroup({ configuration: { host: { name: "pi" }, subject: { kind: "none" } } }),
     );
     await loadDefinition(unshelled, { root });
-    const refused = runCli(root, bin, ["run", unshelled, "--dry-run"]);
+    const refused = runCli(root, bin, ["run", unshelled, "--uncommitted"]);
     assert.notEqual(refused.status, 0);
     assert.match(
       refused.stderr,
@@ -248,7 +252,7 @@ test("a group whose shell prerequisite is missing is invalid before any subject 
     group.configuration.shell.requires = requires;
     const definition = await write(path.join(root, "groups/shell.json"), group);
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.notEqual(result.status, 0);
     await assert.rejects(readFile(log), { code: "ENOENT" });
@@ -268,7 +272,7 @@ test("a confining isolation passes every probe, its runs record confinement, and
     await write(path.join(root, ISOLATION, "index.mjs"), isolationExtension());
     const definition = await write(path.join(root, "groups/shell.json"), shellGroup());
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const modes = (await readFile(log, "utf8"))
@@ -306,7 +310,7 @@ test("an isolation that exposes Pi's agent directory fails the login probe, and 
     await write(path.join(root, ISOLATION, "index.mjs"), isolationExtension({ exposeAgentDirectory: true }));
     const definition = await write(path.join(root, "groups/shell.json"), shellGroup());
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.notEqual(result.status, 0);
     const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/shell");
@@ -351,7 +355,7 @@ test("an isolation that leaks one probe makes the group invalid with the probe o
     await write(path.join(root, ISOLATION, "index.mjs"), isolationExtension({ passEnvironment: true }));
     const definition = await write(path.join(root, "groups/shell.json"), shellGroup());
 
-    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+    const result = runCli(root, bin, ["run", definition, "--uncommitted"]);
 
     assert.notEqual(result.status, 0);
     const modes = (await readFile(log, "utf8"))

@@ -144,8 +144,9 @@ test("verdicts: decisions and comparisons give pass, regressed or undecided", ()
     "pass",
   );
   assert.equal(
-    suiteVerdict(aggregateWith([], { decision: decision("beats"), claim: { class: "none", reason: "dry run" } }))
-      .verdict,
+    suiteVerdict(
+      aggregateWith([], { decision: decision("beats"), claim: { class: "none", reason: "uncommitted inputs" } }),
+    ).verdict,
     "undecided",
   );
   // "none" reads comparisons even when the suite declared a decision.

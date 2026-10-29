@@ -108,8 +108,10 @@ export async function stubSuiteRun({
       `.skill-eval/${suite}/${suiteFile}`,
       "--group",
       group,
-      "--dry-run",
+      "--uncommitted",
       "--yes",
+      "--jobs",
+      "1",
       ...extra,
     ];
     const { DOCKER_HOST: _host, ...inherited } = process.env;

@@ -325,7 +325,7 @@ export function verdictText(verdict) {
 
 /**
  * The aggregate's claim in words, shared by the text and HTML views: `reached` is the class reached ("rate on this
- * suite, k=3", "beats", "none (dry run)"), and `detail` what it is about (the decision's arms, measure and
+ * suite, k=3", "beats", "none (uncommitted inputs)"), and `detail` what it is about (the decision's arms, measure and
  * direction) or, without a decision, why no "beats" claim is supported. Null when the aggregate has no claim.
  */
 export function claimSummary(aggregate) {

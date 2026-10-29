@@ -212,6 +212,8 @@ test("run --source uses the commit for the arm and records it, without touching 
         "run",
         ".skill-eval/route/suite.json",
         "--yes",
+        "--jobs",
+        "1",
         "--source",
         `baseline=${base}`,
         "--source",
@@ -241,7 +243,7 @@ test("run --source uses the commit for the arm and records it, without touching 
 
     const refused = spawnSync(
       process.execPath,
-      [entrypoint, "run", ".skill-eval/route/suite.json", "--yes", "--source", "other=abc1234"],
+      [entrypoint, "run", ".skill-eval/route/suite.json", "--yes", "--jobs", "1", "--source", "other=abc1234"],
       {
         cwd: root,
         encoding: "utf8",
