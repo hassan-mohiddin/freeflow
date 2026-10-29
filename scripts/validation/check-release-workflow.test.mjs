@@ -46,3 +46,14 @@ test("npm test runs every test:* suite, so a new suite cannot be left out of CI"
   const { test: _omitted, ...withoutTest } = scripts;
   assert.match(inspectTestScript(withoutTest).errors[0], /must define a test script/);
 });
+
+test("CI's test shards run every suite npm test lists, each exactly once, including a suite added later", async () => {
+  const { shards, suites } = await import("./test-shard.mjs");
+  const scripts = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).scripts;
+  const listed = suites(scripts);
+  const dealt = shards(listed, 3).flat();
+  assert.deepEqual([...dealt].sort(), [...listed].sort());
+  const withNew = shards([...listed, "test:brand-new"], 3).flat();
+  assert.equal(withNew.filter((name) => name === "test:brand-new").length, 1);
+  assert.match(ciWorkflow, /shard: \[1\/3, 2\/3, 3\/3\]/);
+});

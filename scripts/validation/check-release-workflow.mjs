@@ -39,7 +39,12 @@ export function inspectCiWorkflow(workflow) {
   requireText("npm run build", "CI workflow must build generated runtime output.");
   requireText("git diff --exit-code -- pi-extension/dist", "CI workflow must reject dirty generated Pi output.");
   requireText("npm run check", "CI workflow must run the repository check gate.");
-  requireText("run: npm test", "CI workflow must run every test suite through npm test.");
+  // The suites run in parallel shards of npm test; test-shard.mjs deals every suite npm test lists to one shard.
+  requireText(
+    "node scripts/validation/test-shard.mjs ${{ matrix.shard }}",
+    "CI workflow must run every test suite through test-shard.mjs shards of npm test.",
+  );
+  requireText("needs: [gate, tests]", "CI's required check must wait for the check gate and every test shard.");
   requireText('test -z "$(git status --porcelain)"', "CI workflow must reject post-test worktree changes.");
   requireOrder(
     "npm run build",
@@ -51,12 +56,12 @@ export function inspectCiWorkflow(workflow) {
     "npm run check",
     "CI must run the check gate after generated-output verification.",
   );
-  requireOrder("npm run check", "run: npm test", "CI must run the tests after the check gate.");
-  requireOrder(
-    "run: npm test",
-    'test -z "$(git status --porcelain)"',
-    "CI must check worktree cleanliness after tests.",
-  );
+  // The shards' job checks the worktree after its tests, as the gate's does after its checks.
+  if (
+    lastPosition(workflow, 'test -z "$(git status --porcelain)"') <
+    position(workflow, "node scripts/validation/test-shard.mjs")
+  )
+    errors.push("CI must check worktree cleanliness after tests.");
 
   return { errors };
 }

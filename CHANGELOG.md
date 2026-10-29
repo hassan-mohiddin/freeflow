@@ -26,6 +26,8 @@
 
 ### Changed
 
+- Write Docs' docs check can move a stale document's `Verified at` itself (`docs-check.mjs <docs> --stamp`), so the document goes into the same commit as the code it covers instead of a commit of its own. Feature files, which only driving updates, are left alone.
+
 - Write Skill tries a new or changed skill on a real task before measuring it: Evaluate Behavior's new Trial mode runs one agent that keeps a friction log, which Review Work adjudicates like a review. Evaluate Behavior now asks for your yes, with the run count and estimated cost, before any run that calls a model, unless the task's agreement already covers it, and never asks a measured arm for notes.
 - Research Work's citation-support check judges the claim as the report states it: each packet carries the report's and paper's sentences that cite the claim, so a sentence that drops a condition is caught, and at publication every cited claim needs a packet, quoted or not. A paper's quote form `"the exact words" [@S3]` is checked like `(S3)`, a verdict may quote one whole short line, and a quote's passage keeps its line breaks.
 - Research Work's gate checks what it used to skip: a review's numbers against the result files its register cites, even with no study plan; a review's evidence table against the source ledger; and a report or paper given on stdin (`--report -`). A study or publication plan must have its method, budgets, contamination record and models before it is locked, and a lookup no longer verifies a "Part I" record for a "Part II" source.

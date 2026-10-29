@@ -37,7 +37,7 @@ Write Docs is read when a document someone will act on is written or revised: a 
 - **Skill design records** are a documentation shape here because Write Skill asks for one per skill and Write Docs owns document forms (`7997bf5`).
 - **Scripts over prose for mechanics.**
   - `artifact-check.mjs` checks headers and statuses.
-  - `docs-check.mjs` checks named paths and staleness.
+  - `docs-check.mjs` checks named paths and staleness, and with `--stamp` moves a stale document's `Verified at` to HEAD, so the document goes into the same commit as its code: 29 of Freeflow's 200 commits before it only moved a stamp, each a full CI run. A feature file is not stamped, since only driving it moves its stamp.
   - `plan-lint.mjs` checks that every Plan step names a check.
 
 ## Evidence

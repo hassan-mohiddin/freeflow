@@ -37,7 +37,7 @@ An overview, a subsystem doc, a feature file, a live-verification guide and a sk
 
 - **Covers:** the files and directories the document describes, as repository-relative paths in backticks, separated by commas. The check reports a document as possibly stale when any of them changes after the verified commit, unless the document changed in the same commit.
 - **Tests:** the tests that prove the document's claims, in the same form. Optional.
-- **Verified at:** the commit the document was last checked against, in backticks, with the date. Update it only after checking the document against the code at that commit.
+- **Verified at:** the commit the document was last checked against, in backticks, with the date. Update it only after checking the document against the code at that commit. After reading a stale document against your change, `docs-check.mjs <docs> --stamp` moves its Verified at to HEAD, so the document goes into the same commit as the code: a change committed with its document counts as reviewed with it, and no commit of its own is needed to move the stamp.
 - **User docs:** the user guide for the same feature, when one exists. Optional.
 
 Under the header, one or two sentences say who the document is for and what it lets them do.
