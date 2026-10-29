@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { inspectCiWorkflow, inspectReleaseWorkflow, inspectTestScript } from "./check-release-workflow.mjs";
 
@@ -56,4 +57,19 @@ test("CI's test shards run every suite npm test lists, each exactly once, includ
   const withNew = shards([...listed, "test:brand-new"], 3).flat();
   assert.equal(withNew.filter((name) => name === "test:brand-new").length, 1);
   assert.match(ciWorkflow, /shard: \[1\/3, 2\/3, 3\/3\]/);
+});
+
+test("Track Work's suite runs with its temporary folder reached through a symlink, as macOS's is", () => {
+  const scripts = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).scripts;
+  assert.match(scripts["test:track-work"], /^node scripts\/validation\/with-symlinked-tmp\.mjs node --test /);
+  const wrapper = new URL("./with-symlinked-tmp.mjs", import.meta.url).pathname;
+  const probe =
+    "const fs = require('fs'), os = require('os'); console.log(JSON.stringify([os.tmpdir(), fs.realpathSync(os.tmpdir())]))";
+  const run = spawnSync(process.execPath, [wrapper, process.execPath, "-e", probe], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  const [given, real] = JSON.parse(run.stdout);
+  assert.notEqual(given, real);
+  assert.ok(!existsSync(given) && !existsSync(real), "the folder and its link are removed afterwards");
+  assert.equal(spawnSync(process.execPath, [wrapper, process.execPath, "-e", "process.exit(3)"]).status, 3);
+  assert.equal(spawnSync(process.execPath, [wrapper]).status, 2);
 });
