@@ -1,7 +1,7 @@
 # Evaluator Uncommitted Run
 
 > **Covers:** `skills/evaluate-behavior/scripts/skill-eval.mjs`, `skills/evaluate-behavior/scripts/lib/identity.mjs`, `skills/evaluate-behavior/scripts/lib/queue.mjs`
-> **Verified at:** `9d1302bc` (2026-10-27)
+> **Verified at:** `44c824e6` (2026-10-29)
 
 A contributor runs the behavior evaluator with `skill-eval run <suite-or-group>`. Before anything starts it prints a plan (subjects, models, builds) and, on a terminal, asks `Start? [y/N]`. The plan says how many subjects run at once: four by default, fewer when an arm runs in containers. A run whose inputs are not committed is refused; `--uncommitted` lets it run anyway and marks the result as uncommitted, supporting no claim. It still runs subjects and calls models, which is why it is no longer called `--dry-run`: that name is refused, with a message naming the new one. How a run proceeds and why canonical evidence comes from commits: [Review, evaluation and verification](../subsystems/verification-review-evaluation.md).
 

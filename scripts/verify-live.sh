@@ -375,7 +375,8 @@ cmd_tty() {
   [[ $# -gt 0 ]] || die "tty needs a command after --"
   f="$EVID/$(next_seq)-$name.txt"
   T kill-window -t pi:tty 2>/dev/null || true
-  T new-window -d -t pi -n tty -c "$FIXTURE" "$(env_command "$@")"
+  # "pi:" names the session: its window is also named pi, and a bare "pi" would target that window's index.
+  T new-window -d -t pi: -n tty -c "$FIXTURE" "$(env_command "$@")"
   log "tty $name: $*"
   if [[ -n "$wait_text" ]]; then
     wait_until 30 tty_shows "$wait_text" || echo "warning: '$wait_text' did not appear in 30s" >&2
