@@ -1,6 +1,7 @@
 // migrate: a Schema 4 record to Schema 5 (the Spec's section 14). Current Context maps to Goal, Settled and Open; the
-// Work agreement and Boundaries become the open agreement; What defines this task and the Recovery sources become Read
-// on recovery and Read when; closed Slices become history.md entries, with the cues given or marked missing; active
+// Work agreement and Boundaries become the open agreement; What defines this task, and Recovery sources that point to a
+// skill, become Defined by, read whole and not counted; the other Recovery sources become Read on recovery and Read
+// when; closed Slices become history.md entries, with the cues given or marked missing; active
 // Decisions become Settled lines; the decision list goes to decisions.md when an agreement is open. Nothing is lost:
 // the Schema 4 record is kept whole as sources/schema4-record.md, and Notes move to sources/notes.md.
 
@@ -24,6 +25,7 @@ import {
   parseRecord5,
   renderFields5,
   skeleton5,
+  stateLine5,
   warnings5,
 } from "./record5.mjs";
 import { isFreeflowStore, nextTaskNumber } from "./store.mjs";
@@ -125,10 +127,14 @@ export function convert(text, { cue, cues = {}, taskPrefix = null, today = local
   const readWhen = sources
     .filter((line) => /\bread (?:only )?(?:when|if)\b/i.test(line))
     .map((line) => `- ${rewrite(line)}`);
-  const readNow = [
+  // A source that points to a skill is method, not memory: Defined by, with the task's defining artifacts (P61).
+  const always = sources.filter((line) => !/\bread (?:only )?(?:when|if)\b/i.test(line));
+  const skill = (line) => /(?:^|[\s`(])\S*skills\/[^/\s]+\/(?:SKILL\.md|references\/\S+)/.test(line);
+  const definedBy = [
     ...items(contextLines(document, "What defines this task")).map((line) => `- ${rewrite(line)}`),
-    ...sources.filter((line) => !/\bread (?:only )?(?:when|if)\b/i.test(line)).map((line) => `- ${rewrite(line)}`),
+    ...always.filter(skill).map((line) => `- ${rewrite(line)}`),
   ];
+  const readNow = always.filter((line) => !skill(line)).map((line) => `- ${rewrite(line)}`);
   const notes = trim(document.lines.slice(document.sections.Notes.start));
   readWhen.push(
     `- ${ARCHIVE} — the Schema 4 record as it was before migrate, with every Decision, Checkpoint and closed Slice in full; read when an earlier decision, checkpoint or Slice is in question`,
@@ -144,13 +150,14 @@ export function convert(text, { cue, cues = {}, taskPrefix = null, today = local
       Goal: bullets(contextLines(document, "Goal")),
       Settled: settled,
       Open: open,
+      "Defined by": definedBy,
       "Read on recovery": readNow,
       "Read when": readWhen,
       "Next action": nextAction.length
         ? [`- ${nextAction.join(" ")}`]
         : ["- Recover, then agree the next step with the user."],
     },
-  }).replace("Schema: 5 · State: active", () => `Schema: 5 · State: ${document.header.state}`);
+  }).replace(stateLine5("active", "normal"), () => stateLine5(document.header.state, "normal"));
   const work = [];
   if (agreement.length) {
     const lines = [...bullets(agreement), ...boundaries.map((line) => `- Boundary: ${line}`)];

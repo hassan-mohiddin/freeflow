@@ -60,7 +60,10 @@ test("migrate converts a Schema 4 record in place, keeping the old record whole 
     assert.match(ok(cli(["validate", "--record", record])), /^valid\n.+, 3 history entries\n/);
     assert.equal(await readFile(join(taskDir, "sources", "schema4-record.md"), "utf8"), before);
     const text = await readFile(record, "utf8");
-    assert.match(text, /^# Full record\n\nSchema: 5 · State: active\nCue: read when the parser is in question\n/);
+    assert.match(
+      text,
+      /^# Full record\n\nSchema: 5 · State: active · Budget: normal\nCue: read when the parser is in question\n/,
+    );
     assert.ok(
       text.includes(
         "### Settled\n\n- The parser reads Markdown.\n- A line written without a bullet.\n- D-002 — Markdown only: The parser reads Markdown only. (The user, 2026-10-19.)\n",
@@ -87,7 +90,7 @@ test("migrate converts a Schema 4 record in place, keeping the old record whole 
     );
     assert.ok(
       text.includes(
-        "### Read on recovery\n\n- specs/parser.md — the accepted design.\n- specs/parser.md — the design; sections 2 and 3 govern the Slice.\n",
+        "### Defined by\n\n- specs/parser.md — the accepted design.\n- skills/track-work/SKILL.md (in the repository) — how this record is kept.\n\n### Read on recovery\n\n- specs/parser.md — the design; sections 2 and 3 govern the Slice.\n",
       ),
     );
     assert.ok(

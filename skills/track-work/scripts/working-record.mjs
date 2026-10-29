@@ -20,10 +20,11 @@ import {
 import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
 import { checkEvidencePointers, checkLinePointers, renderRecover } from "./lib/recover.mjs";
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
-import { runTransition5 } from "./lib/transitions5.mjs";
+import { checkpointSession, runTransition5 } from "./lib/transitions5.mjs";
+import { budgetLines, budgetFor, contextWindow, measureTask, renderBudget } from "./lib/budget5.mjs";
 import { migrateTask, readCues } from "./lib/migrate5.mjs";
 import { dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
-import { renderEntries5, renderIndex5, renderRecover5 } from "./lib/views5.mjs";
+import { renderBundle5, renderEntries5, renderIndex5, renderRecover5, renderSessionBundle } from "./lib/views5.mjs";
 import {
   amendDelegation,
   checkReturn,
@@ -63,7 +64,10 @@ function usage() {
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
     "  working-record.mjs agreement <open|update|close> ... (Schema 5)",
-    "  working-record.mjs checkpoint --record <record.md> [--repo <path>] (Schema 5)",
+    "  working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] (Schema 5)",
+    "  working-record.mjs checkpoint --session --input <file|-> (Schema 5, a session holding no task)",
+    "  working-record.mjs budget [--record <record.md>] [--window <tokens>] [--mode normal|expanded] (Schema 5)",
+    "  working-record.mjs view bundle --record <record.md> | --session (Schema 5)",
     "  working-record.mjs delegate <open|amend|status|check-return|close> ... (Schema 5)",
     "  working-record.mjs discussion <list|save|drop> --record <record.md> ... (Schema 5)",
     "  working-record.mjs migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name>] (Schema 4 to 5)",
@@ -91,9 +95,11 @@ const COMMAND_HELP = new Map([
     "checkpoint",
     [
       "Usage: working-record.mjs checkpoint <operation> ... (Schema 4)",
-      "       working-record.mjs checkpoint --record <record.md> [--repo <path>] (Schema 5)",
+      "       working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] (Schema 5)",
+      "       working-record.mjs checkpoint --session --input <file|-> (Schema 5, a session holding no task)",
       "Schema 4 operations: checkpoint propose, checkpoint activate, checkpoint defer, checkpoint resume, checkpoint close.",
-      "Schema 5's checkpoint, before a compaction or a transfer, once Current Context is rewritten: checks the task folder's structure and the budgets (warning on any section over), writes the Space line for the work repository at --repo (default: the current directory, unless it is the Freeflow store), sets State as of, then commits and pushes the Freeflow store holding the task.",
+      'Schema 5\'s checkpoint, before a compaction or a transfer, once Current Context is rewritten: with --input, rewrites In flight whole from its lines (each "- Now|Observed|Hypothesis|Dropped|Pending|Carry: …", a Carry line "- Carry: <path> (lines <a>–<b>) — <why>"; "none" empties it); checks the task folder\'s structure and the recovery budget for the session\'s window (FREEFLOW_CONTEXT_WINDOW) and the task\'s mode, warning when the counted memory or a fixed part is over; writes the Space line for the work repository at --repo (default: the current directory, unless it is the Freeflow store), sets State as of, then commits and pushes the Freeflow store holding the task.',
+      "With --session, for a session that holds no task: writes the session summary to <store>/sessions/<session ID>/summary.md, which Freeflow's compaction installs and removes. Input: the headings ## Goal, ## Settled, ## Open, ## Agreement, ## In flight, ## Read when, ## Next action, in order; Goal and Next action must say something; (none) where a heading has nothing.",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
       "Use --input - to read Markdown fragments from stdin.",
     ].join("\n"),
@@ -111,7 +117,7 @@ const COMMAND_HELP = new Map([
     "task",
     [
       "Usage: working-record.mjs task <operation> ...",
-      "Operations: task set-state; and for projects: task create, task import, task search, task env, task here, task fanout, task remove.",
+      "Operations: task set-state, task set-budget (Schema 5); and for projects: task create, task import, task search, task env, task here, task fanout, task remove.",
       "In a Freeflow store: task create, take, release, switch, here, search and remove. A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
     ].join("\n"),
@@ -181,8 +187,12 @@ const COMMAND_HELP = new Map([
     "Usage: agreement close --record <record.md> --state <completed|ended|replaced> [--next-action <text>] --input <file|->\nAppends the agreement's History entry (its lines, updates and decisions.md's list), removes it from Current Work, empties decisions.md, then syncs the Freeflow store holding the task. Refused while the current Slice works under it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required; Settled optional: choices that still govern the task, added to Current Context's Settled.",
   ],
   [
+    "budget",
+    "Usage: budget [--record <record.md>] [--window <tokens>] [--mode normal|expanded]\nThe recovery budget, before you write: the total for the session's context window (--window, else FREEFLOW_CONTEXT_WINDOW, else 200,000 tokens) and the task's mode (--mode, else the record's Budget, else normal), by the square root of the window (about 10,000 words at 200,000 tokens; expanded half as large again); Current Context and Future Work fixed; what the decisions shown and the History index may hold; what is not counted (the rules, the skills, Defined by). With --record: what each part holds now, the total and what is left.",
+  ],
+  [
     "view",
-    "Usage: view resume|recover|full|index --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\nSchema 5: recover [--delegation <D-NNN[.n]>] prints an opening line (the record is memory; the user's latest message decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (newest 30, and any the record names), the project's other tasks with their cues, and the checks: budgets, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored. With --delegation, recover is a worker's: after the opening line it states the worker's rule (the brief is its scope and wins over the record) and prints the delegation's brief, progress and return.\nSchema 4: resume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
+    "Usage: view resume|recover|full|index|bundle --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\n       view bundle --session [--home <store>]\nSchema 5: recover [--delegation <D-NNN[.n]>] prints an opening line (the record is memory; the user's direction decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (the newest within the budget, and any the record names), the project's other tasks with their cues, and the checks: the budget, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. bundle: the same, then Read on recovery's sources and In flight's Carry files (counted), Defined by's entries and the core skills (not counted), each whole and read now, their sizes, and the recovery line: what Freeflow's compaction installs. With --session, the bundle of a session that holds no task: the store's rules and the session summary. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored. With --delegation, recover is a worker's: after the opening line it states the worker's rule (the brief is its scope and wins over the record) and prints the delegation's brief, progress and return.\nSchema 4: resume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
   ],
   [
     "validate",
@@ -328,6 +338,10 @@ const COMMAND_HELP = new Map([
     "task set-state",
     "Usage: task set-state --record <record.md> --state <active|paused|completed|abandoned> --next-action <text>",
   ],
+  [
+    "task set-budget",
+    "Usage: task set-budget --record <record.md> --mode <normal|expanded>\nSets the task's budget mode in the record's header (Schema 5), on the user's word: expanded is half as large again as normal.",
+  ],
 ]);
 
 function commandHelp(command, operation) {
@@ -354,7 +368,7 @@ function parseOptions(args) {
       continue;
     }
     if (options[token] !== undefined) throw new CliError(`Duplicate option: ${token}`);
-    if (["--help", "--strict", "--pull", "--resolved", "--takeover"].includes(token)) {
+    if (["--help", "--strict", "--pull", "--resolved", "--takeover", "--session"].includes(token)) {
       options[token] = true;
       continue;
     }
@@ -370,7 +384,9 @@ function allowedOptions(command, operation) {
   const common = new Set(["--root", "--record", "--input", "--help"]);
   const withNextAction = new Set([...common, "--next-action"]);
   if (command === "init") return new Set(["--root", "--name", "--input", "--schema", "--cue", "--help"]);
-  if (command === "view") return new Set(["--root", "--record", "--view", "--delegation", "--help"]);
+  if (command === "view")
+    return new Set(["--root", "--record", "--view", "--delegation", "--session", "--home", "--help"]);
+  if (command === "budget") return new Set(["--root", "--record", "--window", "--mode", "--help"]);
   if (command === "migrate") return new Set(["--root", "--record", "--cue", "--cues", "--project", "--home", "--help"]);
   if (command === "discussion") {
     const reading = ["--root", "--record", "--since", "--until", "--transcript", "--format", "--help"];
@@ -415,7 +431,8 @@ function allowedOptions(command, operation) {
     if (operation === "record") return new Set([...common, "--title", "--state"]);
   }
   if (command === "checkpoint") {
-    if (operation === undefined) return new Set(["--root", "--record", "--repo", "--help"]);
+    if (operation === undefined)
+      return new Set(["--root", "--record", "--repo", "--input", "--session", "--home", "--help"]);
     if (operation === "propose") return new Set([...common, "--title"]);
     if (operation === "activate") return new Set([...withNextAction, "--title"]);
     if (operation === "defer" || operation === "resume") return new Set([...withNextAction, "--id"]);
@@ -428,6 +445,7 @@ function allowedOptions(command, operation) {
   }
   if (command === "task" && operation === "set-state")
     return new Set(["--root", "--record", "--state", "--next-action", "--help"]);
+  if (command === "task" && operation === "set-budget") return new Set(["--root", "--record", "--mode", "--help"]);
   if (command === "agreement") {
     if (operation === "open") return new Set([...withNextAction, "--title"]);
     if (operation === "update") return new Set([...common, "--text"]);
@@ -558,7 +576,17 @@ async function initialize(options) {
   return `${created.path}\n`;
 }
 
-const INIT5_HEADINGS = ["Goal", "Settled", "Open", "Space", "Read on recovery", "Read when", "Next action"];
+const INIT5_HEADINGS = [
+  "Goal",
+  "Settled",
+  "Open",
+  "Space",
+  "In flight",
+  "Defined by",
+  "Read on recovery",
+  "Read when",
+  "Next action",
+];
 
 async function initialize5(options) {
   const root = rootOption(options);
@@ -580,7 +608,10 @@ async function initialize5(options) {
     } else if (current) sections[current].push(line);
     else if (line.trim()) throw new CliError(`Initialization text outside a heading would be lost: ${line.trim()}`);
   }
-  return `${await createTaskFolder5(root, { name, cue, sections })}\n`;
+  const record = await createTaskFolder5(root, { name, cue, sections });
+  // The first line is the record's path; then the budget, so the agent writes the record knowing it (P66).
+  const window = contextWindow();
+  return `${record}\n${budgetLines(budgetFor({ window: window.tokens }), window).join("\n")}\n`;
 }
 
 async function readExisting(options) {
@@ -855,6 +886,29 @@ async function runCore(command, rest) {
     if (!task) throw new CliError(`No task ${options["--record"]} in the registry.`);
     options["--record"] = task.record;
   }
+  if (command === "budget") {
+    if (positionals.length) throw new CliError("budget takes no operation");
+    const given = options["--window"];
+    if (given !== undefined && !/^\d+$/.test(given)) throw new CliError("--window is a token count, as 200000");
+    const window = given !== undefined ? { tokens: Number(given), source: "--window" } : contextWindow();
+    if (options["--mode"] !== undefined && !["normal", "expanded"].includes(options["--mode"]))
+      throw new CliError("--mode is normal or expanded");
+    if (!options["--record"]) return renderBudget({ window, mode: options["--mode"] ?? "normal" });
+    const loaded = await readExisting(options);
+    if (schemaOf(loaded.text) !== 5) throw new CliError("budget --record is for Schema 5 records");
+    const task = await loadTask5(loaded.path, loaded.text);
+    if (options["--mode"]) task.record.header.budget = options["--mode"];
+    return renderBudget({ window, measured: measureTask(task, { root: loaded.root, path: loaded.path, window }) });
+  }
+  if (command === "checkpoint" && positionals.length === 0 && options["--session"]) {
+    if (options["--record"])
+      throw new CliError("checkpoint --session is for a session that holds no task: no --record");
+    return checkpointSession({
+      home: options["--home"],
+      identity: sessionIdentity(),
+      text: await readInput(requireOption(options, "--input"), cwd()),
+    });
+  }
   if (command === "discussion") {
     const loaded = await readExisting(options);
     if (schemaOf(loaded.text) !== 5) throw new CliError("discussion is for Schema 5 records");
@@ -922,8 +976,14 @@ async function runCore(command, rest) {
   }
   if (command === "view") {
     const view = positionals[0] ?? options["--view"];
-    if (!view || !["resume", "recover", "full", "entry", "index"].includes(view))
-      throw new CliError("View must be resume, recover, full, entry, or index");
+    if (!view || !["resume", "recover", "full", "entry", "index", "bundle"].includes(view))
+      throw new CliError("View must be resume, recover, full, entry, index, or bundle");
+    if (options["--session"] && view !== "bundle") throw new CliError("--session is for view bundle");
+    if (view === "bundle" && options["--session"]) {
+      if (options["--record"])
+        throw new CliError("view bundle --session is for a session that holds no task: no --record");
+      return renderSessionBundle({ home: options["--home"] ?? null });
+    }
     const ids = positionals.slice(1);
     if (view === "entry") {
       if (!ids.length) throw new CliError("View entry needs at least one S-NNN, C-NNN, D-NNN, or A-NNN ID");
@@ -934,12 +994,15 @@ async function runCore(command, rest) {
     if (view === "full") return renderFull(loaded.text);
     if (schemaOf(loaded.text) === 5) {
       if (view === "recover") return renderRecover5(loaded, { delegation: options["--delegation"] ?? null });
+      if (view === "bundle") return renderBundle5(loaded);
       if (view === "entry") return renderEntries5(loaded, ids);
       if (view === "index") return renderIndex5(loaded);
       throw new CliError("Schema 5 has no resume view: read record.md, or after context loss view recover");
     }
-    if (view === "index")
-      throw new CliError("View index is for Schema 5 records; Schema 4's resume view holds its index");
+    if (view === "index" || view === "bundle")
+      throw new CliError(
+        `View ${view} is for Schema 5 records${view === "index" ? "; Schema 4's resume view holds its index" : ""}`,
+      );
     if (view === "entry") return renderEntries(loaded.text, ids);
     if (view === "recover") return renderRecover(loaded.text, { root: loaded.root, recordPath: loaded.path });
     return renderResume(loaded.text);

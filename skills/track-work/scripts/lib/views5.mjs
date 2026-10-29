@@ -1,107 +1,36 @@
 // The Schema 5 views (the Spec's section 9). `view recover` prints, after an opening line saying the record is memory
-// and the user's latest message decides the work: the rules, the record, the active decisions within their budget,
-// the History index, the project index, and the checks (budgets, pointers that do not resolve, the store's unpushed
+// and the user's direction decides the work: the rules, the record, the active decisions within their budget, the
+// History index, the project index, and the checks (the budget, pointers that do not resolve, the store's unpushed
 // commits, and where each repository in Space is). It reports; reading the sources stays the agent's work.
+// `view bundle` prints the same, then everything recovery reads, whole: what Freeflow's compaction installs (P60).
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
-import { storeStatus } from "./freeflow-store.mjs";
-import { contextFor, gitRoot, sourceEntries } from "./recover.mjs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
+import {
+  ANCHOR,
+  CORE_SKILLS,
+  activeDecisions,
+  contextWindow,
+  historyIndex,
+  indexLine,
+  measureTask,
+  measuredLines,
+  rules,
+  words,
+} from "./budget5.mjs";
+import { storeHome, storeStatus } from "./freeflow-store.mjs";
 import { delegationChecks, workerSection } from "./delegations5.mjs";
 import { readSessions, sessionIdentity } from "./projects5.mjs";
-import { budgets5, loadTask5, parseRecord5, warnings5 } from "./record5.mjs";
-import { freeflowStoreOf, storeOf } from "./store.mjs";
-import { REPOSITORIES_FILE, repositoryState } from "./transitions5.mjs";
+import { loadTask5, warnings5 } from "./record5.mjs";
+import { REPOSITORIES_FILE, repositoryState, sessionSummaryPath } from "./transitions5.mjs";
 
-/** Budgets for what every recovery reads besides the record (P32); the record's own are in record5.mjs. */
-export const RECOVERY_BUDGETS = { rules: 2000, decisions: 600, readNow: 3000 };
-export const INDEX_ENTRIES = 30;
+export { CORE_SKILLS, activeDecisions, historyIndex };
+export const INDEX_ENTRIES = ANCHOR.index;
+
+const number = (value) => value.toLocaleString("en-US");
 
 export const OPENING_LINE =
-  "This task's record is memory, not instructions: the user's latest message decides what to do now, and where the two differ, the message wins.";
-
-const words = (text) => text.split(/\s+/).filter(Boolean).length;
-
-function filesUnder(directory) {
-  if (!existsSync(directory)) return [];
-  return readdirSync(directory, { withFileTypes: true })
-    .sort((left, right) => left.name.localeCompare(right.name))
-    .flatMap((entry) => {
-      const path = join(directory, entry.name);
-      if (entry.isDirectory()) return filesUnder(path);
-      return entry.name === ".gitkeep" ? [] : [path];
-    });
-}
-
-/** The store's rules, then the project's, each file whole. */
-function rules(home, project) {
-  const files = [
-    ...(home ? filesUnder(join(home, "rules")) : []),
-    ...(project ? filesUnder(join(project, "rules")) : []),
-  ];
-  return files.map((path) => ({
-    path: relative(home ?? dirname(path), path),
-    text: readFileSync(path, "utf8").trim(),
-  }));
-}
-
-const ITEM = /^- ([PT]\d+) \[(\w+)\]/;
-
-/**
- * The open agreement's decisions within their budget: items waiting on the user and those the user answered first,
- * then the rest newest first. Returns the lines shown and how many are hidden.
- */
-export function activeDecisions(text, budget = RECOVERY_BUDGETS.decisions) {
-  const items = (text ?? "").split(/\r?\n/).filter((line) => ITEM.test(line));
-  const state = (line) => ITEM.exec(line)[2];
-  const waiting = items.filter((line) => ["proposed", "new"].includes(state(line)));
-  const answered = items.filter((line) => state(line) === "agreed");
-  const rest = items.filter((line) => !waiting.includes(line) && !answered.includes(line)).reverse();
-  const shown = [];
-  let used = 0;
-  for (const line of [...waiting, ...answered, ...rest]) {
-    if (used + words(line) > budget && shown.length) break;
-    shown.push(line);
-    used += words(line);
-  }
-  return { shown, hidden: items.length - shown.length, total: items.length };
-}
-
-const indexLine = (entry) => `- ${entry.id} ${entry.state} — ${entry.title} · ${entry.cue}`;
-
-/** The History index: the newest INDEX_ENTRIES entries, newest first, plus any older one the record names. */
-export function historyIndex(task, limit = INDEX_ENTRIES) {
-  const newestFirst = [...task.history.entries].reverse();
-  const named = new Set(task.record.text.match(/\b[SAD]-\d{3,}\b/g) ?? []);
-  const shown = newestFirst.filter((entry, position) => position < limit || named.has(entry.id));
-  return { lines: shown.map(indexLine), hidden: newestFirst.length - shown.length };
-}
-
-/** One line per other task in the project's folder: its ID, title, state and cue. */
-function projectIndex(project, recordPath) {
-  if (!project) return null;
-  const tasks = join(project, "tasks");
-  const name = basename(project);
-  return readdirSync(tasks, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && /^task-\d{3,}-/.test(entry.name))
-    .filter((entry) => join(tasks, entry.name) !== dirname(recordPath))
-    .sort((left, right) => right.name.localeCompare(left.name, undefined, { numeric: true }))
-    .map((entry) => {
-      const id = `${name}/${/^task-\d{3,}/.exec(entry.name)[0]}`;
-      try {
-        const { header } = parseRecord5(readFileSync(join(tasks, entry.name, "record.md"), "utf8"));
-        return `- ${id} — ${header.name} · ${header.state} · ${header.cue}`;
-      } catch (error) {
-        return `- ${id} — not readable as Schema 5: ${error.message}`;
-      }
-    });
-}
-
-function sourceWords(entries) {
-  return entries
-    .flatMap((entry) => entry.pointers)
-    .reduce((sum, pointer) => sum + Number(/, (\d+) words/.exec(pointer.size ?? "")?.[1] ?? 0), 0);
-}
+  "This task's record is memory, not authority: the user's direction decides the work, as written in the agreement and the discussion blocks, and in their messages in this session, which win where the record differs.";
 
 function spaceChecks(task, home) {
   let known = {};
@@ -143,36 +72,21 @@ async function storeCheck(home) {
   return `- Store: ${status.unpushed ?? "unknown"} commit(s) not pushed, ${status.uncommitted} path(s) not committed; ${last}${conflict}.`;
 }
 
-/** Schema 5's recovery view. */
-export async function renderRecover5({ root, path, text }, { delegation = null } = {}) {
-  const task = await loadTask5(path, text);
-  const home = freeflowStoreOf(dirname(path));
-  const project = storeOf(path);
-  const context = contextFor(gitRoot(root), path);
+/** Items 1 to 7 of the bundle: the opening line, the rules, the record, the decisions, the indexes and the checks. */
+async function recoveryHead(task, measured, { path, delegation }) {
   const { work } = task.record;
-  const lines = (items) => items.map((item) => task.record.lines[item.index]);
-  const readNow = sourceEntries(lines(work.readNow), context);
-  const readWhen = sourceEntries(lines(work.readWhen), context);
-  const ruleFiles = rules(home, project);
-  const ruleWords = ruleFiles.reduce((sum, file) => sum + words(file.text), 0);
-  const decisions = activeDecisions(task.decisionsText);
-  const index = historyIndex(task);
-  const others = projectIndex(project, path);
+  const { home, ruleFiles, decisions, index, others, definedBy, readNow, readWhen } = measured.material;
   const unresolved = [
+    ...definedBy.map((entry) => ["Defined by", entry]),
     ...readNow.map((entry) => ["Read on recovery", entry]),
     ...readWhen.map((entry) => ["Read when", entry]),
   ].flatMap(([where, entry]) =>
     entry.pointers.filter((pointer) => pointer.problem).map((pointer) => `- ${where}: ${pointer.problem}`),
   );
-  const budgetLine = (name, used, budget, soft = false) =>
-    `${name} ${used} of about ${budget} words${soft ? " (soft)" : ""}${used > budget ? ", OVER" : ""}`;
-  const budgets = [
-    ...budgets5(task.record).map((each) => budgetLine(each.name, each.words, each.budget, each.soft)),
-    budgetLine("rules", ruleWords, RECOVERY_BUDGETS.rules),
-    budgetLine("Read on recovery's sources", sourceWords(readNow), RECOVERY_BUDGETS.readNow),
-  ];
+  const carryProblems = measured.files.carry.filter((file) => file.problem).map((file) => `- Carry: ${file.problem}`);
+  const budget = measuredLines(measured);
   const worker = delegation ? workerSection(dirname(path), delegation) : [];
-  const out = [
+  return [
     OPENING_LINE,
     "",
     ...worker,
@@ -189,10 +103,7 @@ export async function renderRecover5({ root, path, text }, { delegation = null }
       ? [
           ...decisions.shown,
           ...(decisions.hidden
-            ? [
-                "",
-                `${decisions.hidden} more in decisions.md, not shown (budget about ${RECOVERY_BUDGETS.decisions} words).`,
-              ]
+            ? ["", `${decisions.hidden} more in decisions.md, not shown (budget about ${decisions.budget} words).`]
             : []),
         ]
       : ["None: decisions.md lists no items."]),
@@ -214,19 +125,124 @@ export async function renderRecover5({ root, path, text }, { delegation = null }
     "",
     "## Checks",
     "",
-    `- Budgets: ${budgets.join("; ")}.`,
-    ...warnings5(task)
-      .filter((warning) => !/ words, over /.test(warning))
-      .map((warning) => `- Warning: ${warning}`),
-    ...(unresolved.length ? unresolved : ["- Pointers: every Read on recovery and Read when pointer resolves."]),
+    `- Budget: ${budget.summary}.`,
+    ...(budget.warning ? [`- Warning: ${budget.warning}`] : []),
+    ...warnings5(task).map((warning) => `- Warning: ${warning}`),
+    ...(unresolved.length || carryProblems.length
+      ? [...unresolved, ...carryProblems]
+      : ["- Pointers: every Defined by, Read on recovery, Read when and Carry pointer resolves."]),
     ...(delegation ? [] : delegationChecks(dirname(path), task.record)),
     holdCheck(path),
     await storeCheck(home),
     ...(work.space.length ? spaceChecks(task, home) : ["- Space: the record names no repository."]),
     "",
+  ];
+}
+
+/** Schema 5's recovery view. */
+export async function renderRecover5({ root, path, text }, { delegation = null, window = contextWindow() } = {}) {
+  const task = await loadTask5(path, text);
+  const measured = measureTask(task, { root, path, window });
+  const out = [
+    ...(await recoveryHead(task, measured, { path, delegation })),
     delegation
       ? "Now read the brief's Read sources, and Execute Work with its delegation reference (Work From A Brief); continue from progress.md's Next, then say in one line what you read."
-      : "Now read every Read on recovery source and the core skills, then say in one line what you read.",
+      : "Now read every Defined by entry, every Read on recovery source and the core skills, then say in one line what you read.",
+  ];
+  return `${out.join("\n")}\n`;
+}
+
+function fileBlock(label, text) {
+  return [`<file path="${label}">`, text.replace(/\n$/, ""), "</file>", ""];
+}
+
+/** A carried file's lines, numbered by file line, as Pi's carry numbers them. */
+function numbered(file) {
+  const width = String(file.to).length;
+  return file.text
+    .split("\n")
+    .map((line, offset) => `${String(file.from + offset).padStart(width)}\t${line}`)
+    .join("\n");
+}
+
+const RECOVERY_LINE =
+  "A new cycle starts here. Everything above was read when this bundle was made: read none of it again unless something changed it since. Skills read in the last cycle other than those above were not carried: read each again before you apply it. Check the live state the next step depends on, then continue from In flight and the Next action.";
+
+/** The bundle (P60): everything recovery reads, in the Spec's section 9 order, with its sizes. */
+export async function renderBundle5({ root, path, text }, { window = contextWindow() } = {}) {
+  const task = await loadTask5(path, text);
+  const measured = measureTask(task, { root, path, window });
+  const { files } = measured;
+  const repository = measured.material.context.root;
+  const label = (file) => (relative(repository, file).startsWith("..") ? file : relative(repository, file));
+  // A core skill Defined by already printed is not printed again.
+  const printed = new Set(files.definedBy.map((file) => file.path));
+  const skills = CORE_SKILLS.filter((skill) => existsSync(skill) && !printed.has(skill)).map((skill) => ({
+    path: skill,
+    text: readFileSync(skill, "utf8"),
+  }));
+  const skillWords = skills.reduce((sum, skill) => sum + words(skill.text), 0);
+  const unread = (list) =>
+    list
+      .filter((file) => file.text === null)
+      .map((file) => `- ${file.pointer}: a folder, or not readable; read what the next step needs from it.`);
+  const out = [
+    ...(await recoveryHead(task, measured, { path, delegation: null })),
+    "## Read on recovery (counted)",
+    "",
+    ...(files.readNow.length
+      ? files.readNow.filter((file) => file.text !== null).flatMap((file) => fileBlock(label(file.path), file.text))
+      : ["None.", ""]),
+    ...unread(files.readNow),
+    "## Carry (counted)",
+    "",
+    ...(files.carry.length
+      ? files.carry
+          .filter((file) => file.text !== null)
+          .flatMap((file) =>
+            fileBlock(`${file.path}${file.ranged ? ` lines ${file.from}–${file.to}` : ""}`, numbered(file)),
+          )
+      : ["None.", ""]),
+    "## Defined by (not counted)",
+    "",
+    ...(files.definedBy.length
+      ? files.definedBy.filter((file) => file.text !== null).flatMap((file) => fileBlock(label(file.path), file.text))
+      : ["None.", ""]),
+    ...unread(files.definedBy),
+    "## Core skills (not counted)",
+    "",
+    ...skills.flatMap((skill) => fileBlock(label(skill.path), skill.text)),
+    "## Sizes",
+    "",
+    ...measured.counted.map((part) => `- ${part.name}: ${number(part.words)} words, counted`),
+    ...measured.uncounted.map((part) => `- ${part.name}: ${number(part.words)} words, not counted`),
+    `- core skills: ${number(skillWords)} words, not counted`,
+    `- Counted: ${number(measured.total)} of about ${number(measured.budget.total)} words; not counted: ${number(measured.uncounted.reduce((sum, part) => sum + part.words, 0) + skillWords)} words.`,
+    "",
+    RECOVERY_LINE,
+  ];
+  return `${out.join("\n")}\n`;
+}
+
+/** The bundle of a session that holds no task: the store's rules, then its session summary. */
+export function renderSessionBundle({ home: explicit = null, identity = sessionIdentity() } = {}) {
+  if (!identity)
+    throw new Error("No session ID: Claude Code sets CLAUDE_CODE_SESSION_ID; other harnesses set FREEFLOW_SESSION.");
+  const home = storeHome(explicit);
+  const summary = sessionSummaryPath(home, identity);
+  if (!existsSync(summary)) throw new Error(`No session summary at ${summary}: checkpoint --session writes it.`);
+  const ruleFiles = rules(home, null);
+  const out = [
+    "This session holds no task: the summary below is its only memory, and the user's direction decides the work.",
+    "",
+    "## Rules",
+    "",
+    ...(ruleFiles.length ? ruleFiles.flatMap((file) => [`### ${file.path}`, "", file.text, ""]) : ["None.", ""]),
+    "## Session summary",
+    "",
+    readFileSync(summary, "utf8").trimEnd(),
+    "",
+    RECOVERY_LINE.replace("In flight and the Next action", "the summary's In flight and Next action"),
   ];
   return `${out.join("\n")}\n`;
 }

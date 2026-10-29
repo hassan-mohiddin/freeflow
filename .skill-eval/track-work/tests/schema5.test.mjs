@@ -27,7 +27,13 @@ function run(folder, args, input = "") {
     cwd: folder,
     input,
     encoding: "utf8",
-    env: { ...process.env, GIT_CONFIG_GLOBAL: join(folder, "gitconfig"), GIT_CONFIG_NOSYSTEM: "1", FREEFLOW_HOME: "" },
+    env: {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: join(folder, "gitconfig"),
+      GIT_CONFIG_NOSYSTEM: "1",
+      FREEFLOW_HOME: "",
+      FREEFLOW_CONTEXT_WINDOW: "",
+    },
   });
 }
 
@@ -65,7 +71,8 @@ function initTask(folder, root, name = "Demo task") {
       "### Goal\n- Try Schema 5.\n### Next action\n- Open the agreement.\n",
     ),
   );
-  return out.trim();
+  // The first line is the record's path; the budget follows it.
+  return out.split("\n")[0];
 }
 
 const historyEntries = async (record) =>
@@ -153,12 +160,26 @@ test("init --schema 5 writes record.md, history.md and decisions.md, and refuses
     const text = await readFile(record, "utf8");
     assert.match(
       text,
-      /^# Demo task\n\nSchema: 5 · State: active\nCue: read when testing Schema 5\nState as of: \d{4}-\d{2}-\d{2}T/,
+      /^# Demo task\n\nSchema: 5 · State: active · Budget: normal\nCue: read when testing Schema 5\nState as of: \d{4}-\d{2}-\d{2}T/,
     );
     assert.match(
       text,
-      /### Goal\n\n- Try Schema 5.\n\n### Settled\n\n### Open\n\n## Current Work\n\n### Delegations\n\n### Space\n/,
+      /### Goal\n\n- Try Schema 5.\n\n### Settled\n\n### Open\n\n## Current Work\n\n### Delegations\n\n### Space\n\n### In flight\n\n### Defined by\n\n### Read on recovery\n/,
     );
+    // After the record's path, init prints the budget, so the agent writes the record knowing it (P66).
+    const second = ok(
+      run(
+        folder,
+        ["init", "--schema", "5", "--root", folder, "--name", "Second", "--cue", "read when testing", "--input", "-"],
+        "### Goal\n- Two.\n### Defined by\n- specs/two.md — the design.\n### Next action\n- Go.\n",
+      ),
+    ).split("\n");
+    assert.match(second[0], /task-002-second\/record\.md$/);
+    assert.equal(
+      second[1],
+      "Recovery budget: about 10,000 words (normal mode, a 200,000-token window, assumed: FREEFLOW_CONTEXT_WINDOW is not set).",
+    );
+    assert.match(await readFile(second[0], "utf8"), /### Defined by\n\n- specs\/two\.md — the design\.\n/);
     assert.equal(await readFile(join(dirname(record), "history.md"), "utf8"), "# History: Demo task\n");
     assert.equal(await readFile(join(dirname(record), "decisions.md"), "utf8"), "# Decisions\n");
     assert.ok(existsSync(join(dirname(record), "scratch")));
@@ -502,14 +523,14 @@ test("validate and checkpoint warn on a section over its budget, and checkpoint 
     await writeFile(record, text.replace("### Settled\n", `### Settled\n\n- ${"word ".repeat(650).trim()}\n`));
     assert.match(
       ok(run(folder, ["validate", "--record", record])),
-      /warning: Current Context has 6\d\d words, over its budget of about 600: distill it at the next checkpoint/,
+      /warning: Current Context has 6\d\d words, over its fixed budget of about 600: distill it at the next checkpoint/,
     );
     const before = /State as of: (\S+)/.exec(await readFile(record, "utf8"))[1];
     await new Promise((done) => setTimeout(done, 5));
     const out = ok(run(folder, ["checkpoint", "--record", record]));
     assert.match(
       out,
-      /^Checkpoint: task-001-demo-task, State as of \S+\.\nCurrent Context: 6\d\d words \(budget about 600\)\nCurrent Work: \d+ words \(soft budget about 2000\)\nFuture Work: 0 words \(budget about 300\)\n/,
+      /^Checkpoint: task-001-demo-task, State as of \S+\.\nBudget: counted [\d,]+ of about 10,000 words \(normal, 200,000-token window\); largest: Current Context 6\d\d, .+; fixed: Current Context 6\d\d of about 600, OVER, Future Work 0 of about 300; not counted: rules 0, Defined by 0\.\nIn flight: unchanged; pass --input with its lines to rewrite it whole\.\n/,
     );
     assert.match(out, /Warning: Current Context has 6\d\d words/);
     assert.match(out, /Space: unchanged/);

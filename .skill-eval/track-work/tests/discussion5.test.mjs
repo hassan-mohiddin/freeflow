@@ -118,7 +118,7 @@ async function withTask(run) {
         "-",
       ],
       "### Goal\n- Talk.\n### Next action\n- Decide.\n",
-    ).stdout.trim();
+    ).stdout.split("\n")[0];
     // The record's last checkpoint is before the discussion, so list starts after it.
     const text = await readFile(record, "utf8");
     await writeFile(record, text.replace(/State as of: \S+/, "State as of: 2026-10-29T11:00:00.000Z"));

@@ -63,6 +63,7 @@ A line written without a bullet.
 ### Recovery sources
 
 - specs/parser.md — the design; sections 2 and 3 govern the Slice.
+- skills/track-work/SKILL.md (in the repository) — how this record is kept.
 - sources/benchmarks.md — timings; read when measuring speed.
 
 ### Next useful action
