@@ -46,7 +46,7 @@ Spend the strong model on settling what the brief decides, and the small one on 
 
 Goal: the worker can act correctly on its first attempt from what it can see.
 
-Each delegation has a folder in the task directory, `delegations/D-NNN-<slug>/`, numbered in sequence; with no task directory, use your scratch folder. The agent handing the work out writes `brief.md` there:
+Each delegation has a folder in the task directory, `delegations/D-NNN-<slug>/`, numbered in sequence; with no task directory, use your scratch folder. The agent handing the work out writes `brief.md` there. With a Schema 5 Working Record, Track Work's `working-record.mjs delegate open` does it: it assigns the ID, writes the brief from this template with the sections you give it, makes a writing worker's worktree (`--repo`, `--base`), and records the delegation. Otherwise write it by hand:
 
 ```markdown
 # D-012 — <title>
@@ -79,13 +79,13 @@ Goal: workers run on their own time, and your own work never waits for theirs to
 - A delegation is not part of a Slice. Your Slices are your own work and open and close whatever the workers are doing; a delegation has its own lifecycle: opened, running, returned, then closed as accepted, sent back or stopped.
 - A Slice that needs a delegation's result waits for it: name the delegation's folder in the Slice's Dependencies, and close the delegation before using the result. Never keep a Slice open only because a delegation is still running.
 - Closing a delegation accepts its return: check it as Check The Return says, merge its branch, and record the merge commit. Work beyond that, such as resolving conflicts between parts, is a Slice of yours.
-- Record each dispatch through [Track Work](../../track-work/SKILL.md) where the record holds current work, with the folder's path: a line on the Current Slice when one is open, `Delegation — D-012 (build, <model> <effort>): running; delegations/D-012-<slug>/brief.md`, and otherwise a Recovery source, `delegations/D-012-<slug>/ — D-012 (build, <model> <effort>): running; read when it returns`. Record its outcome the same way when it closes, wherever the record holds current work then.
+- With a Schema 5 record, `delegate open` writes the delegation's line in Current Work's Delegations and `delegate close` records its outcome; nothing else needs writing. With a Schema 4 record, record each dispatch by hand through [Track Work](../../track-work/SKILL.md) where the record holds current work, with the folder's path: a line on the Current Slice when one is open, `Delegation — D-012 (build, <model> <effort>): running; delegations/D-012-<slug>/brief.md`, and otherwise a Recovery source, `delegations/D-012-<slug>/ — D-012 (build, <model> <effort>): running; read when it returns`. Record its outcome the same way when it closes, wherever the record holds current work then.
 
 ## Run Workers In Parallel
 
 Goal: workers run at once without overwriting each other, and the fan-out is no bigger than what you will use.
 
-- Give each writer its own worktree and branch at a stated base, outside the coordinator's checkout: the host's worktree isolation, or `git worktree add -b <branch> <path> <base>`. Before starting them, compare the files each brief lets its worker write, and run workers that share a file one after the other.
+- Give each writer its own worktree and branch at a stated base, outside the coordinator's checkout: `delegate open --repo <repository> --base <commit>`, the host's worktree isolation, or `git worktree add -b <branch> <path> <base>`. Before starting them, compare the files each brief lets its worker write, and run workers that share a file one after the other.
 - When branches stack, state the order they merge in.
 - Size a fan-out by what you will read and use, not by what could run: one wide fan-out can cost more than every other agent in the task together.
 - Before scaling a fan-out, read one worker's prompt as the host delivered it: a harness can add context of its own, such as the user's latest message framed as the request.
@@ -96,7 +96,7 @@ Goal: workers run at once without overwriting each other, and the fan-out is no 
 Goal: no one waits idle, and no worker builds on a premise that has changed.
 
 - Run workers in the background and keep doing independent work, in paths no worker writes.
-- When a return or the user's new direction changes a running worker's premise, append the change, dated, to its brief's Changes and tell the worker, or stop it.
+- When a return or the user's new direction changes a running worker's premise, append the change, dated, to its brief's Changes (`delegate amend --id D-012 --text <change>`) and tell the worker, or stop it.
 - Another round for the same result keeps the folder: the brief gets a dated change, `progress.md` continues, and `return.md` is rewritten. Resume the same agent when the host can, since it still holds its context; a fresh agent can take over the folder, since the files carry the work.
 - After your own context loss, the record's Delegation lines and delegation Recovery sources, and the folders without a finished return, are the open delegations.
 
@@ -133,7 +133,7 @@ Goal: as a worker, produce the brief's result within its scope, and hand back wh
   An independent reviewer, or a trial's subject keeping a friction log, writes Review Work's report instead.
 
 - Your reply to the agent that briefed you is the delegation ID, the return's path and one line. Where the host refuses a worker's files, reply with their content instead, and that agent saves it unchanged.
-- After context loss, read `brief.md`, then `progress.md` and `return.md`, before anything else, and continue from `progress.md`'s Next.
+- After context loss, read `brief.md`, then `progress.md` and `return.md`, before anything else, and continue from `progress.md`'s Next. With a Schema 5 record, the recover command in your brief's Read section (`view recover --delegation D-012`) prints the three first.
 
 ## Hand Work Down One Level
 
@@ -141,7 +141,7 @@ Goal: a worker can hand part of its assignment to sub-workers, and the coordinat
 
 - A worker decides whether to hand part of its assignment down, by the same judgment as [Decide Whether To Hand It Out](#decide-whether-to-hand-it-out). The coordinator chose its model by the level of the work, so it is usually a worker on the strongest model, doing a share of the coordinator's own work, that hands mechanical checks, gathering or research before a step to sub-workers.
 - A sub-worker always runs on the smallest capable model. When a part needs a stronger model, the worker asks the coordinator to start another worker for it, which the coordinator manages; this is rare.
-- A sub-worker's folder sits inside its worker's, `delegations/D-012-<slug>/D-012.1-<slug>/`, with the same three files. The worker writes its brief, keeps its scope inside the worker's own, checks its return as Check The Return's first four steps say, and merges its branch.
+- A sub-worker's folder sits inside its worker's, `delegations/D-012-<slug>/D-012.1-<slug>/`, with the same three files; with a Schema 5 record, `delegate open --parent D-012` makes it, and refuses a fourth level. The worker writes its brief, keeps its scope inside the worker's own, checks its return as Check The Return's first four steps say, and merges its branch.
 - The nearest brief wins: a sub-worker follows its own brief, and its worker's brief governs that one.
 - A choice that is not a level's to make goes up one level at a time: a sub-worker returns it to its worker, which settles it if its own brief lets it, or returns it to the coordinator. Only the coordinator asks the user or writes the record.
 - The worker's return reports its sub-workers' results, with each one's tokens and minutes, so the coordinator's outcome line counts them.
@@ -151,11 +151,11 @@ Goal: a worker can hand part of its assignment to sub-workers, and the coordinat
 
 Goal: accept only what the evidence supports, and choose the next step from the gap.
 
-1. Check its shape: the return's headings are there, and every commit it names exists on the branch it names.
+1. Check its shape: the return's headings are there, and every commit it names exists on the branch it names. With a Schema 5 record, `delegate check-return --id D-012` checks both.
 2. Read the return, then the diff against the base; a summary is not the work.
 3. Rerun the check that decides the result, and recompute any number the result rests on.
 4. Judge it against the brief's Result wanted and Done when. A plausible but different name, location or behavior shows a decision the brief left implicit: improve the next brief from it.
-5. As the coordinator, record the outcome where the record holds current work, with the tokens and minutes the host reports and, when you merged its branch, the merge commit: `Delegation — D-012 (build, <model> <effort>): accepted | sent back | stopped; <tokens> tokens, <minutes> min; delegations/D-012-<slug>/return.md`. That closes the delegation; drop its Recovery source if it had one.
+5. As the coordinator, record the outcome with the tokens and minutes the host reports and, when you merged its branch, the merge commit. With a Schema 5 record: `delegate close --id D-012 --outcome accepted | sent back | stopped --merge <commit> --tokens <n> --minutes <n>`, which writes its History entry and removes its line. With a Schema 4 record, where the record holds current work: `Delegation — D-012 (build, <model> <effort>): accepted | sent back | stopped; <tokens> tokens, <minutes> min; delegations/D-012-<slug>/return.md`, then drop its Recovery source if it had one. That closes the delegation.
 
 Then choose from the gap. A supported result: continue. A missing observation: ask for it, in the same folder. A defect: send it back with the evidence. An approach the evidence invalidates: change the direction rather than repeat the demand. A choice the user owns: ask the user.
 
