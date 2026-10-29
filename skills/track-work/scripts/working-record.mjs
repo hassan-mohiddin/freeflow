@@ -15,9 +15,23 @@ import {
   resolveRecordPath,
   storeOf,
   writeInitialAtomically,
+  writeTaskFile,
 } from "./lib/store.mjs";
 import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
-import { checkEvidencePointers, renderRecover } from "./lib/recover.mjs";
+import { checkEvidencePointers, checkLinePointers, renderRecover } from "./lib/recover.mjs";
+import {
+  DECISIONS_FILE,
+  EMPTY_DECISIONS,
+  HISTORY_FILE,
+  cueProblem,
+  emptyHistory,
+  loadTask5,
+  parseRecord5,
+  schemaOf,
+  skeleton5,
+  warnings5,
+} from "./lib/record5.mjs";
+import { runTransition5 } from "./lib/transitions5.mjs";
 import { PROJECT_LINK, Registry, TASK_ID, removalText, startCommand } from "./lib/registry.mjs";
 import { searchRecords } from "./lib/search.mjs";
 import { addStoreRemote, initStore, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
@@ -28,11 +42,13 @@ const ROOT_HELP =
 function usage() {
   return [
     "Usage:",
-    "  working-record.mjs init --root <path> --name <task name> [--input <file|->]",
+    "  working-record.mjs init --root <path> --name <task name> [--schema 5 --cue <cue>] [--input <file|->]",
     "  working-record.mjs view resume|recover|full --record <record.md>",
     "  working-record.mjs view entry <ID> [<ID> ...] --record <record.md>",
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
+    "  working-record.mjs agreement <open|update|close> ... (Schema 5)",
+    "  working-record.mjs checkpoint --record <record.md> [--repo <path>] (Schema 5)",
     "  working-record.mjs project <new|link|show|list|remove> ...",
     "  working-record.mjs task <create|import|search|env|here|fanout|remove> ...",
     "  working-record.mjs store <init|remote|status|sync> ...",
@@ -55,8 +71,10 @@ const COMMAND_HELP = new Map([
   [
     "checkpoint",
     [
-      "Usage: working-record.mjs checkpoint <operation> ...",
-      "Operations: checkpoint propose, checkpoint activate, checkpoint defer, checkpoint resume, checkpoint close.",
+      "Usage: working-record.mjs checkpoint <operation> ... (Schema 4)",
+      "       working-record.mjs checkpoint --record <record.md> [--repo <path>] (Schema 5)",
+      "Schema 4 operations: checkpoint propose, checkpoint activate, checkpoint defer, checkpoint resume, checkpoint close.",
+      "Schema 5's checkpoint, before a compaction or a transfer, once Current Context is rewritten: checks the task folder's structure and the budgets (warning on any section over), writes the Space line for the work repository at --repo (default: the current directory, unless it is the Freeflow store), sets State as of, then commits and pushes the Freeflow store holding the task.",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
       "Use --input - to read Markdown fragments from stdin.",
     ].join("\n"),
@@ -80,7 +98,23 @@ const COMMAND_HELP = new Map([
   ],
   [
     "init",
-    "Usage: init --root <path> --name <task name> [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings, Work agreement (written only when given) and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.",
+    'Usage: init --root <path> --name <task name> [--schema 5 --cue <cue>] [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings, Work agreement (written only when given) and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.\nWith --schema 5: the task folder gets record.md, history.md and decisions.md. --cue (required) says when the task matters, starting "read when", in at most 25 words. Input: Goal and Next action required; Settled, Open, Space, Read on recovery and Read when accepted. --root may be a project\'s folder in the Freeflow store (<store>/projects/<project>), whose tasks/ then holds the task.',
+  ],
+  [
+    "agreement",
+    "Usage: working-record.mjs agreement <operation> ... (Schema 5)\nOperations: agreement open, agreement update, agreement close. A task has one open agreement at a time: what the user agreed, in their words, dated; its decision list is decisions.md beside the record.",
+  ],
+  [
+    "agreement open",
+    "Usage: agreement open --record <record.md> --title <title> [--next-action <text>] --input <file|->\nInput: the agreement's lines as bullets (Done when …, Without asking: …, Ask first: …, Back at …, Holds until …), each quoting the user with the date; a bullet may continue on lines indented two spaces. Assigns A-NNN and writes Opened. Use --input - to read the lines from stdin.",
+  ],
+  [
+    "agreement update",
+    "Usage: agreement update --record <record.md> (--text <text> | --input <file|->)\nAppends one Update line: a change to what is agreed (an extension, a narrowing such as \"don't edit yet\", a lifted limit, a new endpoint), in the user's words, dated. Progress and results belong to Slices.",
+  ],
+  [
+    "agreement close",
+    "Usage: agreement close --record <record.md> --state <completed|ended|replaced> [--next-action <text>] --input <file|->\nAppends the agreement's History entry (its lines, updates and decisions.md's list), removes it from Current Work, empties decisions.md, then syncs the Freeflow store holding the task. Refused while the current Slice works under it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required; Settled optional: choices that still govern the task, added to Current Context's Settled.",
   ],
   [
     "view",
@@ -161,15 +195,15 @@ const COMMAND_HELP = new Map([
   ],
   [
     "slice propose",
-    "Usage: slice propose --record <record.md> --title <title> --input <file|->\nInput: Intended result required; Type, Expected evidence, and Dependencies optional. Commands set State; input never includes it. Use --input - to read the fragment from stdin.",
+    "Usage: slice propose --record <record.md> --title <title> --input <file|->\nInput: Intended result required; Type, Expected evidence, and Dependencies optional. Commands set State; input never includes it. Use --input - to read the fragment from stdin.\nSchema 5 input: Result wanted required; Done when and Dependencies optional.",
   ],
   [
     "slice start",
-    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.",
+    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.\nSchema 5 input: Scope, Stop if and Started from required; Under (default: the open agreement), Done when (default: the proposal's), Waits on (D-NNN, comma-separated) and Dependencies.",
   ],
   [
     "slice start-direct",
-    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Intended result, Authority source, Scope, Expected evidence, Stop condition, and Starting state required; Future Work is unchanged. Use --input - to read the fragment from stdin.",
+    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Intended result, Authority source, Scope, Expected evidence, Stop condition, and Starting state required; Future Work is unchanged. Use --input - to read the fragment from stdin.\nSchema 5 input: Result wanted, Scope, Done when, Stop if and Started from required; Under (default: the open agreement), Waits on and Dependencies.",
   ],
   [
     "slice pause",
@@ -178,7 +212,7 @@ const COMMAND_HELP = new Map([
   ["slice resume", "Usage: slice resume --record <record.md> --resolution <source> --next-action <text>"],
   [
     "slice close",
-    "Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Result, Evidence and limits, and Task effect required. Use --input - to read the fragment from stdin.",
+    'Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Result, Evidence and limits, and Task effect required. Use --input - to read the fragment from stdin.\nSchema 5 input: Cue ("read when …", at most 25 words), Result, Evidence and Task effect required; Resume when for blocked, Reason for abandoned. Appends the Slice\'s History entry, its updates included, then syncs the Freeflow store holding the task. A Slice is not closed as completed while a delegation it Waits on is open.',
   ],
   [
     "slice reopen",
@@ -186,7 +220,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "slice record",
-    "Usage: slice record --record <record.md> --title <title> --state <completed|blocked|abandoned> --input <file|->\nRecords a Slice that finished before it could be recorded, directly into History. The Current Slice, Future Work, and Next useful action are unchanged; the ID follows recording order and the command adds Recorded: retroactively on <today>.\nInput: Occurred (YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD), Intended result, Authority source, Result, Evidence and limits, and Task effect required; Type and Residual effects optional; Resume when required for blocked; Reason required for abandoned. Use --input - to read the fragment from stdin.",
+    "Usage: slice record --record <record.md> --title <title> --state <completed|blocked|abandoned> --input <file|->\nRecords a Slice that finished before it could be recorded, directly into History. The Current Slice, Future Work, and Next useful action are unchanged; the ID follows recording order and the command adds Recorded: retroactively on <today>.\nInput: Occurred (YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD), Intended result, Authority source, Result, Evidence and limits, and Task effect required; Type and Residual effects optional; Resume when required for blocked; Reason required for abandoned. Use --input - to read the fragment from stdin.\nSchema 5 input: Occurred, Cue, Under, Result wanted, Result, Evidence and Task effect required; Resume when for blocked, Reason for abandoned.",
   ],
   [
     "checkpoint propose",
@@ -256,7 +290,7 @@ function parseOptions(args) {
 function allowedOptions(command, operation) {
   const common = new Set(["--root", "--record", "--input", "--help"]);
   const withNextAction = new Set([...common, "--next-action"]);
-  if (command === "init") return new Set(["--root", "--name", "--input", "--help"]);
+  if (command === "init") return new Set(["--root", "--name", "--input", "--schema", "--cue", "--help"]);
   if (command === "view") return new Set(["--root", "--record", "--view", "--help"]);
   if (command === "validate") return new Set(["--root", "--record", "--strict", "--help"]);
   if (command === "slice") {
@@ -269,6 +303,7 @@ function allowedOptions(command, operation) {
     if (operation === "record") return new Set([...common, "--title", "--state"]);
   }
   if (command === "checkpoint") {
+    if (operation === undefined) return new Set(["--root", "--record", "--repo", "--help"]);
     if (operation === "propose") return new Set([...common, "--title"]);
     if (operation === "activate") return new Set([...withNextAction, "--title"]);
     if (operation === "defer" || operation === "resume") return new Set([...withNextAction, "--id"]);
@@ -281,6 +316,11 @@ function allowedOptions(command, operation) {
   }
   if (command === "task" && operation === "set-state")
     return new Set(["--root", "--record", "--state", "--next-action", "--help"]);
+  if (command === "agreement") {
+    if (operation === "open") return new Set([...withNextAction, "--title"]);
+    if (operation === "update") return new Set([...common, "--text"]);
+    if (operation === "close") return new Set([...withNextAction, "--state"]);
+  }
   if (command === "task" && operation === "create")
     return new Set(["--title", "--goal", "--parent", "--cwd", "--help"]);
   if (command === "task" && operation === "import") return new Set(["--record", "--project", "--help"]);
@@ -406,11 +446,72 @@ async function initialize(options) {
   return `${created.path}\n`;
 }
 
+const INIT5_HEADINGS = ["Goal", "Settled", "Open", "Space", "Read on recovery", "Read when", "Next action"];
+
+async function initialize5(options) {
+  const root = rootOption(options);
+  const name = requireOption(options, "--name");
+  const cue = requireOption(options, "--cue").replace(/\s+/g, " ").trim();
+  const problem = cueProblem(cue);
+  if (problem) throw new CliError(`--cue: ${problem}`);
+  const input = (await readInput(options["--input"], cwd())).replace(/\r\n?/g, "\n");
+  const sections = {};
+  let current = null;
+  for (const line of input.split("\n")) {
+    const heading = /^#{2,3} (.+?)\s*$/.exec(line);
+    if (heading) {
+      if (!INIT5_HEADINGS.includes(heading[1]))
+        throw new CliError(
+          `Unknown initialization heading: ${heading[1]}; Schema 5 takes ${INIT5_HEADINGS.join(", ")}`,
+        );
+      if (sections[heading[1]]) throw new CliError(`Duplicate initialization heading: ${heading[1]}`);
+      current = heading[1];
+      sections[current] = [];
+    } else if (current) sections[current].push(line);
+    else if (line.trim()) throw new CliError(`Initialization text outside a heading would be lost: ${line.trim()}`);
+  }
+  const text = skeleton5({ name, cue, stateAsOf: new Date().toISOString(), sections });
+  parseRecord5(text);
+  const created = await createRecordPath(root, name, slugify(name));
+  try {
+    await writeInitialAtomically(root, created.path, text);
+    await writeTaskFile(root, created.path, HISTORY_FILE, null, emptyHistory(name));
+    await writeTaskFile(root, created.path, DECISIONS_FILE, null, EMPTY_DECISIONS);
+  } catch (error) {
+    if (error?.exitCode !== 2) await rm(dirname(created.path), { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
+  return `${created.path}\n`;
+}
+
 async function readExisting(options) {
   const root = rootOption(options);
   const recordOption = requireOption(options, "--record");
   const loaded = await readRecord(root, resolveRecordPath(root, recordOption));
   return { root, ...loaded };
+}
+
+/** Schema 5's validate: the task folder's structure, then budget and cue warnings and the update lines' pointers. */
+async function validate5(loaded, options) {
+  const task = await loadTask5(loaded.path, loaded.text);
+  const slice = task.record.work.slice;
+  // An update is "<claim> — <pointer>": what follows its last dash is the pointer, whatever its shape.
+  const updates = (slice?.updates ?? []).map((update) => {
+    const pointer = update.text.includes(" — ") ? update.text.split(" — ").pop().trim() : "";
+    return { index: update.index, line: `- ${update.kind}: ${update.text}${pointer ? ` \`${pointer}\`` : ""}` };
+  });
+  const pointers = checkLinePointers(updates, { root: loaded.root, recordPath: loaded.path });
+  const unresolved = options["--strict"] ? pointers.warnings : [...pointers.problems, ...pointers.warnings];
+  const notes = [
+    ...warnings5(task).map((warning) => `warning: ${warning}`),
+    ...unresolved.map((each) => `warning: a pointer in the Slice's updates does not resolve here: ${each}`),
+    ...pointers.outside.map((each) => `outside the repository, not checked: ${each}`),
+  ];
+  if (options["--strict"] && pointers.problems.length)
+    throw new CliError(
+      `Pointers on Evidence or Result lines do not resolve:\n${pointers.problems.map((each) => `- ${each}`).join("\n")}`,
+    );
+  return `valid\n${displayPath(loaded.root, loaded.path)}, ${task.history.entries.length} history entries\n${pointers.checked} evidence pointer(s) checked${notes.length ? `\n${notes.join("\n")}` : ""}\n`;
 }
 
 /** Projects, registered tasks and search, through the registry under the Freeflow home. */
@@ -590,7 +691,12 @@ async function runCore(command, rest) {
     if (!task) throw new CliError(`No task ${options["--record"]} in the registry.`);
     options["--record"] = task.record;
   }
-  if (command === "init") return initialize(options);
+  if (command === "init") {
+    const schema = options["--schema"] ?? "4";
+    if (!["4", "5"].includes(schema)) throw new CliError(`--schema is 4 or 5, not ${schema}`);
+    if (schema === "4" && options["--cue"]) throw new CliError("--cue is for --schema 5");
+    return schema === "5" ? initialize5(options) : initialize(options);
+  }
   if (command === "view") {
     const view = positionals[0] ?? options["--view"];
     if (!view || !["resume", "recover", "full", "entry"].includes(view))
@@ -603,6 +709,8 @@ async function runCore(command, rest) {
     } else if (ids.length) throw new CliError(`View ${view} accepts no further arguments`);
     const loaded = await readExisting(options);
     if (view === "full") return renderFull(loaded.text);
+    if (schemaOf(loaded.text) === 5)
+      throw new CliError(`View ${view} for Schema 5 records is not built yet; use view full`);
     if (view === "entry") return renderEntries(loaded.text, ids);
     if (view === "recover") return renderRecover(loaded.text, { root: loaded.root, recordPath: loaded.path });
     return renderResume(loaded.text);
@@ -610,6 +718,7 @@ async function runCore(command, rest) {
   if (command === "validate") {
     if (positionals.length) throw new CliError("Validate does not accept positional arguments");
     const loaded = await readExisting(options);
+    if (schemaOf(loaded.text) === 5) return validate5(loaded, options);
     validateDocument(parseDocument(loaded.text));
     const pointers = checkEvidencePointers(loaded.text, { root: loaded.root, recordPath: loaded.path });
     const outside = pointers.outside.length
@@ -627,9 +736,16 @@ async function runCore(command, rest) {
       );
     return `valid\n${displayPath(loaded.root, loaded.path)}\n${pointers.checked} evidence pointer(s) checked${warnings}${outside}\n`;
   }
-  if (positionals.length !== 1) throw new CliError(`Expected one operation for ${command}`);
+  const schema5Only = command === "agreement" || (command === "checkpoint" && positionals.length === 0);
+  if (positionals.length !== (command === "checkpoint" && positionals.length === 0 ? 0 : 1))
+    throw new CliError(`Expected one operation for ${command}`);
   const loaded = await readExisting(options);
   const input = await readInput(options["--input"], cwd());
+  if (schemaOf(loaded.text) === 5) return runTransition5(command, positionals, options, input, loaded);
+  if (schema5Only)
+    throw new CliError(
+      `${command === "agreement" ? "agreement" : "checkpoint without an operation"} is for Schema 5 records; this one is Schema ${schemaOf(loaded.text) ?? "unknown"}`,
+    );
   return runTransition(command, positionals, options, input, loaded);
 }
 

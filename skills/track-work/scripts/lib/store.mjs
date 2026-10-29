@@ -100,15 +100,40 @@ function isStore(root) {
   }
 }
 
-/** A repository keeps its records in .freeflow/tasks; a project store, marked by store.json, in tasks. */
-export function taskRoot(root) {
-  return isStore(root) ? resolve(root, "tasks") : resolve(root, ".freeflow", "tasks");
+/** Whether root is a project's folder in the Freeflow store: <store>/projects/<project>. */
+export function isStoreProject(root) {
+  const projects = dirname(resolve(root));
+  return basename(projects) === "projects" && isFreeflowStore(dirname(projects));
 }
 
-/** The project store holding an absolute record path (<store>/tasks/<task>/record.md), or undefined. */
+/** The Freeflow store holding path, found by walking up to the folder its marker names, or undefined. */
+export function freeflowStoreOf(path) {
+  let directory = resolve(path);
+  for (;;) {
+    if (isFreeflowStore(directory)) return directory;
+    const parent = dirname(directory);
+    if (parent === directory) return undefined;
+    directory = parent;
+  }
+}
+
+/**
+ * A repository keeps its records in .freeflow/tasks; a project store, marked by store.json, in tasks; so does a
+ * project's folder in the Freeflow store.
+ */
+export function taskRoot(root) {
+  return isStore(root) || isStoreProject(root) ? resolve(root, "tasks") : resolve(root, ".freeflow", "tasks");
+}
+
+/**
+ * The project store or Freeflow store project holding an absolute record path (<project>/tasks/<task>/record.md), or
+ * undefined.
+ */
 export function storeOf(recordPath) {
   const store = dirname(dirname(dirname(resolve(recordPath))));
-  return basename(dirname(dirname(resolve(recordPath)))) === "tasks" && isStore(store) ? store : undefined;
+  return basename(dirname(dirname(resolve(recordPath)))) === "tasks" && (isStore(store) || isStoreProject(store))
+    ? store
+    : undefined;
 }
 
 /**
@@ -238,7 +263,56 @@ export async function writeInitialAtomically(root, recordPath, text) {
 }
 
 export async function writeAtomically(root, recordPath, sourceText, candidateText) {
-  const path = await assertRecordPath(root, recordPath);
+  return publishAtomically(await assertRecordPath(root, recordPath), sourceText, candidateText);
+}
+
+/** The files beside record.md that a command writes (Schema 5). */
+export const TASK_FILES = new Set(["history.md", "decisions.md"]);
+
+/**
+ * Writes one of TASK_FILES beside the record as writeAtomically writes the record: published whole or not at all, and
+ * only while the file still holds sourceText; a sourceText of null means the file must not exist yet.
+ */
+export async function writeTaskFile(root, recordPath, name, sourceText, candidateText) {
+  if (!TASK_FILES.has(name)) fail("unsafe-path", `Not a task file: ${name}`);
+  const record = await assertRecordPath(root, recordPath);
+  const path = join(dirname(record), name);
+  await assertNoSymlinkPath(path, canonicalPath(taskRoot(root)));
+  if (sourceText === null) {
+    if (
+      await lstat(path)
+        .then(() => true)
+        .catch(() => false)
+    )
+      fail("stale-source", `${name} appeared while the operation was preparing; nothing was written`);
+    return writeInitialFile(path, candidateText);
+  }
+  return publishAtomically(path, sourceText, candidateText);
+}
+
+async function writeInitialFile(path, text) {
+  const temporaryPath = join(dirname(path), `.${basename(path)}.${process.pid}.${randomUUID()}.tmp`);
+  let published = false;
+  try {
+    await writeFile(temporaryPath, text, { encoding: "utf8", flag: "wx" });
+    await rename(temporaryPath, path);
+    published = true;
+    if ((await readFile(path, "utf8")) !== text)
+      fail("publication-confirmation", `Published ${basename(path)} differs from the candidate`, {}, 2);
+  } catch (error) {
+    if (!published) await unlink(temporaryPath).catch(() => undefined);
+    if (error instanceof StoreError) throw error;
+    fail(
+      "publication-failure",
+      `Could not publish ${basename(path)}: ${error?.code ?? "write"}`,
+      {},
+      published ? 2 : 1,
+    );
+  }
+  return { path, changed: true };
+}
+
+async function publishAtomically(path, sourceText, candidateText) {
   let currentText;
   try {
     currentText = await readFile(path, "utf8");
