@@ -104,7 +104,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "store sync",
-    "Usage: store sync [--home <folder>] [--message <commit message>]\nCommits every change in the store as you, takes the remote's commits under the local ones, and pushes. A push that fails leaves the commit here for the next sync, and says why.",
+    "Usage: store sync [--home <folder>] [--message <commit message>] [--pull | --resolved]\nCommits every change in the store as you, takes the remote's commits under the local ones, and pushes. history.md and sessions.md merge by keeping both sides' lines. Before every push the changes are scanned for secrets (common token shapes): one in the files stops the push and names its path, line and kind; one only an earlier unpushed commit held is dropped by pushing those commits as one. A push refused because the remote moved takes its commits and tries again; with no network or no access the commits stay here, the output says so, and the next sync pushes them. Any other file both sides changed stops the sync: this store's copy stays in place, committed and not pushed, and the remote's goes under local/conflicts/; merge what should stay into this store's file, then run store sync --resolved, which keeps this store's version where the two still conflict. --pull takes the remote's commits and pushes nothing, as at session start.",
   ],
   [
     "project",
@@ -237,7 +237,7 @@ function parseOptions(args) {
       continue;
     }
     if (options[token] !== undefined) throw new CliError(`Duplicate option: ${token}`);
-    if (token === "--help" || token === "--strict") {
+    if (token === "--help" || token === "--strict" || token === "--pull" || token === "--resolved") {
       options[token] = true;
       continue;
     }
@@ -296,7 +296,8 @@ function allowedOptions(command, operation) {
   if (command === "store" && operation === "init")
     return new Set(["--remote", "--home", "--git-name", "--git-email", "--help"]);
   if (command === "store" && operation === "status") return new Set(["--home", "--help"]);
-  if (command === "store" && operation === "sync") return new Set(["--home", "--message", "--help"]);
+  if (command === "store" && operation === "sync")
+    return new Set(["--home", "--message", "--pull", "--resolved", "--help"]);
   return null;
 }
 
@@ -533,11 +534,24 @@ async function runStore(operation, options) {
       `Not committed: ${status.uncommitted} path(s)`,
       `Not pushed: ${count(status.unpushed)} commit(s); not yet taken: ${count(status.behind)}, as of the last sync`,
       `Last sync: ${last}`,
+      ...(status.conflict
+        ? [
+            `Conflict waiting: ${status.conflict.join(", ")}; the remote's copies are under local/conflicts/; then store sync --resolved`,
+          ]
+        : []),
     ].join("\n")}\n`;
   }
   if (operation === "sync") {
-    const synced = await syncStore({ home: options["--home"], message: options["--message"] });
+    if (options["--pull"] && options["--resolved"]) throw new CliError("Give --pull or --resolved, not both");
+    const synced = await syncStore({
+      home: options["--home"],
+      message: options["--message"],
+      pull: options["--pull"] === true,
+      resolved: options["--resolved"] === true,
+    });
     const committed = synced.committed ? `committed ${synced.committed} path(s), ` : "nothing to commit, ";
+    if (options["--pull"] && synced.pulled)
+      return `Took the remote's commits into ${synced.home}: ${committed}nothing pushed.\n`;
     return synced.pushed
       ? `Synced ${synced.home}: ${committed}pushed.\n`
       : `Synced ${synced.home}: ${committed}not pushed (${synced.reason}); the next store sync pushes it.\n`;
