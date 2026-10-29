@@ -22,6 +22,7 @@ import { checkEvidencePointers, checkLinePointers, renderRecover } from "./lib/r
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { runTransition5 } from "./lib/transitions5.mjs";
 import { migrateTask, readCues } from "./lib/migrate5.mjs";
+import { dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
 import { renderEntries5, renderIndex5, renderRecover5 } from "./lib/views5.mjs";
 import {
   amendDelegation,
@@ -64,6 +65,7 @@ function usage() {
     "  working-record.mjs agreement <open|update|close> ... (Schema 5)",
     "  working-record.mjs checkpoint --record <record.md> [--repo <path>] (Schema 5)",
     "  working-record.mjs delegate <open|amend|status|check-return|close> ... (Schema 5)",
+    "  working-record.mjs discussion <list|save|drop> --record <record.md> ... (Schema 5)",
     "  working-record.mjs migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name>] (Schema 4 to 5)",
     "  working-record.mjs project <new|link|show|list|remove> ...",
     "  working-record.mjs task <create|import|search|env|here|fanout|remove> ...",
@@ -117,6 +119,22 @@ const COMMAND_HELP = new Map([
   [
     "init",
     'Usage: init --root <path> --name <task name> [--schema 5 --cue <cue>] [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings, Work agreement (written only when given) and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.\nWith --schema 5: the task folder gets record.md, history.md and decisions.md. --cue (required) says when the task matters, starting "read when", in at most 25 words. Input: Goal and Next action required; Settled, Open, Space, Read on recovery and Read when accepted. --root may be a project\'s folder in the Freeflow store (<store>/projects/<project>), whose tasks/ then holds the task.',
+  ],
+  [
+    "discussion",
+    'Usage: working-record.mjs discussion <list|save|drop> --record <record.md> ... (Schema 5)\nThe user\'s messages that shaped the work, kept word for word as blocks in sources/discussion.md, each message with the agent\'s line saying what it answered; blocks are added or dropped, never edited. The transcript is --transcript <path> (--format claude-code or plain), else FREEFLOW_TRANSCRIPT, else this Claude Code session\'s log; --transcript - reads a plain export (lines starting "User:" or "Assistant:") from standard input.',
+  ],
+  [
+    "discussion list",
+    "Usage: discussion list --record <record.md> [--since <time>] [--until <time>] [--transcript <path>] [--format <claude-code|plain>]\nNumbers the user's messages since the record's State as of (or --since), each with its time and first words; messages sent while a turn ran are included, and resent duplicates and cut-off copies left out.",
+  ],
+  [
+    "discussion save",
+    'Usage: discussion save --record <record.md> --messages <4-7,11> --title <topic> --shapes <A-NNN, S-NNN> [--replaces B-NNN] [--since <time>] [--transcript <path>] --input <file|->\nAppends one block B-NNN to sources/discussion.md: the chosen messages, numbered as discussion list numbers them, word for word, each followed by the agent\'s line. --shapes names the agreement or Slices the discussion shaped; --replaces drops the block this one replaces. Input: one "N: <what the message answered, specifically enough that it reads alone>" line per chosen message.',
+  ],
+  [
+    "discussion drop",
+    "Usage: discussion drop --record <record.md> --block <B-NNN>\nRemoves a block, once the work it shaped is closed and nothing open rests on it; Git keeps it. checkpoint lists the blocks whose shaped work is closed.",
   ],
   [
     "migrate",
@@ -354,6 +372,13 @@ function allowedOptions(command, operation) {
   if (command === "init") return new Set(["--root", "--name", "--input", "--schema", "--cue", "--help"]);
   if (command === "view") return new Set(["--root", "--record", "--view", "--delegation", "--help"]);
   if (command === "migrate") return new Set(["--root", "--record", "--cue", "--cues", "--project", "--home", "--help"]);
+  if (command === "discussion") {
+    const reading = ["--root", "--record", "--since", "--until", "--transcript", "--format", "--help"];
+    if (operation === "list") return new Set(reading);
+    if (operation === "save")
+      return new Set([...reading, "--messages", "--title", "--shapes", "--replaces", "--input"]);
+    if (operation === "drop") return new Set(["--root", "--record", "--block", "--help"]);
+  }
   if (command === "delegate") {
     const record = ["--root", "--record", "--help"];
     if (operation === "open")
@@ -829,6 +854,36 @@ async function runCore(command, rest) {
     const task = await new Registry().task(options["--record"]);
     if (!task) throw new CliError(`No task ${options["--record"]} in the registry.`);
     options["--record"] = task.record;
+  }
+  if (command === "discussion") {
+    const loaded = await readExisting(options);
+    if (schemaOf(loaded.text) !== 5) throw new CliError("discussion is for Schema 5 records");
+    if (operation === "drop") return dropBlock(loaded, requireOption(options, "--block"));
+    const task = await loadTask5(loaded.path, loaded.text);
+    // List and save number the same messages: by default, those since the record's last checkpoint.
+    const since = options["--since"] ?? task.record.header.stateAsOf;
+    if (options["--transcript"] === "-" && options["--input"] === "-")
+      throw new CliError("--transcript - reads standard input; give the notes with --input <file>");
+    const stdin = options["--transcript"] === "-" ? await readInput("-", cwd()) : null;
+    const messages = userMessages({
+      transcript: options["--transcript"],
+      format: options["--format"],
+      since,
+      until: options["--until"],
+      stdin,
+    });
+    if (operation === "list") return listText(messages, since);
+    if (operation === "save") {
+      if (!messages.length) throw new CliError(`No messages from the user since ${since} to save.`);
+      return saveBlock(loaded, {
+        messages,
+        numbers: parseNumbers(requireOption(options, "--messages"), messages.length),
+        title: options["--title"],
+        shapes: options["--shapes"],
+        replaces: options["--replaces"],
+        notesText: await readInput(options["--input"], cwd()),
+      });
+    }
   }
   if (command === "migrate") {
     const loaded = await readExisting(options);

@@ -29,6 +29,7 @@ import {
   renderFields5,
   warnings5,
 } from "./record5.mjs";
+import { closedBlocks } from "./discussion5.mjs";
 import { freeflowStoreOf, isFreeflowStore, writeAtomically, writeTaskFile } from "./store.mjs";
 
 function fail(code, message) {
@@ -540,6 +541,10 @@ async function checkpoint(options, loaded) {
     ),
     space ? `Space: ${space.line.slice(2)}` : "Space: unchanged (no work repository at this folder; pass --repo)",
     ...warnings5(after).map((warning) => `Warning: ${warning}`),
+    ...closedBlocks(loaded.path, task.history).map(
+      (block) =>
+        `Discussion block ${block.id} shaped ${block.shapes.join(", ")}, now closed: drop it (discussion drop --block ${block.id}) once nothing open rests on it.`,
+    ),
     await syncAfter(task, "checkpoint"),
   ];
   return `${lines.join("\n")}\n`;
