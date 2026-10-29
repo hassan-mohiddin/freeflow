@@ -7,6 +7,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { storeStatus } from "./freeflow-store.mjs";
 import { contextFor, gitRoot, sourceEntries } from "./recover.mjs";
+import { delegationChecks, workerSection } from "./delegations5.mjs";
 import { readSessions, sessionIdentity } from "./projects5.mjs";
 import { budgets5, loadTask5, parseRecord5, warnings5 } from "./record5.mjs";
 import { freeflowStoreOf, storeOf } from "./store.mjs";
@@ -143,7 +144,7 @@ async function storeCheck(home) {
 }
 
 /** Schema 5's recovery view. */
-export async function renderRecover5({ root, path, text }) {
+export async function renderRecover5({ root, path, text }, { delegation = null } = {}) {
   const task = await loadTask5(path, text);
   const home = freeflowStoreOf(dirname(path));
   const project = storeOf(path);
@@ -170,9 +171,11 @@ export async function renderRecover5({ root, path, text }) {
     budgetLine("rules", ruleWords, RECOVERY_BUDGETS.rules),
     budgetLine("Read on recovery's sources", sourceWords(readNow), RECOVERY_BUDGETS.readNow),
   ];
+  const worker = delegation ? workerSection(dirname(path), delegation) : [];
   const out = [
     OPENING_LINE,
     "",
+    ...worker,
     "## Rules",
     "",
     ...(ruleFiles.length ? ruleFiles.flatMap((file) => [`### ${file.path}`, "", file.text, ""]) : ["None.", ""]),
@@ -216,11 +219,14 @@ export async function renderRecover5({ root, path, text }) {
       .filter((warning) => !/ words, over /.test(warning))
       .map((warning) => `- Warning: ${warning}`),
     ...(unresolved.length ? unresolved : ["- Pointers: every Read on recovery and Read when pointer resolves."]),
+    ...(delegation ? [] : delegationChecks(dirname(path), task.record)),
     holdCheck(path),
     await storeCheck(home),
     ...(work.space.length ? spaceChecks(task, home) : ["- Space: the record names no repository."]),
     "",
-    "Now read every Read on recovery source and the core skills, then say in one line what you read.",
+    delegation
+      ? "Now read the brief's Read sources, and Execute Work with its delegation reference (Work From A Brief); continue from progress.md's Next, then say in one line what you read."
+      : "Now read every Read on recovery source and the core skills, then say in one line what you read.",
   ];
   return `${out.join("\n")}\n`;
 }

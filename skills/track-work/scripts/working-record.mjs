@@ -22,6 +22,13 @@ import { checkEvidencePointers, checkLinePointers, renderRecover } from "./lib/r
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { runTransition5 } from "./lib/transitions5.mjs";
 import { renderEntries5, renderIndex5, renderRecover5 } from "./lib/views5.mjs";
+import {
+  amendDelegation,
+  checkReturn,
+  closeDelegation,
+  delegationStatus,
+  openDelegation,
+} from "./lib/delegations5.mjs";
 import { PROJECT_LINK, Registry, TASK_ID, removalText, startCommand } from "./lib/registry.mjs";
 import { searchRecords } from "./lib/search.mjs";
 import { addStoreRemote, initStore, storeHome, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
@@ -55,6 +62,7 @@ function usage() {
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
     "  working-record.mjs agreement <open|update|close> ... (Schema 5)",
     "  working-record.mjs checkpoint --record <record.md> [--repo <path>] (Schema 5)",
+    "  working-record.mjs delegate <open|amend|status|check-return|close> ... (Schema 5)",
     "  working-record.mjs project <new|link|show|list|remove> ...",
     "  working-record.mjs task <create|import|search|env|here|fanout|remove> ...",
     "  working-record.mjs task <create|take|release|switch|here|search|remove> ... (in a Freeflow store)",
@@ -109,6 +117,30 @@ const COMMAND_HELP = new Map([
     'Usage: init --root <path> --name <task name> [--schema 5 --cue <cue>] [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings, Work agreement (written only when given) and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.\nWith --schema 5: the task folder gets record.md, history.md and decisions.md. --cue (required) says when the task matters, starting "read when", in at most 25 words. Input: Goal and Next action required; Settled, Open, Space, Read on recovery and Read when accepted. --root may be a project\'s folder in the Freeflow store (<store>/projects/<project>), whose tasks/ then holds the task.',
   ],
   [
+    "delegate",
+    "Usage: working-record.mjs delegate <operation> ... (Schema 5)\nOperations: delegate open, delegate amend, delegate status, delegate check-return, delegate close. One folder per delegation, delegations/D-NNN-<slug>/ in the task folder, with brief.md (whoever hands the work out), progress.md and return.md (the worker); a sub-worker's folder sits inside its worker's. Only the coordinator's delegations have a line in Current Work's Delegations and an entry in History. How to hand work out: Execute Work's references/delegation.md.",
+  ],
+  [
+    "delegate open",
+    "Usage: delegate open --record <record.md> --title <title> --kind <build|review|research|eval|gather> --agent \"<model>, <effort>\" [--repo <path> [--base <ref>] [--branch <name>] [--worktree <path>]] [--from S-NNN] [--under A-NNN] [--continues D-NNN] [--handle <agent ID>] [--parent D-NNN] --input <file|->\nAssigns D-NNN (or D-NNN.n with --parent), writes brief.md from the template, and, with --repo, makes the worker's own worktree on a new branch at the base (default HEAD). Without --parent it writes the delegation's line in Current Work's Delegations; --parent opens a sub-worker's delegation inside its worker's folder, and is refused for a sub-worker (no fourth level). --from defaults to the current Slice and --under to the open agreement.\nInput: the brief's sections under \"## <section>\" headings: Result wanted, Scope and Done when required; Settled, Read and Return when optional. Read gains the delegation reference and the worker's recover command.",
+  ],
+  [
+    "delegate amend",
+    "Usage: delegate amend --record <record.md> --id <D-NNN[.n]> (--text <change> | --input <file|->) [--handle <agent ID>]\nAppends the change, dated, to the brief's Changes, so a worker that compacts afterwards still has it; tell the worker too. A returned delegation runs again (another round in the same folder). --handle records the host's ID for the agent.",
+  ],
+  [
+    "delegate status",
+    "Usage: delegate status --record <record.md>\nThe open delegations: ID, title, kind, agent, when opened, branch, whether a return is there, and each one's sub-workers.",
+  ],
+  [
+    "delegate check-return",
+    "Usage: delegate check-return --record <record.md> --id <D-NNN[.n]>\nRefuses a return that is missing, lacks its State line or a heading (Result, Identities, Checks, Left open, Not done; a reviewer returns Review Work's report instead), or names a commit that is not on the brief's branch. When it passes, the delegation's line says returned. A return that passes is not accepted: read it and the diff, and rerun the check that decides the result.",
+  ],
+  [
+    "delegate close",
+    "Usage: delegate close --record <record.md> --id <D-NNN> --outcome <accepted|sent back|stopped> [--merge <commit>] [--tokens <n>] [--minutes <n>] --input <file|->\nRecords the outcome in the delegation's one History entry, with the model, effort, tokens and minutes the host reports, the merge commit and the return's path; removes its line; syncs the store. Accepting needs a return that passes check-return and, when the brief has a branch, the commit that merged it. A sub-worker's delegation is not closed here: its worker reports it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required.",
+  ],
+  [
     "agreement",
     "Usage: working-record.mjs agreement <operation> ... (Schema 5)\nOperations: agreement open, agreement update, agreement close. A task has one open agreement at a time: what the user agreed, in their words, dated; its decision list is decisions.md beside the record.",
   ],
@@ -126,7 +158,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "view",
-    "Usage: view resume|recover|full|index --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\nSchema 5: recover prints an opening line (the record is memory; the user's latest message decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (newest 30, and any the record names), the project's other tasks with their cues, and the checks: budgets, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored.\nSchema 4: resume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
+    "Usage: view resume|recover|full|index --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\nSchema 5: recover [--delegation <D-NNN[.n]>] prints an opening line (the record is memory; the user's latest message decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (newest 30, and any the record names), the project's other tasks with their cues, and the checks: budgets, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored. With --delegation, recover is a worker's: after the opening line it states the worker's rule (the brief is its scope and wins over the record) and prints the delegation's brief, progress and return.\nSchema 4: resume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
   ],
   [
     "validate",
@@ -314,7 +346,32 @@ function allowedOptions(command, operation) {
   const common = new Set(["--root", "--record", "--input", "--help"]);
   const withNextAction = new Set([...common, "--next-action"]);
   if (command === "init") return new Set(["--root", "--name", "--input", "--schema", "--cue", "--help"]);
-  if (command === "view") return new Set(["--root", "--record", "--view", "--help"]);
+  if (command === "view") return new Set(["--root", "--record", "--view", "--delegation", "--help"]);
+  if (command === "delegate") {
+    const record = ["--root", "--record", "--help"];
+    if (operation === "open")
+      return new Set([
+        ...record,
+        "--input",
+        "--title",
+        "--kind",
+        "--agent",
+        "--from",
+        "--under",
+        "--continues",
+        "--handle",
+        "--repo",
+        "--base",
+        "--branch",
+        "--worktree",
+        "--parent",
+      ]);
+    if (operation === "amend") return new Set([...record, "--id", "--text", "--handle", "--input"]);
+    if (operation === "status") return new Set(record);
+    if (operation === "check-return") return new Set([...record, "--id"]);
+    if (operation === "close")
+      return new Set([...record, "--id", "--outcome", "--merge", "--tokens", "--minutes", "--input"]);
+  }
   if (command === "validate") return new Set(["--root", "--record", "--strict", "--help"]);
   if (command === "slice") {
     if (operation === "propose") return new Set([...common, "--title"]);
@@ -766,6 +823,19 @@ async function runCore(command, rest) {
     if (!task) throw new CliError(`No task ${options["--record"]} in the registry.`);
     options["--record"] = task.record;
   }
+  if (command === "delegate") {
+    const loaded = await readExisting(options);
+    if (schemaOf(loaded.text) !== 5)
+      throw new CliError(
+        "delegate is for Schema 5 records; with a Schema 4 record, keep the delegation folders by hand",
+      );
+    const input = await readInput(options["--input"], cwd());
+    if (operation === "open") return openDelegation(loaded, options, input);
+    if (operation === "amend") return amendDelegation(loaded, options, input);
+    if (operation === "status") return delegationStatus(loaded);
+    if (operation === "check-return") return checkReturn(loaded, options);
+    if (operation === "close") return closeDelegation(loaded, options, input);
+  }
   if (command === "init") {
     const schema = options["--schema"] ?? "4";
     if (!["4", "5"].includes(schema)) throw new CliError(`--schema is 4 or 5, not ${schema}`);
@@ -785,7 +855,7 @@ async function runCore(command, rest) {
     const loaded = await readExisting(options);
     if (view === "full") return renderFull(loaded.text);
     if (schemaOf(loaded.text) === 5) {
-      if (view === "recover") return renderRecover5(loaded);
+      if (view === "recover") return renderRecover5(loaded, { delegation: options["--delegation"] ?? null });
       if (view === "entry") return renderEntries5(loaded, ids);
       if (view === "index") return renderIndex5(loaded);
       throw new CliError("Schema 5 has no resume view: read record.md, or after context loss view recover");
