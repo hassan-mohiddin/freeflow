@@ -114,7 +114,7 @@ function checkPointer(pointer, context) {
 
 const bullets = (lines) => lines.filter((line) => /^\s*[-*]\s+\S/.test(line));
 
-function sourceEntries(lines, context) {
+export function sourceEntries(lines, context) {
   return bullets(lines).map((line) => {
     const text = line.trim().replace(/^[-*]\s+/, "");
     const trigger = /\bread (?:only )?(?:when|if) ([^.;]+)/i.exec(text)?.[1]?.trim() ?? null;
@@ -164,7 +164,7 @@ function liveState(document, context) {
   return { git: true, branch, head, subject, dirty, namedBranches: named, mismatches, notes };
 }
 
-function contextFor(root, recordPath) {
+export function contextFor(root, recordPath) {
   return {
     root,
     taskDir: dirname(recordPath),
@@ -172,7 +172,7 @@ function contextFor(root, recordPath) {
   };
 }
 
-function gitRoot(root) {
+export function gitRoot(root) {
   return git(root, ["rev-parse", "--show-toplevel"]) ?? root;
 }
 
@@ -230,24 +230,32 @@ export function renderRecover(text, { root, recordPath }) {
 // path); the caller decides whether problems fail. Pointers outside the repository are listed, not checked.
 export function checkEvidencePointers(text, { root, recordPath }) {
   const document = parseDocument(text);
-  const context = contextFor(gitRoot(root), recordPath);
   const lines = document.lines;
+  const updates = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!/^#####\s+Material updates\s*$/.test(lines[index])) continue;
+    for (let at = index + 1; at < lines.length && !/^#{1,5}\s/.test(lines[at]); at += 1)
+      updates.push({ index: at, line: lines[at] });
+  }
+  return checkLinePointers(updates, { root, recordPath });
+}
+
+/** The pointers on the given update lines ({ index, line }), checked as checkEvidencePointers checks them. */
+export function checkLinePointers(updates, { root, recordPath }) {
+  const context = contextFor(gitRoot(root), recordPath);
   const problems = [];
   const warnings = [];
   const outside = [];
   let checked = 0;
-  for (let index = 0; index < lines.length; index += 1) {
-    if (!/^#####\s+Material updates\s*$/.test(lines[index])) continue;
-    for (let at = index + 1; at < lines.length && !/^#{1,5}\s/.test(lines[at]); at += 1) {
-      for (const pointer of pointersIn(lines[at])) {
-        if (pointer.kind === "url") continue;
-        const result = checkPointer(pointer, context);
-        const claims = /^\s*[-*]\s+(Evidence|Result)\b/.test(lines[at]);
-        if (result.problem) (claims ? problems : warnings).push(`line ${at + 1}: ${result.problem}`);
-        else if (result.outside || result.state.startsWith("not checked"))
-          outside.push(`line ${at + 1}: ${pointer.value}`);
-        if (!result.outside && !result.state.startsWith("not checked")) checked += 1;
-      }
+  for (const { index, line } of updates) {
+    for (const pointer of pointersIn(line)) {
+      if (pointer.kind === "url") continue;
+      const result = checkPointer(pointer, context);
+      const claims = /^\s*[-*]\s+(Evidence|Result)\b/.test(line);
+      if (result.problem) (claims ? problems : warnings).push(`line ${index + 1}: ${result.problem}`);
+      else if (result.outside || result.state.startsWith("not checked"))
+        outside.push(`line ${index + 1}: ${pointer.value}`);
+      if (!result.outside && !result.state.startsWith("not checked")) checked += 1;
     }
   }
   return { checked, problems, warnings, outside };

@@ -14,13 +14,33 @@ import {
   readRecord,
   resolveRecordPath,
   storeOf,
+  isFreeflowStore,
   writeInitialAtomically,
 } from "./lib/store.mjs";
 import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
-import { checkEvidencePointers, renderRecover } from "./lib/recover.mjs";
+import { checkEvidencePointers, checkLinePointers, renderRecover } from "./lib/recover.mjs";
+import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
+import { runTransition5 } from "./lib/transitions5.mjs";
+import { renderEntries5, renderIndex5, renderRecover5 } from "./lib/views5.mjs";
 import { PROJECT_LINK, Registry, TASK_ID, removalText, startCommand } from "./lib/registry.mjs";
 import { searchRecords } from "./lib/search.mjs";
-import { addStoreRemote, initStore, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
+import { addStoreRemote, initStore, storeHome, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
+import {
+  createProject,
+  createTask,
+  createTaskFolder5,
+  listProjects,
+  menu,
+  releaseTask,
+  removeProject,
+  removeTask,
+  searchTasks,
+  sessionIdentity,
+  showProject,
+  storeRecordPath,
+  switchTask,
+  takeTask,
+} from "./lib/projects5.mjs";
 
 const ROOT_HELP =
   "--record is resolved against --root, which defaults to the current directory; an absolute --record path finds its own root.";
@@ -28,13 +48,16 @@ const ROOT_HELP =
 function usage() {
   return [
     "Usage:",
-    "  working-record.mjs init --root <path> --name <task name> [--input <file|->]",
+    "  working-record.mjs init --root <path> --name <task name> [--schema 5 --cue <cue>] [--input <file|->]",
     "  working-record.mjs view resume|recover|full --record <record.md>",
     "  working-record.mjs view entry <ID> [<ID> ...] --record <record.md>",
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
+    "  working-record.mjs agreement <open|update|close> ... (Schema 5)",
+    "  working-record.mjs checkpoint --record <record.md> [--repo <path>] (Schema 5)",
     "  working-record.mjs project <new|link|show|list|remove> ...",
     "  working-record.mjs task <create|import|search|env|here|fanout|remove> ...",
+    "  working-record.mjs task <create|take|release|switch|here|search|remove> ... (in a Freeflow store)",
     "  working-record.mjs store <init|remote|status|sync> ...",
     "",
     ROOT_HELP,
@@ -55,8 +78,10 @@ const COMMAND_HELP = new Map([
   [
     "checkpoint",
     [
-      "Usage: working-record.mjs checkpoint <operation> ...",
-      "Operations: checkpoint propose, checkpoint activate, checkpoint defer, checkpoint resume, checkpoint close.",
+      "Usage: working-record.mjs checkpoint <operation> ... (Schema 4)",
+      "       working-record.mjs checkpoint --record <record.md> [--repo <path>] (Schema 5)",
+      "Schema 4 operations: checkpoint propose, checkpoint activate, checkpoint defer, checkpoint resume, checkpoint close.",
+      "Schema 5's checkpoint, before a compaction or a transfer, once Current Context is rewritten: checks the task folder's structure and the budgets (warning on any section over), writes the Space line for the work repository at --repo (default: the current directory, unless it is the Freeflow store), sets State as of, then commits and pushes the Freeflow store holding the task.",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
       "Use --input - to read Markdown fragments from stdin.",
     ].join("\n"),
@@ -75,16 +100,33 @@ const COMMAND_HELP = new Map([
     [
       "Usage: working-record.mjs task <operation> ...",
       "Operations: task set-state; and for projects: task create, task import, task search, task env, task here, task fanout, task remove.",
+      "In a Freeflow store: task create, take, release, switch, here, search and remove. A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
     ].join("\n"),
   ],
   [
     "init",
-    "Usage: init --root <path> --name <task name> [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings, Work agreement (written only when given) and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.",
+    'Usage: init --root <path> --name <task name> [--schema 5 --cue <cue>] [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings, Work agreement (written only when given) and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.\nWith --schema 5: the task folder gets record.md, history.md and decisions.md. --cue (required) says when the task matters, starting "read when", in at most 25 words. Input: Goal and Next action required; Settled, Open, Space, Read on recovery and Read when accepted. --root may be a project\'s folder in the Freeflow store (<store>/projects/<project>), whose tasks/ then holds the task.',
+  ],
+  [
+    "agreement",
+    "Usage: working-record.mjs agreement <operation> ... (Schema 5)\nOperations: agreement open, agreement update, agreement close. A task has one open agreement at a time: what the user agreed, in their words, dated; its decision list is decisions.md beside the record.",
+  ],
+  [
+    "agreement open",
+    "Usage: agreement open --record <record.md> --title <title> [--next-action <text>] --input <file|->\nInput: the agreement's lines as bullets (Done when …, Without asking: …, Ask first: …, Back at …, Holds until …), each quoting the user with the date; a bullet may continue on lines indented two spaces. Assigns A-NNN and writes Opened. Use --input - to read the lines from stdin.",
+  ],
+  [
+    "agreement update",
+    "Usage: agreement update --record <record.md> (--text <text> | --input <file|->)\nAppends one Update line: a change to what is agreed (an extension, a narrowing such as \"don't edit yet\", a lifted limit, a new endpoint), in the user's words, dated. Progress and results belong to Slices.",
+  ],
+  [
+    "agreement close",
+    "Usage: agreement close --record <record.md> --state <completed|ended|replaced> [--next-action <text>] --input <file|->\nAppends the agreement's History entry (its lines, updates and decisions.md's list), removes it from Current Work, empties decisions.md, then syncs the Freeflow store holding the task. Refused while the current Slice works under it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required; Settled optional: choices that still govern the task, added to Current Context's Settled.",
   ],
   [
     "view",
-    "Usage: view resume|recover|full --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\nresume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
+    "Usage: view resume|recover|full|index --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\nSchema 5: recover prints an opening line (the record is memory; the user's latest message decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (newest 30, and any the record names), the project's other tasks with their cues, and the checks: budgets, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored.\nSchema 4: resume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
   ],
   [
     "validate",
@@ -112,11 +154,11 @@ const COMMAND_HELP = new Map([
   ],
   [
     "project",
-    "Usage: working-record.mjs project <operation> ...\nOperations: project new, project link, project show, project list, project remove.\nA project groups tasks; its records live in a store under the Freeflow home (FREEFLOW_HOME, default ~/.freeflow), outside any repository. Create or link a project only when the user asks.",
+    "Usage: working-record.mjs project <operation> ...\nOperations: project new, project link, project show, project list, project remove.\nA project groups tasks; its records live in a store under the Freeflow home (FREEFLOW_HOME, default ~/.freeflow), outside any repository. Create or link a project only when the user asks.\nIn a Freeflow store (store init), projects are folders under projects/ and the operations are project new, project remove, project list and project show; every change is committed and, in a cloud store, pushed. Elsewhere they act on Pi's Task Memory registry.",
   ],
   [
     "project new",
-    "Usage: project new --name <name> [--cwd <directory>] [--worktrees <directory>]\nCreates the project and links the repository containing --cwd (default: the current directory) to it. --worktrees is where fan-out puts children's worktrees (default: the repository's parent directory).",
+    "Usage: project new --name <name> [--cwd <directory>] [--worktrees <directory>]\nCreates the project and links the repository containing --cwd (default: the current directory) to it. --worktrees is where fan-out puts children's worktrees (default: the repository's parent directory).\nIn a Freeflow store: project new --name <name> makes projects/<slug>/ with rules/ and tasks/, then commits and pushes. Only on the user's word.",
   ],
   [
     "project link",
@@ -128,7 +170,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task here",
-    "Usage: task here [--cwd <directory>]\nPrints the registered tasks whose primary directory contains the directory, deepest first.",
+    "Usage: task here [--cwd <directory>]\nPrints the registered tasks whose primary directory contains the directory, deepest first.\nIn a Freeflow store: the session-start menu. It opens by saying the record is memory and the user's message decides the work; says which task this session holds, if any; then lists the open tasks of each project whose tasks name --cwd's repository (newest activity first, at most 15), each with who holds it and when it last synced, and its cue; or the projects, when none matches. It takes nothing.",
   ],
   [
     "task fanout",
@@ -136,20 +178,35 @@ const COMMAND_HELP = new Map([
   ],
   [
     "project show",
-    "Usage: project show [--cwd <directory>] [--name <project>]\nPrints a project and its tasks: ID, title, parent, and whether a session owns it. Without --name, the project linked to the repository containing --cwd.",
+    "Usage: project show [--cwd <directory>] [--name <project>]\nPrints a project and its tasks: ID, title, parent, and whether a session owns it. Without --name, the project linked to the repository containing --cwd.\nIn a Freeflow store: project show --name <project> lists every task of the project: ID, title, state, who holds it and when it last synced, and its cue; without --name, the menu for --cwd (see task here).",
   ],
-  ["project list", "Usage: project list\nPrints every project: name, number of tasks, and linked repositories."],
+  [
+    "project list",
+    "Usage: project list\nPrints every project: name, number of tasks, and linked repositories.\nIn a Freeflow store: each project with its number of tasks and the repositories its tasks name in Space.",
+  ],
   [
     "project remove",
-    "Usage: project remove --name <project>\nMoves the project's store (every task's record) to the trash under the Freeflow home, removes the project and its tasks from the registry, and removes its .freeflow/project links. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that project. Never empty the trash: the user does.",
+    "Usage: project remove --name <project>\nMoves the project's store (every task's record) to the trash under the Freeflow home, removes the project and its tasks from the registry, and removes its .freeflow/project links. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that project. Never empty the trash: the user does.\nIn a Freeflow store: project remove --name <project> deletes the project's folder and every task in it, then commits and pushes; Git history keeps them, and the output says how to bring them back. Only when the user asked.",
   ],
   [
     "task remove",
-    "Usage: task remove --id <task ID>\nMoves the task's record, and its children's, to the trash under the Freeflow home and removes them from the registry. Task numbers are never reused. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that task. Never empty the trash: the user does.",
+    "Usage: task remove --id <task ID>\nMoves the task's record, and its children's, to the trash under the Freeflow home and removes them from the registry. Task numbers are never reused. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that task. Never empty the trash: the user does.\nIn a Freeflow store: task remove --id <project/task-NNN> deletes the task's folder, then commits and pushes; Git history keeps it, and the output says how to bring it back. Only when the user asked.",
+  ],
+  [
+    "task take",
+    "Usage: task take --id <project/task-NNN> [--takeover]\nIn a Freeflow store: takes the remote's commits, then writes this session's hold in the task's sessions.md, commits and pushes. Refused while another session holds the task, naming it and when it last synced: ask the user, then --takeover closes that hold as taken over. Refused while this session holds another task: use task switch.",
+  ],
+  [
+    "task release",
+    "Usage: task release [--id <project/task-NNN>]\nIn a Freeflow store: closes this session's hold on the task it holds (or --id) as released, commits and pushes.",
+  ],
+  [
+    "task switch",
+    "Usage: task switch --id <project/task-NNN> [--takeover]\nIn a Freeflow store: releases the task this session holds, then takes the other. Checkpoint the held task first.",
   ],
   [
     "task create",
-    "Usage: task create --title <title> --goal <goal> [--parent <task-id>] [--cwd <directory>]\nCreates a registered record in the project linked to --cwd, or with --parent a child of that task in its project, and prints its ID and path. A child has no children.",
+    "Usage: task create --title <title> --goal <goal> [--parent <task-id>] [--cwd <directory>]\nCreates a registered record in the project linked to --cwd, or with --parent a child of that task in its project, and prints its ID and path. A child has no children.\nIn a Freeflow store: task create --title <title> --goal <goal> --cue <cue> [--project <project>] [--cwd <directory>] [--next-action <text>] makes a Schema 5 task in the project (by default the one whose tasks name --cwd's repository), names that repository in its Space, and this session takes it; then commits and pushes. Only when the user asks or says yes to a one-line proposal.",
   ],
   [
     "task import",
@@ -157,19 +214,19 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task search",
-    "Usage: task search --query <text> (--id <task-id> --scope task|tree|project | --project <name>)\nPrints matching lines with the record, entry heading and state. tree is the task's root (its parent, or itself) and the root's children. Read-only.",
+    "Usage: task search --query <text> (--id <task-id> --scope task|tree|project | --project <name>)\nPrints matching lines with the record, entry heading and state. tree is the task's root (its parent, or itself) and the root's children. Read-only.\nIn a Freeflow store: task search --query <text> [--project <project>] searches every task's record.md, history.md and decisions.md.",
   ],
   [
     "slice propose",
-    "Usage: slice propose --record <record.md> --title <title> --input <file|->\nInput: Intended result required; Type, Expected evidence, and Dependencies optional. Commands set State; input never includes it. Use --input - to read the fragment from stdin.",
+    "Usage: slice propose --record <record.md> --title <title> --input <file|->\nInput: Intended result required; Type, Expected evidence, and Dependencies optional. Commands set State; input never includes it. Use --input - to read the fragment from stdin.\nSchema 5 input: Result wanted required; Done when and Dependencies optional.",
   ],
   [
     "slice start",
-    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.",
+    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.\nSchema 5 input: Scope, Stop if and Started from required; Under (default: the open agreement), Done when (default: the proposal's), Waits on (D-NNN, comma-separated) and Dependencies.",
   ],
   [
     "slice start-direct",
-    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Intended result, Authority source, Scope, Expected evidence, Stop condition, and Starting state required; Future Work is unchanged. Use --input - to read the fragment from stdin.",
+    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Intended result, Authority source, Scope, Expected evidence, Stop condition, and Starting state required; Future Work is unchanged. Use --input - to read the fragment from stdin.\nSchema 5 input: Result wanted, Scope, Done when, Stop if and Started from required; Under (default: the open agreement), Waits on and Dependencies.",
   ],
   [
     "slice pause",
@@ -178,7 +235,7 @@ const COMMAND_HELP = new Map([
   ["slice resume", "Usage: slice resume --record <record.md> --resolution <source> --next-action <text>"],
   [
     "slice close",
-    "Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Result, Evidence and limits, and Task effect required. Use --input - to read the fragment from stdin.",
+    'Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Result, Evidence and limits, and Task effect required. Use --input - to read the fragment from stdin.\nSchema 5 input: Cue ("read when …", at most 25 words), Result, Evidence and Task effect required; Resume when for blocked, Reason for abandoned. Appends the Slice\'s History entry, its updates included, then syncs the Freeflow store holding the task. A Slice is not closed as completed while a delegation it Waits on is open.',
   ],
   [
     "slice reopen",
@@ -186,7 +243,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "slice record",
-    "Usage: slice record --record <record.md> --title <title> --state <completed|blocked|abandoned> --input <file|->\nRecords a Slice that finished before it could be recorded, directly into History. The Current Slice, Future Work, and Next useful action are unchanged; the ID follows recording order and the command adds Recorded: retroactively on <today>.\nInput: Occurred (YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD), Intended result, Authority source, Result, Evidence and limits, and Task effect required; Type and Residual effects optional; Resume when required for blocked; Reason required for abandoned. Use --input - to read the fragment from stdin.",
+    "Usage: slice record --record <record.md> --title <title> --state <completed|blocked|abandoned> --input <file|->\nRecords a Slice that finished before it could be recorded, directly into History. The Current Slice, Future Work, and Next useful action are unchanged; the ID follows recording order and the command adds Recorded: retroactively on <today>.\nInput: Occurred (YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD), Intended result, Authority source, Result, Evidence and limits, and Task effect required; Type and Residual effects optional; Resume when required for blocked; Reason required for abandoned. Use --input - to read the fragment from stdin.\nSchema 5 input: Occurred, Cue, Under, Result wanted, Result, Evidence and Task effect required; Resume when for blocked, Reason for abandoned.",
   ],
   [
     "checkpoint propose",
@@ -241,7 +298,7 @@ function parseOptions(args) {
       continue;
     }
     if (options[token] !== undefined) throw new CliError(`Duplicate option: ${token}`);
-    if (token === "--help" || token === "--strict" || token === "--pull" || token === "--resolved") {
+    if (["--help", "--strict", "--pull", "--resolved", "--takeover"].includes(token)) {
       options[token] = true;
       continue;
     }
@@ -256,7 +313,7 @@ function parseOptions(args) {
 function allowedOptions(command, operation) {
   const common = new Set(["--root", "--record", "--input", "--help"]);
   const withNextAction = new Set([...common, "--next-action"]);
-  if (command === "init") return new Set(["--root", "--name", "--input", "--help"]);
+  if (command === "init") return new Set(["--root", "--name", "--input", "--schema", "--cue", "--help"]);
   if (command === "view") return new Set(["--root", "--record", "--view", "--help"]);
   if (command === "validate") return new Set(["--root", "--record", "--strict", "--help"]);
   if (command === "slice") {
@@ -269,6 +326,7 @@ function allowedOptions(command, operation) {
     if (operation === "record") return new Set([...common, "--title", "--state"]);
   }
   if (command === "checkpoint") {
+    if (operation === undefined) return new Set(["--root", "--record", "--repo", "--help"]);
     if (operation === "propose") return new Set([...common, "--title"]);
     if (operation === "activate") return new Set([...withNextAction, "--title"]);
     if (operation === "defer" || operation === "resume") return new Set([...withNextAction, "--id"]);
@@ -281,6 +339,11 @@ function allowedOptions(command, operation) {
   }
   if (command === "task" && operation === "set-state")
     return new Set(["--root", "--record", "--state", "--next-action", "--help"]);
+  if (command === "agreement") {
+    if (operation === "open") return new Set([...withNextAction, "--title"]);
+    if (operation === "update") return new Set([...common, "--text"]);
+    if (operation === "close") return new Set([...withNextAction, "--state"]);
+  }
   if (command === "task" && operation === "create")
     return new Set(["--title", "--goal", "--parent", "--cwd", "--help"]);
   if (command === "task" && operation === "import") return new Set(["--record", "--project", "--help"]);
@@ -406,11 +469,59 @@ async function initialize(options) {
   return `${created.path}\n`;
 }
 
+const INIT5_HEADINGS = ["Goal", "Settled", "Open", "Space", "Read on recovery", "Read when", "Next action"];
+
+async function initialize5(options) {
+  const root = rootOption(options);
+  const name = requireOption(options, "--name");
+  const cue = requireOption(options, "--cue").replace(/\s+/g, " ").trim();
+  const input = (await readInput(options["--input"], cwd())).replace(/\r\n?/g, "\n");
+  const sections = {};
+  let current = null;
+  for (const line of input.split("\n")) {
+    const heading = /^#{2,3} (.+?)\s*$/.exec(line);
+    if (heading) {
+      if (!INIT5_HEADINGS.includes(heading[1]))
+        throw new CliError(
+          `Unknown initialization heading: ${heading[1]}; Schema 5 takes ${INIT5_HEADINGS.join(", ")}`,
+        );
+      if (sections[heading[1]]) throw new CliError(`Duplicate initialization heading: ${heading[1]}`);
+      current = heading[1];
+      sections[current] = [];
+    } else if (current) sections[current].push(line);
+    else if (line.trim()) throw new CliError(`Initialization text outside a heading would be lost: ${line.trim()}`);
+  }
+  return `${await createTaskFolder5(root, { name, cue, sections })}\n`;
+}
+
 async function readExisting(options) {
   const root = rootOption(options);
   const recordOption = requireOption(options, "--record");
   const loaded = await readRecord(root, resolveRecordPath(root, recordOption));
   return { root, ...loaded };
+}
+
+/** Schema 5's validate: the task folder's structure, then budget and cue warnings and the update lines' pointers. */
+async function validate5(loaded, options) {
+  const task = await loadTask5(loaded.path, loaded.text);
+  const slice = task.record.work.slice;
+  // An update is "<claim> — <pointer>": what follows its last dash is the pointer, whatever its shape.
+  const updates = (slice?.updates ?? []).map((update) => {
+    const pointer = update.text.includes(" — ") ? update.text.split(" — ").pop().trim() : "";
+    return { index: update.index, line: `- ${update.kind}: ${update.text}${pointer ? ` \`${pointer}\`` : ""}` };
+  });
+  const pointers = checkLinePointers(updates, { root: loaded.root, recordPath: loaded.path });
+  const unresolved = options["--strict"] ? pointers.warnings : [...pointers.problems, ...pointers.warnings];
+  const notes = [
+    ...warnings5(task).map((warning) => `warning: ${warning}`),
+    ...unresolved.map((each) => `warning: a pointer in the Slice's updates does not resolve here: ${each}`),
+    ...pointers.outside.map((each) => `outside the repository, not checked: ${each}`),
+  ];
+  if (options["--strict"] && pointers.problems.length)
+    throw new CliError(
+      `Pointers on Evidence or Result lines do not resolve:\n${pointers.problems.map((each) => `- ${each}`).join("\n")}`,
+    );
+  return `valid\n${displayPath(loaded.root, loaded.path)}, ${task.history.entries.length} history entries\n${pointers.checked} evidence pointer(s) checked${notes.length ? `\n${notes.join("\n")}` : ""}\n`;
 }
 
 /** Projects, registered tasks and search, through the registry under the Freeflow home. */
@@ -573,10 +684,73 @@ async function runStore(operation, options) {
   throw new CliError(`Unknown command: store ${operation}`);
 }
 
+/** The project and task commands in a Freeflow store, with the options each takes there. */
+const STORE_OPTIONS = new Map([
+  ["project new", ["--name"]],
+  ["project remove", ["--name"]],
+  ["project list", []],
+  ["project show", ["--name", "--cwd"]],
+  ["task create", ["--title", "--goal", "--cue", "--project", "--cwd", "--next-action"]],
+  ["task take", ["--id", "--takeover"]],
+  ["task release", ["--id"]],
+  ["task switch", ["--id", "--takeover"]],
+  ["task here", ["--cwd"]],
+  ["task search", ["--query", "--project"]],
+  ["task remove", ["--id"]],
+]);
+
+async function runProjects5(command, operation, options, home) {
+  const allowed = new Set([...STORE_OPTIONS.get(`${command} ${operation}`), "--home"]);
+  for (const name of Object.keys(options))
+    if (!allowed.has(name))
+      throw new CliError(`Unknown option ${name} for ${command} ${operation} in a Freeflow store`);
+  const identity = sessionIdentity();
+  const where = resolve(options["--cwd"] ?? cwd());
+  const key = `${command} ${operation}`;
+  if (key === "project new") return createProject(home, requireOption(options, "--name"));
+  if (key === "project remove") return removeProject(home, requireOption(options, "--name"));
+  if (key === "project list") return listProjects(home);
+  if (key === "project show") {
+    if (options["--name"]) return showProject(home, options["--name"], identity);
+    return menu(home, where, identity);
+  }
+  if (key === "task create")
+    return createTask(
+      home,
+      {
+        project: options["--project"],
+        directory: where,
+        title: requireOption(options, "--title"),
+        goal: requireOption(options, "--goal"),
+        cue: requireOption(options, "--cue"),
+        nextAction: options["--next-action"],
+      },
+      identity,
+    );
+  if (key === "task take")
+    return takeTask(home, requireOption(options, "--id"), identity, { takeover: options["--takeover"] === true });
+  if (key === "task release") return releaseTask(home, identity, options["--id"] ?? null);
+  if (key === "task switch")
+    return switchTask(home, requireOption(options, "--id"), identity, { takeover: options["--takeover"] === true });
+  if (key === "task here") return menu(home, where, identity);
+  if (key === "task search") return searchTasks(home, requireOption(options, "--query"), options["--project"] ?? null);
+  if (key === "task remove") return removeTask(home, requireOption(options, "--id"));
+  throw new CliError(`Unknown command: ${key}`);
+}
+
 async function runCore(command, rest) {
   const { options, positionals } = parseOptions(rest);
   const operation = positionals[0];
   if (options["--help"]) return commandHelp(command, operation);
+  // In a Freeflow store, projects and tasks are its folders; elsewhere the registry of Pi's Task Memory keeps them.
+  if (STORE_OPTIONS.has(`${command} ${operation}`)) {
+    const home = storeHome(options["--home"]);
+    if (isFreeflowStore(home)) return runProjects5(command, operation, options, home);
+    if (["take", "release", "switch"].includes(operation) || options["--home"])
+      throw new CliError(
+        `${command} ${operation}${options["--home"] ? " --home" : ""} works in a Freeflow store; ${home} is not one (store init makes one)`,
+      );
+  }
   validateCommandOptions(command, operation, options);
   if (command === "store") return runStore(operation, options);
   if (
@@ -585,24 +759,39 @@ async function runCore(command, rest) {
   )
     return runRegistry(command, operation, options);
   // A registered task's ID stands for its record's path.
-  if (typeof options["--record"] === "string" && TASK_ID.test(options["--record"])) {
+  if (typeof options["--record"] === "string" && TASK_ID.test(options["--record"]) && isFreeflowStore(storeHome()))
+    options["--record"] = storeRecordPath(storeHome(), options["--record"]);
+  else if (typeof options["--record"] === "string" && TASK_ID.test(options["--record"])) {
     const task = await new Registry().task(options["--record"]);
     if (!task) throw new CliError(`No task ${options["--record"]} in the registry.`);
     options["--record"] = task.record;
   }
-  if (command === "init") return initialize(options);
+  if (command === "init") {
+    const schema = options["--schema"] ?? "4";
+    if (!["4", "5"].includes(schema)) throw new CliError(`--schema is 4 or 5, not ${schema}`);
+    if (schema === "4" && options["--cue"]) throw new CliError("--cue is for --schema 5");
+    return schema === "5" ? initialize5(options) : initialize(options);
+  }
   if (command === "view") {
     const view = positionals[0] ?? options["--view"];
-    if (!view || !["resume", "recover", "full", "entry"].includes(view))
-      throw new CliError("View must be resume, recover, full, or entry");
+    if (!view || !["resume", "recover", "full", "entry", "index"].includes(view))
+      throw new CliError("View must be resume, recover, full, entry, or index");
     const ids = positionals.slice(1);
     if (view === "entry") {
-      if (!ids.length) throw new CliError("View entry needs at least one S-NNN, C-NNN, or D-NNN ID");
-      const invalid = ids.find((id) => !/^[SCD]-\d{3,}$/.test(id));
+      if (!ids.length) throw new CliError("View entry needs at least one S-NNN, C-NNN, D-NNN, or A-NNN ID");
+      const invalid = ids.find((id) => !/^[SCDA]-\d{3,}$/.test(id));
       if (invalid) throw new CliError(`Not an entry ID: ${invalid}`);
     } else if (ids.length) throw new CliError(`View ${view} accepts no further arguments`);
     const loaded = await readExisting(options);
     if (view === "full") return renderFull(loaded.text);
+    if (schemaOf(loaded.text) === 5) {
+      if (view === "recover") return renderRecover5(loaded);
+      if (view === "entry") return renderEntries5(loaded, ids);
+      if (view === "index") return renderIndex5(loaded);
+      throw new CliError("Schema 5 has no resume view: read record.md, or after context loss view recover");
+    }
+    if (view === "index")
+      throw new CliError("View index is for Schema 5 records; Schema 4's resume view holds its index");
     if (view === "entry") return renderEntries(loaded.text, ids);
     if (view === "recover") return renderRecover(loaded.text, { root: loaded.root, recordPath: loaded.path });
     return renderResume(loaded.text);
@@ -610,6 +799,7 @@ async function runCore(command, rest) {
   if (command === "validate") {
     if (positionals.length) throw new CliError("Validate does not accept positional arguments");
     const loaded = await readExisting(options);
+    if (schemaOf(loaded.text) === 5) return validate5(loaded, options);
     validateDocument(parseDocument(loaded.text));
     const pointers = checkEvidencePointers(loaded.text, { root: loaded.root, recordPath: loaded.path });
     const outside = pointers.outside.length
@@ -627,9 +817,16 @@ async function runCore(command, rest) {
       );
     return `valid\n${displayPath(loaded.root, loaded.path)}\n${pointers.checked} evidence pointer(s) checked${warnings}${outside}\n`;
   }
-  if (positionals.length !== 1) throw new CliError(`Expected one operation for ${command}`);
+  const schema5Only = command === "agreement" || (command === "checkpoint" && positionals.length === 0);
+  if (positionals.length !== (command === "checkpoint" && positionals.length === 0 ? 0 : 1))
+    throw new CliError(`Expected one operation for ${command}`);
   const loaded = await readExisting(options);
   const input = await readInput(options["--input"], cwd());
+  if (schemaOf(loaded.text) === 5) return runTransition5(command, positionals, options, input, loaded);
+  if (schema5Only)
+    throw new CliError(
+      `${command === "agreement" ? "agreement" : "checkpoint without an operation"} is for Schema 5 records; this one is Schema ${schemaOf(loaded.text) ?? "unknown"}`,
+    );
   return runTransition(command, positionals, options, input, loaded);
 }
 
