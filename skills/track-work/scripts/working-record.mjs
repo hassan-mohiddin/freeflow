@@ -20,7 +20,7 @@ import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
 import { checkEvidencePointers, renderRecover } from "./lib/recover.mjs";
 import { PROJECT_LINK, Registry, TASK_ID, removalText, startCommand } from "./lib/registry.mjs";
 import { searchRecords } from "./lib/search.mjs";
-import { initStore, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
+import { addStoreRemote, initStore, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
 
 const ROOT_HELP =
   "--record is resolved against --root, which defaults to the current directory; an absolute --record path finds its own root.";
@@ -35,7 +35,7 @@ function usage() {
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
     "  working-record.mjs project <new|link|show|list|remove> ...",
     "  working-record.mjs task <create|import|search|env|here|fanout|remove> ...",
-    "  working-record.mjs store <init|status|sync> ...",
+    "  working-record.mjs store <init|remote|status|sync> ...",
     "",
     ROOT_HELP,
     "A registered task's ID (such as my-project/task-003) may be given as --record.",
@@ -92,11 +92,15 @@ const COMMAND_HELP = new Map([
   ],
   [
     "store",
-    "Usage: working-record.mjs store <operation> ...\nOperations: store init, store status, store sync.\nThe Freeflow store is one private Git repository at the Freeflow home (FREEFLOW_HOME, default ~/.freeflow, or --home) that holds every task's memory and syncs itself; its records are tracked on purpose.",
+    "Usage: working-record.mjs store <operation> ...\nOperations: store init, store remote, store status, store sync.\nThe Freeflow store is one Git repository at the Freeflow home (FREEFLOW_HOME, default ~/.freeflow, or --home) that holds every task's memory; its records are tracked on purpose. It is local by default, on this device only; with your private repository as its remote it is a cloud store, the same store kept in step on every device.",
   ],
   [
     "store init",
-    "Usage: store init --remote <url> [--home <folder>] [--git-name <name> --git-email <email>]\nClones the private repository at --remote into the store's folder. An empty repository gets the store's layout (store.json, .gitignore, .gitattributes, rules/, projects/) and a first commit authored as you, pushed to main; a repository that already holds a store is joined as it is. Refuses a folder that holds Pi's Task Memory (registry.json) or anything else, and a repository that is not a store. Without --git-name and --git-email, your Git configuration's identity is used.",
+    "Usage: store init [--remote <url>] [--home <folder>] [--git-name <name> --git-email <email>]\nWithout --remote, makes a local store in the folder: the store's layout (store.json, .gitignore, .gitattributes, rules/, projects/) and a first commit authored as you; nothing leaves this machine. With --remote, clones the private repository into the store's folder. An empty repository gets the store's layout (store.json, .gitignore, .gitattributes, rules/, projects/) and a first commit authored as you, pushed to main; a repository that already holds a store is joined as it is. Refuses a folder that holds Pi's Task Memory (registry.json) or anything else, and a repository that is not a store. Without --git-name and --git-email, your Git configuration's identity is used.",
+  ],
+  [
+    "store remote",
+    "Usage: store remote --url <url> [--home <folder>]\nTurns a local store into a cloud store: adds your private repository, which must be empty, as its remote and pushes the store's whole history there, after the secret scan. To use a store already in a repository, run store init --remote <url> --home <another folder>.",
   ],
   [
     "store status",
@@ -295,6 +299,7 @@ function allowedOptions(command, operation) {
   if (command === "project" && operation === "remove") return new Set(["--name", "--help"]);
   if (command === "store" && operation === "init")
     return new Set(["--remote", "--home", "--git-name", "--git-email", "--help"]);
+  if (command === "store" && operation === "remote") return new Set(["--url", "--home", "--help"]);
   if (command === "store" && operation === "status") return new Set(["--home", "--help"]);
   if (command === "store" && operation === "sync")
     return new Set(["--home", "--message", "--pull", "--resolved", "--help"]);
@@ -513,14 +518,20 @@ async function runStore(operation, options) {
   if (operation === "init") {
     const made = await initStore({
       home: options["--home"],
-      remote: requireOption(options, "--remote"),
+      remote: options["--remote"],
       name: options["--git-name"],
       email: options["--git-email"],
     });
+    if (made.local)
+      return `Created a local Freeflow store at ${made.home}; nothing leaves this machine until store remote --url <url> adds your private repository. Commits are authored as ${made.author.name} <${made.author.email}>.\n`;
     const pushed = made.pushed ? "pushed" : `not pushed (${made.reason}); the next store sync pushes it`;
     return made.joined
       ? `Joined the Freeflow store at ${made.home} from ${made.remote}; commits are authored as ${made.author.name} <${made.author.email}>.\n`
       : `Created the Freeflow store at ${made.home} from ${made.remote}, first commit ${pushed}; commits are authored as ${made.author.name} <${made.author.email}>.\n`;
+  }
+  if (operation === "remote") {
+    const moved = await addStoreRemote({ home: options["--home"], url: requireOption(options, "--url") });
+    return `${moved.home} is now a cloud store: it syncs with ${moved.url}, and its history (${moved.commits} commit(s)) is pushed.\n`;
   }
   if (operation === "status") {
     const status = await storeStatus({ home: options["--home"] });
@@ -530,7 +541,9 @@ async function runStore(operation, options) {
       : "never";
     return `${[
       `Store: ${status.home}`,
-      `Remote: ${status.remote ?? "none"} · branch ${status.branch ?? "none"}`,
+      status.remote
+        ? `Remote: ${status.remote} · branch ${status.branch ?? "none"}`
+        : `Remote: none, a local store (store remote --url <url> makes it a cloud store) · branch ${status.branch ?? "none"}`,
       `Not committed: ${status.uncommitted} path(s)`,
       `Not pushed: ${count(status.unpushed)} commit(s); not yet taken: ${count(status.behind)}, as of the last sync`,
       `Last sync: ${last}`,
@@ -550,6 +563,7 @@ async function runStore(operation, options) {
       resolved: options["--resolved"] === true,
     });
     const committed = synced.committed ? `committed ${synced.committed} path(s), ` : "nothing to commit, ";
+    if (synced.local) return `Synced the local store ${synced.home}: ${committed}nothing to push.\n`;
     if (options["--pull"] && synced.pulled)
       return `Took the remote's commits into ${synced.home}: ${committed}nothing pushed.\n`;
     return synced.pushed

@@ -359,3 +359,61 @@ test("the secret scan reads only a patch's added lines, at their line in the new
   ].join("\n");
   assert.deepEqual(secretsInDiff(diff), [{ path: "rules/a.md", line: 5, kind: "a GitHub token" }]);
 });
+
+test("store init without --remote makes a local store: committed here, nothing to push", async () => {
+  await withFolder(async (folder) => {
+    await writeFile(join(folder, "gitconfig"), "");
+    const home = join(folder, "home");
+    const made = store(folder, ["init", "--home", home, ...IDENTITY]);
+    assert.equal(made.status, 0, made.stderr);
+    assert.match(
+      made.stdout,
+      /^Created a local Freeflow store at .+; nothing leaves this machine until store remote --url <url>/,
+    );
+    assert.deepEqual(JSON.parse(await readFile(join(home, "store.json"), "utf8")), {
+      kind: "freeflow-store",
+      version: 1,
+    });
+    assert.equal(git(home, ["remote"]), "");
+    assert.equal(git(home, ["branch", "--show-current"]), "main");
+    assert.equal(git(home, ["log", "--format=%an%n%B"]), "Test User\nCreate the Freeflow store");
+    assert.match(store(folder, ["status", "--home", home]).stdout, /^Remote: none, a local store/m);
+    await writeFile(join(home, "rules", "style.md"), "Plain words.\n");
+    const synced = store(folder, ["sync", "--home", home]);
+    assert.equal(synced.status, 0, synced.stderr);
+    assert.match(synced.stdout, /^Synced the local store .+: committed 1 path\(s\), nothing to push\.$/m);
+    assert.equal(git(home, ["rev-list", "--count", "HEAD"]), "2");
+  });
+});
+
+test("store remote makes a local store a cloud store with its history, and refuses a repository that holds commits", async () => {
+  await withFolder(async (folder) => {
+    const remote = await bareRemote(folder);
+    const home = join(folder, "home");
+    assert.equal(store(folder, ["init", "--home", home, ...IDENTITY]).status, 0);
+    await writeFile(join(home, "rules", "style.md"), "Plain words.\n");
+    assert.equal(store(folder, ["sync", "--home", home]).status, 0);
+    const moved = store(folder, ["remote", "--url", remote, "--home", home]);
+    assert.equal(moved.status, 0, moved.stderr);
+    assert.match(
+      moved.stdout,
+      /is now a cloud store: it syncs with .+remote\.git, and its history \(2 commit\(s\)\) is pushed\./,
+    );
+    assert.equal(
+      execFileSync("git", ["--git-dir", remote, "rev-list", "--count", "main"], { encoding: "utf8" }).trim(),
+      "2",
+    );
+    assert.match(store(folder, ["remote", "--url", remote, "--home", home]).stderr, /already syncs with/);
+    // Another device joins the cloud store it became, and the two stay in step.
+    const other = join(folder, "other");
+    assert.equal(store(folder, ["init", "--remote", remote, "--home", other, ...IDENTITY]).status, 0);
+    assert.equal(await readFile(join(other, "rules", "style.md"), "utf8"), "Plain words.\n");
+
+    const second = join(folder, "second");
+    assert.equal(store(folder, ["init", "--home", second, ...IDENTITY]).status, 0);
+    const refused = store(folder, ["remote", "--url", remote, "--home", second]);
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /already holds commits; a local store moves only into an empty repository/);
+    assert.equal(git(second, ["remote"]), "");
+  });
+});

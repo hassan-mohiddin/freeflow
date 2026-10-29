@@ -1,7 +1,9 @@
-// The Freeflow store: one private Git repository, at the Freeflow home, that holds every task's memory and syncs
-// itself. `store init` clones the user's remote into the home and, when the remote is empty, lays the store out and
-// pushes its first commit; `store status` says where the store stands; `store sync` commits what changed, takes the
-// remote's commits and pushes. The store marks itself with store.json at its root, so Track Work's Git check knows
+// The Freeflow store: one Git repository, at the Freeflow home, that holds every task's memory. It is local by
+// default, on this device only; with the user's private remote it is a cloud store, the same store kept in step on
+// every device. `store init` makes a local store, or with --remote clones the user's remote into the home and, when
+// the remote is empty, lays the store out and pushes its first commit; `store remote` turns a local store into a
+// cloud store; `store status` says where the store stands; `store sync` commits what changed and, in a cloud store,
+// takes the remote's commits and pushes. The store marks itself with store.json at its root, so Track Work's Git check knows
 // its records are tracked on purpose (lib/store.mjs). Every commit is the script's, authored as the user, with no
 // trailers. A home that holds Pi's Task Memory (its registry.json) is never turned into a store.
 
@@ -82,15 +84,67 @@ async function push(home) {
   return pushed.ok ? { pushed: true } : { pushed: false, reason: pushed.stderr.split("\n").at(-1) || "push failed" };
 }
 
+/** Writes the store's layout in a repository with no commit yet, on main, and commits it. */
+async function layOut(home) {
+  await git(home, ["symbolic-ref", "HEAD", `refs/heads/${BRANCH}`]);
+  await writeFile(join(home, STORE_MARKER), `${JSON.stringify({ kind: FREEFLOW_STORE_KIND, version: 1 }, null, 2)}\n`);
+  await writeFile(join(home, ".gitignore"), `${STORE_IGNORE.join("\n")}\n`);
+  await writeFile(join(home, ".gitattributes"), `${STORE_ATTRIBUTES.join("\n")}\n`);
+  for (const folder of FOLDERS) {
+    await mkdir(join(home, folder), { recursive: true });
+    await writeFile(join(home, folder, ".gitkeep"), "");
+  }
+  await git(home, ["add", "--all"]);
+  await git(home, ["commit", "--quiet", "--no-verify", "-m", "Create the Freeflow store"]);
+}
+
+async function hasRemote(home) {
+  return (await git(home, ["remote", "get-url", "origin"], { allowFailure: true })).ok;
+}
+
 /**
- * Clones `remote` into the store's folder. An empty remote gets the store's layout and first commit, pushed; a remote
+ * Turns a local store into a cloud store: adds the user's private repository as its remote and pushes the store's
+ * whole history there. The repository must be empty; a store already in one is joined with store init --remote.
+ *
+ * @param {{ home?: string, url: string }} options
+ */
+export async function addStoreRemote({ home: explicit, url }) {
+  const home = storeHome(explicit);
+  requireStore(home);
+  if (await hasRemote(home))
+    fail("has-remote", `${home} already syncs with ${(await git(home, ["remote", "get-url", "origin"])).stdout}`);
+  await git(home, ["remote", "add", "origin", url]);
+  const drop = () => git(home, ["remote", "remove", "origin"], { allowFailure: true });
+  const fetched = await git(home, ["fetch", "--quiet", "origin"], { allowFailure: true });
+  if (!fetched.ok) {
+    await drop();
+    fail("remote-unreachable", `Could not reach ${url}: ${lastLine(fetched.stderr, "git fetch failed")}`);
+  }
+  if ((await git(home, ["branch", "--remotes"])).stdout !== "") {
+    await drop();
+    fail(
+      "remote-not-empty",
+      `${url} already holds commits; a local store moves only into an empty repository. To use a store already there, run store init --remote ${url} --home <another folder>`,
+    );
+  }
+  const outcome = await push(home);
+  if (!outcome.pushed) {
+    await drop();
+    fail("push-failure", `Could not push to ${url}: ${outcome.reason}`);
+  }
+  const commits = (await git(home, ["rev-list", "--count", "HEAD"])).stdout;
+  await recordSync(home, { pushed: true, result: "went-cloud" });
+  return { home, url, commits: Number(commits) };
+}
+
+/**
+ * Clones `remote` into the store's folder, or with no remote makes a local store there. An empty remote gets the store's layout and first commit, pushed; a remote
  * that already holds a store is joined as it is. Refuses a folder that holds Pi's Task Memory or anything else, and a
  * remote that holds a repository that is not a store.
  *
  * @param {{ home?: string, remote: string, name?: string, email?: string }} options
  */
 export async function initStore({ home: explicit, remote, name, email }) {
-  if (!remote) fail("missing-remote", "store init needs --remote <url>: the private repository that holds the store");
   const home = storeHome(explicit);
   if (existsSync(join(home, "registry.json")))
     fail(
@@ -108,6 +162,19 @@ export async function initStore({ home: explicit, remote, name, email }) {
     for (const entry of await readdir(home).catch(() => []))
       await rm(join(home, entry), { recursive: true, force: true });
   };
+  if (!remote) {
+    try {
+      await mkdir(home, { recursive: true });
+      await git(home, ["init", "--quiet"]);
+      const author = await identity(home, { name, email });
+      await layOut(home);
+      await recordSync(home, { pushed: false, result: "created-local" });
+      return { home, remote: null, joined: false, author, pushed: false, local: true };
+    } catch (error) {
+      await undo();
+      throw error;
+    }
+  }
   await mkdir(resolve(home, ".."), { recursive: true });
   const cloned = await git(resolve(home, ".."), ["clone", "--quiet", remote, home], { allowFailure: true });
   if (!cloned.ok) {
@@ -131,19 +198,7 @@ export async function initStore({ home: explicit, remote, name, email }) {
       await recordSync(home, { pushed: true, result: "joined" });
       return { home, remote, joined: true, author, pushed: true };
     }
-    await git(home, ["symbolic-ref", "HEAD", `refs/heads/${BRANCH}`]);
-    await writeFile(
-      join(home, STORE_MARKER),
-      `${JSON.stringify({ kind: FREEFLOW_STORE_KIND, version: 1 }, null, 2)}\n`,
-    );
-    await writeFile(join(home, ".gitignore"), `${STORE_IGNORE.join("\n")}\n`);
-    await writeFile(join(home, ".gitattributes"), `${STORE_ATTRIBUTES.join("\n")}\n`);
-    for (const folder of FOLDERS) {
-      await mkdir(join(home, folder), { recursive: true });
-      await writeFile(join(home, folder, ".gitkeep"), "");
-    }
-    await git(home, ["add", "--all"]);
-    await git(home, ["commit", "--quiet", "--no-verify", "-m", "Create the Freeflow store"]);
+    await layOut(home);
     const outcome = await push(home);
     await recordSync(home, { ...outcome, result: "created" });
     return { home, remote, joined: false, author, ...outcome };
@@ -367,6 +422,11 @@ export async function syncStore({ home: explicit, message, pull = false, resolve
     );
   if (resolved && !conflict) fail("no-conflict", "No conflict waits; run store sync");
   const committed = await commitChanges(home, message);
+  // A local store has nothing to take or push: its commits are its history.
+  if (!(await hasRemote(home))) {
+    await recordSync(home, { pushed: false, committed, result: "local" });
+    return { home, committed, local: true, pulled: false, pushed: false };
+  }
   const offline = async (reason) => {
     const why = `no network or no access: ${reason}`;
     await recordSync(home, { pushed: false, committed, result: "offline", reason: why });
