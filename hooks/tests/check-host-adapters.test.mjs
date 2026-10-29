@@ -320,3 +320,25 @@ test("the npm package Codex installs has no Agent Plugins manifest and delivers 
   for (const heading of ["# Freeflow Stable Guidance", "# Freeflow Interaction Contract", "# Freeflow Working Method"])
     assert.match(context, new RegExp(heading));
 });
+
+// Gemini reads an extension's hooks from hooks/hooks.json, a path it fixes, and Claude Code reads the same file from a
+// plugin's root beside the hooks its manifest names: the one file delivers under Gemini and nothing under Claude Code.
+test("the root hooks file delivers Freeflow's context under Gemini and nothing under Claude Code", () => {
+  const workspace = createWorkspace();
+  const [handler] = JSON.parse(readFileSync(join(repoRoot, "hooks/hooks.json"), "utf8")).hooks.SessionStart[0].hooks;
+  const { CLAUDE_PLUGIN_ROOT: _claude, GEMINI_PROJECT_DIR: _gemini, ...env } = process.env;
+  const run = (command, extra) =>
+    spawnSync("/bin/sh", ["-c", command], {
+      cwd: workspace,
+      env: { ...env, ...extra },
+      input: `${JSON.stringify({ hook_event_name: "SessionStart", source: "startup", cwd: workspace })}\n`,
+      encoding: "utf8",
+    });
+  // Gemini fills the variables it knows into the command's text and leaves the rest to the shell.
+  const gemini = run(handler.command.replaceAll("${extensionPath}", repoRoot), { GEMINI_PROJECT_DIR: workspace });
+  assert.equal(gemini.status, 0, gemini.stderr);
+  assert.match(contextOf(JSON.parse(gemini.stdout)), /# Freeflow Stable Guidance/);
+  const claude = run(handler.command, { CLAUDE_PLUGIN_ROOT: repoRoot });
+  assert.equal(claude.status, 0, claude.stderr);
+  assert.equal(claude.stdout, "");
+});

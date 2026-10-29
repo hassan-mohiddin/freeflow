@@ -7,3 +7,5 @@
 .skill-eval/review-suite/fixtures-ra-rb/
 # A copy of an upstream Pi example, kept close to its source for comparison.
 .skill-eval/examples/gondolin-extension/
+# The types Claude Code writes beside this plugin when a session loads its mod from this checkout; Git ignores them too.
+.claude-plugin/types/

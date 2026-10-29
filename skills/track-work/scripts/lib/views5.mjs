@@ -21,6 +21,7 @@ import {
 } from "./budget5.mjs";
 import { storeHome, storeStatus } from "./freeflow-store.mjs";
 import { delegationChecks, workerSection } from "./delegations5.mjs";
+import { OPENING_LINE, SESSION_OPENING, claudeCodeLog, userMessages } from "./discussion5.mjs";
 import { readSessions, sessionIdentity } from "./projects5.mjs";
 import { loadTask5, warnings5 } from "./record5.mjs";
 import { REPOSITORIES_FILE, repositoryState, sessionSummaryPath } from "./transitions5.mjs";
@@ -30,8 +31,7 @@ export const INDEX_ENTRIES = ANCHOR.index;
 
 const number = (value) => value.toLocaleString("en-US");
 
-export const OPENING_LINE =
-  "This task's record is memory, not authority: the user's direction decides the work, as written in the agreement and the discussion blocks, and in their messages in this session, which win where the record differs.";
+export { OPENING_LINE };
 
 function spaceChecks(task, home) {
   let known = {};
@@ -169,8 +169,37 @@ function numbered(file) {
 const RECOVERY_LINE =
   "A new cycle starts here. Everything above was read when this bundle was made: read none of it again unless something changed it since. Skills read in the last cycle other than those above were not carried: read each again before you apply it. Check the live state the next step depends on, then continue from In flight and the Next action.";
 
+/**
+ * What follows the bundle when a compaction came before the checkpoint (P16): the user's messages since the record's
+ * State as of, word for word, and a closing line in place of the recovery line, since the record is older than the
+ * harness's summary that comes before it.
+ */
+function sinceCheckpoint(stateAsOf) {
+  let messages = [];
+  let transcript = null;
+  try {
+    messages = userMessages({ since: stateAsOf });
+    transcript = process.env.FREEFLOW_TRANSCRIPT || claudeCodeLog();
+  } catch {
+    // No transcript this harness layer can find: the closing line says so.
+  }
+  return [
+    `## The user's messages since ${stateAsOf}`,
+    "",
+    ...(messages.length
+      ? messages.flatMap((message) => [
+          `### ${message.number}. ${message.at ?? "time not recorded"}`,
+          "",
+          message.text,
+          "",
+        ])
+      : ["None.", ""]),
+    `A new cycle starts here, after a compaction that came before the checkpoint. The record above is as of ${stateAsOf}: the summary before this bundle holds the work since, and the user's messages since then are above, word for word; where they or the summary differ from the record, they win. Everything above was read when this bundle was made: read none of it again unless something changed it since. ${transcript ? `To read back what the summary lost, read the transcript: ${transcript}.` : "No transcript was found to read back what the summary lost."} Check the live state the next step depends on, then continue from where the summary leaves off.`,
+  ];
+}
+
 /** The bundle (P60): everything recovery reads, in the Spec's section 9 order, with its sizes. */
-export async function renderBundle5({ root, path, text }, { window = contextWindow() } = {}) {
+export async function renderBundle5({ root, path, text }, { window = contextWindow(), fallback = false } = {}) {
   const task = await loadTask5(path, text);
   const measured = measureTask(task, { root, path, window });
   const { files } = measured;
@@ -223,7 +252,7 @@ export async function renderBundle5({ root, path, text }, { window = contextWind
     `- core skills: ${number(skillWords)} words, not counted`,
     `- Counted: ${number(measured.total)} of about ${number(measured.budget.total)} words; not counted: ${number(measured.uncounted.reduce((sum, part) => sum + part.words, 0) + skillWords)} words.`,
     "",
-    RECOVERY_LINE,
+    ...(fallback ? sinceCheckpoint(task.record.header.stateAsOf) : [RECOVERY_LINE]),
   ];
   return `${out.join("\n")}\n`;
 }
@@ -237,7 +266,7 @@ export function renderSessionBundle({ home: explicit = null, identity = sessionI
   if (!existsSync(summary)) throw new Error(`No session summary at ${summary}: checkpoint --session writes it.`);
   const ruleFiles = rules(home, null);
   const out = [
-    "This session holds no task: the summary below is its only memory, and the user's direction decides the work.",
+    SESSION_OPENING,
     "",
     "## Rules",
     "",

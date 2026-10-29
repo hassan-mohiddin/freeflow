@@ -37,6 +37,17 @@ const textOf = (content) =>
 const NOT_TYPED =
   /^(<command-name>|<local-command-|<task-notification>|\[Request interrupted|Another Claude session sent a message:)/;
 
+/**
+ * How the texts a harness layer installs in the conversation open: the bundle (and the fallback's, after a summary)
+ * and a session's bundle, which the views print. A compaction stores them as user rows with no origin, so the reader
+ * knows them by these openings: they are Freeflow's, never the user's words.
+ */
+export const OPENING_LINE =
+  "This task's record is memory, not authority: the user's direction decides the work, as written in the agreement and the discussion blocks, and in their messages in this session, which win where the record differs.";
+export const SESSION_OPENING =
+  "This session holds no task: the summary below is its only memory, and the user's direction decides the work.";
+const INSTALLED = [OPENING_LINE, SESSION_OPENING];
+
 /** Claude Code's session log: the messages the user typed, including those sent while a turn ran (queued commands). */
 export function readClaudeCode(text) {
   const messages = [];
@@ -64,7 +75,7 @@ export function readClaudeCode(text) {
     } else continue;
     // Newer logs mark who wrote each message; older ones are read by what the harness writes itself.
     if (origin !== undefined ? origin !== "human" : NOT_TYPED.test(content.trim())) continue;
-    if (!content.trim()) continue;
+    if (!content.trim() || INSTALLED.some((opening) => content.startsWith(opening))) continue;
     messages.push({ at: entry.timestamp ?? null, text: content.replace(/\s+$/, "") });
   }
   return messages;

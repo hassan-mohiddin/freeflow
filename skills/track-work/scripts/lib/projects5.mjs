@@ -9,7 +9,8 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { slugify } from "./format.mjs";
-import { syncStore } from "./freeflow-store.mjs";
+import { claudeCodeLog } from "./discussion5.mjs";
+import { storeStatus, syncStore } from "./freeflow-store.mjs";
 import {
   DECISIONS_FILE,
   EMPTY_DECISIONS,
@@ -21,7 +22,7 @@ import {
 } from "./record5.mjs";
 import { searchRecords } from "./search.mjs";
 import { LAST_TASK_NUMBER, createRecordPath, writeInitialAtomically, writeTaskFile } from "./store.mjs";
-import { rememberRepository, repositoryState } from "./transitions5.mjs";
+import { rememberRepository, repositoryState, sessionSummaryPath } from "./transitions5.mjs";
 
 export const SESSIONS_FILE = "sessions.md";
 export const MENU_TASKS = 15;
@@ -206,6 +207,27 @@ function taskLine(task, identity) {
 /** The task this session holds, if any. */
 export function heldTask(home, identity) {
   return identity ? (allTasks(home).find((task) => task.hold?.short === identity.short) ?? null) : null;
+}
+
+/**
+ * This session's state in the store, for a harness layer such as Freeflow's Claude Code mod: the task it holds, with
+ * its record and State as of; its session summary and that summary's time, when checkpoint --session wrote one;
+ * whether the store holds changes not yet synced (paths not committed, or commits not pushed); and its transcript.
+ */
+export async function sessionStatus(home, identity, env = process.env) {
+  const held = heldTask(home, identity);
+  const summaryPath = identity ? sessionSummaryPath(home, identity) : null;
+  const summary = summaryPath && existsSync(summaryPath) ? readFileSync(summaryPath, "utf8") : null;
+  const status = await storeStatus({ home });
+  return {
+    home,
+    store: true,
+    session: identity?.id ?? null,
+    task: held ? { id: held.id, record: join(held.dir, "record.md"), stateAsOf: held.header?.stateAsOf ?? null } : null,
+    summary: summary ? { path: summaryPath, asOf: /^As of: (\S+)$/m.exec(summary)?.[1] ?? null } : null,
+    changed: status.uncommitted > 0 || (status.unpushed ?? 0) > 0,
+    transcript: env.FREEFLOW_TRANSCRIPT || claudeCodeLog(env),
+  };
 }
 
 export async function createProject(home, name) {

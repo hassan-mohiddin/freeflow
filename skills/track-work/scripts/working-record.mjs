@@ -46,6 +46,7 @@ import {
   removeTask,
   searchTasks,
   sessionIdentity,
+  sessionStatus,
   showProject,
   storeRecordPath,
   switchTask,
@@ -75,6 +76,7 @@ function usage() {
     "  working-record.mjs task <create|import|search|env|here|fanout|remove> ...",
     "  working-record.mjs task <create|take|release|switch|here|search|remove> ... (in a Freeflow store)",
     "  working-record.mjs store <init|remote|status|sync> ...",
+    "  working-record.mjs session status [--home <folder>] (for a harness layer)",
     "",
     ROOT_HELP,
     "A registered task's ID (such as my-project/task-003) may be given as --record.",
@@ -192,7 +194,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "view",
-    "Usage: view resume|recover|full|index|bundle --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\n       view bundle --session [--home <store>]\nSchema 5: recover [--delegation <D-NNN[.n]>] prints an opening line (the record is memory; the user's direction decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (the newest within the budget, and any the record names), the project's other tasks with their cues, and the checks: the budget, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. bundle: the same, then Read on recovery's sources and In flight's Carry files (counted), Defined by's entries and the core skills (not counted), each whole and read now, their sizes, and the recovery line: what Freeflow's compaction installs. With --session, the bundle of a session that holds no task: the store's rules and the session summary. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored. With --delegation, recover is a worker's: after the opening line it states the worker's rule (the brief is its scope and wins over the record) and prints the delegation's brief, progress and return.\nSchema 4: resume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
+    "Usage: view resume|recover|full|index|bundle --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\n       view bundle --record <record.md> --fallback\n       view bundle --session [--home <store>]\nSchema 5: recover [--delegation <D-NNN[.n]>] prints an opening line (the record is memory; the user's direction decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (the newest within the budget, and any the record names), the project's other tasks with their cues, and the checks: the budget, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. bundle: the same, then Read on recovery's sources and In flight's Carry files (counted), Defined by's entries and the core skills (not counted), each whole and read now, their sizes, and the recovery line: what Freeflow's compaction installs. With --fallback, for a compaction that came before the checkpoint, what Freeflow adds after the harness's own summary: the same bundle as of the record's State as of, then the user's messages since then word for word (as discussion list reads them), and a closing line naming that time and the transcript, to read back what the summary lost. With --session, the bundle of a session that holds no task: the store's rules and the session summary. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored. With --delegation, recover is a worker's: after the opening line it states the worker's rule (the brief is its scope and wins over the record) and prints the delegation's brief, progress and return.\nSchema 4: resume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
   ],
   [
     "validate",
@@ -217,6 +219,10 @@ const COMMAND_HELP = new Map([
   [
     "store sync",
     "Usage: store sync [--home <folder>] [--message <commit message>] [--pull | --resolved]\nCommits every change in the store as you, takes the remote's commits under the local ones, and pushes. history.md and sessions.md merge by keeping both sides' lines. Before every push the changes are scanned for secrets (common token shapes): one in the files stops the push and names its path, line and kind; one only an earlier unpushed commit held is dropped by pushing those commits as one. A push refused because the remote moved takes its commits and tries again; with no network or no access the commits stay here, the output says so, and the next sync pushes them. Any other file both sides changed stops the sync: this store's copy stays in place, committed and not pushed, and the remote's goes under local/conflicts/; merge what should stay into this store's file, then run store sync --resolved, which keeps this store's version where the two still conflict. --pull takes the remote's commits and pushes nothing, as at session start.",
+  ],
+  [
+    "session status",
+    "Usage: session status [--home <folder>]\nPrints, as JSON for a harness layer such as Freeflow's Claude Code mod, this session's state in the Freeflow store: home and store (false where the home is not a store, and nothing else); session, the session's ID; task, the task it holds, with its ID, record and State as of, or null; summary, the session summary checkpoint --session wrote, with its path and time, or null; changed, whether the store holds paths not committed or commits not pushed; transcript, the session's log, or null. Reaches no network.",
   ],
   [
     "project",
@@ -347,7 +353,7 @@ const COMMAND_HELP = new Map([
 function commandHelp(command, operation) {
   const help = COMMAND_HELP.get([command, operation].filter(Boolean).join(" ")) ?? COMMAND_HELP.get(command);
   if (!help) return `${usage()}\n`;
-  return command === "init" || command === "store" ? `${help}\n` : `${help}\n${ROOT_HELP}\n`;
+  return ["init", "store", "session"].includes(command) ? `${help}\n` : `${help}\n${ROOT_HELP}\n`;
 }
 
 class CliError extends Error {
@@ -368,7 +374,7 @@ function parseOptions(args) {
       continue;
     }
     if (options[token] !== undefined) throw new CliError(`Duplicate option: ${token}`);
-    if (["--help", "--strict", "--pull", "--resolved", "--takeover", "--session"].includes(token)) {
+    if (["--help", "--strict", "--pull", "--resolved", "--takeover", "--session", "--fallback"].includes(token)) {
       options[token] = true;
       continue;
     }
@@ -385,7 +391,7 @@ function allowedOptions(command, operation) {
   const withNextAction = new Set([...common, "--next-action"]);
   if (command === "init") return new Set(["--root", "--name", "--input", "--schema", "--cue", "--help"]);
   if (command === "view")
-    return new Set(["--root", "--record", "--view", "--delegation", "--session", "--home", "--help"]);
+    return new Set(["--root", "--record", "--view", "--delegation", "--session", "--fallback", "--home", "--help"]);
   if (command === "budget") return new Set(["--root", "--record", "--window", "--mode", "--help"]);
   if (command === "migrate") return new Set(["--root", "--record", "--cue", "--cues", "--project", "--home", "--help"]);
   if (command === "discussion") {
@@ -471,6 +477,7 @@ function allowedOptions(command, operation) {
     return new Set(["--remote", "--home", "--git-name", "--git-email", "--help"]);
   if (command === "store" && operation === "remote") return new Set(["--url", "--home", "--help"]);
   if (command === "store" && operation === "status") return new Set(["--home", "--help"]);
+  if (command === "session" && operation === "status") return new Set(["--home", "--help"]);
   if (command === "store" && operation === "sync")
     return new Set(["--home", "--message", "--pull", "--resolved", "--help"]);
   return null;
@@ -873,6 +880,12 @@ async function runCore(command, rest) {
   }
   validateCommandOptions(command, operation, options);
   if (command === "store") return runStore(operation, options);
+  if (command === "session") {
+    if (operation !== "status") throw new CliError(`Unknown command: session ${operation ?? ""}`.trim());
+    const home = storeHome(options["--home"]);
+    const status = isFreeflowStore(home) ? await sessionStatus(home, sessionIdentity()) : { home, store: false };
+    return `${JSON.stringify(status, null, 2)}\n`;
+  }
   if (
     command === "project" ||
     (command === "task" && ["create", "import", "search", "env", "here", "fanout", "remove"].includes(operation))
@@ -979,6 +992,8 @@ async function runCore(command, rest) {
     if (!view || !["resume", "recover", "full", "entry", "index", "bundle"].includes(view))
       throw new CliError("View must be resume, recover, full, entry, index, or bundle");
     if (options["--session"] && view !== "bundle") throw new CliError("--session is for view bundle");
+    if (options["--fallback"] && (view !== "bundle" || options["--session"]))
+      throw new CliError("--fallback is for view bundle --record");
     if (view === "bundle" && options["--session"]) {
       if (options["--record"])
         throw new CliError("view bundle --session is for a session that holds no task: no --record");
@@ -994,7 +1009,7 @@ async function runCore(command, rest) {
     if (view === "full") return renderFull(loaded.text);
     if (schemaOf(loaded.text) === 5) {
       if (view === "recover") return renderRecover5(loaded, { delegation: options["--delegation"] ?? null });
-      if (view === "bundle") return renderBundle5(loaded);
+      if (view === "bundle") return renderBundle5(loaded, { fallback: options["--fallback"] === true });
       if (view === "entry") return renderEntries5(loaded, ids);
       if (view === "index") return renderIndex5(loaded);
       throw new CliError("Schema 5 has no resume view: read record.md, or after context loss view recover");
