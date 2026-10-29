@@ -4,12 +4,13 @@
 // Work stay fixed inside it, and the decisions shown and the History index scale with it. The rules, the skills and
 // Defined by are read whole and never counted. The budget only warns: recovery still reads everything it lists.
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { contextFor, gitRoot, resolvePointer, sourceEntries } from "./recover.mjs";
 import { FIXED_BUDGETS, budgets5, parseRecord5 } from "./record5.mjs";
-import { freeflowStoreOf, storeOf } from "./store.mjs";
+import { freeflowStoreOf, isFreeflowStore, storeOf } from "./store.mjs";
 
 /** The window assumed when the harness gives none (T11), and the anchor of the curve: 10,000 words at 200k tokens. */
 export const DEFAULT_WINDOW = 200_000;
@@ -175,13 +176,31 @@ export function carriedFiles(carry, context) {
 }
 
 /**
+ * Where a record's repository pointers resolve: the work repository the command runs in, unless that is the Freeflow
+ * store, whose records point into the repositories they change; otherwise the record's own repository.
+ */
+export function pointerRoot(root) {
+  let here = null;
+  try {
+    here = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    here = null;
+  }
+  return here && !isFreeflowStore(here) ? here : gitRoot(root);
+}
+
+/**
  * What recovery reads for a task, measured: the counted parts against the budget for the window and the task's mode,
  * the uncounted parts with their sizes, and the material itself, which the views print.
  */
 export function measureTask(task, { root, path, window = contextWindow() }) {
   const home = freeflowStoreOf(dirname(path));
   const project = storeOf(path);
-  const context = contextFor(gitRoot(root), path);
+  const context = contextFor(pointerRoot(root), path);
   const { work } = task.record;
   const recordLines = (items) => items.map((item) => task.record.lines[item.index]);
   const budget = budgetFor({ window: window.tokens, mode: task.record.header.budget });

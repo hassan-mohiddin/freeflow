@@ -348,3 +348,73 @@ test("without a task, checkpoint --session writes the session summary and view b
     assert.ok(!existsSync(join(folder, "store", "sessions", "other")));
   });
 });
+
+test("a task in the store resolves its pointers in the work repository the command runs in, not in the store", async () => {
+  await withFolder(async ({ folder, cli }) => {
+    const env = { FREEFLOW_SESSION: "aaaaaaaa-1", FREEFLOW_HARNESS: "Probe", GIT_CONFIG_NOSYSTEM: "1" };
+    ok(
+      cli(
+        ["store", "init", "--home", join(folder, "store"), "--git-name", "Test User", "--git-email", "t@example.com"],
+        "",
+        env,
+      ),
+    );
+    ok(cli(["project", "new", "--name", "Widget"], "", env));
+    const work = join(folder, "widget");
+    spawnSync("git", ["init", "--quiet", "-b", "main", work]);
+    spawnSync("git", [
+      "-C",
+      work,
+      "-c",
+      "user.name=T",
+      "-c",
+      "user.email=t@example.com",
+      "commit",
+      "--quiet",
+      "--allow-empty",
+      "-m",
+      "start",
+    ]);
+    spawnSync("git", ["-C", work, "remote", "add", "origin", "https://github.com/acme/widget.git"]);
+    await writeFile(join(work, "probe.txt"), "p\n");
+    await mkdir(join(work, "docs"), { recursive: true });
+    await writeFile(join(work, "docs", "spec.md"), `${words(50, "spec")}\n`);
+    const inWork = (args, input = "") =>
+      spawnSync(process.execPath, [scriptPath, ...args], {
+        cwd: work,
+        input,
+        encoding: "utf8",
+        env: { ...process.env, FREEFLOW_HOME: join(folder, "store"), FREEFLOW_CONTEXT_WINDOW: "", ...env },
+      });
+    ok(
+      inWork([
+        "task",
+        "create",
+        "--title",
+        "Probe",
+        "--goal",
+        "Probe pointers.",
+        "--cue",
+        "read when probing",
+        "--project",
+        "widget",
+      ]),
+    );
+    const record = join(folder, "store", "projects", "widget", "tasks", "task-001-probe", "record.md");
+    const text = await readFile(record, "utf8");
+    await writeFile(
+      record,
+      text.replace("### Defined by\n", "### Defined by\n\n- docs/spec.md (in the repository) — the design.\n"),
+    );
+    ok(
+      inWork(
+        ["checkpoint", "--record", "widget/task-001", "--repo", ".", "--input", "-"],
+        "- Carry: probe.txt — the file\n",
+      ),
+    );
+    const bundle = ok(inWork(["view", "bundle", "--record", "widget/task-001"]));
+    assert.match(bundle, /<file path="probe\.txt">\n1\tp\n<\/file>/);
+    assert.match(bundle, /<file path="docs\/spec\.md">\n(spec ?){50}\n<\/file>/);
+    assert.doesNotMatch(bundle, /does not exist/);
+  });
+});
