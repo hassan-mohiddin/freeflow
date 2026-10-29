@@ -1,7 +1,7 @@
 # Track Work CLI
 
 > **Covers:** `skills/track-work/scripts/`
-> **Verified at:** `826bfb8f` (2026-10-29)
+> **Verified at:** `e755a0cd` (2026-10-29)
 
 On Claude Code, Codex and other hosts, Working Records are created and read through the Track Work CLI, `skills/track-work/scripts/working-record.mjs`. A user, or their agent under the Track Work skill, creates a record with a Goal and a next action, reads its resume view (or, after context loss, its recover view: the resume view plus each source's state and live Git mismatches), and validates it (structure, plus a warning for each Material updates pointer that does not resolve). The same CLI sets up the Freeflow store, one private Git repository that holds every task's memory: `store init` clones the user's remote into the store's folder and, when it is empty, lays the store out and pushes its first commit; `store status` says where it stands; `store sync` commits, takes the remote's commits and pushes. The record format and the registry: [Task memory](../subsystems/task-memory.md) and Track Work's `skills/track-work/references/working-record-format.md`.
 
