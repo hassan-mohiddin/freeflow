@@ -50,7 +50,7 @@ Each delegation has a folder in the task directory, `delegations/D-NNN-<slug>/`,
 
 ```markdown
 # D-012 — <title>
-Task: <task> · Slice: S-024 · Continues: D-009 (when it does)
+Task: <task> · From: S-024 (the Slice that opened it, when one did) · Continues: D-009 (when it does)
 Agent: <model>, <effort> · Kind: build | review | research | eval | gather · Handle: <the host's ID for the agent>
 Space: <repository> worktree <path> at <commit>, branch <name> | the coordinator's checkout (read only)
 ## Result wanted
@@ -72,7 +72,14 @@ Space: <repository> worktree <path> at <commit>, branch <name> | the coordinator
 - **Point the worker to [Work From A Brief](#work-from-a-brief)** in the brief's Read section.
 - **Size the assignment** to hold the work, its checks, the corrections they are likely to need, and the return. A brief longer than the change it asks for is the work done at the coordinator's price.
 
-The coordinator records each of its dispatches as one line on the Current Slice through [Track Work](../../track-work/SKILL.md): `Delegation — D-012 (build, <model> <effort>): running; delegations/D-012-<slug>/brief.md`.
+## Keep Delegations Apart From Your Slices
+
+Goal: workers run on their own time, and your own work never waits for theirs to close.
+
+- A delegation is not part of a Slice. Your Slices are your own work and open and close whatever the workers are doing; a delegation has its own lifecycle: opened, running, returned, then closed as accepted, sent back or stopped.
+- A Slice that needs a delegation's result waits for it: name the delegation's folder in the Slice's Dependencies, and close the delegation before using the result. Never keep a Slice open only because a delegation is still running.
+- Closing a delegation accepts its return: check it as Check The Return says, merge its branch, and record the merge commit. Work beyond that, such as resolving conflicts between parts, is a Slice of yours.
+- Record each dispatch through [Track Work](../../track-work/SKILL.md) where the record holds current work, with the folder's path: a line on the Current Slice when one is open, `Delegation — D-012 (build, <model> <effort>): running; delegations/D-012-<slug>/brief.md`, and otherwise a Recovery source, `delegations/D-012-<slug>/ — D-012 (build, <model> <effort>): running; read when it returns`. Record its outcome the same way when it closes, wherever the record holds current work then.
 
 ## Run Workers In Parallel
 
@@ -91,7 +98,7 @@ Goal: no one waits idle, and no worker builds on a premise that has changed.
 - Run workers in the background and keep doing independent work, in paths no worker writes.
 - When a return or the user's new direction changes a running worker's premise, append the change, dated, to its brief's Changes and tell the worker, or stop it.
 - Another round for the same result keeps the folder: the brief gets a dated change, `progress.md` continues, and `return.md` is rewritten. Resume the same agent when the host can, since it still holds its context; a fresh agent can take over the folder, since the files carry the work.
-- After your own context loss, the Current Slice's Delegation lines, and the folders without a finished return, are the open delegations.
+- After your own context loss, the record's Delegation lines and delegation Recovery sources, and the folders without a finished return, are the open delegations.
 
 ## Work From A Brief
 
@@ -148,7 +155,7 @@ Goal: accept only what the evidence supports, and choose the next step from the 
 2. Read the return, then the diff against the base; a summary is not the work.
 3. Rerun the check that decides the result, and recompute any number the result rests on.
 4. Judge it against the brief's Result wanted and Done when. A plausible but different name, location or behavior shows a decision the brief left implicit: improve the next brief from it.
-5. As the coordinator, record the outcome as one line on the Slice, with the tokens and minutes the host reports: `Delegation — D-012 (build, <model> <effort>): accepted | sent back | stopped; <tokens> tokens, <minutes> min; delegations/D-012-<slug>/return.md`.
+5. As the coordinator, record the outcome where the record holds current work, with the tokens and minutes the host reports and, when you merged its branch, the merge commit: `Delegation — D-012 (build, <model> <effort>): accepted | sent back | stopped; <tokens> tokens, <minutes> min; delegations/D-012-<slug>/return.md`. That closes the delegation; drop its Recovery source if it had one.
 
 Then choose from the gap. A supported result: continue. A missing observation: ask for it, in the same folder. A defect: send it back with the evidence. An approach the evidence invalidates: change the direction rather than repeat the demand. A choice the user owns: ask the user.
 
