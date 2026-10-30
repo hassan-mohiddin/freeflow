@@ -28,7 +28,7 @@ function makeRecords(cwd) {
     ["Retry work", "Retries with backoff in the HTTP client."],
     ["Docs cleanup", "Remove stale docs."],
   ])
-    execFileSync(process.execPath, [script, "init", "--root", cwd, "--name", name, "--input", "-"], {
+    execFileSync(process.execPath, [script, "init", "--schema", "4", "--root", cwd, "--name", name, "--input", "-"], {
       input: `### Goal\n- ${goal}\n\n### Next useful action\n- Continue.\n`,
     });
 }

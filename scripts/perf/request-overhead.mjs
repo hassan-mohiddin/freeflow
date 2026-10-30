@@ -236,6 +236,8 @@ async function run(label, config, sessionPath) {
         [
           join(root, "skills/track-work/scripts/working-record.mjs"),
           "init",
+          "--schema",
+          "4",
           "--root",
           cwd,
           "--name",
