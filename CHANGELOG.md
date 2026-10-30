@@ -44,6 +44,7 @@
 
 ### Changed
 
+- Write Docs' docs check says when a `Verified at` commit is missing because the clone is shallow, as a cloud session's may be, and how to fetch its history.
 - Freeflow on Claude Code compacts only when the agent asks, with Track Work's `checkpoint --compact`: the mod answers the request once, at the end of that turn, with the record in place of the conversation, then starts the next turn. The notice at 75% reminds the agent to do so; a checkpoint without `--compact`, before a pause or a switch, never compacts; and the agent may ask earlier, at a boundary where the conversation holds mostly finished work.
 - Discuss Work's agreement reply puts its Size line last, after Technical, so the work's size stands out.
 - Track Work's guidance describes Schema 5 tasks: taking only the task your message points to from the session-start menu, the agreement in your words, Slices with one-line updates that point to their evidence, the recovery budget, the checkpoint at a safe point before a compaction or a transfer, and recovery from Freeflow's bundle. A task is kept when the work will outlast the current compaction cycle, which `estimate` helps judge, and the agent asks one question before making one, with where it goes: a project or none. Execute Work checks, when it sets the route, whether the work fits in what is left of the context. The store, projects and holds are part of its format reference. Schema 4's format and method, which Pi's Task Memory keeps, are in a reference of their own (`skills/track-work/references/schema-4.md`), and Pi's task-memory and compaction skills point to it.
@@ -64,6 +65,8 @@
 
 ### Fixed
 
+- Freeflow on Claude Code takes up a store added to a session that has already started, as a repository attached to a running cloud session is, at the end of that turn: the transcript that measures Slices, a pull, the scan for a task's repositories, and the store's file permissions, which it used to leave off for the rest of the session.
+- Track Work's `validate` no longer takes a session's ID, a hex word after "session" in a Slice's update line, for a commit that does not resolve.
 - Track Work's `store init --remote <url>` uses a folder that already holds an empty clone of that repository, as a cloud session has it, instead of refusing it.
 - Discuss Work's `choices.mjs validate` accepts a decision list with no items yet, such as a new task's `decisions.md`, and its catch-up no longer lists a Slice's `Predicted:` and `Measured:` lines as work that ran.
 - Track Work's `checkpoint --input` takes a labelled In flight line that says only `none` (`- Carry: none`) as no line, instead of refusing it; a plain line under Future Work is refused with the shape a proposed Slice takes; and a Schema 5 Slice accepts the `Review gate` line Review Work records.

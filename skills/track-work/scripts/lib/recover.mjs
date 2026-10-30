@@ -50,8 +50,13 @@ export function pointersIn(line) {
   const prose = text.replace(/`[^`\n]*`/g, " ").replace(/\]\([^)]*\)/g, " ");
   for (const match of prose.matchAll(/\b(?:commit|file|path):([^\s,;)]+)/g))
     classify(match[1], add, match[0].startsWith("commit:"));
+  let previous = "";
   for (const word of prose.split(/[\s,;()[\]"'“”]+/)) {
     const token = word.replace(/[.:]+$/, "");
+    // A hex word after "session" is a session's ID, as a Slice names the session it ran in, not a commit.
+    const afterSession = /^session$/i.test(previous);
+    previous = token;
+    if (afterSession && COMMIT.test(token)) continue;
     if (looksLikeCommit(token)) add("commit", token);
     // A bare path in prose must name a file: a slashed word ending in "/" is usually a folder named in passing.
     else if (token.includes("/") && !token.endsWith("/") && looksLikePath(token) && !URL.test(token))

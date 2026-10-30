@@ -160,7 +160,7 @@ Work that runs past one compaction, or across sessions and machines, keeps its m
 
 If you want neither, the agent works without memory beyond the current compaction. Records you kept before the store, in a repository's `.freeflow/tasks/` or Pi's Task Memory, are copied into it on your word; the originals stay where they are.
 
-**Claude Code cloud sessions.** A cloud session's container is thrown away, so it needs local + cloud. In the cloud environment's settings: add your store repository under Repositories; set `FREEFLOW_HOME` to the folder it is cloned to (`/home/user/` and the repository's name); and load the Freeflow plugin with a setup-script line that clones Freeflow and `CLAUDE_CODE_PLUGIN_DIRS` naming that folder. Select the store as one of the session's repositories when you start a session. If something is missing, Freeflow says what at session start, and whether you or the agent fixes it.
+**Claude Code cloud sessions.** A cloud session's container is thrown away, so it needs local + cloud. In the cloud environment's settings: add your store repository under Repositories; set `FREEFLOW_HOME` to the folder it is cloned to (`/home/user/` and the repository's name); and load the Freeflow plugin with a setup-script line that clones Freeflow and `CLAUDE_CODE_PLUGIN_DIRS` naming that folder. Select the store as one of the session's repositories when you start a session. If something is missing, Freeflow says what at session start, and whether you or the agent fixes it; a store added to a session that has already started is taken up when that turn ends.
 
 ## Verify delivery
 
