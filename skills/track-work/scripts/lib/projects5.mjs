@@ -20,6 +20,7 @@ import {
   parseRecord5,
   skeleton5,
 } from "./record5.mjs";
+import { rules } from "./budget5.mjs";
 import { searchRecords } from "./search.mjs";
 import { LAST_TASK_NUMBER, createRecordPath, nextTaskNumber, writeInitialAtomically, writeTaskFile } from "./store.mjs";
 import {
@@ -308,6 +309,22 @@ function projectsFor(home, directory) {
     projectTasks(home, slug).some((task) => task.space.includes(repository.name)),
   );
   return { repository, projects };
+}
+
+/**
+ * The rules a session follows from its start (Spec section 4), printed after the menu: the store's, then the project's
+ * for the folder's repository and for the task this session holds, each whole, as the bundle prints them; empty when
+ * there are none.
+ */
+export function sessionRules(home, directory, identity) {
+  const held = heldTask(home, identity);
+  const slugs = new Set(projectsFor(home, directory).projects);
+  if (held?.id.includes("/")) slugs.add(held.id.split("/")[0]);
+  const seen = new Set();
+  const files = [null, ...[...slugs].map((slug) => join(home, "projects", slug))]
+    .flatMap((project) => rules(home, project))
+    .filter((file) => !seen.has(file.path) && seen.add(file.path));
+  return files.length ? `\n## Rules\n\n${files.map((file) => `### ${file.path}\n\n${file.text}\n`).join("\n")}` : "";
 }
 
 /** The session-start menu: the open tasks of the folder's project, or of every project where none matches, newest activity first. */

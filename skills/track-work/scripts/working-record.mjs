@@ -42,6 +42,7 @@ import {
   findRepositories,
   listProjects,
   menu,
+  sessionRules,
   moveTask,
   releaseTask,
   removeProject,
@@ -255,7 +256,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task here",
-    "Usage: task here [--cwd <directory>] [--scan <folders>]\nPrints the registered tasks whose primary directory contains the directory, deepest first.\nIn a Freeflow store: the session-start menu. It opens by saying the record is memory and the user's message decides the work; says which task this session holds, if any; then lists the open tasks of each project whose tasks name --cwd's repository, and those with no project that name it (newest activity first, at most 15 each), each with who holds it and when it last synced, and its cue; or every project's open tasks, when none matches. --scan <folders>, separated as in PATH, remembers where each repository a task names is on this machine, from the Git checkouts at those folders and directly inside them, so recovery resolves its pointers there. It takes nothing.",
+    "Usage: task here [--cwd <directory>] [--scan <folders>] [--rules]\nPrints the registered tasks whose primary directory contains the directory, deepest first.\nIn a Freeflow store: the session-start menu. It opens by saying the record is memory and the user's message decides the work; says which task this session holds, if any; then lists the open tasks of each project whose tasks name --cwd's repository, and those with no project that name it (newest activity first, at most 15 each), each with who holds it and when it last synced, and its cue; or every project's open tasks, when none matches. --scan <folders>, separated as in PATH, remembers where each repository a task names is on this machine, from the Git checkouts at those folders and directly inside them, so recovery resolves its pointers there. --rules adds, after the menu, the store's rules and those of the folder's project and of the task this session holds, each whole: what Freeflow's harness layer gives a session at its start. It takes nothing.",
   ],
   [
     "task fanout",
@@ -405,6 +406,7 @@ function parseOptions(args) {
         "--store",
         "--json",
         "--compact",
+        "--rules",
       ].includes(token)
     ) {
       options[token] = true;
@@ -883,7 +885,7 @@ const STORE_OPTIONS = new Map([
   ["task take", ["--id", "--takeover"]],
   ["task release", ["--id"]],
   ["task switch", ["--id", "--takeover"]],
-  ["task here", ["--cwd", "--scan"]],
+  ["task here", ["--cwd", "--scan", "--rules"]],
   ["task search", ["--query", "--project"]],
   ["task remove", ["--id"]],
 ]);
@@ -925,7 +927,8 @@ async function runProjects5(command, operation, options, home) {
   if (key === "task here") {
     const found = options["--scan"] ? await findRepositories(home, String(options["--scan"]).split(delimiter)) : [];
     const lines = found.map((each) => `Found on this machine: ${each.name} at ${each.top}.`);
-    return `${menu(home, where, identity)}${lines.length ? `${lines.join("\n")}\n` : ""}`;
+    const rulesText = options["--rules"] ? sessionRules(home, where, identity) : "";
+    return `${menu(home, where, identity)}${lines.length ? `${lines.join("\n")}\n` : ""}${rulesText}`;
   }
   if (key === "task search") return searchTasks(home, requireOption(options, "--query"), options["--project"] ?? null);
   if (key === "task remove") return removeTask(home, requireOption(options, "--id"));

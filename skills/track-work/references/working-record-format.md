@@ -57,7 +57,7 @@ A project is a folder, `projects/<project>/`, with its `rules/` and `tasks/`; a 
 working-record.mjs project new --name <name>                         a project, on the user's word
 working-record.mjs project list                                       every project, its tasks and repositories
 working-record.mjs project show [--name <project>]                    a project's tasks; without --name, this repository's menu
-working-record.mjs task here [--cwd <directory>]                      the session-start menu
+working-record.mjs task here [--cwd <directory>] [--rules]            the session-start menu, and with --rules the rules after it
 working-record.mjs task search --query <words> [--project <p>]       every task's record, history and decisions
 working-record.mjs task remove --id <ID> | project remove --name <p>   delete and commit, on the user's word
 working-record.mjs task move --id <ID> (--project <p> | --no-project)  into a project or out of one, on the user's word

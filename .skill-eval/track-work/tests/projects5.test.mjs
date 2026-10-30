@@ -436,3 +436,35 @@ test("task here --scan remembers where a task's repository is on this machine, s
     assert.doesNotMatch(ok(cli("aaaaaaaa-1", ["task", "here", "--scan", folder])), /Found on this machine/);
   });
 });
+
+test("task here --rules adds the store's rules and the folder's and held task's project rules after the menu, and nothing without it", async () => {
+  await withStore(async ({ folder, home, work, cli }) => {
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Other"]));
+    ok(
+      cli(
+        "aaaaaaaa-1",
+        ["task", "create", "--title", "Ruled", "--goal", "Follow the rules.", "--cue", "read when rules apply"],
+        work,
+      ),
+    );
+    ok(cli("aaaaaaaa-1", ["task", "move", "--id", "task-001", "--project", "widget"]));
+    await writeFile(join(home, "rules", "style.md"), "Plain words, short sentences.\n");
+    await writeFile(join(home, "projects", "widget", "rules", "review.md"), "Every change gets a review.\n");
+    await writeFile(join(home, "projects", "other", "rules", "other.md"), "Not for widget.\n");
+    const plain = ok(cli("aaaaaaaa-1", ["task", "here"], work));
+    assert.doesNotMatch(plain, /## Rules/);
+    const ruled = ok(cli("aaaaaaaa-1", ["task", "here", "--rules"], work));
+    assert.ok(ruled.startsWith(plain), "the menu comes first, unchanged");
+    assert.equal(
+      ruled.slice(plain.length),
+      "\n## Rules\n\n### rules/style.md\n\nPlain words, short sentences.\n\n### projects/widget/rules/review.md\n\nEvery change gets a review.\n",
+    );
+    // Outside the repository, the held task's project still brings its rules.
+    assert.match(ok(cli("aaaaaaaa-1", ["task", "here", "--rules"], folder)), /### projects\/widget\/rules\/review\.md/);
+    // A session holding nothing, outside any repository a task names, gets the store's rules alone.
+    const other = ok(cli("bbbbbbbb-2", ["task", "here", "--rules"], folder));
+    assert.match(other, /### rules\/style\.md/);
+    assert.doesNotMatch(other, /projects\/(widget|other)\/rules/);
+  });
+});
