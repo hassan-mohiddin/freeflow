@@ -170,8 +170,8 @@ const trim = (lines = []) => {
 
 function nextTopId(task, taskDir) {
   const used = [
-    ...task.history.entries.map((entry) => entry.id),
-    ...task.record.work.delegations.map((item) => item.text.split(" ")[0]),
+    ...(task?.history.entries.map((entry) => entry.id) ?? []),
+    ...(task?.record.work.delegations.map((item) => item.text.split(" ")[0]) ?? []),
     ...(existsSync(join(taskDir, "delegations")) ? readdirSync(join(taskDir, "delegations")) : []),
   ];
   const highest = Math.max(0, ...used.map((id) => Number(/^D-(\d{3,})/.exec(id)?.[1] ?? 0)));
@@ -224,11 +224,12 @@ function taskName(recordPath) {
 
 /**
  * Opens a delegation: assigns its ID, writes brief.md from the template, makes a writing worker's worktree on its
- * own branch at the base, and, for the coordinator's delegations, writes its line in record.md's Delegations.
+ * own branch at the base, and, for the coordinator's delegations, writes its line in record.md's Delegations. With no
+ * record (`loaded` null), the delegation lives in the scratch folder `--scratch` names and nothing is recorded.
  */
 export async function openDelegation(loaded, options, text) {
-  const task = await loadTask5(loaded.path, loaded.text);
-  const taskDir = dirname(loaded.path);
+  const task = loaded ? await loadTask5(loaded.path, loaded.text) : null;
+  const taskDir = loaded ? dirname(loaded.path) : resolve(options["--scratch"]);
   const title = oneLine(options["--title"]) || fail("delegate open requires --title.");
   const kind = oneLine(options["--kind"]);
   if (!KINDS.has(kind)) fail(`--kind is one of ${[...KINDS].join(", ")}.`);
@@ -251,9 +252,9 @@ export async function openDelegation(loaded, options, text) {
     id = nextTopId(task, taskDir);
     directory = join(taskDir, "delegations", `${id}-${slugify(title)}`);
   }
-  const under = options["--under"] ?? task.record.work.agreement?.id ?? null;
+  const under = options["--under"] ?? task?.record.work.agreement?.id ?? null;
   // A sub-worker's delegation comes from its worker; the coordinator's, from its current Slice.
-  const from = options["--from"] ?? parent?.id ?? task.record.work.slice?.id ?? null;
+  const from = options["--from"] ?? parent?.id ?? task?.record.work.slice?.id ?? null;
   const slug = basename(directory).toLowerCase();
   let space = "the coordinator's checkout (read only)";
   if (options["--repo"]) {
@@ -268,16 +269,19 @@ export async function openDelegation(loaded, options, text) {
     if (!ok(made)) fail(`Could not make the worktree: ${made.message}`);
     space = `${repo} worktree ${worktree} at ${commit}, branch ${branch}`;
   }
-  const recover = `node ${SCRIPT} view recover --record ${loaded.path} --delegation ${id}`;
+  const briefPath = join(directory, "brief.md");
+  const recover = loaded
+    ? `node ${SCRIPT} view recover --record ${loaded.path} --delegation ${id}`
+    : `read this brief again: ${briefPath}`;
   const read = [
     ...trim(sections.Read),
     `- ${REFERENCE}, Work From A Brief: how to work from this brief, write progress.md and return.md, and hand work down.`,
-    `- After a compaction, recover with: ${recover}`,
+    loaded ? `- After a compaction, recover with: ${recover}` : `- After a compaction, ${recover}`,
   ];
   const header = [
     `# ${id} — ${title}`,
     [
-      `Task: ${taskName(loaded.path)}`,
+      `Task: ${loaded ? taskName(loaded.path) : "none (a scratch folder; nothing is recorded)"}`,
       under && `Agreement: ${under}`,
       from && `From: ${from}`,
       options["--continues"] && `Continues: ${options["--continues"]}`,
@@ -300,8 +304,10 @@ export async function openDelegation(loaded, options, text) {
     return [`## ${name}`, ...content, ""];
   });
   await mkdir(directory, { recursive: true });
-  await writeFile(join(directory, "brief.md"), `${[...header, ...body].join("\n").trimEnd()}\n`);
-  const path = relative(taskDir, join(directory, "brief.md"));
+  await writeFile(briefPath, `${[...header, ...body].join("\n").trimEnd()}\n`);
+  if (!loaded)
+    return `Opened ${id} — ${title}\n${briefPath}\nSpace: ${space}\nStart the worker with a prompt that names ${id} and the brief's path; nothing is recorded. Check its return with:\n  node ${SCRIPT} delegate check-return --scratch ${taskDir} --id ${id}\n`;
+  const path = relative(taskDir, briefPath);
   if (!parent) {
     const [model, effort] = agent.split(/,\s*/);
     const line = [
@@ -420,11 +426,11 @@ export function returnProblems(directory) {
 
 export async function checkReturn(loaded, options) {
   const { id, sub } = parseId(options["--id"]);
-  const directory = delegationDir(dirname(loaded.path), id);
+  const directory = delegationDir(loaded ? dirname(loaded.path) : resolve(options["--scratch"]), id);
   const { brief, problems, commits, state } = returnProblems(directory);
   if (problems.length) fail(`${id}'s return is not ready: ${problems.join("; ")}.`);
   let note = "";
-  if (!sub) {
+  if (loaded && !sub) {
     const task = await loadTask5(loaded.path, loaded.text);
     const item = lineOf(task.record, id);
     const returned = item && withState(task.record, item, "returned");

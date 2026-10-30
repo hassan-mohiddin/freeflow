@@ -163,7 +163,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate open",
-    "Usage: delegate open --record <record.md> --title <title> --kind <build|review|research|eval|gather> --agent \"<model>, <effort>\" [--repo <path> [--base <ref>] [--branch <name>] [--worktree <path>]] [--from S-NNN] [--under A-NNN] [--continues D-NNN] [--handle <agent ID>] [--parent D-NNN] --input <file|->\nAssigns D-NNN (or D-NNN.n with --parent), writes brief.md from the template, and, with --repo, makes the worker's own worktree on a new branch at the base (default HEAD). Without --parent it writes the delegation's line in Current Work's Delegations; --parent opens a sub-worker's delegation inside its worker's folder, and is refused for a sub-worker (no fourth level). --from defaults to the current Slice and --under to the open agreement.\nInput: the brief's sections under \"## <section>\" headings: Result wanted, Scope and Done when required; Settled, Read and Return when optional. Read gains the delegation reference and the worker's recover command.",
+    "Usage: delegate open --record <record.md> --title <title> --kind <build|review|research|eval|gather> --agent \"<model>, <effort>\" [--repo <path> [--base <ref>] [--branch <name>] [--worktree <path>]] [--from S-NNN] [--under A-NNN] [--continues D-NNN] [--handle <agent ID>] [--parent D-NNN] --input <file|->\nAssigns D-NNN (or D-NNN.n with --parent), writes brief.md from the template, and, with --repo, makes the worker's own worktree on a new branch at the base (default HEAD). Without --parent it writes the delegation's line in Current Work's Delegations; --parent opens a sub-worker's delegation inside its worker's folder, and is refused for a sub-worker (no fourth level). --from defaults to the current Slice and --under to the open agreement.\nInput: the brief's sections under \"## <section>\" headings: Result wanted, Scope and Done when required; Settled, Read and Return when optional. Read gains the delegation reference and the worker's recover command.\nWith no task, --scratch <folder> in place of --record keeps the delegation in <folder>/delegations/ with the same brief, and records nothing.",
   ],
   [
     "delegate amend",
@@ -175,7 +175,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate check-return",
-    "Usage: delegate check-return --record <record.md> --id <D-NNN[.n]>\nRefuses a return that is missing, lacks its State line or a heading (Result, Identities, Checks, Left open, Not done; a reviewer returns Review Work's report instead), or names a commit that is not on the brief's branch. When it passes, the delegation's line says returned. A return that passes is not accepted: read it and the diff, and rerun the check that decides the result.",
+    "Usage: delegate check-return --record <record.md> --id <D-NNN[.n]>\nRefuses a return that is missing, lacks its State line or a heading (Result, Identities, Checks, Left open, Not done; a reviewer returns Review Work's report instead), or names a commit that is not on the brief's branch. When it passes, the delegation's line says returned. A return that passes is not accepted: read it and the diff, and rerun the check that decides the result. --scratch <folder> in place of --record checks a delegation opened with --scratch.",
   ],
   [
     "delegate close",
@@ -467,10 +467,11 @@ function allowedOptions(command, operation) {
         "--branch",
         "--worktree",
         "--parent",
+        "--scratch",
       ]);
     if (operation === "amend") return new Set([...record, "--id", "--text", "--handle", "--input"]);
     if (operation === "status") return new Set(record);
-    if (operation === "check-return") return new Set([...record, "--id"]);
+    if (operation === "check-return") return new Set([...record, "--id", "--scratch"]);
     if (operation === "close")
       return new Set([...record, "--id", "--outcome", "--merge", "--tokens", "--minutes", "--transcript", "--input"]);
   }
@@ -1063,6 +1064,14 @@ async function runCore(command, rest) {
     });
   }
   if (command === "delegate") {
+    // A delegation with no task: its folder is in the scratch folder --scratch names, and nothing is recorded.
+    if (options["--scratch"] !== undefined) {
+      if (options["--record"] !== undefined)
+        throw new CliError("--scratch is for a delegation with no task: give --record or --scratch, not both");
+      const input = operation === "open" ? await readInput(options["--input"], cwd()) : null;
+      if (operation === "open") return openDelegation(null, options, input);
+      if (operation === "check-return") return checkReturn(null, options);
+    }
     const loaded = await readExisting(options);
     if (schemaOf(loaded.text) !== 5)
       throw new CliError(

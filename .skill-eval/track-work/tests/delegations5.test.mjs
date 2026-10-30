@@ -515,3 +515,67 @@ test("delegate is for Schema 5 records", async () => {
     await rm(folder, { recursive: true, force: true });
   }
 });
+
+test("delegate open and check-return --scratch keep a delegation in a folder with no task, and record nothing", async () => {
+  const folder = realpathSync(await mkdtemp(join(tmpdir(), "track-work-scratch-")));
+  try {
+    const cli = (args, input = "") =>
+      spawnSync(process.execPath, [scriptPath, ...args], {
+        cwd: folder,
+        input,
+        encoding: "utf8",
+        env: { ...process.env, FREEFLOW_HOME: "" },
+      });
+    const scratch = join(folder, "scratch");
+    const open = (title) =>
+      ok(
+        cli(
+          [
+            "delegate",
+            "open",
+            "--scratch",
+            scratch,
+            "--title",
+            title,
+            "--kind",
+            "gather",
+            "--agent",
+            "Haiku, xhigh",
+            "--input",
+            "-",
+          ],
+          BRIEF,
+        ),
+      );
+    const out = open("Read the callers");
+    const brief = join(scratch, "delegations", "D-001-read-the-callers", "brief.md");
+    assert.ok(out.startsWith(`Opened D-001 — Read the callers\n${brief}\n`), out);
+    assert.match(out, /nothing is recorded/);
+    const text = await readFile(brief, "utf8");
+    assert.match(
+      text,
+      /^# D-001 — Read the callers\nTask: none \(a scratch folder; nothing is recorded\) · Opened: \d{4}-\d{2}-\d{2}\n/,
+    );
+    assert.match(
+      text,
+      new RegExp(`- After a compaction, read this brief again: ${brief.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\n`),
+    );
+    assert.doesNotMatch(text, /view recover/);
+    // Numbered within the folder.
+    assert.match(open("Read the tests"), /^Opened D-002 — Read the tests\n/);
+
+    const check = () => cli(["delegate", "check-return", "--scratch", scratch, "--id", "D-001"]);
+    assert.match(check().stderr, /D-001's return is not ready: no return\.md/);
+    await writeFile(join(dirname(brief), "return.md"), RETURN("D-001", "").replace("branch, commit ", "none"));
+    assert.match(ok(check()), /^D-001's return: State done; every heading is there; it names no commit\./);
+
+    // A record and a scratch folder are not both given.
+    assert.match(
+      cli(["delegate", "check-return", "--scratch", scratch, "--record", join(folder, "record.md"), "--id", "D-001"])
+        .stderr,
+      /--scratch is for a delegation with no task: give --record or --scratch, not both/,
+    );
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
+});

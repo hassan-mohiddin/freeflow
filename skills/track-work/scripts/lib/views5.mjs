@@ -126,6 +126,8 @@ async function recoveryHead(task, measured, { path, delegation }) {
     "",
     "## Checks",
     "",
+    // Where the task's folder is: the record names its files relative to it.
+    `- Task folder: ${dirname(path)}`,
     `- Budget: ${budget.summary}.`,
     ...(budget.warning ? [`- Warning: ${budget.warning}`] : []),
     ...warnings5(task).map((warning) => `- Warning: ${warning}`),

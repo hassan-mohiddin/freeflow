@@ -8,6 +8,7 @@
 - Evaluate Behavior's `skill-eval run --dry-run` is now `--uncommitted`: it always ran subjects and called models, and only allowed uncommitted inputs, so the old name promised a run that spends nothing. `--dry-run` is refused with a message naming the new flag; stored results keep their `dryRun` field and still read.
 
 ### Added
+- Track Work's `delegate open --scratch <folder>` keeps a delegation with no task: the same brief from the template under the folder's `delegations/`, with nothing recorded, and `delegate check-return --scratch` checks its return. Freeflow's core prompt now names Execute Work's delegation reference whenever work goes to another agent (a subagent, parallel workers, a reviewer or any multi-agent orchestration), with or without a task.
 - Setup Freeflow sets up the Freeflow store that keeps task memory, in a reference of its own: it asks local only or local + cloud, local only by default, makes it with Track Work's `store init` (or `store init --remote <url>` for your private repository), says what to set in a cloud environment (`FREEFLOW_HOME` at the store's clone, a setup-script line that clones a Freeflow release, and the store attached to a session when its work needs task memory), and moves older records into the store: Schema 4 records and Pi's Task Memory with `migrate --project`, which converts a copy, and Schema 5 tasks kept in a repository's `.freeflow/tasks/` with the same command, which copies them unchanged; the originals stay. A task always lives in the store: where you want no store, there is no task.
 - At session start, Freeflow on Claude Code says what keeps the session from a working store and whether you or the agent fixes it (`session status`'s new `missing` list): a store `FREEFLOW_HOME` names that is not there, an empty clone not laid out yet, a cloud session's store with no remote. Where no task names the session's folder, as in a cloud session that starts in the store, the menu lists every open task in the store; and `task here --scan <folders>` finds where a task's repositories are on this machine, so recovery reads their files in a fresh container.
 - Track Work's tasks may belong to no project: `task create --no-project`, or with no project naming the repository, makes `task-NNN` in the store's `tasks/`, the session-start menu lists it under "No project", and `task move --id <ID> --project <name>` (or `--no-project`) moves a task's folder into a project or out of it, with the next number there and Git keeping its history. `estimate` gives the context's use against the window and the point where Freeflow's notice comes, from `--used` or the session's transcript, and with `--done` and `--left` projects whether the rest of the work fits in this cycle; where no window is set and the context is larger than the one it would assume, it asks for `--window`.
@@ -44,6 +45,7 @@
 
 ### Changed
 
+- Track Work's recovery view and bundle open their checks with the task folder's path, so an agent after a compaction finds the files the record names.
 - Write Docs' docs check says when a `Verified at` commit is missing because the clone is shallow, as a cloud session's may be, and how to fetch its history.
 - Freeflow on Claude Code compacts only when the agent asks, with Track Work's `checkpoint --compact`: the mod answers the request once, at the end of that turn, with the record in place of the conversation, then starts the next turn. The notice at 75% reminds the agent to do so; a checkpoint without `--compact`, before a pause or a switch, never compacts; and the agent may ask earlier, at a boundary where the conversation holds mostly finished work.
 - Discuss Work's agreement reply puts its Size line last, after Technical, so the work's size stands out.
@@ -65,6 +67,7 @@
 
 ### Fixed
 
+- Track Work measures a Claude Code session that was resumed in another folder from its newest log, instead of whichever copy it found first.
 - Freeflow on Claude Code takes up a store added to a session that has already started, as a repository attached to a running cloud session is, at the end of that turn: the transcript that measures Slices, a pull, the scan for a task's repositories, and the store's file permissions, which it used to leave off for the rest of the session.
 - Track Work's `validate` no longer takes a session's ID, a hex word after "session" in a Slice's update line, for a commit that does not resolve.
 - Track Work's `store init --remote <url>` uses a folder that already holds an empty clone of that repository, as a cloud session has it, instead of refusing it.

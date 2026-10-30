@@ -3,7 +3,7 @@
 // line saying what it answered. Blocks are added or dropped, never edited; Git keeps what was dropped. Reading a
 // transcript goes through a reader per format, so any harness can supply one.
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -135,11 +135,15 @@ export function claudeCodeLog(env = process.env) {
   if (!id) return null;
   const projects = join(env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "projects");
   if (!existsSync(projects)) return null;
+  // A session resumed in another folder gets a second log there, and only the newest one grows.
+  let newest = null;
   for (const folder of readdirSync(projects)) {
     const path = join(projects, folder, `${id}.jsonl`);
-    if (existsSync(path)) return path;
+    if (!existsSync(path)) continue;
+    const time = statSync(path).mtimeMs;
+    if (!newest || time > newest.time) newest = { path, time };
   }
-  return null;
+  return newest?.path ?? null;
 }
 
 /**

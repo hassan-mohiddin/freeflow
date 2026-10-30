@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { activeDecisions } from "../../../skills/track-work/scripts/lib/views5.mjs";
 
@@ -195,6 +195,10 @@ test("view recover prints the opening line, rules, record, decisions, History an
       /^## Project index\n\n- widget\/task-004 — Other task · active · read when the other task matters\n/,
     );
     const checks = section("Checks");
+    // Where the task's folder is, so a compacted agent finds the files the record names relative to it.
+    const folderLine = /^## Checks\n\n- Task folder: (.+)\n- Budget: /.exec(checks);
+    assert.ok(folderLine, checks.slice(0, 200));
+    assert.equal(realpathSync(folderLine[1]), realpathSync(dirname(record)));
     assert.match(
       checks,
       /- Budget: counted [\d,]+ of about 10,000 words \(normal, 200,000-token window\); largest: .+; fixed: Current Context \d+ of about 600, Future Work \d+ of about 300; not counted: rules 8, Defined by [\d,]+\./,
