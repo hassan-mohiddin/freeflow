@@ -1,0 +1,57 @@
+# Track Work
+
+> **Covers:** `skills/track-work/`
+> **Tests:** `.skill-eval/track-work/`
+> **Verified at:** `992efbd4` (2026-10-30)
+
+For anyone changing Track Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/track-work/SKILL.md); this record holds the reasons it does not. It was started with the Schema 5 rewrite (task-004's Phase 7.1), so it records that rewrite's reasons in full and older choices only where they still shape the text. Task-004's design, with every choice and the owner's words, is its Spec (`memory-and-delegation.md` in that task's folder); the choices are cited here by its IDs (P1 to P73, T1 to T23).
+
+## Purpose
+
+Track Work keeps one task's memory so a fresh context, after a compaction, in another session or on another machine, continues the work without the conversation that produced it. Its reader is the agent doing the work, and it is read whole at every recovery, beside Discuss Work and Execute Work. It changes the decisions where memory is made or used: which task a session works on, what goes where in the record, when and how to checkpoint, and how to recover.
+
+## Behavioral Claim
+
+- **Behavior it produces:** the session takes only the task the user's message points to and writes only that one; the agreement is written in the user's words; a Slice is recorded before its first effect, with one-line updates pointing to their evidence; the record stays within a recovery budget the agent knows before writing; at Freeflow's notice the agent works on to a safe point, rewrites Current Context and In flight, saves the discussion that shaped the work, runs `checkpoint` and ends its turn; after a compaction it continues from the bundle without reading it again, and elsewhere recovers through `view recover` and the sources it names.
+- **Failure it prevents:** from task-001 and the four Schema 4 records (Spec section 1): records that grow and go stale (one Slice with 45 updates, a decision list of 7,600 words, recovery reading about 60,000), structure never used, Current Context patched instead of rewritten, records lost with a cloud container, and delegated work with no owner. From Pi's Task Memory evals: an agent with a record in focus did the record's next action instead of the user's request 3 times out of 3.
+- **Earliest decision:** a session's first message, where Freeflow's menu lists the project's tasks and the user's words decide which one, if any, is taken.
+- **Cues before the body is read:** its description; core's cycle, which names Track Work when work spans sessions, a compaction or a handoff; on Claude Code the mod's menu, its notice and the bundle's opening and recovery lines, all printed by the script.
+- **Guaranteed context:** the description on every host. Where Freeflow's mod runs, the bundle carries the skill whole into every new cycle, which is why its length matters.
+- **Nearby cases it leaves alone:** a question or a short self-contained result, which needs no task; Pi's Task Memory, which keeps Schema 4 records through its own tool (the Schema 4 reference covers their shape); the decision list's method, which is Discuss Work's; delegation, which is Execute Work's reference.
+- **When it stops steering:** at the task's close or release; between boundaries it asks for nothing ("update at boundaries, not after every step").
+
+## Design
+
+- **Schema 5 in the body, Schema 4 in a reference** (P70). Pi's Task Memory, its compaction summaries and its projects all rest on Schema 4 until Pi moves (step 3), and a record made before Schema 5 keeps working until the user has it converted (P73). The body describes one schema so a Claude Code or Codex agent reads no Schema 4 method; `references/schema-4.md` holds Schema 4's differences, its format and its projects and child records, moved from main whole so their wording carries over. Pi's task-memory and compaction skills link into it.
+- **"Checkpoint" means only the save** (P71). Schema 4's Checkpoint, a selected stop on the route, became the agreement's `Back at` line, since both the user and the mod use "checkpoint" for the save before a compaction. Other skills still say "selected Checkpoint" until task-004's Slice 7.2 rewords them; the body's agreement section carries a one-line guard for that interval.
+- **Rules kept few.** The Rules hold what is wrong in every case: the record is not authority (with Task Memory's sharper wording, that a record's next action is not a request, because of the 3-in-3 eval failure), taking and creating tasks only on the user's word, one writer, a Slice before effects, the script for lifecycle changes, the user's words for the agreement, recovery before action, and the two evidence rules. Choosing a task, the budget, the checkpoint and recovery are judgment with goals, since each has cases where the default is wrong.
+- **The checkpoint as a numbered method.** It is the one sequence that must happen in order at a moment of pressure (the notice), so it is steps, with In flight's labels spelled as `checkpoint --input` takes them. The safe point is Pi's compaction skill's definition, kept because it worked there; the mod's notice uses the same words (P50).
+- **What goes where as one table.** Schema 5 has more places than Schema 4 (agreement, decisions, Slice updates, delegations, Defined by, two kinds of read source, Space, In flight, discussion blocks), and the table is where an agent decides; Current Context's rule, that it changes only at a checkpoint (P5), follows it.
+- **The store, projects and holds in the format reference** (2026-10-30, the owner's choice). They were a reference of their own; they are read with the task folder's shape often enough, and the two linked each other, so they merged. The file keeps its name, since Review Work and the developer docs link to it.
+- **Choosing a task borrows Task Memory's request table, improved:** one row per thing the user's message can do, each with the script command, and the takeover, switch and close cases the hold adds (P40 to P44).
+- **Recovery has two paths.** After Freeflow's compaction the bundle is the conversation, so the text says not to read it again; elsewhere `view recover` and the reads it lists. The fallback (a compaction before the checkpoint) gets its own line because there the record is behind the summary (P16).
+
+## Evidence
+
+- `skill-author validate skills/track-work`, with the routing map: valid, no link cycles, after the merge of the store reference.
+- `skill-author compare origin/main --all-units` with a verdicts file: every unit settled; eight unmatched, each with a verdict naming its new owner or the choice that removed it; the reworded units read for meaning, and seven clauses the rewrite had lost restored (task-004's `evidence/phase-7.1-compare/`). This shows the text survived, not that behavior did.
+- `npm run test:track-work` (128) covers the script the text names; the CLI's [feature file](../features/track-work-cli.md) drives every command the body uses.
+- One independent review, by a Haiku reviewer at xhigh effort, of the rewritten package (task-004, D-001); its adjudication is in that task's record.
+- Not yet: any agent using the new text. Task-004's Phase 8 converts that task and works through a checkpoint and a compaction under it, Write Skill's trial on a real task; the continuity test that tunes the budget is Phase 8.3.
+
+## Rejected
+
+- **Schema 5 only, with Pi's guidance left until step 3.** A Pi user who updated Freeflow would get Track Work text that no longer matched their records (P70).
+- **Keeping "Checkpoint" for both meanings.** The save and the selected stop would share one word in the same skill, and the save is the one the notice uses (P71).
+- **A Schema 5 record in the repository by default when no store exists.** Without a store nothing syncs and the mod stays off, so the agent asks once to make the local store, and the repository's ignored folder is the fallback (P72).
+- **A separate reference for workers.** The delegation reference holds the worker's side (P36).
+
+## Dropped
+
+- **Accepting a plain bullet in Future Work.** The live run's agent wrote one and was refused; the refusal now names the shape instead, since Future Work holds only proposed Slices and the fixed budget counts them (T21).
+- **Repeating Pi's "compact now" notice on Claude Code.** Claude's own compaction, with the bundle after its summary, is the backstop, and a second notice would turn the soft one into a hard one (P50).
+
+## Open Questions
+
+- Whether the body, now about 4,800 words, is short enough to pay at every recovery; the continuity test (Phase 8.3) and the friction log of Phase 8's conversion are the evidence that would settle it.
+- Whether agents save discussion blocks when they matter and skip them when not; the live run's agent read them as required before the text said they are optional.

@@ -21,7 +21,7 @@ Identify the recipient, purpose, and available transfer mechanism before writing
 
 ## Prepare From The Actual State
 
-When a Working Record exists, make it sufficient first ([Prepare For A Context Boundary](../SKILL.md#prepare-for-a-context-boundary)). Then inspect only the relevant worktree, artifacts, processes, and evidence needed to describe what the recipient will encounter.
+When a Working Record exists, make it sufficient first: checkpoint it ([Checkpoint Before A Compaction Or A Transfer](../SKILL.md#checkpoint-before-a-compaction-or-a-transfer)), and for a transfer to another session release it (`task release`) so the recipient can take it and recover. Then inspect only the relevant worktree, artifacts, processes, and evidence needed to describe what the recipient will encounter.
 
 Preserve the work agreement separately from the immediate assignment: what outcome remains authorized, what this assignment covers, what is excluded, and when the user expects a return. Identify the assignment's source and any superseded instruction whose reuse would misdirect continuation. A recommendation to continue is not approval to finish the remaining task.
 
@@ -39,7 +39,7 @@ Include only material information:
 - changed assumptions, consequential rejected approaches, and affected Spec or Plan sections;
 - dependencies for remaining work and which are established versus unresolved;
 - the next accepted action and the minimum sources needed for it, or a recommendation awaiting authority;
-- blockers, selected checkpoints, and conditions requiring return rather than continuation.
+- blockers, the agreement's return points (its `Back at` lines), and conditions requiring return rather than continuation.
 
 Point to the current Working Record and accepted artifacts instead of duplicating their contents. A Plan preserves strategy; the record preserves actual work and deviations; the handoff preserves transfer-specific context, not a second mutable task narrative.
 
@@ -67,7 +67,7 @@ Recipient / purpose:
 
 ## Current State
 - Route:
-- Working Record, Spec, or Plan pointers:
+- Task ID or Working Record, Spec, or Plan pointers:
 - Relevant source or artifact identity:
 
 ## Completed Work And Evidence

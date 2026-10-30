@@ -4,9 +4,8 @@
 // its event on unchanged.
 
 const SCRIPT = "skills/track-work/scripts/working-record.mjs";
-const FIRST_NOTICE = 0.75; // of the window (P50)
-const NOTICE_STEP = 0.05; // then every 5% of it
-const THRESHOLD_LEAD = 0.1; // and the first comes at least a tenth of the window before Claude's own threshold (T13)
+const NOTICE_AT = 0.75; // of the window, one notice a cycle (P50)
+const THRESHOLD_LEAD = 0.1; // and at least a tenth of the window before Claude's own threshold (T13)
 const DELEGATION = /\bD-\d{3,}(?:\.\d+)?\b/; // the delegation an Agent call's prompt names (T7)
 const FILE_TOOLS = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit", "Glob", "Grep"]);
 const STORE_REASON = "Freeflow's store, which holds the task memory the agent keeps";
@@ -14,14 +13,14 @@ const CONTINUE =
   "Freeflow compacted the session after your checkpoint: the conversation is now your task's bundle. Continue from In flight and the Next action.";
 
 // What the mod keeps between events. A cycle runs from the session's start or a compaction to the next compaction;
-// its notice is the time of the last checkpoint notice in it (T12). A module reload starts both over.
-/** @type {{ startedAt: number, notice: number | null, nextNotice: number | null }} */
-let cycle = { startedAt: Date.now(), notice: null, nextNotice: null };
+// its notice is the time of its one checkpoint notice (T12). A module reload starts both over.
+/** @type {{ startedAt: number, notice: number | null }} */
+let cycle = { startedAt: Date.now(), notice: null };
 /** @type {number | null} the window the conversation compacts against, read once a cycle */
 let contextWindow = null;
 /** @type {number | null} where Claude's own compaction starts in it; null with automatic compaction off */
 let threshold = null;
-/** @type {Map<string, { delegation: string, nextNotice: number | null }> | null} agent ID -> its delegation, kept in the store's sessions/ folder too */
+/** @type {Map<string, { delegation: string, noticed: boolean }> | null} agent ID -> its delegation, and whether its cycle had its notice; the delegations are kept in the store's sessions/ folder too */
 let workers = null;
 /** @type {string | null | undefined} where the store really is; null where there is none, undefined until read */
 let storeRoot = undefined;
@@ -116,39 +115,44 @@ async function readWindow($) {
 
 /** A new cycle, after the session's start or a compaction: no notice yet, and the window read again. */
 async function newCycle($) {
-  cycle = { startedAt: await $.clock.now(), notice: null, nextNotice: null };
+  cycle = { startedAt: await $.clock.now(), notice: null };
   contextWindow = null;
 }
 
 /**
- * Where the first notice comes, in tokens: 75% of the window, or a tenth of it before Claude's threshold if lower.
+ * Where the notice comes, in tokens: 75% of the window, or a tenth of it before Claude's threshold if lower.
  * @param {number} size
  */
-const firstNotice = (size) => Math.min(FIRST_NOTICE * size, threshold ? threshold - THRESHOLD_LEAD * size : Infinity);
+const noticePoint = (size) => Math.min(NOTICE_AT * size, threshold ? threshold - THRESHOLD_LEAD * size : Infinity);
+
+/** What a safe point is: where stopping loses nothing that is not written down (Pi's "compaction is due soon"). */
+const SAFE_POINT =
+  "a finished step whose result you know (a check run and read, a set of edits complete, a report written), not mid-edit or with a command still running";
 
 function noticeText($, context, state) {
   const command = `node ${$.plugin.root}/${SCRIPT}`;
+  const limit = threshold ? `; Claude Code compacts on its own at about ${Math.round(threshold)} tokens` : "";
   const checkpoint = state.task
-    ? `Checkpoint now: rewrite ${state.task.id}'s Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion that shaped the work (discussion list, discussion save), then run ${command} checkpoint --record ${state.task.id} --input - with In flight's lines.`
-    : `This session holds no task: write its summary now with ${command} checkpoint --session --input - (Goal, Settled, Open, Agreement, In flight, Read when, Next action).`;
-  return `Freeflow: the context is at ${Math.round((100 * context.tokens) / context.window)}% of its window (${context.tokens} of ${context.window} tokens), and compaction is near. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and starts the next turn where it can.`;
+    ? `At that point, checkpoint ${state.task.id}: rewrite ${state.task.id}'s Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${state.task.id} --input - with In flight's lines.`
+    : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --input - (Goal, Settled, Open, Agreement, In flight, Read when, Next action).`;
+  return `Freeflow: the context is at ${Math.round((100 * context.tokens) / context.window)}% of its window (${context.tokens} of ${context.window} tokens)${limit}. Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and starts the next turn where it can. This is the only notice this cycle; if Claude Code compacts before the checkpoint, the record as of its last checkpoint follows Claude's summary.`;
 }
 
-/** After each request of the main conversation: the checkpoint notice, appended so a long turn has it (P50, T13). */
+/** After each request of the main conversation: the cycle's one checkpoint notice, appended so a long turn has it
+ * (P50, T13). */
 async function noticeMain($) {
+  if (cycle.notice !== null) return;
   const current = cycle;
   const { tokens } = (await $.session.usage()).context;
   if (!tokens) return;
   if (contextWindow === null) await readWindow($);
   if (!contextWindow) return;
-  if (cycle.nextNotice === null) cycle.nextNotice = firstNotice(contextWindow);
-  if (tokens < cycle.nextNotice) return;
-  while (cycle.nextNotice <= tokens) cycle.nextNotice += NOTICE_STEP * contextWindow;
+  if (tokens < noticePoint(contextWindow)) return;
   const state = await status($);
-  // A compaction that came meanwhile started a new cycle, which this request's figures no longer describe.
-  if (cycle !== current) return;
-  // The notice repeats only while the checkpoint it asked for has not come: once it has, a later one would undo it.
-  if (!state || (cycle.notice !== null && checkpointDone(state))) return;
+  // A compaction that came meanwhile started a new cycle, which this request's figures no longer describe; a notice
+  // another request made meanwhile is the cycle's one.
+  if (cycle !== current || cycle.notice !== null) return;
+  if (!state) return;
   cycle.notice = await $.clock.now();
   await $.session.append({
     message: {
@@ -165,27 +169,25 @@ async function workerMap($, state) {
   const path = state && `${state.home}/sessions/${state.session}/delegations.json`;
   if (path && (await $.fs.exists(path))) {
     for (const [agentId, delegation] of Object.entries(JSON.parse(await $.fs.read(path))))
-      workers.set(agentId, { delegation, nextNotice: null });
+      workers.set(agentId, { delegation, noticed: false });
   }
   return workers;
 }
 
-/** After each request of a worker: near the threshold, in the session's window, a message to rewrite its progress.md
- * (T7). Its context is its request's usage. */
+/** After each request of a worker: once a cycle, near the threshold, in the session's window, a message to rewrite its
+ * progress.md at a safe point (T7). Its context is its request's usage. */
 async function noticeWorker($, step, response) {
   const worker = (await workerMap($, null)).get(step.agentId);
-  if (!worker || !response.usage) return;
+  if (!worker || worker.noticed || !response.usage) return;
   const { input_tokens, cache_read_input_tokens, cache_creation_input_tokens } = response.usage;
   const tokens = input_tokens + (cache_read_input_tokens ?? 0) + (cache_creation_input_tokens ?? 0);
   if (contextWindow === null) await readWindow($);
   const size = contextWindow;
-  if (!size) return;
-  if (worker.nextNotice === null) worker.nextNotice = firstNotice(size);
-  if (tokens < worker.nextNotice) return;
-  while (worker.nextNotice <= tokens) worker.nextNotice += NOTICE_STEP * size;
+  if (!size || tokens < noticePoint(size)) return;
+  worker.noticed = true;
   await $.session.send({
     to: { agentId: step.agentId },
-    text: `Freeflow: your context is at ${Math.round((100 * tokens) / size)}% of its window and compaction is near. Rewrite ${worker.delegation}'s progress.md now (Done, Half done, Didn't work, Next), so a compaction loses nothing, then go on.`,
+    text: `Freeflow: your context is at ${Math.round((100 * tokens) / size)}% of its window and compaction is near. At your next safe point, rewrite ${worker.delegation}'s progress.md (Done, Half done, Didn't work, Next), so a compaction loses nothing, then go on.`,
   });
 }
 
@@ -266,6 +268,8 @@ async function workerCompaction($, e, next) {
   const state = await status($);
   const worker = (await workerMap($, state)).get(e.agentId);
   if (!state?.task || !worker) return next(e);
+  // Its compaction starts the worker's next cycle, with a notice of its own.
+  worker.noticed = false;
   const note = `Freeflow: this agent is the worker for delegation ${worker.delegation}. Say so in the summary, and that after the compaction it recovers with node ${$.plugin.root}/${SCRIPT} view recover --record ${state.task.id} --delegation ${worker.delegation}, then continues from its progress.md.`;
   return next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${note}` : note });
 }
@@ -371,7 +375,7 @@ export function register(on) {
     if (!result.agentId || !delegation) return result;
     const state = await status($);
     const map = await workerMap($, state);
-    map.set(result.agentId, { delegation, nextNotice: null });
+    map.set(result.agentId, { delegation, noticed: false });
     if (state)
       await $.fs.write(
         `${state.home}/sessions/${state.session}/delegations.json`,

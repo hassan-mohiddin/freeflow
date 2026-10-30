@@ -291,7 +291,10 @@ export class Registry {
     return project ? this.linkStore(await this.repoRoot(cwd), project.store) : undefined;
   }
 
-  /** Create a record in the project's store with this script's init, then register it; primary is its directory. */
+  /**
+   * Create a Schema 4 record in the project's store with this script's init (Pi's Task Memory reads Schema 4 until Pi
+   * moves to Schema 5), then register it; primary is its directory.
+   */
   async createTask(slug, title, goal, parent, primary) {
     const data = await this.read();
     const project = data.projects[slug];
@@ -307,6 +310,8 @@ export class Registry {
     const child = execFileCallback(process.execPath, [
       SCRIPT,
       "init",
+      "--schema",
+      "4",
       "--root",
       project.store,
       "--name",

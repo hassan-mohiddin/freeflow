@@ -44,7 +44,7 @@ function makeRecords(cwd) {
     ],
     ["Docs cleanup", "Remove stale docs.", ""],
   ])
-    execFileSync(process.execPath, [script, "init", "--root", cwd, "--name", name, "--input", "-"], {
+    execFileSync(process.execPath, [script, "init", "--schema", "4", "--root", cwd, "--name", name, "--input", "-"], {
       input: `### Goal\n- ${goal}\n\n${agreement && `### Work agreement\n${agreement}`}### Next useful action\n- Continue.\n`,
     });
 }

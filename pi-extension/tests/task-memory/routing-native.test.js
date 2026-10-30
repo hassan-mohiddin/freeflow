@@ -59,9 +59,13 @@ test(
             total_tokens: (usage[n - 1] ?? 2_000) + 10,
           }),
         beforePrompt: async ({ cwd, session }) => {
-          execFileSync(process.execPath, [script, "init", "--root", cwd, "--name", "Retry work", "--input", "-"], {
-            input: "### Goal\n- Retries with backoff.\n\n### Next useful action\n- Continue.\n",
-          });
+          execFileSync(
+            process.execPath,
+            [script, "init", "--schema", "4", "--root", cwd, "--name", "Retry work", "--input", "-"],
+            {
+              input: "### Goal\n- Retries with backoff.\n\n### Next useful action\n- Continue.\n",
+            },
+          );
           await session.prompt(`/freeflow task attach ${RECORD}`);
         },
       },

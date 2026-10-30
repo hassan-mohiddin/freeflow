@@ -4,6 +4,7 @@
 
 ### Breaking Changes
 
+- Track Work's `init` makes a Schema 5 task folder and needs `--cue` (when the task matters, starting "read when"); `init --schema 4` makes the Schema 4 record Pi's Task Memory keeps until Pi moves to Schema 5, and Task Memory's own commands already ask for it. A script that ran `init` without `--schema` gets an error naming both.
 - Evaluate Behavior's `skill-eval run --dry-run` is now `--uncommitted`: it always ran subjects and called models, and only allowed uncommitted inputs, so the old name promised a run that spends nothing. `--dry-run` is refused with a message naming the new flag; stored results keep their `dryRun` field and still read.
 
 ### Added
@@ -39,6 +40,8 @@
 
 ### Changed
 
+- Track Work's guidance describes Schema 5 tasks: taking only the task your message points to from the session-start menu, the agreement in your words, Slices with one-line updates that point to their evidence, the recovery budget, the checkpoint at a safe point before a compaction or a transfer, and recovery from Freeflow's bundle. The store, projects and holds are part of its format reference. Schema 4's format and method, which Pi's Task Memory keeps, are in a reference of their own (`skills/track-work/references/schema-4.md`), and Pi's task-memory and compaction skills point to it.
+- On Claude Code, Freeflow's checkpoint notice comes once a cycle and no longer repeats every 5%: it asks the agent to keep working to a safe point (a finished step whose result it knows), then checkpoint and end its turn, and says where Claude Code would compact on its own. A worker gets one notice in each of its cycles.
 - Evaluate Behavior runs four subjects at once by default, or one per two CPUs when arms run in containers; `--jobs 1` runs one at a time. Its skill gives every eval one route: count the runs, `check-tasks` for a coding task, a pilot, `--max-cost` from the pilot's cost per run and your yes, the batch in the background, `--reuse` after a stop, and flagged runs held out until you clear them.
 - Write Docs' docs check can move a stale document's `Verified at` itself (`docs-check.mjs <docs> --stamp`), so the document goes into the same commit as the code it covers instead of a commit of its own. Feature files, which only driving updates, are left alone.
 
@@ -54,6 +57,7 @@
 
 ### Fixed
 
+- Track Work's `checkpoint --input` takes a labelled In flight line that says only `none` (`- Carry: none`) as no line, instead of refusing it; a plain line under Future Work is refused with the shape a proposed Slice takes; and a Schema 5 Slice accepts the `Review gate` line Review Work records.
 - Claude Code no longer reports a failing hook ("Cannot find module '/hooks/adapters/gemini-session-start.mjs'") at every session start: it reads Gemini's `hooks/hooks.json` from the plugin's root beside its own hooks, and that hook now names its adapter so it resolves under both hosts and stays silent under Claude Code.
 - Research Work's judge validation record accepts `not applicable` for Both orders when the judge rates one output at a time, so a rubric judge's record can pass; Review Work and Evaluate Behavior now say that `review --calibrate` gives agreement and kappa (the interval comes from `stats.mjs`), that a labelled judge is calibrated only with a passing record, and that an uncalibrated reviewer's verdict is weighed in adjudication, never obeyed alone.
 - Evaluate Behavior's evaluator: a suite's decision cut short by the budget or a stop no longer claims "beats" or "worse" (its claim is `none`, reason `cancelled`, with the counts that ran and `k` the trials that completed); `--jobs` and `--cpu-jobs` hold even when a new start arrives as a slot is freed; the plan line also counts host-extension builds, which run on the host outside the seal; the transcript scan flags a host name with no dot, such as `http://intranet`, as an external network target (loopback and `localhost` stay internal), so more runs are held for you to read; judge calibration and agreement between two judges add linear-weighted kappa for `0-2` dimensions beside the unchanged kappa; and a decision or combined judge answer over a very long list of values no longer fails.

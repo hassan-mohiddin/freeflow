@@ -41,7 +41,7 @@ async function cleanup(workspace) {
 async function initRecord(workspace, name) {
   return runScript(
     workspace,
-    ["init", "--root", workspace, "--name", name, "--input", "-"],
+    ["init", "--schema", "4", "--root", workspace, "--name", name, "--input", "-"],
     "### Goal\n- Test task.\n\n### Next useful action\n- Continue the focused test.\n",
   );
 }
@@ -49,17 +49,17 @@ async function initRecord(workspace, name) {
 test("initialization and state boundaries fail closed without changing the record", async () => {
   const workspace = await makeWorkspace();
   try {
-    const empty = await runScript(workspace, ["init", "--root", workspace, "--name", "empty"]);
+    const empty = await runScript(workspace, ["init", "--schema", "4", "--root", workspace, "--name", "empty"]);
     assert.notEqual(empty.exitCode, 0);
     const duplicate = await runScript(
       workspace,
-      ["init", "--root", workspace, "--name", "duplicate", "--input", "-"],
+      ["init", "--schema", "4", "--root", workspace, "--name", "duplicate", "--input", "-"],
       "### Goal\n- First.\n### Goal\n- Second.\n### Next useful action\n- Continue.\n",
     );
     assert.notEqual(duplicate.exitCode, 0);
     const unknown = await runScript(
       workspace,
-      ["init", "--root", workspace, "--name", "unknown", "--input", "-"],
+      ["init", "--schema", "4", "--root", workspace, "--name", "unknown", "--input", "-"],
       "### Goal\n- First.\n### Unknown\n- Not allowed.\n### Next useful action\n- Continue.\n",
     );
     assert.notEqual(unknown.exitCode, 0);
@@ -675,7 +675,8 @@ test("grouped command help exposes fragment contracts and stdin", async () => {
   try {
     const initHelp = await runScript(workspace, ["init", "--help"]);
     assert.equal(initHelp.exitCode, 0, initHelp.stderr);
-    assert.ok(initHelp.stdout.includes("[--input <file|->]\nInput: Goal and Next useful action required"));
+    assert.ok(initHelp.stdout.includes("--cue <cue> [--input <file|->]\n       init --schema 4 --root"));
+    assert.ok(initHelp.stdout.includes("no --cue. Input: Goal and Next useful action required"));
     assert.ok(!initHelp.stdout.includes("\\nInput:"));
 
     const sliceHelp = await runScript(workspace, ["slice", "--help"]);
@@ -1685,7 +1686,7 @@ test("init accepts compact context headings and resume indexes long terminal His
   try {
     const initialized = await runScript(
       workspace,
-      ["init", "--root", workspace, "--name", "context-input", "--input", "-"],
+      ["init", "--schema", "4", "--root", workspace, "--name", "context-input", "--input", "-"],
       "### Goal\n- Preserve the task across a reset.\n\n### Settled\n- The record is canonical.\n\n### Current direction\n- Inspect before editing.\n\n### Next useful action\n- Read the current source.\n",
     );
     assert.equal(initialized.exitCode, 0, initialized.stderr);
@@ -2000,7 +2001,7 @@ test("init works when only a directory-only ignore rule covers the not-yet-creat
     await writeFile(join(repo, ".gitignore"), ".freeflow/*/\n");
     const initialized = await runScript(
       repo,
-      ["init", "--root", repo, "--name", "fresh-clone", "--input", "-"],
+      ["init", "--schema", "4", "--root", repo, "--name", "fresh-clone", "--input", "-"],
       "### Goal\n- Start in a fresh clone.\n\n### Next useful action\n- Continue.\n",
     );
     assert.equal(initialized.exitCode, 0, initialized.stderr);
@@ -2023,7 +2024,7 @@ test("a repository reached through a symlinked directory works like any other", 
     const repo = join(linked, "repo");
     const initialized = await runScript(
       repo,
-      ["init", "--root", repo, "--name", "via-link", "--input", "-"],
+      ["init", "--schema", "4", "--root", repo, "--name", "via-link", "--input", "-"],
       "### Goal\n- Work through a symlink.\n\n### Next useful action\n- Continue.\n",
     );
     assert.equal(initialized.exitCode, 0, initialized.stderr);

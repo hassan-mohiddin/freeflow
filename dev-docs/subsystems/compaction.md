@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/compaction/`, `capabilities/compaction/`
 > **Tests:** `pi-extension/tests/compaction/`, `pi-extension/tests/integration/request-path-budget.test.js`
-> **Verified at:** `eb4a7af7` (2026-10-24)
+> **Verified at:** `992efbd4` (2026-10-30)
 > **User docs:** `plugin-docs/capabilities/compaction.md`
 
 For contributors changing Freeflow compaction on Pi: how it decides when compaction is due, what it writes into the session, how it works with Cognitive Routing and with Pi's own compaction, and which of its behaviors are deliberate.

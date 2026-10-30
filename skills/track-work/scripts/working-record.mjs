@@ -59,7 +59,8 @@ const ROOT_HELP =
 function usage() {
   return [
     "Usage:",
-    "  working-record.mjs init --root <path> --name <task name> [--schema 5 --cue <cue>] [--input <file|->]",
+    "  working-record.mjs init --root <path> --name <task name> --cue <cue> [--input <file|->]",
+    "  working-record.mjs init --schema 4 --root <path> --name <task name> [--input <file|->] (a Schema 4 record)",
     "  working-record.mjs view resume|recover|full --record <record.md>",
     "  working-record.mjs view entry <ID> [<ID> ...] --record <record.md>",
     "  working-record.mjs validate --record <record.md>",
@@ -126,7 +127,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "init",
-    'Usage: init --root <path> --name <task name> [--schema 5 --cue <cue>] [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings, Work agreement (written only when given) and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.\nWith --schema 5: the task folder gets record.md, history.md and decisions.md. --cue (required) says when the task matters, starting "read when", in at most 25 words. Input: Goal and Next action required; Settled, Open, Space, Read on recovery and Read when accepted. --root may be a project\'s folder in the Freeflow store (<store>/projects/<project>), whose tasks/ then holds the task.',
+    "Usage: init --root <path> --name <task name> --cue <cue> [--input <file|->]\n       init --schema 4 --root <path> --name <task name> [--input <file|->]\nWrites a Schema 5 task folder: record.md, history.md and decisions.md, then prints the record's path and the recovery budget. --cue (required) says when the task matters, starting \"read when\", in at most 25 words. Input: Goal and Next action required; Settled, Open, Space, Defined by, Read on recovery and Read when accepted. --root may be a project's folder in the Freeflow store (<store>/projects/<project>), whose tasks/ then holds the task; elsewhere the task goes in <root>/.freeflow/tasks/. The record starts active. Use --input - to read Markdown fragments from stdin.\nWith --schema 4 (on Pi with Task Memory, until Pi moves to Schema 5): a Schema 4 record; no --cue. Input: Goal and Next useful action required; the seven Current Context headings, Work agreement (written only when given) and Recovery sources are accepted, and every line must sit under one of them.",
   ],
   [
     "discussion",
@@ -982,9 +983,13 @@ async function runCore(command, rest) {
     if (operation === "close") return closeDelegation(loaded, options, input);
   }
   if (command === "init") {
-    const schema = options["--schema"] ?? "4";
+    const schema = options["--schema"] ?? "5";
     if (!["4", "5"].includes(schema)) throw new CliError(`--schema is 4 or 5, not ${schema}`);
-    if (schema === "4" && options["--cue"]) throw new CliError("--cue is for --schema 5");
+    if (schema === "4" && options["--cue"]) throw new CliError("--cue is for Schema 5; --schema 4 takes none");
+    if (schema === "5" && !options["--cue"])
+      throw new CliError(
+        'init requires --cue, saying when the task matters ("read when …"); --schema 4 writes a Schema 4 record',
+      );
     return schema === "5" ? initialize5(options) : initialize(options);
   }
   if (command === "view") {

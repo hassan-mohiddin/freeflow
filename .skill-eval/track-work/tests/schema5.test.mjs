@@ -104,6 +104,16 @@ test("the Schema 5 fixture's record.md, history.md and decisions.md validate, an
     );
     const text = await readFile(record, "utf8");
     const history = await readFile(join(dirname(record), "history.md"), "utf8");
+    // Review Work records its gate on the Slice as one update line.
+    await writeFile(
+      record,
+      text.replace(
+        "- Review: none yet\n",
+        "- Review: none yet\n- Review gate: mode: auto; tier: standard; because: no trigger; result: skipped\n",
+      ),
+    );
+    ok(run(folder, ["validate", "--record", record]));
+    await writeFile(record, text);
     const broken = [
       ["record.md", text.replace("Cue: read when testing the Schema 5 record format\n", ""), /needs a Cue line/],
       [
@@ -127,6 +137,11 @@ test("the Schema 5 fixture's record.md, history.md and decisions.md validate, an
       ],
       ["record.md", text.replace("- Opened: 2026-10-28\n", ""), /needs one Opened/],
       ["record.md", text.replace("### Delegations\n", "### Notes\n\n### Delegations\n"), /Current Work holds/],
+      [
+        "record.md",
+        text.replace("## Future Work\n", "## Future Work\n\n- Add the CLI next.\n"),
+        /Future Work holds proposed Slices, each under its own heading: "### Slice — <title>", then "- Result wanted: …"; not a plain line: - Add the CLI next\./,
+      ],
       [
         "history.md",
         history.replace("- Cue: read when the parser's shape is in question\n", ""),
@@ -197,9 +212,41 @@ test("init --schema 5 writes record.md, history.md and decisions.md, and refuses
     }
     assert.ok(!existsSync(join(folder, ".freeflow", "tasks", "task-002-other")));
     assert.match(
-      run(folder, ["init", "--root", folder, "--name", "Four", "--cue", "read when x"]).stderr,
-      /--cue is for --schema 5/,
+      run(folder, ["init", "--schema", "4", "--root", folder, "--name", "Four", "--cue", "read when x"]).stderr,
+      /--cue is for Schema 5; --schema 4 takes none/,
     );
+  });
+});
+
+test("init writes Schema 5 unless --schema 4 is given (T18)", async () => {
+  await withFolder(async (folder) => {
+    const five = ok(
+      run(
+        folder,
+        ["init", "--root", folder, "--name", "Five", "--cue", "read when testing the default", "--input", "-"],
+        "### Goal\n- Default.\n### Next action\n- Go.\n",
+      ),
+    ).split("\n")[0];
+    assert.match(await readFile(five, "utf8"), /^# Five\n\nSchema: 5 · State: active · Budget: normal\n/);
+    assert.ok(existsSync(join(dirname(five), "history.md")));
+    const noCue = run(
+      folder,
+      ["init", "--root", folder, "--name", "No cue", "--input", "-"],
+      "### Goal\n- G.\n### Next action\n- N.\n",
+    );
+    assert.equal(noCue.status, 1);
+    assert.match(
+      noCue.stderr,
+      /init requires --cue, saying when the task matters \("read when …"\); --schema 4 writes a Schema 4 record/,
+    );
+    const four = ok(
+      run(
+        folder,
+        ["init", "--schema", "4", "--root", folder, "--name", "Four", "--input", "-"],
+        "### Goal\n- G.\n\n### Next useful action\n- N.\n",
+      ),
+    ).trim();
+    assert.match(await readFile(four, "utf8"), /^# Working Record: Four\n\nSchema: 4\n/);
   });
 });
 
@@ -596,7 +643,7 @@ test("Schema 4 records keep their commands and refuse Schema 5's; Schema 5 recor
     const four = ok(
       run(
         folder,
-        ["init", "--root", folder, "--name", "Four", "--input", "-"],
+        ["init", "--schema", "4", "--root", folder, "--name", "Four", "--input", "-"],
         "### Goal\n- G.\n\n### Next useful action\n- N.\n",
       ),
     ).trim();

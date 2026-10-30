@@ -106,7 +106,7 @@ test("import moves an unregistered record's task directory into the store", asyn
   const script = resolve("skills/track-work/scripts/working-record.mjs");
   const record = execFileSync(
     process.execPath,
-    [script, "init", "--root", repo, "--name", "Old task", "--input", "-"],
+    [script, "init", "--schema", "4", "--root", repo, "--name", "Old task", "--input", "-"],
     {
       input: "### Goal\n- Old work.\n\n### Next useful action\n- Continue.\n",
     },
@@ -392,9 +392,13 @@ test("task numbers stay retired across import and a project removed and made aga
   await registry.createTask(slug, "One", "Goal.");
   const two = await registry.createTask(slug, "Two", "Goal.");
   await registry.removeTask(two.id);
-  const old = execFileSync(process.execPath, [script, "init", "--root", repo, "--name", "Old", "--input", "-"], {
-    input: "### Goal\n- Old work.\n\n### Next useful action\n- Continue.\n",
-  })
+  const old = execFileSync(
+    process.execPath,
+    [script, "init", "--schema", "4", "--root", repo, "--name", "Old", "--input", "-"],
+    {
+      input: "### Goal\n- Old work.\n\n### Next useful action\n- Continue.\n",
+    },
+  )
     .toString()
     .trim();
   assert.equal((await registry.importRecord("Again", old)).id, `${slug}/task-003`, "import skips the removed number");
@@ -412,9 +416,13 @@ test("task numbers stay retired across import and a project removed and made aga
   const other = await mkdtemp(join(tmpdir(), "freeflow-repo-"));
   await writeFile(join(other, "store.json"), '{"items":[]}\n');
   await mkdir(join(other, ".freeflow", "tasks"), { recursive: true });
-  const made = execFileSync(process.execPath, [script, "init", "--root", other, "--name", "Here", "--input", "-"], {
-    input: "### Goal\n- Work.\n\n### Next useful action\n- Continue.\n",
-  })
+  const made = execFileSync(
+    process.execPath,
+    [script, "init", "--schema", "4", "--root", other, "--name", "Here", "--input", "-"],
+    {
+      input: "### Goal\n- Work.\n\n### Next useful action\n- Continue.\n",
+    },
+  )
     .toString()
     .trim();
   assert.match(made, /\.freeflow[\\/]tasks[\\/]task-001-here[\\/]record\.md$/);

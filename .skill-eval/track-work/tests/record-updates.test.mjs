@@ -43,7 +43,11 @@ function runScript(workspace, args, input = "", cwd = workspace) {
 }
 
 async function init(workspace, name, input = "### Goal\n- Test task.\n\n### Next useful action\n- Continue.\n") {
-  const result = await runScript(workspace, ["init", "--root", workspace, "--name", name, "--input", "-"], input);
+  const result = await runScript(
+    workspace,
+    ["init", "--schema", "4", "--root", workspace, "--name", name, "--input", "-"],
+    input,
+  );
   assert.equal(result.exitCode, 0, result.stderr);
   return result.stdout.trim();
 }
@@ -91,7 +95,7 @@ test("init accepts Recovery sources input and rejects text outside a known headi
 
     const stray = await runScript(
       workspace,
-      ["init", "--root", workspace, "--name", "stray", "--input", "-"],
+      ["init", "--schema", "4", "--root", workspace, "--name", "stray", "--input", "-"],
       "This goal has no heading.\n\n### Goal\n- Real goal.\n\n### Next useful action\n- Continue.\n",
     );
     assert.notEqual(stray.exitCode, 0);
@@ -107,7 +111,7 @@ test("init always creates an active record", async () => {
   await withWorkspace(async (workspace) => {
     const result = await runScript(
       workspace,
-      ["init", "--root", workspace, "--name", "finished", "--state", "completed", "--input", "-"],
+      ["init", "--schema", "4", "--root", workspace, "--name", "finished", "--state", "completed", "--input", "-"],
       "### Goal\n- g\n\n### Next useful action\n- n\n",
     );
     assert.notEqual(result.exitCode, 0);
@@ -197,7 +201,7 @@ test("init writes a Work agreement directly after Goal only when one is given", 
 
     const empty = await runScript(
       workspace,
-      ["init", "--root", workspace, "--name", "placeholder", "--input", "-"],
+      ["init", "--schema", "4", "--root", workspace, "--name", "placeholder", "--input", "-"],
       "### Goal\n- Test task.\n\n### Work agreement\n\n### Next useful action\n- Continue.\n",
     );
     assert.notEqual(empty.exitCode, 0);

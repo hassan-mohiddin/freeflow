@@ -59,6 +59,7 @@ export const UPDATE_KINDS = new Set([
   "Evidence (reported)",
   "Result",
   "Review",
+  "Review gate",
   "Contradiction",
   "Blocker",
   "Correction",
@@ -391,6 +392,12 @@ function parseCurrentWork5(lines, section) {
 
 function parseFuture5(lines, section) {
   const items = [];
+  for (let index = section.start; index < section.end && !/^#{1,6}[ \t]/.test(lines[index]); index += 1)
+    if (lines[index].trim())
+      fail(
+        "invalid-future-item",
+        `Future Work holds proposed Slices, each under its own heading: "### Slice — <title>", then "- Result wanted: …"; not a plain line: ${lines[index]}`,
+      );
   for (const heading of splitSections(lines, section.start, section.end, 3)) {
     const match = /^Slice — (.+)$/.exec(heading.title);
     if (!match) fail("invalid-future-item", `Future Work holds proposed Slices only: ### ${heading.title}`);

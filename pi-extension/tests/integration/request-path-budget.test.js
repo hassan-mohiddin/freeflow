@@ -20,9 +20,13 @@ const BRANCH_WALKS_PER_PROMPT = 10;
 process.env.FREEFLOW_HOME = await mkdtemp(join(tmpdir(), "freeflow-home-"));
 const attachRecord = async ({ cwd, session, manager }) => {
   const script = resolve("skills/track-work/scripts/working-record.mjs");
-  execFileSync(process.execPath, [script, "init", "--root", cwd, "--name", "Retry work", "--input", "-"], {
-    input: "### Goal\n- Retries.\n\n### Next useful action\n- Continue.\n",
-  });
+  execFileSync(
+    process.execPath,
+    [script, "init", "--schema", "4", "--root", cwd, "--name", "Retry work", "--input", "-"],
+    {
+      input: "### Goal\n- Retries.\n\n### Next useful action\n- Continue.\n",
+    },
+  );
   await session.prompt("/freeflow task attach .freeflow/tasks/task-001-retry-work/record.md");
   assert.ok(
     manager.getBranch().some((entry) => entry.customType === "freeflow-task-memory-snapshot"),

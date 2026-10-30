@@ -203,7 +203,7 @@ test("session start: with a store, pull it, give the scripts the window and the 
   expect(w.runs).toEqual([]);
 });
 
-test("a request ends: the notice is appended at the lower of 75% and a tenth before Claude's threshold, then every 5%", async ($, on) => {
+test("a request ends: one notice a cycle, at the lower of 75% and a tenth before Claude's threshold, asking for a checkpoint at a safe point", async ($, on) => {
   const w = world(on);
   w.status = held(at(-30));
   await start($);
@@ -214,42 +214,58 @@ test("a request ends: the notice is appended at the lower of 75% and a tenth bef
   await step($, w, 148_000);
   expect(notices().length).toBe(1);
   expect(notices()[0]).toContain("Freeflow: the context is at 74% of its window (148000 of 200000 tokens)");
-  expect(notices()[0]).toContain("Checkpoint now: rewrite widget/task-001's Current Context");
+  expect(notices()[0]).toContain("Claude Code compacts on its own at about 167000");
+  expect(notices()[0]).toContain("Keep working until a safe point: a finished step whose result you know");
+  expect(notices()[0]).toContain("rewrite widget/task-001's Current Context");
   expect(notices()[0]).toContain("checkpoint --record widget/task-001 --input -");
   expect(notices()[0]).toContain("Then end your turn");
-  await step($, w, 156_000);
-  expect(notices().length).toBe(1);
+  expect(notices()[0]).toContain("the only notice this cycle");
+  // One notice a cycle: no repeats, whether or not the checkpoint has come (P50), and no script runs for it after.
+  w.runs.length = 0;
   await step($, w, 158_000);
-  expect(notices().length).toBe(2);
-  // Once the checkpoint the notice asked for is done, the repeats stop: a later notice would undo it.
-  await w.clock.advance(60_000);
-  w.status = held(at(0.5));
-  await step($, w, 163_000);
-  expect(notices().length).toBe(2);
-  w.status = held(at(-30));
+  await step($, w, 166_000);
+  expect(notices().length).toBe(1);
+  expect(w.commands()).toEqual([]);
 
-  // A compaction while the notice is being made starts a new cycle, which the request's figures no longer describe.
-  w.answers["view bundle --record"] = { stdout: "THE BUNDLE\n" };
-  let compacting: Promise<unknown> | null = null;
+  // Two requests whose notices are made at once still give the cycle one.
+  await start($);
+  let overlapping: Promise<unknown> | null = null;
   w.beforeRun = (key: string) => {
-    if (compacting !== null || key !== "session status" || w.tokens !== 175_000) return undefined;
-    compacting = $.session.compact({ trigger: "auto", messages: CONVERSATION });
-    return compacting;
+    if (overlapping !== null || key !== "session status" || w.tokens !== 149_000) return undefined;
+    overlapping = step($, w, 150_000);
+    return overlapping;
   };
-  await step($, w, 175_000);
+  await step($, w, 149_000);
   w.beforeRun = () => undefined;
   expect(notices().length).toBe(2);
 
-  // With Claude's automatic compaction off there is no threshold: the first notice comes at 75%.
+  // A compaction while the notice is being made starts a new cycle, which the request's figures no longer describe:
+  // the notice is dropped, and the new cycle still has its own.
+  await start($);
+  w.answers["view bundle --record"] = { stdout: "THE BUNDLE\n" };
+  let compacting: Promise<unknown> | null = null;
+  w.beforeRun = (key: string) => {
+    if (compacting !== null || key !== "session status" || w.tokens !== 150_000) return undefined;
+    compacting = $.session.compact({ trigger: "auto", messages: CONVERSATION });
+    return compacting;
+  };
+  await step($, w, 150_000);
+  w.beforeRun = () => undefined;
+  expect(notices().length).toBe(2);
+  await step($, w, 151_000);
+  expect(notices().length).toBe(3);
+
+  // With Claude's automatic compaction off there is no threshold: the notice comes at 75%.
   w.threshold = undefined;
   w.status = store();
   await start($);
   await step($, w, 149_000);
-  expect(notices().length).toBe(2);
-  await step($, w, 150_000);
   expect(notices().length).toBe(3);
-  expect(notices()[2]).toContain("This session holds no task: write its summary now with");
-  expect(notices()[2]).toContain("checkpoint --session --input -");
+  await step($, w, 150_000);
+  expect(notices().length).toBe(4);
+  expect(notices()[3]).toContain("This session holds no task: at that point, write its summary with");
+  expect(notices()[3]).toContain("checkpoint --session --input -");
+  expect(notices()[3]).not.toContain("compacts on its own");
 
   // Claude's compaction set to a smaller window than the model's: the notice and the scripts use that window.
   w.threshold = 67_000;
@@ -258,16 +274,16 @@ test("a request ends: the notice is appended at the lower of 75% and a tenth bef
   await start($);
   expect(w.env.FREEFLOW_CONTEXT_WINDOW).toBe("100000");
   await step($, w, 56_000);
-  expect(notices().length).toBe(3);
-  await step($, w, 57_000);
   expect(notices().length).toBe(4);
-  expect(notices()[3]).toContain("at 57% of its window (57000 of 100000 tokens)");
+  await step($, w, 57_000);
+  expect(notices().length).toBe(5);
+  expect(notices()[4]).toContain("at 57% of its window (57000 of 100000 tokens)");
 
   // Without a store, no notice.
   w.status = null;
   await start($);
   await step($, w, 99_000);
-  expect(notices().length).toBe(4);
+  expect(notices().length).toBe(5);
 });
 
 test("a turn ends: sync a changed store; after the checkpoint a notice asked for, compact between turns and start the next", async ($, on) => {
@@ -407,11 +423,19 @@ test("a worker runs: its delegation comes from the spawn's prompt; near its thre
   await step($, w, 1_000, { agentId: "agent-7", model: "haiku" });
   expect(w.sent.length).toBe(1);
   expect(w.sent[0].to).toBe("agent-7"); // the engine spells { agentId } as the ID
-  expect(w.sent[0].text).toContain("Rewrite D-012's progress.md now");
+  expect(w.sent[0].text).toContain("At your next safe point, rewrite D-012's progress.md");
   expect(w.session.appended()).toEqual([]);
+  // One notice a cycle for a worker too.
+  w.response = { input_tokens: 100_000, cache_read_input_tokens: 70_000, cache_creation_input_tokens: 2_000 };
+  await step($, w, 1_000, { agentId: "agent-7", model: "haiku" });
+  expect(w.sent.length).toBe(1);
 
   await $.session.compact({ trigger: "auto", agentId: "agent-7", messages: CONVERSATION });
   expect(w.compactions[0].instructions).toContain("view recover --record widget/task-001 --delegation D-012");
+  // Its compaction starts the worker's next cycle, with a notice of its own.
+  w.response = { input_tokens: 100_000, cache_read_input_tokens: 52_000, cache_creation_input_tokens: 0 };
+  await step($, w, 1_000, { agentId: "agent-7", model: "haiku" });
+  expect(w.sent.length).toBe(2);
 
   // An agent whose prompt names no delegation is not watched.
   w.writes.length = 0;

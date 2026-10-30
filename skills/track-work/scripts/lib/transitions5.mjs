@@ -504,13 +504,17 @@ export async function rememberRepository(home, state) {
   await writeFile(path, `${JSON.stringify({ ...known, [state.name]: state.top }, null, 2)}\n`);
 }
 
-/** In flight's new lines from the checkpoint's input: bullets, each with its label (P59); "none" leaves it empty. */
+/**
+ * In flight's new lines from the checkpoint's input: bullets, each with its label (P59); "none" leaves it empty, and a
+ * labelled line that says only "none" ("- Carry: none") is no line (T20).
+ */
 function inFlightLines(text) {
   const lines = String(text ?? "")
     .replace(/\r\n?/g, "\n")
     .split("\n")
     .map((line) => line.replace(/\s+$/, ""))
-    .filter((line) => line.trim());
+    .filter((line) => line.trim())
+    .filter((line) => !new RegExp(`^- (${IN_FLIGHT_LABELS.join("|")}):\\s*(none|\\(none\\))\\.?$`, "i").test(line));
   if (lines.length === 1 && /^-?\s*(none|\(none\))\.?$/i.test(lines[0].trim())) return [];
   for (const line of lines)
     if (!line.startsWith("- "))

@@ -46,7 +46,7 @@ A fan-out result contains a command for a new terminal. Give it to the user exac
 
 Goal: a Task Memory record where Track Work would keep a record, and none where it would not.
 
-Propose attaching when a record already belongs to the work in front of you; propose `create` when Track Work says the task now needs a record and this repository is linked to a project. Without a project, create the record with Track Work's `init` in the repository and propose attaching it; propose `project_new` only when the user wants tasks grouped, kept across worktrees, or split into parallel sessions. A session with nothing attached is normal: a question, a short self-contained change, or a session the user keeps memory-free needs no record, so never propose one only because the Runtime State says nothing is attached.
+Propose attaching when a record already belongs to the work in front of you; propose `create` when Track Work says the task now needs a record and this repository is linked to a project. Without a project, create the record with Track Work's `init --schema 4` in the repository and propose attaching it; propose `project_new` only when the user wants tasks grouped, kept across worktrees, or split into parallel sessions. A session with nothing attached is normal: a question, a short self-contained change, or a session the user keeps memory-free needs no record, so never propose one only because the Runtime State says nothing is attached.
 
 ## Use The Delivered Resume View
 
@@ -68,7 +68,7 @@ When the conversation turns to another attached record, switch with `focus` and 
 
 ## Child Records On Pi
 
-Read Track Work's [Projects And Child Records](../../skills/track-work/references/projects.md) when the work involves a child record or splitting a task: it says when a task gets a child and how the parent records it. On Pi, `fanout` creates the child's worktree and the command to start it; `child` creates one that needs no worktree, which the user attaches in its own session. A subagent is not a child. The parent's resume view lists children in a `Children` block; read one with `view`.
+Read Track Work's [Projects And Child Records](../../skills/track-work/references/schema-4.md#projects-and-child-records) when the work involves a child record or splitting a task: it says when a task gets a child and how the parent records it. On Pi, `fanout` creates the child's worktree and the command to start it; `child` creates one that needs no worktree, which the user attaches in its own session. A subagent is not a child. The parent's resume view lists children in a `Children` block; read one with `view`.
 
 A child session is one the user starts and steers alongside the parent; workers Cognitive Routing manages are not children. When Messaging is on, a child reports to its parent through it, as the Messaging skill describes.
 

@@ -194,6 +194,14 @@ test("checkpoint --input rewrites In flight whole, warns when the counted memory
     assert.equal(await readFile(record, "utf8"), before);
     ok(cli(["checkpoint", "--record", record, "--input", "-"], "none\n"));
     assert.equal(flight(await readFile(record, "utf8")), "");
+    // A labelled line that says only "none" is no line: the rest of In flight stays (T20).
+    ok(
+      cli(
+        ["checkpoint", "--record", record, "--input", "-"],
+        "- Now: the tests pass.\n- Carry: none\n- Pending: (none)\n",
+      ),
+    );
+    assert.equal(flight(await readFile(record, "utf8")), "- Now: the tests pass.");
     await writeFile(join(dirname(record), "sources", "notes.md"), `${words(10_500, "note")}\n`);
     assert.match(
       ok(cli(["checkpoint", "--record", record])),
