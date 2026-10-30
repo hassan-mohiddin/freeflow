@@ -1,10 +1,11 @@
 // The context items a compaction can carry besides files (P2): the tool results in the session's transcript, read
-// from Claude Code's log, numbered as `carry list` shows them, found again by their tool-use ID, and the newest ones
-// a bundle adds within the carry budget. Other harnesses give their results through their own layer.
+// from Claude Code's log or Pi's session file, numbered as `carry list` shows them, found again by their tool-use ID,
+// and the newest ones a bundle adds within the carry budget.
 
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, readSync } from "node:fs";
 import { claudeCodeLog } from "./discussion5.mjs";
 import { TAIL_STEPS, readTail } from "./measure5.mjs";
+import { isPiSession, piToolResults } from "./pi-session.mjs";
 
 export class CarryError extends Error {}
 
@@ -32,14 +33,42 @@ function textOf(content) {
     .join("\n");
 }
 
+/** A transcript's first bytes, enough to tell its format without reading a long log whole. */
+function head(path, bytes = 64 * 1024) {
+  const descriptor = openSync(path, "r");
+  try {
+    const buffer = Buffer.alloc(bytes);
+    return buffer.toString("utf8", 0, readSync(descriptor, buffer, 0, bytes, 0));
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+/** A Pi session's tool results along its active branch, shaped as the Claude Code reader's. */
+function piResults(path, { sinceMs, afterCompaction }) {
+  const { results, cycleFrom } = piToolResults(readFileSync(path, "utf8"));
+  const kept = afterCompaction && cycleFrom !== null ? results.slice(cycleFrom) : results;
+  return kept
+    .map((result) => ({
+      id: result.id,
+      label: labelOf(result.name, result.input),
+      text: result.text,
+      at: result.at,
+      tokens: tokensOf(result.text),
+      error: result.error,
+    }))
+    .filter((result) => sinceMs === null || !result.at || Date.parse(result.at) > sinceMs);
+}
+
 /**
- * The main conversation's tool results in a Claude Code log, oldest first, each with its tool-use ID, its call's
- * label, its text, its time and its size in tokens; with `since`, only those after it (an ISO time), and with
- * `afterCompaction`, only those since the log's last compaction.
+ * The main conversation's tool results in a Claude Code log or a Pi session, oldest first, each with its tool-use ID,
+ * its call's label, its text, its time and its size in tokens; with `since`, only those after it (an ISO time), and
+ * with `afterCompaction`, only those since the transcript's last compaction.
  */
 export function toolResults(path, { since = null, afterCompaction = false } = {}) {
   if (!path || !existsSync(path)) return [];
   const sinceMs = since ? Date.parse(since) : null;
+  if (isPiSession(head(path))) return piResults(path, { sinceMs, afterCompaction });
   for (const bytes of TAIL_STEPS) {
     const { text, whole } = readTail(path, bytes);
     const calls = new Map();

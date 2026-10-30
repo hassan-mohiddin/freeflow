@@ -1,47 +1,35 @@
-import { createHash } from "node:crypto";
-import { resolveToolPath } from "../tool-execution/file-state.js";
+import { rm } from "node:fs/promises";
 import { skillsRead } from "../tool-execution/skill-reads.js";
-import {
-  carryBudget,
-  carryProblem,
-  estimateTokens,
-  isCarryResult,
-  latestUserMessages,
-  readCarriedFile,
-  renderCarried,
-  renderCarriedForCoordinator,
-  renderListed,
-  SUMMARY_LIMIT_TOKENS,
-  type CarriedFile,
-  type CarryFile,
-  type CarryItem,
-} from "./carry.js";
-import { currentCycle, cycleFiles, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
-import {
-  INDEX_TOKEN_BOUND,
-  renderIndex,
-  resolveResult,
-  resultFirstLine,
-  resultIndex,
-  scopeResults,
-  type Result,
-  type ScopeResult,
-} from "./results.js";
-import type { Thresholds } from "./thresholds.js";
+import { currentCycle, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
+import { ROWS_AT, type Thresholds } from "./thresholds.js";
 import { cachedBranch } from "../host/branch.js";
+import type { Ran, StoreState } from "../store/layer.js";
+
 /**
- * Freeflow compaction's agent path. After each turn Freeflow measures the context and, once per cycle each, says
- * compaction is due (the warning, with the result index) and then to compact now. The agent asks to compact with
- * compact_context once compaction is due. At the end of that turn Freeflow writes Pi's compaction entry, keeping
- * nothing raw, followed by the carried context and a recovery message, and asks Pi to continue the same run. Pi fires
- * no compaction events for this, so the caller runs Freeflow's post-compaction resets before the next request
- * (takeCompacted).
+ * Freeflow compaction on Pi, on Track Work's bundle (task-004's Spec, section 9; P1, P5, P63). As the context grows,
+ * one row each at 50, 60 and 70% of the window, then one soft notice a compaction cycle: keep working to a safe point,
+ * checkpoint with --compact, end the turn. When a run that asked so ends, and the checkpoint is done (P68), Freeflow
+ * writes Pi's compaction entry with the task's bundle (or the session summary's) as its summary, keeping nothing
+ * raw, and Pi continues the run. Pi's own compaction stays the fallback, with the bundle after its summary (P16).
  */
 
-export const CARRIED_TYPE = "freeflow-carried-context";
 export const RECOVERY_TYPE = "freeflow-compaction-recovery";
-/** What /freeflow compact asks for, in a Freeflow notice; a list of results may follow it. */
-export const USER_REQUEST = "Compact now: read the compaction skill, prepare the next cycle, and call compact_context.";
+/** What /freeflow compact asks for, in a Freeflow notice. */
+export const USER_REQUEST =
+  "The user ran /freeflow compact: checkpoint now as Track Work says, with --compact, then end your turn; Freeflow then compacts the session with the record in place of the conversation and continues.";
+
+export interface CompactionStore {
+  /** The session's state in the store, as last read (never read on the way to a request). */
+  current(): StoreState | undefined;
+  /** Session status, read now. */
+  refresh(): Promise<StoreState | undefined>;
+  /** Run end: the state read again when this run touched the store, else undefined. */
+  runEnded(): Promise<StoreState | undefined>;
+  bundle(options: { fallback?: boolean; recent: boolean }): Promise<Ran>;
+  answered(): Promise<void>;
+  /** How the agent runs Track Work's script, for the notice. */
+  command(): string;
+}
 
 export interface CompactionHost {
   effective(): boolean;
@@ -52,422 +40,243 @@ export interface CompactionHost {
   background(): readonly { id: string; label: string; outputPath: string }[];
   /** Context size that the next request receiving the full history would carry, and the thresholds to judge it. */
   measure(ctx: any, turn?: TurnEnd): { tokens: number; thresholds: Thresholds } | undefined;
-  /** Prefix that marks a harness message as not written by the user. */
   /** Freeflow's notice tag around a notice's text (freeflowNotice in host/inbound.ts). */
   notice(text: string): string;
-  /** The Coordinator is running under projection: its view leaves out what workers did, so it delegates compaction. */
+  /** The Coordinator is running under projection: its view leaves out what workers did, so it delegates the checkpoint. */
   coordinatorUnderProjection(): boolean;
-  /** Context reuse: the agent may carry selected files and tool results into the next cycle. */
+  /** Context reuse: the bundle carries this compaction cycle's newest tool results (Pi's compaction.carry). */
   carryEnabled(): boolean;
-  /**
-   * Cognitive Routing is on, so the agent's context already names each tool result by routing's source ref; Freeflow
-   * then inserts no list, and carries results by those refs.
-   */
-  nativeRefs(): boolean;
-  /** Under Cognitive Routing, the current assignment's tool results and the refs selected as its evidence. */
-  assignmentResults(): { entryIds: Set<string>; selected: Set<string> } | undefined;
-  /** A routing source ref's tool result, or undefined when it names no carryable result. */
-  resolveRef(ref: string): { tool: string; text: string } | undefined;
   /** Pi's own summarizer over Pi's preparation, with extra instructions; throws on failure. */
   summarize(preparation: any, instructions: string, signal: AbortSignal | undefined, ctx: any): Promise<any>;
+  store: CompactionStore;
 }
 
 export interface Compacted {
-  /** Files carried into the new cycle, as given; the model holds their current content. */
+  /** Files carried into the new cycle, whose content the model holds. */
   carriedFiles: string[];
 }
 
-export type Notice = { level: "warning" | "compactNow"; text: string };
+export type Notice = { level: "row" | "notice"; text: string };
 /** The turn that just ended, as Pi's turn_end reports it: its assistant message and tool results. */
 export type TurnEnd = { message?: any; toolResults?: readonly any[] };
 
-const ABNORMAL_STOPS = new Set(["error", "aborted", "length"]);
-/** The most results the carried context lists by ref; the newest are listed. */
-const MAX_LISTED = 60;
-/** "Compact now" repeats as the context keeps growing, so a long step that passed it is reminded before Pi compacts. */
-const COMPACT_NOW_REPEAT = 10_000;
-const hash = (text: string) => createHash("sha256").update(text).digest("hex");
 const branchOf = (ctx: any): readonly any[] => cachedBranch(ctx.sessionManager);
+/** A turn that failed or was cut off compacts nothing: the request waits for the next run's end. */
+const ABNORMAL_STOPS = new Set(["error", "aborted", "length"]);
 const cycleOf = (branch: readonly any[]) => nextCycle(branch) - 1;
+const k = (tokens: number) => `${Math.round(tokens / 1000)}k`;
+const share = (tokens: number, window: number) =>
+  `${Math.round((100 * tokens) / window)}% of its window (${tokens} of ${window} tokens)`;
+/** What a safe point is: where stopping loses nothing that is not written down. */
+const SAFE_POINT =
+  "a finished step whose result you know (a check run and read, a set of edits complete, a report written), not mid-edit or with a command still running";
 
 export class CompactionController {
-  /** The user ran /freeflow compact in this cycle. */
-  private requested?: number;
-  /** Notices sent in the current cycle. */
-  private sent: { cycle: number; warning: boolean; compactNowAt?: number } = { cycle: 0, warning: false };
-  private pending?: { summary: string; carry: CarryItem[] };
+  /** What this cycle has shown: the highest row, and when its one notice came. */
+  private sent: { cycle: number; row: number; noticeAt?: number } = { cycle: 0, row: 0 };
+  /** When this session started, the start of its first cycle. */
+  private startedAt = Date.now();
   private compacted?: Compacted;
 
   constructor(private readonly host: CompactionHost) {}
 
-  /** Session start or shutdown: nothing is due, scheduled or waiting to reset. */
+  /** Session start or shutdown: nothing shown, nothing waiting to reset. */
   reset(): void {
-    this.requested = undefined;
-    this.sent = { cycle: 0, warning: false };
-    this.pending = undefined;
+    this.sent = { cycle: 0, row: 0 };
+    this.startedAt = Date.now();
     this.compacted = undefined;
   }
 
-  /** The user's /freeflow compact: compaction is due now, in this cycle. */
-  requestByUser(ctx: any): void {
-    this.requested = cycleOf(branchOf(ctx));
-  }
-
-  /** Due when the user asked in this cycle, or the context has reached the warning point. */
-  isDue(ctx: any): boolean {
-    if (this.requested === cycleOf(branchOf(ctx))) return true;
-    const measured = this.host.measure(ctx);
-    return measured !== undefined && measured.tokens >= measured.thresholds.warning;
-  }
-
-  /** The compaction part of /freeflow status: the cycle, context against each point, and the last compaction. */
+  /** The compaction part of /freeflow status: the cycle, context against the notice and Pi's own point, the last compaction. */
   statusText(ctx: any): string | undefined {
     if (!this.host.effective()) return undefined;
     const branch = branchOf(ctx);
-    const k = (tokens: number) => `${Math.round(tokens / 1000)}k`;
     const parts = [`cycle ${cycleOf(branch)}`];
     const measured = this.host.measure(ctx);
     if (measured) {
       const { tokens, thresholds } = measured;
       parts.push(
-        `context about ${k(tokens)} of ${k(thresholds.window)} (warning ${k(thresholds.warning)}, compact now ${k(thresholds.compactNow)}, Pi compacts at ${k(thresholds.trigger)})`,
+        `context about ${k(tokens)} of ${k(thresholds.window)} (notice ${k(thresholds.notice)}, Pi compacts at ${k(thresholds.trigger)})`,
       );
     }
-    const index = branch.map((entry) => entry?.type).lastIndexOf("compaction");
-    if (index >= 0) {
-      const freeflow = branch[index].details?.freeflow;
-      const carried = branch
-        .slice(index + 1)
-        .find((entry) => entry?.type === "custom_message" && entry.customType === CARRIED_TYPE);
-      const kind = !freeflow ? "Pi" : freeflow.fallback ? "Pi with Freeflow's additions" : "Freeflow";
+    const latest = [...branch].reverse().find((entry) => entry?.type === "compaction");
+    if (latest) {
+      const freeflow = latest.details?.freeflow;
       parts.push(
-        `last compaction: ${kind}${carried ? `, carried about ${k(estimateTokens(String(carried.content ?? "")))}` : ""}`,
+        `last compaction: ${!freeflow ? "Pi" : freeflow.fallback ? "Pi with Freeflow's additions" : "Freeflow's, with the bundle"}`,
       );
     }
     return parts.join(", ");
   }
 
-  /**
-   * The result list for this cycle, or "" when none is needed: context reuse is off, or routing's refs already name
-   * every result in the agent's context.
-   */
-  indexText(ctx: any): string {
-    if (!this.host.carryEnabled() || this.host.nativeRefs()) return "";
-    return renderIndex(resultIndex(branchOf(ctx)));
-  }
-
-  /** The carry budget for this context: from the window, capped by the room before the warning. */
-  private budget(ctx: any): number {
-    return carryBudget(ctx.model?.contextWindow, this.host.measure(ctx)?.thresholds.warning);
-  }
-
-  /** How the notices tell the agent what it may carry. */
-  private carryText(ctx: any): string {
-    if (!this.host.carryEnabled())
-      return "context reuse is off, so carry nothing; the user's latest messages are carried for you";
-    const how = this.host.nativeRefs()
-      ? "tool results by their routing ref such as ctx:1a2b3c4d, files by path"
-      : "tool results by id below, files by path";
-    return `pick older work you will need (budget ${this.budget(ctx)} tokens; Freeflow adds your newest results itself; ${how})`;
-  }
-
-  /**
-   * After a turn: the notice to deliver. The warning comes once per cycle; "compact now" comes when the context
-   * crosses its point and again each time it grows another COMPACT_NOW_REPEAT tokens.
-   */
+  /** After a turn: a row as the context crosses 50, 60 and 70%, or the cycle's one notice; never both, never again. */
   observe(ctx: any, turn?: TurnEnd): Notice | undefined {
     if (!this.host.effective()) return undefined;
-    const branch = branchOf(ctx);
-    const cycle = cycleOf(branch);
-    if (this.sent.cycle !== cycle) this.sent = { cycle, warning: false };
+    const cycle = cycleOf(branchOf(ctx));
+    if (this.sent.cycle !== cycle) this.sent = { cycle, row: 0 };
+    if (this.sent.noticeAt !== undefined) return undefined;
     const measured = this.host.measure(ctx, turn);
     if (!measured) return undefined;
-    const { tokens: measuredTokens, thresholds } = measured;
-    // A list inserted with the notice is context too, so it moves the point earlier by its own size. Far below the
-    // warning it cannot reach it, so the list is built only near the point.
-    const nearWarning = measuredTokens + INDEX_TOKEN_BOUND >= thresholds.warning;
-    const listTokens = this.sent.warning || !nearWarning ? 0 : estimateTokens(this.indexText(ctx));
-    const tokens = measuredTokens + listTokens;
-    const level = tokens >= thresholds.compactNow ? "compactNow" : tokens >= thresholds.warning ? "warning" : undefined;
-    if (!level) return undefined;
-    if (level === "warning" && this.sent.warning) return undefined;
-    const repeat = level === "compactNow" && this.sent.compactNowAt !== undefined;
-    if (repeat && tokens < this.sent.compactNowAt! + COMPACT_NOW_REPEAT) return undefined;
-    const withList = !this.sent.warning || (level === "compactNow" && !repeat);
-    this.sent.warning = true;
-    if (level === "compactNow") this.sent.compactNowAt = tokens;
-    return { level, text: this.noticeText(level, tokens, thresholds, ctx, withList) };
-  }
-
-  /** A compaction notice, tagged as Freeflow's (the host's notice()). */
-  private noticeText(
-    level: Notice["level"],
-    tokens: number,
-    thresholds: Thresholds,
-    ctx: any,
-    withList = true,
-  ): string {
-    return this.host.notice(this.noticeTextBody(level, tokens, thresholds, ctx, withList));
-  }
-
-  private noticeTextBody(
-    level: Notice["level"],
-    tokens: number,
-    thresholds: Thresholds,
-    ctx: any,
-    withList = true,
-  ): string {
-    const { window, trigger } = thresholds;
-    if (this.host.coordinatorUnderProjection())
-      return `${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}${level === "compactNow" ? ", or when a request overflows the model's window" : ""}. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with compact_context, and then return with return_work; then continue.`;
-    const index = withList ? this.indexText(ctx) : "";
-    const list = index ? `\n\n${index}` : "";
-    // A worker's return hands the same history to the Coordinator and the next assignment, so it ends no growth.
-    const worker = this.host.routingAssignment() !== undefined;
-    if (level === "compactNow")
-      return `Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger}, or when a request overflows the model's window. The end of your current step is the safe point: write down any partial state, then prepare and call compact_context; ${worker ? "compact before you return, since the Coordinator and the next assignment continue this history; " : ""}if Pi compacts first, its own summary replaces yours.${list}`;
-    // Before compact now there is room for the Coordinator's next turn, so a worker may finish a return first.
-    const end = `If you are at one now, compact now; if your work ends within a step or two with ${worker ? "a return" : "a final answer"}, finish it instead.`;
-    return `Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Keep working until a safe point: a finished step whose result you know (a check read, an edit set complete, a report written), not mid-edit or with a command running. ${end} At the safe point, read the compaction skill, update the Working Record, ${this.carryText(ctx)}, write the summary, and call compact_context. A "compact now" notice follows near Pi's limit.${list}`;
-  }
-
-  /** Check a compact_context call and schedule it for the end of this turn; throws with the reason it is refused. */
-  async request(params: any, ctx: any): Promise<string> {
-    if (!this.host.effective()) throw new Error("Freeflow compaction is turned off.");
-    if (this.host.coordinatorUnderProjection())
-      throw new Error(
-        "Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill, compact with compact_context, and then return with return_work.",
-      );
-    if (!this.isDue(ctx)) throw new Error(notDueText(branchOf(ctx)));
-    const summary = typeof params?.summary === "string" ? params.summary.trim() : "";
-    if (!summary) throw new Error("Write the summary before compacting: summary must not be empty.");
-    const summaryTokens = estimateTokens(summary);
-    if (summaryTokens > SUMMARY_LIMIT_TOKENS)
-      throw new Error(
-        `The summary is about ${summaryTokens} tokens; the limit is ${SUMMARY_LIMIT_TOKENS}. Shorten it by about ${summaryTokens - SUMMARY_LIMIT_TOKENS} tokens and call compact_context again.`,
-      );
-    const carry: CarryItem[] = params?.carry === undefined ? [] : params.carry;
-    if (!Array.isArray(carry)) throw new Error("carry must be a list of { file, lines? } or { result } items.");
-    if (carry.length && !this.host.carryEnabled())
-      throw new Error(
-        "Context reuse is off: call compact_context without carry. The user's latest messages are carried for you.",
-      );
-    const problems = carry.map(carryProblem).filter(Boolean);
-    if (problems.length) throw new Error(`Fix the carry list: ${problems.join("; ")}.`);
-    const { files, results, missing } = await this.read(carry, ctx);
-    const unreadable = files.filter((file) => "error" in file) as { path: string; error: string }[];
-    if (unreadable.length || missing.length)
-      throw new Error(
-        `These cannot be carried: ${[
-          ...unreadable.map((file) => `${file.path} (${file.error})`),
-          ...missing.map(
-            (id) =>
-              `${id} (${this.host.nativeRefs() ? "no routing ref of a carryable tool result" : "no such result"})`,
-          ),
-        ].join(", ")}. Remove or correct them.`,
-      );
-    const carriedTokens =
-      files.reduce((sum, file) => sum + ("text" in file ? estimateTokens(file.text) : 0), 0) +
-      results.reduce((sum, result) => sum + result.tokens, 0);
-    const budget = this.budget(ctx);
-    if (carriedTokens > budget)
-      throw new Error(
-        `The carried items are about ${carriedTokens} tokens; the budget is ${budget}. Drop or narrow about ${carriedTokens - budget} tokens (line ranges help) and re-read the rest during recovery.`,
-      );
-    this.pending = { summary, carry };
-    return `Compaction will happen at the end of this turn: about ${carriedTokens} tokens carried. The run then continues from the summary, the carried context and a recovery message.`;
-  }
-
-  /**
-   * Under Cognitive Routing, the current assignment's results by ref for Pi's own compaction, which copies nothing
-   * itself: without it a worker cannot tell its earlier results are still stored and re-reads them.
-   */
-  private assignmentList(branch: readonly any[]): string {
-    const assignment = this.host.nativeRefs() ? this.host.assignmentResults() : undefined;
-    if (!assignment) return "";
-    const listed = scopeResults(branch, assignment)
-      .slice(0, MAX_LISTED)
-      .map((result) => ({ ...result, selected: assignment.selected.has(result.id) }));
-    return renderListed(
-      listed,
-      "assignment",
-      "Results",
-      "Pi kept the most recent as they were; all are still stored: select one as evidence by its ref, or read it again if you need its content.",
-    );
-  }
-
-  /**
-   * The automatic part of carry and the list of what stays behind. After the agent's picks, the newest results of the
-   * work in progress (the current assignment under Cognitive Routing, otherwise this cycle) fill the rest of the
-   * budget; the others are listed by ref so the agent knows what exists. With context reuse off nothing is copied, and
-   * only routing keeps the list, which it needs for evidence selection.
-   */
-  private fill(
-    branch: readonly any[],
-    ctx: any,
-    files: readonly CarriedFile[],
-    picked: readonly Result[],
-  ): { automatic: ScopeResult[]; listed: Array<ScopeResult & { selected: boolean }> } {
-    const assignment = this.host.nativeRefs() ? this.host.assignmentResults() : undefined;
-    const carryOn = this.host.carryEnabled();
-    if (!carryOn && !assignment) return { automatic: [], listed: [] };
-    // A file the agent carries fresh makes any earlier read of it stale: those reads are neither copied nor listed.
-    const freshFiles = new Set(files.map((file) => resolveToolPath(file.path, ctx.cwd)));
-    const scope = scopeResults(branch, assignment).filter(
-      (result) => !(result.tool === "read" && result.path && freshFiles.has(resolveToolPath(result.path, ctx.cwd))),
-    );
-    const pickedIds = new Set(picked.map((result) => result.id));
-    let room = carryOn
-      ? this.budget(ctx) -
-        files.reduce((sum, file) => sum + ("text" in file ? estimateTokens(file.text) : 0), 0) -
-        picked.reduce((sum, result) => sum + result.tokens, 0)
-      : 0;
-    const automatic: ScopeResult[] = [];
-    for (const result of scope) {
-      if (pickedIds.has(result.id) || result.tokens > room) continue;
-      automatic.push(result);
-      room -= result.tokens;
+    const { tokens, thresholds } = measured;
+    if (tokens < thresholds.notice) {
+      const row = ROWS_AT.filter((at) => tokens >= at * thresholds.window).at(-1);
+      if (!row || row <= this.sent.row) return undefined;
+      this.sent.row = row;
+      return {
+        level: "row",
+        text: this.host.notice(
+          `Compaction cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}; the checkpoint notice comes at about ${thresholds.notice} tokens.`,
+        ),
+      };
     }
-    const carried = new Set([...pickedIds, ...automatic.map((result) => result.id)]);
-    const listed = scope
-      .filter((result) => !carried.has(result.id))
-      .slice(0, MAX_LISTED)
-      .map((result) => ({ ...result, selected: assignment?.selected.has(result.id) === true }));
-    return { automatic, listed };
+    this.sent.noticeAt = Date.now();
+    return { level: "notice", text: this.host.notice(this.noticeText(cycle, tokens, thresholds)) };
   }
 
-  private async read(carry: readonly CarryItem[], ctx: any) {
-    const branch = branchOf(ctx);
-    const files = await Promise.all(
-      carry.filter((item) => !isCarryResult(item)).map((item) => readCarriedFile(item as CarryFile, ctx.cwd)),
-    );
-    const ids = carry.filter(isCarryResult).map((item) => item.result);
-    const resolve = (id: string): Result | undefined => {
-      if (!this.host.nativeRefs()) return resolveResult(branch, id);
-      const source = this.host.resolveRef(id);
-      const firstLine = resultFirstLine(branch, id.replace(/^ctx:/, ""));
-      return (
-        source && {
-          id,
-          tool: source.tool,
-          label: id,
-          tokens: estimateTokens(source.text),
-          text: source.text,
-          ...(firstLine === undefined ? {} : { firstLine }),
-        }
-      );
-    };
-    const results = ids.map(resolve).filter(Boolean) as Result[];
-    const missing = ids.filter((id) => !results.some((result) => result.id === id));
-    return { files, results, missing };
+  private noticeText(cycle: number, tokens: number, thresholds: Thresholds): string {
+    const head = `Compaction cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}, and Pi compacts on its own at about ${thresholds.trigger} tokens.`;
+    if (this.host.coordinatorUnderProjection())
+      return `${head} Your view leaves out what workers did, so do not checkpoint yourself: at a safe point (after the current assessment, or before the next assignment), delegate an assignment asking the worker to checkpoint as Track Work says, with --compact, and return with return_work; Freeflow compacts when the run ends.`;
+    const command = this.host.store.command();
+    const task = this.host.store.current()?.task;
+    const checkpoint = task
+      ? `At that point, checkpoint ${task.id}: rewrite its Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${task.id} --compact --input - with In flight's lines.`
+      : `If this session holds a task, checkpoint it as Track Work says, with --compact; if it holds none, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Read when, Next action).`;
+    return `${head} Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and the run continues. This is the only notice this compaction cycle; if Pi compacts before the checkpoint, the record as of its last checkpoint follows Pi's summary.`;
   }
 
-  /** At turn end, the entries that compact the session, or undefined when nothing is scheduled. */
-  async turnEnd(event: any, ctx: any): Promise<{ entries: any[]; continue: true } | undefined> {
-    const pending = this.pending;
-    this.pending = undefined;
-    if (!pending || !this.host.effective()) return undefined;
-    // A turn that failed or was cut off may not have finished preparing; compaction stays due.
+  /**
+   * Whether the checkpoint this cycle asked for is done: the record's State as of, or the summary's time, is later
+   * than the cycle's notice, or than its start when no notice came (T12, P68).
+   */
+  private checkpointDone(state: StoreState, branch: readonly any[]): boolean {
+    const asOf = state.store && state.task ? state.task.stateAsOf : state.summary?.asOf;
+    if (!asOf) return false;
+    const latest = [...branch].reverse().find((entry) => entry?.type === "compaction");
+    const cycleStart = latest?.timestamp ? Date.parse(latest.timestamp) : this.startedAt;
+    const since =
+      this.sent.cycle === cycleOf(branch) && this.sent.noticeAt !== undefined ? this.sent.noticeAt : cycleStart;
+    return Date.parse(asOf) > since;
+  }
+
+  /**
+   * A run is ending: its last turn, with no tool calls, has ended. After a run that touched the store, the state is read
+   * again and synced; when checkpoint --compact waits and the checkpoint is done, the entries that compact the session
+   * with the bundle, and a continuation. A turn that failed or was cut off compacts nothing.
+   */
+  async settle(event: any, ctx: any): Promise<{ entries: any[]; continue: true } | undefined> {
+    const state = await this.host.store.runEnded();
+    if (!this.host.effective() || !state?.compact || state.compact.done) return undefined;
     if (ABNORMAL_STOPS.has(event?.message?.stopReason)) return undefined;
-
     const branch = branchOf(ctx);
+    if (!this.checkpointDone(state, branch)) return undefined;
+    const made = await this.host.store.bundle({ recent: this.host.carryEnabled() });
+    if (made.code !== 0) {
+      const [error] = made.stderr
+        .replace(/^Error: /, "")
+        .trim()
+        .split("\n");
+      return {
+        entries: [
+          {
+            type: "custom_message",
+            customType: RECOVERY_TYPE,
+            content: this.host.notice(
+              `Freeflow could not make the bundle, so it did not compact: ${error}. Mend what the error names, then checkpoint with --compact again.`,
+            ),
+            display: true,
+          },
+        ],
+        continue: true,
+      };
+    }
     const cycle = nextCycle(branch);
-    const requestedBy = this.requested === cycleOf(branch) ? "user" : "notice";
-    const { files, results } = await this.read(pending.carry, ctx);
-    const previous = previousCarried(branch);
-    const summary = `${pending.summary}\n\n${harnessPart({
-      cycle,
-      requestedBy,
-      routingProfile: this.host.routingProfile(),
-      background: this.host.background(),
-      skills: skillsRead(currentCycle(branch), ctx.cwd),
-      files: sessionFileLists(branch),
-    })}`;
-    const userMessages = latestUserMessages(branch);
-    const { automatic, listed } = this.fill(branch, ctx, files, results);
-    const carriedText = renderCarried(
-      (text) => this.host.notice(text),
-      cycle,
-      userMessages,
-      files,
-      [...results, ...automatic],
-      {
-        listed,
-        scope: this.host.nativeRefs() && this.host.assignmentResults() ? "assignment" : "cycle",
-      },
-    );
-    const recovery = this.host.notice(
-      `${recoveryText(
-        cycle,
-        "The files and results copied into the carried context above were read at compaction: do not read those again unless something has changed them. Skills, and anything listed there only by name, were not carried: read them when you need them. ",
-      )} ${AFTER_REQUESTED}`,
-    );
-
-    this.requested = undefined;
-    this.compacted = { carriedFiles: files.filter((file) => "text" in file).map((file) => file.path) };
+    await this.host.store.answered();
+    if (!state.task && state.summary?.path) await rm(state.summary.path, { force: true }).catch(() => {});
+    this.compacted = { carriedFiles: [] };
     return {
       entries: [
         {
           type: "compaction",
-          summary,
+          summary: `${made.stdout.trimEnd()}\n\n${this.harness(branch, ctx, cycle, "notice")}`,
           firstKeptEntryId: null,
           details: {
-            // Pi's own details shape, so later compactions (Pi's or Freeflow's) carry the lists forward.
+            // Pi's own details shape, so later compactions (Pi's or Freeflow's) carry the file lists forward.
             ...sessionFileLists(branch),
-            freeflow: {
-              version: 1,
-              cycle,
-              carried: [
-                ...files.map((file) => fileRecord(file, cycle, previous)),
-                ...results.map((result) => resultRecord(result, cycle, previous)),
-                ...automatic.map((result) => ({ ...resultRecord(result, cycle, previous), automatic: true })),
-              ],
-              files: cycleFiles(branch),
-              requestedBy,
-              ...(this.host.routingProfile() ? { profile: this.host.routingProfile() } : {}),
-              ...(this.host.routingAssignment() ? { assignment: this.host.routingAssignment() } : {}),
-            },
+            freeflow: this.details(cycle, { bundle: state.task ? "task" : "session" }),
           },
         },
         {
           type: "custom_message",
-          customType: CARRIED_TYPE,
-          content: carriedText,
-          display: false,
-          // Under Cognitive Routing the Coordinator's projected view shows this version instead of the copies.
-          ...(this.host.nativeRefs()
-            ? {
-                details: {
-                  coordinatorContent: renderCarriedForCoordinator(
-                    (text) => this.host.notice(text),
-                    cycle,
-                    userMessages,
-                    files,
-                    [...results, ...automatic],
-                  ),
-                },
-              }
-            : {}),
+          customType: RECOVERY_TYPE,
+          content: this.host.notice(
+            `Freeflow compacted the session after your checkpoint: compaction cycle ${cycle} starts here, and the conversation is now the ${state.task ? `bundle of ${state.task.id}` : "session summary's bundle"}. Continue from In flight and the Next action.`,
+          ),
+          display: true,
         },
-        { type: "custom_message", customType: RECOVERY_TYPE, content: recovery, display: true },
       ],
       continue: true,
     };
   }
 
+  private details(cycle: number, extra: Record<string, unknown>) {
+    return {
+      version: 2,
+      cycle,
+      ...extra,
+      ...(this.host.routingProfile() ? { profile: this.host.routingProfile() } : {}),
+      ...(this.host.routingAssignment() ? { assignment: this.host.routingAssignment() } : {}),
+    };
+  }
+
+  private harness(branch: readonly any[], ctx: any, cycle: number, requestedBy?: "notice") {
+    return harnessPart({
+      cycle,
+      ...(requestedBy ? { requestedBy } : {}),
+      routingProfile: this.host.routingProfile(),
+      background: this.host.background(),
+      skills: skillsRead(currentCycle(branch), ctx.cwd),
+      files: { readFiles: [], modifiedFiles: [] },
+      includeFiles: false,
+    });
+  }
+
   /**
-   * Pi is compacting on its own (its threshold, an overflow, or /compact). Freeflow keeps Pi's summarizer and kept
-   * tail, adds its summary instructions, and appends its own state with recovery steps. A scheduled Freeflow
-   * compaction is dropped: Pi's compaction replaces it. Returns undefined, so Pi compacts as usual, when compaction
-   * is off or anything fails; it never cancels Pi's compaction.
+   * Pi is compacting on its own (its threshold, an overflow, or /compact). With the checkpoint done, the bundle is the
+   * summary and Pi's kept tail stays; otherwise Pi's summarizer runs, told what the record holds, and the bundle as of
+   * the last checkpoint follows its summary with the user's messages since (P16). Returns undefined, so Pi compacts as
+   * usual, when compaction is off or anything fails; it never cancels Pi's compaction.
    */
   async fallback(event: any, ctx: any): Promise<{ compaction: any } | undefined> {
-    this.pending = undefined;
     if (!this.host.effective()) return undefined;
     try {
       const branch = branchOf(ctx);
       const cycle = nextCycle(branch);
-      const instructions = [FALLBACK_INSTRUCTIONS, event.customInstructions].filter(Boolean).join("\n\n");
+      const state = await this.host.store.refresh();
+      const recent = this.host.carryEnabled();
+      if (state && (state.task || state.summary) && this.checkpointDone(state, branch)) {
+        const made = await this.host.store.bundle({ recent });
+        if (made.code === 0) {
+          await this.host.store.answered();
+          if (!state.task && state.summary?.path) await rm(state.summary.path, { force: true }).catch(() => {});
+          return {
+            compaction: {
+              summary: `${made.stdout.trimEnd()}\n\n${this.harness(branch, ctx, cycle)}`,
+              firstKeptEntryId: event.preparation.firstKeptEntryId,
+              tokensBefore: event.preparation.tokensBefore,
+              details: {
+                ...sessionFileLists(branch),
+                freeflow: this.details(cycle, { bundle: state.task ? "task" : "session" }),
+              },
+            },
+          };
+        }
+      }
+      const task = state?.store ? state.task : undefined;
+      const note = task
+        ? `Freeflow: the task's Working Record (${task.id}) holds the work up to its last checkpoint, ${task.stateAsOf}; keep in the summary what happened after that.`
+        : FALLBACK_INSTRUCTIONS;
+      const instructions = [note, event.customInstructions].filter(Boolean).join("\n\n");
       // Pi merges the previous compaction's file lists only when Pi wrote it; add them back for Freeflow's.
       const previousFiles = previousFileLists(branch);
       const fileOps = event.preparation?.fileOps;
@@ -477,25 +286,19 @@ export class CompactionController {
       }
       const result = await this.host.summarize(event.preparation, instructions, event.signal, ctx);
       if (!result?.summary) return undefined;
-      const summary = `${result.summary}\n\n${harnessPart({
-        cycle,
-        routingProfile: this.host.routingProfile(),
-        background: this.host.background(),
-        skills: skillsRead(currentCycle(branch), ctx.cwd),
-        files: { readFiles: [], modifiedFiles: [] },
-        includeFiles: false,
-        listed: this.assignmentList(branch),
-        recovery: `${recoveryText(cycle)} ${AFTER_PI}`,
-      })}`;
-      this.requested = undefined;
+      const after = task ? await this.host.store.bundle({ fallback: true, recent }) : undefined;
+      const summary = [
+        result.summary,
+        this.harness(branch, ctx, cycle),
+        after?.code === 0 ? after.stdout.trimEnd() : task ? FALLBACK_RECOVERY(task.id, this.host.store.command()) : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
       return {
         compaction: {
           ...result,
           summary,
-          details: {
-            ...(result.details ?? {}),
-            freeflow: { version: 1, cycle, fallback: true, carried: [] },
-          },
+          details: { ...(result.details ?? {}), freeflow: this.details(cycle, { fallback: true }) },
         },
       };
     } catch {
@@ -504,7 +307,7 @@ export class CompactionController {
     }
   }
 
-  /** The compaction written at the last turn end, once; the caller then runs the post-compaction resets. */
+  /** The compaction written at the last run end, once; the caller then runs the post-compaction resets. */
   takeCompacted(): Compacted | undefined {
     const compacted = this.compacted;
     this.compacted = undefined;
@@ -513,73 +316,16 @@ export class CompactionController {
 }
 
 /**
- * Freeflow's additions to Pi's own summarizer, written for a reader that summarizes someone else's conversation. From
- * Pi 1.4.0 the summarizer's output is no longer capped at 80% of Pi's reserve but at the model's output limit (reduced
- * to what the window leaves), so the length is asked for: the next cycle then starts within the room an agent's
- * compaction leaves, whose summary Freeflow caps at the same limit.
+ * Freeflow's additions to Pi's own summarizer for a session with no task, written for a reader that summarizes
+ * someone else's conversation.
  */
 const FALLBACK_INSTRUCTIONS = [
-  `Keep the summary under ${SUMMARY_LIMIT_TOKENS.toLocaleString("en-US")} tokens; the next part of the conversation starts from it.`,
   "Write state, not a story: what is true now, each item marked as settled, tentative, superseded, or unverified.",
   "Keep exact paths, identifiers, commands, error text, numbers, and the user's words where wording matters; never paraphrase a decision or a constraint.",
   "Never record a requested, reported, or expected result as observed. Name partial or uncommitted changes, unverified results, running commands, and obligations with what triggers each.",
   "Say what the user has authorized and what still needs asking.",
-  "If the conversation uses a Working Record (.freeflow/tasks/*/record.md), name its path and do not restate what it holds; keep what it does not hold.",
 ].join(" ");
 
-/**
- * How to recover. Freeflow never names a Working Record here: it cannot tell which record belongs to this work, and
- * pointing at the wrong one sends recovery into another task. The summary names the record when there is one.
- */
-function recoveryText(cycle: number, carried = ""): string {
-  return `Compaction finished; cycle ${cycle} starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. ${carried}Skills you read before this point are out of view, even where the summary lists their files: read each one again before you apply its method, the cognitive-routing skill first when routing is on. This compaction is done, so do not re-read the compaction skill or its summary format. Then continue the work the compaction interrupted.`;
-}
-
-/** The agent path: the compaction was the request, and it is done. */
-const AFTER_REQUESTED =
-  "This compaction completes the request for it: do not call compact_context again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with return_work).";
-/** Pi compacted on its own, so a Freeflow compaction being prepared is no longer needed. */
-const AFTER_PI = "Compaction is no longer due: do not call compact_context.";
-
-/** Why compact_context is refused when compaction is not due, and where to go next if a compaction began this cycle. */
-function notDueText(branch: readonly any[]): string {
-  const latest = [...branch].reverse().find((entry) => entry?.type === "compaction");
-  const next =
-    "Continue the work; if this is a routing assignment that only asked for compaction, return it with return_work.";
-  if (!latest)
-    return "Compaction is not due. Freeflow says when it is; the user can also ask for it with /freeflow compact.";
-  if (latest.details?.freeflow && !latest.details.freeflow.fallback)
-    return `Compaction is not due: this cycle began with a compaction, and that compaction completed any compaction your request or assignment asked for. ${next}`;
-  return `Compaction is not due: this cycle began with Pi's own compaction, so the compaction you were preparing is no longer needed. ${next}`;
-}
-
-/** What the previous Freeflow compaction carried (file paths and result ids), with the cycle each was first carried. */
-function previousCarried(branch: readonly any[]): Map<string, number> {
-  const latest = [...branch].reverse().find((entry) => entry?.type === "compaction" && entry.details?.freeflow);
-  const carried = new Map<string, number>();
-  for (const item of latest?.details?.freeflow?.carried ?? []) {
-    const key = item?.kind === "file" ? item.path : item?.kind === "result" ? item.ref : undefined;
-    if (typeof key === "string") carried.set(`${item.kind}:${key}`, item.firstCycle);
-  }
-  return carried;
-}
-
-function fileRecord(file: CarriedFile, cycle: number, previous: Map<string, number>) {
-  return {
-    kind: "file",
-    path: file.path,
-    ...("lines" in file && file.lines ? { lines: file.lines } : {}),
-    firstCycle: previous.get(`file:${file.path}`) ?? cycle,
-    ...("text" in file ? { bodyHash: hash(file.text) } : { error: file.error }),
-  };
-}
-
-function resultRecord(result: Result, cycle: number, previous: Map<string, number>) {
-  return {
-    kind: "result",
-    ref: result.id,
-    tool: result.tool,
-    firstCycle: previous.get(`result:${result.id}`) ?? cycle,
-    bodyHash: hash(result.text),
-  };
-}
+/** Where the next cycle recovers when the bundle could not be made after Pi's summary. */
+const FALLBACK_RECOVERY = (task: string, command: string) =>
+  `Freeflow could not add ${task}'s bundle after this summary: recover it with ${command} view recover --record ${task} and read what it lists.`;

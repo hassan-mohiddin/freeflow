@@ -46,6 +46,7 @@
 
 ### Changed
 
+- Freeflow compaction on Pi works as on Claude Code, through Track Work. One soft notice a compaction cycle comes before Pi's own limit (at 75% of the window, or a tenth of the window before Pi's trigger if earlier), after rows at 50, 60 and 70%; at a safe point the agent checkpoints its task with `checkpoint --compact` and ends its turn, and Freeflow replaces the conversation with the task's bundle and continues the run. With no task, a session summary takes the record's place, with or without a store. Pi's own compaction stays the fallback: once the agent has checkpointed, the bundle replaces Pi's summary; otherwise the bundle as of the last checkpoint and your messages since follow it. Where the Freeflow store exists, a Pi session gets the task menu and your rules with its first turn, the footer shows the task it holds, the store syncs after a run that changed it, and the hold is released when the session ends. Track Work's `carry list`, the bundle's results and `discussion list` read Pi's session file along its active branch, and `view bundle --no-recent` leaves the newest results out, as Pi does with Context reuse off.
 - Track Work's recovery view and bundle open their checks with the task folder's path, so an agent after a compaction finds the files the record names.
 - Write Docs' docs check says when a `Verified at` commit is missing because the clone is shallow, as a cloud session's may be, and how to fetch its history.
 - Freeflow on Claude Code compacts only when the agent asks, with Track Work's `checkpoint --compact`: the mod answers the request once, at the end of that turn, with the record in place of the conversation, then starts the next turn. The notice at 75% reminds the agent to do so; a checkpoint without `--compact`, before a pause or a switch, never compacts; and the agent may ask earlier, at a boundary where the conversation holds mostly finished work.
@@ -82,6 +83,10 @@
 - Evaluate Behavior's evaluator: a suite's decision cut short by the budget or a stop no longer claims "beats" or "worse" (its claim is `none`, reason `cancelled`, with the counts that ran and `k` the trials that completed); `--jobs` and `--cpu-jobs` hold even when a new start arrives as a slot is freed; the plan line also counts host-extension builds, which run on the host outside the seal; the transcript scan flags a host name with no dot, such as `http://intranet`, as an external network target (loopback and `localhost` stay internal), so more runs are held for you to read; judge calibration and agreement between two judges add linear-weighted kappa for `0-2` dimensions beside the unchanged kappa; and a decision or combined judge answer over a very long list of values no longer fails.
 - `skill-author compare --all-units` lists every reworded unit that is not rule-like, under "Other reworded: confirm the meaning survived" in its JSON (`otherReworded`) and `--markdown` output, so the meaning check Write Skill asks for after a substantial revision can reach each one; the exit status is unchanged.
 - Review Work's `review-packet.mjs`, run with `--root` from another folder, names the Docs and Review rules files relative to the repository instead of the current folder, so the brief it writes passes `check-brief.mjs` instead of being refused for paths that do not exist.
+
+### Removed
+
+- Pi's `compact_context` tool, its result index (`r12`), the carried copies of your latest messages, and the compaction capability skill with its summary format: on Pi the agent checkpoints with Track Work instead, and `/freeflow compact` asks it to checkpoint with `--compact`.
 
 ## 0.9.0 - 2026-10-24
 

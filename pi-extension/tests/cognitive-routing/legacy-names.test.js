@@ -3,7 +3,6 @@ import test from "node:test";
 import { isTaskEvidence, Sources } from "../../dist/cognitive-routing/sources.js";
 import { initialState } from "../../dist/cognitive-routing/state.js";
 import { routingToolName } from "../../dist/cognitive-routing/types.js";
-import { resultIndex } from "../../dist/compaction/results.js";
 
 // Sessions saved before the freeflow_ prefix was dropped hold the old tool names in their history.
 
@@ -40,16 +39,4 @@ test("a saved return receipt and evidence selection under the old names are stil
   assert.equal(isTaskEvidence(at("e2")), false);
   assert.equal(isTaskEvidence(at("e4")), false);
   assert.equal(isTaskEvidence(at("e6")), true);
-});
-
-test("the compaction result index leaves out control calls under the old names", () => {
-  const big = "x".repeat(4_000);
-  const branch = ["freeflow_project", "freeflow_unit", "freeflow_compact", "read"].flatMap((name, i) => [
-    { type: "message", message: call(`c${i}`, name, name === "read" ? { path: "a.txt" } : {}) },
-    { type: "message", message: result(`c${i}`, name, big) },
-  ]);
-  assert.deepEqual(
-    resultIndex(branch).map(({ tool }) => tool),
-    ["read"],
-  );
 });

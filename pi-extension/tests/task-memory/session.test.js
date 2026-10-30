@@ -266,39 +266,6 @@ test("after Pi's compaction the focused record is delivered again", { timeout: 3
   );
 });
 
-test("after Freeflow's compaction the focused record follows the recovery message", { timeout: 30000 }, async () => {
-  await fixture(
-    async (n) => (n === 2 ? [{ name: "compact_context", args: { summary: "AGENT_SUMMARY" } }] : []),
-    false,
-    async ({ manager, requests, session }) => {
-      // /freeflow compact makes compaction due and starts its run after the command returns.
-      const count = requests.length;
-      await session.prompt("/freeflow compact");
-      for (let i = 0; i < 200 && requests.length === count; i++) await new Promise((done) => setTimeout(done, 10));
-      await session.waitForIdle();
-      const branch = manager.getBranch();
-      const compactionIndex = branch.findLastIndex((entry) => entry.type === "compaction");
-      assert.ok(compactionIndex >= 0, "compacted");
-      const types = branch.slice(compactionIndex + 1).map((entry) => entry.customType);
-      assert.deepEqual(types.slice(0, 3), [
-        "freeflow-carried-context",
-        "freeflow-compaction-recovery",
-        "freeflow-task-memory-snapshot",
-      ]);
-      const after = requests.find((body) => /AGENT_SUMMARY/.test(inputText(body)));
-      assert.match(inputText(after), /Compaction finished[\s\S]*Focused task: Retry work/);
-    },
-    true,
-    {
-      ...on({ toolExecution: { enabled: true } }),
-      beforePrompt: async ({ cwd, session }) => {
-        makeRecords(cwd);
-        await session.prompt(`/freeflow task attach ${RECORD_A}`);
-      },
-    },
-  );
-});
-
 test(
   "the delivered resume view is enclosed, so the next user message cannot read as part of the record",
   { timeout: 30000 },

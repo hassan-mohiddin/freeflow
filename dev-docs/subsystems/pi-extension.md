@@ -12,7 +12,8 @@ When its host gate is effective, the native entrypoint is designed to provide:
 - the four v2 routing tools: `delegate_work`, `return_work`, `routing_unit`, and `select_evidence`;
 - `ask_user`, whenever Freeflow is enabled;
 - with Tool Execution, its prompt section, `apply_patch`, `bash_background`, `monitor` and `stop_background`, and the file-tracking layer around Pi's tools;
-- with Compaction, the `compact_context` tool, its notices, and the compaction skill;
+- with Compaction, its notices and Freeflow's compaction with the task's bundle, after the agent's `checkpoint --compact`;
+- with the Freeflow store, the menu at session start, the sync and the held task in the footer (`src/store/`);
 - with Task Memory, the `task_memory` tool and its capability skill;
 - with Messaging, `list_sessions` and `send_message` (deferred, loaded through Pi's `tool_search`) and the messaging capability skill.
 

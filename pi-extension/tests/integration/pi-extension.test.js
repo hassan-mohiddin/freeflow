@@ -409,8 +409,9 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
     toolNames.filter((name) =>
       ["delegate_work", "return_work", "routing_unit", "select_evidence", "compact_context"].includes(name),
     ),
-    ["delegate_work", "return_work", "routing_unit", "select_evidence", "compact_context"],
+    ["delegate_work", "return_work", "routing_unit", "select_evidence"],
   );
+  // Freeflow compacts on the agent's checkpoint --compact, so compact_context is gone (P1).
   // No Freeflow tool keeps the freeflow_ prefix, which models confused with /freeflow commands.
   assert.deepEqual(
     toolNames.filter((name) => name.startsWith("freeflow_")),

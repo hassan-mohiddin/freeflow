@@ -141,7 +141,7 @@ After reload, tree navigation, context loss, or an external model or effort chan
 
 ### Compaction
 
-Freeflow's and Pi's compaction may remove active user or evidence bodies while the session history keeps them. Routing keeps the last delivered user basis so stored but undelivered entries do not look like new input. Under routing a worker compacts itself mid-assignment with `compact_context` and continues; routing then re-sends the assignment's contract followed by a note that the compaction is done. A Coordinator under projection never compacts; it delegates an assignment that compacts and returns. After a worker's compaction the Coordinator sees a version of the carried context (what the compaction copied into the next cycle) that names the worker's copies, and evidence it received stays in its view until the next compaction. Details: [Compaction](compaction.md).
+Freeflow's and Pi's compaction may remove active user or evidence bodies while the session history keeps them. Routing keeps the last delivered user basis so stored but undelivered entries do not look like new input. A Coordinator under projection never checkpoints for a compaction itself; it delegates an assignment that checkpoints with Track Work's `checkpoint --compact` and returns, and Freeflow compacts with the task's bundle when the run ends; the compaction records the profile and assignment, which routing reads back to say a worker compacted. Evidence the Coordinator received stays in its view until the next compaction. Details: [Compaction](compaction.md).
 
 ## Decisions
 
