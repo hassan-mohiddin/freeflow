@@ -4,6 +4,7 @@
 // store when the task lives in one.
 
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
@@ -33,6 +34,15 @@ import {
   warnings5,
 } from "./record5.mjs";
 import { closedBlocks } from "./discussion5.mjs";
+import {
+  addEvents,
+  addUsed,
+  emptyMeasure,
+  parseMeasure,
+  priceTable,
+  renderMeasure,
+  transcriptEvents,
+} from "./measure5.mjs";
 import { freeflowStoreOf, isFreeflowStore, writeAtomically, writeTaskFile } from "./store.mjs";
 
 function fail(code, message) {
@@ -196,6 +206,27 @@ async function proposeSlice(options, text, loaded) {
 
 const START_FIELDS = ["Under", "Scope", "Done when", "Stop if", "Started from", "Waits on", "Dependencies"];
 
+/** How far back a first reading looks for the newest request: its log's tail, not the whole log. */
+const FIRST_READING_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * A Slice's measure with a new reading added (Spec section 12, "Planning from measured cost"; T29, T30): from --used,
+ * else the transcript --transcript or the harness layer (FREEFLOW_TRANSCRIPT) names, else none. Never guessed: with
+ * no source the measure is returned as it was.
+ */
+function takeReading(measure, options, env = process.env) {
+  if (options["--used"] !== undefined) {
+    const used = Number(options["--used"]);
+    if (!Number.isInteger(used) || used < 0)
+      fail("invalid-option", `--used is a whole number of tokens, not ${options["--used"]}`);
+    return addUsed(measure, used);
+  }
+  const transcript = options["--transcript"] ?? env.FREEFLOW_TRANSCRIPT;
+  if (!transcript || !existsSync(transcript)) return measure;
+  const since = measure.last?.time ?? Date.now() - FIRST_READING_MS;
+  return addEvents(measure, transcriptEvents(transcript, since), priceTable(env));
+}
+
 async function startSlice(options, text, loaded, direct) {
   const command = direct ? "slice start-direct" : "slice start";
   const task = await load(loaded);
@@ -211,6 +242,8 @@ async function startSlice(options, text, loaded, direct) {
   const fields = input(text, direct ? ["Result wanted", ...START_FIELDS] : START_FIELDS, command);
   const values = { State: "in_progress", Opened: localDate() };
   for (const name of START_FIELDS) values[name] = fields.lines(name);
+  const started = takeReading(emptyMeasure(), options);
+  values.Measured = started.last ? [renderMeasure(started)] : null;
   values["Result wanted"] = direct ? fields.require("Result wanted") : fieldLines5(proposal, "Result wanted");
   values["Done when"] ??= proposal ? fieldLines5(proposal, "Done when") : null;
   values.Dependencies ??= proposal ? fieldLines5(proposal, "Dependencies") : null;
@@ -262,6 +295,13 @@ async function changeSliceState(options, text, loaded, pausing) {
 
 const CLOSE_FIELDS = ["Cue", "Result", "Evidence", "Task effect", "Resume when", "Reason"];
 
+/** What a closing Slice used, for its History entry: its measure with a last reading, or "not measured". */
+function closingMeasure(slice, options) {
+  const line = fieldText(slice, "Measured");
+  if (!line) return "not measured";
+  return renderMeasure(takeReading(parseMeasure(line), options));
+}
+
 async function closeSlice(options, text, loaded) {
   const task = await load(loaded);
   const slice = task.record.work.slice;
@@ -292,6 +332,7 @@ async function closeSlice(options, text, loaded) {
       "Task effect": fields.require("Task effect"),
       "Resume when": state === "blocked" ? fields.require("Resume when") : fields.lines("Resume when"),
       Reason: state === "abandoned" ? fields.require("Reason") : fields.lines("Reason"),
+      Measured: [closingMeasure(slice, options)],
       Updates: updateLines(slice),
     };
     history = appendEntry(task, task.record.header.name, entryLines("slice", slice.id, slice.title, values));

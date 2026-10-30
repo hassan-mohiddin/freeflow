@@ -48,6 +48,7 @@ export const SLICE5_ORDER = [
   "Started from",
   "Waits on",
   "Dependencies",
+  "Measured",
 ];
 const SLICE5_REQUIRED = ["State", "Opened", "Under", "Result wanted", "Scope", "Done when", "Stop if", "Started from"];
 export const SLICE5_STATES = new Set(["in_progress", "paused"]);
@@ -87,6 +88,7 @@ export const ENTRY_ORDER = {
     "Task effect",
     "Resume when",
     "Reason",
+    "Measured",
     "Updates",
   ],
   agreement: ["State", "Dates", "Cue", "Lines", "Updates", "Decisions", "Result", "Task effect"],

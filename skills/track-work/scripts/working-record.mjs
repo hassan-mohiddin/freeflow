@@ -307,11 +307,11 @@ const COMMAND_HELP = new Map([
   ],
   [
     "slice start",
-    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.\nSchema 5 input: Scope, Stop if and Started from required; Under (default: the open agreement), Done when (default: the proposal's), Waits on (D-NNN, comma-separated) and Dependencies.",
+    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.\nSchema 5 input: Scope, Stop if and Started from required; Under (default: the open agreement), Done when (default: the proposal's), Waits on (D-NNN, comma-separated) and Dependencies. Takes the Slice's first reading of what it uses (its Measured line), from --used <tokens>, else the transcript --transcript or FREEFLOW_TRANSCRIPT names; with neither it is not measured.",
   ],
   [
     "slice start-direct",
-    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Intended result, Authority source, Scope, Expected evidence, Stop condition, and Starting state required; Future Work is unchanged. Use --input - to read the fragment from stdin.\nSchema 5 input: Result wanted, Scope, Done when, Stop if and Started from required; Under (default: the open agreement), Waits on and Dependencies.",
+    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Intended result, Authority source, Scope, Expected evidence, Stop condition, and Starting state required; Future Work is unchanged. Use --input - to read the fragment from stdin.\nSchema 5 input: Result wanted, Scope, Done when, Stop if and Started from required; Under (default: the open agreement), Waits on and Dependencies. Takes the Slice's first reading of what it uses, as slice start does.",
   ],
   [
     "slice pause",
@@ -320,7 +320,7 @@ const COMMAND_HELP = new Map([
   ["slice resume", "Usage: slice resume --record <record.md> --resolution <source> --next-action <text>"],
   [
     "slice close",
-    'Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Result, Evidence and limits, and Task effect required. Use --input - to read the fragment from stdin.\nSchema 5 input: Cue ("read when …", at most 25 words), Result, Evidence and Task effect required; Resume when for blocked, Reason for abandoned. Appends the Slice\'s History entry, its updates included, then syncs the Freeflow store holding the task. A Slice is not closed as completed while a delegation it Waits on is open.',
+    'Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Result, Evidence and limits, and Task effect required. Use --input - to read the fragment from stdin.\nSchema 5 input: Cue ("read when …", at most 25 words), Result, Evidence and Task effect required; Resume when for blocked, Reason for abandoned. Appends the Slice\'s History entry, its updates included, then syncs the Freeflow store holding the task. A Slice is not closed as completed while a delegation it Waits on is open. Takes a last reading (--used, --transcript or FREEFLOW_TRANSCRIPT) and writes the Slice\'s Measured totals into its History entry, or "not measured".',
   ],
   [
     "slice reopen",
@@ -447,10 +447,11 @@ function allowedOptions(command, operation) {
   if (command === "validate") return new Set(["--root", "--record", "--strict", "--help"]);
   if (command === "slice") {
     if (operation === "propose") return new Set([...common, "--title"]);
-    if (operation === "start" || operation === "start-direct") return new Set([...withNextAction, "--title"]);
+    if (operation === "start" || operation === "start-direct")
+      return new Set([...withNextAction, "--title", "--used", "--transcript"]);
     if (operation === "pause") return new Set([...withNextAction, "--reason", "--resume-when"]);
     if (operation === "resume") return new Set([...withNextAction, "--resolution"]);
-    if (operation === "close") return new Set([...withNextAction, "--state"]);
+    if (operation === "close") return new Set([...withNextAction, "--state", "--used", "--transcript"]);
     if (operation === "reopen") return new Set([...withNextAction, "--id", "--title"]);
     if (operation === "record") return new Set([...common, "--title", "--state"]);
   }
