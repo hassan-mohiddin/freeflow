@@ -167,10 +167,14 @@ test("the Git check accepts a record inside the store and still refuses one a co
     await writeFile(join(project, "store.json"), `${JSON.stringify({ version: 1, project: "demo" })}\n`);
     const input = "### Goal\n- Test task.\n\n### Next useful action\n- Continue.\n";
     const init = (root) =>
-      spawnSync(process.execPath, [scriptPath, "init", "--root", root, "--name", "Demo", "--input", "-"], {
-        encoding: "utf8",
-        input,
-      });
+      spawnSync(
+        process.execPath,
+        [scriptPath, "init", "--schema", "4", "--root", root, "--name", "Demo", "--input", "-"],
+        {
+          encoding: "utf8",
+          input,
+        },
+      );
     const inStore = init(project);
     assert.equal(inStore.status, 0, inStore.stderr);
     assert.ok(existsSync(join(project, "tasks", "task-001-demo", "record.md")));

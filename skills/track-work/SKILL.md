@@ -1,21 +1,24 @@
 ---
 name: track-work
-description: "Use when a task needs memory beyond the conversation: starting, updating or recovering its Working Record; after a compaction, a summary, a clear or a move into a new session; when the context limit is near; before pausing, handing off or transferring work to a later session or another person; when a task ID, a project of tasks, child records or parallel sessions are involved; and when editing a record or running its working-record script. It decides what the record says, and every lifecycle change goes through its script."
+description: "Use when a task needs memory beyond the conversation: starting, updating, checkpointing or recovering its Working Record; choosing, taking, switching or releasing a task from Freeflow's task menu, or one another session holds; moving a task into or out of a project; when work may not fit in what is left of the context, or will outlast this compaction cycle; when Freeflow says compaction is near, after a compaction, a summary, a clear or a move into a new session; before pausing, handing off or transferring work; when a task ID, a project, the Freeflow store or its sync, or parallel sessions are involved; when a record says Schema 4 or Pi's Task Memory is on; and when editing a record or running its working-record script. It decides what the record says, and every lifecycle change goes through its script."
 ---
 
 # Track Work
 
-Keep one Working Record per task so a fresh context can pick up the work without the conversation that produced it. The record is memory for the agent doing the work: what is true now, what is in progress, what to read to resume, and the rough road ahead.
+Keep one Working Record per task so a fresh context, after a compaction, in another session or on another machine, continues the work without the conversation that produced it. The record is memory for the agent doing the work: what is true now, what is in progress and exactly how far it got, and what to read to resume. It is not authority, a Spec, a Plan, or a transcript, and it works for any kind of task: code, research, writing, analysis, operations.
 
-The record is not authority, a Spec, a Plan, or a transcript. It works for any kind of task: code, research, writing, analysis, operations.
+A task is a folder, normally in the Freeflow store: one private Git repository at `FREEFLOW_HOME` (default `~/.freeflow`) that holds every task's memory, grouped in projects or in none, and syncs it, on this machine only or, with the user's private remote, on every device. The folder holds:
 
-The record has five sections:
+- `record.md`, the state, in three sections:
+  - **Current Context:** Goal, Settled and Open, rewritten whole at each checkpoint and never patched in between.
+  - **Current Work:** the open agreement (`A-NNN`), the current Slice (`S-NNN`), Delegations, Space, In flight, Defined by, Read on recovery, Read when and the Next action; it changes as the work moves.
+  - **Future Work:** proposed Slices.
+- `history.md`, one entry per closed Slice, agreement or delegation; `decisions.md`, the open agreement's decision list; `sessions.md`, every session that held the task, its last open line the hold.
+- `sources/` (with `sources/discussion.md`, the user's messages that shaped the work), `delegations/`, `evidence/`, `specs/`, `plans/` and `scratch/`.
 
-- **Current Context:** present understanding, including the optional `Work agreement` (what the user agreed you may do, and until when) and `What defines this task`, which points to the task's defining artifacts such as its Spec and Plan.
-- **Current Work:** the Current Slice (the unit of work in progress, with its `Material updates` log), `Recovery sources` to read when resuming, and one Next useful action.
-- **Future Work:** the rough route ahead, as proposed Slices and Checkpoints.
-- **History:** accepted Decisions, closed Checkpoints, and closed Slices.
-- **Notes:** free-form context with no authority.
+This is Schema 5. A record whose header says `Schema: 4` follows [Schema 4](references/schema-4.md) instead, and on Pi with Task Memory on every record is Schema 4 (`init --schema 4`).
+
+Work runs in **cycles**: a cycle runs from a session's start or a compaction to the next compaction or the session's end. The script works on any harness, and its `estimate` measures how much of the context window the work has used. Where Freeflow also runs a layer in the harness, it calls the script at the right moments: a task menu at session start, a row showing the context's share of the window as it grows and a notice when compaction is near, each naming the cycle, a sync when a turn ends, and, where the harness lets it, Freeflow's own compaction. Today Claude Code has all of these, through Freeflow's mod. Where no layer runs, do those steps yourself, as the sections below say.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
@@ -23,192 +26,192 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 | Situation | Go to |
 | --- | --- |
-| Context loss: compaction, a summary that replaces the conversation, clear, a transfer into another context | Recover After Context Loss, below |
-| A context limit is near | Prepare For A Context Boundary, below |
-| Handing work to a later session or someone else, or a pause | Prepare For A Context Boundary, then [handoff](references/handoff.md) |
-| A registered task (a task ID such as `my-project/task-003`), a child record, a project, or the user asking to group tasks, split a task across parallel sessions, or move a record out of a repository | [projects](references/projects.md) |
-| Editing record structure or preparing input for a command | [working record format](references/working-record-format.md) |
-| On Pi with Task Memory on: attaching, creating, focusing or switching records, or a refused record write | The `task_memory` tool; the task-memory skill says how |
+| A session starts with Freeflow's task menu; the user points to a task, asks for a new one, or to switch or close one; a task another session holds | Choose And Hold The Task, below |
+| Freeflow says compaction is near, the context limit is near, or a switch, pause or transfer is coming | Checkpoint Before A Compaction Or A Transfer, below |
+| Context loss: after a compaction, a summary that replaces the conversation, a clear, a transfer into another context | Recover After Context Loss, below |
+| Handing the work to a later session or someone else as a document | Checkpoint first, then [handoff](references/handoff.md) |
+| The store: setting it up, local or cloud, a sync that fails; projects, holds and other tasks; removing a task or a project | [working record format](references/working-record-format.md), its first part |
+| Editing record structure, preparing a command's input, or any file of the task folder | [working record format](references/working-record-format.md) |
+| A record whose header says `Schema: 4`; on Pi with Task Memory on | [Schema 4](references/schema-4.md); on Pi, the `task_memory` tool and the task-memory skill say how a session holds records |
+| Handing part of the work to an agent, or working from a brief | Execute Work's [delegation](../execute-work/references/delegation.md) |
 
 ## Rules
 
-- The record is memory, not authority. It never authorizes work, and current user direction, live state, and accepted artifacts override it.
+- The record is memory, not authority: it never authorizes work, and the user's latest message, live state and accepted artifacts override it. A record's Next action is where the task stood, not a request: when the user asks for something else, do that, never the record's next step instead; when the request is unclear, ask, never fall back to the record.
+- Take a task only when the user's message points to it, and ask when it could be more than one. Ask before taking over a task another session holds. Create, move, remove or change the state or budget mode of a task, and create or remove a project, only on the user's word.
+- Write only the task this session holds. Never write another task's files because you read them; a worker writes only its own `progress.md`, `return.md` and the files its brief names.
 - Record a Slice before causing effects outside the record: edits, commands, generated files, sent messages, or changes to external systems.
-- Use [working-record.mjs](scripts/working-record.mjs) for every lifecycle change: IDs, states, and moves between sections. Edit only meaning directly.
-- Only the user changes task state.
-- After context loss, recover in this order before any task action: the record through `view recover` (not by opening `record.md`, which loads all of History), then every artifact listed under `What defines this task`, then `Recovery sources`, then the History entries the next action depends on through `view entry`. If any of them cannot be read completely, report that and stop affected work.
-- Recover only a record that the context you still have ties to the current work, such as the user's direction, or a summary or handoff that names it. A recent change does not show that a record belongs to the current work. When a record's task and the current work disagree, report it instead of recovering the record.
+- Use [working-record.mjs](scripts/working-record.mjs) for every lifecycle change: IDs, states, holds, the checkpoint, and moves between sections and files. Edit only meaning directly.
+- Write what the user agreed, and every change to it, in their words with the date. Never record a proposal or a default as agreed.
+- After context loss, recover before any task action, as Recover After Context Loss says. If anything it lists cannot be read completely, report that and stop affected work.
 - Never record a requested, reported, or expected result as observed. Keep unverified work, failures, and contradictions visible.
-- Never claim that state will survive context loss unless it is written in the record or in a source the record points to.
+- Never claim that state will survive context loss unless it is written in the task folder or in a source the record points to.
+
+## Choose And Hold The Task
+
+Goal: each session works on the task the user means, and each task has one writer.
+
+A session holds at most one task, and a task has at most one holder; any session may read any task. Freeflow's harness layer gives the agent a menu at session start: which task this session holds, if any, then the open tasks of the project whose tasks name this repository, newest first, each with its holder, when that holder last synced, and its cue. Elsewhere, run `task here` when the work may already have a task. The menu takes nothing.
+
+| The user's message | Do |
+| --- | --- |
+| points to one task | `task take --id <ID>`, recover it, and say in one line what you read |
+| could be about more than one | ask, with the likely tasks and "a new task" as the options |
+| points to a task another session holds | `take` refuses and names that session and when it last synced: ask before `task take --id <ID> --takeover`; that session learns at its next sync and stops writing |
+| asks for work that needs memory and no task fits | ask one question, through the harness's question tool where it has one, whose options say where the task goes: in the project the work belongs to, in no project, or no task at all; on the answer, `task create` with `--project <name>` or `--no-project` (this session holds it); a project the same way, with `project new` |
+| moves a task into a project, or out of one | `task move --id <ID> --project <name>` or `--no-project`: the task gets the next number there, and the output prints its new ID |
+| turns to another task | checkpoint the held task, `task switch --id <ID>`, then recover the new one |
+| closes the task or ends the session | checkpoint what changed, then `task release` (Freeflow's harness layer releases it at the session's end); `task set-state` only when the user says the task is done or abandoned |
+| asks for something the held task does not cover | do it; propose a task only if that work needs memory of its own |
+
+A task's memory is worth keeping when the work will outlast this cycle, or when losing its decisions, route or partial state would misdirect continuation. Judge it early: `estimate` gives the context used so far against the window and the notice point, and once part of the work is done, `estimate --done <n> --left <m>`, with the parts done in this cycle and those left (a Plan's phases or Slices, the steps of your route), says whether the rest fits before the notice or about how many more cycles it needs. A notice that comes before the work is done shows it did not fit. When the work will outlast the cycle, plan where this cycle ends: at a safe point before the notice, with the rest in Future Work. Work that ends within the cycle needs no task unless the user asks; a question or a short self-contained result needs none, a session with no task is normal, and a user's choice not to keep one stands. Create a task with the understanding that justified it, not an empty shell; if even the Goal is unclear, discuss first.
+
+Where no store exists yet, ask once whether to make the local one (`store init`; nothing leaves the machine): without it nothing syncs, and Freeflow's harness layer, which acts only where a store exists, stays off. If the user says no, `init --root <repository>` puts the task in the repository's `.freeflow/tasks/`, which must stay out of the repository's version control; if `init` reports that folder is not ignored by Git, ask before changing ignore rules.
+
+Read another task when it bears on what you are about to decide or build (`task search --query <words>`, then `view recover --record <ID>` or `view entry`), and record what matters to this task in this task's own record.
 
 ## Decide What To Track
 
-Goal: after any interruption, the next context can continue correctly without re-deriving what you already knew.
+Goal: after any interruption, the next context continues correctly without re-deriving what you already knew.
 
-Ask: **if context were lost now, what would the next context need that it could not recover from the workspace, the defining artifacts, or retrievable history?** Record that, at the moment it becomes true.
+Ask: **if context were lost now, what would the next context need that it could not recover from the workspace, the defining artifacts, or the task's History?** Record that, where it belongs:
 
 | When this happens | Record it in |
 | --- | --- |
-| Understanding changes: a fact is settled, a hypothesis forms, a question opens | Current Context |
-| The user accepts a choice | a Decision |
-| The user agrees to a route or part of one, or changes it | the Work agreement |
+| A fact is settled, or a choice the user accepted still governs the task | Settled, at the next checkpoint |
+| A question opens, or you propose something the user has not answered | Open, at the next checkpoint; a proposal as `Proposed: …` with its date, which permission to investigate it does not accept |
+| The user agrees a piece of work, or changes what is agreed | the agreement, in their words |
+| The work meets a choice the user owns | `decisions.md`, Discuss Work's decision list |
 | Work with partial state is about to begin | a Slice |
-| You learn something needed to resume: a file, attachment, message, or section | Recovery sources |
-| A Spec, Plan, or other defining artifact is created or accepted for the task | What defines this task |
-| The next step or rough route becomes clear | Next useful action and Future Work |
-| Work produces a result, an identity (commit, document version, sent message), or evidence | the Slice's Material updates, then its closure |
+| Work produces a result, an identity (a commit, a document version, a sent message) or evidence | a one-line update on the Slice: its kind and a pointer |
+| Part of the work goes to another agent | a delegation |
+| A Spec, Plan, issue or brief is accepted for the task, or the work must follow a skill beyond the core ones | Defined by |
+| You learn what the next context must read: a file, a section, a saved message | Read on recovery; Read when, with its trigger |
+| The repositories the task changes, and where each stands | Space, at the checkpoint |
+| Where the step in progress stands, and what the next step rests on | In flight, at the checkpoint |
+| The next step or the rough route becomes clear | the Next action and Future Work |
+| A discussion with the user shaped the work | discussion blocks, at the checkpoint |
+
+Until a checkpoint, the conversation holds new understanding; Current Context changes only then, whole, and when `agreement close` adds to Settled the choices that still govern. Check Settled, the agreement and `decisions.md` before asking the user something again.
 
 Default to less. One accurate line beats a paragraph. Update at boundaries, not after every step, and do not narrate routine actions. If maintaining the record is taking noticeable time from the task, you are tracking too much. But concise is not lossy: keep a detail when removing it could change the next action.
 
-Keep hypotheses and proposals in Tentative until they are accepted. Permission to investigate an option does not accept it.
+When the record starts after work has already happened, compress that stretch; do not replay it. Settled results go into Settled. Record an earlier result as a Slice with `slice record` only when later work depends on it, such as evidence, a failed approach, or a retraction, and point to where its exact history lives. Never backfill with `slice start-direct` and `slice close`, and never close a live Slice to make room.
 
-Use a record when the task spans several steps or sessions, or when losing its decisions, route, or partial state would misdirect continuation. A short self-contained result needs no record. Respect a user's choice not to keep one. Create a record with the understanding that justified it, not an empty shell; if even the Goal is unclear, discuss first.
+## Keep The Agreement
 
-When the record starts after work has already happened, compress that stretch; do not replay it. Settled results go into Current Context. Record an earlier result as a Slice with `slice record` only when later work depends on it, such as evidence, a failed approach, or a retraction, and point to where its exact history lives. Never backfill with `slice start-direct` and `slice close`, and never close a live Slice to make room.
+Goal: after context loss, the next context knows what the user agreed it may do, where it comes back, and until when, in the user's words.
 
-## Use The Record While Discussing And Executing
+Open the agreement when the user agrees a piece of work, with [Discuss Work](../discuss-work/SKILL.md)'s agreement: `agreement open`, its lines quoting the user beside what each answered, dated. Write only what is known: `Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`; one line is often enough. Never open one as a placeholder, and never ask the user for one just because a task is being created. A task has one open agreement, and each Slice works under it.
 
-The record serves both halves of the work; update it at meaningful boundaries, not on every turn.
+`Back at` lines are the agreement's return points: a pull request, a review, a decision, a pause. When one is due, stop the work that depends on it and return to the user. Some skills still call such a point a selected Checkpoint; with a Schema 5 record it is this line.
 
-**Discussing:** the record is working memory.
+When the user changes what is agreed, `agreement update` adds one line in their words, without asking first: an extension, a lifted limit, a new endpoint, or a narrowing for now ("just diagnose first", "don't edit yet"), which governs over the rest until the user lifts it. Add a narrowing at once: a later context sees only what is written. Progress and results belong to Slices, never to the agreement. When a `Proposed:` item in Open is answered, it becomes an update if it changes what is agreed, an item in `decisions.md` if it settles a choice, and otherwise leaves Open at the next checkpoint.
 
-- Start a record, with the understanding gathered so far, once the task is likely to outlast the current context or span sessions.
-- When the user makes a choice, record a Decision. Put options under consideration in Tentative and unanswered questions in Open.
-- Use Open to choose what to ask next, and check Settled and Decisions before asking the user something again.
-- When you propose a route and the user has not answered, put it under Open as a bullet starting `Proposed:` with its date. An unanswered proposal is not agreed.
-- When the user supplies material that governs the work, point to it from Recovery sources, or from `What defines this task` if it defines the task.
-- When what and how are settled, propose the route in Future Work.
-
-**Executing:** the record is bookkeeping.
-
-- Record the Slice before its first effect. Its Authority source names the Work agreement line, or the user's reply, it rests on.
-- Add Material updates at boundaries: evidence, identities such as commit SHAs or document versions, scope extensions, and contradictions.
-- Add Recovery sources as the work reveals what a resume would need.
-- Close Checkpoints as their boundaries happen, then close the Slice with a distilled result.
-- Keep temporary files for the task, such as throwaway scripts, saved command output, and downloads, in the task directory's `scratch/`. They stay with the task and out of version control; nothing in them is memory unless the record points to it.
-
-## Keep The Work Agreement
-
-Goal: after context loss, the next context knows what the user agreed it may do, and until when, in the user's words.
-
-Write the Work agreement section when something is agreed, at `init` if it is known then; never as a placeholder, and never ask the user for it just because a record is being created. Write only what is known: what done looks like, what you do without asking, what needs the user's yes first, where you come back, and how long it holds. Quote the user's reply beside what it answered. A one-line agreement is often enough.
-
-When the agreement grows or changes, replace the lines it changes, as a direct edit: the user's message that changed it covers the edit, so do not ask first or wait for a command. When the user narrows it for now ("just diagnose first", "don't edit yet"), add that line at once, in their words: it governs over the rest of the section until the user lifts it, and a later context sees only what is written. When a `Proposed:` item is answered, move it into the Work agreement, record it as a Decision if it decided something about the work, or drop it. A change to the agreement is not a Decision; a choice about the work is.
-
-For a long or unattended run, or once the agreement has changed several times, also keep `sources/work-agreement-log.md`: one dated, numbered entry per exchange that set or changed the agreement, the proposal in one line and the user's reply verbatim, append-only. It holds only those exchanges, not discussion. List it under Recovery sources with the trigger "read when changing the Work agreement or when its wording is in question".
-
-[Discuss Work](../discuss-work/SKILL.md)'s decision list lives in `sources/decisions.md` in the task folder, listed under Recovery sources with the trigger "read when deciding, self-reviewing, or handing over"; update it directly as items change. Each item the user answered also becomes a Decision quoting their words; the rest are what you assumed, never what the user accepted.
+Discuss Work's decision list lives in `decisions.md`; the items the user answered quote them, and the rest are what you assumed, never what the user accepted. When the user ends or replaces the agreement, or at its hand-over, `agreement close` moves its lines, updates and decision list into History; the choices that still govern the task go into Settled through its `Settled` input.
 
 ## Use Slices For Work With Partial State
 
-A Slice is a unit of work that would leave something to reconcile if interrupted: half-applied edits, a draft in progress, findings from 12 of 20 sources, a running process.
+A Slice is a unit of your work that would leave something to reconcile if interrupted: half-applied edits, a draft in progress, findings from 12 of 20 sources, a running process.
 
 - Implementing a change, producing an artifact, or running an experiment is a Slice.
 - An in-depth investigation across many sources can be a Slice; stopping halfway would lose which sources were covered and what they said.
-- A discussion usually is not. Its results land directly in Current Context, Decisions, and Future Work.
+- A discussion usually is not. Its results land in the agreement, `decisions.md`, discussion blocks and, at the checkpoint, Current Context.
 
-Start a Slice before its first effect (Rules). A Slice with no effects, such as an investigation, may be recorded once it becomes substantial.
+Start a Slice before its first effect (Rules): `slice start` for a proposal in Future Work, `slice start-direct` for one that was never proposed. It names its result, scope, what shows it done, when to stop, and the state of what it will change. A Slice with no effects, such as an investigation, may be recorded once it becomes substantial.
 
 Size a Slice by one coherent result that can be checked and corrected with a manageable working set. A Slice may cover a whole phase of a Plan, or one Plan step may take several Slices. Do not split by tool call, file, or test, and do not merge unrelated results because they happen together.
 
-Keep checking and correction inside the Slice that produced the work. When accepted scope grows, record the extension in the Slice before acting on it. Start a new Slice when the result, authority, or evidence boundary changes.
+While it runs, add one line per boundary under its fields: a kind and a pointer, such as `- Evidence (observed): the retry test passes — scratch/retry-test.txt` or `- Result: commit 1a2b3c4d`. The proof lives in the file the line points to. Keep checking and correction inside the Slice that produced the work. When accepted scope grows, add an `Extension` line before acting on it; start a new Slice when the result, authority, or evidence boundary changes.
 
-An experiment or investigation completes when its question is answered or its limit is reached; a negative answer is a valid result. Record what it showed and what it changes, not how it was built. A study run with [Research Work](../research-work/SKILL.md) keeps its plan, lock, run ledger and deviation log as its own evidence: name the plan as a defining artifact and its lock as a decision Checkpoint, and do not copy receipts or deviations into the record.
+Delegations are not part of a Slice: each has its own line in Delegations and its own lifecycle, and Execute Work's [delegation](../execute-work/references/delegation.md) reference says how to open, check and close one. A Slice that needs a delegation's result names it under `Waits on` and waits for it to close; no Slice stays open only because a worker runs.
+
+An experiment or investigation completes when its question is answered or its limit is reached; a negative answer is a valid result. Record what it showed and what it changes, not how it was built. A study run with [Research Work](../research-work/SKILL.md) keeps its plan, lock, run ledger and deviation log as its own evidence: list the plan under Defined by, record its lock, the user's decision, as an agreement update in their words, and do not copy receipts or deviations into the record.
 
 ## Keep A Rolling Route In Future Work
 
-Future Work is your route at this moment, not a commitment. When you know roughly what comes next, write it down: propose the next Slices and the Checkpoints between them. At the next boundary, drop, add, reorder, or reword proposals freely; they cost nothing and authorize nothing.
+Future Work is your route at this moment, not a commitment: proposed Slices only, each with the result it wants, in about 300 words. At the next boundary, drop, add, reorder or reword proposals freely; they cost nothing and authorize nothing.
 
 - After discussing what and how, propose the route before starting.
 - With a Plan, propose only the next few steps and point into the Plan rather than copying it.
-- During hands-on iteration, where each step depends on the last result, keep only the Next useful action. Do not invent distant steps.
+- During hands-on iteration, where each step depends on the last result, keep only the Next action. Do not invent distant steps.
 
-Before starting a proposal, check its dependencies against what actually happened and against the current agreement. Being next in Future Work is not a reason to take on its obligations.
+Before starting a proposal, check its dependencies against what actually happened and against the current agreement; being next in Future Work is not a reason to take on its obligations. Check the History index for closed work on the same result and read it with `view entry`: a failed or abandoned approach lives there.
 
-Before starting or reopening a Slice, check the History index for closed work on the same result and read it with `view entry`. A failed or abandoned approach lives there.
+## Stay Within The Budget
 
-A **Checkpoint** is a boundary on the route that is not itself a unit of work: a commit, a publication, a review, a decision, a continuity point. It belongs to the Slice it follows. Do not make a Checkpoint into a Slice.
+Goal: what recovery reads of the memory you shaped fits a fresh context, and you know the limit before you write.
 
-```text
-User: "Implement the parser, then commit, then do the CLI."
-Future Work:
-  Slice — Implement the parser
-  Checkpoint — Commit the parser        (preserve, applies to: Implement the parser)
-  Slice — Add the CLI
-Not: a separate "Commit the parser" Slice.
-```
+The recovery budget counts the memory the agent shapes: `record.md`, the active decisions shown, the History and project indexes, Read on recovery's sources and In flight's Carry files. It does not count the store's and the project's `rules/`, the skills, or Defined by's entries, which recovery reads whole. It grows with the context window, a task's header sets `normal` or `expanded`, and Current Context (about 600 words) and Future Work (about 300) stay fixed.
 
-| Type | Code | Other work | Owner when due |
-| --- | --- | --- | --- |
-| `preserve` | local commit | save a draft version or snapshot | Deliver Work (commit) |
-| `publish` | push, pull request | publish, send to a client | Deliver Work (push, pull request or release) |
-| `review` | independent code review | editor or reviewer sign-off | Review Work |
-| `decision` | owner chooses a design | owner chooses between options | Discuss Work |
-| `continuity` | pause or handoff point | pause or handoff point | Track Work ([handoff](references/handoff.md)) |
+Run `budget` before you write a record or a checkpoint; `budget --record` shows what each part holds and what is left, and `init` and `checkpoint` print the same lines. The budget only warns. When a part runs over, distill it at the next checkpoint: rewrite Current Context tighter, give a source only some situations need a `Read when` trigger, drop sources the work no longer needs, and close Slices whose result is settled, never one that is not. When a task's memory keeps running over, propose expanded mode to the user; `task set-budget` changes it on their word.
 
-When a pending Checkpoint is due, stop dependent work, use its owner, and continue from the result. Do not force a Checkpoint whose condition, evidence or protected boundary no longer holds; return the discrepancy for cancellation, replacement, deferral or revision.
+Put a source under Defined by only when it is an accepted definition or a method the work must follow; memory you shaped goes under Read on recovery, so the budget counts what you can distill.
 
-Propose a Checkpoint only where it protects a dependency, decision, rollback, transfer, integration, or delivery; self-review is not one. A Checkpoint is `proposed` while it is only anticipated and `pending` once the user authorizes or selects it. Activate it as soon as authority exists. A pending or deferred Checkpoint must be closed before its Slice closes; `completed` means the boundary happened, even when its judgment was adverse.
+## Checkpoint Before A Compaction Or A Transfer
 
-On long tasks, a `preserve` Checkpoint every few Slices keeps a recoverable point without a Slice of its own.
+Goal: at a compaction, a switch or a transfer, the task folder holds everything the next cycle needs, so the work never depends on a summary.
+
+**When.** Freeflow's notice comes once each cycle, before the harness's own compaction would start. Keep working until a safe point: a finished step whose result you know, such as a check run and read, a set of edits complete, or a report written; not mid-edit, with a command still running, or partway through reads you need together. If your work ends within a step or two, finish it first. Then checkpoint and end your turn. Where the harness lets Freeflow compact, Freeflow then compacts the session with the record in place of the conversation and starts the next turn; elsewhere the harness compacts on its own, and you recover after it. Checkpoint the same way before a switch, a pause or a transfer, when a harness without Freeflow's notice says the context is nearly full, and when the user asks.
+
+**How:**
+
+1. Rewrite Current Context whole: the Goal; what is Settled and still governs; what is Open. Drop narration and anything another part already holds. Material that exists only in the conversation, such as a pasted image, file or long message, will not survive: save it under `sources/` and point to it.
+2. Adjust the rest of Current Work and Future Work: Defined by, Read on recovery and Read when (drop what the work no longer needs; give a source only some situations need its trigger), one Next action a fresh context can act on, and the route. Close nothing to make room. Do not rush a Slice to completion, claim an unfinished check passed, or guess the outcome of a running operation.
+3. If discussion with the user in this cycle shaped the work, save it as blocks; skip this when none did. `discussion list` numbers the user's messages since the last checkpoint; `discussion save --messages 4-7,11 --title <topic> --shapes <A-NNN or S-NNN> --input -` appends one block with those messages word for word and your line under each saying what it answered, specifically enough that it reads alone. A cycle may add several blocks, one per stretch of discussion, or none. A block is never edited: one that a later discussion changes is replaced (`--replaces B-NNN`), and once the work a block shaped is closed and nothing open rests on it, `discussion drop` removes it; the checkpoint lists those blocks.
+4. `checkpoint --record <ID> --input -` with In flight's lines, which replace the old ones whole. In flight is the record's part of the compaction: write state, not a story, and keep exact paths, identifiers, commands, error text, numbers, and the user's words where wording matters.
+   - `Now:` the step in progress and exactly how far it got;
+   - `Observed:` a result the next step rests on, with its evidence; `Hypothesis:` what is being tested, unverified;
+   - `Dropped:` an approach and why it failed, so it is not tried again; `Pending:` what runs or waits, and on what;
+   - `Carry:` a file the next cycle needs fresh, with its lines and why.
+
+   A result that closes a claim goes on the Slice instead, and a narrower instruction from the user in the agreement. The command checks the task folder's structure and the budget, writes Space for the repository you work in, sets the record's "State as of", then commits and pushes the store.
+5. With Freeflow's notice, end the turn. For a switch, `task switch`; for a pause or a transfer, `task release`, and write a [handoff](references/handoff.md) when someone needs a document.
+
+A session that holds no task writes a session summary instead, `checkpoint --session --input -` with its Goal, Settled, Open, Agreement, In flight, Read when and Next action: it is the next cycle's only memory. A compaction never creates a task.
+
+A checkpoint closes nothing and is not a Slice transition: pause a Slice only when safe continuation is actually suspended.
 
 ## Recover After Context Loss
 
-Context loss means the conversation about the current work is no longer in context: after compaction, a summary that replaces it, clear, a transfer to another context, or a session or branch that continues the work without it. Recover before task work (Rules), in order:
+Context loss means the conversation about the current work is no longer in context: after a compaction, a summary that replaces it, a clear, a transfer to another session, or a branch that continues the work without it. With that conversation still in context (a new message, a pause, a resumed session), read `record.md` or the part you need instead.
 
-1. `view recover`: the `resume` view (the record's present state and a one-line index of closed History), then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then where live Git state disagrees with the record. If output is truncated, keep reading until complete. Do not open `record.md` itself for this: it loads the whole History, which the index lets you read only where needed. A summary is not recovery.
-2. Every artifact listed under `What defines this task`, such as the task's Spec and Plan.
-3. Every entry under `Recovery sources`, except one whose stated trigger ("read when …") does not apply yet; read that one when it does.
-4. The History entries the next action depends on, through `view entry <ID>`: closed work on the same result or area, a blocked or abandoned attempt at what you are about to do, a superseded Decision behind a current one, and any entry the record or a source names by ID. Do not read entries just because they exist.
+- **After Freeflow's compaction** the conversation is the bundle: the opening line, the rules, the record, the active decisions, the History and project indexes, the checks, then every source recovery reads, whole, with their sizes. It was all read when the bundle was made: read none of it again unless something changed it since, but read again before you apply it any skill the bundle did not carry. Check the live state the next step depends on, and go on from In flight and the Next action.
+- **After the harness's own compaction,** its summary replaces the conversation, and where Freeflow's harness layer can add to it, the bundle as of the last checkpoint and the user's messages since then, word for word, follow. When the compaction came before a checkpoint, the record is behind: where the summary or those messages differ from it, they win, and the transcript holds what the summary lost. With no bundle after the summary, recover as the next line says.
+- **Otherwise,** when you take a task or no bundle came, recover only the task this session holds or the user's message points to; when that task and the user's current work disagree, report it instead of recovering it. `view recover --record <ID>` prints the opening line, the rules, the record, the active decisions, the indexes and the checks, which name any pointer that does not resolve. Read every Defined by entry, every Read on recovery source and the core skills (Track Work, Discuss Work and Execute Work), whole; a Read when source once its trigger applies; and, with `view entry <ID>`, the History entries the next action depends on: closed work on the same result, an attempt that failed or was abandoned, and any entry the record names. Then say in one line what you read.
+- **A worker** recovers with `view recover --record <ID> --delegation <D-NNN>`: its brief is its scope and wins where it and the record disagree.
 
-Then reconcile before acting. Establish the task and Slice state, the Work agreement (or, without one, the agreed outcome and return condition) and whether the user's latest direction has changed it, active Decisions, pending Checkpoints, completed and partial effects, whether the next action's prerequisites hold, and what authorizes it.
+Then reconcile before acting:
 
-- Current user direction supersedes older instructions in the record, including a record written on another conversation branch.
-- Compare the record with the live state the next action depends on. If they disagree, resolve it from sources; do not follow whichever version lets work continue.
-- If the record conflicts with a defining Spec or Plan, the record does not win. Return the conflict to that artifact's owner before dependent work.
-- Check an important completion, verification, review, or commit claim, and the identity of what it examined, before repeating it; a run that happened may not apply to the current state. Reuse evidence that still applies instead of repeating the investigation. Reopen further sources only when their exact content or freshness changes the next action.
+- The user's latest direction supersedes older instructions in the record, including a record written on another conversation branch. Establish the agreement (or, without one, the agreed outcome and return condition) and whether that direction has changed it, the active decisions, the Slice and its state, open delegations, partial effects, and whether the next action's prerequisites hold.
+- Compare the record with the live state the next action depends on: the checks name where each repository in Space stands and the store's unpushed commits. If they disagree, resolve it from sources; do not follow whichever version lets work continue.
+- If the record conflicts with a Spec or Plan under Defined by, the record does not win. Return the conflict to that artifact's owner before dependent work.
+- Check an important completion, verification, review, or commit claim, and the identity of what it examined, before repeating it; a run that happened may not apply to the current state. Reuse evidence that still applies instead of repeating the investigation, and reopen a source only when its exact content or freshness changes the next action.
 - A next action a handoff names authorizes nothing by itself. Without a record, as when resuming from a handoff alone, reconstruct from it and the exact sources it names, and report a missing boundary instead of inventing it.
-
-With that conversation still in context, use `view resume` or read the relevant section; a new message, a pause or a resumed session is not context loss.
-
-## Prepare For A Context Boundary
-
-When a context limit is near or a pause or transfer is coming, make the record sufficient before stopping:
-
-- Record partial effects, unverified work, failed approaches that would otherwise be repeated, and anything running whose result is unknown.
-- Update `Recovery sources` with what the next context must read, and why each matters. Drop entries the current work no longer needs; give a source needed only in some situation a trigger ("read when …").
-- Material that exists only in the conversation, such as a pasted image, file, or long message, will not survive. Save a copy under the task's `sources/` directory and point to it, or point to host-retrievable history when the host provides it.
-- Leave one Next useful action that a fresh context can act on.
-- For a pause or a transfer to another session or person, write the handoff with [handoff](references/handoff.md) once the record is sufficient.
-
-Do not rush a Slice to completion, claim an unfinished check passed, or guess the outcome of a running operation.
-
-A context boundary is not a Slice transition or a Checkpoint. Pause the Slice only when safe continuation is actually suspended, and use a `continuity` Checkpoint only for a planned pause or handoff, not for every compaction.
 
 ## Maintain The Record
 
-[Working Record Format](references/working-record-format.md) owns the exact shape, fields, states, and command contract; read it before editing structure or preparing input for a command.
+[Working Record Format](references/working-record-format.md) owns the exact shape of every file in the task folder and the command contract; read it before editing structure or preparing input for a command. Run `working-record.mjs <group> <operation> --help` before preparing a command's input; read `scripts/lib/` only when diagnosing a defect.
 
-Edit meaning directly: Current Context bullets, optional fields, Material updates, Recovery sources, proposal order or removal, the Next useful action, and Notes. After a structural edit, run `validate`. It checks structure, and warns about Material updates pointers (files, commits) that do not resolve (`--strict` fails on those an Evidence or Result line names); it cannot tell whether an edit changed history or skipped a lifecycle step, so never make those edits by hand.
+Edit meaning directly: Current Context (at a checkpoint), a Slice's update lines, Defined by, Read on recovery, Read when, the Next action, and the order, wording or removal of Future Work's proposals. After a structural edit, run `validate`. It checks structure and warns about pointers that do not resolve; it cannot tell whether an edit changed history or skipped a lifecycle step, so never make those edits by hand: IDs, states, the agreement's lines, the hold, and anything in `history.md`.
 
-Run `working-record.mjs <group> <operation> --help` before preparing a command's input; the help and the format reference are the contract, so read `scripts/lib/` only when diagnosing a defect. If a command exits with code 2, the write may have happened: read `view full` before retrying or editing. Never duplicate an entity to recover from an uncertain result.
+If a command exits with code 2, the write may have happened: read `view full` before retrying or editing, and never duplicate an entity to recover from an uncertain result. If a record fails validation, read it through `view full` and stop before edits or transitions; repair needs separate authorization.
 
-If `init` reports that the task directory is not ignored by Git, ask the user before changing ignore rules. Records must stay out of version control.
 
-If a record uses another schema or fails validation, read it through `view full` and stop before edits or transitions. Repair or migration needs separate authorization.
+Keep temporary files for the task, such as throwaway scripts, saved command output and downloads, in its `scratch/`. They stay with the task and out of version control; nothing in them is memory unless the record points to it.
 
 ## Close Without Losing What Matters
 
-Close a Slice as `completed` only when its result is supported by evidence, live state agrees, no material contradiction or authority conflict remains, and no Checkpoint on it is pending or deferred. Close as `blocked` from `paused` when it cannot continue, or as `abandoned` with explicit authority and a reason.
+Close a Slice as `completed` only when its result is supported by evidence, live state agrees, no material contradiction or authority conflict remains, and no delegation it waits on is open. Close as `blocked` from `paused` when it cannot continue, or as `abandoned` with explicit authority and a reason.
 
-Closing keeps only the historical fields; Material updates and Recovery sources do not carry over. Before closing, put every evidence pointer, residual effect, and limit that still matters into `Evidence and limits` or `Task effect`, and remove Recovery sources that no longer apply.
+`slice close` writes the Slice's one History entry, its update lines included; Read on recovery and Read when entries do not carry over. Give it a cue that says when the entry matters, not what it holds ("read when the retry policy is in question"), and put every pointer, residual effect and limit that still matters into its Evidence and Task effect. Then remove the sources the record no longer needs.
 
 When the Slice settled how a documented part of the software works or why, such as a design choice, a rejected alternative, or a limit accepted on purpose, record it in that documentation with [Write Docs](../write-docs/SKILL.md) before closing. The record is task memory; it does not outlive the task.
 
-Closing selects nothing. Set the Next useful action from the actual result.
+Closing selects nothing. Set the Next action from the actual result.
 
 ## Return
 
 Return to the activity that asked for the update: [Discuss Work](../discuss-work/SKILL.md) for discussion, [Execute Work](../execute-work/SKILL.md) for Slice work. [Write Docs](../write-docs/SKILL.md) owns the task's Specs and Plans.
 
-Stop when the record lets a fresh context continue correctly. Stop and report, rather than invent, when authority, structure, or the meaning of a transition is missing. A record update never completes the work it describes.
+Stop when the task folder lets a fresh context continue correctly. Stop and report, rather than invent, when authority, structure, or the meaning of a transition is missing. A record update never completes the work it describes.

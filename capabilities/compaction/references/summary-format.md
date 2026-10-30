@@ -28,7 +28,7 @@ Before calling `compact_context`, check the summary as a whole: would a fresh co
 
 ## Record-backed shape
 
-The summary must let a fresh context continue the **current step** correctly on its own; the record lets it continue the **task**. Write the summary right after updating the record (Track Work, "Prepare For A Context Boundary"), so the two agree. If they ever disagree, the record and live state win.
+The summary must let a fresh context continue the **current step** correctly on its own; the record lets it continue the **task**. Write the summary right after updating the record (Track Work's [Schema 4](../../../skills/track-work/references/schema-4.md#before-a-context-boundary), "Before A Context Boundary"), so the two agree. If they ever disagree, the record and live state win.
 
 ```markdown
 ## Task
@@ -60,7 +60,7 @@ The summary must let a fresh context continue the **current step** correctly on 
 
 ## Record-shaped shape
 
-Each heading means exactly what it means in the Working Record format ([Working Record Format](../../../skills/track-work/references/working-record-format.md)). `Current work` stands in for the Current Slice: in-progress work, partial or uncommitted effects, unverified results, running commands, and obligations with their trigger, using the same `Observed:`, `Dropped:`, and `Pending:` labels where they fit. `Recovery sources` names only what the next cycle must read again: what you carry is read at compaction and arrives with the summary, so leave it out.
+Each heading means exactly what it means in the Working Record format ([Schema 4](../../../skills/track-work/references/schema-4.md#record-format)). `Current work` stands in for the Current Slice: in-progress work, partial or uncommitted effects, unverified results, running commands, and obligations with their trigger, using the same `Observed:`, `Dropped:`, and `Pending:` labels where they fit. `Recovery sources` names only what the next cycle must read again: what you carry is read at compaction and arrives with the summary, so leave it out.
 
 ```markdown
 ## Goal

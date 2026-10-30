@@ -21,7 +21,7 @@ import {
   parseRecord5,
   renderFields5,
 } from "./record5.mjs";
-import { freeflowStoreOf, storeOf, writeAtomically, writeTaskFile } from "./store.mjs";
+import { freeflowStoreOf, projectOf, writeAtomically, writeTaskFile } from "./store.mjs";
 
 export const KINDS = new Set(["build", "review", "research", "eval", "gather"]);
 export const OUTCOMES = new Set(["accepted", "sent back", "stopped"]);
@@ -216,7 +216,7 @@ async function sync(taskDir, message) {
 }
 
 function taskName(recordPath) {
-  const project = storeOf(recordPath);
+  const project = projectOf(recordPath);
   const folder = basename(dirname(recordPath));
   return project ? `${basename(project)}/${/^task-\d{3,}/.exec(folder)[0]}` : folder;
 }

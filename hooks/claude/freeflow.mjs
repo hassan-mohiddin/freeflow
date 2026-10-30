@@ -4,9 +4,9 @@
 // its event on unchanged.
 
 const SCRIPT = "skills/track-work/scripts/working-record.mjs";
-const FIRST_NOTICE = 0.75; // of the window (P50)
-const NOTICE_STEP = 0.05; // then every 5% of it
-const THRESHOLD_LEAD = 0.1; // and the first comes at least a tenth of the window before Claude's own threshold (T13)
+const NOTICE_AT = 0.75; // of the window, one notice a cycle (P50)
+const THRESHOLD_LEAD = 0.1; // and at least a tenth of the window before Claude's own threshold (T13)
+const ROWS_AT = [0.5, 0.6, 0.7]; // of the window, one row each a cycle below the notice point, showing the context (P80)
 const DELEGATION = /\bD-\d{3,}(?:\.\d+)?\b/; // the delegation an Agent call's prompt names (T7)
 const FILE_TOOLS = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit", "Glob", "Grep"]);
 const STORE_REASON = "Freeflow's store, which holds the task memory the agent keeps";
@@ -14,14 +14,15 @@ const CONTINUE =
   "Freeflow compacted the session after your checkpoint: the conversation is now your task's bundle. Continue from In flight and the Next action.";
 
 // What the mod keeps between events. A cycle runs from the session's start or a compaction to the next compaction;
-// its notice is the time of the last checkpoint notice in it (T12). A module reload starts both over.
-/** @type {{ startedAt: number, notice: number | null, nextNotice: number | null }} */
-let cycle = { startedAt: Date.now(), notice: null, nextNotice: null };
+// its notice is the time of its one checkpoint notice (T12), its number is counted in the store (T27), and row is the
+// highest share of the window a row has shown in it (P80). A module reload starts it over, reading the number again.
+/** @type {{ startedAt: number, notice: number | null, number: number | null, row: number }} */
+let cycle = { startedAt: Date.now(), notice: null, number: null, row: 0 };
 /** @type {number | null} the window the conversation compacts against, read once a cycle */
 let contextWindow = null;
 /** @type {number | null} where Claude's own compaction starts in it; null with automatic compaction off */
 let threshold = null;
-/** @type {Map<string, { delegation: string, nextNotice: number | null }> | null} agent ID -> its delegation, kept in the store's sessions/ folder too */
+/** @type {Map<string, { delegation: string, noticed: boolean }> | null} agent ID -> its delegation, and whether its cycle had its notice; the delegations are kept in the store's sessions/ folder too */
 let workers = null;
 /** @type {string | null | undefined} where the store really is; null where there is none, undefined until read */
 let storeRoot = undefined;
@@ -114,48 +115,101 @@ async function readWindow($) {
   contextWindow = size || null;
 }
 
-/** A new cycle, after the session's start or a compaction: no notice yet, and the window read again. */
-async function newCycle($) {
-  cycle = { startedAt: await $.clock.now(), notice: null, nextNotice: null };
+/** A new cycle: no notice or row yet, and the window read again; its number as given, null to read it from the store. */
+async function newCycle($, number = cycle.number) {
+  cycle = { startedAt: await $.clock.now(), notice: null, number, row: 0 };
   contextWindow = null;
 }
 
-/**
- * Where the first notice comes, in tokens: 75% of the window, or a tenth of it before Claude's threshold if lower.
- * @param {number} size
- */
-const firstNotice = (size) => Math.min(FIRST_NOTICE * size, threshold ? threshold - THRESHOLD_LEAD * size : Infinity);
+/** Where the store counts this session's cycles: a resumed session keeps its count, a new one starts at 1. */
+const cyclePath = (state) => `${state.home}/sessions/${state.session}/cycle.json`;
 
-function noticeText($, context, state) {
-  const command = `node ${$.plugin.root}/${SCRIPT}`;
-  const checkpoint = state.task
-    ? `Checkpoint now: rewrite ${state.task.id}'s Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion that shaped the work (discussion list, discussion save), then run ${command} checkpoint --record ${state.task.id} --input - with In flight's lines.`
-    : `This session holds no task: write its summary now with ${command} checkpoint --session --input - (Goal, Settled, Open, Agreement, In flight, Read when, Next action).`;
-  return `Freeflow: the context is at ${Math.round((100 * context.tokens) / context.window)}% of its window (${context.tokens} of ${context.window} tokens), and compaction is near. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and starts the next turn where it can.`;
+/** This cycle's number, read from the store the first time. */
+async function cycleNumber($, state) {
+  if (cycle.number === null) {
+    const kept = await $.fs.read(cyclePath(state)).catch(() => "null");
+    let number = 1;
+    try {
+      number = Number(JSON.parse(kept).cycle) || 1;
+    } catch {
+      // none kept yet, or unreadable: the count starts again at 1
+    }
+    cycle.number ??= number;
+  }
+  return cycle.number;
 }
 
-/** After each request of the main conversation: the checkpoint notice, appended so a long turn has it (P50, T13). */
-async function noticeMain($) {
+/** A compaction of the main conversation: the next cycle, its number counted in the store where there is one. */
+async function nextCycle($, state) {
+  const number = state ? (await cycleNumber($, state)) + 1 : null;
+  if (state) await $.fs.write(cyclePath(state), `${JSON.stringify({ cycle: number })}\n`);
+  await newCycle($, number);
+}
+
+/**
+ * Where the notice comes, in tokens: 75% of the window, or a tenth of it before Claude's threshold if lower.
+ * @param {number} size
+ */
+const noticePoint = (size) => Math.min(NOTICE_AT * size, threshold ? threshold - THRESHOLD_LEAD * size : Infinity);
+
+/** What a safe point is: where stopping loses nothing that is not written down (Pi's "compaction is due soon"). */
+const SAFE_POINT =
+  "a finished step whose result you know (a check run and read, a set of edits complete, a report written), not mid-edit or with a command still running";
+
+const share = (context) =>
+  `${Math.round((100 * context.tokens) / context.window)}% of its window (${context.tokens} of ${context.window} tokens)`;
+
+function noticeText($, context, state, number) {
+  const command = `node ${$.plugin.root}/${SCRIPT}`;
+  const limit = threshold ? `; Claude Code compacts on its own at about ${Math.round(threshold)} tokens` : "";
+  const checkpoint = state.task
+    ? `At that point, checkpoint ${state.task.id}: rewrite ${state.task.id}'s Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${state.task.id} --input - with In flight's lines.`
+    : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --input - (Goal, Settled, Open, Agreement, In flight, Read when, Next action).`;
+  return `Freeflow, cycle ${number}: the context is at ${share(context)}${limit}. Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and starts the next turn where it can. This is the only notice this cycle; if Claude Code compacts before the checkpoint, the record as of its last checkpoint follows Claude's summary.`;
+}
+
+/**
+ * @param {any} $
+ * @param {string} text
+ */
+async function appendRow($, text) {
+  await $.session.append({ message: { type: "user", content: [{ type: "text", text }] } });
+}
+
+/** After each request of the main conversation: below the notice point, a row at the highest of ROWS_AT the context
+ * has crossed, once each a cycle (P80, T28); at it, the cycle's one checkpoint notice, appended so a long turn has it
+ * (P50, T13). Appending leaves what the model already received, and the prompt cache, as it was. */
+async function watchMain($) {
+  if (cycle.notice !== null) return;
   const current = cycle;
   const { tokens } = (await $.session.usage()).context;
   if (!tokens) return;
   if (contextWindow === null) await readWindow($);
   if (!contextWindow) return;
-  if (cycle.nextNotice === null) cycle.nextNotice = firstNotice(contextWindow);
-  if (tokens < cycle.nextNotice) return;
-  while (cycle.nextNotice <= tokens) cycle.nextNotice += NOTICE_STEP * contextWindow;
+  const point = noticePoint(contextWindow);
+  const context = { tokens, window: contextWindow };
+  if (tokens < point) {
+    const row = ROWS_AT.filter((at) => tokens >= at * contextWindow).at(-1);
+    if (!row || row <= cycle.row) return;
+    // Taken before the store is asked, so a session with none asks once a row.
+    cycle.row = row;
+    const state = await status($);
+    if (cycle !== current || cycle.notice !== null || !state) return;
+    const number = await cycleNumber($, state);
+    await appendRow(
+      $,
+      `Freeflow, cycle ${number}: the context is at ${share(context)}; the checkpoint notice comes at about ${Math.round(point)} tokens.`,
+    );
+    return;
+  }
   const state = await status($);
-  // A compaction that came meanwhile started a new cycle, which this request's figures no longer describe.
-  if (cycle !== current) return;
-  // The notice repeats only while the checkpoint it asked for has not come: once it has, a later one would undo it.
-  if (!state || (cycle.notice !== null && checkpointDone(state))) return;
+  // A compaction that came meanwhile started a new cycle, which this request's figures no longer describe; a notice
+  // another request made meanwhile is the cycle's one.
+  if (cycle !== current || cycle.notice !== null) return;
+  if (!state) return;
   cycle.notice = await $.clock.now();
-  await $.session.append({
-    message: {
-      type: "user",
-      content: [{ type: "text", text: noticeText($, { tokens, window: contextWindow }, state) }],
-    },
-  });
+  const number = await cycleNumber($, state);
+  await appendRow($, noticeText($, context, state, number));
 }
 
 /** The workers this session started, by agent ID: read once from the store's sessions/ folder after a reload. */
@@ -165,27 +219,25 @@ async function workerMap($, state) {
   const path = state && `${state.home}/sessions/${state.session}/delegations.json`;
   if (path && (await $.fs.exists(path))) {
     for (const [agentId, delegation] of Object.entries(JSON.parse(await $.fs.read(path))))
-      workers.set(agentId, { delegation, nextNotice: null });
+      workers.set(agentId, { delegation, noticed: false });
   }
   return workers;
 }
 
-/** After each request of a worker: near the threshold, in the session's window, a message to rewrite its progress.md
- * (T7). Its context is its request's usage. */
+/** After each request of a worker: once a cycle, near the threshold, in the session's window, a message to rewrite its
+ * progress.md at a safe point (T7). Its context is its request's usage. */
 async function noticeWorker($, step, response) {
   const worker = (await workerMap($, null)).get(step.agentId);
-  if (!worker || !response.usage) return;
+  if (!worker || worker.noticed || !response.usage) return;
   const { input_tokens, cache_read_input_tokens, cache_creation_input_tokens } = response.usage;
   const tokens = input_tokens + (cache_read_input_tokens ?? 0) + (cache_creation_input_tokens ?? 0);
   if (contextWindow === null) await readWindow($);
   const size = contextWindow;
-  if (!size) return;
-  if (worker.nextNotice === null) worker.nextNotice = firstNotice(size);
-  if (tokens < worker.nextNotice) return;
-  while (worker.nextNotice <= tokens) worker.nextNotice += NOTICE_STEP * size;
+  if (!size || tokens < noticePoint(size)) return;
+  worker.noticed = true;
   await $.session.send({
     to: { agentId: step.agentId },
-    text: `Freeflow: your context is at ${Math.round((100 * tokens) / size)}% of its window and compaction is near. Rewrite ${worker.delegation}'s progress.md now (Done, Half done, Didn't work, Next), so a compaction loses nothing, then go on.`,
+    text: `Freeflow: your context is at ${Math.round((100 * tokens) / size)}% of its window and compaction is near. At your next safe point, rewrite ${worker.delegation}'s progress.md (Done, Half done, Didn't work, Next), so a compaction loses nothing, then go on.`,
   });
 }
 
@@ -266,6 +318,8 @@ async function workerCompaction($, e, next) {
   const state = await status($);
   const worker = (await workerMap($, state)).get(e.agentId);
   if (!state?.task || !worker) return next(e);
+  // Its compaction starts the worker's next cycle, with a notice of its own.
+  worker.noticed = false;
   const note = `Freeflow: this agent is the worker for delegation ${worker.delegation}. Say so in the summary, and that after the compaction it recovers with node ${$.plugin.root}/${SCRIPT} view recover --record ${state.task.id} --delegation ${worker.delegation}, then continues from its progress.md.`;
   return next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${note}` : note });
 }
@@ -299,7 +353,7 @@ export function register(on) {
   on("classic.SessionStart", async ($, e, next) => {
     const result = await next(e);
     if (e.source === "compact") return result;
-    await newCycle($);
+    await newCycle($, null);
     workers = null;
     await readWindow($);
     const state = await status($, { session: e.session_id });
@@ -317,7 +371,7 @@ export function register(on) {
   on("turn.step", async function* ($, e, next) {
     const response = yield* next(e);
     try {
-      if (e.agentId === undefined) await noticeMain($);
+      if (e.agentId === undefined) await watchMain($);
       else await noticeWorker($, e, response);
     } catch (error) {
       $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
@@ -353,14 +407,16 @@ export function register(on) {
     if (e.trigger === "precompute") return next(e);
     if (e.agentId !== undefined) return workerCompaction($, e, next);
     const state = await status($);
-    if (!state || (!state.task && !state.summary)) return next(e);
-    const done = checkpointDone(state);
-    const result = done
-      ? await ownCompaction($, e, next, state)
-      : state.task
-        ? await fallbackCompaction($, e, next, state)
-        : await next(e);
-    if (!result.skip) await newCycle($);
+    const result =
+      !state || (!state.task && !state.summary)
+        ? await next(e)
+        : checkpointDone(state)
+          ? await ownCompaction($, e, next, state)
+          : state.task
+            ? await fallbackCompaction($, e, next, state)
+            : await next(e);
+    // Every compaction of the main conversation starts the next cycle, Claude's own without a task included.
+    if (!result.skip) await nextCycle($, state);
     return result;
   });
 
@@ -371,7 +427,7 @@ export function register(on) {
     if (!result.agentId || !delegation) return result;
     const state = await status($);
     const map = await workerMap($, state);
-    map.set(result.agentId, { delegation, nextNotice: null });
+    map.set(result.agentId, { delegation, noticed: false });
     if (state)
       await $.fs.write(
         `${state.home}/sessions/${state.session}/delegations.json`,

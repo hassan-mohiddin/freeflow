@@ -1,309 +1,393 @@
 # Working Record Format
 
-This reference owns the exact Schema 4 shape: sections, fields, states, lifecycle transitions, and the command contract. It defines format, not what is worth recording; [Track Work](../SKILL.md) owns that judgment.
+This reference owns where Schema 5 task memory lives and its exact shape: the Freeflow store and its sync, projects and holds, the task folder and each of its files, the record's sections, fields and states, and the command contract. It is binding as written, with the Rules below. It defines format, not what is worth recording; [Track Work](../SKILL.md) owns that judgment. A record whose header says `Schema: 4` follows [Schema 4](schema-4.md).
 
-## Task Directory
+## Rules
 
-Each task has one directory:
+- Make the store, add its remote, create or remove a project, and create, move or remove a task only when the user asks or says yes to your question. A removal is a delete and a commit that Git history keeps: never delete the store's files another way, and never rewrite, reset or force-push its history.
+- The store goes only to the user's own private remote. Never push it, or copy its records, anywhere else.
+- When a sync stops on a conflict, show the user both copies and stop work on that file until they say what stays; never take one side to make the sync pass.
+- Write the store only through the script and the direct edits Track Work allows; never commit, pull or push in the store by hand.
+
+## The Store
+
+The Freeflow store is one Git repository at `FREEFLOW_HOME` (default `~/.freeflow`) that holds every task's memory, its records tracked on purpose:
 
 ```text
-.freeflow/tasks/task-NNN-<short-name>/
-  record.md    the Working Record
-  specs/       task-local Specs
-  plans/       task-local Plans
-  sources/     saved copies of material that exists only in conversation
-  scratch/     temporary work: throwaway scripts, saved output, downloads
+<FREEFLOW_HOME>/
+  store.json             marks the store
+  .gitignore             scratch/, evidence/**/raw/, local/, sessions/
+  .gitattributes         history.md and sessions.md merge by keeping both sides' lines
+  rules/                 the user's standing rules, read for every task
+  projects/<project>/
+    rules/               read for this project's tasks
+    tasks/task-NNN-<short-name>/
+  tasks/task-NNN-<short-name>/   a task in no project
+  local/                 this machine only: where each repository is, sync state, conflicts
+  sessions/              this machine's live sessions: worker maps, session summaries
 ```
 
-`NNN` is three or more digits. A new task takes the next number after the highest existing one; numbers are never reused. `specs/`, `plans/`, and `sources/` are created only when needed; `init` creates `scratch/`. Nothing in `scratch/` is part of the record unless the record points to it, and it may be deleted when the task ends. The directory must be ignored by Git and untracked.
+`rules/` holds the user's always-on context, like `CLAUDE.md` with room to organize: every file in the store's `rules/`, and the project's once the session holds one of its tasks, is read at every recovery and never counted against the budget. Create or edit a rule only when the user asks; the checks show their size, and you never trim them.
 
-A registered task's directory lives in its project's store instead (`<Freeflow home>/projects/<project>/tasks/task-NNN-<short-name>/`, outside any repository; the store is marked by its `store.json`), with the same contents; see [Projects And Child Records](projects.md).
+**Local or cloud.** The same store either way. A local store, the default, lives on this device only: `store init` makes it, and nothing leaves the machine. A cloud store is the same store with the user's private repository as its remote, kept in step on every device: `store init --remote <url>` clones it into `FREEFLOW_HOME`, laying out an empty repository as a store or joining one that already is, and `store remote --url <url>` moves a local store's whole history into an empty repository. A cloud session needs a cloud store, since its container is thrown away: the store's repository is one of the session's repositories, `FREEFLOW_HOME` points at its clone, and pushing needs the host's access to that repository. `store init` refuses a folder that holds Pi's Task Memory (`registry.json`) or anything else: ask the user where the store should go. Commits are authored as the user, with no trailers.
 
-A Spec or Plan may instead live in the repository's own documentation; the record points to it either way.
+## Sync
 
-## Skeleton
+| When | What runs |
+| --- | --- |
+| Session start | The remote's commits are taken under the local ones: Freeflow's harness layer runs `store sync --pull`; elsewhere, run it yourself. |
+| `task take`, `release`, `switch` | The hold is written, committed and pushed. |
+| A Slice, agreement or delegation closes; each `checkpoint` | Commit, take the remote's commits, push. |
+| A turn that changed the store ends; the session ends | Freeflow's harness layer runs `store sync`; elsewhere, run it yourself after direct edits you need kept. |
 
-`init` creates every structural heading:
+`store status` says, with no network, what is not committed or not pushed and when the store last synced. A local store commits and has nothing to push.
+
+When a sync fails:
+
+- **The remote moved:** the sync takes its commits and pushes again by itself.
+- **No network or no access:** the commits stay on this machine, the output says so, and the next sync pushes them. Work never waits on the network.
+- **A secret in the changes:** the push stops and names the path, line and kind. Remove it from the file, and tell the user if it was real, then sync again; never push it.
+- **A file both sides changed** (other than `history.md` and `sessions.md`): this store's copy stays in place, committed and not pushed, and the remote's goes under `local/conflicts/`. Show the user both, merge what they say should stay into this store's file, then run `store sync --resolved`.
+
+## Projects
+
+A project is a folder, `projects/<project>/`, with its `rules/` and `tasks/`; a task belongs to the project whose folder holds it, and its ID is `<project>/task-NNN`. A task in no project is in the store's own `tasks/`, its ID `task-NNN`; `task create` puts it there with `--no-project`, or when no project's tasks name the repository. A session finds its project by matching the repository's remote against the repositories its tasks name in Space; a folder with no repository, or one no task names, gets the list of projects. The store writes nothing into code repositories; only a task kept without a store lives in one, in its Git-ignored `.freeflow/tasks/`.
+
+```text
+working-record.mjs project new --name <name>                         a project, on the user's word
+working-record.mjs project list                                       every project, its tasks and repositories
+working-record.mjs project show [--name <project>]                    a project's tasks; without --name, this repository's menu
+working-record.mjs task here [--cwd <directory>]                      the session-start menu
+working-record.mjs task search --query <words> [--project <p>]       every task's record, history and decisions
+working-record.mjs task remove --id <ID> | project remove --name <p>   delete and commit, on the user's word
+working-record.mjs task move --id <ID> (--project <p> | --no-project)  into a project or out of one, on the user's word
+```
+
+`task move` moves the task's folder, gives it the next number free in its new place, then commits and pushes; the output prints the new ID. The old ID no longer names the task, its delegations' briefs name the new one, and Git history keeps the old path. It is refused while another session holds the task. Creating, taking, releasing and switching tasks are in Lifecycle Commands, below.
+
+### Other Tasks In The Project
+
+Each task keeps its own record. The project index in recovery lists the other tasks, each with its cue. Read one (`task search --query <words>`, then `view recover --record <ID>` or `view entry`) when it bears on what you are about to decide or build, and search the project before settling something another task may already have settled. Use what you read as evidence about that task, name it when it shapes your work, and record what matters to this task in this task's own record, never in the other one.
+
+### Where A Task's Work Happens
+
+Space names every repository the task changes, and `local/` where each one is on this machine. Make the task's changes in those repositories; work in another belongs to another task unless the user says otherwise. `checkpoint` writes the Space line for the repository it runs in, or the one `--repo` names.
+
+### Removing
+
+`task remove` and `project remove` delete the folder, then commit and push; the output says how to bring it back from Git history. Run them only when the user asked for that task or project to be removed. A removed task's number is never reused.
+
+## Holds
+
+A task's `sessions.md` keeps one line per session that held it; its last open line is the hold. A take refused because another session holds the task names that session and when it last synced: ask the user before `--takeover`; that session learns at its next sync and stops writing.
+
+- **A compaction** keeps the session and its hold.
+- **`/clear`** starts a new session: the old one's end releases the hold, and the new menu lists that task first.
+- **A fork** has a new session ID; taking the task asks first, since the session it forked from still holds it.
+- **A session reopened later** finds its hold by its ID. If the task was taken over meanwhile, ask before taking it back; if it changed, recover.
+- **A cloud session that goes idle** keeps its hold until another session takes the task over.
+
+A task has one holder, so work that must run in parallel interactive sessions is separate tasks, each with its own record; parallel work inside one session is delegation (Execute Work's [delegation](../../execute-work/references/delegation.md) reference). Child records and fan-out are Schema 4's, on Pi.
+
+## Task Folder
+
+```text
+task-NNN-<short-name>/
+  record.md          the state                                    the session holding the task
+  history.md         closed Slices, agreements and delegations    the closing commands
+  sessions.md        every session that held the task            task create, take, release and switch
+  decisions.md       the open agreement's decision list           the session holding the task
+  sources/           material from outside the work, notes        the session holding the task
+    discussion.md    the user's messages that shaped the work     discussion save and drop
+  delegations/       one folder per delegation                    whoever hands the work out, and each worker
+  evidence/<slug>/   README.md kept; raw/ ignored                 whoever ran it
+  specs/  plans/     when the task has them                       Write Docs
+  scratch/           temporary, ignored                           anyone
+```
+
+In the Freeflow store the folder is `<store>/projects/<project>/tasks/task-NNN-<short-name>/`, and its ID is `<project>/task-NNN`, or in no project `<store>/tasks/task-NNN-<short-name>/`, and `task-NNN`; every command that takes `--record` also takes the ID. Without a store it is `<repository>/.freeflow/tasks/task-NNN-<short-name>/`, which Git must ignore. `NNN` is three or more digits; a new task takes the next number after the highest one there, and numbers are never reused. `init` and `task create` write `record.md`, `history.md`, `decisions.md` and `scratch/`, and `task create` also `sessions.md`; the rest appear when needed. Nothing anything points to is ever under `scratch/`. `sources/notes.md` holds free notes when a task wants them; they carry no authority.
+
+A delegation's folder, `delegations/D-NNN-<slug>/` with `brief.md`, `progress.md` and `return.md`, and a sub-worker's inside its worker's, are Execute Work's [delegation](../../execute-work/references/delegation.md) reference's.
+
+## record.md
+
+`init` writes every structural heading:
 
 ```markdown
-# Working Record: <task name>
+# <task name>
 
-Schema: 4
-State: active
-Last updated: <UTC ISO-8601 timestamp>
+Schema: 5 · State: active · Budget: normal
+Cue: read when <situations this task matters to>
+State as of: <UTC ISO-8601 time>
 
 ## Current Context
 
 ### Goal
 
-### What defines this task
-
 ### Settled
-
-### Tentative
 
 ### Open
 
-### Current direction
-
-### Boundaries
-
 ## Current Work
 
-### Current Slice
+### Delegations
 
-None
+### Space
 
-### Recovery sources
+### In flight
 
-### Next useful action
+### Defined by
+
+### Read on recovery
+
+### Read when
+
+### Next action
 
 ## Future Work
-
-## History
-
-### Decisions
-
-### Checkpoints
-
-### Slices
-
-## Notes
 ```
 
-The five top-level sections are fixed, in this order: Current Context, Current Work, Future Work, History, Notes. `### Recovery sources` is optional; records created before it existed remain valid without it. `### Work agreement` is optional and not in the skeleton: `init` writes it, directly after Goal, only when its input has one.
+The three top-level sections are fixed, in this order. Current Work holds its seven headings in this order; while an agreement is open, `### Agreement A-NNN — <title>` comes first, and while a Slice is current, `### Slice S-NNN — <title>` follows it, both before Delegations.
 
-The header holds the task name, `Schema`, task `State`, and `Last updated`. `init` and every successful lifecycle command set `Last updated`; views, validation, failed commands, and direct edits do not. It records recency only, not validity or truth.
+### Header
 
-## Field Syntax
+| Line | Holds |
+| --- | --- |
+| `# <task name>` | The task's name. |
+| `Schema: 5 · State: <state> · Budget: <mode>` | The task state (`active`, `paused`, `completed`, `abandoned`) and the budget mode (`normal` or `expanded`; `normal` when absent). |
+| `Cue:` | When the task matters, starting "read when", in at most 25 words. The menu and the project index show it. |
+| `State as of:` | When the record was last checkpointed: `init` and `checkpoint` set it, nothing else. Where Freeflow compacts for the harness, it counts a checkpoint as done when this is later than the cycle's notice, or, with no notice in the cycle, than the cycle's start. |
 
-Structured entities use compact field rows:
+### Fields
+
+Structured blocks use field rows:
 
 ```markdown
 - Field: one-line value
-- Field:
-  - first item
-  - second item
+  continued on lines indented two spaces
 ```
 
-- Multi-line values are indented two spaces under their field.
-- The older expanded style (`Field: value` without the leading dash) is still read. Do not mix the two styles within one entity; commands rewrite entities they change in compact style.
-- Use only the fields defined for the entity. Omit an optional field that has no value; never write an empty label such as `- Type:`.
-- Every line inside a structured entity belongs to a field or a permitted nested heading. Stray text is invalid.
-- Durable IDs are assigned by commands: `S-NNN` Slices, `C-NNN` Checkpoints, `D-NNN` Decisions. They appear in headings and never change or get reused. They follow recording order, not the order work happened.
-- Proposed Slices and proposed Checkpoints have no ID. Their titles must be unique across Future Work.
+Use only the fields defined for the block; omit an optional field that has no value, never writing an empty label. Every line inside a block belongs to a field or an update line; stray text is invalid. IDs are assigned by commands and never change or get reused: `A-NNN` agreements, `S-NNN` Slices, `D-NNN` delegations and `D-NNN.n` sub-workers' delegations, `B-NNN` discussion blocks. They follow recording order. Proposed Slices have no ID.
 
-## Current Context
+### Current Context
 
-Present understanding, as bullets under these seven headings, plus an optional Work agreement directly after Goal:
+Bullets under Goal, Settled and Open, in about 600 words in every mode and window. It is written at `init` and rewritten whole before each `checkpoint`; `agreement close` also adds to Settled the choices that still govern.
 
 | Heading | Holds |
 | --- | --- |
 | Goal | The outcome or central question; not the current mechanism. |
-| Work agreement (optional) | The current work agreement, as far as it is known: what done looks like, what the agent does without asking, what needs the user's yes first, where it comes back, and how long it holds. |
-| What defines this task | Pointers to the artifacts that define the task, such as its Spec, Plan, issue, or user-supplied brief. Every entry is read on each recovery. |
-| Settled | Facts and accepted understanding that still affect the work. |
-| Tentative | Hypotheses and provisional approaches. |
-| Open | Unresolved questions that could change the work. |
-| Current direction | The remaining approach and why; not a history of completed work. |
-| Boundaries | Scope exclusions, constraints, evidence limits, user-facing return conditions, and separately controlled actions. When the record has a Work agreement, return conditions and separately controlled actions belong there, and Boundaries keeps the rest. |
+| Settled | Facts and accepted choices that still govern the task. |
+| Open | Questions that could change the work, and proposals the user has not answered, each `Proposed: <proposal> (<date>)`. |
 
-Start each line with the lead words for the part it states: `Done when`, `Without asking:`, `Ask first:`, `Back`, `Holds until`. Write only the parts that are known; one line is often enough, and `validate` does not check the lead words. Each line that rests on the user's reply quotes it, beside what it answered:
+### The Agreement
 
 ```markdown
-### Work agreement
+### Agreement A-003 — Retries for 503
 
-- Done when the reported bug is fixed and its PR is open.
-- Without asking: fix it, commit on a branch, open the PR. You said "yeah, do that" to that route (2026-10-12).
-- Ask first: merging, anything outside the bug.
-- Back at the PR.
-- Holds until the PR merges.
+- Opened: 2026-10-29
+- Done when 503s are retried with backoff and the pull request is open. You: "go" (2026-10-29)
+- Without asking: change src/http/ and its tests.
+- Ask first: merging.
+- Back at the pull request.
+- Update: Narrowed to diagnosis: "just find the cause first" (2026-10-30)
 ```
 
-The heading is never empty: omit it until something is agreed. `validate` rejects it when it is empty or anywhere but directly after Goal.
+`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`) and quotes the user where it rests on their reply. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
 
-Keep only pointers under `What defines this task`; accepted choices go in Decisions and constraints in Boundaries. Change Current Context only when present meaning changes; a lifecycle transition alone does not require it. Remove narration once its consequence is recorded elsewhere.
-
-## Current Work
-
-Current Work holds one Current Slice or `None`, optional Recovery sources, and one Next useful action.
-
-### Current Slice
+### The Slice
 
 ```markdown
-#### S-004 — Draft the migration guide
+### Slice S-024 — Add the retry loop
+
 - State: in_progress
-- Type: delivery
-- Intended result: A guide existing users can follow to move to v2.
-- Authority source: User request in this conversation.
-- Scope: docs/migration.md only.
-- Expected evidence: Every v1 option maps to a v2 option or a stated removal.
-- Stop condition: A v1 option with no v2 equivalent and no accepted removal.
-- Starting state: docs/migration.md does not exist.
-
-##### Material updates
-
-- Evidence — claim: all 14 options mapped; observer/boundary: diff against v1 option list; result: supported; proves: coverage of listed options; does not prove: undocumented options; pointer: docs/migration.md
+- Opened: 2026-10-30
+- Under: A-003
+- Result wanted: 503 responses retried three times with backoff.
+- Scope: src/http/client.ts and its test.
+- Done when: the test sends three 503s and sees three attempts.
+- Stop if: a caller relies on a single attempt.
+- Started from: main at 1a2b3c4d; no retry.
+- Waits on: D-012
+- Evidence (observed): the retry test passes — scratch/retry-test.txt
+- Result: commit 5e6f7a8b
 ```
 
 | Field | Required | Values |
 | --- | --- | --- |
 | State | yes | `in_progress`, `paused` |
-| Intended result | yes | |
-| Authority source | yes | |
+| Opened | yes | The date the Slice started. |
+| Under | yes | The open agreement, `A-NNN`. |
+| Result wanted | yes | |
 | Scope | yes | |
-| Expected evidence | yes | |
-| Stop condition | yes | |
-| Starting state | yes | The state of what this Slice will change. |
-| Type | no | `learning`, `delivery`, `deepening` |
+| Done when | yes | The evidence that shows it is done. |
+| Stop if | yes | |
+| Started from | yes | The state of what this Slice will change; a Slice that continues closed work names it here. |
+| Waits on | no | The delegations whose result it needs, `D-NNN`, comma-separated. |
 | Dependencies | no | |
-| Reopened from | no | `S-NNN` of a historical Slice |
 
-`in_progress` means the Slice's result is being pursued. `paused` means it is still current but safe continuation is suspended; an ordinary turn, feedback, or context boundary is not a pause.
+After the fields come its update lines, one line each, a kind and then the claim and its pointer; the detail lives in the file the line points to. The kinds: `Evidence (observed)`, `Evidence (reported)`, `Result`, `Review`, `Review gate`, `Contradiction`, `Blocker`, `Correction`, `Paused`, `Resumed`, `Extension`. `slice pause` and `slice resume` write the `Paused` and `Resumed` lines; the rest are direct edits. An Evidence line identifies the state it observed well enough to tell it apart from later versions; append counterevidence as a new line instead of rewriting the earlier one, and label what you did not observe yourself `reported`.
 
-`##### Material updates` is optional and holds bullets only. Use these prefixes when they fit; the rest of each line is prose:
-
-```text
-- Extension — authority: ...; added scope: ...; added evidence: ...
-- Evidence — claim: ...; observer/boundary: ...; result: supported | contradicted | inconclusive | unavailable; proves: ...; does not prove: ...; pointer: ...
-- Result — identity: ...  (for example a commit SHA, document version, or sent message ID)
-- Paused — reason: ...; resume when: ...
-- Resumed — resolution source: ...
-- Blocker — why unsafe: ...; required resolution: ...
-- Contradiction — ...
-- Review gate — mode: auto | off | always; tier: ...; because: <trigger> | no trigger; result: dispatched | proposed | skipped
-- Review — round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: ...; Accepted: <n>; Rejected: <n>; Open: <n>; reviewed: <commit or version>; report: <path>; effect: ...
-- Correction — ...
-```
-
-A Review entry is written after adjudication, one per independent review, so outcomes and rounds can be counted later; its report and brief live in the task's `scratch/reviews/` (`R1-brief.md`, `R1-report.md`). Self-review writes no Review entry.
-
-An Evidence entry identifies the state it observed well enough to tell it apart from later versions. When later edits leave a result's applicability unresolved, say so rather than carrying the earlier result forward. Append counterevidence as a new entry instead of rewriting the earlier one. A missing output is unavailable evidence, not proof the check never ran. Label a report you did not observe as a report.
-
-When no Slice is current, the section contains the single line `None`.
-
-### Recovery sources
-
-What the next context must read to resume the current work, one bullet per source:
+Two kinds have a fixed shape, so outcomes and rounds can be counted later. [Review Work](../../review-work/SKILL.md) says when each is written:
 
 ```markdown
-### Recovery sources
+- Review gate: mode: auto | off | always; tier: standard | security | none; because: <trigger> | no trigger; result: dispatched | proposed | skipped
+- Review: round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: <adjudicated judgment>; Accepted: <n>; Rejected: <n>; Open: <n>; reviewed: <commit or version>; report: <path>; effect: <the next route>
+```
 
-- docs/api-v2.pdf — the accepted response shape; sections 3–4 govern the current Slice.
-- .freeflow/tasks/task-007-report/sources/layout.png — the user's layout; the header spacing is binding.
-- conversation:turn-42 — the user's exception for legacy clients.
+`in_progress` means the Slice's result is being pursued. `paused` means it is still current but safe continuation is suspended; an ordinary turn, feedback, or a context boundary is not a pause.
+
+### Delegations
+
+One line per open delegation, written by `delegate open`, changed by `delegate check-return` and removed by `delegate close`:
+
+```markdown
+- D-012 — Read the callers (gather, Haiku xhigh) · under A-003 · from S-024 · running · delegations/D-012-read-the-callers/brief.md
+```
+
+The state is `running` or `returned`. A sub-worker's delegation has no line here; its worker reports it.
+
+### Space
+
+One line per repository the task changes, written by `checkpoint` for the repository it runs in (or `--repo`):
+
+```markdown
+- github.com/acme/widget · retry-503 · 5e6f7a8b · pushed
+```
+
+The remote as host/owner/repo (or the path when it has none), the branch, the commit, and `pushed` or `not pushed`.
+
+### In flight
+
+Rewritten whole by `checkpoint --input`; each line starts with its label:
+
+```markdown
+- Now: the retry loop is written; its test is not.
+- Observed: no caller assumes one attempt — delegations/D-012-read-the-callers/return.md
+- Hypothesis: the 503s come from the proxy's health check (unverified)
+- Dropped: retrying inside fetch() — it hides the attempt count from the test
+- Pending: CI on 5e6f7a8b — its result
+- Carry: src/http/client.ts (lines 10–40) — the loop under test
+```
+
+A `Carry` line names a file, optionally its lines, and why the next cycle needs it; the bundle copies it fresh, and it counts toward the budget. An input of `none` empties In flight, and a labelled line that says only `none` (`- Carry: none`) is left out.
+
+### Defined by, Read on recovery, Read when
+
+One bullet per source, a pointer then what it establishes:
+
+```markdown
+### Defined by
+
+- specs/retry.md — the accepted retry policy.
+
+### Read on recovery
+
+- sources/discussion.md — the user's messages that shaped the retry policy.
+
+### Read when
+
 - docs/benchmarks.md — baseline timings; read when measuring performance.
 ```
 
-Each entry is a pointer, then what it establishes. An entry may end with a trigger, `read when <situation>`: recovery reads it only once that situation applies. Use one only when the source matters to part of the work, not to save reading what the next action needs. A pointer is a path relative to the repository root, an absolute path, a URL, or a host history reference when the host can retrieve it. Material that exists only in the conversation is saved under the task's `sources/` directory first. Recovery sources apply to Current Work only and do not carry into History.
+| Section | What goes there | Recovery | Budget |
+| --- | --- | --- | --- |
+| Defined by | Accepted Specs, Plans, issues, briefs and other definitions, and the skills the work follows beyond Track Work, Discuss Work and Execute Work | reads each whole | not counted |
+| Read on recovery | Memory the agent shaped that the next context must read | reads each whole | counted |
+| Read when | Sources only some situations need; each line names its trigger, "read when <situation>" | reads each once its trigger applies | counted when read |
 
-### Next useful action
+A pointer is a path (from the task folder, else from the work repository's root), an absolute path, a `~/` path, a URL, or a commit. `sources/discussion.md` is a Read on recovery source while it holds blocks.
 
-One concise action or an honest wait or stop condition, as a single bullet. Slice and task-state commands replace it with the `--next-action` text; Checkpoint commands replace it when `--next-action` is given.
+### Next action
 
-## Future Work
+One bullet: a concise action, or an honest wait or stop condition. The Slice and task-state commands require `--next-action` and replace it with that text; the agreement commands replace it when given one.
 
-One ordered sequence of proposed Slices and non-terminal Checkpoints. Order is a recommendation; it confers no authority and may be revised at any time.
-
-### Proposed Slice
+### Future Work
 
 ```markdown
 ### Slice — Add the CLI
-- State: proposed
-- Intended result: A CLI that exposes the parser.
-- Expected evidence: CLI tests for each subcommand.
-- Dependencies: Implement the parser.
+
+- Result wanted: A CLI that exposes the parser.
+- Done when: a test for each subcommand.
+- Dependencies: S-024 closed.
 ```
 
-Required: `State: proposed` and `Intended result`. Optional: `Type`, `Expected evidence`, `Dependencies`.
+Proposed Slices only, each under its own `### Slice — <title>` heading, in about 300 words in all. `Result wanted` is required; `Done when` and `Dependencies` are optional. Titles are unique. A plain line under `## Future Work` is invalid. Order is a recommendation and confers no authority.
 
-### Checkpoint
-
-```markdown
-### Checkpoint C-002 — Commit the parser
-- State: pending
-- Type: preserve
-- Condition: The parser Slice's checks pass.
-- Applies to: S-004
-```
-
-A proposed Checkpoint has no ID in its heading (`### Checkpoint — <title>`). Required fields: `State` (`proposed`, `pending`, `deferred`), `Type`, `Condition`, `Applies to`. `Applies to` names a proposed Slice by exact title until that Slice starts, then its `S-NNN`. Every Checkpoint belongs to one Slice; there are no task-wide Checkpoints.
-
-| State | Meaning |
-| --- | --- |
-| `proposed` | Anticipated only. It has no ID and no authority, and may be removed directly. |
-| `pending` | Authorized or selected and due. Work that depends on it must not cross it, and its Slice cannot close until it is closed. |
-| `deferred` | Accepted but dormant until its condition. It is not cancelled, and it still blocks its Slice's closure. |
-
-An accepted Checkpoint leaves Future Work only through `checkpoint close`; never drop one by editing.
-
-`Type` is one of the five in Track Work's Checkpoint table: `preserve`, `publish`, `review`, `decision`, `continuity`. Earlier names are still read: `local_commit` as `preserve`, `independent_review` as `review`, `user_decision` as `decision`.
-
-## History
-
-Three subsections in this order: Decisions, Checkpoints, Slices. History is append-oriented: commands add entries and move terminal state into it; terminal entries are never deleted, reactivated, or rewritten.
-
-### Decisions
+## history.md
 
 ```markdown
-#### D-001 — Keep the Markdown record canonical
-- State: active
-- Decision: record.md remains the canonical task record.
-- Established by: The user's accepted direction on 2026-09-25.
-- Rationale: Agents need one readable recovery surface.
-- Consequences: Views project the same file.
-- Revisit when: The storage boundary changes.
-```
+# History: <task name>
 
-Required: `State` (`active`, `superseded`, `retired`), `Decision`, `Established by`, `Rationale`, `Consequences`, `Revisit when`. Optional: `Source references`. `Superseded by: D-NNN` is required when superseded; `Retired because` when retired.
+## S-001 — Write the parser
 
-- Record only what the user actually accepted. When the difference matters, keep a source reference that distinguishes the accepted choice from the proposal.
-- A clerical clarification may edit an active Decision directly. A change in meaning is a new Decision that supersedes the old one.
-- Retire a Decision that no longer governs, with the reason. Adopting a superseded or retired choice again is a new Decision.
-
-### Checkpoints
-
-A closed Checkpoint keeps its future fields and adds `Result` and `Task effect`. `State` is `completed`, `cancelled`, or `replaced`. `Evidence` is optional; `Reason` is required for cancelled and replaced; `Replaced by: C-NNN` for replaced, naming a Checkpoint that is still pending or deferred.
-
-`completed` means the boundary happened, not that its judgment was favorable.
-
-### Slices
-
-A closed Slice keeps `Intended result` and, when present, `Type`, `Authority source`, and `Reopened from`. It adds `Result`, `Evidence and limits`, and `Task effect`. `State` is `completed`, `blocked`, or `abandoned`; `Resume when` is required for blocked and `Reason` for abandoned. `Residual effects` is optional.
-
-Closing does not keep Scope, Stop condition, Starting state, Dependencies, Material updates, or Recovery sources. Anything among them that still matters belongs in `Evidence and limits` or `Task effect` before closing; Review entries always do, copied whole, so review outcomes stay countable.
-
-| State | Meaning |
-| --- | --- |
-| `completed` | The intended result and its required evidence are settled. |
-| `blocked` | A paused attempt that could not continue left Current Work; `Resume when` says what would allow it. |
-| `abandoned` | Explicit authority ended the pursuit; `Reason` says why. |
-
-A Slice that finished before it could be recorded, such as work done before the record existed, enters History through `slice record` with the same fields plus two more:
-
-```markdown
-#### S-006 — Baseline on the easy tasks
 - State: completed
-- Occurred: 2026-09-26 to 2026-09-27
-- Recorded: retroactively on 2026-09-28
-- Intended result: ...
+- Dates: 2026-10-27 to 2026-10-28
+- Cue: read when the parser's shape is in question
+- Under: A-001
+- Result wanted: A parser.
+- Result: It parses record.md.
+- Evidence: record.md
+- Task effect: Commands can read the record.
+- Updates:
+  - Evidence (observed): the parser ran — record.md
+- Correction: Result; before: parses; after: parses record.md; reason: clarity
 ```
 
-`Occurred` is when the work happened: `YYYY-MM-DD` or `YYYY-MM-DD to YYYY-MM-DD`. `Recorded` is written by the command, so a retroactive entry is never mistaken for live bookkeeping. The two appear together or not at all. A retroactive result is reconstructed, not observed at recording time: `Evidence and limits` points to where the exact history lives, such as a session, log, or commit.
+One entry per closed Slice, agreement or delegation, appended by the command that closes it and never edited; Git merges the file by keeping both sides' lines. `Dates` is `YYYY-MM-DD` or `YYYY-MM-DD to YYYY-MM-DD`. Every entry has a `Cue`: when the entry matters, not what it holds, starting "read when", in at most 25 words.
 
-Reopen a completed or blocked Slice only when the new work still belongs to the same intended result; reopening creates a new Slice and leaves the historical entry unchanged. After an abandoned Slice, propose a new one instead.
+| Entry | States | Fields |
+| --- | --- | --- |
+| Slice | `completed`, `blocked`, `abandoned` | State, Dates, Cue, Under, Result wanted, Result, Evidence, Task effect; Resume when (blocked), Reason (abandoned), Updates; Recorded (`slice record`) |
+| Agreement | `completed`, `ended`, `replaced` | State, Dates, Cue, Lines, Result, Task effect; Updates, Decisions |
+| Delegation | `accepted`, `sent back`, `stopped` | State, Dates, Cue, Under, Kind, Agent, Result, Return; From, Tokens, Minutes, Task effect, Merge commit |
 
-### Corrections
+A clerical fix is appended inside its entry as one more `Correction:` line (the field, before, after, reason); it never changes an entry's state, ID or meaning. `view index` lists every entry in one line; recovery shows the newest within the budget and any the record names.
 
-A clerical fix to a terminal entry is appended inside it, never applied by overwriting:
+## decisions.md
 
 ```markdown
-##### Corrections
+# Decisions
 
-- Field: Result; before: checks passed; after: local checks passed, production unobserved; reason: clarification; source: file:notes.md#run-3
+- P1 [agreed] When jobs pile up, which runs first? -> oldest first. You: "go" (2026-10-20)
+- T1 [default] FIFO array in queue.ts -> serves P1
 ```
 
-A correction cannot change an entry's state, ID, or meaning.
+The open agreement's decision list, one line per item in Discuss Work's format, kept directly as items change. `agreement close` moves it into the agreement's History entry and leaves `# Decisions` alone in the file.
+
+## sessions.md
+
+```markdown
+# Sessions (times in UTC)
+
+- 788323ff · Claude Code · cloud · 2026-10-29 03:45 – now · holding · https://claude.ai/code/session_…
+- 4b1e90c2 · Pi · laptop · 2026-10-28 21:10 – 23:02 · released · <Pi's resume command>
+```
+
+One line per hold: the session, the harness, where it ran, from and to, how it ended (`holding`, `released`, `taken over`), and the way back to it. The last line that says `holding` is the hold. Only `task create`, `task take`, `task release` and `task switch` write it; Git merges it by keeping both sides' lines.
+
+## sources/discussion.md
+
+```markdown
+# Discussion: <task name>
+
+The user's messages that shaped the work, word for word, in blocks; under each message, the agent's line saying what it answered. Blocks are added or dropped, never edited.
+
+Last block: B-002
+
+## B-002 — Retry policy · 2026-10-29 14:02 to 14:20 · shapes A-003, S-024 · replaces B-001
+
+### You, 2026-10-29 14:02
+
+> Three attempts is enough, but never retry a POST.
+
+Agent: answered whether POST requests are retried, after I proposed retrying every method.
+```
+
+Only `discussion save` and `discussion drop` write it.
+
+## The Session Summary
+
+A session that holds no task checkpoints into `<store>/sessions/<session ID>/summary.md` with `checkpoint --session --input -`: the headings `## Goal`, `## Settled`, `## Open`, `## Agreement`, `## In flight`, `## Read when` and `## Next action`, in that order, with `(none)` where one has nothing; Goal and Next action must say something. Freeflow's compaction installs it after the store's rules and removes it. The store's `sessions/` folder is this machine's only and is never synced.
 
 ## Task State
 
@@ -313,35 +397,32 @@ active | paused -> completed | abandoned
 completed | abandoned -> active
 ```
 
-Only the user changes task state. A new record starts `active`. Pausing a task pauses its Current Slice; reactivating the task does not resume the Slice. A completed or abandoned task has no Current Slice and no pending or deferred Checkpoint. Completing a Slice never completes the task.
-
-Before completing or abandoning a task, keep a proposed Future Work item only if it is clearly non-binding; otherwise reconcile it first. Reactivating a task selects no work.
+Only the user changes task state, through `task set-state`. A new task starts `active`. Pausing the task pauses its Slice; reactivating it resumes nothing. A completed or abandoned task has no Slice: close it first. Completing a Slice never completes the task. Before completing or abandoning a task, keep a proposal in Future Work only if it is clearly non-binding; otherwise reconcile it first.
 
 ## Lifecycle Commands
 
-Run `working-record.mjs <group> <operation> --help` for each command's options and input fields. `--input -` reads the input fragment from stdin. An input fragment holds only the fields its help lists; commands set `State` and IDs themselves. Commands that change the Current Slice or task state require `--next-action`. `--record` resolves against `--root`, which defaults to the current directory; an absolute `--record` path finds its own root.
+Run `working-record.mjs <group> <operation> --help` for each command's options and input fields. `--input -` reads the input from stdin. An input holds only the fields its help lists; commands set states, dates and IDs themselves.
 
-| Transition | Command |
+| Change | Command |
 | --- | --- |
-| Create the record | `init --name <task name> --input <fragment>` (Goal and Next useful action required) |
+| Create a task | `task create --title <title> --goal <goal> --cue <cue> [--project <p> \| --no-project]` in the store (this session holds it); `init --root <folder> --name <name> --cue <cue> --input -` elsewhere (Goal and Next action required); on Pi with Task Memory on, Task Memory's `create`, or `init --schema 4` ([Schema 4](schema-4.md)) |
+| Hold a task, give it up, move to another | `task take --id <ID> [--takeover]`, `task release`, `task switch --id <ID>` |
+| Move a task into a project, or out of one | `task move --id <ID> (--project <p> \| --no-project)`, on the user's word |
+| Open, change, close the agreement | `agreement open`, `agreement update`, `agreement close --state <completed\|ended\|replaced>` |
 | Propose a Slice | `slice propose` |
-| Start a proposed Slice → `in_progress`, assigns `S-NNN` | `slice start --title <proposal title>` |
-| Start a Slice that was never proposed | `slice start-direct` |
-| `in_progress` → `paused` | `slice pause` |
-| `paused` → `in_progress` | `slice resume` |
-| Current → History `completed` / `blocked` (from paused) / `abandoned` | `slice close --state <state>` |
-| Continue a completed or blocked historical Slice as a new Slice | `slice reopen --id <S-NNN>` |
-| Record a Slice that already finished directly into History | `slice record --state <completed|blocked|abandoned>` |
-| Propose a Checkpoint | `checkpoint propose` |
-| `proposed` → `pending`, assigns `C-NNN` | `checkpoint activate` |
-| `pending` ↔ `deferred` | `checkpoint defer`, `checkpoint resume` |
-| `pending` / `deferred` → History | `checkpoint close --state <completed|cancelled|replaced>` |
-| Add, supersede, or retire a Decision | `decision add`, `decision supersede`, `decision retire` |
-| Change task state | `task set-state --state <state>` |
+| Start a proposed Slice, or one never proposed | `slice start --title <proposal title>`, `slice start-direct` |
+| `in_progress` ↔ `paused` | `slice pause`, `slice resume` |
+| Close the current Slice | `slice close --state <completed\|blocked\|abandoned>` (blocked from paused) |
+| Record a Slice that finished before it could be recorded | `slice record --state <state>`: History only; Current Work and Future Work unchanged |
+| Hand work to an agent, and close it | `delegate open`, `amend`, `status`, `check-return`, `close` |
+| Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task |
+| Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
+| The budget | `budget [--record <ID>]`; `task set-budget --mode <normal\|expanded>` on the user's word |
+| The context used, and whether the rest fits in this cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
+| Change the task state | `task set-state --state <state>` |
+| Convert a Schema 4 record | `migrate`, on the user's word |
 
-Use `slice start` for a proposed Slice and `slice start-direct` only for work that was never proposed. Starting any Slice records it before its first effect; it does not authorize the work. `slice record` is only for work whose effects already happened; it leaves the Current Slice, Future Work, and Next useful action unchanged, so it can run while a Slice is live.
-
-Every command validates the record before and after the change and publishes one complete valid result or nothing.
+A Slice that continues closed work is a new Slice that names it in `Started from`. Every command validates the task folder before and after the change and publishes one complete valid result or nothing; those that change the store then commit and push it.
 
 | Exit code | Meaning |
 | --- | --- |
@@ -353,32 +434,21 @@ Every command validates the record before and after the change and publishes one
 
 Edit directly:
 
-- Current Context bullets;
-- optional fields and wording in active entities;
-- Material updates, Recovery sources, and the Next useful action;
-- the order, wording, or removal of proposed items;
-- Notes;
-- Corrections blocks in History.
+- Current Context's bullets;
+- a Slice's update lines and the wording of its optional fields;
+- Defined by, Read on recovery, Read when and the Next action;
+- the order, wording or removal of Future Work's proposals;
+- `decisions.md`'s items;
+- a `Correction:` line appended inside a History entry.
 
-Never edit directly: IDs, `State` fields, which section an entity is in, or any terminal History entry apart from Corrections. `validate` checks structure only; it cannot detect a hand-made state change or a deleted entry, so those edits are forbidden rather than checked.
-
-After editing headings, fields, or entity structure, run `validate --record <record.md>`. Prose-only edits need no validation. `validate` also lists Material updates pointers (paths from the repository root or the task folder, and commits) that do not resolve, as warnings, since a line may name a planned path or a commit not fetched yet; `--strict` fails on those an Evidence or Result line names. Pointers outside the repository are listed, not checked.
+Never edit directly: IDs, `State` fields, `Opened`, `State as of`, the agreement's lines and updates, Delegations, Space, In flight, `sessions.md`, `sources/discussion.md`, or any History entry beyond appending a correction. After a structural edit, run `validate --record <ID>`. It checks the task folder's structure and lists pointers that do not resolve, as warnings, since a line may name a planned path or a commit not fetched yet; `--strict` fails on those an Evidence or Result line names. It cannot detect a hand-made state change or a deleted entry, so those edits are forbidden rather than checked.
 
 ## Views
 
-Views are plain Markdown and change nothing.
+Views print and change nothing.
 
-- `view resume` returns the header, Current Context, active Decisions, Current Work, Future Work, a History index, and Notes. The index has one line per closed History entry (superseded and retired Decisions, closed Checkpoints, closed Slices) in record order: ID, state, `by D-NNN` for a superseded Decision, `recorded retroactively` for a `slice record` entry, the title, and `(corrected)` when the entry has Corrections. It is the view to use while the conversation is still in context.
-- `view recover` returns the `resume` view, then each `What defines this task` artifact and Recovery source with its trigger, whether its pointer resolves and its size, then live Git state (branch, HEAD, uncommitted paths, commits since `Last updated`) and where it disagrees with the record: a branch the record names that HEAD is not on, or a commit the Current Slice names that HEAD's history lacks. It is the recovery view after context loss.
-- `view entry <ID> [<ID> ...]` returns the named `S-NNN`, `C-NNN`, or `D-NNN` entries exactly as stored, in the order given. An unknown ID prints nothing and fails.
-- `view full` returns the file exactly as stored. It does not require the record to be valid, so use it to inspect malformed or unsupported records, after an uncertain write, or for an audit.
-
-`view resume`, `view recover` and `view entry` require a valid Schema 4 record.
-
-## Notes
-
-Everything under `## Notes` is ordinary Markdown with no structure. Notes do not authorize, prioritize, block, or prove anything. Anything that affects scope, evidence, or the next action belongs in its structured section instead. Remove a user-written Note only when the user asks.
-
-## Legacy Records
-
-A record with another `Schema` value is not a Schema 4 record. Read it through `view full` only; do not edit or transition it. Migration is a separate, authorized operation.
+- `view recover [--delegation <D-NNN>]`: the opening line (the record is memory; the user's direction decides the work), the store's and the project's rules, `record.md`, the active decisions within their budget, the History index, the project's other tasks with their cues, and the checks: the budget, pointers that do not resolve, open delegations, the hold, the store's changes not yet synced, and where each repository in Space stands; then the line saying what to read next. With `--delegation`, a worker's: its rule and its delegation's brief, progress and return first.
+- `view bundle`: the same, then every source recovery reads, whole, with the counted and uncounted sizes and the recovery line: what Freeflow's compaction installs. `--fallback` is what Freeflow adds after the harness's own summary when the compaction came before the checkpoint; `--session` is a session summary's bundle.
+- `view entry <ID> [<ID> ...]`: the named History entries as stored, in the order given; an unknown ID prints nothing and fails.
+- `view index`: every History entry, one line each.
+- `view full`: `record.md` as stored, valid or not; use it after an uncertain write or a failed validation.

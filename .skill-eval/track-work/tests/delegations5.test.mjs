@@ -422,7 +422,7 @@ test("delegate is for Schema 5 records", async () => {
     const run = (args, input = "") =>
       spawnSync(process.execPath, [scriptPath, ...args], { cwd: folder, input, encoding: "utf8" });
     const four = run(
-      ["init", "--root", folder, "--name", "Four", "--input", "-"],
+      ["init", "--schema", "4", "--root", folder, "--name", "Four", "--input", "-"],
       "### Goal\n- G.\n\n### Next useful action\n- N.\n",
     ).stdout.trim();
     assert.match(run(["delegate", "status", "--record", four]).stderr, /delegate is for Schema 5 records/);

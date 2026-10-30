@@ -5,9 +5,9 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { hostname } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { slugify } from "./format.mjs";
 import { claudeCodeLog } from "./discussion5.mjs";
 import { storeStatus, syncStore } from "./freeflow-store.mjs";
@@ -21,7 +21,7 @@ import {
   skeleton5,
 } from "./record5.mjs";
 import { searchRecords } from "./search.mjs";
-import { LAST_TASK_NUMBER, createRecordPath, writeInitialAtomically, writeTaskFile } from "./store.mjs";
+import { LAST_TASK_NUMBER, createRecordPath, nextTaskNumber, writeInitialAtomically, writeTaskFile } from "./store.mjs";
 import { rememberRepository, repositoryState, sessionSummaryPath } from "./transitions5.mjs";
 
 export const SESSIONS_FILE = "sessions.md";
@@ -127,6 +127,10 @@ async function sync(home, message) {
 }
 
 const projectsDir = (home) => join(home, "projects");
+/** The tasks folder of a project, or of the store's tasks with no project (P76). */
+const tasksDir = (home, slug) => (slug ? join(projectsDir(home), slug, "tasks") : join(home, "tasks"));
+/** A store task's ID: <project>/task-NNN, or task-NNN for a task with no project. */
+export const STORE_TASK_ID = /^(?:([a-z0-9-]+)\/)?(task-\d{3,})$/;
 
 function projectNames(home) {
   if (!existsSync(projectsDir(home))) return [];
@@ -143,15 +147,19 @@ function requireProject(home, name) {
   return slug;
 }
 
-/** Every task of a project: its ID, folder, header (or why it cannot be read), Space remotes, hold and last sync. */
+/**
+ * Every task of a project, or with slug null the store's tasks with no project: its ID, folder, header (or why it
+ * cannot be read), Space remotes, hold and last sync.
+ */
 export function projectTasks(home, slug) {
-  const tasks = join(projectsDir(home), slug, "tasks");
+  const tasks = tasksDir(home, slug);
   if (!existsSync(tasks)) return [];
   return readdirSync(tasks, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && /^task-\d{3,}-/.test(entry.name))
     .map((entry) => {
       const dir = join(tasks, entry.name);
-      const id = `${slug}/${/^task-\d{3,}/.exec(entry.name)[0]}`;
+      const number = /^task-\d{3,}/.exec(entry.name)[0];
+      const id = slug ? `${slug}/${number}` : number;
       let header = null;
       let space = [];
       let problem = null;
@@ -162,7 +170,7 @@ export function projectTasks(home, slug) {
       } catch (error) {
         problem = error.message;
       }
-      const synced = git(home, ["log", "-1", "--format=%cI", "--", join("projects", slug, "tasks", entry.name)]);
+      const synced = git(home, ["log", "-1", "--format=%cI", "--", relative(home, dir)]);
       return {
         id,
         dir,
@@ -176,13 +184,13 @@ export function projectTasks(home, slug) {
 }
 
 function allTasks(home) {
-  return projectNames(home).flatMap((slug) => projectTasks(home, slug));
+  return [...projectNames(home).flatMap((slug) => projectTasks(home, slug)), ...projectTasks(home, null)];
 }
 
 function findTask(home, id) {
-  const match = /^([a-z0-9-]+)\/(task-\d{3,})$/.exec(id ?? "");
-  if (!match) fail(`A task ID is <project>/task-NNN, not ${id}.`);
-  const task = projectTasks(home, match[1]).find((each) => each.id === id);
+  const match = STORE_TASK_ID.exec(id ?? "");
+  if (!match) fail(`A task ID is <project>/task-NNN, or task-NNN for a task with no project, not ${id}.`);
+  const task = projectTasks(home, match[1] ?? null).find((each) => each.id === id);
   if (!task) fail(`No task ${id} in the store.`);
   return task;
 }
@@ -252,14 +260,16 @@ export async function removeProject(home, name) {
 
 export function listProjects(home) {
   const names = projectNames(home);
-  if (!names.length) return "No projects.\n";
-  return `${names
-    .map((slug) => {
-      const tasks = projectTasks(home, slug);
-      const repositories = [...new Set(tasks.flatMap((task) => task.space))];
-      return `- ${slug}: ${tasks.length} task(s)${repositories.length ? `; repositories ${repositories.join(", ")}` : ""}`;
-    })
-    .join("\n")}\n`;
+  const loose = projectTasks(home, null);
+  if (!names.length && !loose.length) return "No projects.\n";
+  const line = (label, tasks) => {
+    const repositories = [...new Set(tasks.flatMap((task) => task.space))];
+    return `- ${label}: ${tasks.length} task(s)${repositories.length ? `; repositories ${repositories.join(", ")}` : ""}`;
+  };
+  return `${[
+    ...(names.length ? names.map((slug) => line(slug, projectTasks(home, slug))) : ["No projects."]),
+    ...(loose.length ? [line("no project", loose)] : []),
+  ].join("\n")}\n`;
 }
 
 export function showProject(home, name, identity) {
@@ -288,28 +298,38 @@ export function menu(home, directory, identity) {
   const held = heldTask(home, identity);
   if (held) lines.push(`This session holds ${held.id}: recover it with view recover --record ${held.id}.`);
   const { repository, projects } = projectsFor(home, directory);
-  if (!projects.length) {
-    lines.push(
-      repository
-        ? `No project's tasks name ${repository.name}. Projects:`
-        : "This folder is not in a repository a task names. Projects:",
-      listProjects(home).trimEnd(),
-    );
-    return `${lines.join("\n")}\n`;
-  }
-  for (const slug of projects) {
-    const open = projectTasks(home, slug)
+  const openOf = (tasks) =>
+    tasks
       .filter((task) => !task.header || ["active", "paused"].includes(task.header.state))
       .sort(
         (left, right) =>
           (right.lastSync ?? "").localeCompare(left.lastSync ?? "") ||
           right.id.localeCompare(left.id, undefined, { numeric: true }),
       );
+  const loose = repository
+    ? openOf(projectTasks(home, null).filter((task) => task.space.includes(repository.name)))
+    : [];
+  if (!projects.length && !loose.length) {
+    lines.push(
+      repository
+        ? `No task names ${repository.name}. Projects:`
+        : "This folder is not in a repository a task names. Projects:",
+      listProjects(home).trimEnd(),
+    );
+    return `${lines.join("\n")}\n`;
+  }
+  for (const slug of projects) {
+    const open = openOf(projectTasks(home, slug));
     lines.push(`Project ${slug} (${repository.name}):`);
     lines.push(
       ...(open.length ? open.slice(0, MENU_TASKS).map((task) => taskLine(task, identity)) : ["No open tasks."]),
     );
     if (open.length > MENU_TASKS) lines.push(`${open.length - MENU_TASKS} more: project show --name ${slug}.`);
+  }
+  if (loose.length) {
+    lines.push(`No project (${repository.name}):`);
+    lines.push(...loose.slice(0, MENU_TASKS).map((task) => taskLine(task, identity)));
+    if (loose.length > MENU_TASKS) lines.push(`${loose.length - MENU_TASKS} more: project list.`);
   }
   return `${lines.join("\n")}\n`;
 }
@@ -345,21 +365,25 @@ async function writeHold(home, task, identity, { takeover = false } = {}) {
   return holder;
 }
 
-export async function createTask(home, { project, directory, title, goal, cue, nextAction }, identity) {
+export async function createTask(
+  home,
+  { project, noProject = false, directory, title, goal, cue, nextAction },
+  identity,
+) {
   requireIdentity(identity);
   const held = heldTask(home, identity);
   if (held) fail(`This session holds ${held.id}; checkpoint it and use task switch, or release it first.`);
+  if (project && noProject) fail("Give --project or --no-project, not both.");
+  // Without --project, the one project whose tasks name this repository; with none, no project (P76).
   let slug = project ? requireProject(home, project) : null;
-  if (!slug) {
+  if (!slug && !noProject) {
     const { projects } = projectsFor(home, directory);
-    if (projects.length !== 1)
-      fail(
-        `Name the project with --project: ${projects.length ? `${projects.join(", ")} all match this folder` : "no project matches this folder"}.`,
-      );
-    slug = projects[0];
+    if (projects.length > 1)
+      fail(`Name the project with --project, or --no-project: ${projects.join(", ")} all match this folder.`);
+    slug = projects[0] ?? null;
   }
   const repository = repositoryState(directory);
-  const record = await createTaskFolder5(join(projectsDir(home), slug), {
+  const record = await createTaskFolder5(slug ? join(projectsDir(home), slug) : home, {
     name: title,
     cue,
     sections: {
@@ -369,7 +393,8 @@ export async function createTask(home, { project, directory, title, goal, cue, n
     },
   });
   if (repository) await rememberRepository(home, repository);
-  const task = findTask(home, `${slug}/${/^task-\d{3,}/.exec(basename(dirname(record)))[0]}`);
+  const number = /^task-\d{3,}/.exec(basename(dirname(record)))[0];
+  const task = findTask(home, slug ? `${slug}/${number}` : number);
   await writeHold(home, task, identity);
   return `${task.id}\n${record}\nThis session holds it.\n${await sync(home, `Create ${task.id}, held by ${identity.short}`)}\n`;
 }
@@ -414,16 +439,59 @@ export async function removeTask(home, id) {
   await rm(task.dir, { recursive: true, force: true });
   const synced = await sync(home, `Remove ${id}`);
   const commit = git(home, ["rev-parse", "--short=8", "HEAD"]);
-  const path = join("projects", id.split("/")[0], "tasks", basename(task.dir));
+  const path = relative(home, task.dir);
   return `Removed ${id}. Git history keeps it: git -C ${home} checkout ${commit}~1 -- ${path} brings it back. Task numbers are never reused.\n${synced}\n`;
 }
 
 export async function searchTasks(home, query, project = null) {
-  const slugs = project ? [requireProject(home, project)] : projectNames(home);
+  const slugs = project ? [requireProject(home, project)] : [...projectNames(home), null];
   const files = slugs.flatMap((slug) =>
     projectTasks(home, slug).flatMap((task) =>
       ["record.md", HISTORY_FILE, DECISIONS_FILE].map((name) => [`${task.id} ${name}`, join(task.dir, name)]),
     ),
   );
   return `${await searchRecords(files, query)}\n`;
+}
+
+/**
+ * Moves a task into a project, or out of one to the store's tasks with no project (P76, T25): its folder moves, with
+ * the next number free at the destination, and Git history follows it. Refused while another session holds it.
+ */
+export async function moveTask(home, id, { project = null, noProject = false }, identity) {
+  if (Boolean(project) === noProject) fail("task move takes --project <name> or --no-project.");
+  const task = findTask(home, id);
+  const slug = project ? requireProject(home, project) : null;
+  const from = STORE_TASK_ID.exec(id)[1] ?? null;
+  if (slug === from) return `${id} is already ${slug ? `in project ${slug}` : "outside any project"}.\n`;
+  if (task.hold && task.hold.short !== identity?.short)
+    fail(`${id} is ${holderText(task)}; move it once it is released, or from the session that holds it.`);
+  const destination = tasksDir(home, slug);
+  await mkdir(destination, { recursive: true });
+  const number = String(await nextTaskNumber(destination)).padStart(3, "0");
+  const folder = join(destination, basename(task.dir).replace(/^task-\d{3,}/, `task-${number}`));
+  // The folder it leaves keeps its number taken, as a removal does, so an old ID never names a new task.
+  const marker = join(dirname(task.dir), LAST_TASK_NUMBER);
+  const last = Number((await readFile(marker, "utf8").catch(() => "0")).trim()) || 0;
+  await writeFile(marker, `${Math.max(last, Number(/task-(\d+)/.exec(id)[1]))}\n`);
+  await rename(task.dir, folder);
+  const moved = slug ? `${slug}/task-${number}` : `task-${number}`;
+  // Its delegations' briefs name the task they belong to.
+  for (const brief of briefsUnder(join(folder, "delegations"))) {
+    const text = await readFile(brief, "utf8");
+    if (text.includes(`Task: ${id} `) || text.includes(`Task: ${id}\n`))
+      await writeFile(
+        brief,
+        text.replace(`Task: ${id}`, () => `Task: ${moved}`),
+      );
+  }
+  const synced = await sync(home, `Move ${id} to ${moved}`);
+  return `Moved ${id} to ${moved}: ${folder}. Its old ID no longer names it; Git history keeps the old path.\n${synced}\n`;
+}
+
+function briefsUnder(folder) {
+  if (!existsSync(folder)) return [];
+  return readdirSync(folder, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => [join(folder, entry.name, "brief.md"), ...briefsUnder(join(folder, entry.name))])
+    .filter((path) => existsSync(path));
 }

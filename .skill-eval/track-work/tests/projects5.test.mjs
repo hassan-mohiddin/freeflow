@@ -301,6 +301,71 @@ test("removing a task or a project is a pushed commit that Git history keeps, an
   });
 });
 
+test("a task with no project: created where no project names the folder, listed in the menu, moved into a project and out again without reusing its number", async () => {
+  await withStore(async ({ home, remote, work, cli }) => {
+    const create = (session, title, extra = []) =>
+      cli(
+        session,
+        ["task", "create", "--title", title, "--goal", "Try it.", "--cue", "read when trying tasks", ...extra],
+        work,
+      );
+    // No project names this repository, so the task goes to the store's tasks with no project (P76, T24).
+    const made = ok(create("aaaaaaaa-1", "Loose one")).split("\n");
+    assert.equal(made[0], "task-001");
+    assert.ok(made[1].endsWith(join("home", "tasks", "task-001-loose-one", "record.md")));
+    assert.match(pushedLog(remote), /^Create task-001, held by aaaaaaaa$/m);
+    const menu = ok(cli("aaaaaaaa-1", ["task", "here"], work));
+    assert.match(
+      menu,
+      /\nNo project \(github\.com\/acme\/widget\):\n- task-001 — Loose one · active · held by this session · read when trying tasks\n/,
+    );
+    assert.match(
+      ok(cli("aaaaaaaa-1", ["project", "list"])),
+      /- no project: 1 task\(s\); repositories github\.com\/acme\/widget/,
+    );
+    // Its ID stands for its record, and its recovery has no project index.
+    const recovered = ok(cli("aaaaaaaa-1", ["view", "recover", "--record", "task-001"], work));
+    assert.match(recovered, /^# Loose one$/m);
+    assert.doesNotMatch(recovered, /^- .*task-\d{3} — /m);
+    ok(cli("aaaaaaaa-1", ["validate", "--record", "task-001"], work));
+
+    // Moved into a project: the next number there, the hold kept, the old number never reused (T25).
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "widget"]));
+    const refused = cli("bbbbbbbb-2", ["task", "move", "--id", "task-001", "--project", "widget"]);
+    assert.equal(refused.status, 1);
+    assert.match(
+      refused.stderr,
+      /task-001 is held by aaaaaaaa .*; move it once it is released, or from the session that holds it\./,
+    );
+    assert.match(
+      ok(cli("aaaaaaaa-1", ["task", "move", "--id", "task-001", "--project", "widget"])),
+      /^Moved task-001 to widget\/task-001: .*projects\/widget\/tasks\/task-001-loose-one\. Its old ID no longer names it/,
+    );
+    assert.ok(!existsSync(join(home, "tasks", "task-001-loose-one")));
+    assert.match(pushedLog(remote), /^Move task-001 to widget\/task-001$/m);
+    assert.match(
+      ok(cli("aaaaaaaa-1", ["task", "here"], work)),
+      /\nProject widget \(github\.com\/acme\/widget\):\n- widget\/task-001 — Loose one · active · held by this session/,
+    );
+    assert.match(
+      ok(cli("aaaaaaaa-1", ["task", "move", "--id", "widget/task-001", "--project", "widget"])),
+      /^widget\/task-001 is already in project widget\.$/m,
+    );
+    // Out again: task-002, since task-001 stays taken.
+    assert.match(
+      ok(cli("aaaaaaaa-1", ["task", "move", "--id", "widget/task-001", "--no-project"])),
+      /^Moved widget\/task-001 to task-002: /,
+    );
+    ok(cli("aaaaaaaa-1", ["task", "release"]));
+    // With a project naming this repository, --no-project still makes a task with no project.
+    ok(cli("aaaaaaaa-1", ["task", "move", "--id", "task-002", "--project", "widget"]));
+    assert.match(ok(create("aaaaaaaa-1", "Another", ["--no-project"])), /^task-003\n/);
+    const both = create("cccccccc-3", "Both", ["--project", "widget", "--no-project"]);
+    assert.equal(both.status, 1);
+    assert.match(both.stderr, /Give --project or --no-project, not both\./);
+  });
+});
+
 test("outside a Freeflow store, project and task keep Pi's registry, and the hold commands say a store is needed", async () => {
   const folder = await mkdtemp(join(tmpdir(), "track-work-projects5-registry-"));
   try {

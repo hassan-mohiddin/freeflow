@@ -13,7 +13,7 @@ The summary works like a Working Record ([Track Work](../../skills/track-work/SK
 
 The Rules are binding; if one cannot be met, stop and say why. The rest of this skill is judgment: follow its goal, and adapt when a different choice serves it better.
 
-- With a Working Record, update it first (Track Work, "Prepare For A Context Boundary"), then write the summary, so the two agree. Name the record's path in the summary: Freeflow never names one, and recovery starts from it.
+- With a Working Record, update it first (Track Work's [Schema 4](../../skills/track-work/references/schema-4.md#before-a-context-boundary), "Before A Context Boundary"), then write the summary, so the two agree. Name the record's path in the summary: Freeflow never names one, and recovery starts from it.
 - Compaction is a context boundary, not a Slice transition or a Checkpoint. Do not rush, close, or pause a Slice to compact, claim an unfinished check passed, or guess the outcome of a running operation.
 - Never write a requested, reported, or expected result as observed. Name every partial or uncommitted change, unverified result, running command, and obligation still waiting on its trigger.
 - Keep exact: paths, identifiers, commands, error text, numbers, and the user's words wherever wording matters. Never paraphrase a decision or a constraint.

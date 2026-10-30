@@ -44,7 +44,7 @@ async function workspace({ branchNamed = "main", commit = null, updates = [], so
   const head = git(root, "rev-parse", "HEAD");
   const init = run(
     root,
-    ["init", "--root", root, "--name", "Queue", "--input", "-"],
+    ["init", "--schema", "4", "--root", root, "--name", "Queue", "--input", "-"],
     `### Goal\n- Add a queue.\n\n### What defines this task\n${defines.map((each) => `- ${each}`).join("\n")}\n\n### Next useful action\n- Build it.\n`,
   );
   assert.equal(init.status, 0, init.stderr);
