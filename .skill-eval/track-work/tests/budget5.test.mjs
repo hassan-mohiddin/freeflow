@@ -43,19 +43,7 @@ const words = (count, word = "word") => Array.from({ length: count }, () => word
 async function task(folder, cli) {
   const record = ok(
     cli(
-      [
-        "init",
-        "--schema",
-        "5",
-        "--root",
-        folder,
-        "--name",
-        "Budgeted",
-        "--cue",
-        "read when budgets matter",
-        "--input",
-        "-",
-      ],
+      ["init", "--root", folder, "--name", "Budgeted", "--cue", "read when budgets matter", "--input", "-"],
       [
         "### Goal",
         "- Keep memory within its budget.",

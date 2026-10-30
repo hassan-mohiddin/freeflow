@@ -69,12 +69,12 @@ export function parseChoices(text) {
 const itemLine = (item) => `- ${item.id} [${item.state}] ${item.text}`;
 const byState = (items, states) => items.filter((item) => states.includes(item.state));
 
-// A Schema 5 Slice's fields, which its update lines follow.
+// A Slice's fields, which its update lines follow.
 const SLICE5_FIELDS =
   /^- (State|Opened|Under|Result wanted|Scope|Done when|Stop if|Started from|Waits on|Dependencies|Predicted|Measured):/;
 
-// A Schema 5 record's current Slice and its update lines: what ran or changed while no one was answering.
-function currentSlice5Updates(recordText) {
+// The record's current Slice and its update lines: what ran or changed while no one was answering.
+function currentSliceUpdates(recordText) {
   const lines = recordText.split(/\r?\n/);
   const start = lines.findIndex((each) => /^### Slice S-\d+/.test(each));
   if (start === -1) return { slice: "no current Slice", label: "updates", updates: [] };
@@ -86,23 +86,6 @@ function currentSlice5Updates(recordText) {
     slice: lines[start].replace(/^###\s+Slice\s+/, ""),
     label: "updates",
     updates: updates.map((each) => each.replace(/^-\s+/, "")),
-  };
-}
-
-// A Schema 4 record's current Slice Material updates: what ran or changed while no one was answering.
-function currentSliceUpdates(recordText) {
-  const lines = recordText.split(/\r?\n/);
-  const start = lines.findIndex((each) => /^### Current Slice\s*$/.test(each));
-  if (start === -1) return { slice: "no Current Slice", label: "Material updates", updates: [] };
-  const end = lines.findIndex((each, index) => index > start && /^#{2,3} /.test(each));
-  const slice = lines.slice(start, end === -1 ? undefined : end);
-  const title = slice.find((each) => /^#### S-\d+/.test(each));
-  const at = slice.findIndex((each) => /^##### Material updates\s*$/.test(each));
-  const updates = at === -1 ? [] : slice.slice(at + 1).filter((each) => /^\s*-\s+\S/.test(each));
-  return {
-    slice: title ? title.replace(/^####\s+/, "") : "no Current Slice",
-    label: "Material updates",
-    updates: updates.map((each) => each.trim().replace(/^-\s+/, "")),
   };
 }
 
@@ -221,12 +204,7 @@ export function renderChoices(
     ...(waiting.length ? waiting.map(itemLine) : ["- none"]),
   );
   if (changed.length) out.push("", `Changed while you were away (${changed.length}):`, ...changed.map(itemLine));
-  const ran =
-    recordText === null
-      ? null
-      : recordText.schema === 5
-        ? currentSlice5Updates(recordText.text)
-        : currentSliceUpdates(recordText.text);
+  const ran = recordText === null ? null : currentSliceUpdates(recordText);
   if (ran)
     out.push(
       "",

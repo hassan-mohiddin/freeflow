@@ -5,7 +5,8 @@
 // cloud store; `store status` says where the store stands; `store sync` commits what changed and, in a cloud store,
 // takes the remote's commits and pushes. The store marks itself with store.json at its root, so Track Work's Git check knows
 // its records are tracked on purpose (lib/store.mjs). Every commit is the script's, authored as the user, with no
-// trailers. A home that holds Pi's Task Memory (its registry.json) is never turned into a store.
+// trailers. A home that holds Pi's former Task Memory (its registry.json) is never turned into a store: its records
+// are moved into a store elsewhere with migrate (Setup Freeflow's store setup), and the folder stays as it was.
 
 import { execFile as execFileCallback } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -155,7 +156,7 @@ export async function addStoreRemote({ home: explicit, url }) {
 /**
  * Clones `remote` into the store's folder, or with no remote makes a local store there. An empty remote gets the store's
  * layout and first commit, pushed; a remote that already holds a store is joined as it is. A folder that already holds
- * an empty clone of the remote is used as it is (P97). Refuses a folder that holds Pi's Task Memory or anything else,
+ * an empty clone of the remote is used as it is (P97). Refuses a folder that holds Pi's former Task Memory or anything else,
  * and a remote that holds a repository that is not a store.
  *
  * @param {{ home?: string, remote: string, name?: string, email?: string }} options
@@ -165,7 +166,7 @@ export async function initStore({ home: explicit, remote, name, email }) {
   if (existsSync(join(home, "registry.json")))
     fail(
       "task-memory-home",
-      `${home} holds Pi's Task Memory (registry.json), which stays as it is until Freeflow's Pi layer moves to the store; choose another folder for the store with --home <folder>, and set FREEFLOW_HOME to it for the sessions that use the store`,
+      `${home} holds Pi's former Task Memory (registry.json), which Freeflow no longer runs: choose another folder for the store with --home <folder>, set FREEFLOW_HOME to it for the sessions that use the store, then move the old records into it with migrate, as Setup Freeflow's store setup says`,
     );
   if (isFreeflowStore(home))
     fail("already-a-store", `${home} is already a Freeflow store; run store status or store sync`);
