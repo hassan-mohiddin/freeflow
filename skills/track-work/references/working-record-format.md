@@ -419,7 +419,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Close the current Slice | `slice close --state <completed\|blocked\|abandoned>` (blocked from paused) |
 | Record a Slice that finished before it could be recorded | `slice record --state <state>`: History only; Current Work and Future Work unchanged |
 | Hand work to an agent, and close it | `delegate open`, `amend`, `status`, `check-return`, `close` |
-| Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task |
+| Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task; either with `--compact` to have Freeflow's harness layer compact when the turn ends, which it does only on that request |
 | Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
 | The budget | `budget [--record <ID>]`; `task set-budget --mode <normal\|expanded>` on the user's word |
 | The context used, and whether the rest fits in this compaction cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |

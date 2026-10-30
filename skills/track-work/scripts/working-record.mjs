@@ -20,7 +20,7 @@ import {
 import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
 import { checkEvidencePointers, checkLinePointers, renderRecover } from "./lib/recover.mjs";
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
-import { checkpointSession, runTransition5 } from "./lib/transitions5.mjs";
+import { checkpointSession, runTransition5, writeCompactionRequest } from "./lib/transitions5.mjs";
 import { budgetLines, budgetFor, contextWindow, measureTask, renderBudget } from "./lib/budget5.mjs";
 import { copyTaskIntoStore, migrateTask, readCues } from "./lib/migrate5.mjs";
 import { dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
@@ -71,8 +71,8 @@ function usage() {
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
     "  working-record.mjs agreement <open|update|close> ... (Schema 5)",
-    "  working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] (Schema 5)",
-    "  working-record.mjs checkpoint --session --input <file|-> (Schema 5, a session holding no task)",
+    "  working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] [--compact] (Schema 5)",
+    "  working-record.mjs checkpoint --session --input <file|-> [--compact] (Schema 5, a session holding no task)",
     "  working-record.mjs budget [--record <record.md>] [--window <tokens>] [--mode normal|expanded] (Schema 5)",
     "  working-record.mjs estimate [--used <tokens>] [--window <tokens>] [--done <n> --left <m>] [--transcript <path>]",
     "  working-record.mjs estimate --plan --record <ID> [--input -] [--fan-out <n>] [--done <n>] | --project <name> | --store",
@@ -105,11 +105,12 @@ const COMMAND_HELP = new Map([
     "checkpoint",
     [
       "Usage: working-record.mjs checkpoint <operation> ... (Schema 4)",
-      "       working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] (Schema 5)",
-      "       working-record.mjs checkpoint --session --input <file|-> (Schema 5, a session holding no task)",
+      "       working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] [--compact] (Schema 5)",
+      "       working-record.mjs checkpoint --session --input <file|-> [--compact] (Schema 5, a session holding no task)",
       "Schema 4 operations: checkpoint propose, checkpoint activate, checkpoint defer, checkpoint resume, checkpoint close.",
       'Schema 5\'s checkpoint, before a compaction or a transfer, once Current Context is rewritten: with --input, rewrites In flight whole from its lines (each "- Now|Observed|Hypothesis|Dropped|Pending|Carry: …", a Carry line "- Carry: <path> (lines <a>–<b>) — <why>"; "none" empties it); checks the task folder\'s structure and the recovery budget for the session\'s window (FREEFLOW_CONTEXT_WINDOW) and the task\'s mode, warning when the counted memory or a fixed part is over; writes the Space line for the work repository at --repo (default: the current directory, unless it is the Freeflow store), sets State as of, then commits and pushes the Freeflow store holding the task.',
       "With --session, for a session that holds no task: writes the session summary to <store>/sessions/<session ID>/summary.md, which Freeflow's compaction installs and removes. Input: the headings ## Goal, ## Settled, ## Open, ## Agreement, ## In flight, ## Read when, ## Next action, in order; Goal and Next action must say something; (none) where a heading has nothing.",
+      "With --compact, either form also asks Freeflow's harness layer to compact the session at the end of this turn, with the record in place of the conversation: it leaves a request in <store>/sessions/<session ID>/compact.json, which session status reports. A checkpoint without it never compacts. Where no harness layer runs, nothing more happens.",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
       "Use --input - to read Markdown fragments from stdin.",
     ].join("\n"),
@@ -234,7 +235,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "session status",
-    "Usage: session status [--home <folder>]\nPrints, as JSON for a harness layer such as Freeflow's Claude Code mod, this session's state in the Freeflow store: home and store (false where the home is not a store, with only missing beside it); session, the session's ID; task, the task it holds, with its ID, record and State as of, or null; summary, the session summary checkpoint --session wrote, with its path and time, or null; changed, whether the store holds paths not committed or commits not pushed; transcript, the session's log, or null; missing, what keeps the session from a working store (a store FREEFLOW_HOME names that is not there, an empty clone not laid out yet, a cloud session's store with no remote), each with what, fix and by (user or agent), and empty when nothing is. Reaches no network.",
+    "Usage: session status [--home <folder>]\nPrints, as JSON for a harness layer such as Freeflow's Claude Code mod, this session's state in the Freeflow store: home and store (false where the home is not a store, with only missing beside it); session, the session's ID; task, the task it holds, with its ID, record and State as of, or null; summary, the session summary checkpoint --session wrote, with its path and time, or null; changed, whether the store holds paths not committed or commits not pushed; transcript, the session's log, or null; missing, what keeps the session from a working store (a store FREEFLOW_HOME names that is not there, an empty clone not laid out yet, a cloud session's store with no remote), each with what, fix and by (user or agent), and empty when nothing is; compact, the request checkpoint --compact left (its path, requestedAt and done), or null. Reaches no network.",
   ],
   [
     "project",
@@ -403,6 +404,7 @@ function parseOptions(args) {
         "--plan",
         "--store",
         "--json",
+        "--compact",
       ].includes(token)
     ) {
       options[token] = true;
@@ -494,6 +496,7 @@ function allowedOptions(command, operation) {
         "--home",
         "--used",
         "--transcript",
+        "--compact",
         "--help",
       ]);
     if (operation === "propose") return new Set([...common, "--title"]);
@@ -1151,12 +1154,27 @@ async function runCore(command, rest) {
   return runTransition(command, positionals, options, input, loaded);
 }
 
+/** Leaves this session's request for Freeflow's compaction in the store (P102); says where it went, or why none did. */
+async function requestCompaction(args) {
+  const at = args.indexOf("--home");
+  const home = storeHome(at === -1 ? undefined : args[at + 1]);
+  const identity = sessionIdentity();
+  if (!identity || !isFreeflowStore(home))
+    return "Compaction not requested: it needs a session ID and the Freeflow store.\n";
+  await writeCompactionRequest(home, identity);
+  return "Compaction requested: Freeflow's harness layer compacts the session when this turn ends, with the record in place of the conversation. End your turn now.\n";
+}
+
 try {
   const [command, ...rest] = process.argv.slice(2);
   if (!command || command === "--help" || command === "help") {
     process.stdout.write(`${usage()}\n`);
   } else {
-    process.stdout.write(await runCore(command, rest));
+    const output = await runCore(command, rest);
+    // A checkpoint that asks for Freeflow's compaction leaves its request once it is written (P102).
+    process.stdout.write(
+      command === "checkpoint" && rest.includes("--compact") ? `${output}${await requestCompaction(rest)}` : output,
+    );
   }
 } catch (error) {
   process.stderr.write(`Error: ${error.message}\n`);

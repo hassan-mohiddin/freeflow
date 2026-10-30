@@ -22,7 +22,13 @@ import {
 } from "./record5.mjs";
 import { searchRecords } from "./search.mjs";
 import { LAST_TASK_NUMBER, createRecordPath, nextTaskNumber, writeInitialAtomically, writeTaskFile } from "./store.mjs";
-import { REPOSITORIES_FILE, rememberRepository, repositoryState, sessionSummaryPath } from "./transitions5.mjs";
+import {
+  REPOSITORIES_FILE,
+  compactionRequestPath,
+  rememberRepository,
+  repositoryState,
+  sessionSummaryPath,
+} from "./transitions5.mjs";
 
 export const SESSIONS_FILE = "sessions.md";
 export const MENU_TASKS = 15;
@@ -217,11 +223,22 @@ export function heldTask(home, identity) {
   return identity ? (allTasks(home).find((task) => task.hold?.short === identity.short) ?? null) : null;
 }
 
+/** This session's request for Freeflow's compaction, written by checkpoint --compact (P102), or null. */
+function compactionRequest(home, identity) {
+  const path = identity ? compactionRequestPath(home, identity) : null;
+  if (!path || !existsSync(path)) return null;
+  try {
+    return { path, ...JSON.parse(readFileSync(path, "utf8")) };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * This session's state in the store, for a harness layer such as Freeflow's Claude Code mod: the task it holds, with
  * its record and State as of; its session summary and that summary's time, when checkpoint --session wrote one;
  * whether the store holds changes not yet synced (paths not committed, or commits not pushed); its transcript; and
- * what is missing for a working store, with who fixes it (P94).
+ * what is missing for a working store, with who fixes it (P94); and its request for Freeflow's compaction (P102).
  */
 export async function sessionStatus(home, identity, env = process.env) {
   const held = heldTask(home, identity);
@@ -237,6 +254,7 @@ export async function sessionStatus(home, identity, env = process.env) {
     changed: status.uncommitted > 0 || (status.unpushed ?? 0) > 0,
     transcript: env.FREEFLOW_TRANSCRIPT || claudeCodeLog(env),
     missing: await missingParts(home, env),
+    compact: compactionRequest(home, identity),
   };
 }
 

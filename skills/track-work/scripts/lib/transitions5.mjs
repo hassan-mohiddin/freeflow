@@ -729,6 +729,18 @@ export function sessionSummaryPath(home, identity) {
   return join(home, "sessions", identity.id, "summary.md");
 }
 
+/** Where this session's request for Freeflow's compaction goes (P102): <store>/sessions/<session ID>/compact.json. */
+export function compactionRequestPath(home, identity) {
+  return join(home, "sessions", identity.id, "compact.json");
+}
+
+/** `checkpoint --compact`: a request the harness layer answers once, at the end of the turn, and marks done. */
+export async function writeCompactionRequest(home, identity) {
+  const path = compactionRequestPath(home, identity);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify({ requestedAt: new Date().toISOString(), done: false }, null, 2)}\n`);
+}
+
 /**
  * `checkpoint --session`: without a held task, the session's own summary, which Freeflow's compaction installs and
  * then removes. Every heading is present, in order; Goal and Next action say something; In flight's lines are labelled.

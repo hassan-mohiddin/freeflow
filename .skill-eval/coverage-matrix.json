@@ -180,7 +180,7 @@
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current Track Work skill, rewritten for Schema 5 in task-004 (Phase 7.1), has not been behaviorally evaluated at this snapshot; Unverified. Earlier, Schema 4's Work Agreement guidance measured on 2026-10-13 (.skill-eval/work-agreement, baseline 5a7db0e6, candidate 522903b7, anthropic/claude-haiku-5-5 medium, 3 trials; aggregates 20261012212234-b38e8191 natural and 20261012212240-5af3ab7e explicit): agreement updated on a change of direction 3/3 vs 0/3; next step proposed at the agreement's edge 3/3 vs 1/3 and scope proposed 3/3 vs 2/3 (advisory Haiku judge); ask-first, unanswered-proposal and no-push/PR checks equal on both arms. Workflow's body was read in no natural run. This entry's own claim is not what that suite measures and stays unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "1c188792536dc90d925b10df14c15ca1cbdfcfd1cc1731a9c488732f45ccbbb4",
+      "source_sha256": "a38fbc19dcbca27d9bf4b60955dc754bd82c98e7aa9a65f8256ed5c281412f97",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

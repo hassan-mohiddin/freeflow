@@ -252,7 +252,7 @@ test("a request ends: one notice a cycle, at the lower of 75% and a tenth before
   expect(notices()[0]).toContain("Claude Code compacts on its own at about 167000");
   expect(notices()[0]).toContain("Keep working until a safe point: a finished step whose result you know");
   expect(notices()[0]).toContain("rewrite widget/task-001's Current Context");
-  expect(notices()[0]).toContain("checkpoint --record widget/task-001 --input -");
+  expect(notices()[0]).toContain("checkpoint --record widget/task-001 --compact --input -");
   expect(notices()[0]).toContain("Then end your turn");
   expect(notices()[0]).toContain("the only notice this compaction cycle");
   // One notice a cycle: no repeats, whether or not the checkpoint has come (P50), and no script runs for it after.
@@ -299,7 +299,7 @@ test("a request ends: one notice a cycle, at the lower of 75% and a tenth before
   await step($, w, 150_000);
   expect(notices().length).toBe(4);
   expect(notices()[3]).toContain("This session holds no task: at that point, write its summary with");
-  expect(notices()[3]).toContain("checkpoint --session --input -");
+  expect(notices()[3]).toContain("checkpoint --session --compact --input -");
   expect(notices()[3]).not.toContain("compacts on its own");
 
   // Claude's compaction set to a smaller window than the model's: the notice and the scripts use that window.
@@ -390,31 +390,35 @@ test("a request ends: the context shown at 50, 60 and 70% below the notice, once
   expect(w.commands()).toEqual(["session status"]);
 });
 
-test("a turn ends: sync a changed store; after the checkpoint a notice asked for, compact between turns and start the next", async ($, on) => {
+test("a turn ends: sync a changed store; only checkpoint --compact compacts, once, between turns, then starts the next (P102)", async ($, on) => {
   const w = world(on);
+  const REQUEST = `${HOME}/sessions/${SESSION}/compact.json`;
+  const request = (done = false) => ({ path: REQUEST, requestedAt: at(2), done });
   w.status = held(at(-30));
   w.answers["view bundle --record"] = { stdout: "THE BUNDLE\n" };
   await start($);
   await w.clock.advance(60_000);
   await step($, w, 160_000);
 
-  // A checkpoint older than the notice: the store syncs, nothing compacts.
+  // A plain checkpoint after the notice: the store syncs, nothing compacts.
   w.status = held(at(0.5), { changed: true });
   w.runs.length = 0;
   await $.turn.complete(turnEnd("answer"));
   await w.clock.advance(1);
   expect(w.commands()).toEqual(["session status", "store sync"]);
-  expect(w.submitted).toEqual([]);
+  expect(w.commandsRun).toEqual([]);
 
-  // An interrupted turn does not compact, though the checkpoint is done.
-  w.status = held(at(2));
+  // checkpoint --compact, but the turn was interrupted: nothing compacts.
+  w.status = held(at(2), { compact: request() });
   await $.turn.complete(turnEnd("aborted"));
   await w.clock.advance(1);
-  expect(w.submitted).toEqual([]);
+  expect(w.commandsRun).toEqual([]);
 
-  // The checkpoint is done: once the turn has ended, the mod runs /compact as the person would, which the engine
-  // compacts through the mod's session.compact hook (the next test), then a prompt starts the next turn.
+  // The turn ended: the request is marked done, then the mod runs /compact as the person would, which the engine
+  // compacts through the mod's session.compact hook (the next test), and a prompt starts the next turn.
+  w.writes.length = 0;
   await $.turn.complete(turnEnd("answer"));
+  expect(w.writes).toEqual([{ path: REQUEST, text: JSON.stringify({ requestedAt: at(2), done: true }, null, 2) }]);
   expect(w.commandsRun).toEqual([]);
   await w.clock.advance(1);
   expect(w.logs).toEqual([]);
@@ -422,11 +426,26 @@ test("a turn ends: sync a changed store; after the checkpoint a notice asked for
   expect(w.submitted.length).toBe(1);
   expect(w.submitted[0]).toContain("Continue from In flight and the Next action.");
 
-  // That compaction started a new cycle, even where no hook of the mod's saw it: the next turn end compacts nothing,
-  // though the checkpoint is still later than the old notice (T12).
-  w.status = held(at(3));
+  // A request already answered compacts nothing more.
+  w.status = held(at(3), { compact: request(true) });
   await $.turn.complete(turnEnd("answer"));
   await w.clock.advance(1);
+  expect(w.commandsRun).toEqual(["compact"]);
+  expect(w.submitted.length).toBe(1);
+});
+
+test("checkpoint --compact compacts before any notice: the agent decides when (P102)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  await start($);
+  await w.clock.advance(60_000);
+  await step($, w, 20_000);
+  w.status = held(at(1), {
+    compact: { path: `${HOME}/sessions/${SESSION}/compact.json`, requestedAt: at(1), done: false },
+  });
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(1);
+  expect(noticesOf(w)).toEqual([]);
   expect(w.commandsRun).toEqual(["compact"]);
   expect(w.submitted.length).toBe(1);
 });

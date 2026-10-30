@@ -182,9 +182,9 @@ function noticeText($, context, state, number) {
   const command = `node ${$.plugin.root}/${SCRIPT}`;
   const limit = threshold ? `; Claude Code compacts on its own at about ${Math.round(threshold)} tokens` : "";
   const checkpoint = state.task
-    ? `At that point, checkpoint ${state.task.id}: rewrite ${state.task.id}'s Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${state.task.id} --input - with In flight's lines.`
-    : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --input - (Goal, Settled, Open, Agreement, In flight, Read when, Next action).`;
-  return `Freeflow, compaction cycle ${number}: the context is at ${share(context)}${limit}. Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and starts the next turn where it can. This is the only notice this compaction cycle; if Claude Code compacts before the checkpoint, the record as of its last checkpoint follows Claude's summary.`;
+    ? `At that point, checkpoint ${state.task.id}: rewrite ${state.task.id}'s Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${state.task.id} --compact --input - with In flight's lines.`
+    : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Read when, Next action).`;
+  return `Freeflow, compaction cycle ${number}: the context is at ${share(context)}${limit}. Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: on that request, Freeflow compacts the session with the record in place of the conversation, and starts the next turn where it can. This is the only notice this compaction cycle; if Claude Code compacts before the checkpoint, the record as of its last checkpoint follows Claude's summary.`;
 }
 
 /**
@@ -343,7 +343,7 @@ async function workerCompaction($, e, next) {
   return next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${note}` : note });
 }
 
-/** After a turn that ended a checkpoint the notice asked for: compact between turns, then a prompt to go on (P51). */
+/** After a turn that ended with checkpoint --compact: compact between turns, then a prompt to go on (P51, P102). */
 async function compactAndContinue($) {
   try {
     // /compact, run as the person would: a plugin's own $.session.compact() passes none of its own hooks, so the
@@ -361,8 +361,11 @@ async function turnEnded($, e) {
   const state = await status($);
   if (!state) return;
   if (state.changed) await script($, ["store", "sync"]);
-  if (e.reason === "answer" && cycle.notice !== null && checkpointDone(state))
-    $.clock.after(0, () => compactAndContinue($));
+  // Only the agent's own request compacts (P102): checkpoint --compact, answered once, after a turn that ended.
+  const request = state.compact;
+  if (e.reason !== "answer" || !request || request.done || !checkpointDone(state)) return;
+  await $.fs.write(request.path, JSON.stringify({ ...request, path: undefined, done: true }, null, 2));
+  $.clock.after(0, () => compactAndContinue($));
 }
 
 /** @param {import("claude-code").On} on */
