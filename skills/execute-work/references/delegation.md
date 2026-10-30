@@ -48,7 +48,7 @@ What past work cost helps you weigh it: Track Work's `working-record.mjs estimat
 
 Goal: the worker can act correctly on its first attempt from what it can see.
 
-Each delegation has a folder in the task directory, `delegations/D-NNN-<slug>/`, numbered in sequence; with no task directory, use your scratch folder. The agent handing the work out writes `brief.md` there. With a Schema 5 Working Record, Track Work's `working-record.mjs delegate open` does it: it assigns the ID, writes the brief from this template with the sections you give it, makes a writing worker's worktree (`--repo`, `--base`), and records the delegation. Otherwise write it by hand:
+Each delegation has a folder in the task directory, `delegations/D-NNN-<slug>/`, numbered in sequence; with no task, the same folder goes in your scratch folder. The agent handing the work out writes `brief.md` there. With a Schema 5 Working Record, Track Work's `working-record.mjs delegate open` does it: it assigns the ID, writes the brief from this template with the sections you give it, makes a writing worker's worktree (`--repo`, `--base`), and records the delegation. With no task, `delegate open --scratch <your scratch folder>` writes the same brief and records nothing, and `delegate check-return --scratch` checks the return. Otherwise write it by hand:
 
 ```markdown
 # D-012 — <title>

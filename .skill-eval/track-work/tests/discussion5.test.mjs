@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { utimesSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
-import { distinct, readClaudeCode, readPlain } from "../../../skills/track-work/scripts/lib/discussion5.mjs";
+import {
+  claudeCodeLog,
+  distinct,
+  readClaudeCode,
+  readPlain,
+} from "../../../skills/track-work/scripts/lib/discussion5.mjs";
 
 const scriptPath = resolve("skills/track-work/scripts/working-record.mjs");
 
@@ -342,4 +348,28 @@ test("a plain export can come from standard input, with the notes from a file", 
       /--transcript - reads standard input; give the notes with --input <file>/,
     );
   });
+});
+
+test("the session's log is the newest of its copies, as after a restart in another folder Claude Code writes a second one", async () => {
+  const config = await mkdtemp(join(tmpdir(), "track-work-log-"));
+  try {
+    const env = { CLAUDE_CONFIG_DIR: config, CLAUDE_CODE_SESSION_ID: "d5d6ba82" };
+    const copy = async (folder, minutesAgo) => {
+      const path = join(config, "projects", folder, "d5d6ba82.jsonl");
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, "{}\n");
+      const time = new Date(Date.now() - minutesAgo * 60_000);
+      utimesSync(path, time, time);
+      return path;
+    };
+    await copy("-home-user-freeflow", 30);
+    const newer = await copy("-home-user", 1);
+    assert.equal(claudeCodeLog(env), newer);
+    // Whichever folder is listed first: the newer copy wins.
+    const newest = await copy("-home-user-freeflow", 0);
+    assert.equal(claudeCodeLog(env), newest);
+    assert.equal(claudeCodeLog({ ...env, CLAUDE_CODE_SESSION_ID: "absent" }), null);
+  } finally {
+    await rm(config, { recursive: true, force: true });
+  }
 });

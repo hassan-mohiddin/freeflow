@@ -418,7 +418,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | `in_progress` ↔ `paused` | `slice pause`, `slice resume` |
 | Close the current Slice | `slice close --state <completed\|blocked\|abandoned>` (blocked from paused) |
 | Record a Slice that finished before it could be recorded | `slice record --state <state>`: History only; Current Work and Future Work unchanged |
-| Hand work to an agent, and close it | `delegate open`, `amend`, `status`, `check-return`, `close` |
+| Hand work to an agent, and close it | `delegate open`, `amend`, `status`, `check-return`, `close`; with no task, `delegate open --scratch <folder>` and `check-return --scratch <folder>`, which record nothing |
 | Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task; either with `--compact` to have Freeflow's harness layer compact when the turn ends, which it does only on that request |
 | Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
 | The budget | `budget [--record <ID>]`; `task set-budget --mode <normal\|expanded>` on the user's word |
@@ -452,7 +452,7 @@ Never edit directly: IDs, `State` fields, `Opened`, `State as of`, `Predicted` a
 
 Views print and change nothing.
 
-- `view recover [--delegation <D-NNN>]`: the opening line (the record is memory; the user's direction decides the work), the store's and the project's rules, `record.md`, the active decisions within their budget, the History index, the project's other tasks with their cues, and the checks: the budget, pointers that do not resolve, open delegations, the hold, the store's changes not yet synced, and where each repository in Space stands; then the line saying what to read next. With `--delegation`, a worker's: its rule and its delegation's brief, progress and return first.
+- `view recover [--delegation <D-NNN>]`: the opening line (the record is memory; the user's direction decides the work), the store's and the project's rules, `record.md`, the active decisions within their budget, the History index, the project's other tasks with their cues, and the checks: the task folder's path, the budget, pointers that do not resolve, open delegations, the hold, the store's changes not yet synced, and where each repository in Space stands; then the line saying what to read next. With `--delegation`, a worker's: its rule and its delegation's brief, progress and return first.
 - `view bundle`: the same, then every source recovery reads, whole, with the counted and uncounted sizes and the recovery line: what Freeflow's compaction installs. `--fallback` is what Freeflow adds after the harness's own summary when the compaction came before the checkpoint; `--session` is a session summary's bundle.
 - `view entry <ID> [<ID> ...]`: the named History entries as stored, in the order given; an unknown ID prints nothing and fails.
 - `view index`: every History entry, one line each.
