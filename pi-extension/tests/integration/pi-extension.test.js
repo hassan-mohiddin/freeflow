@@ -417,8 +417,8 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
     toolNames.filter((name) => name.startsWith("freeflow_")),
     [],
   );
-  // Task memory's tool is named apart from /freeflow task, which models confused it with (grok-4.7 runs).
-  assert.ok(toolNames.includes("task_memory"));
+  // Pi's Task Memory is gone, its tool with it: tasks live in the Freeflow store, through Track Work's script.
+  assert.ok(!toolNames.includes("task_memory"));
   assert.ok(!toolNames.includes("freeflow_switch_profile"));
   assert.ok(!toolNames.includes("freeflow_cognitive_routing_history"));
   assert.ok(freeflowCommand);
@@ -553,7 +553,7 @@ test("settings: a section's switch is its own row, sections run everyday to expe
       assert.doesNotMatch(text, /\bEnabled\b/);
       assert.match(
         text,
-        /Freeflow\s+on \(inherited\)\n[\s\S]*Compaction\s+on \(inherited\)\n\s+Context reuse[\s\S]*Tool Execution\s+on \(inherited\)\n[\s\S]*Task Memory\s+off \(inherited\)[\s\S]*Messaging\s+off \(inherited\)/,
+        /Freeflow\s+on \(inherited\)\n[\s\S]*Compaction\s+on \(inherited\)\n\s+Context reuse[\s\S]*Tool Execution\s+on \(inherited\)\n[\s\S]*Messaging\s+off \(inherited\)/,
       );
       // Where an inherited value comes from is on the help line, not in the list (Task 005 D-002).
       assert.match(text, /Inherited: not set in \.freeflow\/config\.json, so Freeflow's default applies\./);
@@ -568,26 +568,25 @@ test("settings: a section's switch is its own row, sections run everyday to expe
     assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).messaging, {
       inbound: "project",
     });
-    // Auto-approve is one row that opens its five switches, as the routing presets open their picker.
+    // A nested group is one row that opens its switches, as the routing presets open their picker.
     const nestedCtx = context(cwd);
     nestedCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(renderText(component, 180), /Auto-approve\s+none\n/);
-      assert.doesNotMatch(renderText(component, 180), /\bAttach\b/);
-      choose(component, "Auto-approve", "Task Memory");
+      assert.match(renderText(component, 180), /Each skill\s+all\n/);
+      choose(component, "Each skill", "Skills");
       component.handleInput(KEY.enter);
       const opened = renderText(component, 180);
-      assert.match(opened, /Freeflow settings › Repository › Auto-approve/);
-      assert.match(opened, /› Attach\s+off \(inherited\)\n\s+Create/);
+      assert.match(opened, /Freeflow settings › Repository › Each skill/);
+      assert.match(opened, /› Deliver Work\s+on \(inherited\)\n\s+Discuss Work/);
       component.handleInput(KEY.enter);
       await component.waitForWrites();
       component.handleInput(KEY.escape);
-      assert.match(renderText(component, 180), /Auto-approve\s+attach\n/);
+      assert.match(renderText(component, 180), /Each skill\s+all but deliver work\n/);
       return undefined;
     };
     await command.definition.handler("settings repo", nestedCtx);
-    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).taskMemory, {
-      autoApprove: { attach: true },
+    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).skills, {
+      "deliver-work": false,
     });
     const colorCtx = context(cwd);
     colorCtx.ui.custom = async (factory) => {
@@ -611,12 +610,10 @@ test("plugin-docs/settings.md documents every row the settings screen shows and 
   const { SESSION_OVERRIDE_KEYS } = await import("../../dist/host/config.js");
   const { REVIEW_MODES, RUNTIME_PROMPTS, validateRepositoryConfig } =
     await import("../../dist/host/config-validation.js");
-  const { AUTO_APPROVE_GROUPS } = await import("../../dist/task-memory/config.js");
   const { INBOUND_POLICIES } = await import("../../dist/messaging/config.js");
   const { DELEGATION_MODES } = await import("../../dist/cognitive-routing/types.js");
   const keys = [
     ...SESSION_OVERRIDE_KEYS,
-    ...Object.keys(AUTO_APPROVE_GROUPS).map((group) => `taskMemory.autoApprove.${group}`),
     "messaging.inbound",
     "cognitiveRouting.delegation",
     ...["coordinator", "helper", "executor"].map((profile) => `cognitiveRouting.profiles.${profile}`),
@@ -684,20 +681,17 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
   const { COGNITIVE_ROUTING_KEYS } = await import("../../dist/cognitive-routing/config.js");
   const { TOOL_EXECUTION_KEYS } = await import("../../dist/tool-execution/config.js");
   const { COMPACTION_KEYS } = await import("../../dist/compaction/config.js");
-  const { AUTO_APPROVE_GROUPS, TASK_MEMORY_KEYS } = await import("../../dist/task-memory/config.js");
   const { MESSAGING_KEYS } = await import("../../dist/messaging/config.js");
   const sections = {
     cognitiveRouting: COGNITIVE_ROUTING_KEYS,
     toolExecution: TOOL_EXECUTION_KEYS,
     compaction: COMPACTION_KEYS,
-    taskMemory: TASK_MEMORY_KEYS,
     messaging: MESSAGING_KEYS,
     prompts: PROMPTS_KEYS,
     review: REVIEW_KEYS,
     skills: SKILLS_KEYS,
   };
   const nested = {
-    "taskMemory.autoApprove": Object.keys(AUTO_APPROVE_GROUPS),
     "cognitiveRouting.profiles": ["coordinator", "helper", "executor"],
   };
   const keys = ["enabled"];
@@ -749,70 +743,41 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
   }
 });
 
-test("/freeflow trash lists removed items, and only /freeflow trash empty deletes them, after asking", async () => {
-  // Task 006: the trash is emptied only by the user's command.
-  const before = process.env.FREEFLOW_HOME;
-  const home = await mkdtemp(join(tmpdir(), "freeflow-home-"));
-  process.env.FREEFLOW_HOME = home;
-  const cwd = await configuredRepo({});
-  try {
-    await mkdir(join(home, "trash", "2026-10-12T00-00-00-000Z-trial-task-001-try-it"), { recursive: true });
-    const { commands } = loadExtension(freeflowExtension);
-    const command = commands.find((candidate) => candidate.name === "freeflow");
-    const run = async (args, answer) => {
-      const ctx = context(cwd);
-      ctx.hasUI = true;
-      ctx.mode = "rpc";
-      ctx.ui.confirm = async () => answer;
-      await command.definition.handler(args, ctx);
-      return ctx.notifications.at(-1).message;
-    };
-    assert.match(await run("trash", false), /^Trash \(.+\):\n- 2026-10-12T00-00-00-000Z-trial-task-001-try-it\n/);
-    assert.equal(await run("trash empty", false), "The trash was not emptied.");
-    assert.equal((await readdir(join(home, "trash"))).length, 1);
-    assert.equal(await run("trash empty", true), "Deleted 1 item(s) from the trash.");
-    assert.equal(await run("trash", false), "The trash is empty.");
-  } finally {
-    process.env.FREEFLOW_HOME = before;
-    await rm(cwd, { recursive: true, force: true });
-    await rm(home, { recursive: true, force: true });
-  }
-});
-
-test("Pi settings show Task Memory off by default, and status reports it when on", async () => {
+test("a config that still sets taskMemory loads, shows no setting, and status says Task Memory is gone (P6)", async () => {
   const cwd = await configuredRepo({});
   try {
     const { commands } = loadExtension(freeflowExtension);
     const command = commands.find((candidate) => candidate.name === "freeflow");
-    const settingsCtx = context(cwd);
-    settingsCtx.ui.custom = async (factory) => {
-      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(renderText(component, 180), /Task Memory\s+off \(inherited\)\n/);
-      return undefined;
-    };
-    await command.definition.handler("settings repo", settingsCtx);
     const statusCtx = context(cwd);
     await command.definition.handler("status", statusCtx);
-    assert.doesNotMatch(statusCtx.notifications.at(-1).message, /task memory/);
+    assert.doesNotMatch(statusCtx.notifications.at(-1).message, /task memory/i);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
-  const on = await configuredRepo({ taskMemory: { enabled: true } });
+  const old = await configuredRepo({ taskMemory: { enabled: true, autoApprove: { attach: true } } });
   try {
+    await writeFile(join(old, ".freeflow/local.json"), `${JSON.stringify({ taskMemory: { enabled: false } })}\n`);
     const { commands } = loadExtension(freeflowExtension);
     const command = commands.find((candidate) => candidate.name === "freeflow");
-    const settingsCtx = context(on);
+    const settingsCtx = context(old);
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(renderText(component, 180), /Task Memory\s+on\n/);
+      const text = renderText(component, 180);
+      assert.match(text, /Freeflow\s+on/);
+      assert.doesNotMatch(text, /Task Memory|Auto-approve/);
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);
-    const statusCtx = context(on);
+    const statusCtx = context(old);
     await command.definition.handler("status", statusCtx);
-    assert.match(statusCtx.notifications.at(-1).message, /task memory: enabled/);
+    const status = statusCtx.notifications.at(-1).message;
+    assert.match(status, /^Freeflow: enabled/);
+    assert.match(
+      status,
+      /task memory: Pi's Task Memory is gone, and its taskMemory settings are ignored: tasks live in the Freeflow store \(Setup Freeflow moves old records in\)/,
+    );
   } finally {
-    await rm(on, { recursive: true, force: true });
+    await rm(old, { recursive: true, force: true });
   }
 });
 
@@ -1088,7 +1053,6 @@ test("the footer shows routing's state, or that Freeflow is on and whether every
       ...base,
       messaging: { effective: true },
       compaction: { effective: true },
-      taskMemory: { effective: false },
       toolExecution: { effective: true },
     },
     undefined,
@@ -1206,13 +1170,6 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
     },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
     { value: "compact", label: "compact", description: "Prepare, compact and recover now" },
-    {
-      value: "task",
-      label: "task",
-      description: "Attach, focus, detach or confirm Working Records (task memory)",
-    },
-    { value: "project", label: "project", description: "Create or link a task-memory project" },
-    { value: "trash", label: "trash", description: "Removed tasks and projects; trash empty deletes them for good" },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "resume", label: "resume", description: "Resume the current saved routing responsibility" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
@@ -1342,20 +1299,18 @@ test("Pi leaves out a skill and a runtime prompt the user turned off, and tells 
 });
 
 test("Pi applies a session value over the files for a choice, a model name and a nested switch", async () => {
-  const cwd = await configuredRepo({ review: { mode: "off" }, taskMemory: { autoApprove: { create: true } } });
+  const cwd = await configuredRepo({ review: { mode: "off" }, skills: { "deliver-work": false } });
   try {
     const { setSessionCoreOverride, resetSessionOverrides } = await import("../../dist/host/config.js");
     const ctx = context(cwd);
     const pi = { appendEntry() {} };
     await setSessionCoreOverride("review.mode", "always", ctx, pi);
     await setSessionCoreOverride("review.model", "test/model-b", ctx, pi);
-    await setSessionCoreOverride("taskMemory.autoApprove.attach", true, ctx, pi);
     await setSessionCoreOverride("skills.write-docs", false, ctx, pi);
     const state = await readCapabilityState(cwd, ctx);
     assert.deepEqual(state.review, { mode: "always", model: "test/model-b" });
-    assert.equal(state.taskMemory.autoApprove.attach, true);
-    assert.equal(state.taskMemory.autoApprove.create, true, "the file's other switches stay");
-    assert.deepEqual(state.skills.off, ["write-docs"]);
+    // The file's other switches stay.
+    assert.deepEqual(state.skills.off, ["deliver-work", "write-docs"]);
     await assert.rejects(
       setSessionCoreOverride("review.mode", "sometimes", ctx, pi),
       /Invalid Freeflow session override value/,
@@ -1363,7 +1318,7 @@ test("Pi applies a session value over the files for a choice, a model name and a
     await resetSessionOverrides(ctx, pi);
     const after = await readCapabilityState(cwd, ctx);
     assert.deepEqual(after.review, { mode: "off" });
-    assert.deepEqual(after.skills.off, []);
+    assert.deepEqual(after.skills.off, ["deliver-work"]);
     // The master switch turns every skill but Setup Freeflow off.
     await setSessionCoreOverride("skills.enabled", false, ctx, pi);
     const off = await readCapabilityState(cwd, ctx);

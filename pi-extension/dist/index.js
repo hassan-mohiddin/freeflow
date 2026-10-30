@@ -27,14 +27,11 @@ import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController, RECOVERY_TYPE, USER_REQUEST } from "./compaction/controller.js";
 import { strictest } from "./compaction/thresholds.js";
 import { StoreLayer, scriptRunner, sessionEnvironment } from "./store/layer.js";
-import { SNAPSHOT_TYPE, TASK_ENTRY, TaskMemory } from "./task-memory/runtime.js";
-import { applyTaskMemoryTools, registerTaskMemoryTool } from "./task-memory/tool.js";
-import { freeflowHome } from "./task-memory/registry.js";
 import { DEFAULT_INBOUND_POLICY } from "./messaging/config.js";
 import { MESSAGE_TYPE, Messaging } from "./messaging/messaging.js";
+import { freeflowHome } from "./messaging/registry.js";
 import { applyMessagingTools, registerMessagingTools } from "./messaging/tools.js";
 import { renderMessage } from "./messaging/render.js";
-import { renderSnapshotMessage } from "./task-memory/render.js";
 import { applyAskUserTool, registerAskUserTool } from "./ask-user/tool.js";
 import { confirmWithUser } from "./ask-user/ask.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
@@ -158,50 +155,27 @@ function freeflowCompletions(prefix, routingAvailable) {
         ["settings local", "local", "Edit personal overrides for this repository"],
         ["settings repo", "repo", "Edit shared repository settings"],
       ]
-    : query.startsWith("task ")
+    : query.startsWith("profile ") && routingAvailable
       ? [
-          ["task list", "list", "This repository's records, or a project's tasks"],
-          ["task new", "new", "Create a task in this repository's project and attach it"],
-          ["task attach", "attach", "Attach a record by task ID or path"],
-          ["task focus", "focus", "Move the focus to an attached record"],
-          ["task detach", "detach", "Detach a record"],
-          ["task confirm", "confirm", "Make held records writable here"],
-          ["task fanout", "fanout", "Create a child of the focused task with its own worktree"],
-          ["task child", "child", "Create a child of a task and attach it here"],
-          ["task import", "import", "Move a repository record into a project"],
-          ["task remove", "remove", "Move a task and its children to the trash"],
+          ["profile coordinator", "coordinator", "Hold Coordinator manually"],
+          ["profile helper", "helper", "Hold Helper manually when enabled"],
+          ["profile executor", "executor", "Hold Executor manually when enabled"],
+          ["profile auto", "auto", "Return to automatic Coordinator reconciliation"],
+          ["profile history", "history", "Read routing observations"],
         ]
-      : query.startsWith("project ")
-        ? [
-            ["project list", "list", "Every project"],
-            ["project new", "new", "Create a project and link this repository"],
-            ["project link", "link", "Link this repository to a project"],
-            ["project remove", "remove", "Move a project and its tasks to the trash"],
-          ]
-        : query.startsWith("profile ") && routingAvailable
-          ? [
-              ["profile coordinator", "coordinator", "Hold Coordinator manually"],
-              ["profile helper", "helper", "Hold Helper manually when enabled"],
-              ["profile executor", "executor", "Hold Executor manually when enabled"],
-              ["profile auto", "auto", "Return to automatic Coordinator reconciliation"],
-              ["profile history", "history", "Read routing observations"],
-            ]
-          : [
-              ["settings", "settings", "Open settings; Tab switches Session, Personal and Repository"],
-              ["status", "status", "Show effective Freeflow state"],
-              ["compact", "compact", "Prepare, compact and recover now"],
-              ["task", "task", "Attach, focus, detach or confirm Working Records (task memory)"],
-              ["project", "project", "Create or link a task-memory project"],
-              ["trash", "trash", "Removed tasks and projects; trash empty deletes them for good"],
-              ...(routingAvailable
-                ? [
-                    ["profile", "profile", "Hold or release Cognitive Routing profile control"],
-                    ["resume", "resume", "Resume the current saved routing responsibility"],
-                  ]
-                : []),
-              ["enable", "enable", "Enable Freeflow for this repository"],
-              ["disable", "disable", "Disable Freeflow for this repository"],
-            ];
+      : [
+          ["settings", "settings", "Open settings; Tab switches Session, Personal and Repository"],
+          ["status", "status", "Show effective Freeflow state"],
+          ["compact", "compact", "Prepare, compact and recover now"],
+          ...(routingAvailable
+            ? [
+                ["profile", "profile", "Hold or release Cognitive Routing profile control"],
+                ["resume", "resume", "Resume the current saved routing responsibility"],
+              ]
+            : []),
+          ["enable", "enable", "Enable Freeflow for this repository"],
+          ["disable", "disable", "Disable Freeflow for this repository"],
+        ];
   return choices
     .filter(([value]) => value.startsWith(query))
     .map(([value, label, description]) => ({ value, label, description }));
@@ -252,7 +226,6 @@ export default function freeflow(pi) {
   const guidanceNoticesEffective = () =>
     toolExecutionEffective() && capability?.toolExecution?.guidanceNotices !== false;
   const compactionEffective = () => capability?.compaction?.effective === true;
-  const taskMemoryEffective = () => capability?.taskMemory?.effective === true;
   const askUserEffective = () => capability?.askUser?.effective === true;
   const messagingEffective = () => capability?.messaging?.effective === true;
   const cacheHealth = new CacheHealth();
@@ -296,7 +269,6 @@ export default function freeflow(pi) {
   function status(ctx) {
     applyRoutingToolVisibility(api, routing, capability?.cognitiveRouting?.effective === true);
     applyToolExecutionTools(api, toolExecutionEffective());
-    applyTaskMemoryTools(api, taskMemoryEffective());
     applyAskUserTool(api, askUserEffective());
     applyMessagingTools(api, messagingEffective());
     syncMessaging(ctx);
@@ -482,23 +454,6 @@ export default function freeflow(pi) {
     if (!state.store) return state.missing?.length ? `not ready (${state.missing[0].what})` : undefined;
     return `${state.home}${state.task ? `, holding ${state.task.id}` : ", no task held"}${state.changed ? ", changes not synced" : ""}`;
   };
-  const sendSnapshot = (content, record) =>
-    void Promise.resolve(
-      api.sendMessage({ customType: SNAPSHOT_TYPE, content, display: true, details: { record } }),
-    ).catch(() => {});
-  const taskMemory = new TaskMemory({
-    effective: taskMemoryEffective,
-    append: (data) => api.appendEntry(TASK_ENTRY, data),
-    send: sendSnapshot,
-    owner: () => ({
-      session: liveHost?.sessionManager?.getSessionId?.() ?? "unknown",
-      ...(liveHost?.sessionManager?.getSessionFile?.() ? { file: liveHost.sessionManager.getSessionFile() } : {}),
-      since: new Date().toISOString(),
-    }),
-    confirm: async (title, message) => (liveHost?.hasUI ? confirmWithUser(liveHost, title, message) : false),
-    cwd: () => liveHost?.cwd ?? process.cwd(),
-    packageRoot,
-  });
   // Messaging between live Pi sessions (Task 002 D-005). Its tools are deferred: tool_search loads them.
   // Read from the event context that last synced messaging, while it was current: a captured context goes stale when
   // Pi replaces the session, so later asynchronous work uses these values, not the context.
@@ -515,23 +470,10 @@ export default function freeflow(pi) {
     {
       identity: async () => {
         const seen = messagingSeen ?? { sessionId: `pid-${process.pid}`, cwd: process.cwd() };
-        const project = await taskMemory.registry.projectFor(seen.cwd).catch(() => undefined);
-        const focus = taskMemory.state().focus;
-        const task = focus ? await taskMemory.registry.byRecord(focus).catch(() => undefined) : undefined;
-        // The tasks this session owns, so a child finds its parent's session in list_sessions (Task 002 D-009).
-        const tasks = await taskMemory.registry
-          .read()
-          .then((data) => data.tasks)
-          .catch(() => ({}));
-        const owns = Object.entries(tasks)
-          .filter(([, each]) => each?.owner?.session === seen.sessionId)
-          .map(([id]) => id);
-        return {
-          ...seen,
-          ...(project ? { project: project.slug } : {}),
-          ...(task ? { task: task.id } : {}),
-          ...(owns.length ? { owns } : {}),
-        };
+        // The task this session holds in the Freeflow store, and its project, so another session can find it.
+        const task = store.heldTask();
+        const project = task && task.includes("/") ? task.split("/")[0] : undefined;
+        return { ...seen, ...(project ? { project } : {}), ...(task ? { task } : {}) };
       },
       policy: () => capability?.messaging?.inbound ?? DEFAULT_INBOUND_POLICY,
       busy: () => agentRunning,
@@ -579,175 +521,6 @@ export default function freeflow(pi) {
     messagingSync = messagingSync
       .then(() => (effective ? messaging.start() : messaging.running() ? messaging.stop() : undefined))
       .catch(() => {});
-  }
-  // A delivered resume view shows as one line naming the task; expanding shows the view the model received.
-  api.registerMessageRenderer?.(SNAPSHOT_TYPE, (message, options, theme) =>
-    renderSnapshotMessage(message, options, theme),
-  );
-  registerTaskMemoryTool(api, {
-    memory: taskMemory,
-    // Under automatic routing only the Coordinator proposes task memory actions; workers do not talk to the user.
-    refusal: () => {
-      const scope = routing.observationScope();
-      return scope.control === "automatic" && (scope.profile === "helper" || scope.profile === "executor")
-        ? "A Cognitive Routing worker may only read task memory (projects, list, view, search, env). Put the action you would propose in your report (return_work); the Coordinator proposes it."
-        : undefined;
-    },
-    // Proposals in groups the user allowed run without the dialog (Task 004 D-002).
-    autoApproved: (group) => capability?.taskMemory?.autoApprove?.[group] === true,
-    changed: (ctx) => {
-      refreshState = true;
-      status(ctx);
-    },
-  });
-  // /freeflow project: the user creates projects and links repositories to them; the model never does (D-015).
-  // Where the user can browse the project's records, when the project link was made (Task 004 D-003).
-  async function browseNote(cwd) {
-    const link = await taskMemory.registry.linkHere(cwd).catch(() => undefined);
-    return link && !link.error ? ` Browse its records in ${link.link}.` : "";
-  }
-  // Removal asks even from the user's own command: it moves records out of every session that holds them (Task 006).
-  async function removeWithConfirmation(ctx, target, title) {
-    const { question, error } = await taskMemory.removalQuestion(target);
-    if (!question) return { ok: false, text: error ?? "Nothing to remove." };
-    if (!ctx.hasUI || !(await confirmWithUser(ctx, title, question))) return { ok: false, text: "Not removed." };
-    return taskMemory.remove(target);
-  }
-  // The trash holds removed tasks and projects. Only this command empties it, so only the user can (Task 006).
-  async function trashCommand(rest, ctx) {
-    const where = await taskMemory.registry.trashPath();
-    const entries = await taskMemory.registry.trashEntries();
-    if (rest.trim().toLowerCase() !== "empty") {
-      ctx.ui.notify(
-        entries.length
-          ? `Trash (${where}):\n${entries.map((entry) => `- ${entry}`).join("\n")}\n/freeflow trash empty deletes them for good.`
-          : "The trash is empty.",
-        "info",
-      );
-      return;
-    }
-    if (!entries.length) {
-      ctx.ui.notify("The trash is empty.", "info");
-      return;
-    }
-    const yes =
-      ctx.hasUI &&
-      (await confirmWithUser(
-        ctx,
-        "Empty the trash?",
-        `Delete ${entries.length} removed item(s) in ${where} for good? This cannot be undone.`,
-      ));
-    if (!yes) {
-      ctx.ui.notify("The trash was not emptied.", "info");
-      return;
-    }
-    const deleted = await taskMemory.registry.emptyTrash();
-    ctx.ui.notify(`Deleted ${deleted.length} item(s) from the trash.`, "info");
-  }
-  async function projectCommand(rest, ctx) {
-    if (!taskMemoryEffective()) {
-      ctx.ui.notify("Task memory is off. Turn it on in /freeflow settings (Task Memory).", "warning");
-      return;
-    }
-    const [sub, ...words] = rest.trim().split(/\s+/).filter(Boolean);
-    // --worktrees <dir>: where fan-out puts this project's child worktrees.
-    const at = words.indexOf("--worktrees");
-    const worktrees = at >= 0 ? words.splice(at, 2)[1] : undefined;
-    const name = words.join(" ");
-    try {
-      if (sub === "new" && name) {
-        const slug = await taskMemory.registry.createProject(name, ctx.cwd, worktrees);
-        ctx.ui.notify(`Project ${slug} created and linked to this repository.${await browseNote(ctx.cwd)}`, "info");
-      } else if (sub === "link" && name) {
-        const slug = await taskMemory.registry.linkProject(name, ctx.cwd, worktrees);
-        ctx.ui.notify(`This repository is linked to project ${slug}.${await browseNote(ctx.cwd)}`, "info");
-      } else if (sub === "remove" && name) {
-        const result = await removeWithConfirmation(ctx, { project: name }, "Remove project?");
-        ctx.ui.notify(result.text, result.ok ? "info" : "warning");
-        refreshState = true;
-        status(ctx);
-      } else if (sub === "list") {
-        const result = await taskMemory.projects(ctx.cwd);
-        ctx.ui.notify(result.text, result.ok ? "info" : "warning");
-      } else {
-        const found = await taskMemory.registry.projectFor(ctx.cwd);
-        ctx.ui.notify(
-          found
-            ? `Project ${found.project.name} (${found.slug}), store ${found.project.store}.${await browseNote(ctx.cwd)}\n${await taskMemory.list(ctx.cwd)}`
-            : "This repository is not linked to a project. Use /freeflow project new <name> or link <name>.",
-          "info",
-        );
-      }
-    } catch (error) {
-      ctx.ui.notify(error?.message ?? String(error), "warning");
-    }
-  }
-  // /freeflow task: the user's own attach, focus, detach and confirm, and a picker over this repository's records.
-  async function taskCommand(rest, ctx) {
-    if (!taskMemoryEffective()) {
-      ctx.ui.notify("Task memory is off. Turn it on in /freeflow settings (Task Memory).", "warning");
-      return;
-    }
-    const [sub, ...words] = rest.trim().split(/\s+/).filter(Boolean);
-    let action = sub?.toLowerCase();
-    let target = words.join(" ");
-    if (!action || action === "pick") {
-      const records = await taskMemory.records(ctx.cwd);
-      if (!records.length || !ctx.hasUI) {
-        ctx.ui.notify(await taskMemory.list(ctx.cwd), "info");
-        return;
-      }
-      const labels = records.map((record) => `${taskMemory.name(record)} — ${record}`);
-      const chosen = await ctx.ui.select("Task records", labels);
-      if (!chosen) return;
-      target = records[labels.indexOf(chosen)];
-      action = taskMemory.state().attached.includes(target) ? "focus" : "attach";
-    }
-    let result;
-    if (action === "list") result = { ok: true, text: await taskMemory.list(ctx.cwd, target) };
-    else if (action === "new") {
-      // The user's own command: create the task in this repository's project and attach it, with no dialog.
-      const created = await taskMemory.create(target, target, ctx.cwd);
-      result = created.ok && created.id ? await taskMemory.attach(created.id, ctx.cwd) : created;
-    } else if (action === "attach") result = await taskMemory.attach(target, ctx.cwd);
-    else if (action === "focus") result = await taskMemory.focus(target, ctx.cwd);
-    else if (action === "detach") result = await taskMemory.detach(target, ctx.cwd);
-    else if (action === "confirm") result = await taskMemory.confirm(target, ctx.cwd);
-    else if (action === "child") {
-      // From the new session: create a child of the named parent and attach it here.
-      const [parent, ...title] = words;
-      const created = await taskMemory.child(title.join(" "), title.join(" "), parent);
-      const id = /Created child (\S+)/.exec(created.text)?.[1];
-      result = created.ok && id ? await taskMemory.attach(id, ctx.cwd) : created;
-    } else if (action === "fanout") {
-      const title = words.join(" ");
-      result = await taskMemory.fanout(title, title);
-    } else if (action === "import") {
-      const [path, ...project] = words;
-      const yes = ctx.hasUI
-        ? await confirmWithUser(ctx, "Import record?", `Move ${path} into the ${project.join(" ")} project's store?`)
-        : false;
-      result = yes
-        ? await taskMemory.importRecord(path, project.join(" "), ctx.cwd)
-        : { ok: false, text: "Not imported." };
-    } else if (action === "remove") {
-      result = await removeWithConfirmation(ctx, { task: target }, "Remove task?");
-    } else
-      result = {
-        ok: false,
-        text: "Use /freeflow task [list [project]|new <title>|attach <id or record>|focus <id or record>|detach <id or record>|confirm [record]|child <parent-id> <title>|fanout <title>|import <record> <project>|remove <id>].",
-      };
-    if (result.snapshot) {
-      sendSnapshot(result.text, result.snapshot);
-      ctx.ui.notify(
-        `Task memory: ${(await taskMemory.brief(result.snapshot)).label} is the focus. ${taskMemory.attachedText()}`,
-        "info",
-      );
-    } else if (result.command)
-      ctx.ui.notify(`${result.headline ?? result.text}\nRun in a new terminal:\n  ${result.command}`, "info");
-    else ctx.ui.notify(result.text, result.ok ? "info" : "warning");
-    refreshState = true;
-    status(ctx);
   }
   // The user's /freeflow compact asks the agent to checkpoint with --compact; Freeflow compacts when the run ends.
   async function compactNow(ctx) {
@@ -819,47 +592,6 @@ export default function freeflow(pi) {
     });
     if (capability?.enabled === true) void storeStart(ctx, event?.reason, generation);
     await routing.bind(ctx, capability.cognitiveRouting, event?.reason !== "reload");
-    taskMemory.rebuild(cachedBranch(ctx.sessionManager));
-    if (taskMemoryEffective()) {
-      await taskMemory.load();
-      // The project link for the user to browse records in the editor, made again if missing (Task 004 D-003). Not
-      // awaited: it runs Git, and nothing at startup reads it.
-      void taskMemory.registry.linkHere(ctx.cwd).catch(() => undefined);
-      // A fork or clone copies the branch's attachments; they stay held until the user confirms them here.
-      if (event?.reason === "fork") {
-        const held = taskMemory.holdInherited();
-        if (held.length)
-          ctx.ui?.notify?.(
-            `Task memory: ${held.length} inherited record(s) are held, not writable. Release with /freeflow task confirm.`,
-            "info",
-          );
-      }
-      await taskMemory.deliver(cachedBranch(ctx.sessionManager));
-      // A session started in a task's directory with nothing attached offers that task (D-017). Not awaited, so
-      // startup finishes first and the user answers when the dialog appears; a decline is kept on the branch.
-      const suggested = ctx.hasUI ? await taskMemory.suggestion(cachedBranch(ctx.sessionManager)) : undefined;
-      if (suggested)
-        void (async () => {
-          const yes = await confirmWithUser(
-            ctx,
-            `Attach ${suggested.id}?`,
-            `This directory belongs to ${suggested.title} (${suggested.id}). Attach it to this session?`,
-          );
-          if (generation !== surfaceGeneration) return;
-          if (!yes) {
-            taskMemory.decline(suggested.record);
-            return;
-          }
-          const result = await taskMemory.attach(suggested.id, ctx.cwd);
-          if (result.snapshot) sendSnapshot(result.text, result.snapshot);
-          ctx.ui.notify(
-            result.ok ? `Task memory: ${suggested.id} attached.` : result.text,
-            result.ok ? "info" : "warning",
-          );
-          refreshState = true;
-          status(ctx);
-        })().catch(() => {});
-    }
     status(ctx);
   });
   pi.on("session_shutdown", async () => {
@@ -968,8 +700,6 @@ export default function freeflow(pi) {
   });
   pi.on("tool_call", async (event, ctx) => {
     store.note(event.toolName, event.input, ctx.cwd);
-    const recordGate = await taskMemory.gate(event.toolName, event.input, ctx.cwd);
-    if (recordGate) return recordGate;
     const gate = routing.preflight(event, ctx);
     if (gate?.block || !toolExecutionEffective()) return gate;
     const refusal = event.toolName === "bash" ? backgroundRefusal(event.input?.command) : undefined;
@@ -1109,7 +839,6 @@ export default function freeflow(pi) {
       force: refreshState,
       anchor: runtimeStateAnchor,
       projectionFailure: routing.state().projectionFailure,
-      taskMemory: taskMemory.runtimeLines(),
       skills: stateSkills,
     });
     refreshState = false;
@@ -1142,20 +871,7 @@ export default function freeflow(pi) {
   pi.on("session_tree", async (_event, ctx) => {
     // A run Pi starts on this branch keeps this branch's last prompt's sections, not the branch left behind.
     forgetSections(ctx);
-    // Task memory follows the branch: the records attached at this point of the conversation.
-    const before = taskMemory.state();
-    const changed = taskMemory.rebuild(cachedBranch(ctx.sessionManager));
-    if (taskMemoryEffective()) await taskMemory.load();
     await restore(ctx);
-    if (!taskMemoryEffective()) return;
-    if (changed) {
-      const focus = taskMemory.state().focus;
-      ctx.ui?.notify?.(
-        `Task memory follows this branch: focus ${before.focus ? taskMemory.name(before.focus) : "none"} -> ${focus ? taskMemory.name(focus) : "none"}. ${taskMemory.attachedText()} Change it with /freeflow task.`,
-        "info",
-      );
-    }
-    await taskMemory.deliver(cachedBranch(ctx.sessionManager));
   });
   // Pi compacting on its own (threshold, overflow, /compact) keeps its summarizer and kept tail, with Freeflow's additions.
   pi.on("session_before_compact", async (event, ctx) => compaction.fallback(event, ctx));
@@ -1163,7 +879,6 @@ export default function freeflow(pi) {
     files.piCompacted();
     await restore(ctx, false);
     background.restate();
-    await taskMemory.deliver(cachedBranch(ctx.sessionManager));
   });
   pi.on("session_compact_failed", async (_event, ctx) => {
     refreshState = true;
@@ -1222,21 +937,6 @@ export default function freeflow(pi) {
           typeof api.setThinkingLevel === "function",
       ),
     handler: async (args, ctx) => {
-      const task = /^task(?:\s+(.*))?$/i.exec((args ?? "").trim());
-      if (task) {
-        await taskCommand(task[1] ?? "", ctx);
-        return;
-      }
-      const trash = /^trash(?:\s+(.*))?$/i.exec((args ?? "").trim());
-      if (trash) {
-        await trashCommand(trash[1] ?? "", ctx);
-        return;
-      }
-      const project = /^project(?:\s+(.*))?$/i.exec((args ?? "").trim());
-      if (project) {
-        await projectCommand(project[1] ?? "", ctx);
-        return;
-      }
       if ((args ?? "").trim().toLowerCase() === "compact") {
         await compactNow(ctx);
         return;
@@ -1252,7 +952,6 @@ export default function freeflow(pi) {
           cacheHealth: [...cacheHealth.status(), ...cacheMonitor.lines()],
           backgroundRunning: background.running().length,
           compaction: compaction.statusText(ctx),
-          taskMemory: taskMemory.attachedText(),
           store: storeStatusText(),
           messaging: messaging.self()
             ? `this session is ${messaging.self().name}${messaging.heldCount() ? `, ${messaging.heldCount()} held` : ""}`

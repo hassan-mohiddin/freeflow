@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
+/** The Freeflow home, where the live registry's folder is: FREEFLOW_HOME, else ~/.freeflow. */
+export function freeflowHome() {
+  return process.env.FREEFLOW_HOME || join(homedir(), ".freeflow");
+}
 const fileName = (sessionId) => `${sessionId.replace(/[^A-Za-z0-9._-]/g, "_")}.json`;
 export function alive(pid) {
   try {

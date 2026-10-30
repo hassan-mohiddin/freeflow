@@ -1,6 +1,6 @@
 ---
 name: track-work
-description: "Use when a task needs memory beyond the conversation: starting, updating, checkpointing or recovering its Working Record; choosing, taking, switching or releasing a task from Freeflow's task menu, or one another session holds; moving a task into or out of a project; when work may not fit in what is left of the context, or will outlast this compaction cycle; when Freeflow says compaction is near, after a compaction, a summary, a clear or a move into a new session; before pausing, handing off or transferring work; when a task ID, a project, the Freeflow store or its sync, or parallel sessions are involved; when a record says Schema 4 or Pi's Task Memory is on; and when editing a record or running its working-record script. It decides what the record says, and every lifecycle change goes through its script."
+description: "Use when a task needs memory beyond the conversation: starting, updating, checkpointing or recovering its Working Record; choosing, taking, switching or releasing a task from Freeflow's task menu, or one another session holds; moving a task into or out of a project; when work may not fit in what is left of the context, or will outlast this compaction cycle; when Freeflow says compaction is near, after a compaction, a summary, a clear or a move into a new session; before pausing, handing off or transferring work; when a task ID, a project, the Freeflow store or its sync, or parallel sessions are involved; when a record says Schema 4; and when editing a record or running its working-record script. It decides what the record says, and every lifecycle change goes through its script."
 ---
 
 # Track Work
@@ -16,7 +16,7 @@ A task is a folder, normally in the Freeflow store: one private Git repository a
 - `history.md`, one entry per closed Slice, agreement or delegation; `decisions.md`, the open agreement's decision list; `sessions.md`, every session that held the task, its last open line the hold.
 - `sources/` (with `sources/discussion.md`, the user's messages that shaped the work), `delegations/`, `evidence/`, `specs/`, `plans/` and `scratch/`.
 
-This is Schema 5. A record whose header says `Schema: 4` follows [Schema 4](references/schema-4.md) instead, and on Pi with Task Memory on every record is Schema 4 (`init --schema 4`).
+This is Schema 5. A record whose header says `Schema: 4` was written by an earlier Freeflow, in a repository or by Pi's former Task Memory: only `migrate` reads it, and every other command refuses it. On the user's word, move it into the store as the Routes say.
 
 Work runs in **compaction cycles**: a compaction cycle runs from a session's start or a compaction to the next compaction or the session's end. The script works on any harness, and its `estimate` measures how much of the context window the work has used. Where Freeflow also runs a layer in the harness, it calls the script at the right moments: a task menu at session start, a row showing the context's share of the window as it grows and a notice when compaction is near, each naming the compaction cycle, a sync when a turn ends, and, where the harness lets it, Freeflow's own compaction. Today Claude Code and Pi have all of these, through Freeflow's mod and Freeflow's Pi extension. Where no layer runs, do those steps yourself, as the sections below say.
 
@@ -30,10 +30,9 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | Freeflow says compaction is near, the context limit is near, or a switch, pause or transfer is coming | Checkpoint Before A Compaction Or A Transfer, below |
 | Context loss: after a compaction, a summary that replaces the conversation, a clear, a transfer into another context | Recover After Context Loss, below |
 | Handing the work to a later session or someone else as a document | Checkpoint first, then [handoff](references/handoff.md) |
-| Setting up the store, local only or local + cloud, or moving older records into it | Setup Freeflow's [store setup](../setup-freeflow/references/store-setup.md) |
+| Setting up the store, local only or local + cloud, or moving older records into it, such as a record whose header says `Schema: 4` | Setup Freeflow's [store setup](../setup-freeflow/references/store-setup.md) |
 | The store and its sync, a sync that fails; projects, holds and other tasks; removing a task or a project | [working record format](references/working-record-format.md), its first part |
 | Editing record structure, preparing a command's input, or any file of the task folder | [working record format](references/working-record-format.md) |
-| A record whose header says `Schema: 4`; on Pi with Task Memory on | [Schema 4](references/schema-4.md); on Pi, the `task_memory` tool and the task-memory skill say how a session holds records |
 | Handing part of the work to an agent, or working from a brief | Execute Work's [delegation](../execute-work/references/delegation.md) |
 
 ## Rules
@@ -105,7 +104,7 @@ Goal: after context loss, the next context knows what the user agreed it may do,
 
 Open the agreement when the user agrees a piece of work, with [Discuss Work](../discuss-work/SKILL.md)'s agreement: `agreement open`, its lines quoting the user beside what each answered, dated. Write only what is known: `Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`; one line is often enough. Never open one as a placeholder, and never ask the user for one just because a task is being created. A task has one open agreement, and each Slice works under it.
 
-`Back at` lines are the agreement's return points: a pull request, a review, a decision, a pause. When one is due, stop the work that depends on it and return to the user. Some skills still call such a point a selected Checkpoint; with a Schema 5 record it is this line.
+`Back at` lines are the agreement's return points: a pull request, a review, a decision, a pause. When one is due, stop the work that depends on it and return to the user.
 
 When the user changes what is agreed, `agreement update` adds one line in their words, without asking first: an extension, a lifted limit, a new endpoint, or a narrowing for now ("just diagnose first", "don't edit yet"), which governs over the rest until the user lifts it. Add a narrowing at once: a later context sees only what is written. Progress and results belong to Slices, never to the agreement. When a `Proposed:` item in Open is answered, it becomes an update if it changes what is agreed, an item in `decisions.md` if it settles a choice, and otherwise leaves Open at the next checkpoint.
 

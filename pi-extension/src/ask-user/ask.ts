@@ -92,7 +92,7 @@ async function askOne(ctx: any, question: Question, signal?: AbortSignal): Promi
 }
 
 /**
- * A yes-or-no question in the same dialog as ask_user, for Freeflow's own confirmations (task memory's proposals).
+ * A yes-or-no question in the same dialog as ask_user, for Freeflow's own confirmations (a message held for the user).
  * Outside the terminal it is Pi's confirm, unchanged; without a UI it is false.
  */
 export async function confirmWithUser(

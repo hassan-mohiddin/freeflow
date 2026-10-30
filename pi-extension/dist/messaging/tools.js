@@ -5,7 +5,7 @@ export const SEND_MESSAGE = "send_message";
 export const MESSAGING_TOOLS = [LIST_SESSIONS, SEND_MESSAGE];
 const TOOL_SEARCH = "tool_search";
 const LIST_DESCRIPTION =
-  "List the other Pi sessions on this machine that can receive messages: name, session ID, folder, Task Memory project and the tasks it owns, and whether each is busy or idle.";
+  "List the other Pi sessions on this machine that can receive messages: name, session ID, folder, the Freeflow task it holds and its project, and whether each is busy or idle.";
 const SEND_DESCRIPTION = [
   "Read the messaging skill before your first message or answer. Send a plain-text message to another Pi session on this machine, addressed by its session ID: list_sessions gives each session's ID with its name, folder and owned tasks, and a message you answer carries its sender's ID in session=. Names are for display and may repeat. It reaches that agent between its tool calls, or starts a turn if it is idle; a session whose user has not prompted it yet reads it with that first prompt.",
   "The other session delivers the message, holds it for its user to accept, or refuses it; the result says which, and a held message's outcome arrives later as a notice. A reply arrives on its own as a notice, while you work or as a new turn: do not wait, poll or search for it. No answer is not agreement.",
@@ -39,7 +39,7 @@ export function registerMessagingTools(pi, messaging, effective) {
           session.owns?.length
             ? `owns ${session.owns.map((id) => (id === session.task ? `${id} (focus)` : id)).join(", ")}`
             : session.task
-              ? `focus ${session.task}`
+              ? `holds ${session.task}`
               : "",
         ]
           .filter(Boolean)

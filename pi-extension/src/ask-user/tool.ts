@@ -81,7 +81,7 @@ export function registerAskUserTool(pi: any, host: AskUserHost): void {
       },
       required: ["questions"],
     },
-    // It asks the user, so scripts must not call it, and its transcript views apply (see task_memory).
+    // It asks the user, so scripts must not call it, and its transcript views apply.
     exposure: "model-only",
     defaultActive: false,
     executionMode: "sequential",

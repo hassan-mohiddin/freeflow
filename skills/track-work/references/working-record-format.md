@@ -1,6 +1,6 @@
 # Working Record Format
 
-This reference owns where Schema 5 task memory lives and its exact shape: the Freeflow store and its sync, projects and holds, the task folder and each of its files, the record's sections, fields and states, and the command contract. It is binding as written, with the Rules below. It defines format, not what is worth recording; [Track Work](../SKILL.md) owns that judgment. A record whose header says `Schema: 4` follows [Schema 4](schema-4.md).
+This reference owns where Schema 5 task memory lives and its exact shape: the Freeflow store and its sync, projects and holds, the task folder and each of its files, the record's sections, fields and states, and the command contract. It is binding as written, with the Rules below. It defines format, not what is worth recording; [Track Work](../SKILL.md) owns that judgment. A record whose header says `Schema: 4` is read only by `migrate`, which converts it.
 
 ## Rules
 
@@ -29,7 +29,7 @@ The Freeflow store is one Git repository at `FREEFLOW_HOME` (default `~/.freeflo
 
 `rules/` holds the user's always-on context, like `CLAUDE.md` with room to organize: every file in the store's `rules/`, and the project's once the session holds one of its tasks, is read at every recovery and never counted against the budget. Create or edit a rule only when the user asks; the checks show their size, and you never trim them.
 
-**Local or cloud.** The same store either way. A local store, the default, lives on this device only: `store init` makes it, and nothing leaves the machine. A cloud store is the same store with the user's private repository as its remote, kept in step on every device: `store init --remote <url>` clones it into `FREEFLOW_HOME`, laying out an empty repository as a store or joining one that already is, and `store remote --url <url>` moves a local store's whole history into an empty repository. A cloud session needs a cloud store, since its container is thrown away: the store's repository is one of the session's repositories, `FREEFLOW_HOME` points at its clone, and pushing needs the host's access to that repository; Setup Freeflow's [store setup](../../setup-freeflow/references/store-setup.md) says what the user sets, and `session status` lists what is missing. `store init` refuses a folder that holds Pi's Task Memory (`registry.json`) or anything else: ask the user where the store should go. Commits are authored as the user, with no trailers.
+**Local or cloud.** The same store either way. A local store, the default, lives on this device only: `store init` makes it, and nothing leaves the machine. A cloud store is the same store with the user's private repository as its remote, kept in step on every device: `store init --remote <url>` clones it into `FREEFLOW_HOME`, laying out an empty repository as a store or joining one that already is, and `store remote --url <url>` moves a local store's whole history into an empty repository. A cloud session needs a cloud store, since its container is thrown away: the store's repository is one of the session's repositories, `FREEFLOW_HOME` points at its clone, and pushing needs the host's access to that repository; Setup Freeflow's [store setup](../../setup-freeflow/references/store-setup.md) says what the user sets, and `session status` lists what is missing. `store init` refuses a folder that holds Pi's former Task Memory (`registry.json`) or anything else: ask the user where the store should go. Commits are authored as the user, with no trailers.
 
 ## Sync
 
@@ -87,7 +87,7 @@ A task's `sessions.md` keeps one line per session that held it; its last open li
 - **A session reopened later** finds its hold by its ID. If the task was taken over meanwhile, ask before taking it back; if it changed, recover.
 - **A cloud session that goes idle** keeps its hold until another session takes the task over.
 
-A task has one holder, so work that must run in parallel interactive sessions is separate tasks, each with its own record; parallel work inside one session is delegation (Execute Work's [delegation](../../execute-work/references/delegation.md) reference). Child records and fan-out are Schema 4's, on Pi.
+A task has one holder, so work that must run in parallel interactive sessions is separate tasks, each with its own record; parallel work inside one session is delegation (Execute Work's [delegation](../../execute-work/references/delegation.md) reference).
 
 ## Task Folder
 
@@ -415,7 +415,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 
 | Change | Command |
 | --- | --- |
-| Create a task | `task create --title <title> --goal <goal> --cue <cue> [--project <p> \| --no-project]` in the store (this session holds it); on Pi with Task Memory on, Task Memory's `create`, or `init --schema 4` ([Schema 4](schema-4.md)) |
+| Create a task | `task create --title <title> --goal <goal> --cue <cue> [--project <p> \| --no-project]` in the store (this session holds it) |
 | Hold a task, give it up, move to another | `task take --id <ID> [--takeover]`, `task release`, `task switch --id <ID>` |
 | Move a task into a project, or out of one | `task move --id <ID> (--project <p> \| --no-project)`, on the user's word |
 | Open, change, close the agreement | `agreement open`, `agreement update`, `agreement close --state <completed\|ended\|replaced>` |

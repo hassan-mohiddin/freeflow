@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import test from "node:test";
 import { AgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
 import { fixture } from "../fixtures/routing-native.js";
@@ -16,23 +15,8 @@ import { requestHistoryCounters } from "../../dist/host/request-history.js";
 // getContextUsage on every turn; both grew with session length.
 const BRANCH_WALKS_PER_PROMPT = 10;
 
-// Task memory with a record attached and in focus, never the user's real registry.
+// Freeflow's layer reads the Freeflow home at session start: a temporary one, never the user's real store.
 process.env.FREEFLOW_HOME = await mkdtemp(join(tmpdir(), "freeflow-home-"));
-const attachRecord = async ({ cwd, session, manager }) => {
-  const script = resolve("skills/track-work/scripts/working-record.mjs");
-  execFileSync(
-    process.execPath,
-    [script, "init", "--schema", "4", "--root", cwd, "--name", "Retry work", "--input", "-"],
-    {
-      input: "### Goal\n- Retries.\n\n### Next useful action\n- Continue.\n",
-    },
-  );
-  await session.prompt("/freeflow task attach .freeflow/tasks/task-001-retry-work/record.md");
-  assert.ok(
-    manager.getBranch().some((entry) => entry.customType === "freeflow-task-memory-snapshot"),
-    "attached",
-  );
-};
 
 const history = (manager, turns) => {
   for (let t = 0; t < turns; t++) {
@@ -82,7 +66,6 @@ async function countPrompt(turns, options) {
       {
         ...options,
         beforePrompt: async (context) => {
-          await options.prepare?.(context);
           history(context.manager, turns);
           counting = true;
         },
@@ -98,10 +81,6 @@ async function countPrompt(turns, options) {
 for (const [name, options] of [
   ["Freeflow defaults", { cognitiveRouting: { enabled: false } }],
   ["Cognitive Routing with projection and Tool Execution", { freeflowConfig: { toolExecution: { enabled: true } } }],
-  [
-    "Task memory with a focused record",
-    { cognitiveRouting: { enabled: false }, freeflowConfig: { taskMemory: { enabled: true } }, prepare: attachRecord },
-  ],
   ["without Freeflow", { skipFreeflow: true, cognitiveRouting: { enabled: false } }],
 ])
   test(

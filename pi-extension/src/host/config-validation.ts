@@ -1,5 +1,4 @@
 import { validateCompactionConfig } from "../compaction/config.js";
-import { validateTaskMemoryConfig } from "../task-memory/config.js";
 import { validateMessagingConfig } from "../messaging/config.js";
 import { validateToolExecutionConfig } from "../tool-execution/config.js";
 import { FREEFLOW_MODEL_SKILL_NAMES } from "./catalog.js";
@@ -146,16 +145,15 @@ export const CONFIG_SECTIONS = [
   "cognitiveRouting",
   "toolExecution",
   "compaction",
-  "taskMemory",
   "messaging",
   "prompts",
   "review",
   "skills",
 ] as const;
 
-// outputRouter, observedRouting, and scriptTransform belong to retired features; they are accepted and ignored so
-// existing configs keep loading.
-const RETIRED_SECTIONS = ["outputRouter", "observedRouting", "scriptTransform"];
+// outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
+// ignored so existing configs keep loading, and /freeflow status says Task Memory is gone (P6).
+const RETIRED_SECTIONS = ["outputRouter", "observedRouting", "scriptTransform", "taskMemory"];
 
 export function validateRepositoryConfig(value: unknown): string | null {
   if (!isRecord(value)) {
@@ -192,10 +190,6 @@ export function validateRepositoryConfig(value: unknown): string | null {
     const error = validateCompactionConfig(value.compaction);
     if (error) return error;
   }
-  if (value.taskMemory !== undefined) {
-    const error = validateTaskMemoryConfig(value.taskMemory);
-    if (error) return error;
-  }
   if (value.messaging !== undefined) {
     const error = validateMessagingConfig(value.messaging);
     if (error) return error;
@@ -217,7 +211,8 @@ export function validateLocalConfig(value: unknown): string | null {
   const removedContextError = removedContextConfigError(value, ".freeflow/local.json");
   if (removedContextError) return removedContextError;
 
-  // processing belongs to a retired feature; it is accepted and ignored so existing local configs keep loading.
+  // processing and taskMemory belong to retired features; they are accepted and ignored so existing local configs keep
+  // loading.
   const allowedKeys = new Set([
     "enabled",
     "processing",
@@ -248,10 +243,6 @@ export function validateLocalConfig(value: unknown): string | null {
   }
   if (value.compaction !== undefined) {
     const error = validateCompactionConfig(value.compaction);
-    if (error) return error;
-  }
-  if (value.taskMemory !== undefined) {
-    const error = validateTaskMemoryConfig(value.taskMemory);
     if (error) return error;
   }
   if (value.messaging !== undefined) {
