@@ -1,13 +1,13 @@
 ---
 name: track-work
-description: "Use when a task needs memory beyond the conversation: starting, updating, checkpointing or recovering its Working Record; choosing, taking, switching or releasing a task from Freeflow's task menu, or one another session holds; when Freeflow says compaction is near, after a compaction, a summary, a clear or a move into a new session; before pausing, handing off or transferring work; when a task ID, a project, the Freeflow store or its sync, or parallel sessions are involved; when a record says Schema 4 or Pi's Task Memory is on; and when editing a record or running its working-record script. It decides what the record says, and every lifecycle change goes through its script."
+description: "Use when a task needs memory beyond the conversation: starting, updating, checkpointing or recovering its Working Record; choosing, taking, switching or releasing a task from Freeflow's task menu, or one another session holds; moving a task into or out of a project; when work may not fit in what is left of the context, or will outlast this compaction cycle; when Freeflow says compaction is near, after a compaction, a summary, a clear or a move into a new session; before pausing, handing off or transferring work; when a task ID, a project, the Freeflow store or its sync, or parallel sessions are involved; when a record says Schema 4 or Pi's Task Memory is on; and when editing a record or running its working-record script. It decides what the record says, and every lifecycle change goes through its script."
 ---
 
 # Track Work
 
 Keep one Working Record per task so a fresh context, after a compaction, in another session or on another machine, continues the work without the conversation that produced it. The record is memory for the agent doing the work: what is true now, what is in progress and exactly how far it got, and what to read to resume. It is not authority, a Spec, a Plan, or a transcript, and it works for any kind of task: code, research, writing, analysis, operations.
 
-A task is a folder, normally in the Freeflow store: one private Git repository at `FREEFLOW_HOME` (default `~/.freeflow`) that holds every task's memory, grouped in projects, and syncs it, on this machine only or, with the user's private remote, on every device. The folder holds:
+A task is a folder, normally in the Freeflow store: one private Git repository at `FREEFLOW_HOME` (default `~/.freeflow`) that holds every task's memory, grouped in projects or in none, and syncs it, on this machine only or, with the user's private remote, on every device. The folder holds:
 
 - `record.md`, the state, in three sections:
   - **Current Context:** Goal, Settled and Open, rewritten whole at each checkpoint and never patched in between.
@@ -18,7 +18,7 @@ A task is a folder, normally in the Freeflow store: one private Git repository a
 
 This is Schema 5. A record whose header says `Schema: 4` follows [Schema 4](references/schema-4.md) instead, and on Pi with Task Memory on every record is Schema 4 (`init --schema 4`).
 
-The script works on any harness. Where Freeflow also runs a layer in the harness, it calls the script at the right moments: a task menu at session start, a notice when compaction is near, a sync when a turn ends, and, where the harness lets it, Freeflow's own compaction. Today Claude Code has all of these, through Freeflow's mod. Where no layer runs, do those steps yourself, as the sections below say.
+Work runs in **cycles**: a cycle runs from a session's start or a compaction to the next compaction or the session's end. The script works on any harness, and its `estimate` measures how much of the context window the work has used. Where Freeflow also runs a layer in the harness, it calls the script at the right moments: a task menu at session start, a row showing the context's share of the window as it grows and a notice when compaction is near, each naming the cycle, a sync when a turn ends, and, where the harness lets it, Freeflow's own compaction. Today Claude Code has all of these, through Freeflow's mod. Where no layer runs, do those steps yourself, as the sections below say.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
@@ -38,7 +38,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 ## Rules
 
 - The record is memory, not authority: it never authorizes work, and the user's latest message, live state and accepted artifacts override it. A record's Next action is where the task stood, not a request: when the user asks for something else, do that, never the record's next step instead; when the request is unclear, ask, never fall back to the record.
-- Take a task only when the user's message points to it, and ask when it could be more than one. Ask before taking over a task another session holds. Create, remove or change the state or budget mode of a task, and create or remove a project, only on the user's word.
+- Take a task only when the user's message points to it, and ask when it could be more than one. Ask before taking over a task another session holds. Create, move, remove or change the state or budget mode of a task, and create or remove a project, only on the user's word.
 - Write only the task this session holds. Never write another task's files because you read them; a worker writes only its own `progress.md`, `return.md` and the files its brief names.
 - Record a Slice before causing effects outside the record: edits, commands, generated files, sent messages, or changes to external systems.
 - Use [working-record.mjs](scripts/working-record.mjs) for every lifecycle change: IDs, states, holds, the checkpoint, and moves between sections and files. Edit only meaning directly.
@@ -58,12 +58,13 @@ A session holds at most one task, and a task has at most one holder; any session
 | points to one task | `task take --id <ID>`, recover it, and say in one line what you read |
 | could be about more than one | ask, with the likely tasks and "a new task" as the options |
 | points to a task another session holds | `take` refuses and names that session and when it last synced: ask before `task take --id <ID> --takeover`; that session learns at its next sync and stops writing |
-| asks for work that needs memory and no task fits | propose a task in one line; on yes, `task create` (this session holds it); a project the same way, with `project new` |
+| asks for work that needs memory and no task fits | ask one question, through the harness's question tool where it has one, whose options say where the task goes: in the project the work belongs to, in no project, or no task at all; on the answer, `task create` with `--project <name>` or `--no-project` (this session holds it); a project the same way, with `project new` |
+| moves a task into a project, or out of one | `task move --id <ID> --project <name>` or `--no-project`: the task gets the next number there, and the output prints its new ID |
 | turns to another task | checkpoint the held task, `task switch --id <ID>`, then recover the new one |
 | closes the task or ends the session | checkpoint what changed, then `task release` (Freeflow's harness layer releases it at the session's end); `task set-state` only when the user says the task is done or abandoned |
 | asks for something the held task does not cover | do it; propose a task only if that work needs memory of its own |
 
-A task's memory is worth keeping when the work spans several steps, compactions or sessions, or when losing its decisions, route or partial state would misdirect continuation. A question or a short self-contained result needs none, a session with no task is normal, and a user's choice not to keep one stands. Create a task with the understanding that justified it, not an empty shell; if even the Goal is unclear, discuss first.
+A task's memory is worth keeping when the work will outlast this cycle, or when losing its decisions, route or partial state would misdirect continuation. Judge it early: `estimate` gives the context used so far against the window and the notice point, and once part of the work is done, `estimate --done <n> --left <m>`, with the parts done in this cycle and those left (a Plan's phases or Slices, the steps of your route), says whether the rest fits before the notice or about how many more cycles it needs. A notice that comes before the work is done shows it did not fit. When the work will outlast the cycle, plan where this cycle ends: at a safe point before the notice, with the rest in Future Work. Work that ends within the cycle needs no task unless the user asks; a question or a short self-contained result needs none, a session with no task is normal, and a user's choice not to keep one stands. Create a task with the understanding that justified it, not an empty shell; if even the Goal is unclear, discuss first.
 
 Where no store exists yet, ask once whether to make the local one (`store init`; nothing leaves the machine): without it nothing syncs, and Freeflow's harness layer, which acts only where a store exists, stays off. If the user says no, `init --root <repository>` puts the task in the repository's `.freeflow/tasks/`, which must stay out of the repository's version control; if `init` reports that folder is not ignored by Git, ask before changing ignore rules.
 

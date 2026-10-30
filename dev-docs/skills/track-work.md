@@ -4,7 +4,7 @@
 > **Tests:** `.skill-eval/track-work/`
 > **Verified at:** `992efbd4` (2026-10-30)
 
-For anyone changing Track Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/track-work/SKILL.md); this record holds the reasons it does not. It was started with the Schema 5 rewrite (task-004's Phase 7.1), so it records that rewrite's reasons in full and older choices only where they still shape the text. Task-004's design, with every choice and the owner's words, is its Spec (`memory-and-delegation.md` in that task's folder); the choices are cited here by its IDs (P1 to P73, T1 to T23).
+For anyone changing Track Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/track-work/SKILL.md); this record holds the reasons it does not. It was started with the Schema 5 rewrite (task-004's Phase 7.1), so it records that rewrite's reasons in full and older choices only where they still shape the text. Task-004's design, with every choice and the owner's words, is its Spec (`memory-and-delegation.md` in that task's folder); the choices are cited here by its IDs (P1 to P81, T1 to T28).
 
 ## Purpose
 
@@ -30,15 +30,16 @@ Track Work keeps one task's memory so a fresh context, after a compaction, in an
 - **The store, projects and holds in the format reference** (2026-10-30, the owner's choice). They were a reference of their own; they are read with the task folder's shape often enough, and the two linked each other, so they merged. The file keeps its name, since Review Work and the developer docs link to it.
 - **Choosing a task borrows Task Memory's request table, improved:** one row per thing the user's message can do, each with the script command, and the takeover, switch and close cases the hold adds (P40 to P44).
 - **Harness-neutral, with the harness layer named once** (2026-10-30, P74). The script, the record and the checkpoint work on any harness; the text names "Freeflow's harness layer" for what calls the script at the right moments (the menu, the notice, the sync, and, where the harness allows it, Freeflow's own compaction), and Claude Code's mod only as today's example. The notice and the checkpoint are the core; Freeflow's own compaction is optional, since Codex's hooks, for one, can only stop a compaction.
-- **A task may belong to no project** (2026-10-30, P76). It lives in the store's `tasks/` with ID `task-NNN`, and `task move` puts it into a project or takes it out, so a first task needs no project first. The agent asks once, with the project choice in the same question (P75).
-- **The context, measured** (P77, P78). `estimate` gives the context's use against the window and the notice point, so the agent can tell whether work will outlast this cycle and plan where each cycle ends; the use comes from `--used` on any harness, or from the transcript where a reader knows its format.
+- **A task may belong to no project** (2026-10-30, P76). It lives in the store's `tasks/` with ID `task-NNN`, and `task move` puts it into a project or takes it out, so a first task needs no project first. The agent asks one question, through the harness's question tool where it has one, with the project choice in it (P75), as Pi's Task Memory asks before creating a record, so the user always knows whether a task was made.
+- **Cycles as the measure of when memory is needed** (P77). "Spans several steps, compactions or sessions" left the agent no way to judge early; a cycle, from a session's start or a compaction to the next compaction or the session's end, is defined once in the body, and a task is worth keeping when the work will outlast it. The harness layer's rows and notice name the cycle, as Pi's status does.
+- **The context, measured** (P78, P80). `estimate` gives the context's use against the window and the notice point, and with the parts done and left, whether the rest fits or how many more cycles it needs, so the agent can tell whether work will outlast this cycle and plan where each cycle ends; the use comes from `--used` on any harness, or from the transcript where a reader knows its format. Where a harness layer runs, rows at 50%, 60% and 70% show the context passively; they are appended, so the prompt cache holds, and only at those marks, since every row stays in the conversation. Execute Work points to `estimate` when the route is set (P79).
 - **Recovery has two paths.** After Freeflow's compaction the bundle is the conversation, so the text says not to read it again; elsewhere `view recover` and the reads it lists. The fallback (a compaction before the checkpoint) gets its own line because there the record is behind the summary (P16).
 
 ## Evidence
 
 - `skill-author validate skills/track-work`, with the routing map: valid, no link cycles, after the merge of the store reference.
 - `skill-author compare origin/main --all-units` with a verdicts file: every unit settled; eight unmatched, each with a verdict naming its new owner or the choice that removed it; the reworded units read for meaning, and seven clauses the rewrite had lost restored (task-004's `evidence/phase-7.1-compare/`). This shows the text survived, not that behavior did.
-- `npm run test:track-work` (128) covers the script the text names; the CLI's [feature file](../features/track-work-cli.md) drives every command the body uses.
+- `npm run test:track-work` (131) covers the script the text names; the CLI's [feature file](../features/track-work-cli.md) drives every command the body uses.
 - One independent review, by a Haiku reviewer at xhigh effort, of the rewritten package (task-004, D-001): Non-blocking, with seven issues accepted and fixed (Pi's `init --schema 4` not named where `init` is, five judgments kept only for Schema 4, the Review lines' shapes owned by no Schema 5 file, Current Context's agreement-close exception, required options shown as optional, the no-notice case of a done checkpoint, and two contradicting sentences) and one partly (the budget's formula and a duplicate migration offer cut from the body; the study-run sentence kept, since Research Work sends the agent here for it).
 - Not yet: any agent using the new text. Task-004's Phase 8 converts that task and works through a checkpoint and a compaction under it, Write Skill's trial on a real task; the continuity test that tunes the budget is Phase 8.3.
 
@@ -56,5 +57,5 @@ Track Work keeps one task's memory so a fresh context, after a compaction, in an
 
 ## Open Questions
 
-- Whether the body, now about 4,900 words, is short enough to pay at every recovery; the continuity test (Phase 8.3) and the friction log of Phase 8's conversion are the evidence that would settle it.
+- Whether the body, now about 5,200 words, is short enough to pay at every recovery; the continuity test (Phase 8.3) and the friction log of Phase 8's conversion are the evidence that would settle it.
 - Whether agents save discussion blocks when they matter and skip them when not; the live run's agent read them as required before the text said they are optional.

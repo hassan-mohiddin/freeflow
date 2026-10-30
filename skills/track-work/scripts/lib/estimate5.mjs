@@ -85,6 +85,11 @@ export function estimate(options, env = process.env) {
     throw new EstimateError(
       "The context's use is not known here: pass --used <tokens>, as the harness shows it (on Claude Code, /context).",
     );
+  // An assumed window smaller than the context cannot be the session's: its share would ask for a checkpoint for nothing.
+  if (!window.source && used > window.tokens)
+    throw new EstimateError(
+      `The context holds about ${count(used)} tokens, more than the ${count(window.tokens)} assumed when no window is set: pass --window <tokens>, as the harness shows it (on Claude Code, /context).`,
+    );
   const done = options["--done"] === undefined ? null : positiveInteger(options["--done"], "--done");
   const left = options["--left"] === undefined ? null : positiveInteger(options["--left"], "--left", { zero: true });
   if ((done === null) !== (left === null)) throw new EstimateError("--done and --left go together");

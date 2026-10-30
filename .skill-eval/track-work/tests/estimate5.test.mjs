@@ -46,6 +46,19 @@ test("estimate gives the context's use against the window and the notice, and pr
   assert.match(run(["--used", "1", "--done", "1"]).stderr, /--done and --left go together/);
   assert.match(run(["--used", "x"]).stderr, /--used is a whole number, not x/);
   assert.match(run([]).stderr, /The context's use is not known here: pass --used <tokens>/);
+  // With no window set, one larger than the context is assumed wrong: a share over 100% would tell the agent to
+  // checkpoint for nothing. A window that is set stands.
+  const unset = run(["--used", "422185"], { FREEFLOW_CONTEXT_WINDOW: "" });
+  assert.equal(unset.status, 1);
+  assert.match(
+    unset.stderr,
+    /The context holds about 422,185 tokens, more than the 200,000 assumed when no window is set: pass --window <tokens>/,
+  );
+  assert.match(
+    run(["--used", "100000"], { FREEFLOW_CONTEXT_WINDOW: "" }).stdout,
+    /\(50%\), from --used; the window assumed/,
+  );
+  assert.match(run(["--used", "210000"]).stdout, /\(105%\), from --used; the window from FREEFLOW_CONTEXT_WINDOW\./);
 });
 
 test("estimate reads the main conversation's latest request from a Claude Code log, not a subagent's", async () => {

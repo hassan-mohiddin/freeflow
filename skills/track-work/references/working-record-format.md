@@ -4,7 +4,7 @@ This reference owns where Schema 5 task memory lives and its exact shape: the Fr
 
 ## Rules
 
-- Make the store, add its remote, and create or remove a project or a task only when the user asks or says yes to your one-line proposal. A removal is a delete and a commit that Git history keeps: never delete the store's files another way, and never rewrite, reset or force-push its history.
+- Make the store, add its remote, create or remove a project, and create, move or remove a task only when the user asks or says yes to your question. A removal is a delete and a commit that Git history keeps: never delete the store's files another way, and never rewrite, reset or force-push its history.
 - The store goes only to the user's own private remote. Never push it, or copy its records, anywhere else.
 - When a sync stops on a conflict, show the user both copies and stop work on that file until they say what stays; never take one side to make the sync pass.
 - Write the store only through the script and the direct edits Track Work allows; never commit, pull or push in the store by hand.
@@ -22,6 +22,7 @@ The Freeflow store is one Git repository at `FREEFLOW_HOME` (default `~/.freeflo
   projects/<project>/
     rules/               read for this project's tasks
     tasks/task-NNN-<short-name>/
+  tasks/task-NNN-<short-name>/   a task in no project
   local/                 this machine only: where each repository is, sync state, conflicts
   sessions/              this machine's live sessions: worker maps, session summaries
 ```
@@ -50,7 +51,7 @@ When a sync fails:
 
 ## Projects
 
-A project is a folder, `projects/<project>/`, with its `rules/` and `tasks/`; a task belongs to the project whose folder holds it, and its ID is `<project>/task-NNN`. A session finds its project by matching the repository's remote against the repositories its tasks name in Space; a folder with no repository, or one no task names, gets the list of projects. The store writes nothing into code repositories; only a task kept without a store lives in one, in its Git-ignored `.freeflow/tasks/`.
+A project is a folder, `projects/<project>/`, with its `rules/` and `tasks/`; a task belongs to the project whose folder holds it, and its ID is `<project>/task-NNN`. A task in no project is in the store's own `tasks/`, its ID `task-NNN`; `task create` puts it there with `--no-project`, or when no project's tasks name the repository. A session finds its project by matching the repository's remote against the repositories its tasks name in Space; a folder with no repository, or one no task names, gets the list of projects. The store writes nothing into code repositories; only a task kept without a store lives in one, in its Git-ignored `.freeflow/tasks/`.
 
 ```text
 working-record.mjs project new --name <name>                         a project, on the user's word
@@ -59,9 +60,10 @@ working-record.mjs project show [--name <project>]                    a project'
 working-record.mjs task here [--cwd <directory>]                      the session-start menu
 working-record.mjs task search --query <words> [--project <p>]       every task's record, history and decisions
 working-record.mjs task remove --id <ID> | project remove --name <p>   delete and commit, on the user's word
+working-record.mjs task move --id <ID> (--project <p> | --no-project)  into a project or out of one, on the user's word
 ```
 
-Creating, taking, releasing and switching tasks are in Lifecycle Commands, below.
+`task move` moves the task's folder, gives it the next number free in its new place, then commits and pushes; the output prints the new ID. The old ID no longer names the task, its delegations' briefs name the new one, and Git history keeps the old path. It is refused while another session holds the task. Creating, taking, releasing and switching tasks are in Lifecycle Commands, below.
 
 ### Other Tasks In The Project
 
@@ -103,7 +105,7 @@ task-NNN-<short-name>/
   scratch/           temporary, ignored                           anyone
 ```
 
-In the Freeflow store the folder is `<store>/projects/<project>/tasks/task-NNN-<short-name>/`, and its ID is `<project>/task-NNN`; every command that takes `--record` also takes the ID. Without a store it is `<repository>/.freeflow/tasks/task-NNN-<short-name>/`, which Git must ignore. `NNN` is three or more digits; a new task takes the next number after the highest one there, and numbers are never reused. `init` and `task create` write `record.md`, `history.md`, `decisions.md` and `scratch/`, and `task create` also `sessions.md`; the rest appear when needed. Nothing anything points to is ever under `scratch/`. `sources/notes.md` holds free notes when a task wants them; they carry no authority.
+In the Freeflow store the folder is `<store>/projects/<project>/tasks/task-NNN-<short-name>/`, and its ID is `<project>/task-NNN`, or in no project `<store>/tasks/task-NNN-<short-name>/`, and `task-NNN`; every command that takes `--record` also takes the ID. Without a store it is `<repository>/.freeflow/tasks/task-NNN-<short-name>/`, which Git must ignore. `NNN` is three or more digits; a new task takes the next number after the highest one there, and numbers are never reused. `init` and `task create` write `record.md`, `history.md`, `decisions.md` and `scratch/`, and `task create` also `sessions.md`; the rest appear when needed. Nothing anything points to is ever under `scratch/`. `sources/notes.md` holds free notes when a task wants them; they carry no authority.
 
 A delegation's folder, `delegations/D-NNN-<slug>/` with `brief.md`, `progress.md` and `return.md`, and a sub-worker's inside its worker's, are Execute Work's [delegation](../../execute-work/references/delegation.md) reference's.
 
@@ -403,8 +405,9 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 
 | Change | Command |
 | --- | --- |
-| Create a task | `task create --title <title> --goal <goal> --cue <cue>` in the store (this session holds it); `init --root <folder> --name <name> --cue <cue> --input -` elsewhere (Goal and Next action required); on Pi with Task Memory on, Task Memory's `create`, or `init --schema 4` ([Schema 4](schema-4.md)) |
+| Create a task | `task create --title <title> --goal <goal> --cue <cue> [--project <p> \| --no-project]` in the store (this session holds it); `init --root <folder> --name <name> --cue <cue> --input -` elsewhere (Goal and Next action required); on Pi with Task Memory on, Task Memory's `create`, or `init --schema 4` ([Schema 4](schema-4.md)) |
 | Hold a task, give it up, move to another | `task take --id <ID> [--takeover]`, `task release`, `task switch --id <ID>` |
+| Move a task into a project, or out of one | `task move --id <ID> (--project <p> \| --no-project)`, on the user's word |
 | Open, change, close the agreement | `agreement open`, `agreement update`, `agreement close --state <completed\|ended\|replaced>` |
 | Propose a Slice | `slice propose` |
 | Start a proposed Slice, or one never proposed | `slice start --title <proposal title>`, `slice start-direct` |
@@ -415,6 +418,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task |
 | Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
 | The budget | `budget [--record <ID>]`; `task set-budget --mode <normal\|expanded>` on the user's word |
+| The context used, and whether the rest fits in this cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
 | Change the task state | `task set-state --state <state>` |
 | Convert a Schema 4 record | `migrate`, on the user's word |
 
