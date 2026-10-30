@@ -55,6 +55,7 @@ import {
   takeTask,
 } from "./lib/projects5.mjs";
 import { EstimateError, estimate } from "./lib/estimate5.mjs";
+import { PlanError } from "./lib/planner5.mjs";
 
 const ROOT_HELP =
   "--record is resolved against --root, which defaults to the current directory; an absolute --record path finds its own root.";
@@ -73,6 +74,7 @@ function usage() {
     "  working-record.mjs checkpoint --session --input <file|-> (Schema 5, a session holding no task)",
     "  working-record.mjs budget [--record <record.md>] [--window <tokens>] [--mode normal|expanded] (Schema 5)",
     "  working-record.mjs estimate [--used <tokens>] [--window <tokens>] [--done <n> --left <m>] [--transcript <path>]",
+    "  working-record.mjs estimate --plan --record <ID> [--input -] [--fan-out <n>] [--done <n>] | --project <name> | --store",
     "  working-record.mjs view bundle --record <record.md> | --session (Schema 5)",
     "  working-record.mjs delegate <open|amend|status|check-return|close> ... (Schema 5)",
     "  working-record.mjs discussion <list|save|drop> --record <record.md> ... (Schema 5)",
@@ -175,7 +177,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate close",
-    "Usage: delegate close --record <record.md> --id <D-NNN> --outcome <accepted|sent back|stopped> [--merge <commit>] [--tokens <n>] [--minutes <n>] --input <file|->\nRecords the outcome in the delegation's one History entry, with the model, effort, tokens and minutes the host reports, the merge commit and the return's path; removes its line; syncs the store. Accepting needs a return that passes check-return and, when the brief has a branch, the commit that merged it. A sub-worker's delegation is not closed here: its worker reports it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required.",
+    "Usage: delegate close --record <record.md> --id <D-NNN> --outcome <accepted|sent back|stopped> [--merge <commit>] [--tokens <n>] [--minutes <n>] [--transcript <path>] --input <file|->\nRecords the outcome in the delegation's one History entry, with the model, effort, tokens and minutes the host reports, what the worker used (its Measured line: context, billed tokens and list-price cost by model and effort, working and wall-clock time, read from its own log beside the coordinator's transcript, --transcript or FREEFLOW_TRANSCRIPT, found by the brief's Handle or Freeflow's map of workers; else not measured), the merge commit and the return's path; removes its line; syncs the store. Accepting needs a return that passes check-return and, when the brief has a branch, the commit that merged it. A sub-worker's delegation is not closed here: its worker reports it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required.",
   ],
   [
     "agreement",
@@ -195,7 +197,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "estimate",
-    "Usage: estimate [--used <tokens>] [--window <tokens>] [--done <n> --left <m>] [--transcript <path>]\nHow much of the context window the work has used, before you decide what fits in this cycle: the context's use (--used, as the harness shows it; else the latest request in the session's transcript, --transcript or FREEFLOW_TRANSCRIPT or this Claude Code session's log) against the window (--window, else FREEFLOW_CONTEXT_WINDOW, else 200,000 tokens) and the point where Freeflow's notice comes (75% of the window), with what is left before it. With --done <n> --left <m>, the parts of the work done in this cycle and the parts still to do: what the rest needs at the rate so far (an upper bound), and whether it fits before the notice or about how many more cycles it takes.",
+    "Usage: estimate [--used <tokens>] [--window <tokens>] [--done <n> --left <m>] [--transcript <path>]\n       estimate --plan --record <ID> [--input -] [--fan-out <n>] [--done <n>] [--used <tokens>] [--window <tokens>]\n       estimate --project <name> | --store\nHow much of the context window the work has used, before you decide what fits in this compaction cycle: the context's use (--used, as the harness shows it; else the latest request in the session's transcript, --transcript or FREEFLOW_TRANSCRIPT or this Claude Code session's log) against the window (--window, else FREEFLOW_CONTEXT_WINDOW, else 200,000 tokens) and the point where Freeflow's notice comes (75% of the window), with what is left before it. With --done <n> --left <m>, the parts of the work done in this compaction cycle and the parts still to do: what the rest needs at the rate so far (an upper bound), and whether it fits before the notice or about how many more compaction cycles it takes.\nWith --plan, the Slices left (Future Work's proposals, or with --input one Slice a line, \"- <title>\", then optionally \" · after: <titles it waits for>\"): each one's expected context, working time and cost at API list price, from the median of the nearest of this task, its project and the store holding 3 measured Slices, corrected by the median of actual over predicted; the compaction cycle each lands in; any Slice bigger than a compaction cycle; the totals; the Slices with no dependency between them; and delegations' measured cost by kind, model and effort, with --fan-out <n> pricing n workers. With fewer than 3 measured Slices anywhere, --done <n> plans at this compaction cycle's rate. --project <name> lists each of the project's tasks with what it used and what its proposed Slices would take; --store adds up every project and task by model and effort, and delegations by kind. Prices are the dated table in lib/measure5.mjs, or the JSON file FREEFLOW_PRICES names. It prints costs and never picks a model.",
   ],
   [
     "budget",
@@ -307,11 +309,11 @@ const COMMAND_HELP = new Map([
   ],
   [
     "slice start",
-    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.\nSchema 5 input: Scope, Stop if and Started from required; Under (default: the open agreement), Done when (default: the proposal's), Waits on (D-NNN, comma-separated) and Dependencies.",
+    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.\nSchema 5 input: Scope, Stop if and Started from required; Under (default: the open agreement), Done when (default: the proposal's), Waits on (D-NNN, comma-separated) and Dependencies. Takes the Slice's first reading of what it uses (its Measured line), from --used <tokens>, else the transcript --transcript or FREEFLOW_TRANSCRIPT names; with neither it is not measured.",
   ],
   [
     "slice start-direct",
-    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Intended result, Authority source, Scope, Expected evidence, Stop condition, and Starting state required; Future Work is unchanged. Use --input - to read the fragment from stdin.\nSchema 5 input: Result wanted, Scope, Done when, Stop if and Started from required; Under (default: the open agreement), Waits on and Dependencies.",
+    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Intended result, Authority source, Scope, Expected evidence, Stop condition, and Starting state required; Future Work is unchanged. Use --input - to read the fragment from stdin.\nSchema 5 input: Result wanted, Scope, Done when, Stop if and Started from required; Under (default: the open agreement), Waits on and Dependencies. Takes the Slice's first reading of what it uses, as slice start does.",
   ],
   [
     "slice pause",
@@ -320,7 +322,7 @@ const COMMAND_HELP = new Map([
   ["slice resume", "Usage: slice resume --record <record.md> --resolution <source> --next-action <text>"],
   [
     "slice close",
-    'Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Result, Evidence and limits, and Task effect required. Use --input - to read the fragment from stdin.\nSchema 5 input: Cue ("read when …", at most 25 words), Result, Evidence and Task effect required; Resume when for blocked, Reason for abandoned. Appends the Slice\'s History entry, its updates included, then syncs the Freeflow store holding the task. A Slice is not closed as completed while a delegation it Waits on is open.',
+    'Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Result, Evidence and limits, and Task effect required. Use --input - to read the fragment from stdin.\nSchema 5 input: Cue ("read when …", at most 25 words), Result, Evidence and Task effect required; Resume when for blocked, Reason for abandoned. Appends the Slice\'s History entry, its updates included, then syncs the Freeflow store holding the task. A Slice is not closed as completed while a delegation it Waits on is open. Takes a last reading (--used, --transcript or FREEFLOW_TRANSCRIPT) and writes the Slice\'s Measured totals into its History entry, or "not measured".',
   ],
   [
     "slice reopen",
@@ -388,9 +390,19 @@ function parseOptions(args) {
     }
     if (options[token] !== undefined) throw new CliError(`Duplicate option: ${token}`);
     if (
-      ["--help", "--strict", "--pull", "--resolved", "--takeover", "--session", "--fallback", "--no-project"].includes(
-        token,
-      )
+      [
+        "--help",
+        "--strict",
+        "--pull",
+        "--resolved",
+        "--takeover",
+        "--session",
+        "--fallback",
+        "--no-project",
+        "--plan",
+        "--store",
+        "--json",
+      ].includes(token)
     ) {
       options[token] = true;
       continue;
@@ -410,7 +422,22 @@ function allowedOptions(command, operation) {
   if (command === "view")
     return new Set(["--root", "--record", "--view", "--delegation", "--session", "--fallback", "--home", "--help"]);
   if (command === "budget") return new Set(["--root", "--record", "--window", "--mode", "--help"]);
-  if (command === "estimate") return new Set(["--used", "--window", "--done", "--left", "--transcript", "--help"]);
+  if (command === "estimate")
+    return new Set([
+      "--used",
+      "--window",
+      "--done",
+      "--left",
+      "--transcript",
+      "--plan",
+      "--record",
+      "--input",
+      "--fan-out",
+      "--json",
+      "--project",
+      "--store",
+      "--help",
+    ]);
   if (command === "migrate") return new Set(["--root", "--record", "--cue", "--cues", "--project", "--home", "--help"]);
   if (command === "discussion") {
     const reading = ["--root", "--record", "--since", "--until", "--transcript", "--format", "--help"];
@@ -442,21 +469,32 @@ function allowedOptions(command, operation) {
     if (operation === "status") return new Set(record);
     if (operation === "check-return") return new Set([...record, "--id"]);
     if (operation === "close")
-      return new Set([...record, "--id", "--outcome", "--merge", "--tokens", "--minutes", "--input"]);
+      return new Set([...record, "--id", "--outcome", "--merge", "--tokens", "--minutes", "--transcript", "--input"]);
   }
   if (command === "validate") return new Set(["--root", "--record", "--strict", "--help"]);
   if (command === "slice") {
     if (operation === "propose") return new Set([...common, "--title"]);
-    if (operation === "start" || operation === "start-direct") return new Set([...withNextAction, "--title"]);
+    if (operation === "start" || operation === "start-direct")
+      return new Set([...withNextAction, "--title", "--used", "--transcript"]);
     if (operation === "pause") return new Set([...withNextAction, "--reason", "--resume-when"]);
     if (operation === "resume") return new Set([...withNextAction, "--resolution"]);
-    if (operation === "close") return new Set([...withNextAction, "--state"]);
+    if (operation === "close") return new Set([...withNextAction, "--state", "--used", "--transcript"]);
     if (operation === "reopen") return new Set([...withNextAction, "--id", "--title"]);
     if (operation === "record") return new Set([...common, "--title", "--state"]);
   }
   if (command === "checkpoint") {
     if (operation === undefined)
-      return new Set(["--root", "--record", "--repo", "--input", "--session", "--home", "--help"]);
+      return new Set([
+        "--root",
+        "--record",
+        "--repo",
+        "--input",
+        "--session",
+        "--home",
+        "--used",
+        "--transcript",
+        "--help",
+      ]);
     if (operation === "propose") return new Set([...common, "--title"]);
     if (operation === "activate") return new Set([...withNextAction, "--title"]);
     if (operation === "defer" || operation === "resume") return new Set([...withNextAction, "--id"]);
@@ -932,9 +970,10 @@ async function runCore(command, rest) {
   }
   if (command === "estimate") {
     try {
-      return estimate(options);
+      const input = options["--input"] === undefined ? "" : await readInput(options["--input"], cwd());
+      return estimate(options, process.env, input);
     } catch (error) {
-      if (error instanceof EstimateError) throw new CliError(error.message);
+      if (error instanceof EstimateError || error instanceof PlanError) throw new CliError(error.message);
       throw error;
     }
   }

@@ -167,7 +167,7 @@ Size outcomes for manageable working context, dependencies, uncertainty and chec
 ```text
 Ordered actions or slices:
 Checks:
-Selected checkpoints, if any:
+Return points, if any:
 Completion condition:
 ```
 
@@ -177,7 +177,7 @@ Completion condition:
 ## Phase 1 — <outcome>
 Purpose:
 Dependencies:
-Selected checkpoints, if any:
+Return points, if any:
 Completion condition:
 
 ### Slice 1.1 — <result>
@@ -190,7 +190,7 @@ Tests or observations:
 Verification claim and required boundary:
 Selected independent review, if any:
 Selected local commit, if any:
-Other user or continuity checkpoint, if any:
+Other return point, if any:
 Completion condition:
 ```
 
@@ -198,9 +198,9 @@ Use only the slice fields needed to execute and check it; mention files, modules
 
 ### Keep Acceptance And Return Visible
 
-Tie each material outcome and final check to the accepted behavior it serves. Keep the agreed return condition visible: return a proposed strategy, implement one Slice, finish the task, or stop at a specified boundary. Before a new prerequisite becomes a planned obligation, determine whether it serves an accepted requirement or only preserves a particular approach. Internal delegation handbacks and context cycles are not user checkpoints.
+Tie each material outcome and final check to the accepted behavior it serves. Keep the agreed return condition visible: return a proposed strategy, implement one Slice, finish the task, or stop at a specified boundary. Before a new prerequisite becomes a planned obligation, determine whether it serves an accepted requirement or only preserves a particular approach. Internal delegation handbacks and compaction cycles are not return points.
 
-### Select Checkpoints Without A Schedule Of Ceremonies
+### Select Return Points Without A Schedule Of Ceremonies
 
 Ordinary verification and silent self-review belong to producing each result; do not restate them as gates unless a particular evidence boundary needs explanation. Select independent review, a local commit, a user decision or a continuity transfer only to protect a concrete dependency, risk, rollback or delivery boundary; a slice ending or a fixed count is not enough. A selected local commit names its coherent outcome and conditions, not merely "commit after this slice"; actual results and commit identities go in the Working Record. When an existing agreement already covers the work, keep that source instead of asking the user to approve the same scope again because it is now written down.
 
@@ -217,7 +217,7 @@ Final tests or observations:
 Verification claims and required boundaries:
 Selected independent review, if any:
 Selected local commit, if any:
-Other user or continuity checkpoint, if any:
+Other return point, if any:
 Completion condition:
 
 Plan invalidation conditions:

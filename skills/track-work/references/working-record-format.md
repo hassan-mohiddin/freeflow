@@ -156,7 +156,7 @@ The three top-level sections are fixed, in this order. Current Work holds its se
 | `# <task name>` | The task's name. |
 | `Schema: 5 · State: <state> · Budget: <mode>` | The task state (`active`, `paused`, `completed`, `abandoned`) and the budget mode (`normal` or `expanded`; `normal` when absent). |
 | `Cue:` | When the task matters, starting "read when", in at most 25 words. The menu and the project index show it. |
-| `State as of:` | When the record was last checkpointed: `init` and `checkpoint` set it, nothing else. Where Freeflow compacts for the harness, it counts a checkpoint as done when this is later than the cycle's notice, or, with no notice in the cycle, than the cycle's start. |
+| `State as of:` | When the record was last checkpointed: `init` and `checkpoint` set it, nothing else. Where Freeflow compacts for the harness, it counts a checkpoint as done when this is later than the compaction cycle's notice, or, with no notice in it, than its start. |
 
 ### Fields
 
@@ -208,6 +208,8 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 - Stop if: a caller relies on a single attempt.
 - Started from: main at 1a2b3c4d; no retry.
 - Waits on: D-012
+- Predicted: context 40,000, working 25 min, $1.20; median of 6 Slices of this task
+- Measured: context 12,000 over 1 compaction cycle(s); working 8 min, wall 15 min; claude-opus-5-5 high: 2 in, 3,000 written, 400,000 read, 9,000 out, $0.28; as of 2026-10-30T10:15:00.000Z at 52,000 tokens
 - Evidence (observed): the retry test passes — scratch/retry-test.txt
 - Result: commit 5e6f7a8b
 ```
@@ -224,6 +226,8 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 | Started from | yes | The state of what this Slice will change; a Slice that continues closed work names it here. |
 | Waits on | no | The delegations whose result it needs, `D-NNN`, comma-separated. |
 | Dependencies | no | |
+| Predicted | no | Written by `slice start`: the median context, working time and cost of the nearest of this task, its project and the store holding 3 measured Slices, each figure scaled `(×<n>)` by the median of actual over predicted where 3 past predictions have their actual. None when too few are measured. |
+| Measured | no | Written by `slice start`, `checkpoint` and `slice close`: the context the Slice added and the compaction cycles it touched (`partly measured` where a reading missed some), working and wall-clock time, then per model and effort its billed tokens (input, cache written, cache read, output) and their cost at API list price, and the last reading. Read from the harness's transcript, or `--used`; none when neither is available. |
 
 After the fields come its update lines, one line each, a kind and then the claim and its pointer; the detail lives in the file the line points to. The kinds: `Evidence (observed)`, `Evidence (reported)`, `Result`, `Review`, `Review gate`, `Contradiction`, `Blocker`, `Correction`, `Paused`, `Resumed`, `Extension`. `slice pause` and `slice resume` write the `Paused` and `Resumed` lines; the rest are direct edits. An Evidence line identifies the state it observed well enough to tell it apart from later versions; append counterevidence as a new line instead of rewriting the earlier one, and label what you did not observe yourself `reported`.
 
@@ -269,7 +273,7 @@ Rewritten whole by `checkpoint --input`; each line starts with its label:
 - Carry: src/http/client.ts (lines 10–40) — the loop under test
 ```
 
-A `Carry` line names a file, optionally its lines, and why the next cycle needs it; the bundle copies it fresh, and it counts toward the budget. An input of `none` empties In flight, and a labelled line that says only `none` (`- Carry: none`) is left out.
+A `Carry` line names a file, optionally its lines, and why the next compaction cycle needs it; the bundle copies it fresh, and it counts toward the budget. An input of `none` empties In flight, and a labelled line that says only `none` (`- Carry: none`) is left out.
 
 ### Defined by, Read on recovery, Read when
 
@@ -337,9 +341,9 @@ One entry per closed Slice, agreement or delegation, appended by the command tha
 
 | Entry | States | Fields |
 | --- | --- | --- |
-| Slice | `completed`, `blocked`, `abandoned` | State, Dates, Cue, Under, Result wanted, Result, Evidence, Task effect; Resume when (blocked), Reason (abandoned), Updates; Recorded (`slice record`) |
+| Slice | `completed`, `blocked`, `abandoned` | State, Dates, Cue, Under, Result wanted, Result, Evidence, Task effect; Resume when (blocked), Reason (abandoned), Predicted, Measured (`not measured` when no reading was taken), Updates; Recorded (`slice record`) |
 | Agreement | `completed`, `ended`, `replaced` | State, Dates, Cue, Lines, Result, Task effect; Updates, Decisions |
-| Delegation | `accepted`, `sent back`, `stopped` | State, Dates, Cue, Under, Kind, Agent, Result, Return; From, Tokens, Minutes, Task effect, Merge commit |
+| Delegation | `accepted`, `sent back`, `stopped` | State, Dates, Cue, Under, Kind, Agent, Result, Return; From, Tokens, Minutes, Measured (from the worker's own log, or `not measured`), Task effect, Merge commit |
 
 A clerical fix is appended inside its entry as one more `Correction:` line (the field, before, after, reason); it never changes an entry's state, ID or meaning. `view index` lists every entry in one line; recovery shows the newest within the budget and any the record names.
 
@@ -418,7 +422,8 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task |
 | Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
 | The budget | `budget [--record <ID>]`; `task set-budget --mode <normal\|expanded>` on the user's word |
-| The context used, and whether the rest fits in this cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
+| The context used, and whether the rest fits in this compaction cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
+| The Slices left, sized from measured ones, across compaction cycles; a project's or the store's measured use | `estimate --plan [--record <ID>] [--input -] [--fan-out <n>] [--json]`, `estimate --project <name>`, `estimate --store`: change nothing |
 | Change the task state | `task set-state --state <state>` |
 | Convert a Schema 4 record | `migrate`, on the user's word |
 
@@ -441,7 +446,7 @@ Edit directly:
 - `decisions.md`'s items;
 - a `Correction:` line appended inside a History entry.
 
-Never edit directly: IDs, `State` fields, `Opened`, `State as of`, the agreement's lines and updates, Delegations, Space, In flight, `sessions.md`, `sources/discussion.md`, or any History entry beyond appending a correction. After a structural edit, run `validate --record <ID>`. It checks the task folder's structure and lists pointers that do not resolve, as warnings, since a line may name a planned path or a commit not fetched yet; `--strict` fails on those an Evidence or Result line names. It cannot detect a hand-made state change or a deleted entry, so those edits are forbidden rather than checked.
+Never edit directly: IDs, `State` fields, `Opened`, `State as of`, `Predicted` and `Measured`, the agreement's lines and updates, Delegations, Space, In flight, `sessions.md`, `sources/discussion.md`, or any History entry beyond appending a correction. After a structural edit, run `validate --record <ID>`. It checks the task folder's structure and lists pointers that do not resolve, as warnings, since a line may name a planned path or a commit not fetched yet; `--strict` fails on those an Evidence or Result line names. It cannot detect a hand-made state change or a deleted entry, so those edits are forbidden rather than checked.
 
 ## Views
 

@@ -6,7 +6,7 @@
 //   agreement  the reply sent before building: What I'll do / Where I stop / Your decisions / Technical: N;
 //   handover   the items a hand-over shows: new, changed and default;
 //   catch-up   after an unattended run: defaults taken, choices waiting, changes, and what ran (the record's current
-//              Slice Material updates).
+//              Slice's updates).
 
 export const CHOICE_STATES = new Set(["proposed", "agreed", "default", "changed", "new", "dropped"]);
 const ITEM = /^\s*[-*]\s+([A-Za-z]+\d+)\s+\[([^\]]*)\]\s+(.*)$/;
@@ -70,11 +70,31 @@ export function parseChoices(text) {
 const itemLine = (item) => `- ${item.id} [${item.state}] ${item.text}`;
 const byState = (items, states) => items.filter((item) => states.includes(item.state));
 
-// The current Slice's Material updates: what ran or changed while no one was answering.
+// A Schema 5 Slice's fields, which its update lines follow.
+const SLICE5_FIELDS =
+  /^- (State|Opened|Under|Result wanted|Scope|Done when|Stop if|Started from|Waits on|Dependencies):/;
+
+// A Schema 5 record's current Slice and its update lines: what ran or changed while no one was answering.
+function currentSlice5Updates(recordText) {
+  const lines = recordText.split(/\r?\n/);
+  const start = lines.findIndex((each) => /^### Slice S-\d+/.test(each));
+  if (start === -1) return { slice: "no current Slice", label: "updates", updates: [] };
+  const end = lines.findIndex((each, index) => index > start && /^#{2,3} /.test(each));
+  const updates = lines
+    .slice(start + 1, end === -1 ? undefined : end)
+    .filter((each) => /^-\s+\S/.test(each) && !SLICE5_FIELDS.test(each));
+  return {
+    slice: lines[start].replace(/^###\s+Slice\s+/, ""),
+    label: "updates",
+    updates: updates.map((each) => each.replace(/^-\s+/, "")),
+  };
+}
+
+// A Schema 4 record's current Slice Material updates: what ran or changed while no one was answering.
 function currentSliceUpdates(recordText) {
   const lines = recordText.split(/\r?\n/);
   const start = lines.findIndex((each) => /^### Current Slice\s*$/.test(each));
-  if (start === -1) return { slice: "no Current Slice", updates: [] };
+  if (start === -1) return { slice: "no Current Slice", label: "Material updates", updates: [] };
   const end = lines.findIndex((each, index) => index > start && /^#{2,3} /.test(each));
   const slice = lines.slice(start, end === -1 ? undefined : end);
   const title = slice.find((each) => /^#### S-\d+/.test(each));
@@ -82,12 +102,64 @@ function currentSliceUpdates(recordText) {
   const updates = at === -1 ? [] : slice.slice(at + 1).filter((each) => /^\s*-\s+\S/.test(each));
   return {
     slice: title ? title.replace(/^####\s+/, "") : "no Current Slice",
+    label: "Material updates",
     updates: updates.map((each) => each.trim().replace(/^-\s+/, "")),
   };
 }
 
+const PAD = "                ";
+const count = (value) => Math.round(value).toLocaleString("en-US");
+const dollars = (value) => `$${value.toFixed(2)}`;
+function duration(ms) {
+  const total = Math.round(ms / 60_000);
+  return total < 60 ? `${total} min` : `${Math.floor(total / 60)} h${total % 60 ? ` ${total % 60} min` : ""}`;
+}
+const cycleName = (cycle) => (cycle === 0 ? "this compaction cycle" : cycle === 1 ? "the next" : `+${cycle}`);
+const shortName = (cycle) => (cycle === 0 ? "this one" : cycleName(cycle));
+
+// The agreement's Size line, from Track Work's `estimate --plan --json` (P87): the compaction cycles the work touches
+// and its cost at API list price.
+function sizeLine(plan) {
+  const cycles =
+    plan.cycles <= 1
+      ? "within this compaction cycle"
+      : `${plan.cycles} compaction cycles (this one and ${plan.cycles - 1} more)`;
+  const cost =
+    plan.total.usd === null ? "; no cost measured yet" : `, about ${dollars(plan.total.usd)} at API list price`;
+  return `Size:           ${cycles}${cost}`;
+}
+
+// The plan in the agreement's Technical part: each Slice's size and where it lands, the context and cost per compaction
+// cycle, the totals, what could run in parallel, and the prices' date.
+function planLines(plan) {
+  const each = plan.perSlice;
+  const lines = [
+    each.usd === null
+      ? `each Slice ${each.upperBound ? "at most " : ""}about ${count(each.context)} tokens of context (${each.source})`
+      : `each Slice about ${count(each.context)} tokens of context, working about ${duration(each.workingMs)}, about ${dollars(each.usd)}${each.model ? `, mostly ${each.model}` : ""} (${each.source})`,
+    ...plan.landings.map(
+      (item) =>
+        `- ${item.title}: ${item.first === item.last ? cycleName(item.first) : `${cycleName(item.first)} into ${cycleName(item.last)}`}${item.oversized ? "; bigger than a compaction cycle" : ""}`,
+    ),
+    `by compaction cycle: ${plan.perCycle
+      .map(
+        (part, index) =>
+          `${shortName(part.cycle)} about ${count(part.context)}${index ? "" : " tokens"}${part.usd === null ? "" : `, ${dollars(part.usd)}`}`,
+      )
+      .join("; ")}`,
+    `in all: about ${count(plan.total.context)} tokens of context${plan.total.workingMs === null ? "" : `, working about ${duration(plan.total.workingMs)}`}${plan.total.usd === null ? "" : `, about ${dollars(plan.total.usd)}`}`,
+    ...plan.parallel.map((wave) => `could run in parallel: ${wave.join(", ")}`),
+  ];
+  if (each.usd !== null) lines.push(`prices: API list price as of ${plan.prices.date}, from ${plan.prices.source}`);
+  return lines.map((line, index) => `${index ? PAD : "Plan:           "}${line}`);
+}
+
 // Renders one view; returns { text, data }. The caller validates first.
-export function renderChoices(view, parsed, { outcome, stop, showTechnical = false, recordText = null } = {}) {
+export function renderChoices(
+  view,
+  parsed,
+  { outcome, stop, showTechnical = false, recordText = null, plan = null } = {},
+) {
   const { items } = parsed;
   const plain = items.filter((item) => item.kind === "plain" && item.state !== "dropped");
   const technical = items.filter((item) => item.kind === "technical" && item.state !== "dropped");
@@ -102,18 +174,28 @@ export function renderChoices(view, parsed, { outcome, stop, showTechnical = fal
             `${index ? pad : ""}${index + 1}. ${item.choice}${/[?.!]$/.test(item.choice) ? "" : "?"} I'd go with ${item.default}`,
         )
       : ["none: the request and the repository settle every choice the user would see."];
+    const more = [
+      ...(technical.length ? [`${technical.length} more choice${technical.length === 1 ? "" : "s"}`] : []),
+      ...(plan ? ["the plan"] : []),
+    ];
     const technicalLine = showTechnical
       ? [
-          `Technical:      ${technical.map((item, index) => `${index ? pad : ""}${item.id} ${item.choice} (serves ${item.serves})`).join("\n") || "none"}`,
+          ...(technical.length || !plan
+            ? [
+                `Technical:      ${technical.map((item, index) => `${index ? pad : ""}${item.id} ${item.choice} (serves ${item.serves})`).join("\n") || "none"}`,
+              ]
+            : []),
+          ...(plan ? planLines(plan) : []),
         ]
-      : technical.length
+      : more.length
         ? [
-            `Technical:      ${technical.length} more choice${technical.length === 1 ? "" : "s"}; say "show technical" to see them.`,
+            `Technical:      ${more.join(" and ")}; say "show technical" to see ${technical.length || !plan ? "them" : "it"}.`,
           ]
         : [];
     const text = [
       `What I'll do:   ${outcome}`,
       `Where I stop:   ${stop}`,
+      ...(plan ? [sizeLine(plan)] : []),
       `Your decisions: ${decisions.join("\n")}`,
       ...technicalLine,
     ].join("\n");
@@ -139,11 +221,16 @@ export function renderChoices(view, parsed, { outcome, stop, showTechnical = fal
     ...(waiting.length ? waiting.map(itemLine) : ["- none"]),
   );
   if (changed.length) out.push("", `Changed while you were away (${changed.length}):`, ...changed.map(itemLine));
-  const ran = recordText === null ? null : currentSliceUpdates(recordText);
+  const ran =
+    recordText === null
+      ? null
+      : recordText.schema === 5
+        ? currentSlice5Updates(recordText.text)
+        : currentSliceUpdates(recordText.text);
   if (ran)
     out.push(
       "",
-      `What ran (${ran.slice}, Material updates: ${ran.updates.length}):`,
+      `What ran (${ran.slice}, ${ran.label}: ${ran.updates.length}):`,
       ...(ran.updates.length ? ran.updates.map((each) => `- ${each}`) : ["- nothing recorded"]),
     );
   else out.push("", "What ran: no Working Record; account for it from the conversation.");

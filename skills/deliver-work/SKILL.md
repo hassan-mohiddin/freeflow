@@ -28,7 +28,7 @@ A request spanning routes, such as "commit and push": take them in order, each w
 
 - Merging, a pull request, deleting or discarding a branch, worktree or uncommitted work, deploying, and every exposure stage need their own yes, like commit, push and release. Loading this skill, a readiness question or an approved plan gives none, and one route's success never authorizes the next.
 - Never use `--amend`, `--allow-empty`, `--no-verify`, a force push, a history rewrite, a moved release tag or an overwritten published version unless the user asked for that exact action; never bypass or blindly retry a failing hook or check.
-- Never stage or publish Working Records (`.freeflow/tasks/**`), secrets, credentials, private keys, local environment files or unexplained sensitive content.
+- Never stage or publish Working Records (`.freeflow/tasks/**`, or a Freeflow store's task folders), secrets, credentials, private keys, local environment files or unexplained sensitive content. Only Track Work's script syncs the Freeflow store, and only to the user's own private remote.
 - Never absorb or unstage pre-existing staged changes, or remove a worktree, checkout or other state you did not create. Never run a destructive reset, clean, branch or remote deletion, worktree removal or force push merely to produce a clean status.
 - After a commit, push, publication or deployment step fails or loses its acknowledgement, inspect what changed before retrying, and stop while it stays unknown; a network error does not mean nothing happened.
 
@@ -36,12 +36,12 @@ A request spanning routes, such as "commit and push": take them in order, each w
 
 Goal: one commit that holds exactly the supported state.
 
-1. **Boundary.** The user asked for this commit, or a `preserve` Checkpoint they selected is due; a Working Record can carry that selection, not create it. Fresh checks support the state, or the user asked to preserve incomplete work; a review they selected is done, its findings settled.
+1. **Boundary.** The user asked for this commit, or the work agreement they gave covers it, such as a commit at a return point they agreed; a Working Record can carry that agreement, not create it. Fresh checks support the state, or the user asked to preserve incomplete work; a review they selected is done, its findings settled.
 2. **Inspect** before touching the index: [commit-state](scripts/commit-state.mjs) lists every staged, unstaged and untracked path as yours, pre-existing or unknown (from a `snapshot` taken before your first edit, or `--mine <path>`), with partly staged files, sensitive-looking paths and Working Records flagged; then read `git diff` and `git diff --cached`. Staged does not mean yours. If the second Routes row matches, read [commit](references/commit.md) now.
 3. **Stage** only what the claim needs: explicit paths or hunks, with the tests, docs and generated output it requires; stage broadly only when every changed path was inspected and belongs. Then `git diff --cached --check`: conflict markers or whitespace damage stop the commit; fix them in the content they belong to, never edit content just to silence the check.
 4. **Message** in the repository's style; otherwise a short imperative subject naming what this commit holds, and a body only for what the diff cannot show: why, trade-offs, residual risk, why incomplete work is kept. Invent no trailers.
 5. **Check** `git show --stat --oneline HEAD` and `git status --short --branch`: the claimed contents, nothing unexpected left.
-6. **Record** `commit:<sha>` in the Current Slice's Material updates and close the selected `preserve` Checkpoint through [Track Work](../track-work/SKILL.md), when a Working Record exists.
+6. **Record** the commit on the current Slice, as a one-line result naming its SHA, through [Track Work](../track-work/SKILL.md), when a Working Record exists.
 
 Rules for a commit:
 

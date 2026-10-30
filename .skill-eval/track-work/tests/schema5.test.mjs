@@ -354,7 +354,7 @@ test("the slice commands change only what they name, and closing a Slice appends
     const history = await readFile(join(dirname(record), "history.md"), "utf8");
     assert.ok(
       history.endsWith(
-        `- State: completed\n- Dates: ${today}\n- Cue: read when the demo breaks\n- Under: A-001\n- Result wanted: A demo.\n- Result: It runs.\n- Evidence: record.md\n- Task effect: The demo exists.\n- Updates:\n  - Evidence (observed): the demo ran — record.md\n  - Paused: waiting on a fix; resume when: it lands\n  - Resumed: the fix landed\n`,
+        `- State: completed\n- Dates: ${today}\n- Cue: read when the demo breaks\n- Under: A-001\n- Result wanted: A demo.\n- Result: It runs.\n- Evidence: record.md\n- Task effect: The demo exists.\n- Measured: not measured\n- Updates:\n  - Evidence (observed): the demo ran — record.md\n  - Paused: waiting on a fix; resume when: it lands\n  - Resumed: the fix landed\n`,
       ),
     );
     text = await readFile(record, "utf8");

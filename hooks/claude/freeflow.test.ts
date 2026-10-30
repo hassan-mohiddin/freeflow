@@ -203,9 +203,10 @@ test("session start: with a store, pull it, give the scripts the window and the 
   expect(w.commands()).toEqual(["session status"]);
   expect(w.env.FREEFLOW_CONTEXT_WINDOW).toBe("200000");
 
-  w.status = store();
+  w.status = store({ transcript: "/home/u/.claude/projects/p/sess-1.jsonl" });
   w.runs.length = 0;
   const result = await start($);
+  expect(w.env.FREEFLOW_TRANSCRIPT).toBe("/home/u/.claude/projects/p/sess-1.jsonl");
   expect(w.commands()).toEqual(["session status", "store sync --pull", "task here --cwd /work/widget"]);
   expect(w.runs.every((run) => run.session === SESSION)).toBe(true);
   expect(result.additionalContext).toEqual([`Freeflow task memory:\n${MENU}`]);
@@ -225,13 +226,15 @@ test("a request ends: one notice a cycle, at the lower of 75% and a tenth before
   expect(notices()).toEqual([]);
   await step($, w, 148_000);
   expect(notices().length).toBe(1);
-  expect(notices()[0]).toContain("Freeflow, cycle 1: the context is at 74% of its window (148000 of 200000 tokens)");
+  expect(notices()[0]).toContain(
+    "Freeflow, compaction cycle 1: the context is at 74% of its window (148000 of 200000 tokens)",
+  );
   expect(notices()[0]).toContain("Claude Code compacts on its own at about 167000");
   expect(notices()[0]).toContain("Keep working until a safe point: a finished step whose result you know");
   expect(notices()[0]).toContain("rewrite widget/task-001's Current Context");
   expect(notices()[0]).toContain("checkpoint --record widget/task-001 --input -");
   expect(notices()[0]).toContain("Then end your turn");
-  expect(notices()[0]).toContain("the only notice this cycle");
+  expect(notices()[0]).toContain("the only notice this compaction cycle");
   // One notice a cycle: no repeats, whether or not the checkpoint has come (P50), and no script runs for it after.
   w.runs.length = 0;
   await step($, w, 158_000);
@@ -309,7 +312,7 @@ test("a request ends: the context shown at 50, 60 and 70% below the notice, once
   expect(appended(w)).toEqual([]);
   await step($, w, 100_000);
   expect(rowsOf(w)).toEqual([
-    "Freeflow, cycle 1: the context is at 50% of its window (100000 of 200000 tokens); the checkpoint notice comes at about 147000 tokens.",
+    "Freeflow, compaction cycle 1: the context is at 50% of its window (100000 of 200000 tokens); the checkpoint notice comes at about 147000 tokens.",
   ]);
   await step($, w, 118_000);
   expect(rowsOf(w).length).toBe(1);
@@ -318,9 +321,9 @@ test("a request ends: the context shown at 50, 60 and 70% below the notice, once
   await step($, w, 146_000);
   await step($, w, 148_000);
   expect(rowsOf(w).length).toBe(2);
-  expect(rowsOf(w)[1]).toContain("Freeflow, cycle 1: the context is at 71%");
+  expect(rowsOf(w)[1]).toContain("Freeflow, compaction cycle 1: the context is at 71%");
   expect(noticesOf(w).length).toBe(1);
-  expect(noticesOf(w)[0]).toContain("Freeflow, cycle 1: the context is at 74%");
+  expect(noticesOf(w)[0]).toContain("Freeflow, compaction cycle 1: the context is at 74%");
   expect(appended(w).length).toBe(3);
 
   // A compaction moves the count on in the store, and the new cycle has its rows and notice again, naming it.
@@ -330,18 +333,18 @@ test("a request ends: the context shown at 50, 60 and 70% below the notice, once
   await step($, w, 30_000);
   await step($, w, 145_000);
   expect(rowsOf(w).length).toBe(3);
-  expect(rowsOf(w)[2]).toContain("Freeflow, cycle 2: the context is at 73%");
+  expect(rowsOf(w)[2]).toContain("Freeflow, compaction cycle 2: the context is at 73%");
   await step($, w, 147_000);
-  expect(noticesOf(w)[1]).toContain("Freeflow, cycle 2:");
+  expect(noticesOf(w)[1]).toContain("Freeflow, compaction cycle 2:");
 
   // A resumed session keeps its count, read again from the store; another session starts its own at 1.
   await start($, { source: "resume" });
   await step($, w, 100_000);
-  expect(rowsOf(w)[3]).toContain("Freeflow, cycle 2:");
+  expect(rowsOf(w)[3]).toContain("Freeflow, compaction cycle 2:");
   w.status = held(at(-30), { session: "sess-2" });
   await start($, { session_id: "sess-2" });
   await step($, w, 100_000);
-  expect(rowsOf(w)[4]).toContain("Freeflow, cycle 1:");
+  expect(rowsOf(w)[4]).toContain("Freeflow, compaction cycle 1:");
 
   // Claude's own compaction in a session with no task and no summary is a new cycle too: the count moves on, and the
   // next notice comes.
@@ -353,7 +356,7 @@ test("a request ends: the context shown at 50, 60 and 70% below the notice, once
   expect(w.stored.get(cycleFile)).toBe('{"cycle":3}\n');
   await step($, w, 150_000);
   expect(noticesOf(w).length).toBe(4);
-  expect(noticesOf(w)[3]).toContain("Freeflow, cycle 3:");
+  expect(noticesOf(w)[3]).toContain("Freeflow, compaction cycle 3:");
 
   // Without a store, no row, and the store is asked once a mark, not on every request.
   w.status = null;

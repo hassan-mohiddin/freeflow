@@ -230,17 +230,17 @@ A Slice is one coherent learning, delivery, or deepening result that can be exec
 
 Use separate Slices when dependencies, uncertainty, outcome boundaries, or working-set size make one attempt unreliable. Keep implementation, its focused checks, and accepted local correction in the same Slice while the intended result and evidence boundary remain coherent.
 
-### Checkpoints
+### Return points
 
-Select a checkpoint only when it protects a meaningful boundary, such as:
+The work agreement names where the work comes back to you: its return points, such as "Back at the pull request" or "Ask first: merging". The agent proposes one only where it protects a meaningful boundary, such as:
 
-- a user decision before dependent work;
+- a decision of yours before dependent work;
 - an independent review before integration;
-- a local commit preserving a coherent checkpoint;
-- a continuity boundary before transfer;
+- a commit, push or pull request;
+- a transfer to another session or person;
 - a final release or launch decision.
 
-Routine self-review and every Slice ending are not checkpoints.
+Routine self-review and every Slice ending are not return points.
 
 ### Route from evidence
 
@@ -255,38 +255,44 @@ Preserve unaffected work and contrary evidence.
 
 ### Supported Exit
 
-A valid exit may be an answer, completion, wait, pause, handoff, deferment, controlled boundary, or stop. Completion requires evidence appropriate to the claim, self-review, resolved selected checkpoints, accurate task memory, and no hidden user-owned decision.
+A valid exit may be an answer, completion, wait, pause, handoff, deferment, controlled boundary, or stop. Completion requires evidence appropriate to the claim, self-review, resolved return points, accurate task memory, and no hidden user-owned decision.
 
 ## Preserve memory with Track Work
 
-Track Work maintains one ignored Working Record when losing task state could misalign continuation.
+Track Work keeps a Working Record for a task whose work will outlast the current compaction cycle (from a session's start or a compaction to the next compaction), or whose decisions, route or partial state would misdirect the next session if they were lost. The record is the agent's memory, kept through Track Work's script; it is not authority.
 
 ### Use a Working Record when
 
-- the task spans several coherent Slices;
+- the work will outlast this compaction cycle: `working-record.mjs estimate` compares the context used so far with the work left;
 - decisions or constraints must survive context loss;
 - evidence, blockers, partial effects, or failed approaches matter later;
 - another session or person may continue the work;
-- the next useful action depends on an ordered route.
+- the next action depends on an ordered route.
 
-A short disposable result does not need a record merely because work occurred.
+A question or a short self-contained result needs no record. The agent creates a task only when you ask for one or answer its question, whose choices are a task in the project the work belongs to, a task in no project, or no task.
 
-### What a Working Record preserves
+### Where tasks live
 
-- current Goal and defining sources;
-- settled, tentative, and open understanding;
-- current direction and boundaries;
-- one Current Slice and one next useful action;
-- proposed Future Work;
-- accepted Decisions and Checkpoints;
-- completed, blocked, and abandoned Slice history;
-- inert task-local Notes.
-
-The canonical location is:
+Every task's memory lives in the Freeflow store: one private Git repository at `FREEFLOW_HOME` (`~/.freeflow` by default), which Setup Freeflow makes. It is local by default, on this device only. Add your own private repository as its remote and it becomes a cloud store, kept in step on every device; a cloud session needs one, since its container is thrown away. Tasks sit in projects, or in none:
 
 ```text
-.freeflow/tasks/task-NNN-<short-name>/record.md
+~/.freeflow/projects/<project>/tasks/task-NNN-<short-name>/
+~/.freeflow/tasks/task-NNN-<short-name>/
 ```
+
+The store writes nothing into your code repositories, and only Track Work's script commits and syncs it. If you choose not to make a store, a task's folder goes in the repository's Git-ignored `.freeflow/tasks/` instead.
+
+A session holds at most one task, and a task has one holder at a time. Where Freeflow runs inside the host (on Claude Code, through its mod), a session starts with a task menu: the open tasks of the project whose tasks name this repository. The agent takes only the task your message points to, asks when it could be more than one, and asks before taking over a task another session holds.
+
+### What a task folder keeps
+
+- `record.md`: the Goal, what is settled and what is still open; the work agreement in your words, with its return points; the current Slice; work handed to other agents; where each repository stands; where the step in progress stands; what recovery must read; the next action; and the proposed route.
+- `history.md`: one entry per closed Slice, agreement or delegation, each with a cue saying when it matters, and what each Slice used: its context and the compaction cycles it touched and, where the host's transcript can be read (on Claude Code), its time and its cost at API list price by model and effort.
+- `decisions.md`: the open agreement's decision list.
+- `sessions.md`: every session that held the task.
+- `sources/discussion.md`: your messages that shaped the work, word for word.
+
+The memory the agent shapes has a recovery budget that grows with the context window; when a task's memory keeps running over, the agent may propose expanded mode, which only you turn on. `working-record.mjs estimate --plan` sizes the work left from what past Slices used, and the work agreement can show it: how many compaction cycles, and the cost at list price.
 
 ### What it does not do
 
@@ -301,19 +307,24 @@ A Working Record is not:
 
 Only the user changes task state. Closing a Slice does not complete the task.
 
-### Recovery after context loss
+### Before a compaction, and after
 
-When the conversation about the current work is no longer in context (after compaction, clear, a transfer, or a session that continues the work without it), the agent recovers the record with `working-record.mjs view recover`: the record's present state, a one-line index of closed History, each defining artifact and Recovery source with whether it resolves, and where live Git state disagrees with the record. It then reads what defines the task and the record's Recovery sources, opens the closed History entries the next action depends on by ID, and reconciles all of it with current user direction, live files, and actual effects. It does not open the whole record to recover it; that loads every History entry, most of which the next step does not need.
+Freeflow's notice comes once each compaction cycle, before the host's own compaction would start. The agent works on to a safe point, checkpoints the record and ends its turn. On Claude Code (2.1.287 or later), Freeflow then compacts the session itself, with the record and everything recovery reads in place of the conversation, and starts the next turn. Where the host compacts on its own, Freeflow adds the record as of the last checkpoint after the host's summary where it can; otherwise, and after a clear or a transfer to another session, the agent recovers with `working-record.mjs view recover` and reads every source it lists. Either way it reconciles the record with your latest direction and the live state before acting, and says in one line what it read.
 
-While that conversation is still in context, including after a new message, a pause or a resumed session, re-reading the record wastes context and does not make it more authoritative.
+While the conversation about the work is still in context, including after a new message, a pause or a resumed session, re-reading the record wastes context and does not make it more authoritative.
 
 ### Ask for task memory directly
 
 Useful requests include:
 
 ```text
-Track this as a multi-slice task and preserve the decisions, evidence limits,
-and next useful action.
+Keep a task for this; it will take several compaction cycles. Preserve the
+decisions, evidence limits and next action.
+```
+
+```text
+Before you send the agreement, show me how many compaction cycles the plan
+takes and what it costs at list price.
 ```
 
 ```text
@@ -328,7 +339,7 @@ condition for resuming.
 
 ### Task memory on Pi
 
-On native Pi, task memory (a preview, off by default) lets the session hold its Working Records instead of leaving the agent to find them. Turn it on with the Task Memory switch in `/freeflow settings`. Then:
+On native Pi, Working Records keep the format Pi's task memory reads, in the repository or Pi's own projects, until Pi moves onto the Freeflow store. Task memory (a preview, off by default) lets the session hold its Working Records instead of leaving the agent to find them. Turn it on with the Task Memory switch in `/freeflow settings`. Then:
 
 - **Attach the records a session works on.** The agent proposes attaching a record when the work needs one, and you confirm; or run `/freeflow task` to pick one. A session that needs no memory attaches nothing.
 - **The focused record comes back on its own.** After a compaction, `/reload`, a resume or `/tree` navigation, the agent receives the focused record's resume view, so recovery does not depend on the agent remembering which record it was using.

@@ -37,10 +37,10 @@ Read a reference only when its situation arises.
 ## Rules
 
 - Stay inside the work agreement; an agreement to return a plan does not cover production edits. Take a new requirement, evidence boundary or other user-owned choice to Discuss Work before adopting it.
-- Never cross a selected Checkpoint while it is due and unresolved; Track Work names its owner.
+- Never cross a return point in the work agreement (a Working Record's `Back at` line) while it is due and unresolved: stop there and return to the user.
 - Never rewrite a Spec, Plan, policy or acceptance criterion to make the implementation pass.
 - Never encode a guess for consequential behavior nobody defined: ask through Discuss Work, or, when no one can answer, take what matches existing behavior and is easiest to reverse, and report it.
-- When a Working Record exists, record the Current Slice through Track Work before its first effect.
+- When a Working Record exists, record the Slice through Track Work before its first effect.
 - Never promote exploratory code into production or invent acceptance.
 
 ## Read The Request
@@ -71,7 +71,7 @@ Goal: before the first effect, you know what is agreed, how you will get there, 
 - **Outcome:** the agreed result, its constraints and non-goals, and where you stop.
 - **Route:** the main steps, their order, and which depend on feedback. For substantial dependent work, forecast internally which changes belong together and the earliest observation that could invalidate the rest.
 - **Evidence:** the checks that could disagree with a wrong result, on the user's path.
-- **Cycle:** whether the route fits in what is left of the context before compaction: `node <track-work-directory>/scripts/working-record.mjs estimate` measures it. Work that will outlast this compaction cycle needs a task: the one this session holds, or one you ask for as [Track Work](../track-work/SKILL.md) says; plan where this cycle ends, at a safe point.
+- **Context:** whether the route fits in what is left of the context before the next compaction: `node <track-work-directory>/scripts/working-record.mjs estimate` measures it. Work that will go on past the next compaction needs a task: the one this session holds, or one you ask for as [Track Work](../track-work/SKILL.md) says; plan where the work stops before it, at a safe point.
 
 Before the first production change, gather what the route's predictable steps will use (sources, callers, contracts, conventions, code to copy), with the queries in Find What The Change Touches, below: [touch-map](scripts/touch-map.mjs) (`node <execute-work-directory>/scripts/touch-map.mjs --symbol <name> --file <path>`) runs them as capped, labelled blocks (entry points, readers, writers, scheduled code, covering tests, and the developer docs covering each file), each saying what it did not search. Never start substantial work from a guessed API, owner or cause. Stop when what remains can only be learned by doing the work, such as a test result or the user's reaction to a draft, and adapt the route to that feedback. Reading files no step needs, or collecting information because it may be useful later, is over-gathering; pausing for context the route could have predicted is under-gathering: aim for fewer low-value interactions, not fewer calls at any cost. When the work needs unexpectedly large context, return that need to the user rather than reading the whole dependency tree, citing the host's usage figures, never invented token counts. A small, well-understood change needs no separate pass. You are ready when you can say what will change, why it should work, and how it will be checked.
 

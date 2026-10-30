@@ -11,7 +11,7 @@ Use the latest Freeflow Runtime State and only the guidance, skills, and tools e
 - **Current owner:** the one skill responsible for the current question or result.
 - **Working Record:** the task's durable memory file, maintained through Track Work.
 - **Slice:** one coherent unit of work in a Working Record.
-- **Checkpoint:** a boundary on the task's route, such as a commit, publication, review, user decision, or planned handoff. Once selected, dependent work must not cross it unresolved.
+- **Return point:** a place on the task's route where the work comes back to the user, such as a commit, publication, review, user decision, or planned handoff. The work agreement names it (in a Working Record, a `Back at` line); dependent work does not cross one that is due until the user resolves it.
 - **Evidence boundary:** the strongest claim an observation directly supports.
 - **Self-review:** the producer's own check of a supported result before accepting it. **Independent review:** a separately selected judgment from a context that did not produce the work.
 

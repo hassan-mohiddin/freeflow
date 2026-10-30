@@ -114,7 +114,7 @@ The gate fires when the change touches:
 
 Judge from the diff against the base, not from how the task was described. A trigger that fires is enough; a small diff does not cancel it.
 
-Use the user's reviewer model when set. Otherwise use the cheapest model capable of the review: the `standard` tier. When a security, authentication, authorization, or secrets trigger fires, use a stronger model: the `security` tier. The estimated cost names the reviewer model and roughly what one review of a change this size costs on it.
+Use the user's reviewer model when set. Otherwise use the cheapest model capable of the review: the `standard` tier. When a security, authentication, authorization, or secrets trigger fires, use a stronger model: the `security` tier. The estimated cost names the reviewer model and roughly what one review of a change this size costs on it; where past reviews were delegated and measured, Track Work's `working-record.mjs estimate --plan` shows what they cost by model and effort (kind `review`).
 
 When the task has a Working Record, record the gate as one `Review gate` Material update through [Track Work](../../skills/track-work/SKILL.md), in the shape its [format reference](../../skills/track-work/references/working-record-format.md) defines; its tier is `standard`, `security`, or `none` when the result is `skipped`. Without a record, state the same in the hand-over report.
 

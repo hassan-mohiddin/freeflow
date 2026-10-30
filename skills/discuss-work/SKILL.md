@@ -20,7 +20,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | A user-owned choice or conflicting sources mid-work | Choices During The Work, below |
 | Writing or checking the decision list, or the agreement, handover or catch-up built from it | Run [choices](scripts/choices.mjs), as Build The Decision List says |
 | A question existing evidence cannot settle but running something could | [learning action](references/learning-action.md) |
-| Discussion state, an emerging route or its Checkpoints must outlast the conversation | [discussion continuity](references/discussion-continuity.md) |
+| Discussion state, an emerging route or its return points must outlast the conversation | [discussion continuity](references/discussion-continuity.md) |
 | Representation, interfaces, ownership, state or failure behavior could materially change a technical recommendation | Execute Work's [design](../execute-work/references/design.md) |
 | A reported or recurring failure needs a cause rather than options | Execute Work's [diagnose](../execute-work/references/diagnose.md) |
 | Agreed, concrete work | [Execute Work](../execute-work/SKILL.md) |
@@ -73,7 +73,7 @@ Write one line per item, plain items first:
 - T1 [default] FIFO array in queue.ts -> serves P1
 ```
 
-Check the list with [choices](scripts/choices.mjs): `node <discuss-work-directory>/scripts/choices.mjs validate --list <file|->`, or `--record <record.md>` for the task's `sources/decisions.md`. It refuses a bad ID, state or `T -> P` link, or a plain item without a default.
+Check the list with [choices](scripts/choices.mjs): `node <discuss-work-directory>/scripts/choices.mjs validate --list <file|->`, or `--record <record.md>` for the task's list (`decisions.md` beside a Schema 5 record, `sources/decisions.md` beside a Schema 4 one). It refuses a bad ID, state or `T -> P` link, or a plain item without a default.
 
 ### Send The Agreement
 
@@ -84,12 +84,13 @@ Send one reply, not a dialog, before the first edit:
 ```text
 What I'll do:   <the outcome>
 Where I stop:   <done when; what I won't touch>
+Size:           <for work past this compaction cycle: the compaction cycles it takes and its cost at API list price>
 Your decisions: 1. <a choice the request leaves open, as the user meets it>. I'd go with <default>, because <reason>.
                 2. ...
 Technical:      <N> more choices; say "show technical" to see them.
 ```
 
-`choices.mjs agreement --do <outcome> --stop <where you stop>` renders this reply from the list. Show the technical list in full when the user asks or has said they always want it, and leave the line out when they have said never. With no plain items, say so and still wait.
+`choices.mjs agreement --do <outcome> --stop <where you stop>` renders this reply from the list. When the work will outlast this compaction cycle, first save the output of Track Work's `working-record.mjs estimate --plan --json` to a file (with `--record` for the task's Future Work, or `--input -` with the Slices you propose) and pass it as `--plan <file>`: the reply gains the Size line, and its Technical part the plan, with the context and cost of each compaction cycle and Slice and the model and effort they were measured on. Show the technical list in full when the user asks or has said they always want it, and leave the line out when they have said never. With no plain items, say so and still wait.
 
 `Where I stop` names the endpoint the user can hold you to, and where you come back. After discussing several possible Slices, an ambiguous "proceed" needs it settled: the next Slice and return, or the whole task? Do not ask when the user already named the endpoint.
 
@@ -104,7 +105,7 @@ Goal: stop wherever an unseen choice could change the result, and nowhere else.
 
 A request that looks clear is not a skip: the choices it leaves open are the ones you have not noticed yet.
 
-When the user explicitly asks to skip an optional step, such as waiting for this agreement, a plan, a review or a record, skip only what they named, for as long as they said. It changes no authority, no checkpoint they selected, and no claim: a check they decline leaves its claim unverified. Without the wait, take your defaults (state `default`), still ask one question before a hard-to-reverse choice, and put the whole list in your final report. When a standing skip must survive context loss and a Working Record exists, record it in the Work agreement through Track Work.
+When the user explicitly asks to skip an optional step, such as waiting for this agreement, a plan, a review or a record, skip only what they named, for as long as they said. It changes no authority, no return point they agreed, and no claim: a check they decline leaves its claim unverified. Without the wait, take your defaults (state `default`), still ask one question before a hard-to-reverse choice, and put the whole list in your final report. When a standing skip must survive context loss and a Working Record exists, record it in the Work agreement through Track Work.
 
 ### Keep The List
 
@@ -145,4 +146,4 @@ Record the question and the user's answer in their words.
 
 Goal: before you claim done, the user sees every choice they have not seen.
 
-The decision check runs in [Review Work](../review-work/SKILL.md)'s self-review of work, against this list. Find the choices the work made that the agreement did not settle, reading the change for anything the user would see: names, messages, defaults, behavior on error or in cases nobody specified, data written, and conventions copied from nearby code. Bring each `agreed` item with where the user agreed it (the work agreement, a Decision such as `D-003`, or their message) and the `file:line`, test or output that shows it was done as agreed, and each `changed` item with its reason; add each choice the diff shows that no item covers as `new`. Choices for the user stay in this list, never in a Decision, which holds only what the user accepted; building a choice does not settle it. The hand-over (the pull request through [Deliver Work](../deliver-work/SKILL.md), or the final report) shows what done looks like against what was done, and only the `new`, `changed` and `default` items. Agreed items stay out. `choices.mjs handover` lists those items; after an unattended run, `choices.mjs catch-up --record <record.md>` lists the defaults taken, the choices waiting and what ran.
+The decision check runs in [Review Work](../review-work/SKILL.md)'s self-review of work, against this list. Find the choices the work made that the agreement did not settle, reading the change for anything the user would see: names, messages, defaults, behavior on error or in cases nobody specified, data written, and conventions copied from nearby code. Bring each `agreed` item with where the user agreed it (the work agreement, the decision list's own quote, or their message) and the `file:line`, test or output that shows it was done as agreed, and each `changed` item with its reason; add each choice the diff shows that no item covers as `new`. Choices for the user stay in this list, never in the record's Settled (or a Schema 4 Decision), which holds only what the user accepted; building a choice does not settle it. The hand-over (the pull request through [Deliver Work](../deliver-work/SKILL.md), or the final report) shows what done looks like against what was done, and only the `new`, `changed` and `default` items. Agreed items stay out. `choices.mjs handover` lists those items; after an unattended run, `choices.mjs catch-up --record <record.md>` lists the defaults taken, the choices waiting and what ran.
