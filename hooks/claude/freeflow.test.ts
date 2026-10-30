@@ -49,6 +49,8 @@ function world(on: any) {
     session: mock.session(on),
     commands: () => w.runs.map((run) => run.args.join(" ")),
     beforeRun: (_key: string): unknown => undefined,
+    // What a slash command the mod runs comes to; a test throws here for a run the engine drops.
+    commandResult: (_e: any): object => ({ text: "Compacted" }),
     // Paths that exist, each with where it really lands; a stat of anything else is refused as missing.
     files: new Map<string, string>([
       ["/store", "/store"],
@@ -129,7 +131,7 @@ function world(on: any) {
   });
   on("command.run", (_: any, e: any) => {
     w.commandsRun.push(e.command);
-    return { text: "Compacted" };
+    return w.commandResult(e);
   });
   on("prompt.submit", (_: any, e: any) => {
     w.submitted.push(e.text);
@@ -439,17 +441,21 @@ test("a turn ends: sync a changed store; only checkpoint --compact compacts, onc
   await w.clock.advance(1);
   expect(w.commandsRun).toEqual([]);
 
-  // The turn ended: the request is marked done, then the mod runs /compact as the person would, which the engine
-  // compacts through the mod's session.compact hook (the next test), and a prompt starts the next turn.
+  // The turn ended: the mod runs /compact as the person would, and a prompt starts the next turn. The request is
+  // answered only when the engine compacts through the mod's session.compact hook and the bundle is installed.
   w.writes.length = 0;
   await $.turn.complete(turnEnd("answer"));
-  expect(w.writes).toEqual([{ path: REQUEST, text: JSON.stringify({ requestedAt: at(2), done: true }, null, 2) }]);
   expect(w.commandsRun).toEqual([]);
   await w.clock.advance(1);
   expect(w.logs).toEqual([]);
   expect(w.commandsRun).toEqual(["compact"]);
   expect(w.submitted.length).toBe(1);
   expect(w.submitted[0]).toContain("Continue from In flight and the Next action.");
+  expect(w.writes).toEqual([]);
+  await $.session.compact({ trigger: "manual", messages: CONVERSATION });
+  expect(w.writes.filter((write) => write.path === REQUEST)).toEqual([
+    { path: REQUEST, text: JSON.stringify({ requestedAt: at(2), done: true }, null, 2) },
+  ]);
 
   // A request already answered compacts nothing more.
   w.status = held(at(3), { compact: request(true) });
@@ -457,6 +463,58 @@ test("a turn ends: sync a changed store; only checkpoint --compact compacts, onc
   await w.clock.advance(1);
   expect(w.commandsRun).toEqual(["compact"]);
   expect(w.submitted.length).toBe(1);
+});
+
+test("a dropped /compact keeps the request: the next turn end tries again, a line says so, and three drops stop it", async ($, on) => {
+  const w = world(on);
+  const REQUEST = `${HOME}/sessions/${SESSION}/compact.json`;
+  w.answers["view bundle --record"] = { stdout: "THE BUNDLE\n" };
+  w.status = held(at(-30));
+  await start($);
+  w.status = held(at(2), { compact: { path: REQUEST, requestedAt: at(2), done: false } });
+
+  // Queued input started the next turn first, and a Stop dropped the queued /compact.
+  w.commandResult = () => {
+    throw new Error("dropped past a Stop");
+  };
+  await $.turn.complete(turnEnd("answer"));
+  // A second turn end while the first /compact is still queued asks for no other.
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(1);
+  expect(w.commandsRun).toEqual(["compact"]);
+  expect(w.submitted).toEqual([]);
+  expect(w.writes).toEqual([]);
+  expect(appended(w).length).toBe(1);
+  expect(appended(w)[0]).toMatch(
+    /^Freeflow: the compaction your checkpoint asked for did not run \(.+\); it tries again when the next turn ends\.$/,
+  );
+
+  // The next turn end tries again; this time it runs, the bundle is installed, and the request is answered.
+  w.commandResult = () => ({ text: "Compacted" });
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(1);
+  expect(w.commandsRun).toEqual(["compact", "compact"]);
+  expect(w.submitted.length).toBe(1);
+  await $.session.compact({ trigger: "manual", messages: CONVERSATION });
+  expect(w.writes.filter((write) => write.path === REQUEST)).toEqual([
+    { path: REQUEST, text: JSON.stringify({ requestedAt: at(2), done: true }, null, 2) },
+  ]);
+
+  // A request whose /compact is dropped three times is given up, and the line says what to do.
+  w.writes.length = 0;
+  w.status = held(at(3), { compact: { path: REQUEST, requestedAt: at(3), done: false } });
+  w.commandResult = () => ({ text: "Not compacted: nothing to compact" });
+  for (let turn = 0; turn < 3; turn += 1) {
+    await $.turn.complete(turnEnd("answer"));
+    await w.clock.advance(1);
+  }
+  expect(w.commandsRun.length).toBe(5);
+  expect(w.writes.filter((write) => write.path === REQUEST)).toEqual([
+    { path: REQUEST, text: JSON.stringify({ requestedAt: at(3), done: true }, null, 2) },
+  ]);
+  expect(appended(w).at(-1)).toBe(
+    "Freeflow: the compaction your checkpoint asked for did not run (Not compacted: nothing to compact), 3 times; it stops trying. Checkpoint with --compact again, or run /compact.",
+  );
 });
 
 test("checkpoint --compact compacts before any notice: the agent decides when (P102)", async ($, on) => {
