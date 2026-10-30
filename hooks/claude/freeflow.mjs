@@ -28,6 +28,12 @@ let workers = null;
 let storeRoot = undefined;
 /** @type {{ session: string, cwd: string } | null} a session that started with no store, until a turn ends with one */
 let awaitingStore = null;
+/** Whether a /compact this mod asked for is still queued, so a turn end does not ask for a second one. */
+let compactQueued = false;
+/** @type {Map<string, number>} how many of a request's /compact runs were dropped, by the request's time */
+const droppedRuns = new Map();
+/** Dropped runs after which the mod stops trying and says so. */
+const MAX_COMPACT_TRIES = 3;
 
 /**
  * Runs Track Work's script for this session (or the one ending), as its commands run in the session's shell.
@@ -314,6 +320,8 @@ async function ownCompaction($, e, next, state) {
     state.task ? ["view", "bundle", "--record", state.task.record] : ["view", "bundle", "--session"],
   );
   if (made.exitCode !== 0) return withMessage(await next(e), unmade($, state, made));
+  // The bundle replaces the conversation: a checkpoint --compact waiting for this is answered, whoever compacted.
+  if (state.compact && !state.compact.done) await answered($, state.compact);
   if (!state.task)
     await $.process.run([
       "node",
@@ -345,18 +353,54 @@ async function workerCompaction($, e, next) {
   return next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${note}` : note });
 }
 
-/** After a turn that ended with checkpoint --compact: compact between turns, then a prompt to go on (P51, P102). */
-async function compactAndContinue($) {
+/**
+ * Marks a checkpoint --compact request answered, once the bundle has replaced the conversation.
+ * @param {any} $
+ * @param {any} request
+ */
+async function answered($, request) {
+  await $.fs.write(request.path, JSON.stringify({ ...request, path: undefined, done: true }, null, 2));
+}
+
+/**
+ * After a turn that ended with checkpoint --compact: compact between turns, then a prompt to go on (P51, P102).
+ * @param {any} $
+ * @param {any} request
+ */
+async function compactAndContinue($, request) {
+  let dropped = null;
   try {
     // /compact, run as the person would: a plugin's own $.session.compact() passes none of its own hooks, so the
-    // engine's summary would stand in for the bundle. A new cycle starts either way, so no turn end compacts twice.
+    // engine's summary would stand in for the bundle. The engine runs it once the session is idle, and drops it
+    // past a Stop, as when queued input starts the next turn first and that turn is interrupted.
     const { text } = await $.command.run({ command: "compact" });
-    await newCycle($);
-    if (!/^Not compacted/.test(text ?? "")) await $.prompt.submit({ text: CONTINUE });
+    if (/^Not compacted/.test(text ?? "")) dropped = (text ?? "").split("\n")[0];
+    else {
+      await newCycle($);
+      await $.prompt.submit({ text: CONTINUE });
+    }
   } catch (error) {
-    // Refused where the engine cannot compact between turns (a headless session): the next compaction installs it.
-    $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
+    dropped = error instanceof Error ? error.message : String(error);
+    $.ui.log(`Freeflow: ${dropped}`);
+  } finally {
+    compactQueued = false;
   }
+  if (dropped === null) return;
+  // The request stays waiting, and the next turn end tries again; the agent and the user see that it did not run.
+  const tries = (droppedRuns.get(request.requestedAt) ?? 0) + 1;
+  droppedRuns.set(request.requestedAt, tries);
+  if (tries < MAX_COMPACT_TRIES) {
+    await appendRow(
+      $,
+      `Freeflow: the compaction your checkpoint asked for did not run (${dropped}); it tries again when the next turn ends.`,
+    );
+    return;
+  }
+  await answered($, request);
+  await appendRow(
+    $,
+    `Freeflow: the compaction your checkpoint asked for did not run (${dropped}), ${tries} times; it stops trying. Checkpoint with --compact again, or run /compact.`,
+  );
 }
 
 /**
@@ -389,11 +433,12 @@ async function turnEnded($, e) {
     await storeArrived($, state, session, cwd);
   }
   if (state.changed) await script($, ["store", "sync"]);
-  // Only the agent's own request compacts (P102): checkpoint --compact, answered once, after a turn that ended.
+  // Only the agent's own request compacts (P102): checkpoint --compact, after a turn that ended, until the bundle
+  // replaces the conversation; one /compact queued at a time.
   const request = state.compact;
-  if (e.reason !== "answer" || !request || request.done || !checkpointDone(state)) return;
-  await $.fs.write(request.path, JSON.stringify({ ...request, path: undefined, done: true }, null, 2));
-  $.clock.after(0, () => compactAndContinue($));
+  if (e.reason !== "answer" || !request || request.done || compactQueued || !checkpointDone(state)) return;
+  compactQueued = true;
+  $.clock.after(0, () => compactAndContinue($, request));
 }
 
 /** @param {import("claude-code").On} on */

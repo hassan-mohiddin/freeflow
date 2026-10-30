@@ -67,6 +67,7 @@
 
 ### Fixed
 
+- Freeflow on Claude Code no longer loses a compaction the agent asked for with `checkpoint --compact` when queued input, such as a notification or a message typed during the turn, starts the next turn first: the request stays until the record replaces the conversation, the next turn end tries again, and a line in the conversation says when a compaction did not run.
 - Track Work measures a Claude Code session that was resumed in another folder from its newest log, instead of whichever copy it found first.
 - Freeflow on Claude Code takes up a store added to a session that has already started, as a repository attached to a running cloud session is, at the end of that turn: the transcript that measures Slices, a pull, the scan for a task's repositories, and the store's file permissions, which it used to leave off for the rest of the session.
 - Track Work's `validate` no longer takes a session's ID, a hex word after "session" in a Slice's update line, for a commit that does not resolve.
