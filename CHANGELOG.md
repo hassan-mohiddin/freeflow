@@ -67,6 +67,7 @@
 
 ### Fixed
 
+- Freeflow on Claude Code no longer sends its "continue" prompt late. After its own compaction it prompts the agent to go on only when nothing else started the next turn: a notification or message queued during the compaction starts a turn that goes on from the record itself, and the prompt used to wait behind that turn and arrive after it, sometimes long after.
 - Freeflow on Claude Code no longer loses a compaction the agent asked for with `checkpoint --compact` when queued input, such as a notification or a message typed during the turn, starts the next turn first: the request stays until the record replaces the conversation, the next turn end tries again, and a line in the conversation says when a compaction did not run.
 - Track Work measures a Claude Code session that was resumed in another folder from its newest log, instead of whichever copy it found first.
 - Track Work's recovery and Freeflow's compaction bundle find the files a task names in the repositories it changes, such as a skill or `AGENTS.md`, when the session runs outside those repositories: a pointer that is in neither the task folder nor the work repository is looked up in each repository the record's Space names, where the store last saw it on this machine. An entry under Defined by or Read on recovery that names no file now gets a line in the checks, instead of being left out without a word.
