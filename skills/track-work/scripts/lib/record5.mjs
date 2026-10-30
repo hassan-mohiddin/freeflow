@@ -48,6 +48,7 @@ export const SLICE5_ORDER = [
   "Started from",
   "Waits on",
   "Dependencies",
+  "Predicted",
   "Measured",
 ];
 const SLICE5_REQUIRED = ["State", "Opened", "Under", "Result wanted", "Scope", "Done when", "Stop if", "Started from"];
@@ -88,6 +89,7 @@ export const ENTRY_ORDER = {
     "Task effect",
     "Resume when",
     "Reason",
+    "Predicted",
     "Measured",
     "Updates",
   ],
@@ -102,6 +104,7 @@ export const ENTRY_ORDER = {
     "Agent",
     "Tokens",
     "Minutes",
+    "Measured",
     "Result",
     "Task effect",
     "Merge commit",

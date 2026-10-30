@@ -3,13 +3,14 @@
 // and the agent's attention stays on the choices:
 //   validate   IDs, states, T -> P links, a default on every plain item, the user's words on agreed items, a reason on
 //              changed ones;
-//   agreement  the reply sent before building: What I'll do / Where I stop / Your decisions / Technical: N;
+//   agreement  the reply sent before building: What I'll do / Where I stop / Your decisions / Technical: N; with
+//              --plan, the work's size (Track Work's `estimate --plan --json`) and, in Technical, its plan (P87);
 //   handover   the items the hand-over shows: new, changed and default;
 //   catch-up   after an unattended run: defaults taken, choices waiting, changes, and what ran, from the Working
 //              Record's current Slice: a Schema 5 record's update lines, read from record.md, or a Schema 4 record's
 //              Material updates (read through Track Work's `working-record.mjs view resume`).
 // Usage: choices.mjs <validate|agreement|handover|catch-up> (--list <file|-> | --record <record.md>)
-//                    [--do <outcome> --stop <where you stop>] [--show-technical] [--json]
+//                    [--do <outcome> --stop <where you stop>] [--plan <file>] [--show-technical] [--json]
 // --list reads a file or stdin (no Working Record: the list lives in the conversation); --record reads the task's
 // decisions.md beside a Schema 5 record, or sources/decisions.md beside a Schema 4 one. Each item is one line, "- P1 [state] choice -> default ..." (a technical
 // item "-> serves P1"); other lines are ignored. Every view validates first. Exit code 0 when the list is valid
@@ -23,7 +24,7 @@ import { parseChoices, renderChoices } from "./lib/choices.mjs";
 
 const USAGE = [
   "Usage: choices.mjs <validate|agreement|handover|catch-up> (--list <file|-> | --record <record.md>)",
-  "                   [--do <outcome> --stop <where you stop>] [--show-technical] [--json]",
+  "                   [--do <outcome> --stop <where you stop>] [--plan <file>] [--show-technical] [--json]",
 ].join("\n");
 const VIEWS = new Set(["validate", "agreement", "handover", "catch-up"]);
 const WORKING_RECORD = resolve(dirname(fileURLToPath(import.meta.url)), "../../track-work/scripts/working-record.mjs");
@@ -42,6 +43,7 @@ try {
       record: { type: "string" },
       do: { type: "string" },
       stop: { type: "string" },
+      plan: { type: "string" },
       "show-technical": { type: "boolean", default: false },
       json: { type: "boolean", default: false },
     },
@@ -54,6 +56,15 @@ const [view] = positionals;
 if (!VIEWS.has(view) || positionals.length !== 1) fail(USAGE);
 if (Boolean(values.list) === Boolean(values.record)) fail(`give --list <file|-> or --record <record.md>\n${USAGE}`);
 if (view === "agreement" && (!values.do || !values.stop)) fail(`agreement needs --do and --stop\n${USAGE}`);
+let plan = null;
+if (values.plan) {
+  if (view !== "agreement") fail(`--plan is for the agreement\n${USAGE}`);
+  try {
+    plan = JSON.parse(readFileSync(resolve(values.plan), "utf8"));
+  } catch (error) {
+    fail(`--plan reads the JSON that working-record.mjs estimate --plan --json prints: ${error.message}`);
+  }
+}
 
 let listText;
 let recordView = null;
@@ -93,6 +104,7 @@ const rendered = renderChoices(view, list, {
   stop: values.stop,
   showTechnical: values["show-technical"],
   recordText: recordView,
+  plan,
 });
 if (values.json)
   console.log(

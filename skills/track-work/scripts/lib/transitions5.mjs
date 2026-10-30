@@ -43,6 +43,7 @@ import {
   renderMeasure,
   transcriptEvents,
 } from "./measure5.mjs";
+import { predictSlice } from "./planner5.mjs";
 import { freeflowStoreOf, isFreeflowStore, writeAtomically, writeTaskFile } from "./store.mjs";
 
 function fail(code, message) {
@@ -227,6 +228,16 @@ function takeReading(measure, options, env = process.env) {
   return addEvents(measure, transcriptEvents(transcript, since), priceTable(env));
 }
 
+/** The Slice's prediction from measured Slices (P89), or null: one that cannot be made never blocks the start. */
+function predicted(recordPath) {
+  try {
+    const prediction = predictSlice(recordPath);
+    return prediction ? [prediction.line] : null;
+  } catch {
+    return null;
+  }
+}
+
 async function startSlice(options, text, loaded, direct) {
   const command = direct ? "slice start-direct" : "slice start";
   const task = await load(loaded);
@@ -244,6 +255,7 @@ async function startSlice(options, text, loaded, direct) {
   for (const name of START_FIELDS) values[name] = fields.lines(name);
   const started = takeReading(emptyMeasure(), options);
   values.Measured = started.last ? [renderMeasure(started)] : null;
+  values.Predicted = predicted(loaded.path);
   values["Result wanted"] = direct ? fields.require("Result wanted") : fieldLines5(proposal, "Result wanted");
   values["Done when"] ??= proposal ? fieldLines5(proposal, "Done when") : null;
   values.Dependencies ??= proposal ? fieldLines5(proposal, "Dependencies") : null;
@@ -332,6 +344,7 @@ async function closeSlice(options, text, loaded) {
       "Task effect": fields.require("Task effect"),
       "Resume when": state === "blocked" ? fields.require("Resume when") : fields.lines("Resume when"),
       Reason: state === "abandoned" ? fields.require("Reason") : fields.lines("Reason"),
+      Predicted: fieldLines5(slice, "Predicted"),
       Measured: [closingMeasure(slice, options)],
       Updates: updateLines(slice),
     };

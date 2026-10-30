@@ -35,7 +35,7 @@ Technical:      3 more choices; say "show technical" to see them.
 
 No agreement is needed for a question, a discussion or a review that changes nothing. An exactly specified change ("change `state=draft` to `state=final` in target.txt"), or a run where no one can answer, such as an unattended run, counts as the agreement: the agent takes its defaults and lists them in its final report.
 
-You can ask the agent to skip an optional step, such as waiting for the agreement, a plan, a review or a record. It skips only what you named, takes its defaults and reports them, still asks before a hard-to-reverse choice, and changes no authority, no checkpoint you selected, and no claim: a check you decline leaves its claim unverified.
+You can ask the agent to skip an optional step, such as waiting for the agreement, a plan, a review or a record. It skips only what you named, takes its defaults and reports them, still asks before a hard-to-reverse choice, and changes no authority, no return point you agreed, and no claim: a check you decline leaves its claim unverified.
 
 The choices are kept in one decision list through the work ([Discuss Work](../skills/discuss-work/SKILL.md)). A choice that comes up later is asked about only when the work cannot go on without your answer; otherwise the agent takes its default and adds it to the list. At the end, the hand-over shows only the choices you have not seen: new ones, changed ones, and defaults nobody answered.
 
@@ -183,9 +183,9 @@ After context loss (compaction, a summary that replaces the conversation, clear,
 
 A recovered record restores memory, not authority or proof that its evidence is still current. The agent reconciles it with your current direction and live state, then continues covered work without needing another "continue".
 
-## Checkpoints And Closeout
+## Return Points And Closeout
 
-Independent review, a local commit, a user decision and a continuity transfer are checkpoints only when selected; a Slice ending alone does not require one. Commit, branch integration, migration, release, launch and destructive cleanup stay separately controlled.
+Independent review, a commit, a decision of yours and a transfer to another session are return points only when the work agreement names them; a Slice ending alone does not require one. Commit, branch integration, migration, release, launch and destructive cleanup stay separately controlled.
 
 The agent may end by answering, waiting, pausing, handing off, deferring, stopping at a controlled boundary, or completing. Completion needs fresh verification, self-review, resolved selected reviews, accurate task memory, the docs the change made wrong corrected, and no hidden choice of yours or source conflict.
 

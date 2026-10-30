@@ -107,8 +107,59 @@ function currentSliceUpdates(recordText) {
   };
 }
 
+const PAD = "                ";
+const count = (value) => Math.round(value).toLocaleString("en-US");
+const dollars = (value) => `$${value.toFixed(2)}`;
+function duration(ms) {
+  const total = Math.round(ms / 60_000);
+  return total < 60 ? `${total} min` : `${Math.floor(total / 60)} h${total % 60 ? ` ${total % 60} min` : ""}`;
+}
+const cycleName = (cycle) => (cycle === 0 ? "this compaction cycle" : cycle === 1 ? "the next" : `+${cycle}`);
+const shortName = (cycle) => (cycle === 0 ? "this one" : cycleName(cycle));
+
+// The agreement's Size line, from Track Work's `estimate --plan --json` (P87): the compaction cycles the work touches
+// and its cost at API list price.
+function sizeLine(plan) {
+  const cycles =
+    plan.cycles <= 1
+      ? "within this compaction cycle"
+      : `${plan.cycles} compaction cycles (this one and ${plan.cycles - 1} more)`;
+  const cost =
+    plan.total.usd === null ? "; no cost measured yet" : `, about ${dollars(plan.total.usd)} at API list price`;
+  return `Size:           ${cycles}${cost}`;
+}
+
+// The plan in the agreement's Technical part: each Slice's size and where it lands, the context and cost per compaction
+// cycle, the totals, what could run in parallel, and the prices' date.
+function planLines(plan) {
+  const each = plan.perSlice;
+  const lines = [
+    each.usd === null
+      ? `each Slice ${each.upperBound ? "at most " : ""}about ${count(each.context)} tokens of context (${each.source})`
+      : `each Slice about ${count(each.context)} tokens of context, working about ${duration(each.workingMs)}, about ${dollars(each.usd)}${each.model ? `, mostly ${each.model}` : ""} (${each.source})`,
+    ...plan.landings.map(
+      (item) =>
+        `- ${item.title}: ${item.first === item.last ? cycleName(item.first) : `${cycleName(item.first)} into ${cycleName(item.last)}`}${item.oversized ? "; bigger than a compaction cycle" : ""}`,
+    ),
+    `by compaction cycle: ${plan.perCycle
+      .map(
+        (part, index) =>
+          `${shortName(part.cycle)} about ${count(part.context)}${index ? "" : " tokens"}${part.usd === null ? "" : `, ${dollars(part.usd)}`}`,
+      )
+      .join("; ")}`,
+    `in all: about ${count(plan.total.context)} tokens of context${plan.total.workingMs === null ? "" : `, working about ${duration(plan.total.workingMs)}`}${plan.total.usd === null ? "" : `, about ${dollars(plan.total.usd)}`}`,
+    ...plan.parallel.map((wave) => `could run in parallel: ${wave.join(", ")}`),
+  ];
+  if (each.usd !== null) lines.push(`prices: API list price as of ${plan.prices.date}, from ${plan.prices.source}`);
+  return lines.map((line, index) => `${index ? PAD : "Plan:           "}${line}`);
+}
+
 // Renders one view; returns { text, data }. The caller validates first.
-export function renderChoices(view, parsed, { outcome, stop, showTechnical = false, recordText = null } = {}) {
+export function renderChoices(
+  view,
+  parsed,
+  { outcome, stop, showTechnical = false, recordText = null, plan = null } = {},
+) {
   const { items } = parsed;
   const plain = items.filter((item) => item.kind === "plain" && item.state !== "dropped");
   const technical = items.filter((item) => item.kind === "technical" && item.state !== "dropped");
@@ -123,18 +174,28 @@ export function renderChoices(view, parsed, { outcome, stop, showTechnical = fal
             `${index ? pad : ""}${index + 1}. ${item.choice}${/[?.!]$/.test(item.choice) ? "" : "?"} I'd go with ${item.default}`,
         )
       : ["none: the request and the repository settle every choice the user would see."];
+    const more = [
+      ...(technical.length ? [`${technical.length} more choice${technical.length === 1 ? "" : "s"}`] : []),
+      ...(plan ? ["the plan"] : []),
+    ];
     const technicalLine = showTechnical
       ? [
-          `Technical:      ${technical.map((item, index) => `${index ? pad : ""}${item.id} ${item.choice} (serves ${item.serves})`).join("\n") || "none"}`,
+          ...(technical.length || !plan
+            ? [
+                `Technical:      ${technical.map((item, index) => `${index ? pad : ""}${item.id} ${item.choice} (serves ${item.serves})`).join("\n") || "none"}`,
+              ]
+            : []),
+          ...(plan ? planLines(plan) : []),
         ]
-      : technical.length
+      : more.length
         ? [
-            `Technical:      ${technical.length} more choice${technical.length === 1 ? "" : "s"}; say "show technical" to see them.`,
+            `Technical:      ${more.join(" and ")}; say "show technical" to see ${technical.length || !plan ? "them" : "it"}.`,
           ]
         : [];
     const text = [
       `What I'll do:   ${outcome}`,
       `Where I stop:   ${stop}`,
+      ...(plan ? [sizeLine(plan)] : []),
       `Your decisions: ${decisions.join("\n")}`,
       ...technicalLine,
     ].join("\n");

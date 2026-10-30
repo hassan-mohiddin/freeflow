@@ -56,7 +56,8 @@ const contextOf = (usage) =>
   (usage.cache_read_input_tokens ?? 0) +
   (usage.output_tokens ?? 0);
 
-function parseEvents(text) {
+/** A log's requests and compactions; a worker's own log (`worker`) holds only its requests, all marked sidechain. */
+function parseEvents(text, { worker = false } = {}) {
   const requests = new Map();
   const compactions = [];
   for (const line of text.split("\n")) {
@@ -76,7 +77,7 @@ function parseEvents(text) {
       continue;
     }
     const usage = entry?.message?.usage;
-    if (entry?.type !== "assistant" || entry.isSidechain || !usage) continue;
+    if (entry?.type !== "assistant" || (entry.isSidechain && !worker) || !usage) continue;
     // One request is logged once per streamed block: keep its fullest usage.
     const id = entry.message.id ?? `${time}`;
     const event = {
@@ -104,6 +105,36 @@ export function transcriptEvents(path, sinceMs) {
     if (reached || whole) return { events: events.filter((event) => event.time > sinceMs), reached };
   }
   return { events: [], reached: false };
+}
+
+/**
+ * Where this compaction cycle started in a Claude Code log: the context after its last compaction, else the session's
+ * first request's; null when the log holds neither.
+ */
+export function cycleStart(path) {
+  for (const bytes of TAIL_STEPS) {
+    const { text, whole } = readTail(path, bytes);
+    const events = parseEvents(text);
+    const compaction = events.filter((event) => event.kind === "compaction" && event.post !== null).at(-1);
+    if (compaction) return { tokens: compaction.post, from: "after the last compaction in the transcript" };
+    if (whole) {
+      const first = events.find((event) => event.kind === "request");
+      return first ? { tokens: contextOf(first.usage), from: "the session's first request in the transcript" } : null;
+    }
+  }
+  return null;
+}
+
+/**
+ * What a worker used, from its own log (a Claude Code subagent's `agent-<id>.jsonl`): its whole context from its
+ * first request on, its billed tokens and cost, and its working and wall-clock time; null when the log holds no
+ * request (delegations measured from their workers' logs, A in P89).
+ */
+export function workerMeasure(path, table = PRICES) {
+  const events = parseEvents(readFileSync(path, "utf8"), { worker: true });
+  const first = events.find((event) => event.kind === "request");
+  if (!first) return null;
+  return addEvents({ ...emptyMeasure(), last: { time: first.time, context: 0 } }, { events, reached: true }, table);
 }
 
 /** A request's cost in USD at list price, or null when the table has no card for its model. */

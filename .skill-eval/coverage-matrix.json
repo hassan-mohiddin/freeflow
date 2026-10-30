@@ -42,7 +42,7 @@
       "case_concept": "Explore a materially open direction without treating discussion as authority, then refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss-work/SKILL.md",
-      "source_sha256": "9bc5b2eecc09503c674e618935c11fc2c776cdc7e10173d2e6a3c7b25e573eba",
+      "source_sha256": "26b4bb6d391ec1024d7e33891c3941a76275aa2605d4198316d7de39d7c7c773",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -65,7 +65,7 @@
       "case_concept": "Compare arms against a reference under a declared decision rule while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-behavior/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
       "source_path": "skills/evaluate-behavior/SKILL.md",
-      "source_sha256": "d41d320257efe77c1b84d52880666a8aed0315ed4ae849ccb53e52cee99803e4",
+      "source_sha256": "8a91f3c0b616dfacd8b220bc47e5bf0e8134c0cc8bb2554e460b2f4a1381aa0a",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -134,7 +134,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with the body before the 2026-10-22 restructure (the description is not what the suite delivers or measures; the restructure moves and deduplicates that text and has not been rerun), 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "cbb16da8510a066b6a081840d632ffeeb343174765b7f861dfe4e01f9cfb7f26",
+      "source_sha256": "8a700016fac75087a192f06f2c03d4f2ac922742fa7a65618d2e8c7441ae5737",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -180,7 +180,7 @@
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current Track Work skill, rewritten for Schema 5 in task-004 (Phase 7.1), has not been behaviorally evaluated at this snapshot; Unverified. Earlier, Schema 4's Work Agreement guidance measured on 2026-10-13 (.skill-eval/work-agreement, baseline 5a7db0e6, candidate 522903b7, anthropic/claude-haiku-5-5 medium, 3 trials; aggregates 20261012212234-b38e8191 natural and 20261012212240-5af3ab7e explicit): agreement updated on a change of direction 3/3 vs 0/3; next step proposed at the agreement's edge 3/3 vs 1/3 and scope proposed 3/3 vs 2/3 (advisory Haiku judge); ask-first, unanswered-proposal and no-push/PR checks equal on both arms. Workflow's body was read in no natural run. This entry's own claim is not what that suite measures and stays unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "5782f4332499ff65664bcb1ad765c6fec3b3f4778cf3dfb36ef133ca867fcfb7",
+      "source_sha256": "fb16463bdb280385801d9b1532f212bcb18b2af268f61d646fece5be9fd5818c",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

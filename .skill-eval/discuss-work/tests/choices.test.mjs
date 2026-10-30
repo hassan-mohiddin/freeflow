@@ -112,6 +112,77 @@ test("choices validates a list and refuses a broken one", async () => {
     assert.match(broken.stdout, expected);
 });
 
+test("the agreement shows the plan's size, and its Technical part the plan from estimate --plan --json (P87)", async () => {
+  const folder = await realpath(await mkdtemp(join(tmpdir(), "choices-plan-")));
+  try {
+    const plan = join(folder, "plan.json");
+    await writeFile(
+      plan,
+      JSON.stringify({
+        from: "Future Work",
+        slices: 3,
+        perSlice: {
+          context: 90_000,
+          workingMs: 50 * 60_000,
+          usd: 1.95,
+          model: "claude-opus-5-5 high",
+          source: "the median of 6 measured Slices of project demo, corrected from 3 predictions",
+        },
+        landings: [
+          { title: "Parser", first: 0, last: 1, oversized: false },
+          { title: "CLI", first: 1, last: 1, oversized: false },
+          { title: "Docs", first: 1, last: 2, oversized: false },
+        ],
+        perCycle: [
+          { cycle: 0, context: 50_000, usd: 1.0833 },
+          { cycle: 1, context: 150_000, usd: 3.25 },
+          { cycle: 2, context: 70_000, usd: 1.5167 },
+        ],
+        cycles: 3,
+        total: { context: 270_000, workingMs: 150 * 60_000, usd: 5.85 },
+        parallel: [["Parser", "Docs"]],
+        prices: { date: "2026-10-30", source: "the Claude API reference bundled with Claude Code 2.1.311" },
+      }),
+    );
+    const args = ["agreement", "--list", "-", "--do", "Add a queue", "--stop", "the queue works", "--plan", plan];
+    const brief = choices(process.cwd(), args, LIST);
+    assert.equal(brief.status, 0, brief.stderr);
+    assert.equal(
+      brief.stdout,
+      [
+        "What I'll do:   Add a queue",
+        "Where I stop:   the queue works",
+        "Size:           3 compaction cycles (this one and 2 more), about $5.85 at API list price",
+        'Your decisions: 1. Text when the queue is full? I\'d go with "Queue full, try later"',
+        "                2. Retry count? I'd go with 3, because the client does",
+        'Technical:      1 more choice and the plan; say "show technical" to see them.',
+        "",
+      ].join("\n"),
+    );
+    const technical = choices(process.cwd(), [...args, "--show-technical"], LIST);
+    assert.equal(technical.status, 0, technical.stderr);
+    assert.ok(
+      technical.stdout.endsWith(
+        [
+          "Technical:      T1 FIFO array in queue.ts (serves P1)",
+          "Plan:           each Slice about 90,000 tokens of context, working about 50 min, about $1.95, mostly claude-opus-5-5 high (the median of 6 measured Slices of project demo, corrected from 3 predictions)",
+          "                - Parser: this compaction cycle into the next",
+          "                - CLI: the next",
+          "                - Docs: the next into +2",
+          "                by compaction cycle: this one about 50,000 tokens, $1.08; the next about 150,000, $3.25; +2 about 70,000, $1.52",
+          "                in all: about 270,000 tokens of context, working about 2 h 30 min, about $5.85",
+          "                could run in parallel: Parser, Docs",
+          "                prices: API list price as of 2026-10-30, from the Claude API reference bundled with Claude Code 2.1.311",
+          "",
+        ].join("\n"),
+      ),
+      technical.stdout,
+    );
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
+});
+
 test("choices renders the agreement, the hand-over filter and the catch-up from the record", async () => {
   const agreement = choices(
     process.cwd(),

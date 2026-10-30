@@ -230,17 +230,17 @@ A Slice is one coherent learning, delivery, or deepening result that can be exec
 
 Use separate Slices when dependencies, uncertainty, outcome boundaries, or working-set size make one attempt unreliable. Keep implementation, its focused checks, and accepted local correction in the same Slice while the intended result and evidence boundary remain coherent.
 
-### Checkpoints
+### Return points
 
-Select a checkpoint only when it protects a meaningful boundary, such as:
+The work agreement names where the work comes back to you: its return points, such as "Back at the pull request" or "Ask first: merging". The agent proposes one only where it protects a meaningful boundary, such as:
 
-- a user decision before dependent work;
+- a decision of yours before dependent work;
 - an independent review before integration;
-- a local commit preserving a coherent checkpoint;
-- a continuity boundary before transfer;
+- a commit, push or pull request;
+- a transfer to another session or person;
 - a final release or launch decision.
 
-Routine self-review and every Slice ending are not checkpoints.
+Routine self-review and every Slice ending are not return points.
 
 ### Route from evidence
 
@@ -255,7 +255,7 @@ Preserve unaffected work and contrary evidence.
 
 ### Supported Exit
 
-A valid exit may be an answer, completion, wait, pause, handoff, deferment, controlled boundary, or stop. Completion requires evidence appropriate to the claim, self-review, resolved selected checkpoints, accurate task memory, and no hidden user-owned decision.
+A valid exit may be an answer, completion, wait, pause, handoff, deferment, controlled boundary, or stop. Completion requires evidence appropriate to the claim, self-review, resolved return points, accurate task memory, and no hidden user-owned decision.
 
 ## Preserve memory with Track Work
 
@@ -278,7 +278,7 @@ A short disposable result does not need a record merely because work occurred.
 - current direction and boundaries;
 - one Current Slice and one next useful action;
 - proposed Future Work;
-- accepted Decisions and Checkpoints;
+- the work agreement with its return points, and accepted decisions;
 - completed, blocked, and abandoned Slice history;
 - inert task-local Notes.
 

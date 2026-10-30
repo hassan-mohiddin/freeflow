@@ -1,11 +1,15 @@
 // How much of the context window the work has used, for an agent deciding what fits before the next compaction: the
 // context's use against the window and the notice point, and, given how much of the work is done, a projection of the
-// rest (task-004's Spec, P77, P78, T26). Harness-neutral: the use comes from --used, or from the session's transcript
-// where a reader knows its format (Claude Code's log today).
+// rest (task-004's Spec, P77, P78, T26); with --plan, --project and --store, the planner's views from measured cost
+// (section 12, P84 to P89). Harness-neutral: the use comes from --used, or from the session's transcript where a reader
+// knows its format (Claude Code's log today).
 
 import { closeSync, existsSync, fstatSync, openSync, readSync } from "node:fs";
 import { contextWindow } from "./budget5.mjs";
 import { claudeCodeLog } from "./discussion5.mjs";
+import { storeHome } from "./freeflow-store.mjs";
+import { cycleStart, priceTable } from "./measure5.mjs";
+import { futureItems, listItems, planView, projectView, storeView } from "./planner5.mjs";
 
 /** Where Freeflow's notice comes, as a share of the window (the mod's own point, before Claude's threshold). */
 const NOTICE_AT = 0.75;
@@ -64,13 +68,14 @@ function positiveInteger(value, name, { zero = false } = {}) {
   return number;
 }
 
-/** The estimate's lines, from the options --used, --window, --done, --left and --transcript. */
-export function estimate(options, env = process.env) {
+/** The context's use now, the window, and the transcript it was read from (null when --used gave it). */
+function contextNow(options, env) {
   const window = options["--window"]
     ? { tokens: positiveInteger(options["--window"], "--window"), source: "--window" }
     : contextWindow(env);
   let used = null;
   let source = null;
+  let read = null;
   if (options["--used"] !== undefined) {
     used = positiveInteger(options["--used"], "--used", { zero: true });
     source = "--used";
@@ -79,6 +84,7 @@ export function estimate(options, env = process.env) {
     if (transcript && existsSync(transcript)) {
       used = claudeCodeContext(transcript);
       source = used === null ? null : "the session's transcript";
+      read = used === null ? null : transcript;
     }
   }
   if (used === null)
@@ -90,6 +96,39 @@ export function estimate(options, env = process.env) {
     throw new EstimateError(
       `The context holds about ${count(used)} tokens, more than the ${count(window.tokens)} assumed when no window is set: pass --window <tokens>, as the harness shows it (on Claude Code, /context).`,
     );
+  return { used, source, window, transcript: read };
+}
+
+/**
+ * The estimate's lines, from the options --used, --window, --done, --left and --transcript; with --plan (and
+ * --record, --input, --fan-out), --project <name> or --store, the planner's.
+ */
+export function estimate(options, env = process.env, input = "") {
+  if (options["--store"]) return storeView(storeHome(env.FREEFLOW_HOME));
+  if (options["--project"] !== undefined) return projectView(storeHome(env.FREEFLOW_HOME), options["--project"]);
+  const { used, source, window, transcript } = contextNow(options, env);
+  if (options["--plan"]) {
+    if (options["--left"] !== undefined)
+      throw new EstimateError("estimate --plan counts the Slices left itself: give them with --input, or Future Work.");
+    const given = options["--input"] !== undefined;
+    if (!options["--record"] && !given)
+      throw new EstimateError(
+        "estimate --plan plans the Slices left: pass --record <ID> for its Future Work, or --input - with them, one a line.",
+      );
+    return planView({
+      recordPath: options["--record"] ?? null,
+      home: storeHome(env.FREEFLOW_HOME),
+      json: Boolean(options["--json"]),
+      items: given ? listItems(input) : futureItems(options["--record"]),
+      from: given ? "the list given" : "Future Work",
+      used,
+      window,
+      start: transcript ? cycleStart(transcript) : null,
+      done: options["--done"] === undefined ? null : positiveInteger(options["--done"], "--done"),
+      fanOut: options["--fan-out"] === undefined ? null : positiveInteger(options["--fan-out"], "--fan-out"),
+      table: priceTable(env),
+    });
+  }
   const done = options["--done"] === undefined ? null : positiveInteger(options["--done"], "--done");
   const left = options["--left"] === undefined ? null : positiveInteger(options["--left"], "--left", { zero: true });
   if ((done === null) !== (left === null)) throw new EstimateError("--done and --left go together");

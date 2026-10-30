@@ -21,6 +21,7 @@ import {
   parseRecord5,
   renderFields5,
 } from "./record5.mjs";
+import { priceTable, renderMeasure, workerMeasure } from "./measure5.mjs";
 import { freeflowStoreOf, projectOf, writeAtomically, writeTaskFile } from "./store.mjs";
 
 export const KINDS = new Set(["build", "review", "research", "eval", "gather"]);
@@ -437,6 +438,31 @@ export async function checkReturn(loaded, options) {
 }
 
 /**
+ * What the worker used, from its own log (A in P89): its host agent ID from the brief's Handle, else from the map
+ * Freeflow's Claude Code mod keeps (<store>/sessions/<session>/delegations.json), and its log beside the coordinator's
+ * transcript (--transcript or FREEFLOW_TRANSCRIPT), as Claude Code keeps a subagent's: "not measured" when any is missing.
+ */
+function workerMeasured(taskDir, id, brief, options, env = process.env) {
+  const transcript = options["--transcript"] ?? env.FREEFLOW_TRANSCRIPT;
+  if (!transcript) return "not measured";
+  let agent = brief.Handle && brief.Handle !== "not started" ? brief.Handle.replace(/^agent-/, "") : null;
+  const home = freeflowStoreOf(taskDir);
+  const map =
+    home && env.CLAUDE_CODE_SESSION_ID && join(home, "sessions", env.CLAUDE_CODE_SESSION_ID, "delegations.json");
+  if (!agent && map && existsSync(map)) {
+    try {
+      agent = Object.entries(JSON.parse(readFileSync(map, "utf8"))).find(([, value]) => value === id)?.[0] ?? null;
+    } catch {
+      agent = null;
+    }
+  }
+  const log = agent && join(transcript.replace(/\.jsonl$/, ""), "subagents", `agent-${agent}.jsonl`);
+  if (!log || !existsSync(log)) return "not measured";
+  const measure = workerMeasure(log, priceTable(env));
+  return measure ? renderMeasure(measure) : "not measured";
+}
+
+/**
  * Closes one of the coordinator's delegations: records its outcome in one History entry (with the model, effort,
  * tokens, minutes, the merge commit and the return's path), removes its line, and syncs the store.
  */
@@ -487,6 +513,7 @@ export async function closeDelegation(loaded, options, text) {
       Agent: brief.Agent,
       Tokens: number("--tokens"),
       Minutes: number("--minutes"),
+      Measured: workerMeasured(taskDir, id, brief, options),
       Result: fields.require("Result"),
       "Task effect": fields.require("Task effect"),
       "Merge commit": merge || null,

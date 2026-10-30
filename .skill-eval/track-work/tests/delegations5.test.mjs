@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -400,7 +400,7 @@ test("a Slice closes while its delegation runs; closing the delegation later app
     );
     assert.ok(
       history.endsWith(
-        `- Cue: read when the thing matters\n- Under: the user's request\n- From: S-001\n- Kind: build\n- Agent: Haiku, xhigh\n- Tokens: 41000\n- Minutes: 6\n- Result: thing.txt exists.\n- Task effect: Built.\n- Merge commit: ${merge}\n- Return: delegations/D-001-build-the-thing/return.md\n`,
+        `- Cue: read when the thing matters\n- Under: the user's request\n- From: S-001\n- Kind: build\n- Agent: Haiku, xhigh\n- Tokens: 41000\n- Minutes: 6\n- Measured: not measured\n- Result: thing.txt exists.\n- Task effect: Built.\n- Merge commit: ${merge}\n- Return: delegations/D-001-build-the-thing/return.md\n`,
       ),
     );
     assert.match(await readFile(record, "utf8"), /### Delegations\n\n### Space/);
@@ -412,6 +412,90 @@ test("a Slice closes while its delegation runs; closing the delegation later app
     assert.match(
       cli(["delegate", "close", "--record", record, "--id", "D-001.1", "--outcome", "stopped"]).stderr,
       /its worker reports it in its own return/,
+    );
+  });
+});
+
+test("delegate close measures the worker from its own log, beside the coordinator's transcript (A)", async () => {
+  await withTask(async ({ record, taskDir, cli }) => {
+    ok(
+      cli(
+        [
+          "delegate",
+          "open",
+          "--record",
+          record,
+          "--title",
+          "Read the callers",
+          "--kind",
+          "gather",
+          "--agent",
+          "Haiku, xhigh",
+          "--handle",
+          "a1b2",
+          "--input",
+          "-",
+        ],
+        BRIEF,
+      ),
+    );
+    await writeFile(
+      join(taskDir, "delegations", "D-001-read-the-callers", "return.md"),
+      "# D-001 return\nState: done\n## Result\nthe callers\n## Identities\nnone\n## Checks\ngrep\n## Left open\nnone\n## Not done\nnone\n",
+    );
+    // The coordinator's transcript, and beside it the worker's own log: two requests three minutes apart.
+    const transcript = join(taskDir, "scratch", "session.jsonl");
+    const logs = join(taskDir, "scratch", "session", "subagents");
+    await mkdir(logs, { recursive: true });
+    await writeFile(transcript, "");
+    const request = (minute, id, usage) =>
+      JSON.stringify({
+        type: "assistant",
+        isSidechain: true,
+        agentId: "a1b2",
+        timestamp: new Date(Date.UTC(2026, 9, 30, 10, minute)).toISOString(),
+        effort: "xhigh",
+        message: { id, model: "claude-haiku-5-5", usage },
+      });
+    await writeFile(
+      join(logs, "agent-a1b2.jsonl"),
+      `${[
+        request(0, "w1", {
+          input_tokens: 2,
+          cache_creation_input_tokens: 10_000,
+          cache_read_input_tokens: 0,
+          output_tokens: 500,
+        }),
+        request(3, "w2", {
+          input_tokens: 2,
+          cache_creation_input_tokens: 1_000,
+          cache_read_input_tokens: 10_500,
+          output_tokens: 800,
+        }),
+      ].join("\n")}\n`,
+    );
+    ok(
+      cli(
+        [
+          "delegate",
+          "close",
+          "--record",
+          record,
+          "--id",
+          "D-001",
+          "--outcome",
+          "accepted",
+          "--transcript",
+          transcript,
+          "--input",
+          "-",
+        ],
+        "- Cue: read when the callers matter\n- Result: The callers.\n- Task effect: Known.\n",
+      ),
+    );
+    assert.match(
+      await readFile(join(taskDir, "history.md"), "utf8"),
+      /\n- Measured: context 12,302 over 1 compaction cycle\(s\); working 3 min, wall 3 min; claude-haiku-5-5 xhigh: 4 in, 11,000 written, 10,500 read, 1,300 out, \$0\.00; as of 2026-10-30T10:03:00\.000Z at 12,302 tokens\n/,
     );
   });
 });

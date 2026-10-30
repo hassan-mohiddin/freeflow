@@ -42,6 +42,8 @@ Goal: each part runs on the cheapest model and effort that can do it well.
 
 Spend the strong model on settling what the brief decides, and the small one on doing it. Choose effort by the job, not the maximum: higher effort raises cost more reliably than it raises success. A model policy of the user's, such as a reviewer model they set, overrides this table. Name the model and effort in every brief.
 
+What past work cost helps you weigh it: Track Work's `working-record.mjs estimate --plan` prints the measured context, time and list-price cost of past delegations by kind, model and effort, `--fan-out <n>` prices n workers, and `estimate --store` adds up every task's. The figures show the cost; this table and its goal, a model that does the work well, still choose.
+
 ## Write The Brief
 
 Goal: the worker can act correctly on its first attempt from what it can see.
@@ -87,7 +89,7 @@ Goal: workers run at once without overwriting each other, and the fan-out is no 
 
 - Give each writer its own worktree and branch at a stated base, outside the coordinator's checkout: `delegate open --repo <repository> --base <commit>`, the host's worktree isolation, or `git worktree add -b <branch> <path> <base>`. Before starting them, compare the files each brief lets its worker write, and run workers that share a file one after the other.
 - When branches stack, state the order they merge in.
-- Size a fan-out by what you will read and use, not by what could run: one wide fan-out can cost more than every other agent in the task together.
+- Size a fan-out by what you will read and use, not by what could run: one wide fan-out can cost more than every other agent in the task together. Price it first with `estimate --plan --fan-out <n>`.
 - Before scaling a fan-out, read one worker's prompt as the host delivered it: a harness can add context of its own, such as the user's latest message framed as the request.
 - Run many identical assignments through a script or the host's workflow tool rather than one call each, within the host's limit on agents running at once.
 
@@ -155,7 +157,7 @@ Goal: accept only what the evidence supports, and choose the next step from the 
 2. Read the return, then the diff against the base; a summary is not the work.
 3. Rerun the check that decides the result, and recompute any number the result rests on.
 4. Judge it against the brief's Result wanted and Done when. A plausible but different name, location or behavior shows a decision the brief left implicit: improve the next brief from it.
-5. As the coordinator, record the outcome with the tokens and minutes the host reports and, when you merged its branch, the merge commit. With a Schema 5 record: `delegate close --id D-012 --outcome accepted | sent back | stopped --merge <commit> --tokens <n> --minutes <n>`, which writes its History entry and removes its line. With a Schema 4 record, where the record holds current work: `Delegation — D-012 (build, <model> <effort>): accepted | sent back | stopped; <tokens> tokens, <minutes> min; delegations/D-012-<slug>/return.md`, then drop its Recovery source if it had one. That closes the delegation.
+5. As the coordinator, record the outcome with the tokens and minutes the host reports and, when you merged its branch, the merge commit. With a Schema 5 record: `delegate close --id D-012 --outcome accepted | sent back | stopped --merge <commit> --tokens <n> --minutes <n>`, which writes its History entry and removes its line; where it can read the worker's own log (on Claude Code, beside the session's), it also measures what the worker used, so you type no figure. With a Schema 4 record, where the record holds current work: `Delegation — D-012 (build, <model> <effort>): accepted | sent back | stopped; <tokens> tokens, <minutes> min; delegations/D-012-<slug>/return.md`, then drop its Recovery source if it had one. That closes the delegation.
 
 Then choose from the gap. A supported result: continue. A missing observation: ask for it, in the same folder. A defect: send it back with the evidence. An approach the evidence invalidates: change the direction rather than repeat the demand. A choice the user owns: ask the user.
 

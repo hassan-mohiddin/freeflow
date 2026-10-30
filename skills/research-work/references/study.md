@@ -247,7 +247,7 @@ Record the exact model snapshot and the date it was called, dataset and tool ver
 
 ### Count And Spend
 
-Before a paid run, give the user the count of runs and calls and the estimated cost, and run only with their yes. Run the pilot first to measure cost per run. Record what was spent and what could not be measured.
+Before a paid run, give the user the count of runs and calls and the estimated cost, and run only with their yes. Run the pilot first to measure cost per run; where agents did this kind of work before, Track Work's `working-record.mjs estimate --plan` shows what they cost, a check on the estimate. Record what was spent and what could not be measured.
 
 ### Analyze Only After The Check
 
