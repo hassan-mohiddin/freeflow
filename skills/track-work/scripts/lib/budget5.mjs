@@ -10,7 +10,7 @@ import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { contextFor, gitRoot, resolvePointer, sourceEntries } from "./recover.mjs";
 import { FIXED_BUDGETS, budgets5, parseRecord5 } from "./record5.mjs";
-import { freeflowStoreOf, isFreeflowStore, storeOf } from "./store.mjs";
+import { freeflowStoreOf, isFreeflowStore, projectOf } from "./store.mjs";
 
 /** The window assumed when the harness gives none (T11), and the anchor of the curve: 10,000 words at 200k tokens. */
 export const DEFAULT_WINDOW = 200_000;
@@ -208,7 +208,7 @@ export function pointerRoot(root) {
  */
 export function measureTask(task, { root, path, window = contextWindow() }) {
   const home = freeflowStoreOf(dirname(path));
-  const project = storeOf(path);
+  const project = projectOf(path);
   const context = contextFor(pointerRoot(root), path);
   const { work } = task.record;
   const recordLines = (items) => items.map((item) => task.record.lines[item.index]);

@@ -41,6 +41,7 @@ import {
   createTaskFolder5,
   listProjects,
   menu,
+  moveTask,
   releaseTask,
   removeProject,
   removeTask,
@@ -48,10 +49,12 @@ import {
   sessionIdentity,
   sessionStatus,
   showProject,
+  STORE_TASK_ID,
   storeRecordPath,
   switchTask,
   takeTask,
 } from "./lib/projects5.mjs";
+import { EstimateError, estimate } from "./lib/estimate5.mjs";
 
 const ROOT_HELP =
   "--record is resolved against --root, which defaults to the current directory; an absolute --record path finds its own root.";
@@ -69,6 +72,7 @@ function usage() {
     "  working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] (Schema 5)",
     "  working-record.mjs checkpoint --session --input <file|-> (Schema 5, a session holding no task)",
     "  working-record.mjs budget [--record <record.md>] [--window <tokens>] [--mode normal|expanded] (Schema 5)",
+    "  working-record.mjs estimate [--used <tokens>] [--window <tokens>] [--done <n> --left <m>] [--transcript <path>]",
     "  working-record.mjs view bundle --record <record.md> | --session (Schema 5)",
     "  working-record.mjs delegate <open|amend|status|check-return|close> ... (Schema 5)",
     "  working-record.mjs discussion <list|save|drop> --record <record.md> ... (Schema 5)",
@@ -121,7 +125,7 @@ const COMMAND_HELP = new Map([
     [
       "Usage: working-record.mjs task <operation> ...",
       "Operations: task set-state, task set-budget (Schema 5); and for projects: task create, task import, task search, task env, task here, task fanout, task remove.",
-      "In a Freeflow store: task create, take, release, switch, here, search and remove. A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
+      "In a Freeflow store: task create, take, release, switch, move, here, search and remove. A task belongs to a project (<project>/task-NNN) or to none (task-NNN). A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
     ].join("\n"),
   ],
@@ -190,6 +194,10 @@ const COMMAND_HELP = new Map([
     "Usage: agreement close --record <record.md> --state <completed|ended|replaced> [--next-action <text>] --input <file|->\nAppends the agreement's History entry (its lines, updates and decisions.md's list), removes it from Current Work, empties decisions.md, then syncs the Freeflow store holding the task. Refused while the current Slice works under it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required; Settled optional: choices that still govern the task, added to Current Context's Settled.",
   ],
   [
+    "estimate",
+    "Usage: estimate [--used <tokens>] [--window <tokens>] [--done <n> --left <m>] [--transcript <path>]\nHow much of the context window the work has used, before you decide what fits in this cycle: the context's use (--used, as the harness shows it; else the latest request in the session's transcript, --transcript or FREEFLOW_TRANSCRIPT or this Claude Code session's log) against the window (--window, else FREEFLOW_CONTEXT_WINDOW, else 200,000 tokens) and the point where Freeflow's notice comes (75% of the window), with what is left before it. With --done <n> --left <m>, the parts of the work done in this cycle and the parts still to do: what the rest needs at the rate so far (an upper bound), and whether it fits before the notice or about how many more cycles it takes.",
+  ],
+  [
     "budget",
     "Usage: budget [--record <record.md>] [--window <tokens>] [--mode normal|expanded]\nThe recovery budget, before you write: the total for the session's context window (--window, else FREEFLOW_CONTEXT_WINDOW, else 200,000 tokens) and the task's mode (--mode, else the record's Budget, else normal), by the square root of the window (about 10,000 words at 200,000 tokens; expanded half as large again); Current Context and Future Work fixed; what the decisions shown and the History index may hold; what is not counted (the rules, the skills, Defined by). With --record: what each part holds now, the total and what is left.",
   ],
@@ -243,7 +251,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task here",
-    "Usage: task here [--cwd <directory>]\nPrints the registered tasks whose primary directory contains the directory, deepest first.\nIn a Freeflow store: the session-start menu. It opens by saying the record is memory and the user's message decides the work; says which task this session holds, if any; then lists the open tasks of each project whose tasks name --cwd's repository (newest activity first, at most 15), each with who holds it and when it last synced, and its cue; or the projects, when none matches. It takes nothing.",
+    "Usage: task here [--cwd <directory>]\nPrints the registered tasks whose primary directory contains the directory, deepest first.\nIn a Freeflow store: the session-start menu. It opens by saying the record is memory and the user's message decides the work; says which task this session holds, if any; then lists the open tasks of each project whose tasks name --cwd's repository, and those with no project that name it (newest activity first, at most 15 each), each with who holds it and when it last synced, and its cue; or the projects, when none matches. It takes nothing.",
   ],
   [
     "task fanout",
@@ -279,7 +287,11 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task create",
-    "Usage: task create --title <title> --goal <goal> [--parent <task-id>] [--cwd <directory>]\nCreates a registered record in the project linked to --cwd, or with --parent a child of that task in its project, and prints its ID and path. A child has no children.\nIn a Freeflow store: task create --title <title> --goal <goal> --cue <cue> [--project <project>] [--cwd <directory>] [--next-action <text>] makes a Schema 5 task in the project (by default the one whose tasks name --cwd's repository), names that repository in its Space, and this session takes it; then commits and pushes. Only when the user asks or says yes to a one-line proposal.",
+    "Usage: task create --title <title> --goal <goal> [--parent <task-id>] [--cwd <directory>]\nCreates a registered record in the project linked to --cwd, or with --parent a child of that task in its project, and prints its ID and path. A child has no children.\nIn a Freeflow store: task create --title <title> --goal <goal> --cue <cue> [--project <project> | --no-project] [--cwd <directory>] [--next-action <text>] makes a Schema 5 task in the project, by default the one whose tasks name --cwd's repository, or with no project (task-NNN, in the store's tasks/) when none does or with --no-project; names that repository in its Space, and this session takes it; then commits and pushes. Only when the user asks or says yes to your question, which also asks where the task goes.",
+  ],
+  [
+    "task move",
+    "Usage: task move --id <task ID> (--project <project> | --no-project)\nIn a Freeflow store: moves the task's folder into the project, or out of it to the store's tasks with no project, with the next number free there, then commits and pushes; Git history keeps the old path. Its new ID is printed; the old one no longer names it, and its delegations' briefs name the new one. Refused while another session holds the task. Only on the user's word.",
   ],
   [
     "task import",
@@ -375,7 +387,11 @@ function parseOptions(args) {
       continue;
     }
     if (options[token] !== undefined) throw new CliError(`Duplicate option: ${token}`);
-    if (["--help", "--strict", "--pull", "--resolved", "--takeover", "--session", "--fallback"].includes(token)) {
+    if (
+      ["--help", "--strict", "--pull", "--resolved", "--takeover", "--session", "--fallback", "--no-project"].includes(
+        token,
+      )
+    ) {
       options[token] = true;
       continue;
     }
@@ -394,6 +410,7 @@ function allowedOptions(command, operation) {
   if (command === "view")
     return new Set(["--root", "--record", "--view", "--delegation", "--session", "--fallback", "--home", "--help"]);
   if (command === "budget") return new Set(["--root", "--record", "--window", "--mode", "--help"]);
+  if (command === "estimate") return new Set(["--used", "--window", "--done", "--left", "--transcript", "--help"]);
   if (command === "migrate") return new Set(["--root", "--record", "--cue", "--cues", "--project", "--home", "--help"]);
   if (command === "discussion") {
     const reading = ["--root", "--record", "--since", "--until", "--transcript", "--format", "--help"];
@@ -818,7 +835,8 @@ const STORE_OPTIONS = new Map([
   ["project remove", ["--name"]],
   ["project list", []],
   ["project show", ["--name", "--cwd"]],
-  ["task create", ["--title", "--goal", "--cue", "--project", "--cwd", "--next-action"]],
+  ["task create", ["--title", "--goal", "--cue", "--project", "--no-project", "--cwd", "--next-action"]],
+  ["task move", ["--id", "--project", "--no-project"]],
   ["task take", ["--id", "--takeover"]],
   ["task release", ["--id"]],
   ["task switch", ["--id", "--takeover"]],
@@ -847,6 +865,7 @@ async function runProjects5(command, operation, options, home) {
       home,
       {
         project: options["--project"],
+        noProject: options["--no-project"] === true,
         directory: where,
         title: requireOption(options, "--title"),
         goal: requireOption(options, "--goal"),
@@ -863,6 +882,13 @@ async function runProjects5(command, operation, options, home) {
   if (key === "task here") return menu(home, where, identity);
   if (key === "task search") return searchTasks(home, requireOption(options, "--query"), options["--project"] ?? null);
   if (key === "task remove") return removeTask(home, requireOption(options, "--id"));
+  if (key === "task move")
+    return moveTask(
+      home,
+      requireOption(options, "--id"),
+      { project: options["--project"] ?? null, noProject: options["--no-project"] === true },
+      identity,
+    );
   throw new CliError(`Unknown command: ${key}`);
 }
 
@@ -874,7 +900,7 @@ async function runCore(command, rest) {
   if (STORE_OPTIONS.has(`${command} ${operation}`)) {
     const home = storeHome(options["--home"]);
     if (isFreeflowStore(home)) return runProjects5(command, operation, options, home);
-    if (["take", "release", "switch"].includes(operation) || options["--home"])
+    if (["take", "release", "switch", "move"].includes(operation) || options["--home"])
       throw new CliError(
         `${command} ${operation}${options["--home"] ? " --home" : ""} works in a Freeflow store; ${home} is not one (store init makes one)`,
       );
@@ -893,12 +919,24 @@ async function runCore(command, rest) {
   )
     return runRegistry(command, operation, options);
   // A registered task's ID stands for its record's path.
-  if (typeof options["--record"] === "string" && TASK_ID.test(options["--record"]) && isFreeflowStore(storeHome()))
+  if (
+    typeof options["--record"] === "string" &&
+    STORE_TASK_ID.test(options["--record"]) &&
+    isFreeflowStore(storeHome())
+  )
     options["--record"] = storeRecordPath(storeHome(), options["--record"]);
   else if (typeof options["--record"] === "string" && TASK_ID.test(options["--record"])) {
     const task = await new Registry().task(options["--record"]);
     if (!task) throw new CliError(`No task ${options["--record"]} in the registry.`);
     options["--record"] = task.record;
+  }
+  if (command === "estimate") {
+    try {
+      return estimate(options);
+    } catch (error) {
+      if (error instanceof EstimateError) throw new CliError(error.message);
+      throw error;
+    }
   }
   if (command === "budget") {
     if (positionals.length) throw new CliError("budget takes no operation");

@@ -118,22 +118,31 @@ export function freeflowStoreOf(path) {
 }
 
 /**
- * A repository keeps its records in .freeflow/tasks; a project store, marked by store.json, in tasks; so does a
- * project's folder in the Freeflow store.
+ * A repository keeps its records in .freeflow/tasks; a project store, marked by store.json, in tasks; so do a
+ * project's folder in the Freeflow store and the Freeflow store itself, for its tasks with no project (P76).
  */
 export function taskRoot(root) {
-  return isStore(root) || isStoreProject(root) ? resolve(root, "tasks") : resolve(root, ".freeflow", "tasks");
+  return isStore(root) || isStoreProject(root) || isFreeflowStore(root)
+    ? resolve(root, "tasks")
+    : resolve(root, ".freeflow", "tasks");
 }
 
 /**
- * The project store or Freeflow store project holding an absolute record path (<project>/tasks/<task>/record.md), or
- * undefined.
+ * The folder whose tasks/ holds an absolute record path (<folder>/tasks/<task>/record.md): a project store, a Freeflow
+ * store project, or the Freeflow store itself for a task with no project; otherwise undefined.
  */
 export function storeOf(recordPath) {
   const store = dirname(dirname(dirname(resolve(recordPath))));
-  return basename(dirname(dirname(resolve(recordPath)))) === "tasks" && (isStore(store) || isStoreProject(store))
+  return basename(dirname(dirname(resolve(recordPath)))) === "tasks" &&
+    (isStore(store) || isStoreProject(store) || isFreeflowStore(store))
     ? store
     : undefined;
+}
+
+/** The project holding a store task's record, or undefined for a task with no project or one outside a store. */
+export function projectOf(recordPath) {
+  const store = storeOf(recordPath);
+  return store && !isFreeflowStore(store) ? store : undefined;
 }
 
 /**
