@@ -203,9 +203,10 @@ test("session start: with a store, pull it, give the scripts the window and the 
   expect(w.commands()).toEqual(["session status"]);
   expect(w.env.FREEFLOW_CONTEXT_WINDOW).toBe("200000");
 
-  w.status = store();
+  w.status = store({ transcript: "/home/u/.claude/projects/p/sess-1.jsonl" });
   w.runs.length = 0;
   const result = await start($);
+  expect(w.env.FREEFLOW_TRANSCRIPT).toBe("/home/u/.claude/projects/p/sess-1.jsonl");
   expect(w.commands()).toEqual(["session status", "store sync --pull", "task here --cwd /work/widget"]);
   expect(w.runs.every((run) => run.session === SESSION)).toBe(true);
   expect(result.additionalContext).toEqual([`Freeflow task memory:\n${MENU}`]);

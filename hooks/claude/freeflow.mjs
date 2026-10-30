@@ -359,6 +359,8 @@ export function register(on) {
     const state = await status($, { session: e.session_id });
     await storeRootOf($, state);
     if (!state) return result;
+    // The session's transcript, which Track Work's script reads to measure what a Slice uses (Spec section 12).
+    if (state.transcript) await $.env.set("FREEFLOW_TRANSCRIPT", state.transcript);
     await script($, ["store", "sync", "--pull"], { session: e.session_id });
     const menu = await script($, ["task", "here", "--cwd", e.cwd], { session: e.session_id });
     if (menu.exitCode !== 0) return result;

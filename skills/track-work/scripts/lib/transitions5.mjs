@@ -601,6 +601,18 @@ async function checkpoint(options, text, loaded) {
         : { start: at, end: at, lines: [...(at === section.start ? [""] : []), space.line] },
     );
   }
+  // The current Slice's measure gains what was used since its last reading, so one that spans compactions or
+  // sessions is still counted whole (Spec section 12, "Planning from measured cost").
+  const slice = record.work.slice;
+  const measuredAt = slice
+    ? record.lines.findIndex(
+        (line, index) => index >= slice.index && index < slice.end && line.startsWith("- Measured: "),
+      )
+    : -1;
+  if (measuredAt !== -1) {
+    const measure = takeReading(parseMeasure(record.lines[measuredAt].slice("- Measured: ".length)), options);
+    replacements.push({ start: measuredAt, end: measuredAt + 1, lines: [`- Measured: ${renderMeasure(measure)}`] });
+  }
   const candidate = await publish(task, { record: edit(record, replacements) });
   const home = freeflowStoreOf(dirname(loaded.path));
   if (home && space) await rememberRepository(home, space);

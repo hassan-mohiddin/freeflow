@@ -457,7 +457,17 @@ function allowedOptions(command, operation) {
   }
   if (command === "checkpoint") {
     if (operation === undefined)
-      return new Set(["--root", "--record", "--repo", "--input", "--session", "--home", "--help"]);
+      return new Set([
+        "--root",
+        "--record",
+        "--repo",
+        "--input",
+        "--session",
+        "--home",
+        "--used",
+        "--transcript",
+        "--help",
+      ]);
     if (operation === "propose") return new Set([...common, "--title"]);
     if (operation === "activate") return new Set([...withNextAction, "--title"]);
     if (operation === "defer" || operation === "resume") return new Set([...withNextAction, "--id"]);

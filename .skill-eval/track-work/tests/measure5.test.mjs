@@ -180,7 +180,15 @@ test("slice start takes the first reading from the transcript the harness names,
       /\n- Measured: context 0 over 1 compaction cycle\(s\); working 0 min, wall 0 min; as of \S+ at 40,000 tokens\n/,
     );
 
-    await appendFile(log, `${line(1, "b", 52_000)}\n${line(3, "c", 60_000)}\n`);
+    // A checkpoint adds what was used since the last reading.
+    await appendFile(log, `${line(1, "b", 52_000)}\n`);
+    const checkpointed = run(["checkpoint", "--record", record]);
+    assert.equal(checkpointed.status, 0, checkpointed.stderr);
+    assert.match(
+      await readFile(record, "utf8"),
+      /\n- Measured: context 12,000 over 1 compaction cycle\(s\); working 2 min, wall 2 min; claude-opus-5-5 high: 0 in, 0 written, 52,000 read, 0 out, \$0\.01; as of \S+ at 52,000 tokens\n/,
+    );
+    await appendFile(log, `${line(3, "c", 60_000)}\n`);
     const closed = run(
       ["slice", "close", "--record", record, "--state", "completed", "--next-action", "Done.", "--input", "-"],
       "- Cue: read when the demo matters\n- Result: It runs.\n- Evidence: record.md\n- Task effect: A demo.\n",
