@@ -39,6 +39,6 @@ Preconditions:
 
 - With no model available, the session start does not wait for the store, and the menu goes with the first prompt: the store step reloads the extension, which reads the store again, to show the held task without a prompt.
 - `launch` treats any `freeflow:` footer as ready, and doctor passes in all three states because it checks that a footer exists, not which one. The step, not doctor, asserts the state.
-- The footer lists optional capabilities that are on after `on`, separated by ` · `, so match its start, not the whole line. Turning Task Memory on leaves it at `freeflow: on`; prove that change from `/freeflow status`.
+- The footer lists optional capabilities that are on after `on`, separated by ` · `, so match its start, not the whole line.
 - With no model available, the status line's compaction part is `compaction: enabled (cycle 1)`. With a model it also reports the context size, so match up to `(cycle 1`.
 - Long notices wrap at the pane width (160 columns). Assert text that fits on one line, or read the wrapped lines together.

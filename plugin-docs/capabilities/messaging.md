@@ -42,7 +42,7 @@ By default every message is delivered. To approve messages first, set **Ask befo
 | Setting | `messaging.inbound` | Messages from other sessions |
 | --- | --- | --- |
 | never (default) | `accept` | delivered |
-| outside the project | `project` | delivered from sessions in this repository's [Task Memory](task-memory.md) project; you are asked about the rest |
+| outside the project | `project` | delivered from sessions holding a task in the same project of the Freeflow store; you are asked about the rest |
 | every message | `hold` | you are asked about each one |
 | refuse all | `refuse` | refused |
 
@@ -57,10 +57,6 @@ Each step is one line, which expands to the full text:
 - `Message to api: refused`, or `accepted and delivered`, or `not answered in time`, when a held message's outcome arrives;
 - `Session api is now idle` or `Session api has ended`, when a session you asked about finishes.
 
-## Parent and child tasks
-
-With [Task Memory](task-memory.md), a child task you run in its own session can report to its parent when its result is ready, when it is blocked, or when it needs a decision the parent owns. It finds the session that owns the parent task and sends the report there. The parent's agent records the report in the parent's Working Record and tells you; it starts no new work on it unless you have already agreed to that work. Workers that Cognitive Routing manages are not child sessions and do not use messaging.
-
 ## Limits
 
 - Plain text, at most 100,000 characters a message.
@@ -70,7 +66,7 @@ With [Task Memory](task-memory.md), a child task you run in its own session can 
 
 ## Privacy
 
-Each session with Messaging on lists itself in `~/.freeflow/sessions/` (or under `FREEFLOW_HOME`): its session ID, name, folder, process ID, whether it is busy, and its Task Memory project and tasks. The entry is removed when the session ends, and an entry whose process is gone is removed by the next session that lists the others. Messages travel over a socket in your user's temporary directory that only your user can open. Nothing leaves the machine except through each session's own model requests.
+Each session with Messaging on lists itself in `~/.freeflow/sessions/` (or under `FREEFLOW_HOME`): its session ID, name, folder, process ID, whether it is busy, and the task it holds in the Freeflow store with that task's project. The entry is removed when the session ends, and an entry whose process is gone is removed by the next session that lists the others. Messages travel over a socket in your user's temporary directory that only your user can open. Nothing leaves the machine except through each session's own model requests.
 
 ## Prompt cache
 
@@ -82,7 +78,6 @@ Local tests cover delivery between live sessions over real sockets, held message
 
 ## Related documentation
 
-- [Task Memory](task-memory.md)
 - [Capabilities](README.md)
 - [Pi integration](../integrations/pi.md)
 - [How messaging works](../../dev-docs/subsystems/messaging.md) (developer docs)
