@@ -4,7 +4,7 @@
 > **Tests:** `.skill-eval/track-work/`
 > **Verified at:** `992efbd4` (2026-10-30)
 
-For anyone changing Track Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/track-work/SKILL.md); this record holds the reasons it does not. It was started with the Schema 5 rewrite (task-004's Phase 7.1), so it records that rewrite's reasons in full and older choices only where they still shape the text. Task-004's design, with every choice and the owner's words, is its Spec (`memory-and-delegation.md` in that task's folder); the choices are cited here by its IDs (P1 to P81, T1 to T28).
+For anyone changing Track Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/track-work/SKILL.md); this record holds the reasons it does not. How its script keeps the store and the task folder is [Freeflow store and Schema 5 tasks](../subsystems/freeflow-store.md). It was started with the Schema 5 rewrite (task-004's Phase 7.1), so it records that rewrite's reasons in full and older choices only where they still shape the text. Task-004's design, with every choice and the owner's words, is its Spec (`memory-and-delegation.md` in that task's folder); the choices are cited here by its IDs (P1 to P81, T1 to T28).
 
 ## Purpose
 
