@@ -14,6 +14,7 @@ Freeflow is active in a repository only when `.freeflow/config.json` exists and 
 - `act-setup`: the footer reads `freeflow: setup needed` when the file is missing, and status says how to set it up.
 - `act-local-only`: `.freeflow/local.json` alone does not activate Freeflow.
 - `act-error`: the footer reads `freeflow: config error` when the file is invalid, such as one holding the removed `contextVirtualization` key, and status names the problem.
+- `act-task-memory-gone`: a config that still sets the removed `taskMemory` keys loads, and `/freeflow status` says Pi's Task Memory is gone and they are ignored.
 
 ## How to get to it (user POV)
 
@@ -34,6 +35,7 @@ Preconditions:
 - **Personal file alone.** In the same run, run `scripts/verify-live.sh observe act-local-only -- bash -c 'mkdir -p .freeflow && printf "{\"enabled\": true}\n" > .freeflow/local.json && ls -A .freeflow'`. Exit code `0`, output `local.json`. Run `scripts/verify-live.sh cmd "/reload"`. The footer still reads `freeflow: setup needed`. Then `scripts/verify-live.sh snap act-local-only` and clean up.
 - **Config error.** Run `scripts/verify-live.sh launch --config '{"contextVirtualization":{}}'`. It prints `ready: freeflow: config error`. Run `scripts/verify-live.sh cmd "/freeflow status"`. The pane shows `Freeflow: inactive (invalid config: Removed Freeflow context setting(s) in .freeflow/config.json: contextVirtualization. Delete those keys before using Freeflow.); fix .freeflow/config.json or run /setup-freeflow`, wrapped across two lines. Then `scripts/verify-live.sh snap act-error` and clean up.
 - **The store and the held task.** Run `FFV_PI_ARGS="--session-id 0a0b0c0d-1111-4222-8333-444455556666" scripts/verify-live.sh launch`. It prints `ready: freeflow: on`. Run `scripts/verify-live.sh observe act-store -- bash -c 'W="$FFV_REPO/skills/track-work/scripts/working-record.mjs"; node "$W" store init --home "$FREEFLOW_HOME" --git-name "Probe User" --git-email probe@example.com > /dev/null && FREEFLOW_SESSION=0a0b0c0d-1111-4222-8333-444455556666 FREEFLOW_HARNESS=Pi node "$W" task create --title "Footer probe" --goal "Show the held task." --cue "read when probing the footer" --no-project | head -1'`: exit code `0`, output `task-001`, a task held by Pi's session. Run `scripts/verify-live.sh cmd "/reload"`: the footer reads `freeflow: task task-001`. Run `scripts/verify-live.sh cmd "/freeflow status"`, then `scripts/verify-live.sh snap act-store-status`: the status ends `store:` and the run's `home` folder, then `, holding task-001`. Then clean up.
+- **An old Task Memory config.** Run `scripts/verify-live.sh launch --config '{"taskMemory":{"enabled":true}}'`. It prints `ready: freeflow: on`. Run `scripts/verify-live.sh cmd "/freeflow status"`. The pane shows `Freeflow: enabled`, and, after the `store:` part, `task memory: Pi's Task Memory is gone, and its taskMemory settings are ignored: tasks live in the Freeflow store (Setup Freeflow moves old records in)`. Then `scripts/verify-live.sh snap act-task-memory-gone`, and clean up.
 
 ## Gotchas
 

@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/track-work/scripts/working-record.mjs`, `skills/track-work/scripts/lib/freeflow-store.mjs`, `skills/track-work/scripts/lib/store.mjs`, `skills/track-work/scripts/lib/record5.mjs`, `skills/track-work/scripts/lib/transitions5.mjs`, `skills/track-work/scripts/lib/views5.mjs`, `skills/track-work/scripts/lib/projects5.mjs`, `skills/track-work/scripts/lib/delegations5.mjs`, `skills/track-work/scripts/lib/migrate5.mjs`, `skills/track-work/scripts/lib/discussion5.mjs`, `skills/track-work/scripts/lib/carry5.mjs`, `skills/track-work/scripts/lib/pi-session.mjs`, `skills/track-work/scripts/lib/budget5.mjs`, `skills/track-work/scripts/lib/estimate5.mjs`, `skills/track-work/scripts/lib/measure5.mjs`, `skills/track-work/scripts/lib/planner5.mjs`
 > **Tests:** `.skill-eval/track-work/tests/`
-> **Verified at:** `77c132c6` (2026-10-30)
+> **Verified at:** `e2a0ad14` (2026-10-30)
 > **User docs:** `plugin-docs/using-freeflow.md`
 
 For anyone changing how Track Work's script keeps task memory: the Freeflow store, the Schema 5 task folder, the commands that change it, the views recovery reads, delegation, and the measurement and planning built on them. The skill that teaches the agent when to use these is [Track Work](../skills/track-work.md); Pi's layer and Claude Code's mod, which call this script at the right moments, are in [Compaction](compaction.md#the-store-layer) and the [overview](../README.md).

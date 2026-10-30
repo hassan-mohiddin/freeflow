@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/execute-work/`
 > **Tests:** `.skill-eval/execute-work/`
-> **Verified at:** `da60e21c` (2026-10-30)
+> **Verified at:** `e2a0ad14` (2026-10-30)
 
 For anyone changing Execute Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/execute-work/SKILL.md); this record holds the reasons it does not. It was started with the delegation reference, so it records that reference's reasons in full and the rest of the skill's only in outline (Open Questions).
 
