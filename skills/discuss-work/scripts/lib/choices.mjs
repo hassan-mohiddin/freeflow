@@ -123,22 +123,30 @@ function sizeLine(plan) {
     plan.cycles <= 1
       ? "within this compaction cycle"
       : `${plan.cycles} compaction cycles (this one and ${plan.cycles - 1} more)`;
+  const ranged = plan.total.usdLow !== undefined && plan.total.usdLow !== null;
   const cost =
-    plan.total.usd === null ? "; no cost measured yet" : `, about ${dollars(plan.total.usd)} at API list price`;
-  return `Size:           ${cycles}${cost}`;
+    plan.total.usd === null
+      ? "; no cost measured yet"
+      : ranged
+        ? `, ${dollars(plan.total.usdLow)} to ${dollars(plan.total.usdHigh)} at API list price, most likely ${dollars(plan.total.usd)}`
+        : `, about ${dollars(plan.total.usd)} at API list price`;
+  return `Size:           ${cycles}${cost}${plan.sureness ? ` (${plan.sureness})` : ""}`;
 }
 
 // The plan in the agreement's Technical part: each Slice's size and where it lands, the context and cost per compaction
 // cycle, the totals, what could run in parallel, and the prices' date.
 function planLines(plan) {
   const each = plan.perSlice;
+  const sized = plan.landings.length > 0 && plan.landings.every((item) => item.files);
   const lines = [
-    each.usd === null
-      ? `each Slice ${each.upperBound ? "at most " : ""}about ${count(each.context)} tokens of context (${each.source})`
-      : `each Slice about ${count(each.context)} tokens of context, working about ${duration(each.workingMs)}, about ${dollars(each.usd)}${each.model ? `, mostly ${each.model}` : ""} (${each.source})`,
+    sized
+      ? `each Slice from its files at the measured rate per file (${plan.sureness})`
+      : each.usd === null
+        ? `each Slice ${each.upperBound ? "at most " : ""}about ${count(each.context)} tokens of context (${each.source})`
+        : `each Slice${plan.landings.some((item) => item.files) ? " with no size" : ""} about ${count(each.context)} tokens of context, working about ${duration(each.workingMs)}, about ${dollars(each.usd)}${each.model ? `, mostly ${each.model}` : ""} (${each.source})`,
     ...plan.landings.map(
       (item) =>
-        `- ${item.title}: ${item.first === item.last ? cycleName(item.first) : `${cycleName(item.first)} into ${cycleName(item.last)}`}${item.oversized ? "; bigger than a compaction cycle" : ""}`,
+        `- ${item.title}${item.files ? ` (${item.files} files)` : ""}: ${item.first === item.last ? cycleName(item.first) : `${cycleName(item.first)} into ${cycleName(item.last)}`}${item.context === undefined ? "" : `, about ${count(item.context)} tokens${item.usd === null ? "" : `, ${dollars(item.usd)}`}`}${item.oversized ? "; bigger than a compaction cycle" : ""}`,
     ),
     `by compaction cycle: ${plan.perCycle
       .map(

@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
-import { budgetFor, contextWindow, measureTask, measuredLines } from "./budget5.mjs";
+import { budgetFor, contextWindow, measureTask, measuredLines, spaceRepositories } from "./budget5.mjs";
 import { storeHome, syncStore } from "./freeflow-store.mjs";
 import {
   CLOSED_STATES,
@@ -24,6 +24,7 @@ import {
   emptyHistory,
   fieldLines5,
   fieldText,
+  filesIn,
   isDate,
   loadTask5,
   nextId5,
@@ -196,6 +197,7 @@ async function proposeSlice(options, text, loaded) {
   const fields = input(text, PROPOSED5_ORDER, "slice propose");
   fields.require("Result wanted");
   const values = Object.fromEntries(PROPOSED5_ORDER.map((name) => [name, fields.lines(name)]));
+  requireSize(values.Size, "slice propose");
   const block = renderFields5(`### Slice — ${title}`, PROPOSED5_ORDER, values);
   const at = task.record.sections["Future Work"].end;
   const before = task.record.lines[at - 1]?.trim() ? [""] : [];
@@ -205,7 +207,50 @@ async function proposeSlice(options, text, loaded) {
   return `Proposed Slice: ${title}\n`;
 }
 
-const START_FIELDS = ["Under", "Scope", "Done when", "Stop if", "Started from", "Waits on", "Dependencies"];
+const START_FIELDS = ["Under", "Scope", "Done when", "Stop if", "Started from", "Size", "Waits on", "Dependencies"];
+
+/** A Slice's Size (P13): "<n> files", the files it will add or change; its number, or null with no Size. */
+function requireSize(lines, command) {
+  if (!lines) return null;
+  const files = filesIn(lines.join(" "));
+  if (files === null)
+    fail("invalid-size", `${command}: Size is "<n> files", the files the Slice will add or change: ${lines.join(" ")}`);
+  return files;
+}
+
+/**
+ * The work repository a Slice starts in (T12): --repo, else the folder the command runs in, else the first
+ * repository Space names that the store knows on this machine; null where none is.
+ */
+function workRepository(options, record, recordPath) {
+  if (options["--repo"]) return repositoryState(resolve(options["--repo"]));
+  const here = repositoryState(process.cwd());
+  if (here) return here;
+  const known = spaceRepositories(record.work.space, freeflowStoreOf(dirname(recordPath)));
+  return known.length ? repositoryState(known[0]) : null;
+}
+
+/**
+ * What a closing Slice changed (P14): --files, else the files added, changed or renamed in its Base repository
+ * between the Base commit and HEAD; null when neither is known. A deleted file does not count.
+ */
+function filesChanged(options, base, record, recordPath) {
+  if (options["--files"] !== undefined) {
+    const given = Number(options["--files"]);
+    if (!Number.isInteger(given) || given < 0) fail("invalid-option", "--files is a whole number of files");
+    return `${given} changed (given)`;
+  }
+  const [name, commit] = (base ?? "").split(" ");
+  if (!name || !commit) return null;
+  const candidates = options["--repo"]
+    ? [resolve(options["--repo"])]
+    : [process.cwd(), ...spaceRepositories(record.work.space, freeflowStoreOf(dirname(recordPath)))];
+  const state = candidates.map((each) => repositoryState(each)).find((each) => each?.name === name);
+  if (!state) return null;
+  const listed = git(state.top, ["diff", "--name-only", "--diff-filter=AMR", `${commit}..HEAD`]);
+  if (listed === null) return null;
+  return `${listed.split("\n").filter(Boolean).length} changed (${name} ${commit}..${state.commit})`;
+}
 
 /** How far back a first reading looks for the newest request: its log's tail, not the whole log. */
 const FIRST_READING_MS = 6 * 60 * 60 * 1000;
@@ -229,9 +274,9 @@ function takeReading(measure, options, env = process.env) {
 }
 
 /** The Slice's prediction from measured Slices (P89), or null: one that cannot be made never blocks the start. */
-function predicted(recordPath) {
+function predicted(recordPath, size = null) {
   try {
-    const prediction = predictSlice(recordPath);
+    const prediction = predictSlice(recordPath, size);
     return prediction ? [prediction.line] : null;
   } catch {
     return null;
@@ -255,7 +300,11 @@ async function startSlice(options, text, loaded, direct) {
   for (const name of START_FIELDS) values[name] = fields.lines(name);
   const started = takeReading(emptyMeasure(), options);
   values.Measured = started.last ? [renderMeasure(started)] : null;
-  values.Predicted = predicted(loaded.path);
+  values.Size ??= proposal ? fieldLines5(proposal, "Size") : null;
+  const size = requireSize(values.Size, command);
+  const base = workRepository(options, record, loaded.path);
+  values.Base = base ? [`${base.name} ${base.commit}`] : null;
+  values.Predicted = predicted(loaded.path, size);
   values["Result wanted"] = direct ? fields.require("Result wanted") : fieldLines5(proposal, "Result wanted");
   values["Done when"] ??= proposal ? fieldLines5(proposal, "Done when") : null;
   values.Dependencies ??= proposal ? fieldLines5(proposal, "Dependencies") : null;
@@ -344,6 +393,11 @@ async function closeSlice(options, text, loaded) {
       "Task effect": fields.require("Task effect"),
       "Resume when": state === "blocked" ? fields.require("Resume when") : fields.lines("Resume when"),
       Reason: state === "abandoned" ? fields.require("Reason") : fields.lines("Reason"),
+      Size: fieldLines5(slice, "Size"),
+      Files: (() => {
+        const files = filesChanged(options, fieldText(slice, "Base"), task.record, loaded.path);
+        return files ? [files] : null;
+      })(),
       Predicted: fieldLines5(slice, "Predicted"),
       Measured: [closingMeasure(slice, options)],
       Updates: updateLines(slice),
@@ -782,6 +836,35 @@ export async function checkpointSession({ home: explicit, identity, text }) {
   return `Session summary: ${path}. Freeflow's compaction installs it and removes it; nothing becomes a task.\n`;
 }
 
+/**
+ * `slice size` (P14): a closed Slice's Files line, for one closed before Slices were sized, from --files or the files
+ * added, changed or renamed in --range <from>..<to> of --repo (else the folder the command runs in); appended inside
+ * its History entry and dated, never replacing one it has.
+ */
+async function sizeSlice(options, loaded) {
+  const task = await load(loaded);
+  const id = requiredOption(options, "--id", "slice size");
+  const entry = task.history.entries.find((each) => each.id === id && each.kind === "slice");
+  if (!entry) fail("missing-entry", `No closed Slice ${id} in History`);
+  if (entry.values.has("Files")) fail("files-recorded", `${id} already has Files: ${fieldText(entry, "Files")}`);
+  let files;
+  if (options["--files"] !== undefined) files = filesChanged(options, null, task.record, loaded.path);
+  else {
+    const range = requiredOption(options, "--range", "slice size");
+    const state = repositoryState(resolve(options["--repo"] ?? process.cwd()));
+    if (!state) fail("invalid-repository", "slice size --range runs in the work repository, or names it with --repo");
+    const listed = git(state.top, ["diff", "--name-only", "--diff-filter=AMR", range]);
+    if (listed === null) fail("invalid-range", `${range} is not a commit range in ${state.top}`);
+    files = `${listed.split("\n").filter(Boolean).length} changed (${state.name} ${range})`;
+  }
+  const lines = task.historyText.split("\n");
+  let at = entry.end;
+  while (at > entry.start && !lines[at - 1].trim()) at -= 1;
+  lines.splice(at, 0, `- Files: ${files.replace(/\)$/, `; added ${localDate()})`)}`);
+  await publish(task, { history: lines.join("\n") });
+  return `Sized ${id}: ${files}\n${await syncAfter(task, `size ${id}`)}\n`;
+}
+
 export async function runTransition5(command, positionals, options, text, loaded) {
   const operation = positionals[0];
   if (command === "slice") {
@@ -792,6 +875,7 @@ export async function runTransition5(command, positionals, options, text, loaded
     if (operation === "resume") return changeSliceState(options, text, loaded, false);
     if (operation === "close") return closeSlice(options, text, loaded);
     if (operation === "record") return recordSlice(options, text, loaded);
+    if (operation === "size") return sizeSlice(options, loaded);
   }
   if (command === "agreement") {
     if (operation === "open") return openAgreement(options, text, loaded);

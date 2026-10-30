@@ -194,6 +194,87 @@ test("the agreement shows the plan's size last (P101), and its Technical part th
   }
 });
 
+test("a sized plan: the Size line gives the range, the most likely cost and what it rests on, and each Slice its own figures (P18)", async () => {
+  const folder = await realpath(await mkdtemp(join(tmpdir(), "choices-sized-")));
+  try {
+    const plan = join(folder, "plan.json");
+    await writeFile(
+      plan,
+      JSON.stringify({
+        from: "the list given",
+        slices: 2,
+        perSlice: {
+          context: 60_000,
+          workingMs: 30 * 60_000,
+          usd: 2,
+          model: "claude-opus-5-5 high",
+          source: "the median of 5 measured Slices of this task",
+        },
+        sureness: "from 5 measured Slices of this task, 5 of them sized; 2 of 2 Slices left sized; not corrected yet",
+        landings: [
+          { title: "One", first: 0, last: 0, oversized: false, files: 12, context: 36_000, usd: 1.2 },
+          { title: "Two", first: 0, last: 1, oversized: false, files: 40, context: 120_000, usd: 4 },
+        ],
+        perCycle: [
+          { cycle: 0, context: 100_000, usd: 3.33 },
+          { cycle: 1, context: 56_000, usd: 1.87 },
+        ],
+        cycles: 2,
+        total: {
+          context: 156_000,
+          contextLow: 120_000,
+          contextHigh: 208_000,
+          workingMs: 78 * 60_000,
+          usd: 5.2,
+          usdLow: 4.1,
+          usdHigh: 7.8,
+        },
+        parallel: [],
+        prices: { date: "2026-10-30", source: "the Claude API reference bundled with Claude Code 2.1.311" },
+      }),
+    );
+    const args = ["agreement", "--list", "-", "--do", "Add a queue", "--stop", "the queue works", "--plan", plan];
+    const technical = choices(process.cwd(), [...args, "--show-technical"], LIST);
+    assert.equal(technical.status, 0, technical.stderr);
+    const lines = technical.stdout.split("\n");
+    assert.ok(
+      lines.includes(
+        "Size:           2 compaction cycles (this one and 1 more), $4.10 to $7.80 at API list price, most likely $5.20 (from 5 measured Slices of this task, 5 of them sized; 2 of 2 Slices left sized; not corrected yet)",
+      ),
+      technical.stdout,
+    );
+    assert.ok(
+      lines.includes(
+        "Plan:           each Slice from its files at the measured rate per file (from 5 measured Slices of this task, 5 of them sized; 2 of 2 Slices left sized; not corrected yet)",
+      ),
+      technical.stdout,
+    );
+    assert.ok(
+      lines.includes("                - One (12 files): this compaction cycle, about 36,000 tokens, $1.20"),
+      technical.stdout,
+    );
+    assert.ok(
+      lines.includes(
+        "                - Two (40 files): this compaction cycle into the next, about 120,000 tokens, $4.00",
+      ),
+      technical.stdout,
+    );
+    // A plan from Slices measured with --used has no cost: the Size line says so instead of a range.
+    const unpriced = JSON.parse(await readFile(plan, "utf8"));
+    unpriced.total = { ...unpriced.total, usd: null, usdLow: null, usdHigh: null, workingMs: null };
+    unpriced.landings = unpriced.landings.map((item) => ({ ...item, usd: null }));
+    await writeFile(plan, JSON.stringify(unpriced));
+    const brief = choices(process.cwd(), args, LIST);
+    assert.equal(brief.status, 0, brief.stderr);
+    assert.match(
+      brief.stdout,
+      /\nSize: {11}2 compaction cycles \(this one and 1 more\); no cost measured yet \(from 5 measured Slices of this task, .*\)\n$/,
+    );
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
+});
+
 test("choices renders the agreement, the hand-over filter and the catch-up from the record", async () => {
   const agreement = choices(
     process.cwd(),
