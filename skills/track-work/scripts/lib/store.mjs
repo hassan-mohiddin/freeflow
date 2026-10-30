@@ -74,6 +74,9 @@ async function assertNoSymlinkPath(target, stopAt) {
 /** The marker a project store keeps at its root; see registry.mjs. The Freeflow store's root marker has the same name. */
 export const STORE_MARKER = "store.json";
 
+/** The store's local/repositories.json: where each repository a task names in Space is on this machine. */
+export const REPOSITORIES_FILE = join("local", "repositories.json");
+
 /** The `kind` in the Freeflow store's root marker (lib/freeflow-store.mjs). */
 export const FREEFLOW_STORE_KIND = "freeflow-store";
 

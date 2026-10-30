@@ -299,7 +299,7 @@ One bullet per source, a pointer then what it establishes:
 | Read on recovery | Memory the agent shaped that the next context must read | reads each whole | counted |
 | Read when | Sources only some situations need; each line names its trigger, "read when <situation>" | reads each once its trigger applies | counted when read |
 
-A pointer is a path (from the task folder, else from the work repository's root), an absolute path, a `~/` path, a URL, or a commit. `sources/discussion.md` is a Read on recovery source while it holds blocks.
+A pointer is a path (from the task folder, else from the work repository's root, else from each repository in Space at its path on this machine), an absolute path, a `~/` path, a URL, or a commit; start each entry with it. A Defined by or Read on recovery entry that names no pointer is never read for you, and the checks say so. `sources/discussion.md` is a Read on recovery source while it holds blocks.
 
 ### Next action
 

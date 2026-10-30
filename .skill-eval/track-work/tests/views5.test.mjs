@@ -268,6 +268,43 @@ test("checkpoint remembers where each Space repository is, so recover finds it f
   });
 });
 
+test("recover and the bundle read the files a record names in a Space repository, from a folder outside it (F34)", async () => {
+  await withFolder(async (folder) => {
+    const { record } = await storeWithFixture(folder);
+    const work = join(folder, "widget");
+    execFileSync("git", ["init", "--quiet", "-b", "main", work]);
+    await mkdir(join(work, "docs"));
+    await writeFile(join(work, "docs", "guide.md"), "The widget guide, read from the work repository.\n");
+    await writeFile(join(work, "AGENTS.md"), "The widget's agent rules, read from the work repository.\n");
+    git(work, ["add", "."]);
+    git(work, ["-c", "user.name=T", "-c", "user.email=t@example.com", "commit", "--quiet", "-m", "start"]);
+    git(work, ["remote", "add", "origin", "git@github.com:acme/widget.git"]);
+    ok(run(folder, ["checkpoint", "--record", record, "--repo", work]));
+    const text = await readFile(record, "utf8");
+    await writeFile(
+      record,
+      text
+        .replace("### Defined by\n\n", "### Defined by\n\n- docs/guide.md (in the repository): the guide.\n")
+        .replace(
+          "### Read on recovery\n\n",
+          "### Read on recovery\n\n- AGENTS.md (in the repository): its rules.\n- The team's wiki page on widgets.\n",
+        ),
+    );
+    // The folder the command runs in is in no repository, as a session started outside the work repository is.
+    const bundle = ok(run(folder, ["view", "bundle", "--record", record]));
+    assert.match(bundle, /The widget guide, read from the work repository\./);
+    assert.match(bundle, /The widget's agent rules, read from the work repository\./);
+    assert.doesNotMatch(bundle, /docs\/guide\.md does not exist|AGENTS\.md does not exist/);
+    assert.match(
+      bundle,
+      /- Read on recovery: "The team's wiki page on widgets\." names no file, so recovery cannot read it; write its path\n/,
+    );
+    const recover = ok(run(folder, ["view", "recover", "--record", record]));
+    assert.match(recover, /docs\/guide\.md/);
+    assert.doesNotMatch(recover, /does not exist/);
+  });
+});
+
 test("the active decisions put waiting and answered items first, then the rest newest first, within the budget", () => {
   const list = [
     "# Decisions",

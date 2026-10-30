@@ -78,14 +78,15 @@ function classify(raw, add, commitOnly = false) {
   if (looksLikePath(token)) add("path", token.replace(/#.*$/, ""));
 }
 
-// Where a path pointer resolves: the repository root, the task folder, or as given when absolute or home-relative.
-export function resolvePointer(pointer, { root, taskDir }) {
+// Where a path pointer resolves: the task folder, the repository root, then each repository the record names in Space
+// at its path on this machine; or as given when absolute or home-relative.
+export function resolvePointer(pointer, { root, taskDir, repositories = [] }) {
   if (pointer.startsWith("~/")) return { outside: true, path: join(homedir(), pointer.slice(2)) };
   if (isAbsolute(pointer)) {
-    const inside = !relative(root, pointer).startsWith("..");
+    const inside = [root, ...repositories].some((top) => !relative(top, pointer).startsWith(".."));
     return { outside: !inside, path: pointer };
   }
-  const candidates = [join(taskDir, pointer), join(root, pointer)];
+  const candidates = [join(taskDir, pointer), join(root, pointer), ...repositories.map((top) => join(top, pointer))];
   const hit = candidates.find((candidate) => existsSync(candidate));
   return { outside: false, path: hit ?? candidates[1] };
 }
@@ -123,7 +124,12 @@ export function sourceEntries(lines, context) {
   return bullets(lines).map((line) => {
     const text = line.trim().replace(/^[-*]\s+/, "");
     const trigger = /\bread (?:only )?(?:when|if) ([^.;]+)/i.exec(text)?.[1]?.trim() ?? null;
-    return { text, trigger, pointers: pointersIn(line).map((pointer) => checkPointer(pointer, context)) };
+    const found = pointersIn(line);
+    // An entry that leads with a bare file name, as "AGENTS.md (in the repository): …" does, points to that file.
+    const lead = /^([^\s/(]+\.[A-Za-z][A-Za-z0-9]{0,7})(?=[\s:(]|$)/.exec(text)?.[1];
+    if (lead && !found.some((pointer) => pointer.kind === "path"))
+      classify(lead, (kind, value) => found.push({ kind, value }));
+    return { text, trigger, pointers: found.map((pointer) => checkPointer(pointer, context)) };
   });
 }
 
@@ -169,10 +175,11 @@ function liveState(document, context) {
   return { git: true, branch, head, subject, dirty, namedBranches: named, mismatches, notes };
 }
 
-export function contextFor(root, recordPath) {
+export function contextFor(root, recordPath, repositories = []) {
   return {
     root,
     taskDir: dirname(recordPath),
+    repositories,
     isGit: git(root, ["rev-parse", "--is-inside-work-tree"]) === "true",
   };
 }

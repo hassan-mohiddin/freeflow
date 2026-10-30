@@ -44,7 +44,7 @@ import {
   transcriptEvents,
 } from "./measure5.mjs";
 import { predictSlice } from "./planner5.mjs";
-import { freeflowStoreOf, isFreeflowStore, writeAtomically, writeTaskFile } from "./store.mjs";
+import { REPOSITORIES_FILE, freeflowStoreOf, isFreeflowStore, writeAtomically, writeTaskFile } from "./store.mjs";
 
 function fail(code, message) {
   const error = new Error(message);
@@ -547,8 +547,7 @@ export function repositoryState(directory) {
   return { name, top, branch, commit, pushed, dirty, line: `- ${name} · ${branch} · ${commit} · ${pushed}` };
 }
 
-/** The store's local/repositories.json: where each repository a task names in Space is on this machine. */
-export const REPOSITORIES_FILE = join("local", "repositories.json");
+export { REPOSITORIES_FILE };
 
 export async function rememberRepository(home, state) {
   const path = join(home, REPOSITORIES_FILE);
