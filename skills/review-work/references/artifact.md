@@ -29,7 +29,7 @@ Goal: ask of each artifact only what its job requires.
 - **Decision record or ADR:** the choice, owner, source, alternatives, rationale, consequences, and revisit or supersession conditions.
 - **Handoff:** enough truthful point-in-time context for its recipient to continue safely, without replacing the live record.
 - **Report:** every claim the reader may act on matches what happened, every evidence pointer resolves and shows what the claim says, no claim is stronger than its evidence, and unfinished, skipped, or failed work is stated.
-- **Working Record:** accurate current task state, recoverable Slices, decisions and work, compact evidence pointers with their limits, a provisional remaining route, defining artifacts and Recovery sources sufficient for a fresh context to resume, and one next useful action.
+- **Working Record:** accurate current task state, recoverable Slices, decisions and work, compact evidence pointers with their limits, a provisional remaining route, defining artifacts and the sources recovery reads, sufficient for a fresh context to resume, and one next action.
 - **Other artifact:** its declared purpose without taking over another artifact's job.
 
 A proposal can be fit for discussion without being implementation-ready. Do not block on an open question the artifact intentionally preserves and whose answer its current use does not need.
@@ -91,7 +91,7 @@ Review an artifact state you did not produce. Inspect the complete artifact, sou
 
 A pass is valid. Use a high evidence bar, not a high item count. Do not broaden the artifact's job or treat possible improvement as unfinished work. Lead with the few items that can change fitness for the intended use. Prior review, artifact length, polished language, or producer confidence does not establish fitness.
 
-Read the supplied evidence first. Run a check listed under May run, in your own copy, only when that evidence is missing or does not convince you; run nothing else, and make no edits, network calls, or paid runs. When a claim still lacks evidence, report **Needs evidence** with the load-bearing claim and required observing boundary. When you run a check, apply Verify Work's check-result and claim-result semantics; active evidence does not authorize revision or broaden the review.
+Read the supplied evidence first. Run a check listed under May run, in your own copy, only when that evidence is missing or does not convince you; run nothing else, and make no edits, network calls, or paid runs. Reading files, with any command that only reads, is inspection, not a check. When a claim still lacks evidence, report **Needs evidence** with the load-bearing claim and required observing boundary. When you run a check, apply Verify Work's check-result and claim-result semantics; active evidence does not authorize revision or broaden the review.
 
 ## Artifact And Intended Use
 

@@ -88,7 +88,7 @@ Write the pilot's result in question 11 as one line, the reference arm first: `P
 
 A study with human participants (people you recruit to rate, answer or be observed) stops for the user and their institution's ethics process before any data is collected; Research Work does not decide consent or ethics approval.
 
-Lock the plan when the twelve answers are written and the user has agreed them. The plan's open choices (the claim sought, each decision rule and its method, the arms and their budgets, the count) go in the task's decision list as the brief's do ([evidence](evidence.md#agree-it)), so the agreement shows them. The lock is the user's decision at `study` and `publication` rigor, recorded as a decision Checkpoint through [Track Work](../../track-work/SKILL.md), and `study.mjs lock --by` names who locked it ([running](#running-the-study)).
+Lock the plan when the twelve answers are written and the user has agreed them. The plan's open choices (the claim sought, each decision rule and its method, the arms and their budgets, the count) go in the task's decision list as the brief's do ([evidence](evidence.md#agree-it)), so the agreement shows them. The lock is the user's decision at `study` and `publication` rigor, recorded as an agreement update in their words through [Track Work](../../track-work/SKILL.md), and `study.mjs lock --by` names who locked it ([running](#running-the-study)).
 
 ## Measure The Noise Floor
 

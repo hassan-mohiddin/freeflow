@@ -99,7 +99,7 @@ Give critical skills an upstream activation or recovery edge.
 
 ### Entry Paths
 
-For each skill, list every valid way in: description activation, routes from other skills, direct user commands, capability cues, context-loss recovery, host-specific activation, and artifact or checkpoint routes. Do not optimize only for the most common path. A skill that can activate directly cannot depend on vocabulary introduced only by a skill that usually precedes it; one reached through a recovery cue cannot assume an earlier discussion or planning skill was read. Check each related skill on:
+For each skill, list every valid way in: description activation, routes from other skills, direct user commands, capability cues, context-loss recovery, host-specific activation, and artifact or return-point routes. Do not optimize only for the most common path. A skill that can activate directly cannot depend on vocabulary introduced only by a skill that usually precedes it; one reached through a recovery cue cannot assume an earlier discussion or planning skill was read. Check each related skill on:
 
 ```text
 direct natural activation

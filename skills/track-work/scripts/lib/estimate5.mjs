@@ -97,11 +97,11 @@ export function estimate(options, env = process.env) {
   const lines = [
     `Context: about ${count(used)} of ${count(window.tokens)} tokens (${Math.round((100 * used) / window.tokens)}%), from ${source}${window.source ? `; the window from ${window.source}` : "; the window assumed (FREEFLOW_CONTEXT_WINDOW is not set)"}.`,
     used < notice
-      ? `Freeflow's notice comes at about ${count(notice)} tokens (75% of the window): about ${count(notice - used)} left before it, for this cycle's work and its checkpoint.`
+      ? `Freeflow's notice comes at about ${count(notice)} tokens (75% of the window): about ${count(notice - used)} left before it, for this compaction cycle's work and its checkpoint.`
       : `Past the notice point (about ${count(notice)} tokens): checkpoint at the next safe point.`,
   ];
   if (done !== null) {
-    // The context so far stands for the parts done, so a part's share is an upper bound: it includes what any cycle
+    // The context so far stands for the parts done, so a part's share is an upper bound: it includes what any compaction cycle
     // starts with (the prompt, the tools, the bundle).
     const perPart = used / done;
     const needed = perPart * left;
@@ -112,7 +112,7 @@ export function estimate(options, env = process.env) {
     else {
       const cycles = Math.ceil((used + needed) / notice) - 1;
       lines.push(
-        `At most about ${count(perPart)} tokens a part, the ${left} part(s) left need about ${count(needed)}: about ${cycles} more cycle(s). Plan where each cycle ends, at a safe point, and keep a task for the work if it has none.`,
+        `At most about ${count(perPart)} tokens a part, the ${left} part(s) left need about ${count(needed)}: about ${cycles} more compaction cycle(s). Plan where each compaction cycle ends, at a safe point, and keep a task for the work if it has none.`,
       );
     }
   }

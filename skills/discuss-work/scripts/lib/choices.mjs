@@ -6,7 +6,7 @@
 //   agreement  the reply sent before building: What I'll do / Where I stop / Your decisions / Technical: N;
 //   handover   the items a hand-over shows: new, changed and default;
 //   catch-up   after an unattended run: defaults taken, choices waiting, changes, and what ran (the record's current
-//              Slice Material updates).
+//              Slice's updates).
 
 export const CHOICE_STATES = new Set(["proposed", "agreed", "default", "changed", "new", "dropped"]);
 const ITEM = /^\s*[-*]\s+([A-Za-z]+\d+)\s+\[([^\]]*)\]\s+(.*)$/;
@@ -70,11 +70,31 @@ export function parseChoices(text) {
 const itemLine = (item) => `- ${item.id} [${item.state}] ${item.text}`;
 const byState = (items, states) => items.filter((item) => states.includes(item.state));
 
-// The current Slice's Material updates: what ran or changed while no one was answering.
+// A Schema 5 Slice's fields, which its update lines follow.
+const SLICE5_FIELDS =
+  /^- (State|Opened|Under|Result wanted|Scope|Done when|Stop if|Started from|Waits on|Dependencies):/;
+
+// A Schema 5 record's current Slice and its update lines: what ran or changed while no one was answering.
+function currentSlice5Updates(recordText) {
+  const lines = recordText.split(/\r?\n/);
+  const start = lines.findIndex((each) => /^### Slice S-\d+/.test(each));
+  if (start === -1) return { slice: "no current Slice", label: "updates", updates: [] };
+  const end = lines.findIndex((each, index) => index > start && /^#{2,3} /.test(each));
+  const updates = lines
+    .slice(start + 1, end === -1 ? undefined : end)
+    .filter((each) => /^-\s+\S/.test(each) && !SLICE5_FIELDS.test(each));
+  return {
+    slice: lines[start].replace(/^###\s+Slice\s+/, ""),
+    label: "updates",
+    updates: updates.map((each) => each.replace(/^-\s+/, "")),
+  };
+}
+
+// A Schema 4 record's current Slice Material updates: what ran or changed while no one was answering.
 function currentSliceUpdates(recordText) {
   const lines = recordText.split(/\r?\n/);
   const start = lines.findIndex((each) => /^### Current Slice\s*$/.test(each));
-  if (start === -1) return { slice: "no Current Slice", updates: [] };
+  if (start === -1) return { slice: "no Current Slice", label: "Material updates", updates: [] };
   const end = lines.findIndex((each, index) => index > start && /^#{2,3} /.test(each));
   const slice = lines.slice(start, end === -1 ? undefined : end);
   const title = slice.find((each) => /^#### S-\d+/.test(each));
@@ -82,6 +102,7 @@ function currentSliceUpdates(recordText) {
   const updates = at === -1 ? [] : slice.slice(at + 1).filter((each) => /^\s*-\s+\S/.test(each));
   return {
     slice: title ? title.replace(/^####\s+/, "") : "no Current Slice",
+    label: "Material updates",
     updates: updates.map((each) => each.trim().replace(/^-\s+/, "")),
   };
 }
@@ -139,11 +160,16 @@ export function renderChoices(view, parsed, { outcome, stop, showTechnical = fal
     ...(waiting.length ? waiting.map(itemLine) : ["- none"]),
   );
   if (changed.length) out.push("", `Changed while you were away (${changed.length}):`, ...changed.map(itemLine));
-  const ran = recordText === null ? null : currentSliceUpdates(recordText);
+  const ran =
+    recordText === null
+      ? null
+      : recordText.schema === 5
+        ? currentSlice5Updates(recordText.text)
+        : currentSliceUpdates(recordText.text);
   if (ran)
     out.push(
       "",
-      `What ran (${ran.slice}, Material updates: ${ran.updates.length}):`,
+      `What ran (${ran.slice}, ${ran.label}: ${ran.updates.length}):`,
       ...(ran.updates.length ? ran.updates.map((each) => `- ${each}`) : ["- nothing recorded"]),
     );
   else out.push("", "What ran: no Working Record; account for it from the conversation.");

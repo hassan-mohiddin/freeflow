@@ -77,7 +77,7 @@ Space: <repository> worktree <path> at <commit>, branch <name> | the coordinator
 Goal: workers run on their own time, and your own work never waits for theirs to close.
 
 - A delegation is not part of a Slice. Your Slices are your own work and open and close whatever the workers are doing; a delegation has its own lifecycle: opened, running, returned, then closed as accepted, sent back or stopped.
-- A Slice that needs a delegation's result waits for it: name the delegation's folder in the Slice's Dependencies, and close the delegation before using the result. Never keep a Slice open only because a delegation is still running.
+- A Slice that needs a delegation's result waits for it: name the delegation in the Slice's `Waits on` (with a Schema 4 record, its folder in the Slice's Dependencies), and close the delegation before using the result. Never keep a Slice open only because a delegation is still running.
 - Closing a delegation accepts its return: check it as Check The Return says, merge its branch, and record the merge commit. Work beyond that, such as resolving conflicts between parts, is a Slice of yours.
 - With a Schema 5 record, `delegate open` writes the delegation's line in Current Work's Delegations and `delegate close` records its outcome; nothing else needs writing. With a Schema 4 record, record each dispatch by hand through [Track Work](../../track-work/SKILL.md) where the record holds current work, with the folder's path: a line on the Current Slice when one is open, `Delegation — D-012 (build, <model> <effort>): running; delegations/D-012-<slug>/brief.md`, and otherwise a Recovery source, `delegations/D-012-<slug>/ — D-012 (build, <model> <effort>): running; read when it returns`. Record its outcome the same way when it closes, wherever the record holds current work then.
 
@@ -98,7 +98,7 @@ Goal: no one waits idle, and no worker builds on a premise that has changed.
 - Run workers in the background and keep doing independent work, in paths no worker writes.
 - When a return or the user's new direction changes a running worker's premise, append the change, dated, to its brief's Changes (`delegate amend --id D-012 --text <change>`) and tell the worker, or stop it.
 - Another round for the same result keeps the folder: the brief gets a dated change, `progress.md` continues, and `return.md` is rewritten. Resume the same agent when the host can, since it still holds its context; a fresh agent can take over the folder, since the files carry the work.
-- After your own context loss, the record's Delegation lines and delegation Recovery sources, and the folders without a finished return, are the open delegations.
+- After your own context loss, the open delegations are the record's Delegations lines (with a Schema 4 record, its Delegation lines and delegation Recovery sources) and the folders without a finished return.
 
 ## Work From A Brief
 

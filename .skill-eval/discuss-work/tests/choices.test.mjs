@@ -155,3 +155,65 @@ test("choices renders the agreement, the hand-over filter and the catch-up from 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("with a Schema 5 record, the list is decisions.md beside it and the catch-up reads the current Slice's update lines", async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "discuss-work-choices5-")));
+  try {
+    git(root, "init", "--quiet", "--initial-branch=main");
+    await writeFile(join(root, ".gitignore"), ".freeflow/\n");
+    const init = run(
+      root,
+      ["init", "--root", root, "--name", "Queue", "--cue", "read when the queue matters", "--input", "-"],
+      "### Goal\n\n- Add a queue.\n\n### Next action\n\n- Build it.\n",
+    );
+    assert.equal(init.status, 0, init.stderr);
+    const recordPath = resolve(root, init.stdout.trim().split("\n")[0]);
+    const opened = run(
+      root,
+      ["agreement", "open", "--record", recordPath, "--title", "Queue", "--input", "-"],
+      '- Done when the queue drains. You: "go" (2026-10-30)\n',
+    );
+    assert.equal(opened.status, 0, opened.stderr);
+    const started = run(
+      root,
+      [
+        "slice",
+        "start-direct",
+        "--record",
+        recordPath,
+        "--title",
+        "Build the queue",
+        "--next-action",
+        "Test it.",
+        "--input",
+        "-",
+      ],
+      "- Result wanted: A queue.\n- Scope: src/queue.ts.\n- Done when: it drains.\n- Stop if: it drops jobs.\n- Started from: none.\n",
+    );
+    assert.equal(started.status, 0, started.stderr);
+    const text = await readFile(recordPath, "utf8");
+    await writeFile(
+      recordPath,
+      text.replace(
+        "- Started from: none.\n",
+        () =>
+          "- Started from: none.\n- Evidence (observed): the queue drains — scratch/run.txt\n- Result: commit abc1234\n",
+      ),
+    );
+    // init writes decisions.md; without it, the message names where Track Work keeps it.
+    await rm(join(dirname(recordPath), "decisions.md"));
+    const missing = choices(root, ["validate", "--record", recordPath]);
+    assert.equal(missing.status, 2);
+    assert.match(missing.stderr, /no decision list at .*\/task-001-queue\/decisions\.md/);
+    await writeFile(join(dirname(recordPath), "decisions.md"), `# Decisions\n\n${LIST}`);
+    const catchUp = choices(root, ["catch-up", "--record", recordPath]);
+    assert.equal(catchUp.status, 0, catchUp.stderr);
+    assert.match(catchUp.stdout, /Choices waiting for you \(1\):\n- P2 \[new\]/);
+    assert.match(
+      catchUp.stdout,
+      /What ran \(S-001 — Build the queue, updates: 2\):\n- Evidence \(observed\): the queue drains — scratch\/run\.txt\n- Result: commit abc1234\n/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

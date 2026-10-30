@@ -1,6 +1,6 @@
 ---
 name: setup-freeflow
-description: "Use when installing, activating or turning off Freeflow in a repository, changing or repairing its repository or personal configuration (.freeflow/config.json, .freeflow/local.json), or checking whether the current host is loading Freeflow's guidance and skills."
+description: "Use when installing, activating or turning off Freeflow in a repository, changing or repairing its repository or personal configuration (.freeflow/config.json, .freeflow/local.json), setting up the Freeflow store that keeps task memory (local, or cloud with a private repository), or checking whether the current host is loading Freeflow's guidance and skills."
 ---
 
 # Setup Freeflow
@@ -19,6 +19,7 @@ Answer setup questions and delivery checks read-only. An explicit action request
 | --- | --- |
 | Activating, or changing shared or personal setup | Establish Mutation Authority, then Inspect The Layers, then the section for that layer |
 | Repository config invalid, or conflicting with accepted source truth or repository instructions | [Discuss Work](../discuss-work/SKILL.md), before replacing or reinterpreting it |
+| Setting up the Freeflow store for task memory, local or cloud, or moving a local store to the cloud | Set Up The Store, below |
 | Whether the host delivers Freeflow, or which host action refreshes it | Hosts, below |
 | Cognitive Routing or Tool Execution values | Their explicit settings surface (on Pi, `/freeflow settings`), only when the user requests them |
 
@@ -82,6 +83,17 @@ Omitted values inherit from repository config and built-in defaults; local prece
 Before writing local config in a Git checkout, verify it is untracked and ignored. Do not modify shared ignore policy merely to store a personal preference: prefer the host's safe settings path, `.git/info/exclude`, or an existing ignore rule. Refuse to overwrite a tracked local config.
 
 If local config is invalid, report that it blocks effective runtime. Repair or remove it only with authorization; never discard it and fall back silently.
+
+## Set Up The Store
+
+[Track Work](../track-work/SKILL.md) keeps task memory in the Freeflow store: one private Git repository at `FREEFLOW_HOME` (default `~/.freeflow`), apart from every code repository. Set it up when the user asks, or says yes when Track Work asks to make it. Its script is `node <track-work-directory>/scripts/working-record.mjs`.
+
+Ask one question, local or cloud, with local first as the default:
+
+- **Local:** the store on this device only; nothing leaves the machine. `store init`.
+- **Cloud:** the same store with the user's own private repository as its remote, kept in step on every device. `store init --remote <url>` lays an empty repository out as the store, or joins one that already is. A cloud session needs cloud, since its container is thrown away: the store's repository must be one of the session's repositories, with `FREEFLOW_HOME` pointing at its clone.
+
+A local store moves to the cloud later with `store remote --url <url>`, which pushes its whole history into an empty private repository. Commits in the store are authored as the user (`--git-name` and `--git-email` when Git has no identity), with no trailers. `store init` refuses a folder that holds Pi's Task Memory (`registry.json`) or anything else: ask the user where the store should go. Never point the store at a repository that is not the user's own and private. Report where the store is and whether it is local or cloud, from `store status`.
 
 ## Hosts
 

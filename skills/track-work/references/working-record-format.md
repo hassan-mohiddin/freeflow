@@ -156,7 +156,7 @@ The three top-level sections are fixed, in this order. Current Work holds its se
 | `# <task name>` | The task's name. |
 | `Schema: 5 · State: <state> · Budget: <mode>` | The task state (`active`, `paused`, `completed`, `abandoned`) and the budget mode (`normal` or `expanded`; `normal` when absent). |
 | `Cue:` | When the task matters, starting "read when", in at most 25 words. The menu and the project index show it. |
-| `State as of:` | When the record was last checkpointed: `init` and `checkpoint` set it, nothing else. Where Freeflow compacts for the harness, it counts a checkpoint as done when this is later than the cycle's notice, or, with no notice in the cycle, than the cycle's start. |
+| `State as of:` | When the record was last checkpointed: `init` and `checkpoint` set it, nothing else. Where Freeflow compacts for the harness, it counts a checkpoint as done when this is later than the compaction cycle's notice, or, with no notice in it, than its start. |
 
 ### Fields
 
@@ -269,7 +269,7 @@ Rewritten whole by `checkpoint --input`; each line starts with its label:
 - Carry: src/http/client.ts (lines 10–40) — the loop under test
 ```
 
-A `Carry` line names a file, optionally its lines, and why the next cycle needs it; the bundle copies it fresh, and it counts toward the budget. An input of `none` empties In flight, and a labelled line that says only `none` (`- Carry: none`) is left out.
+A `Carry` line names a file, optionally its lines, and why the next compaction cycle needs it; the bundle copies it fresh, and it counts toward the budget. An input of `none` empties In flight, and a labelled line that says only `none` (`- Carry: none`) is left out.
 
 ### Defined by, Read on recovery, Read when
 
@@ -418,7 +418,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task |
 | Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
 | The budget | `budget [--record <ID>]`; `task set-budget --mode <normal\|expanded>` on the user's word |
-| The context used, and whether the rest fits in this cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
+| The context used, and whether the rest fits in this compaction cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
 | Change the task state | `task set-state --state <state>` |
 | Convert a Schema 4 record | `migrate`, on the user's word |
 

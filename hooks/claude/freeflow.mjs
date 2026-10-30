@@ -165,7 +165,7 @@ function noticeText($, context, state, number) {
   const checkpoint = state.task
     ? `At that point, checkpoint ${state.task.id}: rewrite ${state.task.id}'s Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${state.task.id} --input - with In flight's lines.`
     : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --input - (Goal, Settled, Open, Agreement, In flight, Read when, Next action).`;
-  return `Freeflow, cycle ${number}: the context is at ${share(context)}${limit}. Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and starts the next turn where it can. This is the only notice this cycle; if Claude Code compacts before the checkpoint, the record as of its last checkpoint follows Claude's summary.`;
+  return `Freeflow, compaction cycle ${number}: the context is at ${share(context)}${limit}. Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and starts the next turn where it can. This is the only notice this compaction cycle; if Claude Code compacts before the checkpoint, the record as of its last checkpoint follows Claude's summary.`;
 }
 
 /**
@@ -198,7 +198,7 @@ async function watchMain($) {
     const number = await cycleNumber($, state);
     await appendRow(
       $,
-      `Freeflow, cycle ${number}: the context is at ${share(context)}; the checkpoint notice comes at about ${Math.round(point)} tokens.`,
+      `Freeflow, compaction cycle ${number}: the context is at ${share(context)}; the checkpoint notice comes at about ${Math.round(point)} tokens.`,
     );
     return;
   }

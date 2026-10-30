@@ -25,7 +25,7 @@ test("estimate gives the context's use against the window and the notice, and pr
   assert.equal(before.status, 0, before.stderr);
   assert.equal(
     before.stdout,
-    "Context: about 50,000 of 200,000 tokens (25%), from --used; the window from FREEFLOW_CONTEXT_WINDOW.\nFreeflow's notice comes at about 150,000 tokens (75% of the window): about 100,000 left before it, for this cycle's work and its checkpoint.\n",
+    "Context: about 50,000 of 200,000 tokens (25%), from --used; the window from FREEFLOW_CONTEXT_WINDOW.\nFreeflow's notice comes at about 150,000 tokens (75% of the window): about 100,000 left before it, for this compaction cycle's work and its checkpoint.\n",
   );
   assert.match(
     run(["--used", "50000", "--done", "1", "--left", "2"]).stdout,
@@ -33,7 +33,7 @@ test("estimate gives the context's use against the window and the notice, and pr
   );
   assert.match(
     run(["--used", "60000", "--done", "1", "--left", "4"]).stdout,
-    /At most about 60,000 tokens a part, the 4 part\(s\) left need about 240,000: about 1 more cycle\(s\)\./,
+    /At most about 60,000 tokens a part, the 4 part\(s\) left need about 240,000: about 1 more compaction cycle\(s\)\./,
   );
   assert.match(
     run(["--used", "160000"]).stdout,

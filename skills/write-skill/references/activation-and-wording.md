@@ -57,7 +57,7 @@ Broad useful trigger:
 
 Over-specified trigger that hides the job:
 
-> Use after final verification when a planned checkpoint requires a locally reviewable commit.
+> Use after final verification when a planned return point requires a locally reviewable commit.
 
 Broad safe-read trigger:
 
