@@ -271,9 +271,15 @@ Rewritten whole by `checkpoint --input`; each line starts with its label:
 - Dropped: retrying inside fetch() — it hides the attempt count from the test
 - Pending: CI on 5e6f7a8b — its result
 - Carry: src/http/client.ts (lines 10–40) — the loop under test
+- Carry: result toolu_01AbC (Bash: npm test) — the two failures the fix answers
 ```
 
-A `Carry` line names a file, optionally its lines, and why the next compaction cycle needs it; the bundle copies it fresh, and it counts toward the budget. An input of `none` empties In flight, and a labelled line that says only `none` (`- Carry: none`) is left out.
+A `Carry` line names a context item and why the next compaction cycle needs it, and what it carries counts toward the budget:
+
+- a file, optionally its lines, which the bundle copies fresh;
+- a tool result, `result <n>` with its number in `carry list`, which `checkpoint` pins to the result's tool-use ID and what its call was for, as above; the bundle copies it whole, as it was, from the session's transcript, and the checks name one the transcript no longer holds.
+
+The bundle then adds this compaction cycle's newest tool results that no line carried, whole, within the carry budget (15% of the window, at most 40,000 tokens), and lists older ones by ID; results under 25 tokens are left out. An input of `none` empties In flight, and a labelled line that says only `none` (`- Carry: none`) is left out.
 
 ### Defined by, Read on recovery, Read when
 
@@ -391,7 +397,7 @@ Only `discussion save` and `discussion drop` write it.
 
 ## The Session Summary
 
-A session that holds no task checkpoints into `<store>/sessions/<session ID>/summary.md` with `checkpoint --session --input -`: the headings `## Goal`, `## Settled`, `## Open`, `## Agreement`, `## In flight`, `## Read when` and `## Next action`, in that order, with `(none)` where one has nothing; Goal and Next action must say something. Freeflow's compaction installs it after the store's rules and removes it. The store's `sessions/` folder is this machine's only and is never synced.
+A session that holds no task checkpoints into `<store>/sessions/<session ID>/summary.md` with `checkpoint --session --input -`: the headings `## Goal`, `## Settled`, `## Open`, `## Agreement`, `## In flight`, `## Read when` and `## Next action`, in that order, with `(none)` where one has nothing; Goal and Next action must say something; In flight takes the same Carry lines as a record's, files read from the session's folder. Freeflow's compaction installs it after the store's rules, with what it carries and this compaction cycle's newest tool results, and removes it. The store's `sessions/` folder is this machine's only and is never synced.
 
 ## Task State
 
@@ -421,6 +427,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Hand work to an agent, and close it | `delegate open`, `amend`, `status`, `check-return`, `close`; with no task, `delegate open --scratch <folder>` and `check-return --scratch <folder>`, which record nothing |
 | Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task; either with `--compact` to have Freeflow's harness layer compact when the turn ends, which it does only on that request |
 | Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
+| A tool result to carry into the next compaction cycle | `carry list` numbers this compaction cycle's results; `carry show --id <ID or n>` prints one whole; both change nothing |
 | The budget | `budget [--record <ID>]`; `task set-budget --mode <normal\|expanded>` on the user's word |
 | The context used, and whether the rest fits in this compaction cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
 | The Slices left, sized from measured ones, across compaction cycles; a project's or the store's measured use | `estimate --plan [--record <ID>] [--input -] [--fan-out <n>] [--json]`, `estimate --project <name>`, `estimate --store`: change nothing |
@@ -453,7 +460,7 @@ Never edit directly: IDs, `State` fields, `Opened`, `State as of`, `Predicted` a
 Views print and change nothing.
 
 - `view recover [--delegation <D-NNN>]`: the opening line (the record is memory; the user's direction decides the work), the store's and the project's rules, `record.md`, the active decisions within their budget, the History index, the project's other tasks with their cues, and the checks: the task folder's path, the budget, pointers that do not resolve, open delegations, the hold, the store's changes not yet synced, and where each repository in Space stands; then the line saying what to read next. With `--delegation`, a worker's: its rule and its delegation's brief, progress and return first.
-- `view bundle`: the same, then every source recovery reads, whole, with the counted and uncounted sizes and the recovery line: what Freeflow's compaction installs. `--fallback` is what Freeflow adds after the harness's own summary when the compaction came before the checkpoint; `--session` is a session summary's bundle.
+- `view bundle`: the same, then every source recovery reads, whole, In flight's carried files and results, this compaction cycle's newest tool results within the carry budget with the rest listed by ID, the counted and uncounted sizes and the recovery line: what Freeflow's compaction installs. `--fallback` is what Freeflow adds after the harness's own summary when the compaction came before the checkpoint; `--session` is a session summary's bundle.
 - `view entry <ID> [<ID> ...]`: the named History entries as stored, in the order given; an unknown ID prints nothing and fails.
 - `view index`: every History entry, one line each.
 - `view full`: `record.md` as stored, valid or not; use it after an uncertain write or a failed validation.

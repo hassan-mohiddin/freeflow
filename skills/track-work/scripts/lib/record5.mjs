@@ -34,8 +34,28 @@ export const BUDGET_MODES = new Set(["normal", "expanded"]);
 /** In flight's lines (P59): where the step in progress stands, and what the next step rests on, labelled as on Pi. */
 export const IN_FLIGHT_LABELS = ["Now", "Observed", "Hypothesis", "Dropped", "Pending", "Carry"];
 const IN_FLIGHT_LINE = new RegExp(`^- (${IN_FLIGHT_LABELS.join("|")}):\\s+\\S`);
-/** A Carry line: `- Carry: <path> (lines 40–118) — why`, the lines optional. */
+/** A Carry line for a file: `- Carry: <path> (lines 40–118) — why`, the lines optional. */
 const CARRY_LINE = /^- Carry:\s+(\S+)(?:\s+\(lines?\s+(\d+)(?:\s*[–-]\s*(\d+))?\))?\s+—\s+\S/;
+/**
+ * A Carry line for a tool result (P2): `- Carry: result <ID> (<what the call was for>) — why`; the input to
+ * checkpoint may give its number in `carry list` instead of its ID, which the checkpoint pins.
+ */
+export const CARRY_RESULT = /^- Carry:\s+result\s+(\S+?)(?:\s+\(([^)]*)\))?\s+—\s+\S/;
+
+/** What a Carry line names: a tool result, or a file and its lines; null for a line that is neither. */
+export function carryItem(line) {
+  const result = CARRY_RESULT.exec(line);
+  if (result) return { result: result[1], label: result[2] ?? null, path: null, from: null, to: null };
+  const file = CARRY_LINE.exec(line);
+  if (!file) return null;
+  const [, path, from, to] = file;
+  return {
+    result: null,
+    path,
+    from: from ? Number(from) : null,
+    to: to ? Number(to) : from ? Number(from) : null,
+  };
+}
 
 export const SLICE5_ORDER = [
   "State",
@@ -371,20 +391,15 @@ function parseCurrentWork5(lines, section) {
   work.inFlight = bulletsOnly(lines, flight.start, flight.end, "In flight", (line) => {
     if (!IN_FLIGHT_LINE.test(line))
       fail("invalid-in-flight", `An In flight line starts with ${IN_FLIGHT_LABELS.join(", ")} and a colon: ${line}`);
-    if (line.startsWith("- Carry:") && !CARRY_LINE.test(line))
-      fail("invalid-carry", `A Carry line is "- Carry: <path> (lines <a>–<b>) — <why>", the lines optional: ${line}`);
+    if (line.startsWith("- Carry:") && !CARRY_RESULT.test(line) && !CARRY_LINE.test(line))
+      fail(
+        "invalid-carry",
+        `A Carry line is "- Carry: <path> (lines <a>–<b>) — <why>", the lines optional, or "- Carry: result <ID> — <why>": ${line}`,
+      );
   });
   work.carry = work.inFlight
     .filter((item) => item.text.startsWith("Carry:"))
-    .map((item) => {
-      const [, path, from, to] = CARRY_LINE.exec(`- ${item.text}`);
-      return {
-        index: item.index,
-        path,
-        from: from ? Number(from) : null,
-        to: to ? Number(to) : from ? Number(from) : null,
-      };
-    });
+    .map((item) => ({ index: item.index, ...carryItem(`- ${item.text}`) }));
   const defined = work.headings.get("Defined by");
   work.definedBy = bulletsOnly(lines, defined.start, defined.end, "Defined by");
   const now = work.headings.get("Read on recovery");
