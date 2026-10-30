@@ -279,7 +279,7 @@ cmd_doctor() {
 # here only after confirming in source that it never starts a turn.
 local_command() {
   case "$1" in
-    "/freeflow status" | "/freeflow settings" | "/freeflow settings "* | "/freeflow project "* | "/freeflow task "* | "/reload") return 0 ;;
+    "/freeflow status" | "/freeflow settings" | "/freeflow settings "* | "/reload") return 0 ;;
     *) return 1 ;;
   esac
 }

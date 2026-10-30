@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
+
+/** The Freeflow home, where the live registry's folder is: FREEFLOW_HOME, else ~/.freeflow. */
+export function freeflowHome(): string {
+  return process.env.FREEFLOW_HOME || join(homedir(), ".freeflow");
+}
 
 /**
  * The live-session registry: one JSON file per running session with messaging on, under `<home>/sessions/`, written
@@ -14,11 +20,11 @@ export type LiveSession = Readonly<{
   pid: number;
   socket: string;
   busy: boolean;
-  /** The Task Memory project of the session's repository, when it has one. */
+  /** The project of the task the session holds in the Freeflow store, when it is in one. */
   project?: string;
-  /** The task ID of the session's focused Working Record, when it is registered. */
+  /** The ID of the task the session holds in the Freeflow store. */
   task?: string;
-  /** The Task Memory tasks this session owns, so another session can find the one that owns a task. */
+  /** The tasks a session on an earlier Freeflow owned in Pi's Task Memory, still read so it can be found by them. */
   owns?: readonly string[];
   startedAt: string;
 }>;

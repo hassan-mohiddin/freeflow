@@ -38,14 +38,9 @@ const requiredFiles = [
   "capabilities/cognitive-routing/references/coordinator.md",
   "capabilities/cognitive-routing/references/worker.md",
   "pi-extension/dist/compaction/controller.js",
-  "capabilities/task-memory/SKILL.md",
-  "pi-extension/dist/task-memory/runtime.js",
-  "pi-extension/dist/task-memory/registry.js",
   "pi-extension/dist/messaging/messaging.js",
   "capabilities/messaging/SKILL.md",
-  "skills/track-work/scripts/lib/registry.mjs",
   "skills/track-work/scripts/lib/search.mjs",
-  "skills/track-work/scripts/lib/views.mjs",
 ];
 const excludedPrefixes = [
   "plugin-docs/",

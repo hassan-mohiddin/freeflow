@@ -22,7 +22,6 @@ import { PiSettingsComponent } from "./settings-view.js";
 import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG } from "../../tool-execution/config.js";
 import { DEFAULT_COMPACTION_CARRY, DEFAULT_COMPACTION_ENABLED } from "../../compaction/config.js";
-import { AUTO_APPROVE_GROUPS, DEFAULT_TASK_MEMORY_ENABLED } from "../../task-memory/config.js";
 import { DEFAULT_INBOUND_POLICY, DEFAULT_MESSAGING_ENABLED, INBOUND_POLICIES } from "../../messaging/config.js";
 /*
  * The /freeflow command and the settings model it edits: every Freeflow setting with its repository, personal, and
@@ -356,17 +355,10 @@ function createSessionBooleanItem(options) {
     inheritedSource: options.inheritedSource,
   };
 }
-const AUTO_APPROVE_LABELS = {
-  attach: ["Attach", "attaching a record, and making a held record writable"],
-  create: ["Create", "creating a task or a child task"],
-  env: ["Directories", "changing a task's directories"],
-  fanout: ["Fan-out", "a child task with its own Git worktree and branch"],
-  projects: ["Projects", "creating or linking a project, and importing a record into one"],
-};
 const INBOUND_LABELS = { accept: "never", project: "outside the project", hold: "every message", refuse: "refuse all" };
 const INBOUND_DESCRIPTIONS = {
   accept: "Deliver every message to the agent.",
-  project: "Deliver messages from sessions in this repository's Task Memory project; ask you about the rest.",
+  project: "Deliver messages from sessions holding a task in this session's project; ask you about the rest.",
   hold: "Ask you before delivering any message.",
   refuse: "Refuse every message.",
 };
@@ -434,7 +426,6 @@ const SECTION_ORDER = [
   "freeflow.skills",
   "freeflow.compaction",
   "freeflow.toolExecution",
-  "freeflow.taskMemory",
   "freeflow.messaging",
   "freeflow.cognitiveRouting",
   "freeflow.review",
@@ -625,16 +616,6 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
     state.compaction?.carry ?? DEFAULT_COMPACTION_CARRY,
     DEFAULT_COMPACTION_CARRY,
   );
-  const autoApproveItems = Object.keys(AUTO_APPROVE_GROUPS).map((group) =>
-    sessionSwitch(
-      `freeflow.taskMemory.autoApprove.${group}`,
-      AUTO_APPROVE_LABELS[group][0],
-      `Let the agent do this without asking you first, in this session: ${AUTO_APPROVE_LABELS[group][1]}.`,
-      `taskMemory.autoApprove.${group}`,
-      state.taskMemory?.autoApprove?.[group] ?? false,
-      false,
-    ),
-  );
   const inboundInherited = configuredSetting(rawConfig, localConfig, ["messaging", "inbound"], DEFAULT_INBOUND_POLICY);
   const inboundItem = createSessionChoiceItem({
     id: "freeflow.messaging.inbound",
@@ -712,14 +693,6 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       true,
     ),
   );
-  const taskMemoryItem = sessionSwitch(
-    "freeflow.taskMemory.enabled",
-    "Enabled",
-    "Use task memory in this session.",
-    "taskMemory.enabled",
-    state.taskMemory?.enabled ?? DEFAULT_TASK_MEMORY_ENABLED,
-    DEFAULT_TASK_MEMORY_ENABLED,
-  );
   const messagingItem = sessionSwitch(
     "freeflow.messaging.enabled",
     "Enabled",
@@ -766,21 +739,6 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       "Compaction for this session.",
       capabilityStatus(state.compaction),
       [compactionItem, carryItem],
-    ),
-    sectionItem(
-      "freeflow.taskMemory",
-      "Task Memory",
-      "Task memory for this session.",
-      capabilityStatus(state.taskMemory),
-      [
-        taskMemoryItem,
-        nestedGroup(
-          "freeflow.taskMemory.autoApprove",
-          "Auto-approve",
-          "Task memory actions the agent may take without asking you first, in this session. Enter opens the five switches; Esc returns.",
-          autoApproveItems,
-        ),
-      ],
     ),
     sectionItem("freeflow.messaging", "Messaging", "Messaging for this session.", capabilityStatus(state.messaging), [
       messagingItem,
@@ -1325,61 +1283,6 @@ function freeflowItems(rawConfig, options = {}) {
     displaySuffix: compactionState?.effective ? "active" : compactionState?.enabled ? "inactive" : "disabled",
     children: compactionItems,
   };
-  const taskMemoryState = options.taskMemory;
-  const taskMemoryEnabledItem = createScopedBooleanItem({
-    scope,
-    rawConfig,
-    localConfig,
-    id: "freeflow.taskMemory.enabled",
-    label: "Enabled",
-    description:
-      "A preview: attach Working Records to the session, deliver the focused record after compaction, and refuse record writes to records not attached.",
-    path: ["taskMemory", "enabled"],
-    effectiveValue: taskMemoryState?.enabled ?? DEFAULT_TASK_MEMORY_ENABLED,
-    effectiveSource: toolSource(["taskMemory", "enabled"]),
-    defaultValue: DEFAULT_TASK_MEMORY_ENABLED,
-  });
-  taskMemoryEnabledItem.inactive = freeflowInactive;
-  // Which proposals skip the confirmation dialog (Task 004 D-002).
-  const approveLabels = AUTO_APPROVE_LABELS;
-  const approveItems = Object.keys(AUTO_APPROVE_GROUPS).map((group) => {
-    const item = createScopedBooleanItem({
-      scope,
-      rawConfig,
-      localConfig,
-      id: `freeflow.taskMemory.autoApprove.${group}`,
-      label: approveLabels[group][0],
-      description: `Let the agent do this without asking you first: ${approveLabels[group][1]}. Off asks every time.`,
-      path: ["taskMemory", "autoApprove", group],
-      effectiveValue: taskMemoryState?.autoApprove?.[group] ?? false,
-      effectiveSource: toolSource(["taskMemory", "autoApprove", group]),
-      defaultValue: false,
-    });
-    item.inactive = freeflowInactive;
-    return item;
-  });
-  const taskMemoryGroup = {
-    id: "freeflow.taskMemory",
-    label: "Task Memory",
-    description: "Configure task memory: Working Records the session knows, delivers and guards.",
-    kind: "group",
-    value: taskMemoryState?.enabled ?? DEFAULT_TASK_MEMORY_ENABLED,
-    inactive: freeflowInactive,
-    displaySuffix: taskMemoryState?.effective ? "active" : taskMemoryState?.enabled ? "inactive" : "disabled",
-    children: [
-      taskMemoryEnabledItem,
-      {
-        id: "freeflow.taskMemory.autoApprove",
-        label: "Auto-approve",
-        description:
-          "Task memory actions the agent may take without asking you first. Enter opens the five switches; Esc returns.",
-        kind: "group",
-        nested: true,
-        value: true,
-        children: approveItems,
-      },
-    ],
-  };
   const messagingState = options.messaging;
   const messagingEnabledItem = createScopedBooleanItem({
     scope,
@@ -1549,7 +1452,6 @@ function freeflowItems(rawConfig, options = {}) {
     ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
     toolExecutionGroup,
     compactionGroup,
-    taskMemoryGroup,
     messagingGroup,
     reviewGroup,
     promptsGroup,
@@ -1564,11 +1466,6 @@ function pruneKnownDefaults(config) {
     { path: ["toolExecution", "guidanceNotices"], value: DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices },
     { path: ["compaction", "enabled"], value: DEFAULT_COMPACTION_ENABLED },
     { path: ["compaction", "carry"], value: DEFAULT_COMPACTION_CARRY },
-    { path: ["taskMemory", "enabled"], value: DEFAULT_TASK_MEMORY_ENABLED },
-    ...Object.keys(AUTO_APPROVE_GROUPS).map((group) => ({
-      path: ["taskMemory", "autoApprove", group],
-      value: false,
-    })),
     { path: ["messaging", "enabled"], value: DEFAULT_MESSAGING_ENABLED },
     { path: ["messaging", "inbound"], value: DEFAULT_INBOUND_POLICY },
     { path: ["prompts", "enabled"], value: true },
@@ -1769,13 +1666,6 @@ function refreshSettingsDerivedState(items) {
     const on = effectiveItemValue(compactionEnabled) === true;
     compactionGroup.value = on;
     compactionGroup.displaySuffix = on && !freeflowInactive ? "active" : on ? "inactive" : "disabled";
-  }
-  const taskMemoryGroup = findSettingsItem(items, "freeflow.taskMemory");
-  const taskMemoryEnabled = findSettingsItem(items, "freeflow.taskMemory.enabled");
-  if (taskMemoryGroup && taskMemoryEnabled) {
-    const on = effectiveItemValue(taskMemoryEnabled) === true;
-    taskMemoryGroup.value = on;
-    taskMemoryGroup.displaySuffix = on && !freeflowInactive ? "active" : on ? "inactive" : "disabled";
   }
   const messagingGroup = findSettingsItem(items, "freeflow.messaging");
   const messagingEnabled = findSettingsItem(items, "freeflow.messaging.enabled");
@@ -2080,7 +1970,6 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
       cognitiveRouting: state.cognitiveRouting,
       toolExecution: state.toolExecution,
       compaction: state.compaction,
-      taskMemory: state.taskMemory,
       messaging: state.messaging,
       ctx,
       runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
@@ -2143,7 +2032,6 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
       cognitiveRouting: stateNow.cognitiveRouting,
       toolExecution: stateNow.toolExecution,
       compaction: stateNow.compaction,
-      taskMemory: stateNow.taskMemory,
       messaging: stateNow.messaging,
       ctx,
       runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),

@@ -419,9 +419,9 @@ test("a session can switch each capability without changing either config file",
     assert.equal(state.cognitiveRouting.projection, false);
     assert.equal(state.cognitiveRouting.projectionSource, "session");
     assert.equal(state.cognitiveRouting.enabled, true, "an override of one switch leaves the others configured");
-    // Task memory is off by default, so the session switches it on.
-    assert.equal((await setSessionCoreOverride("taskMemory.enabled", true, ctx, pi)).reloadRequired, true);
-    assert.equal((await readCapabilityState(cwd)).taskMemory.enabled, true);
+    // Messaging is off by default, so the session switches it on.
+    assert.equal((await setSessionCoreOverride("messaging.enabled", true, ctx, pi)).reloadRequired, true);
+    assert.equal((await readCapabilityState(cwd)).messaging.enabled, true);
     assert.equal(await readFile(configPath, "utf8"), original);
     assert.equal(await readFile(join(cwd, ".freeflow/local.json"), "utf8").catch(() => undefined), undefined);
 
@@ -430,13 +430,13 @@ test("a session can switch each capability without changing either config file",
     assert.equal(reset.toolExecution.enabled, true);
     assert.equal(reset.compaction.carry, true);
     assert.equal(reset.cognitiveRouting.projection, true);
-    assert.equal(reset.taskMemory.enabled, false);
+    assert.equal(reset.messaging.enabled, false);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
 });
 
-test("session settings switch task memory on for the session only", async () => {
+test("session settings switch messaging on for the session only", async () => {
   const cwd = await configuredRepo({});
   try {
     const { commands } = loadExtension({ appendEntry() {}, setModel: () => true, setThinkingLevel() {} });
@@ -447,19 +447,19 @@ test("session settings switch task memory on for the session only", async () => 
     settings.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, theme, {}, () => {});
       before = component.render(120).join("\n");
-      choose(component, "Enabled", "Task Memory");
+      choose(component, "Enabled", "Messaging");
       component.handleInput(KEY.enter);
       await component.waitForWrites();
       after = component.render(120).join("\n");
       component.handleInput(KEY.escape);
     };
     await command.definition.handler("settings session", settings);
-    assert.match(before, /Task Memory\s+off \(inherited\)\n/);
-    assert.match(after, /› Task Memory\s+on\n/);
+    assert.match(before, /Messaging\s+off \(inherited\)\n/);
+    assert.match(after, /› Messaging\s+on\n/);
     const { readCapabilityState } = await import("../../dist/host/config.js");
     assert.equal(await readFile(join(cwd, ".freeflow/local.json"), "utf8").catch(() => undefined), undefined);
     await resetSessionOverrides(settings, {});
-    assert.equal((await readCapabilityState(cwd)).taskMemory.enabled, false);
+    assert.equal((await readCapabilityState(cwd)).messaging.enabled, false);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -31,56 +31,6 @@ const run = (cwd, args, input = "") => {
   const result = spawnSync(process.execPath, [scriptPath, ...args], { cwd, env: gitEnv, encoding: "utf8", input });
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 };
-
-// A repository on branch main with one commit, and a record whose Current Slice names a branch and a commit.
-async function workspace({ branchNamed = "main", commit = null, updates = [], sources = [], defines = [] } = {}) {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "track-work-recover-")));
-  git(root, "init", "--quiet", "--initial-branch=main");
-  await writeFile(join(root, ".gitignore"), ".freeflow/\n");
-  await mkdir(join(root, "docs"), { recursive: true });
-  await writeFile(join(root, "docs/spec.md"), "# Spec\n\nOne.\nTwo.\n");
-  git(root, "add", "--all");
-  git(root, "commit", "--quiet", "-m", "base");
-  const head = git(root, "rev-parse", "HEAD");
-  const init = run(
-    root,
-    ["init", "--schema", "4", "--root", root, "--name", "Queue", "--input", "-"],
-    `### Goal\n- Add a queue.\n\n### What defines this task\n${defines.map((each) => `- ${each}`).join("\n")}\n\n### Next useful action\n- Build it.\n`,
-  );
-  assert.equal(init.status, 0, init.stderr);
-  const record = init.stdout.trim().split("\n")[0];
-  const recordPath = resolve(root, record);
-  const start = run(
-    root,
-    [
-      "slice",
-      "start-direct",
-      "--record",
-      recordPath,
-      "--title",
-      "Build the queue",
-      "--next-action",
-      "Edit.",
-      "--input",
-      "-",
-    ],
-    `- Intended result: a queue.\n- Authority source: the user.\n- Scope: src/.\n- Expected evidence: tests.\n- Stop condition: done.\n- Starting state: on ${branchNamed} at ${commit ?? head.slice(0, 8)}.\n`,
-  );
-  assert.equal(start.status, 0, start.stderr);
-  let text = await readFile(recordPath, "utf8");
-  if (updates.length)
-    text = text.replace(
-      "\n### Recovery sources",
-      `\n##### Material updates\n\n${updates.map((each) => `- ${each.replace("{HEAD}", head.slice(0, 8))}`).join("\n")}\n\n### Recovery sources`,
-    );
-  if (sources.length)
-    text = text.replace(
-      "### Recovery sources\n",
-      `### Recovery sources\n\n${sources.map((each) => `- ${each}`).join("\n")}\n`,
-    );
-  await writeFile(recordPath, text);
-  return { root, recordPath, head, taskDir: dirname(recordPath) };
-}
 
 const LIST = `# Decisions
 
@@ -194,7 +144,7 @@ test("the agreement shows the plan's size last (P101), and its Technical part th
   }
 });
 
-test("choices renders the agreement, the hand-over filter and the catch-up from the record", async () => {
+test("choices renders the agreement and the hand-over filter, and refuses a Schema 4 record", async () => {
   const agreement = choices(
     process.cwd(),
     ["agreement", "--list", "-", "--do", "Add a queue", "--stop", "the queue works"],
@@ -216,23 +166,18 @@ test("choices renders the agreement, the hand-over filter and the catch-up from 
   assert.deepEqual(JSON.parse(handover.stdout).shown, ["P2", "P3", "T1"]);
   assert.equal(choices(process.cwd(), ["agreement", "--list", "-"], LIST).status, 2);
 
-  const { root, recordPath } = await workspace({
-    updates: ["Evidence — claim: queue drains; result: supported", "Result — identity: abc1234"],
-  });
+  // A Schema 4 record is refused, naming migrate: only Track Work's migrate reads one now.
+  const root = await realpath(await mkdtemp(join(tmpdir(), "discuss-work-choices4-")));
   try {
-    const missing = choices(root, ["catch-up", "--record", recordPath]);
-    assert.equal(missing.status, 2);
-    assert.match(missing.stderr, /no decision list at .*sources\/decisions\.md/);
-    await mkdir(join(dirname(recordPath), "sources"), { recursive: true });
-    await writeFile(join(dirname(recordPath), "sources/decisions.md"), LIST);
-    const catchUp = choices(root, ["catch-up", "--record", recordPath]);
-    assert.equal(catchUp.status, 0, catchUp.stderr);
-    assert.match(catchUp.stdout, /Defaults taken \(2\):\n- P3 \[default\][^\n]*\n- T1 \[default\]/);
-    assert.match(catchUp.stdout, /Choices waiting for you \(1\):\n- P2 \[new\]/);
-    assert.match(
-      catchUp.stdout,
-      /What ran \(S-001 — Build the queue, Material updates: 2\):\n- Evidence — claim: queue drains/,
+    const recordPath = join(root, "record.md");
+    await writeFile(
+      recordPath,
+      await readFile(resolve(".skill-eval/track-work/fixtures/schema4-full/task-001-full-record/record.md"), "utf8"),
     );
+    await writeFile(join(root, "decisions.md"), LIST);
+    const refused = choices(root, ["catch-up", "--record", recordPath]);
+    assert.equal(refused.status, 2);
+    assert.match(refused.stderr, /is a Schema 4 record: convert it with Track Work's migrate first/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

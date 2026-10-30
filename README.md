@@ -98,8 +98,6 @@ Native Pi controls:
 /freeflow profile history
 /freeflow resume
 /freeflow compact
-/freeflow task
-/freeflow project
 ```
 
 Profile changes and resume require an idle host. These commands do not prove installed-host delivery or authorize task work.
@@ -116,7 +114,7 @@ Profile changes and resume require an idle host. These commands do not prove ins
 | Kiro | Agent Plugins 1.0 Power and shared skills | Not available; skills-only claim |
 | OpenCode v2 | Canonical `skills/` through a documented project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 package and canonical skills | Not available; skills-only support |
-| Pi | Shared skills and the native extension | Tool Execution and Compaction on by default; Task Memory, Messaging and Cognitive Routing opt-in |
+| Pi | Shared skills and the native extension | Tool Execution and Compaction on by default; Messaging and Cognitive Routing opt-in |
 
 Freeflow owns its prompts, skills, capability source, host adapters and the Pi extension. Each host owns launch, package installation, session state, trust and updates.
 
@@ -126,7 +124,6 @@ Freeflow owns its prompts, skills, capability source, host adapters and the Pi e
 | --- | --- | --- |
 | [Tool Execution](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/tool-execution.md) | Experimental; on by default | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors, and a skill's key lines at the tool call that needs them (`toolExecution.guidanceNotices`) |
 | [Compaction](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/compaction.md) | Experimental; on by default | After the agent checkpoints its Working Record at a safe point, the task's bundle replaces the conversation; Pi's compaction stays the fallback |
-| [Task Memory](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/task-memory.md) | Preview; off by default | Working Records attached to the session and delivered after context loss; projects and child tasks |
 | [Messaging](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/messaging.md) | Preview; off by default | Messages between the agents in your Pi sessions on this machine |
 | [Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md) | Experimental; off by default | Coordinator, Helper and Executor profiles on different models in one session |
 

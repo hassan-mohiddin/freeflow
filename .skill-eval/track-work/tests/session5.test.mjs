@@ -158,24 +158,9 @@ test("session status prints this session's state in the store as JSON: its task,
 test("view bundle --fallback adds the user's messages since the checkpoint, word for word, and a closing line naming the record's time and the transcript", async () => {
   await withFolder(async ({ folder, cli }) => {
     const record = ok(
-      cli(
-        [
-          "init",
-          "--schema",
-          "5",
-          "--root",
-          folder,
-          "--name",
-          "Fallback",
-          "--cue",
-          "read when compacting",
-          "--input",
-          "-",
-        ],
-        {
-          input: "### Goal\n- Carry the work through a compaction.\n### Next action\n- Checkpoint.\n",
-        },
-      ),
+      cli(["init", "--root", folder, "--name", "Fallback", "--cue", "read when compacting", "--input", "-"], {
+        input: "### Goal\n- Carry the work through a compaction.\n### Next action\n- Checkpoint.\n",
+      }),
     ).split("\n")[0];
     const stateAsOf = /^State as of: (\S+)$/m.exec(await readFile(record, "utf8"))[1];
     const transcript = join(folder, "session.jsonl");

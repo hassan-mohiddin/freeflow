@@ -11,7 +11,6 @@ With nothing configured, Freeflow on Pi runs with these capabilities; each one's
 | Freeflow | on | The core guidance, the Interaction Contract, the Working Method and the skills, plus `ask_user` dialogs |
 | [Compaction](capabilities/compaction.md) | on | After the agent's checkpoint, the task's bundle replaces the conversation; Pi's compaction stays the fallback |
 | [Tool Execution](capabilities/tool-execution.md) | on | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors, and skill guidance at the tool call that needs it |
-| [Task Memory](capabilities/task-memory.md) | off | Working Records attached to the session; projects and child tasks |
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
 | [Cognitive Routing](capabilities/cognitive-routing.md) | off | Coordinator, Helper and Executor profiles on different models |
 
@@ -44,8 +43,6 @@ Freeflow settings    Session  [Personal]  Repository
       Context reuse          on (inherited)
     Tool Execution           on (inherited)
       Guidance notices       on (inherited)
-    Task Memory              off (inherited)
-      Auto-approve           none
     Messaging                off (inherited)
       Ask before delivering  never (inherited)
     Cognitive Routing        off (inherited)
@@ -70,7 +67,7 @@ How to read it:
 - **The value comes first**, `on` in green and `off` in red. `(inherited)` means the tab you are looking at does not set it: the value comes from the tab below it, or is Freeflow's default. The line under the list says which ("Inherited from the repository's .freeflow/config.json."). No bracket means the value is set in this tab. In the Repository tab, `(personal: on)` means your personal file overrides it.
 - **Grey means it has no effect right now**, because a switch above it is off; the line under the list says which one ("Takes effect when Messaging is on."). You can still change it, so you can set up, say, routing presets before you turn routing on. Grey settings that the host cannot apply at all (Cognitive Routing on a Pi without model control) do not change.
 - **The bracket on a section's row** can also say `not active` (the switch is on but the capability is not running, for example while Freeflow is off) or `unavailable` (this host cannot run it).
-- **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level, Reviewer model opens a picker of your authenticated models, and Each prompt, Each skill and Auto-approve open their switches on a screen of their own (`Esc` returns). The list scrolls when it is taller than the screen; `(5/21)` under it says where you are. In the Session and Personal tabs the values include `inherit`, which removes the setting from that tab so it follows the scope below.
+- **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level, Reviewer model opens a picker of your authenticated models, and Each prompt and Each skill open their switches on a screen of their own (`Esc` returns). The list scrolls when it is taller than the screen; `(5/21)` under it says where you are. In the Session and Personal tabs the values include `inherit`, which removes the setting from that tab so it follows the scope below.
 - **When it is saved**: each change is written at once, one at a time ("Saving…" while it writes). Closing the screen after changing a file setting, or a Session switch (Freeflow or a capability), reloads the session so the change applies; other Session changes (routing presets, Delegation, Control) apply from the next prompt.
 
 ## The footer
@@ -120,13 +117,6 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Context reuse | `compaction.carry` | `true`, `false` | `true` | Session, Personal, Repository |
 | Tool Execution | `toolExecution.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
 | Guidance notices | `toolExecution.guidanceNotices` | `true`, `false` | `true` | Session, Personal, Repository |
-| Task Memory | `taskMemory.enabled` | `true`, `false` | `false` | Session, Personal, Repository |
-| Auto-approve | — | opens the five switches below on their own screen, and names the ones that are on | none | Session, Personal, Repository |
-| Auto-approve › Attach | `taskMemory.autoApprove.attach` | `true`, `false` | `false` | Session, Personal, Repository |
-| Auto-approve › Create | `taskMemory.autoApprove.create` | `true`, `false` | `false` | Session, Personal, Repository |
-| Auto-approve › Directories | `taskMemory.autoApprove.env` | `true`, `false` | `false` | Session, Personal, Repository |
-| Auto-approve › Fan-out | `taskMemory.autoApprove.fanout` | `true`, `false` | `false` | Session, Personal, Repository |
-| Auto-approve › Projects | `taskMemory.autoApprove.projects` | `true`, `false` | `false` | Session, Personal, Repository |
 | Messaging | `messaging.enabled` | `true`, `false` | `false` | Session, Personal, Repository |
 | Ask before delivering | `messaging.inbound` | `accept` (never), `project` (outside the project), `hold` (every message), `refuse` (refuse all) | `accept` | Session, Personal, Repository |
 | Cognitive Routing | `cognitiveRouting.enabled` | `true`, `false` | `false` | Session, Personal, Repository |
@@ -142,26 +132,25 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 
 What some of them mean:
 
-- **Auto-approve** switches let the agent take that group of Task Memory actions without asking you: `attach` covers attaching a record and making a held one writable, `create` creating a task or child task, `env` changing a task's directories, `fanout` a child task with its own worktree, `projects` creating or linking a project and importing a record. See [Task Memory](capabilities/task-memory.md#ask-in-plain-language).
-- **Ask before delivering** decides whether a message from another session waits for you; `project` delivers messages from sessions in this repository's Task Memory project and asks about the rest. See [Messaging](capabilities/messaging.md#ask-before-delivering).
+- **Ask before delivering** decides whether a message from another session waits for you; `project` delivers messages from sessions holding a task in the same Freeflow store project and asks about the rest. See [Messaging](capabilities/messaging.md#ask-before-delivering).
 - **Delegation** chooses which workers automatic routing may use; each needs its preset. A preset's `thinking` is one of the model's thinking levels. See [Cognitive Routing](capabilities/cognitive-routing.md).
 - **Control** holds one profile for the session until you release it; it changes only while routing runs. `/freeflow profile` does the same.
 - **Guidance notices** turns off the few lines of skill guidance Tool Execution adds to a tool result that needs them, such as the commit essentials on a `git commit`. See [Tool Execution](capabilities/tool-execution.md#guidance-notices).
 - **Runtime prompts** is the switch for all of Freeflow's always-present prompts, and **Each prompt** turns them on or off one by one, on every host: Core (how Freeflow works: the cycle, what authorizes work, where it stops), the Interaction Contract (how the agent talks with you) and the Working Method (how it works). With one off, the agent works without that guidance; the rest of Freeflow stays on. The Cognitive Routing and Tool Execution prompts follow their capability's switch.
-- **Skills** is the switch for all of Freeflow's skills but Setup Freeflow, which always stays so you can repair a configuration; **Each skill** turns them off or on one by one. On Pi an off skill is not loaded and its command says it is off. Codex, Claude Code and the other hosts load plugin skills themselves, so there the agent is told, in its Runtime State, not to use an off skill (``Skills off: `write-skill`; do not open or follow them.``); use the host's own setting to remove it completely. The capability skills (Compaction, Task Memory, Cognitive Routing, Messaging) follow their capability's switch.
+- **Skills** is the switch for all of Freeflow's skills but Setup Freeflow, which always stays so you can repair a configuration; **Each skill** turns them off or on one by one. On Pi an off skill is not loaded and its command says it is off. Codex, Claude Code and the other hosts load plugin skills themselves, so there the agent is told, in its Runtime State, not to use an off skill (``Skills off: `write-skill`; do not open or follow them.``); use the host's own setting to remove it completely. The capability skills (Compaction, Cognitive Routing, Messaging) follow their capability's switch.
 - **Review** (`review.mode`) and **Reviewer model** (`review.model`) set when the agent has finished work independently reviewed, by a separate reviewer; the agent's own self-review always runs. `auto` lets Review Work's risk check decide; `off` never starts one on its own, and when the change looks risky the agent proposes a review with its reason and cost and runs it only on your yes; `always` reviews every finished task. `auto` in your personal file returns a shared `off` or `always` to the default. Reviewer model names the model a reviewer runs on, where the host lets the agent choose one; Freeflow passes the name on as written and does not check it. The screen offers this Pi's authenticated models; on another host, write the name that host uses into the file. A Session value applies on Pi only, to this session. A setting other than the default shows in the agent's Runtime State, such as ``Review: `always`, reviewer model `claude-opus-4-5` ``.
 
-A configuration file with a key Freeflow does not know is refused with an error naming the file. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting` and `scriptTransform` (with `processing` in the personal file). `contextVirtualization` and `conversationHistory` belong to removed context features: a file that still has either is invalid and keeps Freeflow off until you delete them.
+A configuration file with a key Freeflow does not know is refused with an error naming the file. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting`, `scriptTransform` and `taskMemory` (with `processing` in the personal file). Pi's Task Memory is gone, so a `taskMemory` key does nothing, and `/freeflow status` says so. `contextVirtualization` and `conversationHistory` belong to removed context features: a file that still has either is invalid and keeps Freeflow off until you delete them.
 
 ## Example
 
-A repository that turns on Task Memory for everyone, with your personal file adding Messaging and one auto-approve switch, and turning Tool Execution off for you:
+A repository that turns on Messaging for everyone, with your personal file asking you about messages from sessions outside the project, and turning Tool Execution off for you:
 
 `.freeflow/config.json`:
 
 ```json
 {
-  "taskMemory": { "enabled": true }
+  "messaging": { "enabled": true }
 }
 ```
 
@@ -170,8 +159,7 @@ A repository that turns on Task Memory for everyone, with your personal file add
 ```json
 {
   "toolExecution": { "enabled": false },
-  "messaging": { "enabled": true },
-  "taskMemory": { "autoApprove": { "attach": true } }
+  "messaging": { "inbound": "project" }
 }
 ```
 
@@ -179,7 +167,7 @@ A repository that turns on Task Memory for everyone, with your personal file add
 
 | Variable | Effect |
 | --- | --- |
-| `FREEFLOW_HOME` | Where Task Memory's registry and project stores, and Messaging's session list, live. Default `~/.freeflow`. |
+| `FREEFLOW_HOME` | Where the Freeflow store and Messaging's session list live. Default `~/.freeflow`; `store init` refuses that folder while it holds Pi's former Task Memory (`registry.json`), so the store goes in another folder, such as `~/.freeflow-store`. |
 
 ## Related documentation
 

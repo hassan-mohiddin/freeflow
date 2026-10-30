@@ -1,7 +1,7 @@
 # Verify Live
 
 > **Covers:** `scripts/verify-live.sh`
-> **Verified at:** `44c824e6` (2026-10-29)
+> **Verified at:** `ac856ad0` (2026-10-30)
 
 For anyone checking a Freeflow change in the running software rather than only in `node --test`, people or agents: how to start an isolated Pi session with this checkout's extension, check that it is worth driving, drive it, keep evidence, and clean up, and which inputs cost a model call. What to drive for each feature is in the [feature map](../features/README.md).
 
@@ -14,7 +14,7 @@ npm ci                                   # once per checkout: installs the pinne
 npm run build                            # after editing pi-extension/src: Pi loads pi-extension/dist
 scripts/verify-live.sh launch            # fixture with .freeflow/config.json = {}
 scripts/verify-live.sh launch --no-config
-scripts/verify-live.sh launch --config '{"taskMemory":{"enabled":true}}'
+scripts/verify-live.sh launch --config '{"messaging":{"enabled":true}}'
 ```
 
 `launch` creates `.tmp/verify-live/runs/<run>/` with an empty Pi agent dir, Pi session dir, `FREEFLOW_HOME`, `HOME` and temp dir, and a fresh Git fixture repository whose `.gitignore` holds `.freeflow/*/` and `.freeflow/local.json`. It starts `pi --no-context-files --no-extensions -e pi-extension/freeflow/index.js --approve` in the fixture inside a private tmux server (`tmux -L ffv-<run>`), with `PI_OFFLINE=1`, and prints `FFV_RUN=<run>`. Prefix later calls with it (`FFV_RUN=<run> scripts/verify-live.sh doctor`); with exactly one live run the helper finds it on its own.
@@ -84,7 +84,7 @@ Clean-up saves `final-pane.txt`, stops only this run's tmux server (`tmux -L ffv
 
 ## Paid Calls
 
-Free text and every slash command that hands a skill to Pi's agent (`/verify-work`, `/discuss-work` and the others in `WORKFLOW_COMMANDS` and `CONTRIBUTOR_COMMANDS` in `pi-extension/src/host/catalog.ts`) send a request to a model. So do `/freeflow compact` and anything else that starts a turn. `/freeflow status`, `/freeflow settings`, `/freeflow project`, `/freeflow task` and Pi's `/reload` run locally.
+Free text and every slash command that hands a skill to Pi's agent (`/verify-work`, `/discuss-work` and the others in `WORKFLOW_COMMANDS` and `CONTRIBUTOR_COMMANDS` in `pi-extension/src/host/catalog.ts`) send a request to a model. So do `/freeflow compact` and anything else that starts a turn. `/freeflow status`, `/freeflow settings` and Pi's `/reload` run locally.
 
 Two guards stand between a mistyped step and a paid request:
 

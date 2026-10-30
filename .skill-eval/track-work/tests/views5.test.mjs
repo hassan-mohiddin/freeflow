@@ -67,19 +67,7 @@ async function storeWithFixture(folder) {
   ok(
     run(
       folder,
-      [
-        "init",
-        "--schema",
-        "5",
-        "--root",
-        project,
-        "--name",
-        "Other task",
-        "--cue",
-        "read when the other task matters",
-        "--input",
-        "-",
-      ],
+      ["init", "--root", project, "--name", "Other task", "--cue", "read when the other task matters", "--input", "-"],
       "### Goal\n- Another.\n### Next action\n- Wait.\n",
     ),
   );
@@ -221,7 +209,7 @@ test("view recover prints the opening line, rules, record, decisions, History an
   });
 });
 
-test("view entry prints History entries as stored, view index lists every entry, and Schema 5 has no resume view", async () => {
+test("view entry prints History entries as stored, view index lists every entry, and there is no resume view", async () => {
   await withFolder(async (folder) => {
     const { record } = await storeWithFixture(folder);
     const entries = ok(run(folder, ["view", "entry", "A-001", "S-001", "--record", record]));
@@ -233,7 +221,10 @@ test("view entry prints History entries as stored, view index lists every entry,
       ok(run(folder, ["view", "index", "--record", record])),
       "- S-001 completed — Write the parser · read when the parser's shape is in question\n- A-001 completed — Build the parser · read when what was agreed about the parser is in question\n- D-002 accepted — Read the format · read when the format reading is in question\n",
     );
-    assert.match(run(folder, ["view", "resume", "--record", record]).stderr, /Schema 5 has no resume view/);
+    assert.match(
+      run(folder, ["view", "resume", "--record", record]).stderr,
+      /View must be recover, full, entry, index, or bundle/,
+    );
   });
 });
 

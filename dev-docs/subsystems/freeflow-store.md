@@ -2,16 +2,16 @@
 
 > **Covers:** `skills/track-work/scripts/working-record.mjs`, `skills/track-work/scripts/lib/freeflow-store.mjs`, `skills/track-work/scripts/lib/store.mjs`, `skills/track-work/scripts/lib/record5.mjs`, `skills/track-work/scripts/lib/transitions5.mjs`, `skills/track-work/scripts/lib/views5.mjs`, `skills/track-work/scripts/lib/projects5.mjs`, `skills/track-work/scripts/lib/delegations5.mjs`, `skills/track-work/scripts/lib/migrate5.mjs`, `skills/track-work/scripts/lib/discussion5.mjs`, `skills/track-work/scripts/lib/carry5.mjs`, `skills/track-work/scripts/lib/pi-session.mjs`, `skills/track-work/scripts/lib/budget5.mjs`, `skills/track-work/scripts/lib/estimate5.mjs`, `skills/track-work/scripts/lib/measure5.mjs`, `skills/track-work/scripts/lib/planner5.mjs`
 > **Tests:** `.skill-eval/track-work/tests/`
-> **Verified at:** `77c132c6` (2026-10-30)
+> **Verified at:** `e2a0ad14` (2026-10-30)
 > **User docs:** `plugin-docs/using-freeflow.md`
 
-For anyone changing how Track Work's script keeps task memory: the Freeflow store, the Schema 5 task folder, the commands that change it, the views recovery reads, delegation, and the measurement and planning built on them. The skill that teaches the agent when to use these is [Track Work](../skills/track-work.md); Pi's Task Memory, which still keeps Schema 4, is [Task memory](task-memory.md); Claude Code's mod, which calls this script at the right moments, is in the [overview](../README.md).
+For anyone changing how Track Work's script keeps task memory: the Freeflow store, the Schema 5 task folder, the commands that change it, the views recovery reads, delegation, and the measurement and planning built on them. The skill that teaches the agent when to use these is [Track Work](../skills/track-work.md); Pi's layer and Claude Code's mod, which call this script at the right moments, are in [Compaction](compaction.md#the-store-layer) and the [overview](../README.md).
 
 ## Purpose
 
 An agent working for days, across many compactions, sessions and machines, needs memory that outlives every one of them, stays current and stays small enough to read back. The store and Schema 5 give it that: every task's memory in one private Git repository that syncs itself, a task folder whose state is rewritten and whose logs are appended, and a script that makes every lifecycle change, so the agent edits only meaning.
 
-It replaces, for every harness but Pi, Schema 4's single growing `record.md`, Pi's registry of projects and child records, and the rule against opening a record. It does not decide what is worth recording (the skill does), it never authorizes work (the record is memory, not authority), and it writes nothing into a code repository.
+It replaces, for every harness, Schema 4's single growing `record.md`, Pi's registry of projects and child records, and the rule against opening a record. It does not decide what is worth recording (the skill does), it never authorizes work (the record is memory, not authority), and it writes nothing into a code repository.
 
 ## Vocabulary
 
@@ -68,7 +68,7 @@ The P and T numbers name choices in the design that built this, task-004's Spec 
 - **A record over its budget is still read whole.** The budget warns at `init`, `checkpoint` and recovery and trims nothing.
 - **`checkpoint` writes Space only for the repository it runs in.** Another repository's line changes when a checkpoint runs there (or with `--repo`); the record never claims to know where a repository it cannot see stands.
 - **A Slice measured with `--used` shows `working 0 min` and no cost.** Only a transcript gives requests' times and billing; the planner treats such a Slice's time and cost as unknown, never as zero.
-- **`store init` refuses a home that holds Pi's `registry.json`.** Pi's Task Memory keeps its Schema 4 registry, projects and records there until Freeflow's Pi layer moves onto the store; laying a store over them would mix two layouts in one folder and strand Pi's records. The refusal (`task-memory-home`) asks for another folder, with `FREEFLOW_HOME` set to it for the sessions that use the store.
+- **`store init` refuses a home that holds Pi's `registry.json`.** Pi's former Task Memory kept its Schema 4 registry, projects and records there; laying a store over them would mix two layouts in one folder and strand those records, which `migrate` moves in from the original folder. The refusal (`task-memory-home`) asks for another folder, with `FREEFLOW_HOME` set to it for the sessions that use the store.
 - **A moved task gets a new number, and its old ID names nothing.** Numbers are per folder and never reused; Git history keeps the old path.
 
 ## Surface
@@ -131,7 +131,7 @@ The P and T numbers name choices in the design that built this, task-004's Spec 
 - `skills/track-work/scripts/lib/planner5.mjs`: pools, predictions and the correction, `estimate --plan`, `--project`, `--store`.
 - `skills/track-work/scripts/lib/estimate5.mjs`: `estimate`'s context reading and its modes' wiring.
 
-Schema 4's modules (`document.mjs`, `transitions.mjs`, `views.mjs`, `registry.mjs`, `recover.mjs`) stay for Pi and unconverted records.
+Schema 4 has no modules of its own: `migrate5.mjs` alone reads a Schema 4 record, with `document.mjs`.
 
 ## Tests
 
@@ -154,7 +154,7 @@ The CLI's live steps are its feature file, [Track Work CLI](../features/track-wo
 
 ## Limits
 
-- Pi's Task Memory keeps Schema 4 in its registry until Pi moves onto these scripts; `init --schema 4` and Schema 4's modules serve it meanwhile.
+- Schema 4 is read only by `migrate`, so a Pi user's records from Pi's former Task Memory move into the store with it before any other command can use them.
 - Whether a cloud session's end is reported is unknown, so a cloud session's hold may be released only by a takeover.
 - The planner sizes every Slice the same, since Slices have no kind; delegations are grouped by kind, model and effort.
 - Prices go stale with the table's date until `FREEFLOW_PRICES` or a new table replaces them.

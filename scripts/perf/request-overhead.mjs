@@ -13,7 +13,6 @@
 //   npm run perf:request -- --capture <dir>   (writes every provider request body per scenario, to compare builds)
 //
 // Numbers vary between machines and runs; compare builds on the same machine and session, and read the medians.
-import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -184,7 +183,9 @@ async function run(label, config, sessionPath) {
     walks.count++;
     return getBranch.apply(this, args);
   };
+  // Each run has a Freeflow home of its own, so Freeflow's store layer never reads or syncs the user's store.
   const home = process.env.FREEFLOW_HOME;
+  process.env.FREEFLOW_HOME = join(dir, "home");
   let session;
   try {
     const modelRuntime = await ModelRuntime.create({
@@ -228,29 +229,6 @@ async function run(label, config, sessionPath) {
       uiContext: { notify: () => {}, setStatus: () => {} },
     });
     const startMs = performance.now() - startedAt;
-    if (config?.taskMemory?.enabled) {
-      // One record in focus, in a Freeflow home of this run's own.
-      process.env.FREEFLOW_HOME = join(dir, "home");
-      execFileSync(
-        process.execPath,
-        [
-          join(root, "skills/track-work/scripts/working-record.mjs"),
-          "init",
-          "--schema",
-          "4",
-          "--root",
-          cwd,
-          "--name",
-          "Perf task",
-          "--input",
-          "-",
-        ],
-        { input: "### Goal\n- Measure.\n\n### Next useful action\n- Continue.\n" },
-      );
-      await session.prompt("/freeflow task attach .freeflow/tasks/task-001-perf-task/record.md");
-      if (!manager.getBranch().some((entry) => entry.customType === "freeflow-task-memory-snapshot"))
-        throw new Error("task memory scenario: the record was not attached");
-    }
     const walls = [],
       walksPerPrompt = [],
       errors = [];
@@ -303,7 +281,6 @@ const scenarios = [
     "routing + projection + Tool Execution",
     { toolExecution: { enabled: true }, cognitiveRouting: { enabled: true, projection: true, profiles } },
   ],
-  ["task memory, one record in focus", { taskMemory: { enabled: true } }],
 ].filter(([label]) => !values.scenario || label.startsWith(values.scenario));
 
 let sessionPath = values.session && resolve(values.session.replace(/^~/, process.env.HOME));

@@ -1,24 +1,9 @@
 #!/usr/bin/env node
 
-import { existsSync } from "node:fs";
-import { rm } from "node:fs/promises";
 import { cwd } from "node:process";
-import { delimiter, dirname, isAbsolute, resolve, sep } from "node:path";
-import { WORK_AGREEMENT_HEADING, canonicalLines, joinLines, slugify } from "./lib/format.mjs";
-import { parseDocument, validateDocument } from "./lib/document.mjs";
-import { runTransition } from "./lib/transitions.mjs";
-import {
-  createRecordPath,
-  displayPath,
-  readInput,
-  readRecord,
-  resolveRecordPath,
-  storeOf,
-  isFreeflowStore,
-  writeInitialAtomically,
-} from "./lib/store.mjs";
-import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
-import { checkEvidencePointers, checkLinePointers, renderRecover } from "./lib/recover.mjs";
+import { delimiter, isAbsolute, resolve, sep } from "node:path";
+import { displayPath, readInput, readRecord, resolveRecordPath, storeOf, isFreeflowStore } from "./lib/store.mjs";
+import { checkLinePointers } from "./lib/recover.mjs";
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { checkpointSession, runTransition5, writeCompactionRequest } from "./lib/transitions5.mjs";
 import { budgetLines, budgetFor, contextWindow, measureTask, renderBudget } from "./lib/budget5.mjs";
@@ -33,8 +18,6 @@ import {
   delegationStatus,
   openDelegation,
 } from "./lib/delegations5.mjs";
-import { PROJECT_LINK, Registry, TASK_ID, removalText, startCommand } from "./lib/registry.mjs";
-import { searchRecords } from "./lib/search.mjs";
 import { addStoreRemote, initStore, missingParts, storeHome, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
 import {
   createProject,
@@ -68,29 +51,28 @@ function usage() {
   return [
     "Usage:",
     "  working-record.mjs init --root <path> --name <task name> --cue <cue> [--input <file|->]",
-    "  working-record.mjs init --schema 4 --root <path> --name <task name> [--input <file|->] (a Schema 4 record)",
-    "  working-record.mjs view resume|recover|full --record <record.md>",
+    "  working-record.mjs view recover|full|index --record <record.md>",
     "  working-record.mjs view entry <ID> [<ID> ...] --record <record.md>",
     "  working-record.mjs validate --record <record.md>",
-    "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
-    "  working-record.mjs agreement <open|update|close> ... (Schema 5)",
-    "  working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] [--compact] (Schema 5)",
-    "  working-record.mjs checkpoint --session --input <file|-> [--compact] (Schema 5, a session holding no task)",
-    "  working-record.mjs budget [--record <record.md>] [--window <tokens>] [--mode normal|expanded] (Schema 5)",
+    "  working-record.mjs <slice|task> <operation> ...",
+    "  working-record.mjs agreement <open|update|close> ...",
+    "  working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] [--compact]",
+    "  working-record.mjs checkpoint --session --input <file|-> [--compact] (a session holding no task)",
+    "  working-record.mjs budget [--record <record.md>] [--window <tokens>] [--mode normal|expanded]",
     "  working-record.mjs estimate [--used <tokens>] [--window <tokens>] [--done <n> --left <m>] [--transcript <path>]",
     "  working-record.mjs estimate --plan --record <ID> [--input -] [--fan-out <n>] [--done <n>] | --project <name> | --store",
-    "  working-record.mjs view bundle --record <record.md> | --session (Schema 5)",
-    "  working-record.mjs delegate <open|amend|status|check-return|close> ... (Schema 5)",
-    "  working-record.mjs discussion <list|save|drop> --record <record.md> ... (Schema 5)",
+    "  working-record.mjs view bundle --record <record.md> | --session",
+    "  working-record.mjs delegate <open|amend|status|check-return|close> ...",
+    "  working-record.mjs discussion <list|save|drop> --record <record.md> ...",
+    "  working-record.mjs carry <list|show> ...",
     "  working-record.mjs migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name>] (Schema 4 to 5)",
-    "  working-record.mjs project <new|link|show|list|remove> ...",
-    "  working-record.mjs task <create|import|search|env|here|fanout|remove> ...",
-    "  working-record.mjs task <create|take|release|switch|here|search|remove> ... (in a Freeflow store)",
+    "  working-record.mjs project <new|show|list|remove> ... (in a Freeflow store)",
+    "  working-record.mjs task <create|take|release|switch|move|here|search|remove> ... (in a Freeflow store)",
     "  working-record.mjs store <init|remote|status|sync> ...",
     "  working-record.mjs session status [--home <folder>] (for a harness layer)",
     "",
     ROOT_HELP,
-    "A registered task's ID (such as my-project/task-003) may be given as --record.",
+    "In a Freeflow store, a task's ID (such as my-project/task-003, or task-004 in no project) may be given as --record.",
   ].join("\n");
 }
 
@@ -99,7 +81,7 @@ const COMMAND_HELP = new Map([
     "slice",
     [
       "Usage: working-record.mjs slice <operation> ...",
-      "Operations: slice propose, slice start, slice start-direct, slice pause, slice resume, slice close, slice reopen, slice record.",
+      "Operations: slice propose, slice start, slice start-direct, slice pause, slice resume, slice close, slice record.",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
       "Use --input - to read Markdown fragments from stdin.",
     ].join("\n"),
@@ -107,23 +89,11 @@ const COMMAND_HELP = new Map([
   [
     "checkpoint",
     [
-      "Usage: working-record.mjs checkpoint <operation> ... (Schema 4)",
-      "       working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] [--compact] (Schema 5)",
-      "       working-record.mjs checkpoint --session --input <file|-> [--compact] (Schema 5, a session holding no task)",
-      "Schema 4 operations: checkpoint propose, checkpoint activate, checkpoint defer, checkpoint resume, checkpoint close.",
-      'Schema 5\'s checkpoint, before a compaction or a transfer, once Current Context is rewritten: with --input, rewrites In flight whole from its lines (each "- Now|Observed|Hypothesis|Dropped|Pending|Carry: …", a Carry line "- Carry: <path> (lines <a>–<b>) — <why>"; "none" empties it); checks the task folder\'s structure and the recovery budget for the session\'s window (FREEFLOW_CONTEXT_WINDOW) and the task\'s mode, warning when the counted memory or a fixed part is over; writes the Space line for the work repository at --repo (default: the current directory, unless it is the Freeflow store), sets State as of, then commits and pushes the Freeflow store holding the task.',
+      "Usage: working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] [--compact]",
+      "       working-record.mjs checkpoint --session --input <file|-> [--compact] (a session holding no task)",
+      'The checkpoint, before a compaction or a transfer, once Current Context is rewritten: with --input, rewrites In flight whole from its lines (each "- Now|Observed|Hypothesis|Dropped|Pending|Carry: …", a Carry line "- Carry: <path> (lines <a>–<b>) — <why>"; "none" empties it); checks the task folder\'s structure and the recovery budget for the session\'s window (FREEFLOW_CONTEXT_WINDOW) and the task\'s mode, warning when the counted memory or a fixed part is over; writes the Space line for the work repository at --repo (default: the current directory, unless it is the Freeflow store), sets State as of, then commits and pushes the Freeflow store holding the task.',
       "With --session, for a session that holds no task: writes the session summary to <store>/sessions/<session ID>/summary.md, which Freeflow's compaction installs and removes. Input: the headings ## Goal, ## Settled, ## Open, ## Agreement, ## In flight, ## Read when, ## Next action, in order; Goal and Next action must say something; (none) where a heading has nothing.",
       "With --compact, either form also asks Freeflow's harness layer to compact the session at the end of this turn, with the record in place of the conversation: it leaves a request in <store>/sessions/<session ID>/compact.json, which session status reports. A checkpoint without it never compacts. Where no harness layer runs, nothing more happens.",
-      "Run working-record.mjs <group> <operation> --help for options and input fields.",
-      "Use --input - to read Markdown fragments from stdin.",
-    ].join("\n"),
-  ],
-  [
-    "decision",
-    [
-      "Usage: working-record.mjs decision <operation> ...",
-      "Operations: decision add, decision supersede, decision retire.",
-      "Run working-record.mjs <group> <operation> --help for options and input fields.",
       "Use --input - to read Markdown fragments from stdin.",
     ].join("\n"),
   ],
@@ -131,18 +101,17 @@ const COMMAND_HELP = new Map([
     "task",
     [
       "Usage: working-record.mjs task <operation> ...",
-      "Operations: task set-state, task set-budget (Schema 5); and for projects: task create, task import, task search, task env, task here, task fanout, task remove.",
-      "In a Freeflow store: task create, take, release, switch, move, here, search and remove. A task belongs to a project (<project>/task-NNN) or to none (task-NNN). A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
+      "Operations: task set-state and task set-budget on a record; in a Freeflow store, task create, take, release, switch, move, here, search and remove. A task belongs to a project (<project>/task-NNN) or to none (task-NNN). A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
     ].join("\n"),
   ],
   [
     "init",
-    "Usage: init --root <path> --name <task name> --cue <cue> [--input <file|->]\n       init --schema 4 --root <path> --name <task name> [--input <file|->]\nWrites a Schema 5 task folder: record.md, history.md and decisions.md, then prints the record's path and the recovery budget. --cue (required) says when the task matters, starting \"read when\", in at most 25 words. Input: Goal and Next action required; Settled, Open, Space, Defined by, Read on recovery and Read when accepted. --root may be a project's folder in the Freeflow store (<store>/projects/<project>), whose tasks/ then holds the task; elsewhere the task goes in <root>/.freeflow/tasks/. The record starts active. Use --input - to read Markdown fragments from stdin.\nWith --schema 4 (on Pi with Task Memory, until Pi moves to Schema 5): a Schema 4 record; no --cue. Input: Goal and Next useful action required; the seven Current Context headings, Work agreement (written only when given) and Recovery sources are accepted, and every line must sit under one of them.",
+    "Usage: init --root <path> --name <task name> --cue <cue> [--input <file|->]\nWrites a Schema 5 task folder: record.md, history.md and decisions.md, then prints the record's path and the recovery budget. --cue (required) says when the task matters, starting \"read when\", in at most 25 words. Input: Goal and Next action required; Settled, Open, Space, Defined by, Read on recovery and Read when accepted. --root may be a project's folder in the Freeflow store (<store>/projects/<project>), whose tasks/ then holds the task; elsewhere the task goes in <root>/.freeflow/tasks/. The record starts active. Use --input - to read Markdown fragments from stdin.",
   ],
   [
     "discussion",
-    'Usage: working-record.mjs discussion <list|save|drop> --record <record.md> ... (Schema 5)\nThe user\'s messages that shaped the work, kept word for word as blocks in sources/discussion.md, each message with the agent\'s line saying what it answered; blocks are added or dropped, never edited. The transcript is --transcript <path> (--format claude-code, pi or plain; a Pi session file is known by its header), else FREEFLOW_TRANSCRIPT, else this Claude Code session\'s log; --transcript - reads a plain export (lines starting "User:" or "Assistant:") from standard input.',
+    'Usage: working-record.mjs discussion <list|save|drop> --record <record.md> ...\nThe user\'s messages that shaped the work, kept word for word as blocks in sources/discussion.md, each message with the agent\'s line saying what it answered; blocks are added or dropped, never edited. The transcript is --transcript <path> (--format claude-code, pi or plain; a Pi session file is known by its header), else FREEFLOW_TRANSCRIPT, else this Claude Code session\'s log; --transcript - reads a plain export (lines starting "User:" or "Assistant:") from standard input.',
   ],
   [
     "discussion list",
@@ -158,11 +127,11 @@ const COMMAND_HELP = new Map([
   ],
   [
     "migrate",
-    "Usage: migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name> [--home <folder>]]\nConverts a Schema 4 record to Schema 5: Goal, Settled (with the active Decisions) and Open (with Tentative and pending Checkpoints); the Work agreement and Boundaries become the open agreement A-001; What defines this task and the Recovery sources become Read on recovery and Read when; the Current Slice and its Material updates carry over; proposed Slices stay in Future Work, with Current direction as one more; closed Slices become history.md entries. The Schema 4 record is kept whole in sources/schema4-record.md, Notes move to sources/notes.md, and the decision list moves to decisions.md when an agreement is open. --cue is the task's cue; --cues is a file of \"S-NNN: read when …\" lines for closed Slices, and a Slice without one is marked missing. Without --project the folder converts in place; with it, the folder is copied into that project in the Freeflow store as its next task, converted there and pushed, and the original stays as it was. A Schema 5 record kept without a store, in a repository's .freeflow/tasks/, is brought into the store the same way with --project, unchanged, and needs no --cue.",
+    "Usage: migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name> [--home <folder>]]\nConverts a Schema 4 record to Schema 5: Goal, Settled (with the active Decisions) and Open (with Tentative and pending Checkpoints); the Work agreement and Boundaries become the open agreement A-001; What defines this task and the Recovery sources become Read on recovery and Read when; the Current Slice and its Material updates carry over; proposed Slices stay in Future Work, with Current direction as one more; closed Slices become history.md entries. The Schema 4 record is kept whole in sources/schema4-record.md, Notes move to sources/notes.md, and the decision list moves to decisions.md when an agreement is open. --cue is the task's cue; --cues is a file of \"S-NNN: read when …\" lines for closed Slices, and a Slice without one is marked missing. Without --project the folder converts in place; with it, the folder is copied into that project in the Freeflow store as its next task, converted there and pushed, and the original stays as it was. A Schema 5 record kept without a store, in a repository's .freeflow/tasks/, is brought into the store the same way with --project, unchanged, and needs no --cue. migrate is the only command that reads a Schema 4 record, whether kept in a repository's .freeflow/tasks/ or by Pi's former Task Memory (its projects' records under the folder that holds registry.json).",
   ],
   [
     "delegate",
-    "Usage: working-record.mjs delegate <operation> ... (Schema 5)\nOperations: delegate open, delegate amend, delegate status, delegate check-return, delegate close. One folder per delegation, delegations/D-NNN-<slug>/ in the task folder, with brief.md (whoever hands the work out), progress.md and return.md (the worker); a sub-worker's folder sits inside its worker's. Only the coordinator's delegations have a line in Current Work's Delegations and an entry in History. How to hand work out: Execute Work's references/delegation.md.",
+    "Usage: working-record.mjs delegate <operation> ...\nOperations: delegate open, delegate amend, delegate status, delegate check-return, delegate close. One folder per delegation, delegations/D-NNN-<slug>/ in the task folder, with brief.md (whoever hands the work out), progress.md and return.md (the worker); a sub-worker's folder sits inside its worker's. Only the coordinator's delegations have a line in Current Work's Delegations and an entry in History. How to hand work out: Execute Work's references/delegation.md.",
   ],
   [
     "delegate open",
@@ -186,7 +155,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "agreement",
-    "Usage: working-record.mjs agreement <operation> ... (Schema 5)\nOperations: agreement open, agreement update, agreement close. A task has one open agreement at a time: what the user agreed, in their words, dated; its decision list is decisions.md beside the record.",
+    "Usage: working-record.mjs agreement <operation> ...\nOperations: agreement open, agreement update, agreement close. A task has one open agreement at a time: what the user agreed, in their words, dated; its decision list is decisions.md beside the record.",
   ],
   [
     "agreement open",
@@ -218,11 +187,11 @@ const COMMAND_HELP = new Map([
   ],
   [
     "view",
-    "Usage: view resume|recover|full|index|bundle --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\n       view bundle --record <record.md> [--fallback] [--no-recent]\n       view bundle --session [--home <store>] [--no-recent]\nSchema 5: recover [--delegation <D-NNN[.n]>] prints an opening line (the record is memory; the user's direction decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (the newest within the budget, and any the record names), the project's other tasks with their cues, and the checks: the budget, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. bundle: the same, then Read on recovery's sources and In flight's Carry files (counted), Defined by's entries and the core skills (not counted), each whole and read now, In flight's carried tool results, this compaction cycle's newest other results within the carry budget (--no-recent leaves them out, as a harness layer does where context reuse is off), their sizes, and the recovery line: what Freeflow's compaction installs. With --fallback, for a compaction that came before the checkpoint, what Freeflow adds after the harness's own summary: the same bundle as of the record's State as of, then the user's messages since then word for word (as discussion list reads them), and a closing line naming that time and the transcript, to read back what the summary lost. With --session, the bundle of a session that holds no task: the store's rules and the session summary. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored. With --delegation, recover is a worker's: after the opening line it states the worker's rule (the brief is its scope and wins over the record) and prints the delegation's brief, progress and return.\nSchema 4: resume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
+    "Usage: view recover|full|index|bundle --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\n       view bundle --record <record.md> [--fallback] [--no-recent]\n       view bundle --session [--home <store>] [--no-recent]\nrecover [--delegation <D-NNN[.n]>] prints an opening line (the record is memory; the user's direction decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (the newest within the budget, and any the record names), the project's other tasks with their cues, and the checks: the budget, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. bundle: the same, then Read on recovery's sources and In flight's Carry files (counted), Defined by's entries and the core skills (not counted), each whole and read now, In flight's carried tool results, this compaction cycle's newest other results within the carry budget (--no-recent leaves them out, as a harness layer does where context reuse is off), their sizes, and the recovery line: what Freeflow's compaction installs. With --fallback, for a compaction that came before the checkpoint, what Freeflow adds after the harness's own summary: the same bundle as of the record's State as of, then the user's messages since then word for word (as discussion list reads them), and a closing line naming that time and the transcript, to read back what the summary lost. With --session, the bundle of a session that holds no task: the store's rules and the session summary. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored. With --delegation, recover is a worker's: after the opening line it states the worker's rule (the brief is its scope and wins over the record) and prints the delegation's brief, progress and return. full prints record.md of any schema, a Schema 4 one too; every other view and command but migrate refuses a Schema 4 record.",
   ],
   [
     "validate",
-    "Usage: validate --record <record.md> [--strict]\nChecks the record's structure, and whether the pointers in Material updates resolve: files (from the repository root or the task folder) and commits. An unresolved pointer is a warning, since it may name a planned path or a commit not fetched yet; with --strict, one on an Evidence or Result line fails. Pointers outside the repository are listed, not checked.",
+    "Usage: validate --record <record.md> [--strict]\nChecks the task folder's structure (record.md, history.md, decisions.md), warns where the budget or a cue is over, and checks whether the pointers in the current Slice's update lines resolve: files (from the task folder or the repository root) and commits. An unresolved pointer is a warning, since it may name a planned path or a commit not fetched yet; with --strict, one on an Evidence or Result line fails. Pointers outside the repository are listed, not checked.",
   ],
   [
     "store",
@@ -230,7 +199,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "store init",
-    "Usage: store init [--remote <url>] [--home <folder>] [--git-name <name> --git-email <email>]\nWithout --remote, makes a local store in the folder: the store's layout (store.json, .gitignore, .gitattributes, rules/, projects/) and a first commit authored as you; nothing leaves this machine. With --remote, clones the private repository into the store's folder. An empty repository gets the store's layout (store.json, .gitignore, .gitattributes, rules/, projects/) and a first commit authored as you, pushed to main; a repository that already holds a store is joined as it is. Refuses a folder that holds Pi's Task Memory (registry.json) or anything else, and a repository that is not a store. Without --git-name and --git-email, your Git configuration's identity is used.",
+    "Usage: store init [--remote <url>] [--home <folder>] [--git-name <name> --git-email <email>]\nWithout --remote, makes a local store in the folder: the store's layout (store.json, .gitignore, .gitattributes, rules/, projects/) and a first commit authored as you; nothing leaves this machine. With --remote, clones the private repository into the store's folder. An empty repository gets the store's layout (store.json, .gitignore, .gitattributes, rules/, projects/) and a first commit authored as you, pushed to main; a repository that already holds a store is joined as it is. Refuses a folder that holds anything else, Pi's former Task Memory (registry.json) among them, and a repository that is not a store. Without --git-name and --git-email, your Git configuration's identity is used.",
   ],
   [
     "store remote",
@@ -250,83 +219,67 @@ const COMMAND_HELP = new Map([
   ],
   [
     "project",
-    "Usage: working-record.mjs project <operation> ...\nOperations: project new, project link, project show, project list, project remove.\nA project groups tasks; its records live in a store under the Freeflow home (FREEFLOW_HOME, default ~/.freeflow), outside any repository. Create or link a project only when the user asks.\nIn a Freeflow store (store init), projects are folders under projects/ and the operations are project new, project remove, project list and project show; every change is committed and, in a cloud store, pushed. Elsewhere they act on Pi's Task Memory registry.",
+    "Usage: working-record.mjs project <operation> ...\nOperations: project new, project show, project list, project remove.\nIn the Freeflow store (store init), a project is a folder under projects/ with its rules/ and tasks/; every change is committed and, in a cloud store, pushed. Create or remove a project only when the user asks.",
   ],
   [
     "project new",
-    "Usage: project new --name <name> [--cwd <directory>] [--worktrees <directory>]\nCreates the project and links the repository containing --cwd (default: the current directory) to it. --worktrees is where fan-out puts children's worktrees (default: the repository's parent directory).\nIn a Freeflow store: project new --name <name> makes projects/<slug>/ with rules/ and tasks/, then commits and pushes. Only on the user's word.",
-  ],
-  [
-    "project link",
-    "Usage: project link --name <name> [--cwd <directory>] [--worktrees <directory>]\nLinks another repository to an existing project; --worktrees changes where fan-out puts worktrees.",
-  ],
-  [
-    "task env",
-    "Usage: task env --id <task-id> [--primary <directory>] [--add-dir <directory>] [--remove-dir <directory>]\nPrints where the task's work happens: its primary directory with its current Git branch, and additional directories. The options change it; change it only when the user asks.",
+    "Usage: project new --name <name>\nMakes projects/<slug>/ in the Freeflow store with rules/ and tasks/, then commits and pushes. Only on the user's word.",
   ],
   [
     "task here",
-    "Usage: task here [--cwd <directory>] [--scan <folders>] [--rules]\nPrints the registered tasks whose primary directory contains the directory, deepest first.\nIn a Freeflow store: the session-start menu. It opens by saying the record is memory and the user's message decides the work; says which task this session holds, if any; then lists the open tasks of each project whose tasks name --cwd's repository, and those with no project that name it (newest activity first, at most 15 each), each with who holds it and when it last synced, and its cue; or every project's open tasks, when none matches. --scan <folders>, separated as in PATH, remembers where each repository a task names is on this machine, from the Git checkouts at those folders and directly inside them, so recovery resolves its pointers there. --rules adds, after the menu, the store's rules and those of the folder's project and of the task this session holds, each whole: what Freeflow's harness layer gives a session at its start. It takes nothing.",
-  ],
-  [
-    "task fanout",
-    "Usage: task fanout --parent <task-id> --title <title> --goal <goal> [--path <directory>] [--base <ref>] [--agent <command>]\nCreates a child of the task, a Git worktree for it on branch <project>/<task-NNN>-<slug> (at <worktrees>/<repo>-<slug> unless --path), copies .freeflow/local.json into it when it has none, and makes the worktree the child's directory. The user then starts a session there: --agent is the command that starts this host's agent (such as claude or codex), and the output ends with a command for the user to paste into a new terminal.",
+    "Usage: task here [--cwd <directory>] [--scan <folders>] [--rules]\nThe session-start menu. It opens by saying the record is memory and the user's message decides the work; says which task this session holds, if any; then lists the open tasks of each project whose tasks name --cwd's repository, and those with no project that name it (newest activity first, at most 15 each), each with who holds it and when it last synced, and its cue; or every project's open tasks, when none matches. --scan <folders>, separated as in PATH, remembers where each repository a task names is on this machine, from the Git checkouts at those folders and directly inside them, so recovery resolves its pointers there. --rules adds, after the menu, the store's rules and those of the folder's project and of the task this session holds, each whole: what Freeflow's harness layer gives a session at its start. It takes nothing.",
   ],
   [
     "project show",
-    "Usage: project show [--cwd <directory>] [--name <project>]\nPrints a project and its tasks: ID, title, parent, and whether a session owns it. Without --name, the project linked to the repository containing --cwd.\nIn a Freeflow store: project show --name <project> lists every task of the project: ID, title, state, who holds it and when it last synced, and its cue; without --name, the menu for --cwd (see task here).",
+    "Usage: project show [--name <project>] [--cwd <directory>]\nLists every task of the project: ID, title, state, who holds it and when it last synced, and its cue; without --name, the menu for --cwd (see task here).",
   ],
   [
     "project list",
-    "Usage: project list\nPrints every project: name, number of tasks, and linked repositories.\nIn a Freeflow store: each project with its number of tasks and the repositories its tasks name in Space.",
+    "Usage: project list\nEach project in the Freeflow store with its number of tasks and the repositories its tasks name in Space.",
   ],
   [
     "project remove",
-    "Usage: project remove --name <project>\nMoves the project's store (every task's record) to the trash under the Freeflow home, removes the project and its tasks from the registry, and removes its .freeflow/project links. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that project. Never empty the trash: the user does.\nIn a Freeflow store: project remove --name <project> deletes the project's folder and every task in it, then commits and pushes; Git history keeps them, and the output says how to bring them back. Only when the user asked.",
+    "Usage: project remove --name <project>\nDeletes the project's folder and every task in it, then commits and pushes; Git history keeps them, and the output says how to bring them back. Only when the user asked.",
   ],
   [
     "task remove",
-    "Usage: task remove --id <task ID>\nMoves the task's record, and its children's, to the trash under the Freeflow home and removes them from the registry. Task numbers are never reused. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that task. Never empty the trash: the user does.\nIn a Freeflow store: task remove --id <project/task-NNN> deletes the task's folder, then commits and pushes; Git history keeps it, and the output says how to bring it back. Only when the user asked.",
+    "Usage: task remove --id <task ID>\nDeletes the task's folder, then commits and pushes; Git history keeps it, and the output says how to bring it back. Its number is never reused. Only when the user asked.",
   ],
   [
     "task take",
-    "Usage: task take --id <project/task-NNN> [--takeover]\nIn a Freeflow store: takes the remote's commits, then writes this session's hold in the task's sessions.md, commits and pushes. Refused while another session holds the task, naming it and when it last synced: ask the user, then --takeover closes that hold as taken over. Refused while this session holds another task: use task switch.",
+    "Usage: task take --id <task ID> [--takeover]\nTakes the remote's commits, then writes this session's hold in the task's sessions.md, commits and pushes. Refused while another session holds the task, naming it and when it last synced: ask the user, then --takeover closes that hold as taken over. Refused while this session holds another task: use task switch.",
   ],
   [
     "task release",
-    "Usage: task release [--id <project/task-NNN>]\nIn a Freeflow store: closes this session's hold on the task it holds (or --id) as released, commits and pushes.",
+    "Usage: task release [--id <task ID>]\nCloses this session's hold on the task it holds (or --id) as released, commits and pushes.",
   ],
   [
     "task switch",
-    "Usage: task switch --id <project/task-NNN> [--takeover]\nIn a Freeflow store: releases the task this session holds, then takes the other. Checkpoint the held task first.",
+    "Usage: task switch --id <task ID> [--takeover]\nReleases the task this session holds, then takes the other. Checkpoint the held task first.",
   ],
   [
     "task create",
-    "Usage: task create --title <title> --goal <goal> [--parent <task-id>] [--cwd <directory>]\nCreates a registered record in the project linked to --cwd, or with --parent a child of that task in its project, and prints its ID and path. A child has no children.\nIn a Freeflow store: task create --title <title> --goal <goal> --cue <cue> [--project <project> | --no-project] [--cwd <directory>] [--next-action <text>] makes a Schema 5 task in the project, by default the one whose tasks name --cwd's repository, or with no project (task-NNN, in the store's tasks/) when none does or with --no-project; names that repository in its Space, and this session takes it; then commits and pushes. Only when the user asks or says yes to your question, which also asks where the task goes.",
+    "Usage: task create --title <title> --goal <goal> --cue <cue> [--project <project> | --no-project] [--cwd <directory>] [--next-action <text>]\nMakes a Schema 5 task in the project, by default the one whose tasks name --cwd's repository, or with no project (task-NNN, in the store's tasks/) when none does or with --no-project; names that repository in its Space, and this session takes it; then commits and pushes. Only when the user asks or says yes to your question, which also asks where the task goes.",
   ],
   [
     "task move",
-    "Usage: task move --id <task ID> (--project <project> | --no-project)\nIn a Freeflow store: moves the task's folder into the project, or out of it to the store's tasks with no project, with the next number free there, then commits and pushes; Git history keeps the old path. Its new ID is printed; the old one no longer names it, and its delegations' briefs name the new one. Refused while another session holds the task. Only on the user's word.",
-  ],
-  [
-    "task import",
-    "Usage: task import --record <record.md> --project <name>\nMoves an unregistered record's task directory into the project's store, with the next free number, and registers it. Ask the user first.",
+    "Usage: task move --id <task ID> (--project <project> | --no-project)\nMoves the task's folder into the project, or out of it to the store's tasks with no project, with the next number free there, then commits and pushes; Git history keeps the old path. Its new ID is printed; the old one no longer names it, and its delegations' briefs name the new one. Refused while another session holds the task. Only on the user's word.",
   ],
   [
     "task search",
-    "Usage: task search --query <text> (--id <task-id> --scope task|tree|project | --project <name>)\nPrints matching lines with the record, entry heading and state. tree is the task's root (its parent, or itself) and the root's children. Read-only.\nIn a Freeflow store: task search --query <text> [--project <project>] searches every task's record.md, history.md and decisions.md.",
+    "Usage: task search --query <text> [--project <project>]\nSearches every task's record.md, history.md and decisions.md in the Freeflow store, or the project's. Read-only.",
   ],
   [
     "slice propose",
-    "Usage: slice propose --record <record.md> --title <title> --input <file|->\nInput: Intended result required; Type, Expected evidence, and Dependencies optional. Commands set State; input never includes it. Use --input - to read the fragment from stdin.\nSchema 5 input: Result wanted required; Done when and Dependencies optional.",
+    "Usage: slice propose --record <record.md> --title <title> --input <file|->\nInput: Result wanted required; Done when and Dependencies optional. Commands set State; input never includes it. Use --input - to read the fragment from stdin.",
   ],
   [
     "slice start",
-    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.\nSchema 5 input: Scope, Stop if and Started from required; Under (default: the open agreement), Done when (default: the proposal's), Waits on (D-NNN, comma-separated) and Dependencies. Takes the Slice's first reading of what it uses (its Measured line), from --used <tokens>, else the transcript --transcript or FREEFLOW_TRANSCRIPT names; with neither it is not measured.",
+    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Scope, Stop if and Started from required; Under (default: the open agreement), Done when (default: the proposal's), Waits on (D-NNN, comma-separated) and Dependencies. Takes the Slice's first reading of what it uses (its Measured line), from --used <tokens>, else the transcript --transcript or FREEFLOW_TRANSCRIPT names; with neither it is not measured. Use --input - to read the fragment from stdin.",
   ],
   [
     "slice start-direct",
-    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Intended result, Authority source, Scope, Expected evidence, Stop condition, and Starting state required; Future Work is unchanged. Use --input - to read the fragment from stdin.\nSchema 5 input: Result wanted, Scope, Done when, Stop if and Started from required; Under (default: the open agreement), Waits on and Dependencies. Takes the Slice's first reading of what it uses, as slice start does.",
+    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Result wanted, Scope, Done when, Stop if and Started from required; Under (default: the open agreement), Waits on and Dependencies; Future Work is unchanged. Takes the Slice's first reading of what it uses, as slice start does.",
   ],
   [
     "slice pause",
@@ -335,46 +288,19 @@ const COMMAND_HELP = new Map([
   ["slice resume", "Usage: slice resume --record <record.md> --resolution <source> --next-action <text>"],
   [
     "slice close",
-    'Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Result, Evidence and limits, and Task effect required. Use --input - to read the fragment from stdin.\nSchema 5 input: Cue ("read when …", at most 25 words), Result, Evidence and Task effect required; Resume when for blocked, Reason for abandoned. Appends the Slice\'s History entry, its updates included, then syncs the Freeflow store holding the task. A Slice is not closed as completed while a delegation it Waits on is open. Takes a last reading (--used, --transcript or FREEFLOW_TRANSCRIPT) and writes the Slice\'s Measured totals into its History entry, or "not measured".',
-  ],
-  [
-    "slice reopen",
-    "Usage: slice reopen --record <record.md> --id <S-NNN> --next-action <text> --input <file|->\nInput: fresh Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.",
+    'Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Cue ("read when …", at most 25 words), Result, Evidence and Task effect required; Resume when for blocked, Reason for abandoned. Appends the Slice\'s History entry, its updates included, then syncs the Freeflow store holding the task. A Slice is not closed as completed while a delegation it Waits on is open. Takes a last reading (--used, --transcript or FREEFLOW_TRANSCRIPT) and writes the Slice\'s Measured totals into its History entry, or "not measured". Use --input - to read the fragment from stdin.',
   ],
   [
     "slice record",
-    "Usage: slice record --record <record.md> --title <title> --state <completed|blocked|abandoned> --input <file|->\nRecords a Slice that finished before it could be recorded, directly into History. The Current Slice, Future Work, and Next useful action are unchanged; the ID follows recording order and the command adds Recorded: retroactively on <today>.\nInput: Occurred (YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD), Intended result, Authority source, Result, Evidence and limits, and Task effect required; Type and Residual effects optional; Resume when required for blocked; Reason required for abandoned. Use --input - to read the fragment from stdin.\nSchema 5 input: Occurred, Cue, Under, Result wanted, Result, Evidence and Task effect required; Resume when for blocked, Reason for abandoned.",
+    "Usage: slice record --record <record.md> --title <title> --state <completed|blocked|abandoned> --input <file|->\nRecords a Slice that finished before it could be recorded, directly into History. The current Slice, Future Work and the Next action are unchanged; the ID follows recording order and the command adds Recorded: retroactively on <today>.\nInput: Occurred (YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD), Cue, Under, Result wanted, Result, Evidence and Task effect required; Resume when for blocked, Reason for abandoned. Use --input - to read the fragment from stdin.",
   ],
-  [
-    "checkpoint propose",
-    "Usage: checkpoint propose --record <record.md> --title <title> --input <file|->\nInput: Type (preserve, publish, review, decision, or continuity), Condition, and Applies to required. Use --input - to read the fragment from stdin.",
-  ],
-  [
-    "checkpoint activate",
-    "Usage: checkpoint activate --record <record.md> --title <proposal title> [--next-action <text>]",
-  ],
-  ["checkpoint defer", "Usage: checkpoint defer --record <record.md> --id <C-NNN> [--next-action <text>]"],
-  ["checkpoint resume", "Usage: checkpoint resume --record <record.md> --id <C-NNN> [--next-action <text>]"],
-  [
-    "checkpoint close",
-    "Usage: checkpoint close --record <record.md> --id <C-NNN> --state <completed|cancelled|replaced> [--next-action <text>] --input <file|->\nInput: Result and Task effect required; Evidence optional; Reason required for cancelled or replaced; Replaced by required for replaced. Use --input - to read the fragment from stdin.",
-  ],
-  [
-    "decision add",
-    "Usage: decision add --record <record.md> --title <title> --input <file|->\nInput: Decision, Established by, Rationale, Consequences, and Revisit when required; Source references optional. Use --input - to read the fragment from stdin.",
-  ],
-  [
-    "decision supersede",
-    "Usage: decision supersede --record <record.md> --id <D-NNN> --title <title> --input <file|->\nInput: Decision, Established by, Rationale, Consequences, and Revisit when required; Source references optional. Use --input - to read the fragment from stdin.",
-  ],
-  ["decision retire", "Usage: decision retire --record <record.md> --id <D-NNN> --reason <reason>"],
   [
     "task set-state",
     "Usage: task set-state --record <record.md> --state <active|paused|completed|abandoned> --next-action <text>",
   ],
   [
     "task set-budget",
-    "Usage: task set-budget --record <record.md> --mode <normal|expanded>\nSets the task's budget mode in the record's header (Schema 5), on the user's word: expanded is half as large again as normal.",
+    "Usage: task set-budget --record <record.md> --mode <normal|expanded>\nSets the task's budget mode in the record's header, on the user's word: expanded is half as large again as normal.",
   ],
 ]);
 
@@ -434,7 +360,7 @@ function parseOptions(args) {
 function allowedOptions(command, operation) {
   const common = new Set(["--root", "--record", "--input", "--help"]);
   const withNextAction = new Set([...common, "--next-action"]);
-  if (command === "init") return new Set(["--root", "--name", "--input", "--schema", "--cue", "--help"]);
+  if (command === "init") return new Set(["--root", "--name", "--input", "--cue", "--help"]);
   if (command === "view")
     return new Set([
       "--root",
@@ -508,33 +434,21 @@ function allowedOptions(command, operation) {
     if (operation === "pause") return new Set([...withNextAction, "--reason", "--resume-when"]);
     if (operation === "resume") return new Set([...withNextAction, "--resolution"]);
     if (operation === "close") return new Set([...withNextAction, "--state", "--used", "--transcript"]);
-    if (operation === "reopen") return new Set([...withNextAction, "--id", "--title"]);
     if (operation === "record") return new Set([...common, "--title", "--state"]);
   }
-  if (command === "checkpoint") {
-    if (operation === undefined)
-      return new Set([
-        "--root",
-        "--record",
-        "--repo",
-        "--input",
-        "--session",
-        "--home",
-        "--used",
-        "--transcript",
-        "--compact",
-        "--help",
-      ]);
-    if (operation === "propose") return new Set([...common, "--title"]);
-    if (operation === "activate") return new Set([...withNextAction, "--title"]);
-    if (operation === "defer" || operation === "resume") return new Set([...withNextAction, "--id"]);
-    if (operation === "close") return new Set([...withNextAction, "--id", "--state"]);
-  }
-  if (command === "decision") {
-    if (operation === "add") return new Set([...common, "--title"]);
-    if (operation === "supersede") return new Set([...common, "--id", "--title"]);
-    if (operation === "retire") return new Set(["--root", "--record", "--id", "--reason", "--input", "--help"]);
-  }
+  if (command === "checkpoint" && operation === undefined)
+    return new Set([
+      "--root",
+      "--record",
+      "--repo",
+      "--input",
+      "--session",
+      "--home",
+      "--used",
+      "--transcript",
+      "--compact",
+      "--help",
+    ]);
   if (command === "task" && operation === "set-state")
     return new Set(["--root", "--record", "--state", "--next-action", "--help"]);
   if (command === "task" && operation === "set-budget") return new Set(["--root", "--record", "--mode", "--help"]);
@@ -543,22 +457,6 @@ function allowedOptions(command, operation) {
     if (operation === "update") return new Set([...common, "--text"]);
     if (operation === "close") return new Set([...withNextAction, "--state"]);
   }
-  if (command === "task" && operation === "create")
-    return new Set(["--title", "--goal", "--parent", "--cwd", "--help"]);
-  if (command === "task" && operation === "import") return new Set(["--record", "--project", "--help"]);
-  if (command === "task" && operation === "search")
-    return new Set(["--query", "--id", "--scope", "--project", "--help"]);
-  if (command === "task" && operation === "env")
-    return new Set(["--id", "--primary", "--add-dir", "--remove-dir", "--help"]);
-  if (command === "task" && operation === "here") return new Set(["--cwd", "--help"]);
-  if (command === "task" && operation === "fanout")
-    return new Set(["--parent", "--title", "--goal", "--path", "--base", "--cwd", "--agent", "--help"]);
-  if (command === "project" && (operation === "new" || operation === "link"))
-    return new Set(["--name", "--cwd", "--worktrees", "--help"]);
-  if (command === "project" && operation === "show") return new Set(["--cwd", "--name", "--help"]);
-  if (command === "project" && operation === "list") return new Set(["--help"]);
-  if (command === "task" && operation === "remove") return new Set(["--id", "--help"]);
-  if (command === "project" && operation === "remove") return new Set(["--name", "--help"]);
   if (command === "store" && operation === "init")
     return new Set(["--remote", "--home", "--git-name", "--git-email", "--help"]);
   if (command === "store" && operation === "remote") return new Set(["--url", "--home", "--help"]);
@@ -595,78 +493,6 @@ function rootOption(options) {
     if (store) return store;
   }
   return cwd();
-}
-
-function initialContent(skeletonLines, input) {
-  if (!input.trim()) return joinLines(skeletonLines, "\n");
-  const inputLines = input.replace(/\r\n?/g, "\n").split("\n");
-  const targets = new Map();
-  const names = [
-    "Goal",
-    WORK_AGREEMENT_HEADING,
-    "What defines this task",
-    "Settled",
-    "Tentative",
-    "Open",
-    "Current direction",
-    "Boundaries",
-    "Recovery sources",
-    "Next useful action",
-  ];
-  const allowed = new Set(names);
-  let seenHeading = false;
-  for (let index = 0; index < inputLines.length; index += 1) {
-    const levelThree = /^### (.+?)\s*$/.exec(inputLines[index]);
-    if (!levelThree && !seenHeading && inputLines[index].trim() !== "")
-      throw new CliError(`Initialization text outside a heading would be lost: ${inputLines[index].trim()}`);
-    if (levelThree) {
-      const name = levelThree[1];
-      if (!allowed.has(name)) throw new CliError(`Unknown initialization heading: ${name}`);
-      if (targets.has(name)) throw new CliError(`Duplicate initialization heading: ${name}`);
-      seenHeading = true;
-      const content = [];
-      for (let next = index + 1; next < inputLines.length; next += 1) {
-        if (/^### /.test(inputLines[next]) || /^## /.test(inputLines[next])) break;
-        content.push(inputLines[next]);
-      }
-      targets.set(name, content);
-      continue;
-    }
-    if (/^## /.test(inputLines[index])) throw new CliError(`Unknown initialization heading: ${inputLines[index]}`);
-  }
-  const output = [...skeletonLines];
-  // The skeleton has no Work agreement heading: it is written only when the input gives one.
-  if (targets.has(WORK_AGREEMENT_HEADING))
-    output.splice(output.indexOf("### What defines this task"), 0, `### ${WORK_AGREEMENT_HEADING}`, "");
-  for (const name of names) {
-    const content = targets.get(name);
-    if (!content) continue;
-    const headingIndex = output.findIndex((line) => line === `### ${name}`);
-    if (headingIndex < 0) continue;
-    let end = headingIndex + 1;
-    while (end < output.length && !/^### |^## /.test(output[end])) end += 1;
-    const trimmed = [...content];
-    while (trimmed.length && trimmed[0].trim() === "") trimmed.shift();
-    while (trimmed.length && trimmed[trimmed.length - 1].trim() === "") trimmed.pop();
-    output.splice(headingIndex + 1, end - headingIndex - 1, "", ...trimmed, "");
-  }
-  return joinLines(output, "\n");
-}
-
-async function initialize(options) {
-  const root = rootOption(options);
-  const name = requireOption(options, "--name");
-  const input = await readInput(options["--input"], cwd());
-  const text = initialContent(canonicalLines(name), input);
-  parseDocument(text);
-  const created = await createRecordPath(root, name, slugify(name));
-  try {
-    await writeInitialAtomically(root, created.path, text);
-  } catch (error) {
-    if (error?.exitCode !== 2) await rm(dirname(created.path), { recursive: true, force: true }).catch(() => undefined);
-    throw error;
-  }
-  return `${created.path}\n`;
 }
 
 const INIT5_HEADINGS = [
@@ -714,6 +540,17 @@ async function readExisting(options) {
   return { root, ...loaded };
 }
 
+/** A record every command but migrate and view full works on: Schema 5. A Schema 4 record is converted first (P7). */
+function requireSchema5(loaded) {
+  const schema = schemaOf(loaded.text);
+  if (schema === 4)
+    throw new CliError(
+      `${displayPath(loaded.root, loaded.path)} is a Schema 4 record, which only migrate reads now: convert it with migrate, or move it into the Freeflow store as Setup Freeflow's store setup says`,
+    );
+  if (schema !== 5) throw new CliError(`${displayPath(loaded.root, loaded.path)} is not a Schema 5 record`);
+  return loaded;
+}
+
 /** Schema 5's validate: the task folder's structure, then budget and cue warnings and the update lines' pointers. */
 async function validate5(loaded, options) {
   const task = await loadTask5(loaded.path, loaded.text);
@@ -735,106 +572,6 @@ async function validate5(loaded, options) {
       `Pointers on Evidence or Result lines do not resolve:\n${pointers.problems.map((each) => `- ${each}`).join("\n")}`,
     );
   return `valid\n${displayPath(loaded.root, loaded.path)}, ${task.history.entries.length} history entries\n${pointers.checked} evidence pointer(s) checked${notes.length ? `\n${notes.join("\n")}` : ""}\n`;
-}
-
-/** Projects, registered tasks and search, through the registry under the Freeflow home. */
-async function runRegistry(command, operation, options) {
-  const registry = new Registry();
-  const where = options["--cwd"] ?? cwd();
-  // Where the user can browse the project's records, when the project link was made.
-  const browse = async () => {
-    const link = resolve(await registry.repoRoot(where), PROJECT_LINK);
-    return existsSync(link) ? ` The user can browse its records at ${link}.` : "";
-  };
-  if (command === "project" && operation === "new")
-    return `Project ${await registry.createProject(requireOption(options, "--name"), where, options["--worktrees"])} created and linked to ${await registry.repoRoot(where)}.${await browse()}\n`;
-  if (command === "project" && operation === "link")
-    return `${await registry.repoRoot(where)} linked to project ${await registry.linkProject(requireOption(options, "--name"), where, options["--worktrees"])}.${await browse()}\n`;
-  // Removal moves records to the trash; nothing here empties it, which is the user's to do (Task 006).
-  if (command === "task" && operation === "remove")
-    return `${removalText(await registry.removeTask(requireOption(options, "--id")), registry.trash)}\n`;
-  if (command === "project" && operation === "remove")
-    return `${removalText(await registry.removeProject(requireOption(options, "--name")), registry.trash)}\n`;
-  if (command === "project" && operation === "list") {
-    const data = await registry.read();
-    const projects = Object.entries(data.projects);
-    if (!projects.length) return "No projects.\n";
-    const count = (slug) => Object.values(data.tasks).filter((task) => task.project === slug).length;
-    return `${projects.map(([slug, project]) => `- ${project.name} (${slug}): ${count(slug)} task(s); repositories ${project.repos.join(", ")}`).join("\n")}\n`;
-  }
-  if (command === "project" && operation === "show") {
-    const found = options["--name"] ? await registry.project(options["--name"]) : await registry.projectFor(where);
-    if (!found)
-      return options["--name"]
-        ? `No project named ${options["--name"]}.\n`
-        : `No project is linked to ${await registry.repoRoot(where)}.\n`;
-    const lines = [`Project ${found.project.name} (${found.slug}), store ${found.project.store}`];
-    for (const { id, task } of await registry.projectTasks(found.slug))
-      lines.push(
-        `- ${id} — ${task.title} (${task.record})${task.parent ? `, child of ${task.parent}` : ""}${task.owner ? `, owned by session ${task.owner.session}` : ""}`,
-      );
-    return `${lines.join("\n")}\n`;
-  }
-  if (operation === "create") {
-    const title = requireOption(options, "--title");
-    const goal = requireOption(options, "--goal");
-    const parent = options["--parent"];
-    const slug = parent ? (await registry.task(parent))?.project : (await registry.projectFor(where))?.slug;
-    if (!slug)
-      throw new CliError(parent ? `No task ${parent}.` : `No project is linked to ${await registry.repoRoot(where)}.`);
-    const primary = parent ? undefined : await registry.repoRoot(where);
-    const created = await registry.createTask(slug, title, goal, parent, primary);
-    return `${created.id}\n${created.record}\n`;
-  }
-  if (operation === "import") {
-    const record = resolve(requireOption(options, "--record"));
-    const moved = await registry.importRecord(requireOption(options, "--project"), record);
-    return `${moved.id}\n${moved.record}\n`;
-  }
-  if (operation === "env") {
-    const id = requireOption(options, "--id");
-    if (options["--primary"] || options["--add-dir"] || options["--remove-dir"])
-      await registry.setEnvironment(id, {
-        primary: options["--primary"],
-        add: options["--add-dir"],
-        remove: options["--remove-dir"],
-      });
-    const env = await registry.environment(id);
-    if (!env.primary) return `${id} has no recorded directory.\n`;
-    const facts =
-      env.exists === false
-        ? ["missing"]
-        : [env.worktree ? "Git worktree" : "", env.branch ? `branch ${env.branch}` : ""];
-    const state = facts.filter(Boolean).join(", ");
-    return `${[`primary: ${env.primary}${state ? ` (${state})` : ""}`, ...env.directories.map((dir) => `also: ${dir}`)].join("\n")}\n`;
-  }
-  if (operation === "here") {
-    const found = await registry.here(where);
-    if (!found.length) return `No registered task works in ${resolve(where)}.\n`;
-    return `${found.map(({ id, task }) => `${id} — ${task.title} (${task.environment.primary})`).join("\n")}\n`;
-  }
-  if (operation === "fanout") {
-    const result = await registry.fanout(
-      requireOption(options, "--parent"),
-      requireOption(options, "--title"),
-      requireOption(options, "--goal"),
-      { path: options["--path"], base: options["--base"], cwd: where },
-    );
-    if (result.error) throw new CliError(result.error);
-    return `${result.id}\n${result.path}\nbranch ${result.branch}${result.copiedConfig ? "; copied .freeflow/local.json" : ""}\nNext: open a new terminal and run:\n  ${startCommand(result.path, options["--agent"])}${options["--agent"] ? "" : " (then start the agent there)"}\n`;
-  }
-  if (operation === "search") {
-    const query = requireOption(options, "--query");
-    let records;
-    if (options["--id"]) records = await registry.scope(options["--id"], options["--scope"] ?? "task");
-    else {
-      const slug = (await registry.read()).projects[options["--project"] ?? ""] ? options["--project"] : undefined;
-      if (!slug) throw new CliError("Give --id with --scope, or --project with a project's slug.");
-      records = (await registry.projectTasks(slug)).map(({ id, task }) => [id, task.record]);
-    }
-    return `${await searchRecords(records, query)}\n`;
-  }
-  throw new CliError(`Unknown command: ${command} ${operation}`);
 }
 
 /** The Freeflow store: init, status and sync (lib/freeflow-store.mjs). */
@@ -969,14 +706,11 @@ async function runCore(command, rest) {
   const { options, positionals } = parseOptions(rest);
   const operation = positionals[0];
   if (options["--help"]) return commandHelp(command, operation);
-  // In a Freeflow store, projects and tasks are its folders; elsewhere the registry of Pi's Task Memory keeps them.
+  // Projects and tasks are the Freeflow store's folders.
   if (STORE_OPTIONS.has(`${command} ${operation}`)) {
     const home = storeHome(options["--home"]);
     if (isFreeflowStore(home)) return runProjects5(command, operation, options, home);
-    if (["take", "release", "switch", "move"].includes(operation) || options["--home"])
-      throw new CliError(
-        `${command} ${operation}${options["--home"] ? " --home" : ""} works in a Freeflow store; ${home} is not one (store init makes one)`,
-      );
+    throw new CliError(`${command} ${operation} works in a Freeflow store; ${home} is not one (store init makes one)`);
   }
   validateCommandOptions(command, operation, options);
   if (command === "store") return runStore(operation, options);
@@ -994,23 +728,13 @@ async function runCore(command, rest) {
         };
     return `${JSON.stringify(status, null, 2)}\n`;
   }
-  if (
-    command === "project" ||
-    (command === "task" && ["create", "import", "search", "env", "here", "fanout", "remove"].includes(operation))
-  )
-    return runRegistry(command, operation, options);
-  // A registered task's ID stands for its record's path.
+  // A task's ID stands for its record's path.
   if (
     typeof options["--record"] === "string" &&
     STORE_TASK_ID.test(options["--record"]) &&
     isFreeflowStore(storeHome())
   )
     options["--record"] = storeRecordPath(storeHome(), options["--record"]);
-  else if (typeof options["--record"] === "string" && TASK_ID.test(options["--record"])) {
-    const task = await new Registry().task(options["--record"]);
-    if (!task) throw new CliError(`No task ${options["--record"]} in the registry.`);
-    options["--record"] = task.record;
-  }
   if (command === "carry") {
     const transcript = sessionTranscript(options["--transcript"] ?? null);
     if (!transcript) throw new CliError("No transcript: pass --transcript <path>, or set FREEFLOW_TRANSCRIPT.");
@@ -1039,8 +763,7 @@ async function runCore(command, rest) {
     if (options["--mode"] !== undefined && !["normal", "expanded"].includes(options["--mode"]))
       throw new CliError("--mode is normal or expanded");
     if (!options["--record"]) return renderBudget({ window, mode: options["--mode"] ?? "normal" });
-    const loaded = await readExisting(options);
-    if (schemaOf(loaded.text) !== 5) throw new CliError("budget --record is for Schema 5 records");
+    const loaded = requireSchema5(await readExisting(options));
     const task = await loadTask5(loaded.path, loaded.text);
     if (options["--mode"]) task.record.header.budget = options["--mode"];
     return renderBudget({ window, measured: measureTask(task, { root: loaded.root, path: loaded.path, window }) });
@@ -1056,8 +779,7 @@ async function runCore(command, rest) {
     });
   }
   if (command === "discussion") {
-    const loaded = await readExisting(options);
-    if (schemaOf(loaded.text) !== 5) throw new CliError("discussion is for Schema 5 records");
+    const loaded = requireSchema5(await readExisting(options));
     if (operation === "drop") return dropBlock(loaded, requireOption(options, "--block"));
     const task = await loadTask5(loaded.path, loaded.text);
     // List and save number the same messages: by default, those since the record's last checkpoint.
@@ -1116,11 +838,7 @@ async function runCore(command, rest) {
       if (operation === "open") return openDelegation(null, options, input);
       if (operation === "check-return") return checkReturn(null, options);
     }
-    const loaded = await readExisting(options);
-    if (schemaOf(loaded.text) !== 5)
-      throw new CliError(
-        "delegate is for Schema 5 records; with a Schema 4 record, keep the delegation folders by hand",
-      );
+    const loaded = requireSchema5(await readExisting(options));
     const input = await readInput(options["--input"], cwd());
     if (operation === "open") return openDelegation(loaded, options, input);
     if (operation === "amend") return amendDelegation(loaded, options, input);
@@ -1129,19 +847,13 @@ async function runCore(command, rest) {
     if (operation === "close") return closeDelegation(loaded, options, input);
   }
   if (command === "init") {
-    const schema = options["--schema"] ?? "5";
-    if (!["4", "5"].includes(schema)) throw new CliError(`--schema is 4 or 5, not ${schema}`);
-    if (schema === "4" && options["--cue"]) throw new CliError("--cue is for Schema 5; --schema 4 takes none");
-    if (schema === "5" && !options["--cue"])
-      throw new CliError(
-        'init requires --cue, saying when the task matters ("read when …"); --schema 4 writes a Schema 4 record',
-      );
-    return schema === "5" ? initialize5(options) : initialize(options);
+    if (!options["--cue"]) throw new CliError('init requires --cue, saying when the task matters ("read when …")');
+    return initialize5(options);
   }
   if (command === "view") {
     const view = positionals[0] ?? options["--view"];
-    if (!view || !["resume", "recover", "full", "entry", "index", "bundle"].includes(view))
-      throw new CliError("View must be resume, recover, full, entry, index, or bundle");
+    if (!view || !["recover", "full", "entry", "index", "bundle"].includes(view))
+      throw new CliError("View must be recover, full, entry, index, or bundle");
     if (options["--session"] && view !== "bundle") throw new CliError("--session is for view bundle");
     if (options["--fallback"] && (view !== "bundle" || options["--session"]))
       throw new CliError("--fallback is for view bundle --record");
@@ -1152,63 +864,34 @@ async function runCore(command, rest) {
     }
     const ids = positionals.slice(1);
     if (view === "entry") {
-      if (!ids.length) throw new CliError("View entry needs at least one S-NNN, C-NNN, D-NNN, or A-NNN ID");
-      const invalid = ids.find((id) => !/^[SCDA]-\d{3,}$/.test(id));
+      if (!ids.length) throw new CliError("View entry needs at least one S-NNN, D-NNN, or A-NNN ID");
+      const invalid = ids.find((id) => !/^[SDA]-\d{3,}$/.test(id));
       if (invalid) throw new CliError(`Not an entry ID: ${invalid}`);
     } else if (ids.length) throw new CliError(`View ${view} accepts no further arguments`);
     const loaded = await readExisting(options);
-    if (view === "full") return renderFull(loaded.text);
-    if (schemaOf(loaded.text) === 5) {
-      if (view === "recover") return renderRecover5(loaded, { delegation: options["--delegation"] ?? null });
-      if (view === "bundle")
-        return renderBundle5(loaded, {
-          fallback: options["--fallback"] === true,
-          recent: options["--no-recent"] !== true,
-        });
-      if (view === "entry") return renderEntries5(loaded, ids);
-      if (view === "index") return renderIndex5(loaded);
-      throw new CliError("Schema 5 has no resume view: read record.md, or after context loss view recover");
-    }
-    if (view === "index" || view === "bundle")
-      throw new CliError(
-        `View ${view} is for Schema 5 records${view === "index" ? "; Schema 4's resume view holds its index" : ""}`,
-      );
-    if (view === "entry") return renderEntries(loaded.text, ids);
-    if (view === "recover") return renderRecover(loaded.text, { root: loaded.root, recordPath: loaded.path });
-    return renderResume(loaded.text);
+    // full prints record.md as stored, valid or not, of any schema: what to read after an uncertain write.
+    if (view === "full") return loaded.text;
+    requireSchema5(loaded);
+    if (view === "recover") return renderRecover5(loaded, { delegation: options["--delegation"] ?? null });
+    if (view === "bundle")
+      return renderBundle5(loaded, {
+        fallback: options["--fallback"] === true,
+        recent: options["--no-recent"] !== true,
+      });
+    if (view === "entry") return renderEntries5(loaded, ids);
+    return renderIndex5(loaded);
   }
   if (command === "validate") {
     if (positionals.length) throw new CliError("Validate does not accept positional arguments");
-    const loaded = await readExisting(options);
-    if (schemaOf(loaded.text) === 5) return validate5(loaded, options);
-    validateDocument(parseDocument(loaded.text));
-    const pointers = checkEvidencePointers(loaded.text, { root: loaded.root, recordPath: loaded.path });
-    const outside = pointers.outside.length
-      ? `\n${pointers.outside.length} evidence pointer(s) outside the repository, not checked:\n${pointers.outside.map((each) => `- ${each}`).join("\n")}`
-      : "";
-    // Unresolved pointers warn: a record may name a planned path or a commit not fetched yet. --strict fails on those
-    // an Evidence or Result line claims exist.
-    const unresolved = options["--strict"] ? pointers.warnings : [...pointers.problems, ...pointers.warnings];
-    const warnings = unresolved.length
-      ? `\n${unresolved.length} pointer(s) in Material updates do not resolve here (a planned path, or a commit not fetched?):\n${unresolved.map((each) => `- ${each}`).join("\n")}`
-      : "";
-    if (options["--strict"] && pointers.problems.length)
-      throw new CliError(
-        `Evidence pointers on Evidence or Result lines do not resolve:\n${pointers.problems.map((each) => `- ${each}`).join("\n")}${warnings}${outside}`,
-      );
-    return `valid\n${displayPath(loaded.root, loaded.path)}\n${pointers.checked} evidence pointer(s) checked${warnings}${outside}\n`;
+    return validate5(requireSchema5(await readExisting(options)), options);
   }
-  const schema5Only = command === "agreement" || (command === "checkpoint" && positionals.length === 0);
-  if (positionals.length !== (command === "checkpoint" && positionals.length === 0 ? 0 : 1))
-    throw new CliError(`Expected one operation for ${command}`);
-  const loaded = await readExisting(options);
-  const input = await readInput(options["--input"], cwd());
-  if (schemaOf(loaded.text) === 5) return runTransition5(command, positionals, options, input, loaded);
-  if (schema5Only)
+  if (positionals.length !== (command === "checkpoint" ? 0 : 1))
     throw new CliError(
-      `${command === "agreement" ? "agreement" : "checkpoint without an operation"} is for Schema 5 records; this one is Schema ${schemaOf(loaded.text) ?? "unknown"}`,
+      command === "checkpoint" ? "checkpoint takes no operation" : `Expected one operation for ${command}`,
     );
-  return runTransition(command, positionals, options, input, loaded);
+  const loaded = requireSchema5(await readExisting(options));
+  const input = await readInput(options["--input"], cwd());
+  return runTransition5(command, positionals, options, input, loaded);
 }
 
 /** Leaves this session's request for Freeflow's compaction in the store (P102); says where it went, or why none did. */

@@ -7,18 +7,15 @@
 //              --plan, the work's size (Track Work's `estimate --plan --json`) and, in Technical, its plan (P87);
 //   handover   the items the hand-over shows: new, changed and default;
 //   catch-up   after an unattended run: defaults taken, choices waiting, changes, and what ran, from the Working
-//              Record's current Slice: a Schema 5 record's update lines, read from record.md, or a Schema 4 record's
-//              Material updates (read through Track Work's `working-record.mjs view resume`).
+//              Record's current Slice: its update lines, read from record.md.
 // Usage: choices.mjs <validate|agreement|handover|catch-up> (--list <file|-> | --record <record.md>)
 //                    [--do <outcome> --stop <where you stop>] [--plan <file>] [--show-technical] [--json]
 // --list reads a file or stdin (no Working Record: the list lives in the conversation); --record reads the task's
-// decisions.md beside a Schema 5 record, or sources/decisions.md beside a Schema 4 one. Each item is one line, "- P1 [state] choice -> default ..." (a technical
+// decisions.md beside the record. Each item is one line, "- P1 [state] choice -> default ..." (a technical
 // item "-> serves P1"); other lines are ignored. Every view validates first. Exit code 0 when the list is valid
 // (warnings do not fail it), 1 when it has errors, 2 on a usage error.
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { parseChoices, renderChoices } from "./lib/choices.mjs";
 
@@ -27,7 +24,6 @@ const USAGE = [
   "                   [--do <outcome> --stop <where you stop>] [--plan <file>] [--show-technical] [--json]",
 ].join("\n");
 const VIEWS = new Set(["validate", "agreement", "handover", "catch-up"]);
-const WORKING_RECORD = resolve(dirname(fileURLToPath(import.meta.url)), "../../track-work/scripts/working-record.mjs");
 
 function fail(message) {
   console.error(message);
@@ -72,19 +68,12 @@ if (values.record) {
   const record = resolve(values.record);
   if (!existsSync(record)) fail(`no such record: ${values.record}`);
   const recordText = readFileSync(record, "utf8");
-  const schema5 = /^Schema: 5\b/m.test(recordText);
-  const listPath = schema5 ? join(dirname(record), "decisions.md") : join(dirname(record), "sources", "decisions.md");
+  if (/^Schema: 4\b/m.test(recordText))
+    fail(`${values.record} is a Schema 4 record: convert it with Track Work's migrate first`);
+  const listPath = join(dirname(record), "decisions.md");
   if (!existsSync(listPath)) fail(`no decision list at ${listPath}; Track Work keeps it there`);
   listText = readFileSync(listPath, "utf8");
-  if (view === "catch-up" && schema5) recordView = { schema: 5, text: recordText };
-  else if (view === "catch-up") {
-    const run = spawnSync(process.execPath, [WORKING_RECORD, "view", "resume", "--record", record], {
-      encoding: "utf8",
-      maxBuffer: 64 * 1024 * 1024,
-    });
-    if (run.status !== 0) fail(`working-record.mjs view resume failed: ${(run.stderr || run.stdout).trim()}`);
-    recordView = { schema: 4, text: run.stdout };
-  }
+  if (view === "catch-up") recordView = recordText;
 } else if (values.list === "-") listText = readFileSync(0, "utf8");
 else if (!existsSync(resolve(values.list))) fail(`no such list: ${values.list}`);
 else listText = readFileSync(resolve(values.list), "utf8");

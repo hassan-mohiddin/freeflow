@@ -1,7 +1,7 @@
 /**
  * Messaging between Pi sessions on this machine (Task 002 D-005): a preview, off unless a config turns it on.
  * `inbound` decides what happens to a message from another session: `accept` (the default, Task 002 D-008) delivers
- * it; `project` delivers sessions in the same Task Memory project and holds the rest for the user; `hold` holds every
+ * it; `project` delivers sessions holding a task in the same Freeflow store project and holds the rest for the user; `hold` holds every
  * message; `refuse` refuses them all.
  */
 export type InboundPolicy = "project" | "accept" | "hold" | "refuse";

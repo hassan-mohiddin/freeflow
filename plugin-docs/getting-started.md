@@ -14,7 +14,7 @@ Freeflow is a feedback-based control system for coding agents: a short always-lo
 | Kiro | Agent Plugins 1.0 Power and shared skills | Not available; no Kiro-specific runtime adapter |
 | OpenCode v2 | Canonical `skills/` through the documented project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 portable package and canonical skills | Not available; skills-only support |
-| Pi | Shared skills and the native extension: core prompt, Compaction, experimental Tool Execution, and preview Task Memory | Cognitive Routing, Tool Execution and Compaction are experimental; native fixtures and live Pi 1.0 sessions exercise them, not every model or provider. Task Memory is a preview exercised by native fixtures and scripted sessions |
+| Pi | Shared skills and the native extension: core prompt, Compaction, experimental Tool Execution, and the Freeflow store for tasks | Cognitive Routing, Tool Execution and Compaction are experimental; native fixtures and live Pi 1.0 sessions exercise them, not every model or provider |
 
 Cognitive Routing is not established merely by configuration or installation. The native Pi source entrypoint is wired, but installed-host dispatch and model behavior require separate evidence. Freeflow's PiFlow integration was removed as a breaking change; use native Pi for the Freeflow extension. Freeflow does not change or uninstall a separate PiFlow installation. See the [Unreleased changelog](../CHANGELOG.md#unreleased).
 
@@ -116,7 +116,7 @@ Run this in the repository where Freeflow should operate:
 
 Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
 
-Whenever Freeflow is enabled, Pi delivers all of Freeflow's runtime prompts: the core guidance, the separately editable Interaction Contract, and the Working Method. On other hosts each of these is on by default, and you can turn any of them off with the `prompts` setting (see [Runtime prompts on other hosts](using-freeflow.md#runtime-prompts-on-other-hosts)). The 25 base skills are exposed whenever Freeflow is enabled. Cognitive Routing, Tool Execution and Task Memory are optional and off by default; Compaction is on by default. The former Freeflow Context tool, Context Virtualization, and Conversation History are removed; before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key makes its config invalid and blocks Freeflow activation until removed.
+Whenever Freeflow is enabled, Pi delivers all of Freeflow's runtime prompts: the core guidance, the separately editable Interaction Contract, and the Working Method. On other hosts each of these is on by default, and you can turn any of them off with the `prompts` setting (see [Runtime prompts on other hosts](using-freeflow.md#runtime-prompts-on-other-hosts)). The 25 base skills are exposed whenever Freeflow is enabled. Cognitive Routing and Messaging are optional and off by default; Tool Execution and Compaction are on by default. The former Freeflow Context tool, Context Virtualization, and Conversation History are removed; before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key makes its config invalid and blocks Freeflow activation until removed.
 
 Cognitive Routing uses this v2 configuration under `.freeflow/config.json` or `.freeflow/local.json`:
 
@@ -137,17 +137,16 @@ Cognitive Routing uses this v2 configuration under `.freeflow/config.json` or `.
 
 `delegation` accepts `executor`, `helper`, or `both` and defaults to `executor`; `projection` defaults to `true`. Profiles are `coordinator`, `helper`, and `executor`. Coordinator must differ from each worker enabled by the selected mode; Helper and Executor may share a pair. Repository delegation can be overridden personally or for one Pi session without changing repository or personal files. Older experimental routing names or fields such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported and have no migration; rewrite them manually. Configuration does not establish host availability or model evaluation.
 
-Tool Execution and Compaction are on unless you turn them off, and Task Memory is opt-in:
+Tool Execution and Compaction are on unless you turn them off:
 
 ```json
 {
   "toolExecution": { "enabled": true, "guidanceNotices": true },
-  "compaction": { "enabled": true, "carry": true },
-  "taskMemory": { "enabled": true }
+  "compaction": { "enabled": true, "carry": true }
 }
 ```
 
-See [Tool Execution](capabilities/tool-execution.md), [Compaction](capabilities/compaction.md) and [Task Memory](capabilities/task-memory.md). On Pi, `/freeflow settings` changes all of these for the repository, for you, or for one session.
+See [Tool Execution](capabilities/tool-execution.md) and [Compaction](capabilities/compaction.md). On Pi, `/freeflow settings` changes these for the repository, for you, or for one session.
 
 Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
 
@@ -158,7 +157,7 @@ Work that runs past one compaction, or across sessions and machines, keeps its m
 - **Local only:** the store on this device; nothing leaves the machine.
 - **Local + cloud:** the same store, kept in step with a private repository on your own GitHub account, so every device and every cloud session has it. Create an empty private repository (for example `freeflow-store`) and give the agent its URL.
 
-If you want neither, the agent works without memory beyond the current compaction. Records you kept before the store, in a repository's `.freeflow/tasks/` or Pi's Task Memory, are copied into it on your word; the originals stay where they are.
+If you want neither, the agent works without memory beyond the current compaction. Records you kept before the store, in a repository's `.freeflow/tasks/` or under Pi's former Task Memory, are copied into it on your word; the originals stay where they are, and Freeflow no longer reads them. Pi's former Task Memory keeps its registry in `~/.freeflow` (`registry.json`), and `store init` refuses that folder: put the store in another folder, such as `~/.freeflow-store`, and set `FREEFLOW_HOME` to it for every session that uses the store.
 
 **Claude Code cloud sessions.** A cloud session's container is thrown away, so it needs local + cloud. In the cloud environment's settings: set `FREEFLOW_HOME` to `/home/user/` and your store repository's name, and load the Freeflow plugin with a setup-script line that clones a Freeflow release, `git clone --depth 1 --branch <release tag> https://github.com/hassan-mohiddin/freeflow.git /opt/freeflow`, and `CLAUDE_CODE_PLUGIN_DIRS` set to `/opt/freeflow`; the store needs a release newer than v0.9.0. To update Freeflow, change the tag in that line. A session starts with one repository, your code, so when the work needs task memory the agent attaches the store to the session on your word, and Freeflow takes it up when that turn ends; a session that works on the store alone can start with it. If something is missing, Freeflow says what at session start, and whether you or the agent fixes it.
 
@@ -184,7 +183,6 @@ Activation is not proof of runtime delivery. Setup reports delivery as `confirme
 - [Pi integration](integrations/pi.md)
 - [Tool Execution](capabilities/tool-execution.md)
 - [Compaction](capabilities/compaction.md)
-- [Task Memory](capabilities/task-memory.md)
 - [Architecture](../dev-docs/README.md)
 - [How Freeflow Works](workflow.md)
 - [Skill routing](../dev-docs/subsystems/skill-routing.md)

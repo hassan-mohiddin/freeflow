@@ -96,55 +96,6 @@ export function heading(level, title) {
   return `${"#".repeat(level)} ${title}`;
 }
 
-export function canonicalLines(name, state = "active", lastUpdated = new Date().toISOString()) {
-  return [
-    `# Working Record: ${name}`,
-    "",
-    "Schema: 4",
-    `State: ${state}`,
-    `Last updated: ${lastUpdated}`,
-    "",
-    "## Current Context",
-    "",
-    "### Goal",
-    "",
-    "### What defines this task",
-    "",
-    "### Settled",
-    "",
-    "### Tentative",
-    "",
-    "### Open",
-    "",
-    "### Current direction",
-    "",
-    "### Boundaries",
-    "",
-    "## Current Work",
-    "",
-    "### Current Slice",
-    "",
-    "None",
-    "",
-    "### Recovery sources",
-    "",
-    "### Next useful action",
-    "",
-    "## Future Work",
-    "",
-    "## History",
-    "",
-    "### Decisions",
-    "",
-    "### Checkpoints",
-    "",
-    "### Slices",
-    "",
-    "## Notes",
-    "",
-  ];
-}
-
 export function normalizeNewline(text) {
   return text.includes("\r\n") ? "\r\n" : "\n";
 }

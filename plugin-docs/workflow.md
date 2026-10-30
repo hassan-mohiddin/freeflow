@@ -98,7 +98,7 @@ Each skill is one capability. Its first page covers the common case and a table 
 
 The commands are Pi's; Claude Code calls the same skills as `/freeflow:<skill>`, and Codex by mentioning the skill. Natural language works as well: the agent opens the skill whose description matches. A skill is a method, never permission; naming one does not authorize what it describes.
 
-On Pi, Freeflow's optional capabilities add skills of their own while they are on: Cognitive Routing, Compaction, Task Memory and Messaging.
+On Pi, Freeflow's optional capabilities add skills of their own while they are on: Cognitive Routing, Compaction and Messaging.
 
 ### Scripts the skills run
 
@@ -136,7 +136,7 @@ Freeflow 0.9.0 has ten skills instead of twenty-five. The removed names have no 
 
 ## Activation And Configuration
 
-Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal overrides and cannot activate Freeflow by itself. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Cognitive Routing, Tool Execution, Compaction, Task Memory and Messaging are optional capabilities. The former context settings `contextVirtualization` and `conversationHistory` are unsupported and make either config layer invalid until removed.
+Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal overrides and cannot activate Freeflow by itself. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Cognitive Routing, Tool Execution, Compaction and Messaging are optional capabilities. The former context settings `contextVirtualization` and `conversationHistory` are unsupported and make either config layer invalid until removed.
 
 ```text
 host session enablement -> personal override -> repository value -> built-in default
