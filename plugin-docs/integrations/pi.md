@@ -1,6 +1,6 @@
 # Pi Integration
 
-Freeflow can be packaged for Pi. The native entrypoint wires Freeflow's core prompt and skills, [Cognitive Routing](../capabilities/cognitive-routing.md), [Tool Execution](../capabilities/tool-execution.md), [Compaction](../capabilities/compaction.md), [Task Memory](../capabilities/task-memory.md) and [Messaging](../capabilities/messaging.md). An unreleased checkout is not a published release.
+Freeflow can be packaged for Pi. The native entrypoint wires Freeflow's core prompt and skills, [Cognitive Routing](../capabilities/cognitive-routing.md), [Tool Execution](../capabilities/tool-execution.md), [Compaction](../capabilities/compaction.md) and [Messaging](../capabilities/messaging.md), and keeps tasks in the Freeflow store as Claude Code does. An unreleased checkout is not a published release.
 
 ## Install
 
@@ -32,7 +32,7 @@ In the repository where Freeflow should operate, run:
 
 Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. An optional `.freeflow/local.json` provides per-checkout personal overrides; it cannot activate Freeflow by itself.
 
-Freeflow's core prompt, the separately editable Interaction Contract and the Working Method are delivered together whenever Freeflow is enabled. The base skills are exposed with that core surface, each with its own command: `/discuss-work`, `/execute-work`, `/verify-work`, `/review-work`, `/deliver-work`, `/track-work`, `/write-docs`, `/setup-freeflow`, `/write-skill` and `/evaluate-behavior` ([How Freeflow Works](../workflow.md#skills)). Compaction and Tool Execution are on by default whenever Freeflow is enabled; Task Memory, Messaging and Cognitive Routing are off. The former Freeflow Context tool, Context Virtualization, and Conversation History have been removed. Before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present; configs containing either key are invalid and block Freeflow activation until the keys are removed. `/freeflow settings` opens one screen with three scopes, switched with Tab: Session (this Pi session only), Personal (`.freeflow/local.json`) and Repository (`.freeflow/config.json`). Switches change in place; in the Session and Personal scopes a switch cycles inherit, on and off, and a value the scope does not set reads `(inherited)`, with where it comes from on the line under the list. The Session scope can override Freeflow itself, each capability's switch (Compaction and Context reuse, Tool Execution, Task Memory, Messaging, Cognitive Routing), projection, the delegation mode, and complete Coordinator, Helper, and Executor presets (including a worker not yet enabled by the current mode); choose a missing worker preset before enabling that worker. Session overrides do not change either file; they take precedence over personal and repository settings and can be reset or set to inherit. The footer shows the active profile, automatic/manual control, and effective delegation mode.
+Freeflow's core prompt, the separately editable Interaction Contract and the Working Method are delivered together whenever Freeflow is enabled. The base skills are exposed with that core surface, each with its own command: `/discuss-work`, `/execute-work`, `/verify-work`, `/review-work`, `/deliver-work`, `/track-work`, `/write-docs`, `/setup-freeflow`, `/write-skill` and `/evaluate-behavior` ([How Freeflow Works](../workflow.md#skills)). Compaction and Tool Execution are on by default whenever Freeflow is enabled; Messaging and Cognitive Routing are off. The former Freeflow Context tool, Context Virtualization, and Conversation History have been removed. Before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present; configs containing either key are invalid and block Freeflow activation until the keys are removed. `/freeflow settings` opens one screen with three scopes, switched with Tab: Session (this Pi session only), Personal (`.freeflow/local.json`) and Repository (`.freeflow/config.json`). Switches change in place; in the Session and Personal scopes a switch cycles inherit, on and off, and a value the scope does not set reads `(inherited)`, with where it comes from on the line under the list. The Session scope can override Freeflow itself, each capability's switch (Compaction and Context reuse, Tool Execution, Messaging, Cognitive Routing), projection, the delegation mode, and complete Coordinator, Helper, and Executor presets (including a worker not yet enabled by the current mode); choose a missing worker preset before enabling that worker. Session overrides do not change either file; they take precedence over personal and repository settings and can be reset or set to inherit. The footer shows the active profile, automatic/manual control, and effective delegation mode.
 
 ## Cognitive Routing configuration
 
@@ -85,24 +85,23 @@ In the transcript a question is one line, `Question · <header>: <question>`, an
 
 In RPC clients each question is a list to pick from. Without a UI (print or JSON mode), and for a Cognitive Routing worker, the agent asks in its reply instead.
 
-## Tool Execution, Compaction, Task Memory and Messaging configuration
+## Tool Execution, Compaction and Messaging configuration
 
-Compaction and Tool Execution are enabled by default; Task Memory and Messaging are disabled by default:
+Compaction and Tool Execution are enabled by default; Messaging is disabled by default:
 
 ```json
 {
   "toolExecution": { "enabled": true },
   "compaction": { "enabled": true, "carry": true },
-  "taskMemory": { "enabled": true },
   "messaging": { "enabled": true, "inbound": "accept" }
 }
 ```
 
 Tool Execution keeps Pi's tools and adds guidance, file tracking, clearer edit errors, `apply_patch`, the background commands `bash_background` and `stop_background`, and `monitor`. It also pushes a few lines of a skill's guidance at the tool call that needs them, such as Deliver Work's commit essentials on a `git commit` result; `toolExecution.guidanceNotices: false` turns these off. The retired v2 keys (`capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`) still load and do nothing. See [Tool Execution](../capabilities/tool-execution.md).
 
-Compaction tells the agent once before Pi's own limit; at a safe point the agent checkpoints its task with Track Work's `checkpoint --compact`, and Freeflow replaces the conversation with the task's bundle and continues the run. Pi's compaction stays on as the fallback, with the bundle after its summary. `compaction.carry` (Context reuse) controls whether the bundle carries the cycle's newest tool results. Where the Freeflow store exists, a session gets the task menu at its start and the footer shows the task it holds. See [Compaction](../capabilities/compaction.md).
+Compaction tells the agent once before Pi's own limit; at a safe point the agent checkpoints its task with Track Work's `checkpoint --compact`, and Freeflow replaces the conversation with the task's bundle and continues the run. Pi's compaction stays on as the fallback, with the bundle after its summary. `compaction.carry` (Context reuse) controls whether the bundle carries the cycle's newest tool results. Where the Freeflow store exists, a session gets the task menu at its start and the footer shows the task it holds, and `/freeflow status` has a `store:` line. See [Compaction](../capabilities/compaction.md).
 
-Task Memory, a preview, lets the session attach Working Records, delivers the focused record's resume view when context is rebuilt, and refuses record writes to records not attached; it adds projects with records stored under `~/.freeflow` (or `FREEFLOW_HOME`) and child records for parallel sessions. See [Task Memory](../capabilities/task-memory.md).
+Tasks are kept in the Freeflow store, as on Claude Code. Pi's former Task Memory is gone, with its `/freeflow task`, `/freeflow project` and `/freeflow trash` commands and its `taskMemory` settings, which a configuration may still set and which are ignored; its records move into the store through Setup Freeflow ([Getting Started](../getting-started.md#set-up-task-memory)).
 
 Messaging, a preview, lets the agents in your Pi sessions on this machine send each other messages; `messaging.inbound` (Ask before delivering) chooses whether a message waits for you to accept it: `accept` (the default), `project`, `hold` or `refuse`. See [Messaging](../capabilities/messaging.md).
 
@@ -124,11 +123,9 @@ While an effective native host is idle:
 /freeflow resume
 /freeflow status
 /freeflow compact
-/freeflow task
-/freeflow project
 ```
 
-`/freeflow settings` opens the settings screen on the Personal scope; `/freeflow settings session`, `local` (or `personal`) and `repo` (or `repository`) open it on that scope. [Settings](../settings.md) lists every setting and explains the screen. `/freeflow status` shows the effective state, prompt-cache diagnostics, running background commands and monitors, and the compaction cycle. `/freeflow compact` asks the agent to prepare and compact now. `/freeflow task` and `/freeflow project` attach Working Records and manage projects when Task Memory is on; their subcommands are listed in [Task Memory](../capabilities/task-memory.md#commands). `coordinator`, `helper`, and `executor` place a manual hold when available, `auto` releases it to automatic Coordinator control, and `history` reads work-oriented routing history (`history diagnostics` retains the raw event view). `/freeflow resume` explicitly resumes saved routing responsibility after reconciliation. These commands require an idle host and do not authorize task work.
+`/freeflow settings` opens the settings screen on the Personal scope; `/freeflow settings session`, `local` (or `personal`) and `repo` (or `repository`) open it on that scope. [Settings](../settings.md) lists every setting and explains the screen. `/freeflow status` shows the effective state, prompt-cache diagnostics, running background commands and monitors, and the compaction cycle. `/freeflow compact` asks the agent to prepare and compact now. `coordinator`, `helper`, and `executor` place a manual hold when available, `auto` releases it to automatic Coordinator control, and `history` reads work-oriented routing history (`history diagnostics` retains the raw event view). `/freeflow resume` explicitly resumes saved routing responsibility after reconciliation. These commands require an idle host and do not authorize task work.
 
 When the source adapter exposes the native controls:
 
@@ -154,7 +151,6 @@ What the extension registers, its cache reuse boundaries, how it persists and re
 
 - [Tool Execution](../capabilities/tool-execution.md)
 - [Compaction](../capabilities/compaction.md)
-- [Task Memory](../capabilities/task-memory.md)
 - [Messaging](../capabilities/messaging.md)
 - [Settings](../settings.md)
 - [Cognitive Routing](../capabilities/cognitive-routing.md)
