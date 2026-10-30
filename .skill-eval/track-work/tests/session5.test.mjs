@@ -90,6 +90,7 @@ test("session status prints this session's state in the store as JSON: its task,
       changed: false,
       transcript: null,
       missing: [],
+      compact: null,
     });
 
     const work = join(folder, "widget");
@@ -133,6 +134,20 @@ test("session status prints this session's state in the store as JSON: its task,
     assert.equal(summary.task, null);
     assert.equal(summary.summary.path, join(folder, "store", "sessions", "bbbbbbbb-2222", "summary.md"));
     assert.match(summary.summary.asOf, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
+    assert.equal(summary.compact, null);
+
+    // checkpoint --compact asks the harness layer to compact at the turn's end; a plain checkpoint never does (P102).
+    const asked = ok(cli(["checkpoint", "--record", "widget/task-001", "--compact"], { env: holder, cwd: work }));
+    assert.match(asked, /\nCompaction requested: Freeflow's harness layer compacts the session when this turn ends/);
+    const requested = status(holder).compact;
+    assert.equal(requested.path, join(folder, "store", "sessions", "aaaaaaaa-1111", "compact.json"));
+    assert.equal(requested.done, false);
+    assert.match(requested.requestedAt, /^\d{4}-\d\d-\d\dT/);
+    assert.equal(status(other).compact, null);
+    assert.doesNotMatch(
+      ok(cli(["checkpoint", "--record", "widget/task-001"], { env: other, cwd: work })),
+      /Compaction/,
+    );
   });
 });
 
