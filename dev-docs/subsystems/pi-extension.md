@@ -60,6 +60,8 @@ npm run snapshot:refresh
 
 `scripts/freeflow-snapshot.mjs` resolves the revision to a commit, exports it with `git archive` (so uncommitted and ignored files are never included), installs only runtime dependencies from the committed `package-lock.json` with `npm ci --omit=dev --ignore-scripts`, packs the result with `npm pack --ignore-scripts`, and records the source commit and tree, the lockfile and tarball SHA-256s, and each dependency's integrity in the snapshot's metadata. It replaces the previous snapshot and metadata only after the new ones are complete, restoring the old ones if a step fails.
 
+Claude Code's cloud sessions take the same kind of snapshot differently: they run the plugin from the folder the cloud environment's setup script fills, and the environment keeps a saved copy of that folder until the setup script changes (or about seven days pass), so a merge reaches new sessions only when the script does. `npm run snapshot:refresh -- --cloud` prints the setup-script line that fetches exactly one commit into `/opt/freeflow` (`--commit` names it; HEAD by default), and refuses a commit no remote branch holds, since the cloud fetches it from GitHub. Pasting that line in place of the line that fills the plugin folder makes new sessions run that commit; nothing in a running session changes.
+
 A snapshot identity and an installed package identity are different. Do not treat an uncommitted working tree as a production package source, and do not infer host behavior from a snapshot. Snapshot refresh does not patch the host or its session state.
 
 ## Related

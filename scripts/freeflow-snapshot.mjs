@@ -451,11 +451,51 @@ export async function refreshSnapshot(options = {}) {
   };
 }
 
+// A cloud session runs the plugin from the folder its environment's setup script fills, and the environment keeps a
+// snapshot of that folder until the script changes: so the cloud's dev snapshot is the setup-script line itself,
+// pinned to a pushed commit, and changing the commit in the line is what makes new sessions run it.
+export const DEFAULT_CLOUD_DIR = "/opt/freeflow";
+
+/**
+ * The setup-script line that fills a cloud session's plugin folder with exactly one commit, fetched from GitHub, so
+ * the commit must be on a remote branch already. Reads only local refs; changes nothing.
+ */
+export async function cloudSnapshot(options = {}) {
+  const sourceRoot = resolve(expandHome(options.sourceRoot ?? SCRIPT_ROOT));
+  const dir = options.targetDir ?? DEFAULT_CLOUD_DIR;
+  const ref = options.commit ?? "HEAD";
+  const commit = await gitOutput(sourceRoot, ["rev-parse", "--verify", `${ref}^{commit}`]);
+  const remotes = await gitOutput(sourceRoot, ["branch", "--remotes", "--contains", commit]);
+  if (!remotes)
+    throw new Error(
+      `${commit.slice(0, 8)} is on no remote branch here: push it (and fetch) first, since a cloud session fetches it from GitHub`,
+    );
+  const origin = await gitOutput(sourceRoot, ["remote", "get-url", "origin"]);
+  const [owner, repo] = origin
+    .replace(/\.git$/, "")
+    .split(/[/:]/)
+    .filter(Boolean)
+    .slice(-2);
+  const url = `https://github.com/${owner}/${repo}.git`;
+  const subject = await gitOutput(sourceRoot, ["log", "-1", "--format=%s (%cs)", commit]);
+  const line = [
+    `rm -rf ${dir}`,
+    `git init -q ${dir}`,
+    `git -C ${dir} fetch -q --depth 1 ${url} ${commit}`,
+    `git -C ${dir} checkout -q --detach FETCH_HEAD`,
+  ].join(" && ");
+  return { commit, subject, url, dir, line };
+}
+
 export function parseArgs(argv) {
   const options = {};
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--help" || argument === "-h") return { help: true };
+    if (argument === "--cloud") {
+      options.cloud = true;
+      continue;
+    }
     const [name, inlineValue] = argument.split("=", 2);
     if (!["--commit", "--source-root", "--target", "--metadata"].includes(name)) {
       throw new Error(`Unknown argument: ${argument}`);
@@ -479,8 +519,10 @@ function usage() {
     "Options:",
     "  --commit <ref>       Git commit/ref to package (default: HEAD)",
     "  --source-root <dir>  Freeflow Git repository (default: this repository)",
-    "  --target <dir>       Stable package target (default: ~/.cache/freeflow/pi-package)",
+    "  --target <dir>       Stable package target (default: ~/.cache/freeflow/pi-package; with --cloud, /opt/freeflow)",
     "  --metadata <file>    Provenance sidecar (default: <target>.snapshot.json)",
+    "  --cloud              Print the cloud environment's setup-script line for the commit instead: paste it in place",
+    "                       of the line that fills the plugin folder, and new cloud sessions run exactly that commit",
   ].join("\n");
 }
 
@@ -490,6 +532,9 @@ if (isMain) {
     const options = parseArgs(process.argv.slice(2));
     if (options.help) {
       console.log(usage());
+    } else if (options.cloud) {
+      const { commit, subject, line } = await cloudSnapshot(options);
+      console.log(`# Freeflow dev snapshot: ${commit.slice(0, 8)} ${subject}\n${line}`);
     } else {
       const result = await refreshSnapshot(options);
       console.log(JSON.stringify(result, null, 2));
