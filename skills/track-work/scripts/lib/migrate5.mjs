@@ -271,6 +271,38 @@ export async function readCues(path) {
   return cues;
 }
 
+/** Copies a task folder, scratch/ left behind, into a project of the store as its next task; returns the copy. */
+async function copyIntoProject(home, project, taskDir) {
+  if (!isFreeflowStore(home)) fail(`${home} is not a Freeflow store; run store init first`);
+  const tasks = join(home, "projects", slugify(project), "tasks");
+  if (!existsSync(dirname(tasks))) fail(`No project ${slugify(project)} in the store; project new makes one`);
+  await mkdir(tasks, { recursive: true });
+  const number = String(await nextTaskNumber(tasks)).padStart(3, "0");
+  const target = join(tasks, `task-${number}-${basename(taskDir).replace(/^task-\d{3,}-/, "")}`);
+  await cp(taskDir, target, {
+    recursive: true,
+    filter: (source) => basename(source) !== "scratch" || source === taskDir,
+  });
+  await mkdir(join(target, "scratch"), { recursive: true });
+  return target;
+}
+
+/**
+ * Brings a Schema 5 task kept without a store, in a repository's ignored .freeflow/tasks/, into a project of the store
+ * as its next task, unchanged, leaving the original as it was (P91).
+ */
+export async function copyTaskIntoStore({ recordPath, home, project }) {
+  const taskDir = await copyIntoProject(home, project, dirname(recordPath));
+  const outcome = await syncStore({ home, message: `Bring ${basename(taskDir)} into the store` });
+  const synced = outcome.local
+    ? "Store: committed; a local store."
+    : outcome.pushed
+      ? "Store: committed and pushed."
+      : `Store: committed, not pushed (${outcome.reason}).`;
+  const id = `${slugify(project)}/${/^task-\d{3,}/.exec(basename(taskDir))[0]}`;
+  return `Brought into the store as ${id}: ${join(taskDir, "record.md")}\nThe original folder is unchanged: ${dirname(recordPath)}.\n${synced}\n`;
+}
+
 /**
  * Migrates a Schema 4 task folder: in place, or with `project` into that project's folder in the Freeflow store as
  * its next task, leaving the original folder as it was.
@@ -284,20 +316,7 @@ export async function migrateTask({ recordPath, text, root, cue, cues, home, pro
     cues,
     taskPrefix: fromRoot && !fromRoot.startsWith("..") ? `${fromRoot}/` : null,
   });
-  if (project) {
-    if (!isFreeflowStore(home)) fail(`${home} is not a Freeflow store; run store init first`);
-    const tasks = join(home, "projects", slugify(project), "tasks");
-    if (!existsSync(dirname(tasks))) fail(`No project ${slugify(project)} in the store; project new makes one`);
-    await mkdir(tasks, { recursive: true });
-    const number = String(await nextTaskNumber(tasks)).padStart(3, "0");
-    const target = join(tasks, `task-${number}-${basename(taskDir).replace(/^task-\d{3,}-/, "")}`);
-    await cp(taskDir, target, {
-      recursive: true,
-      filter: (source) => basename(source) !== "scratch" || source === taskDir,
-    });
-    await mkdir(join(target, "scratch"), { recursive: true });
-    taskDir = target;
-  }
+  if (project) taskDir = await copyIntoProject(home, project, taskDir);
   if (existsSync(join(taskDir, HISTORY_FILE)))
     fail(`${join(taskDir, HISTORY_FILE)} exists: this task looks migrated already`);
   await mkdir(join(taskDir, "sources"), { recursive: true });

@@ -195,7 +195,7 @@ const appended = (w: any) => w.session.appended().map((row: any) => row.message.
 const noticesOf = (w: any) => appended(w).filter((text) => text.includes("Keep working until a safe point"));
 const rowsOf = (w: any) => appended(w).filter((text) => text.includes("the checkpoint notice comes at"));
 
-test("session start: with a store, pull it, give the scripts the window and the agent the menu; otherwise nothing", async ($, on) => {
+test("session start: with a store, pull it, give the scripts the window and the agent the menu; otherwise only what is missing", async ($, on) => {
   const w = world(on);
   w.answers["task here"] = { stdout: MENU };
 
@@ -207,13 +207,33 @@ test("session start: with a store, pull it, give the scripts the window and the 
   w.runs.length = 0;
   const result = await start($);
   expect(w.env.FREEFLOW_TRANSCRIPT).toBe("/home/u/.claude/projects/p/sess-1.jsonl");
-  expect(w.commands()).toEqual(["session status", "store sync --pull", "task here --cwd /work/widget"]);
+  // The menu also remembers where a task's repositories are: in the session's folder, beside it, or Freeflow's own (P96).
+  expect(w.commands().slice(0, 2)).toEqual(["session status", "store sync --pull"]);
+  expect(w.commands()[2]).toStartWith("task here --cwd /work/widget --scan /work/widget:/work:");
+  expect(w.commands().length).toBe(3);
   expect(w.runs.every((run) => run.session === SESSION)).toBe(true);
   expect(result.additionalContext).toEqual([`Freeflow task memory:\n${MENU}`]);
 
   w.runs.length = 0;
   expect((await start($, { source: "compact" })).additionalContext).toBeUndefined();
   expect(w.runs).toEqual([]);
+
+  // What keeps the session from a working store, with who fixes it, comes with the menu or in its place (P94).
+  const missing = { what: "the store has no remote", fix: "store remote --url <url>, on the user's word", by: "agent" };
+  w.status = store({ missing: [missing] });
+  expect((await start($)).additionalContext).toEqual([
+    `Freeflow task memory:\n${MENU}- Missing: the store has no remote. Fix (the agent): store remote --url <url>, on the user's word.\n`,
+  ]);
+  w.status = {
+    home: HOME,
+    store: false,
+    missing: [{ what: "the store is not at /h", fix: "select its repository when starting a session", by: "user" }],
+  };
+  w.runs.length = 0;
+  expect((await start($)).additionalContext).toEqual([
+    "Freeflow task memory: the store is not ready.\n- Missing: the store is not at /h. Fix (the user): select its repository when starting a session.",
+  ]);
+  expect(w.commands()).toEqual(["session status"]);
 });
 
 test("a request ends: one notice a cycle, at the lower of 75% and a tenth before Claude's threshold, asking for a checkpoint at a safe point", async ($, on) => {

@@ -22,6 +22,8 @@ async function withFolder(run) {
           FREEFLOW_CONTEXT_WINDOW: "",
           FREEFLOW_TRANSCRIPT: "",
           CLAUDE_CODE_SESSION_ID: "",
+          CLAUDE_CODE_REMOTE: "",
+          CLAUDE_CODE_REMOTE_SESSION_ID: "",
           FREEFLOW_SESSION: "",
           GIT_CONFIG_NOSYSTEM: "1",
           ...env,
@@ -64,7 +66,18 @@ test("session status prints this session's state in the store as JSON: its task,
   await withFolder(async ({ folder, cli }) => {
     const holder = { FREEFLOW_SESSION: "aaaaaaaa-1111", FREEFLOW_HARNESS: "Probe" };
     const status = (env) => JSON.parse(ok(cli(["session", "status"], { env })));
-    assert.deepEqual(status(holder), { home: join(folder, "store"), store: false });
+    // FREEFLOW_HOME names a store that is not there yet: what is missing, and who sets it up (P94).
+    assert.deepEqual(status(holder), {
+      home: join(folder, "store"),
+      store: false,
+      missing: [
+        {
+          what: `FREEFLOW_HOME is ${join(folder, "store")}, and the store is not there`,
+          fix: "store init (local only) or store init --remote <url> (local + cloud), on the user's word, as Setup Freeflow's store-setup reference says",
+          by: "agent",
+        },
+      ],
+    });
 
     ok(cli(["store", "init", "--git-name", "Test User", "--git-email", "t@example.com"], { env: holder }));
     ok(cli(["project", "new", "--name", "Widget"], { env: holder }));
@@ -76,6 +89,7 @@ test("session status prints this session's state in the store as JSON: its task,
       summary: null,
       changed: false,
       transcript: null,
+      missing: [],
     });
 
     const work = join(folder, "widget");

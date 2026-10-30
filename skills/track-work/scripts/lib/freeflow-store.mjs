@@ -55,6 +55,21 @@ async function isEmptyDirectory(path) {
   }
 }
 
+/** Whether path holds only a clone of remote with no commits on either side yet. */
+async function isEmptyCloneOf(path, remote) {
+  if (!existsSync(join(path, ".git"))) return false;
+  if ((await readdir(path)).some((entry) => entry !== ".git")) return false;
+  const origin = await git(path, ["remote", "get-url", "origin"], { allowFailure: true });
+  const same = (url) =>
+    url
+      .trim()
+      .replace(/\/+$/, "")
+      .replace(/\.git$/, "");
+  if (!origin.ok || same(origin.stdout) !== same(remote)) return false;
+  const head = await git(path, ["rev-parse", "--verify", "--quiet", "HEAD"], { allowFailure: true });
+  return !head.ok && (await git(path, ["branch", "--remotes"])).stdout === "";
+}
+
 /** The user's Git identity for the store's commits: the options given, else the user's own Git configuration. */
 async function identity(home, { name, email }) {
   const configured = async (key) => (await git(home, ["config", key], { allowFailure: true })).stdout;
@@ -138,9 +153,10 @@ export async function addStoreRemote({ home: explicit, url }) {
 }
 
 /**
- * Clones `remote` into the store's folder, or with no remote makes a local store there. An empty remote gets the store's layout and first commit, pushed; a remote
- * that already holds a store is joined as it is. Refuses a folder that holds Pi's Task Memory or anything else, and a
- * remote that holds a repository that is not a store.
+ * Clones `remote` into the store's folder, or with no remote makes a local store there. An empty remote gets the store's
+ * layout and first commit, pushed; a remote that already holds a store is joined as it is. A folder that already holds
+ * an empty clone of the remote is used as it is (P97). Refuses a folder that holds Pi's Task Memory or anything else,
+ * and a remote that holds a repository that is not a store.
  *
  * @param {{ home?: string, remote: string, name?: string, email?: string }} options
  */
@@ -153,14 +169,21 @@ export async function initStore({ home: explicit, remote, name, email }) {
     );
   if (isFreeflowStore(home))
     fail("already-a-store", `${home} is already a Freeflow store; run store status or store sync`);
-  if (!(await isEmptyDirectory(home)))
+  // A clone of the remote with nothing in it yet, as a cloud session gets when the store's repository is new (P97).
+  const adopted = remote ? await isEmptyCloneOf(home, remote) : false;
+  if (!adopted && !(await isEmptyDirectory(home)))
     fail("home-not-empty", `${home} is not empty and is not a Freeflow store; choose an empty folder with --home`);
   const created = !existsSync(home);
-  // A failed init leaves the folder as it found it: gone if it made it, empty if it was empty.
+  // A failed init leaves the folder as it found it: gone if it made it, empty if it was empty, an empty clone if it
+  // was one.
   const undo = async () => {
     if (created) return rm(home, { recursive: true, force: true });
     for (const entry of await readdir(home).catch(() => []))
-      await rm(join(home, entry), { recursive: true, force: true });
+      if (!adopted || entry !== ".git") await rm(join(home, entry), { recursive: true, force: true });
+    if (adopted) {
+      await git(home, ["update-ref", "-d", `refs/heads/${BRANCH}`], { allowFailure: true });
+      await rm(join(home, ".git", "index"), { force: true });
+    }
   };
   if (!remote) {
     try {
@@ -176,7 +199,9 @@ export async function initStore({ home: explicit, remote, name, email }) {
     }
   }
   await mkdir(resolve(home, ".."), { recursive: true });
-  const cloned = await git(resolve(home, ".."), ["clone", "--quiet", remote, home], { allowFailure: true });
+  const cloned = adopted
+    ? await git(home, ["fetch", "--quiet", "origin"], { allowFailure: true })
+    : await git(resolve(home, ".."), ["clone", "--quiet", remote, home], { allowFailure: true });
   if (!cloned.ok) {
     await undo();
     fail("clone-failure", `Could not clone ${remote}: ${cloned.stderr.split("\n").at(-1) || "git clone failed"}`);
@@ -243,6 +268,63 @@ export async function storeStatus({ home: explicit }) {
     lastSync: await lastSync(home),
     conflict: (await pendingConflict(home))?.paths ?? null,
   };
+}
+
+/**
+ * What keeps this session from a working store, each with how it is fixed and by whom: the user (in the environment's
+ * settings) or the agent (with a command, on the user's word) (P94). Empty where nothing is missing, and where no
+ * store was ever asked for: the default home with no store in it.
+ *
+ * @param {string} home
+ * @param {Record<string, string | undefined>} [env]
+ */
+export async function missingParts(home, env = process.env) {
+  const cloud = env.CLAUDE_CODE_REMOTE === "true" || Boolean(env.CLAUDE_CODE_REMOTE_SESSION_ID);
+  const setup = "Setup Freeflow's store-setup reference";
+  if (isFreeflowStore(home)) {
+    const remote = await git(home, ["remote", "get-url", "origin"], { allowFailure: true });
+    if (!cloud || remote.ok) return [];
+    return [
+      {
+        what: `the store at ${home} has no remote, so its task memory is lost with this container`,
+        fix: "store remote --url <the user's private repository>, on the user's word",
+        by: "agent",
+      },
+    ];
+  }
+  if (!env.FREEFLOW_HOME) return [];
+  if (existsSync(join(home, ".git")) && (await readdir(home)).every((entry) => entry === ".git")) {
+    const origin = await git(home, ["remote", "get-url", "origin"], { allowFailure: true });
+    if (origin.ok && !(await git(home, ["rev-parse", "--verify", "--quiet", "HEAD"], { allowFailure: true })).ok)
+      return [
+        {
+          what: `${home} is an empty clone of ${origin.stdout}, not yet laid out as the store`,
+          fix: `store init --remote ${origin.stdout}, on the user's word`,
+          by: "agent",
+        },
+      ];
+  }
+  if (!(await isEmptyDirectory(home)))
+    return [
+      {
+        what: `FREEFLOW_HOME is ${home}, which holds something that is not a Freeflow store`,
+        fix: "point FREEFLOW_HOME at the store's folder, in the environment's settings",
+        by: "user",
+      },
+    ];
+  return [
+    cloud
+      ? {
+          what: `FREEFLOW_HOME is ${home}, and the store is not there: this session did not get the store's repository`,
+          fix: `select the store's repository when starting a session (it is listed under Repositories in the environment's settings); in this session, the agent can attach it and clone it to ${home}, as ${setup} says`,
+          by: "user",
+        }
+      : {
+          what: `FREEFLOW_HOME is ${home}, and the store is not there`,
+          fix: `store init (local only) or store init --remote <url> (local + cloud), on the user's word, as ${setup} says`,
+          by: "agent",
+        },
+  ];
 }
 
 /** Token shapes the scan looks for before every push: common credentials, not every secret a file can hold. */

@@ -60,7 +60,6 @@ export function parseChoices(text) {
     else if (target.state === "dropped" && item.state !== "dropped")
       warnings.push(`line ${item.line} ${item.id}: serves ${item.serves}, which is dropped`);
   }
-  if (!items.length) errors.push('no items found: each item is a line "- P1 [state] choice -> default"');
   const firstTechnical = items.findIndex((item) => item.kind === "technical");
   if (firstTechnical !== -1 && items.slice(firstTechnical).some((item) => item.kind === "plain"))
     warnings.push("plain items come first; a P item follows a T item");
@@ -72,7 +71,7 @@ const byState = (items, states) => items.filter((item) => states.includes(item.s
 
 // A Schema 5 Slice's fields, which its update lines follow.
 const SLICE5_FIELDS =
-  /^- (State|Opened|Under|Result wanted|Scope|Done when|Stop if|Started from|Waits on|Dependencies):/;
+  /^- (State|Opened|Under|Result wanted|Scope|Done when|Stop if|Started from|Waits on|Dependencies|Predicted|Measured):/;
 
 // A Schema 5 record's current Slice and its update lines: what ran or changed while no one was answering.
 function currentSlice5Updates(recordText) {
@@ -195,9 +194,10 @@ export function renderChoices(
     const text = [
       `What I'll do:   ${outcome}`,
       `Where I stop:   ${stop}`,
-      ...(plan ? [sizeLine(plan)] : []),
       `Your decisions: ${decisions.join("\n")}`,
       ...technicalLine,
+      // Last, so the work's size stands out (P101).
+      ...(plan ? [sizeLine(plan)] : []),
     ].join("\n");
     return { text, data: { decisions: open.map((item) => item.id), technical: technical.length } };
   }

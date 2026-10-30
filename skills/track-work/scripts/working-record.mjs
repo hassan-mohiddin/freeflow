@@ -3,7 +3,7 @@
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { cwd } from "node:process";
-import { dirname, isAbsolute, resolve, sep } from "node:path";
+import { delimiter, dirname, isAbsolute, resolve, sep } from "node:path";
 import { WORK_AGREEMENT_HEADING, canonicalLines, joinLines, slugify } from "./lib/format.mjs";
 import { parseDocument, validateDocument } from "./lib/document.mjs";
 import { runTransition } from "./lib/transitions.mjs";
@@ -22,7 +22,7 @@ import { checkEvidencePointers, checkLinePointers, renderRecover } from "./lib/r
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { checkpointSession, runTransition5 } from "./lib/transitions5.mjs";
 import { budgetLines, budgetFor, contextWindow, measureTask, renderBudget } from "./lib/budget5.mjs";
-import { migrateTask, readCues } from "./lib/migrate5.mjs";
+import { copyTaskIntoStore, migrateTask, readCues } from "./lib/migrate5.mjs";
 import { dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
 import { renderBundle5, renderEntries5, renderIndex5, renderRecover5, renderSessionBundle } from "./lib/views5.mjs";
 import {
@@ -34,11 +34,12 @@ import {
 } from "./lib/delegations5.mjs";
 import { PROJECT_LINK, Registry, TASK_ID, removalText, startCommand } from "./lib/registry.mjs";
 import { searchRecords } from "./lib/search.mjs";
-import { addStoreRemote, initStore, storeHome, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
+import { addStoreRemote, initStore, missingParts, storeHome, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
 import {
   createProject,
   createTask,
   createTaskFolder5,
+  findRepositories,
   listProjects,
   menu,
   moveTask,
@@ -153,7 +154,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "migrate",
-    'Usage: migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name> [--home <folder>]]\nConverts a Schema 4 record to Schema 5: Goal, Settled (with the active Decisions) and Open (with Tentative and pending Checkpoints); the Work agreement and Boundaries become the open agreement A-001; What defines this task and the Recovery sources become Read on recovery and Read when; the Current Slice and its Material updates carry over; proposed Slices stay in Future Work, with Current direction as one more; closed Slices become history.md entries. The Schema 4 record is kept whole in sources/schema4-record.md, Notes move to sources/notes.md, and the decision list moves to decisions.md when an agreement is open. --cue is the task\'s cue; --cues is a file of "S-NNN: read when …" lines for closed Slices, and a Slice without one is marked missing. Without --project the folder converts in place; with it, the folder is copied into that project in the Freeflow store as its next task, converted there and pushed, and the original stays as it was.',
+    "Usage: migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name> [--home <folder>]]\nConverts a Schema 4 record to Schema 5: Goal, Settled (with the active Decisions) and Open (with Tentative and pending Checkpoints); the Work agreement and Boundaries become the open agreement A-001; What defines this task and the Recovery sources become Read on recovery and Read when; the Current Slice and its Material updates carry over; proposed Slices stay in Future Work, with Current direction as one more; closed Slices become history.md entries. The Schema 4 record is kept whole in sources/schema4-record.md, Notes move to sources/notes.md, and the decision list moves to decisions.md when an agreement is open. --cue is the task's cue; --cues is a file of \"S-NNN: read when …\" lines for closed Slices, and a Slice without one is marked missing. Without --project the folder converts in place; with it, the folder is copied into that project in the Freeflow store as its next task, converted there and pushed, and the original stays as it was. A Schema 5 record kept without a store, in a repository's .freeflow/tasks/, is brought into the store the same way with --project, unchanged, and needs no --cue.",
   ],
   [
     "delegate",
@@ -233,7 +234,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "session status",
-    "Usage: session status [--home <folder>]\nPrints, as JSON for a harness layer such as Freeflow's Claude Code mod, this session's state in the Freeflow store: home and store (false where the home is not a store, and nothing else); session, the session's ID; task, the task it holds, with its ID, record and State as of, or null; summary, the session summary checkpoint --session wrote, with its path and time, or null; changed, whether the store holds paths not committed or commits not pushed; transcript, the session's log, or null. Reaches no network.",
+    "Usage: session status [--home <folder>]\nPrints, as JSON for a harness layer such as Freeflow's Claude Code mod, this session's state in the Freeflow store: home and store (false where the home is not a store, with only missing beside it); session, the session's ID; task, the task it holds, with its ID, record and State as of, or null; summary, the session summary checkpoint --session wrote, with its path and time, or null; changed, whether the store holds paths not committed or commits not pushed; transcript, the session's log, or null; missing, what keeps the session from a working store (a store FREEFLOW_HOME names that is not there, an empty clone not laid out yet, a cloud session's store with no remote), each with what, fix and by (user or agent), and empty when nothing is. Reaches no network.",
   ],
   [
     "project",
@@ -253,7 +254,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task here",
-    "Usage: task here [--cwd <directory>]\nPrints the registered tasks whose primary directory contains the directory, deepest first.\nIn a Freeflow store: the session-start menu. It opens by saying the record is memory and the user's message decides the work; says which task this session holds, if any; then lists the open tasks of each project whose tasks name --cwd's repository, and those with no project that name it (newest activity first, at most 15 each), each with who holds it and when it last synced, and its cue; or the projects, when none matches. It takes nothing.",
+    "Usage: task here [--cwd <directory>] [--scan <folders>]\nPrints the registered tasks whose primary directory contains the directory, deepest first.\nIn a Freeflow store: the session-start menu. It opens by saying the record is memory and the user's message decides the work; says which task this session holds, if any; then lists the open tasks of each project whose tasks name --cwd's repository, and those with no project that name it (newest activity first, at most 15 each), each with who holds it and when it last synced, and its cue; or every project's open tasks, when none matches. --scan <folders>, separated as in PATH, remembers where each repository a task names is on this machine, from the Git checkouts at those folders and directly inside them, so recovery resolves its pointers there. It takes nothing.",
   ],
   [
     "task fanout",
@@ -878,7 +879,7 @@ const STORE_OPTIONS = new Map([
   ["task take", ["--id", "--takeover"]],
   ["task release", ["--id"]],
   ["task switch", ["--id", "--takeover"]],
-  ["task here", ["--cwd"]],
+  ["task here", ["--cwd", "--scan"]],
   ["task search", ["--query", "--project"]],
   ["task remove", ["--id"]],
 ]);
@@ -917,7 +918,11 @@ async function runProjects5(command, operation, options, home) {
   if (key === "task release") return releaseTask(home, identity, options["--id"] ?? null);
   if (key === "task switch")
     return switchTask(home, requireOption(options, "--id"), identity, { takeover: options["--takeover"] === true });
-  if (key === "task here") return menu(home, where, identity);
+  if (key === "task here") {
+    const found = options["--scan"] ? await findRepositories(home, String(options["--scan"]).split(delimiter)) : [];
+    const lines = found.map((each) => `Found on this machine: ${each.name} at ${each.top}.`);
+    return `${menu(home, where, identity)}${lines.length ? `${lines.join("\n")}\n` : ""}`;
+  }
   if (key === "task search") return searchTasks(home, requireOption(options, "--query"), options["--project"] ?? null);
   if (key === "task remove") return removeTask(home, requireOption(options, "--id"));
   if (key === "task move")
@@ -948,7 +953,9 @@ async function runCore(command, rest) {
   if (command === "session") {
     if (operation !== "status") throw new CliError(`Unknown command: session ${operation ?? ""}`.trim());
     const home = storeHome(options["--home"]);
-    const status = isFreeflowStore(home) ? await sessionStatus(home, sessionIdentity()) : { home, store: false };
+    const status = isFreeflowStore(home)
+      ? await sessionStatus(home, sessionIdentity())
+      : { home, store: false, missing: await missingParts(home) };
     return `${JSON.stringify(status, null, 2)}\n`;
   }
   if (
@@ -1032,9 +1039,15 @@ async function runCore(command, rest) {
   }
   if (command === "migrate") {
     const loaded = await readExisting(options);
+    if (schemaOf(loaded.text) === 5 && options["--project"])
+      return copyTaskIntoStore({
+        recordPath: loaded.path,
+        home: storeHome(options["--home"]),
+        project: options["--project"],
+      });
     if (schemaOf(loaded.text) !== 4)
       throw new CliError(
-        `migrate converts a Schema 4 record; this one is Schema ${schemaOf(loaded.text) ?? "unknown"}`,
+        `migrate converts a Schema 4 record, or with --project brings a Schema 5 one into the store; this one is Schema ${schemaOf(loaded.text) ?? "unknown"}`,
       );
     return migrateTask({
       recordPath: loaded.path,

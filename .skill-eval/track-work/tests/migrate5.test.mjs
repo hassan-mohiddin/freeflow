@@ -132,7 +132,7 @@ test("migrate converts a Schema 4 record in place, keeping the old record whole 
     assert.match(ok(cli(["view", "recover", "--record", record])), /^This task's record is memory/);
     assert.match(
       cli(["migrate", "--record", record, ...MIGRATE]).stderr,
-      /migrate converts a Schema 4 record; this one is Schema 5/,
+      /migrate converts a Schema 4 record, or with --project brings a Schema 5 one into the store; this one is Schema 5/,
     );
   });
 });
@@ -153,6 +153,26 @@ test("migrate --project copies the task into the store as its next task, convert
       execFileSync("git", ["-C", home, "log", "-1", "--format=%s"], { encoding: "utf8" }).trim(),
       "Migrate task-001-full-record to Schema 5",
     );
+    assert.equal(execFileSync("git", ["-C", home, "status", "--porcelain"], { encoding: "utf8" }), "");
+  });
+});
+
+test("migrate --project brings a Schema 5 task kept in a repository into the store, unchanged, leaving the original (P91)", async () => {
+  await withFixture(async ({ folder, record, cli }) => {
+    ok(cli(["migrate", "--record", record, ...MIGRATE]));
+    const before = await readFile(record, "utf8");
+    const home = join(folder, "store");
+    ok(cli(["store", "init", "--home", home, "--git-name", "Test User", "--git-email", "test@example.com"]));
+    await mkdir(join(home, "projects", "parser", "tasks"), { recursive: true });
+    const out = ok(cli(["migrate", "--record", record, "--home", home, "--project", "parser"]));
+    const moved = join(home, "projects", "parser", "tasks", "task-001-full-record", "record.md");
+    assert.match(
+      out,
+      /^Brought into the store as parser\/task-001: .+\/store\/projects\/parser\/tasks\/task-001-full-record\/record\.md\nThe original folder is unchanged: .+\/\.freeflow\/tasks\/task-001-full-record\.\nStore: committed; a local store\.\n$/,
+    );
+    assert.equal(await readFile(moved, "utf8"), before);
+    assert.equal(await readFile(record, "utf8"), before);
+    assert.match(ok(cli(["validate", "--record", moved])), /3 history entries/);
     assert.equal(execFileSync("git", ["-C", home, "status", "--porcelain"], { encoding: "utf8" }), "");
   });
 });
