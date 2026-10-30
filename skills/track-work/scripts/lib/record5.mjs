@@ -42,6 +42,21 @@ const CARRY_LINE = /^- Carry:\s+(\S+)(?:\s+\(lines?\s+(\d+)(?:\s*[–-]\s*(\d+))
  */
 export const CARRY_RESULT = /^- Carry:\s+result\s+(\S+?)(?:\s+\(([^)]*)\))?\s+—\s+\S/;
 
+/** What a Carry line names: a tool result, or a file and its lines; null for a line that is neither. */
+export function carryItem(line) {
+  const result = CARRY_RESULT.exec(line);
+  if (result) return { result: result[1], label: result[2] ?? null, path: null, from: null, to: null };
+  const file = CARRY_LINE.exec(line);
+  if (!file) return null;
+  const [, path, from, to] = file;
+  return {
+    result: null,
+    path,
+    from: from ? Number(from) : null,
+    to: to ? Number(to) : from ? Number(from) : null,
+  };
+}
+
 export const SLICE5_ORDER = [
   "State",
   "Opened",
@@ -384,19 +399,7 @@ function parseCurrentWork5(lines, section) {
   });
   work.carry = work.inFlight
     .filter((item) => item.text.startsWith("Carry:"))
-    .map((item) => {
-      const result = CARRY_RESULT.exec(`- ${item.text}`);
-      if (result)
-        return { index: item.index, result: result[1], label: result[2] ?? null, path: null, from: null, to: null };
-      const [, path, from, to] = CARRY_LINE.exec(`- ${item.text}`);
-      return {
-        index: item.index,
-        result: null,
-        path,
-        from: from ? Number(from) : null,
-        to: to ? Number(to) : from ? Number(from) : null,
-      };
-    });
+    .map((item) => ({ index: item.index, ...carryItem(`- ${item.text}`) }));
   const defined = work.headings.get("Defined by");
   work.definedBy = bulletsOnly(lines, defined.start, defined.end, "Defined by");
   const now = work.headings.get("Read on recovery");

@@ -23,6 +23,7 @@ import {
   cueProblem,
   emptyHistory,
   CARRY_RESULT,
+  carryItem,
   fieldLines5,
   fieldText,
   isDate,
@@ -769,7 +770,7 @@ export async function writeCompactionRequest(home, identity) {
  * `checkpoint --session`: without a held task, the session's own summary, which Freeflow's compaction installs and
  * then removes. Every heading is present, in order; Goal and Next action say something; In flight's lines are labelled.
  */
-export async function checkpointSession({ home: explicit, identity, text }) {
+export async function checkpointSession({ home: explicit, identity, text, transcript = null }) {
   if (!identity)
     fail(
       "missing-session",
@@ -800,6 +801,15 @@ export async function checkpointSession({ home: explicit, identity, text }) {
   for (const line of body("In flight"))
     if (!/^\(none\)$/i.test(line.trim()) && !labelled.test(line))
       fail("invalid-input", `An In flight line starts with ${IN_FLIGHT_LABELS.join(", ")} and a colon: ${line}`);
+    else if (line.startsWith("- Carry:") && !/^- Carry:\s*(none|\(none\))\.?$/i.test(line) && !carryItem(line))
+      fail(
+        "invalid-carry",
+        `A Carry line is "- Carry: <path> (lines <a>–<b>) — <why>", the lines optional, or "- Carry: result <n> — <why>": ${line}`,
+      );
+  const flight = found.find((each) => each.title === "In flight");
+  const end = found[found.indexOf(flight) + 1]?.index ?? lines.length;
+  const pinned = pinResults(lines.slice(flight.index + 1, end), { "--transcript": transcript ?? undefined });
+  lines.splice(flight.index + 1, end - flight.index - 1, ...pinned);
   const home = storeHome(explicit);
   const path = sessionSummaryPath(home, identity);
   await mkdir(dirname(path), { recursive: true });

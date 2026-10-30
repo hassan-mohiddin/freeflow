@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { findResult, listResults, sessionTranscript } from "./lib/carry5.mjs";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { cwd } from "node:process";
@@ -24,6 +23,7 @@ import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { checkpointSession, runTransition5, writeCompactionRequest } from "./lib/transitions5.mjs";
 import { budgetLines, budgetFor, contextWindow, measureTask, renderBudget } from "./lib/budget5.mjs";
 import { copyTaskIntoStore, migrateTask, readCues } from "./lib/migrate5.mjs";
+import { findResult, listResults, sessionTranscript } from "./lib/carry5.mjs";
 import { dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
 import { renderBundle5, renderEntries5, renderIndex5, renderRecover5, renderSessionBundle } from "./lib/views5.mjs";
 import {
@@ -1034,6 +1034,7 @@ async function runCore(command, rest) {
       home: options["--home"],
       identity: sessionIdentity(),
       text: await readInput(requireOption(options, "--input"), cwd()),
+      transcript: options["--transcript"] ?? null,
     });
   }
   if (command === "discussion") {

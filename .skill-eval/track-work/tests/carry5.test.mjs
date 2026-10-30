@@ -142,3 +142,65 @@ test("a Carry line names a result: checkpoint pins its number to its ID, and the
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("without a task, the session summary's Carry lines are pinned and carried, then the newest others", async () => {
+  const folder = await realpath(await mkdtemp(join(tmpdir(), "track-work-carry5-session-")));
+  try {
+    const log = join(folder, "session.jsonl");
+    await writeFile(log, `${transcript()}\n`);
+    await writeFile(join(folder, "notes.txt"), "one\ntwo\nthree\n");
+    const run = (args, input = "") =>
+      spawnSync(process.execPath, [scriptPath, ...args], {
+        cwd: folder,
+        encoding: "utf8",
+        input,
+        env: {
+          ...process.env,
+          FREEFLOW_HOME: join(folder, "store"),
+          FREEFLOW_TRANSCRIPT: log,
+          CLAUDE_CODE_SESSION_ID: "abcdef12-3456-7890-abcd-ef1234567890",
+          FREEFLOW_CONTEXT_WINDOW: "",
+        },
+      });
+    const summary = (carry) =>
+      [
+        "## Goal",
+        "- Answer the user's question.",
+        "## Settled",
+        "(none)",
+        "## Open",
+        "(none)",
+        "## Agreement",
+        "(none)",
+        "## In flight",
+        "- Now: reading.",
+        ...carry,
+        "## Read when",
+        "(none)",
+        "## Next action",
+        "- Report.",
+      ].join("\n");
+    assert.match(
+      run(["checkpoint", "--session", "--input", "-"], summary(["- Carry: the notes"])).stderr,
+      /A Carry line is/,
+    );
+    const saved = run(
+      ["checkpoint", "--session", "--input", "-"],
+      summary(["- Carry: notes.txt (lines 2–3) — the open lines", "- Carry: result 3 — the test run"]),
+    );
+    assert.equal(saved.status, 0, saved.stderr);
+    const bundle = run(["view", "bundle", "--session"]);
+    assert.equal(bundle.status, 0, bundle.stderr);
+    assert.match(bundle.stdout, /\n- Carry: result toolu_test \(Bash: Run the tests\) — the test run\n/);
+    const carry = bundle.stdout.slice(bundle.stdout.indexOf("## Carry\n"), bundle.stdout.indexOf("## Recent results"));
+    assert.match(carry, /<file path="notes\.txt lines 2–3">\n2\ttwo\n3\tthree\n<\/file>/);
+    assert.match(carry, /<result id="toolu_test" call="Bash: Run the tests" at="[^"]+">\npass pass/);
+    const recent = bundle.stdout.slice(bundle.stdout.indexOf("## Recent results"));
+    assert.deepEqual(
+      [...recent.matchAll(/<result id="([^"]+)"/g)].map((match) => match[1]),
+      ["toolu_read"],
+    );
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
+});

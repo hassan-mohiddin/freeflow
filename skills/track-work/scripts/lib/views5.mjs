@@ -10,6 +10,8 @@ import {
   ANCHOR,
   CORE_SKILLS,
   activeDecisions,
+  carriedFiles,
+  carriedResults,
   contextWindow,
   historyIndex,
   indexLine,
@@ -24,7 +26,7 @@ import { storeHome, storeStatus } from "./freeflow-store.mjs";
 import { delegationChecks, workerSection } from "./delegations5.mjs";
 import { OPENING_LINE, SESSION_OPENING, claudeCodeLog, userMessages } from "./discussion5.mjs";
 import { readSessions, sessionIdentity } from "./projects5.mjs";
-import { loadTask5, warnings5 } from "./record5.mjs";
+import { carryItem, loadTask5, warnings5 } from "./record5.mjs";
 import { REPOSITORIES_FILE, repositoryState, sessionSummaryPath } from "./transitions5.mjs";
 
 export { CORE_SKILLS, activeDecisions, historyIndex };
@@ -340,13 +342,26 @@ export async function renderBundle5({ root, path, text }, { window = contextWind
 }
 
 /** The bundle of a session that holds no task: the store's rules, then its session summary. */
-export function renderSessionBundle({ home: explicit = null, identity = sessionIdentity() } = {}) {
+export function renderSessionBundle({
+  home: explicit = null,
+  identity = sessionIdentity(),
+  window = contextWindow(),
+} = {}) {
   if (!identity)
     throw new Error("No session ID: Claude Code sets CLAUDE_CODE_SESSION_ID; other harnesses set FREEFLOW_SESSION.");
   const home = storeHome(explicit);
   const summary = sessionSummaryPath(home, identity);
   if (!existsSync(summary)) throw new Error(`No session summary at ${summary}: checkpoint --session writes it.`);
   const ruleFiles = rules(home, null);
+  const text = readFileSync(summary, "utf8").trimEnd();
+  // The summary's Carry lines, as a task's (P2): files from the session's folder, results from its transcript.
+  const lines = text.split("\n");
+  const from = lines.findIndex((line) => /^## In flight\s*$/.test(line));
+  const to = lines.findIndex((line, index) => index > from && /^## /.test(line));
+  const carry = (from < 0 ? [] : lines.slice(from + 1, to < 0 ? lines.length : to)).map(carryItem).filter(Boolean);
+  const files = carriedFiles(carry, { root: process.cwd(), taskDir: process.cwd() });
+  const results = carriedResults(carry);
+  const recent = recentResults(results, window.tokens);
   const out = [
     SESSION_OPENING,
     "",
@@ -355,8 +370,22 @@ export function renderSessionBundle({ home: explicit = null, identity = sessionI
     ...(ruleFiles.length ? ruleFiles.flatMap((file) => [`### ${file.path}`, "", file.text, ""]) : ["None.", ""]),
     "## Session summary",
     "",
-    readFileSync(summary, "utf8").trimEnd(),
+    text,
     "",
+    ...(carry.length
+      ? [
+          "## Carry",
+          "",
+          ...[...files, ...results].filter((item) => item.problem).map((item) => `- Not carried: ${item.problem}`),
+          ...files
+            .filter((file) => file.text !== null)
+            .flatMap((file) =>
+              fileBlock(`${file.path}${file.ranged ? ` lines ${file.from}–${file.to}` : ""}`, numbered(file)),
+            ),
+          ...results.filter((result) => result.text !== null).flatMap(resultBlock),
+        ]
+      : []),
+    ...recentLines(recent),
     RECOVERY_LINE.replace("In flight and the Next action", "the summary's In flight and Next action"),
   ];
   return `${out.join("\n")}\n`;
