@@ -212,6 +212,8 @@ test("session start: with a store, pull it, give the scripts the window and the 
   // The menu also remembers where a task's repositories are: in the session's folder, beside it, or Freeflow's own (P96).
   expect(w.commands().slice(0, 2)).toEqual(["session status", "store sync --pull"]);
   expect(w.commands()[2]).toStartWith("task here --cwd /work/widget --scan /work/widget:/work:");
+  // The rules come with the menu, so the session has them before it takes a task (Spec section 4).
+  expect(w.commands()[2]).toEndWith(" --rules");
   expect(w.commands().length).toBe(3);
   expect(w.runs.every((run) => run.session === SESSION)).toBe(true);
   expect(result.additionalContext).toEqual([`Freeflow task memory:\n${MENU}`]);

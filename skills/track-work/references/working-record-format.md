@@ -57,7 +57,7 @@ A project is a folder, `projects/<project>/`, with its `rules/` and `tasks/`; a 
 working-record.mjs project new --name <name>                         a project, on the user's word
 working-record.mjs project list                                       every project, its tasks and repositories
 working-record.mjs project show [--name <project>]                    a project's tasks; without --name, this repository's menu
-working-record.mjs task here [--cwd <directory>]                      the session-start menu
+working-record.mjs task here [--cwd <directory>] [--rules]            the session-start menu, and with --rules the rules after it
 working-record.mjs task search --query <words> [--project <p>]       every task's record, history and decisions
 working-record.mjs task remove --id <ID> | project remove --name <p>   delete and commit, on the user's word
 working-record.mjs task move --id <ID> (--project <p> | --no-project)  into a project or out of one, on the user's word
@@ -299,7 +299,7 @@ One bullet per source, a pointer then what it establishes:
 | Read on recovery | Memory the agent shaped that the next context must read | reads each whole | counted |
 | Read when | Sources only some situations need; each line names its trigger, "read when <situation>" | reads each once its trigger applies | counted when read |
 
-A pointer is a path (from the task folder, else from the work repository's root), an absolute path, a `~/` path, a URL, or a commit. `sources/discussion.md` is a Read on recovery source while it holds blocks.
+A pointer is a path (from the task folder, else from the work repository's root, else from each repository in Space at its path on this machine), an absolute path, a `~/` path, a URL, or a commit; start each entry with it. A Defined by or Read on recovery entry that names no pointer is never read for you, and the checks say so. `sources/discussion.md` is a Read on recovery source while it holds blocks.
 
 ### Next action
 

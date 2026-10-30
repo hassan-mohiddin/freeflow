@@ -418,7 +418,8 @@ async function storeArrived($, state, session, cwd) {
   // The session's folder, its siblings and Freeflow's own checkout, where a task's repositories may be (P96).
   const parent = cwd.slice(0, cwd.lastIndexOf(separatorOf(cwd))) || cwd;
   const scan = [cwd, parent, $.plugin.root].join(separatorOf(cwd) === "\\" ? ";" : ":");
-  return script($, ["task", "here", "--cwd", cwd, "--scan", scan], { session });
+  // The menu, then the rules every task follows, so a session has them before it takes a task (Spec section 4).
+  return script($, ["task", "here", "--cwd", cwd, "--scan", scan, "--rules"], { session });
 }
 
 async function turnEnded($, e) {

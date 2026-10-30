@@ -10,7 +10,7 @@ import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { contextFor, gitRoot, resolvePointer, sourceEntries } from "./recover.mjs";
 import { FIXED_BUDGETS, budgets5, parseRecord5 } from "./record5.mjs";
-import { freeflowStoreOf, isFreeflowStore, projectOf } from "./store.mjs";
+import { REPOSITORIES_FILE, freeflowStoreOf, isFreeflowStore, projectOf } from "./store.mjs";
 
 /** The window assumed when the harness gives none (T11), and the anchor of the curve: 10,000 words at 200k tokens. */
 export const DEFAULT_WINDOW = 200_000;
@@ -202,6 +202,18 @@ export function pointerRoot(root) {
   return here && !isFreeflowStore(here) ? here : gitRoot(root);
 }
 
+/** Where each repository the record names in Space is on this machine, from the store's local/ (P96). */
+export function spaceRepositories(space, home) {
+  if (!home || !space.length) return [];
+  let known = {};
+  try {
+    known = JSON.parse(readFileSync(join(home, REPOSITORIES_FILE), "utf8"));
+  } catch {
+    known = {};
+  }
+  return space.map((item) => known[item.text.split(" · ")[0].trim()]).filter((top) => top && existsSync(top));
+}
+
 /**
  * What recovery reads for a task, measured: the counted parts against the budget for the window and the task's mode,
  * the uncounted parts with their sizes, and the material itself, which the views print.
@@ -209,7 +221,7 @@ export function pointerRoot(root) {
 export function measureTask(task, { root, path, window = contextWindow() }) {
   const home = freeflowStoreOf(dirname(path));
   const project = projectOf(path);
-  const context = contextFor(pointerRoot(root), path);
+  const context = contextFor(pointerRoot(root), path, spaceRepositories(task.record.work.space, home));
   const { work } = task.record;
   const recordLines = (items) => items.map((item) => task.record.lines[item.index]);
   const budget = budgetFor({ window: window.tokens, mode: task.record.header.budget });

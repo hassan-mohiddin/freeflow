@@ -81,9 +81,15 @@ async function recoveryHead(task, measured, { path, delegation }) {
     ...definedBy.map((entry) => ["Defined by", entry]),
     ...readNow.map((entry) => ["Read on recovery", entry]),
     ...readWhen.map((entry) => ["Read when", entry]),
-  ].flatMap(([where, entry]) =>
-    entry.pointers.filter((pointer) => pointer.problem).map((pointer) => `- ${where}: ${pointer.problem}`),
-  );
+  ].flatMap(([where, entry]) => [
+    ...entry.pointers.filter((pointer) => pointer.problem).map((pointer) => `- ${where}: ${pointer.problem}`),
+    // What recovery reads whole must name it: an entry with no pointer is never read for the agent.
+    ...(where !== "Read when" && !entry.pointers.length
+      ? [
+          `- ${where}: "${entry.text.slice(0, 60)}${entry.text.length > 60 ? "…" : ""}" names no file, so recovery cannot read it; write its path`,
+        ]
+      : []),
+  ]);
   const carryProblems = measured.files.carry.filter((file) => file.problem).map((file) => `- Carry: ${file.problem}`);
   const budget = measuredLines(measured);
   const worker = delegation ? workerSection(dirname(path), delegation) : [];

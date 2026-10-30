@@ -282,7 +282,7 @@ Every task's memory lives in the Freeflow store: one private Git repository at `
 
 The store writes nothing into your code repositories, and only Track Work's script commits and syncs it. If you choose not to make a store, a task's folder goes in the repository's Git-ignored `.freeflow/tasks/` instead.
 
-A session holds at most one task, and a task has one holder at a time. Where Freeflow runs inside the host (on Claude Code, through its mod), a session starts with a task menu: the open tasks of the project whose tasks name this repository. The agent takes only the task your message points to, asks when it could be more than one, and asks before taking over a task another session holds.
+A session holds at most one task, and a task has one holder at a time. Where Freeflow runs inside the host (on Claude Code, through its mod), a session starts with a task menu: the open tasks of the project whose tasks name this repository, followed by your rules from the store's `rules/` and that project's `rules/`, so they hold before any task is taken. The agent takes only the task your message points to, asks when it could be more than one, and asks before taking over a task another session holds.
 
 ### What a task folder keeps
 
