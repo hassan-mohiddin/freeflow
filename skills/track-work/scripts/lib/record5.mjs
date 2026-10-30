@@ -46,6 +46,8 @@ export const SLICE5_ORDER = [
   "Done when",
   "Stop if",
   "Started from",
+  "Size",
+  "Base",
   "Waits on",
   "Dependencies",
   "Predicted",
@@ -53,7 +55,7 @@ export const SLICE5_ORDER = [
 ];
 const SLICE5_REQUIRED = ["State", "Opened", "Under", "Result wanted", "Scope", "Done when", "Stop if", "Started from"];
 export const SLICE5_STATES = new Set(["in_progress", "paused"]);
-export const PROPOSED5_ORDER = ["Result wanted", "Done when", "Dependencies"];
+export const PROPOSED5_ORDER = ["Result wanted", "Size", "Done when", "Dependencies"];
 
 /** A Material update is one line: a kind and a pointer (the Spec's section 6). */
 export const UPDATE_KINDS = new Set([
@@ -89,6 +91,8 @@ export const ENTRY_ORDER = {
     "Task effect",
     "Resume when",
     "Reason",
+    "Size",
+    "Files",
     "Predicted",
     "Measured",
     "Updates",
@@ -116,6 +120,15 @@ const ENTRY_REQUIRED = {
   agreement: ["State", "Dates", "Cue", "Lines", "Result", "Task effect"],
   delegation: ["State", "Dates", "Cue", "Under", "Kind", "Agent", "Result", "Return"],
 };
+/**
+ * The number a Size or Files line starts with: the files a Slice will add or change (`Size: 12 files`), or did
+ * (`Files: 11 changed (…)`); null when it starts with none.
+ */
+export function filesIn(text) {
+  const match = /^(\d+) (?:files?|changed)\b/.exec(String(text ?? "").trim());
+  return match ? Number(match[1]) : null;
+}
+
 /** A correction to a closed entry is appended inside it as one more Correction line, never by editing it. */
 const CORRECTION = "Correction";
 

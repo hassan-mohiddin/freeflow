@@ -45,6 +45,7 @@
 
 ### Changed
 
+- Track Work's planner sizes each Slice from the files it will add or change (`Size: <n> files`) and the measured cost per file of past Slices, so a large Slice is no longer planned as the median one. `slice start` records the work repository's commit (`Base`), `slice close` counts the files the Slice changed (`Files`), and `slice size` adds that count to Slices closed before. The correction starts from the first Slice with its actual, pulled toward none; a reading that found nothing no longer counts as a Slice that used nothing; and `estimate --plan` and Discuss Work's agreement lead with the cost as a range and say what it rests on.
 - Track Work's recovery view and bundle open their checks with the task folder's path, so an agent after a compaction finds the files the record names.
 - Write Docs' docs check says when a `Verified at` commit is missing because the clone is shallow, as a cloud session's may be, and how to fetch its history.
 - Freeflow on Claude Code compacts only when the agent asks, with Track Work's `checkpoint --compact`: the mod answers the request once, at the end of that turn, with the record in place of the conversation, then starts the next turn. The notice at 75% reminds the agent to do so; a checkpoint without `--compact`, before a pause or a switch, never compacts; and the agent may ask earlier, at a boundary where the conversation holds mostly finished work.
