@@ -10,7 +10,7 @@ import { hostname } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { slugify } from "./format.mjs";
 import { claudeCodeLog } from "./discussion5.mjs";
-import { storeStatus, syncStore } from "./freeflow-store.mjs";
+import { missingParts, storeStatus, syncStore } from "./freeflow-store.mjs";
 import {
   DECISIONS_FILE,
   EMPTY_DECISIONS,
@@ -22,7 +22,7 @@ import {
 } from "./record5.mjs";
 import { searchRecords } from "./search.mjs";
 import { LAST_TASK_NUMBER, createRecordPath, nextTaskNumber, writeInitialAtomically, writeTaskFile } from "./store.mjs";
-import { rememberRepository, repositoryState, sessionSummaryPath } from "./transitions5.mjs";
+import { REPOSITORIES_FILE, rememberRepository, repositoryState, sessionSummaryPath } from "./transitions5.mjs";
 
 export const SESSIONS_FILE = "sessions.md";
 export const MENU_TASKS = 15;
@@ -220,7 +220,8 @@ export function heldTask(home, identity) {
 /**
  * This session's state in the store, for a harness layer such as Freeflow's Claude Code mod: the task it holds, with
  * its record and State as of; its session summary and that summary's time, when checkpoint --session wrote one;
- * whether the store holds changes not yet synced (paths not committed, or commits not pushed); and its transcript.
+ * whether the store holds changes not yet synced (paths not committed, or commits not pushed); its transcript; and
+ * what is missing for a working store, with who fixes it (P94).
  */
 export async function sessionStatus(home, identity, env = process.env) {
   const held = heldTask(home, identity);
@@ -235,6 +236,7 @@ export async function sessionStatus(home, identity, env = process.env) {
     summary: summary ? { path: summaryPath, asOf: /^As of: (\S+)$/m.exec(summary)?.[1] ?? null } : null,
     changed: status.uncommitted > 0 || (status.unpushed ?? 0) > 0,
     transcript: env.FREEFLOW_TRANSCRIPT || claudeCodeLog(env),
+    missing: await missingParts(home, env),
   };
 }
 
@@ -290,7 +292,7 @@ function projectsFor(home, directory) {
   return { repository, projects };
 }
 
-/** The session-start menu: the open tasks of the folder's project, newest activity first. */
+/** The session-start menu: the open tasks of the folder's project, or of every project where none matches, newest activity first. */
 export function menu(home, directory, identity) {
   const lines = [
     "The record is memory; the user's message decides the work. Nothing is taken: take a task only when the user's message points to it (task take --id <ID>), and ask when it could be more than one.",
@@ -310,12 +312,14 @@ export function menu(home, directory, identity) {
     ? openOf(projectTasks(home, null).filter((task) => task.space.includes(repository.name)))
     : [];
   if (!projects.length && !loose.length) {
-    lines.push(
-      repository
-        ? `No task names ${repository.name}. Projects:`
-        : "This folder is not in a repository a task names. Projects:",
-      listProjects(home).trimEnd(),
-    );
+    // No project to choose by, as in a cloud session whose folder is the store itself: every open task (P95).
+    const open = openOf(allTasks(home));
+    lines.push(repository ? `No task names ${repository.name}.` : "This folder is not in a repository a task names.");
+    if (!open.length) lines.push("No open tasks. Projects:", listProjects(home).trimEnd());
+    else {
+      lines.push("Open tasks in the store:", ...open.slice(0, MENU_TASKS).map((task) => taskLine(task, identity)));
+      if (open.length > MENU_TASKS) lines.push(`${open.length - MENU_TASKS} more: project list.`);
+    }
     return `${lines.join("\n")}\n`;
   }
   for (const slug of projects) {
@@ -332,6 +336,33 @@ export function menu(home, directory, identity) {
     if (loose.length > MENU_TASKS) lines.push(`${loose.length - MENU_TASKS} more: project list.`);
   }
   return `${lines.join("\n")}\n`;
+}
+
+/**
+ * Remembers in local/ where each repository a task names in Space is on this machine, from the Git checkouts at the
+ * given folders and directly inside them, so recovery resolves its pointers in a fresh container (P96). Returns the
+ * repositories newly found.
+ */
+export async function findRepositories(home, folders) {
+  const named = new Set(allTasks(home).flatMap((task) => task.space));
+  const candidates = folders.filter(Boolean).flatMap((folder) => {
+    if (!existsSync(folder)) return [];
+    const children = readdirSync(folder, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map((entry) => join(folder, entry.name));
+    return [folder, ...children];
+  });
+  const known = JSON.parse(await readFile(join(home, REPOSITORIES_FILE), "utf8").catch(() => "{}"));
+  const found = [];
+  for (const candidate of candidates) {
+    if (!existsSync(join(candidate, ".git"))) continue;
+    const state = repositoryState(candidate);
+    if (!state || !named.has(state.name) || found.some((each) => each.name === state.name)) continue;
+    if (known[state.name] && existsSync(known[state.name])) continue;
+    await rememberRepository(home, state);
+    found.push(state);
+  }
+  return found;
 }
 
 /** Makes a Schema 5 task folder at root: record.md, history.md and decisions.md. */

@@ -75,6 +75,29 @@ test("store init lays an empty remote out as the store and pushes its first comm
   });
 });
 
+test("store init --remote uses an empty clone of that remote already in the folder, as a cloud session has it (P97)", async () => {
+  await withFolder(async (folder) => {
+    const remote = await bareRemote(folder);
+    const home = join(folder, "home");
+    execFileSync("git", ["clone", "--quiet", remote, home], { stdio: "ignore" });
+    const made = store(folder, ["init", "--remote", `${remote}/`, "--home", home, ...IDENTITY]);
+    assert.equal(made.status, 0, made.stderr);
+    assert.match(made.stdout, /^Created the Freeflow store at .+, first commit pushed/);
+    assert.ok(existsSync(join(home, "store.json")));
+    assert.equal(
+      execFileSync("git", ["--git-dir", remote, "rev-parse", "main"], { encoding: "utf8" }).trim(),
+      git(home, ["rev-parse", "HEAD"]),
+    );
+    // A clone of another repository, or one with files in it, is still refused.
+    const other = await bareRemote(folder, "other.git");
+    const elsewhere = join(folder, "elsewhere");
+    execFileSync("git", ["clone", "--quiet", other, elsewhere], { stdio: "ignore" });
+    const refused = store(folder, ["init", "--remote", remote, "--home", elsewhere, ...IDENTITY]);
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /is not empty and is not a Freeflow store/);
+  });
+});
+
 test("store init on a second machine joins the store as it is, with no commit of its own", async () => {
   await withFolder(async (folder) => {
     const remote = await bareRemote(folder);
@@ -419,5 +442,52 @@ test("store remote makes a local store a cloud store with its history, and refus
     assert.equal(refused.status, 1);
     assert.match(refused.stderr, /already holds commits; a local store moves only into an empty repository/);
     assert.equal(git(second, ["remote"]), "");
+  });
+});
+
+test("session status names what keeps the session from a working store, and who fixes it (P94)", async () => {
+  await withFolder(async (folder) => {
+    const remote = await bareRemote(folder);
+    const status = (home, env = {}) => {
+      const run = spawnSync(process.execPath, [scriptPath, "session", "status"], {
+        cwd: folder,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: join(folder, "gitconfig"),
+          GIT_CONFIG_NOSYSTEM: "1",
+          FREEFLOW_HOME: home,
+          CLAUDE_CODE_REMOTE: "",
+          CLAUDE_CODE_REMOTE_SESSION_ID: "",
+          ...env,
+        },
+      });
+      assert.equal(run.status, 0, run.stderr);
+      return JSON.parse(run.stdout).missing;
+    };
+    const cloud = { CLAUDE_CODE_REMOTE: "true" };
+    // FREEFLOW_HOME names a store that is not there: in a cloud session the user selects its repository.
+    const absent = join(folder, "absent");
+    assert.deepEqual(
+      status(absent, cloud).map((part) => part.by),
+      ["user"],
+    );
+    assert.match(status(absent, cloud)[0].fix, /select the store's repository when starting a session/);
+    assert.match(status(absent)[0].fix, /^store init \(local only\) or store init --remote <url>/);
+    // An empty clone of the store's repository: the agent lays it out.
+    const clone = join(folder, "clone");
+    execFileSync("git", ["clone", "--quiet", remote, clone], { stdio: "ignore" });
+    assert.deepEqual(status(clone, cloud), [
+      {
+        what: `${clone} is an empty clone of ${remote}, not yet laid out as the store`,
+        fix: `store init --remote ${remote}, on the user's word`,
+        by: "agent",
+      },
+    ]);
+    // A local store: nothing missing on this machine, but a cloud session needs its remote.
+    const local = join(folder, "local");
+    assert.equal(store(folder, ["init", "--home", local, ...IDENTITY]).status, 0);
+    assert.deepEqual(status(local), []);
+    assert.match(status(local, cloud)[0].what, /has no remote, so its task memory is lost with this container/);
   });
 });

@@ -151,6 +151,17 @@ See [Tool Execution](capabilities/tool-execution.md), [Compaction](capabilities/
 
 Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
 
+## Set up task memory
+
+Work that runs past one compaction, or across sessions and machines, keeps its memory in the Freeflow store: one private Git repository, apart from your code, at `FREEFLOW_HOME` (`~/.freeflow` by default). The first time a task needs memory, the agent asks how to set it up; you can also ask for it with `/setup-freeflow`.
+
+- **Local only:** the store on this device; nothing leaves the machine.
+- **Local + cloud:** the same store, kept in step with a private repository on your own GitHub account, so every device and every cloud session has it. Create an empty private repository (for example `freeflow-store`) and give the agent its URL.
+
+If you want neither, the agent works without memory beyond the current compaction. Records you kept before the store, in a repository's `.freeflow/tasks/` or Pi's Task Memory, are copied into it on your word; the originals stay where they are.
+
+**Claude Code cloud sessions.** A cloud session's container is thrown away, so it needs local + cloud. In the cloud environment's settings: add your store repository under Repositories; set `FREEFLOW_HOME` to the folder it is cloned to (`/home/user/` and the repository's name); and load the Freeflow plugin with a setup-script line that clones Freeflow and `CLAUDE_CODE_PLUGIN_DIRS` naming that folder. Select the store as one of the session's repositories when you start a session. If something is missing, Freeflow says what at session start, and whether you or the agent fixes it.
+
 ## Verify delivery
 
 Use the host-native surface to confirm the installation:

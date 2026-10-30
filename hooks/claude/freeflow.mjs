@@ -48,15 +48,34 @@ async function script($, args, { session, stdin, timeoutMs = 60_000 } = {}) {
  * @param {{ session?: string, timeoutMs?: number }} [options]
  */
 async function status($, options) {
+  const state = await sessionStatus($, options);
+  return state?.store ? state : null;
+}
+
+/**
+ * Session status as the script prints it, a store or not, or null where it cannot be read.
+ * @param {any} $
+ * @param {{ session?: string, timeoutMs?: number }} [options]
+ */
+async function sessionStatus($, options) {
   const run = await script($, ["session", "status"], options);
   if (run.exitCode !== 0) return null;
   try {
-    const state = JSON.parse(run.stdout);
-    return state.store ? state : null;
+    return JSON.parse(run.stdout);
   } catch {
     return null;
   }
 }
+
+/**
+ * What keeps the session from a working store, for the agent to relay or fix (P94); empty when nothing does.
+ * @param {any} state session status
+ */
+const missingText = (state) =>
+  (state?.missing ?? []).map(
+    (/** @type {{ what: string, fix: string, by: string }} */ part) =>
+      `- Missing: ${part.what}. Fix (${part.by === "user" ? "the user" : "the agent"}): ${part.fix}.`,
+  );
 
 /** @param {string} path */
 const separatorOf = (path) => (path.includes("\\") && !path.includes("/") ? "\\" : "/");
@@ -356,17 +375,32 @@ export function register(on) {
     await newCycle($, null);
     workers = null;
     await readWindow($);
-    const state = await status($, { session: e.session_id });
+    const found = await sessionStatus($, { session: e.session_id });
+    const state = found?.store ? found : null;
     await storeRootOf($, state);
-    if (!state) return result;
+    const missing = missingText(found);
+    if (!state)
+      return missing.length
+        ? {
+            ...result,
+            additionalContext: [
+              ...(result.additionalContext ?? []),
+              `Freeflow task memory: the store is not ready.\n${missing.join("\n")}`,
+            ],
+          }
+        : result;
     // The session's transcript, which Track Work's script reads to measure what a Slice uses (Spec section 12).
     if (state.transcript) await $.env.set("FREEFLOW_TRANSCRIPT", state.transcript);
     await script($, ["store", "sync", "--pull"], { session: e.session_id });
-    const menu = await script($, ["task", "here", "--cwd", e.cwd], { session: e.session_id });
+    // The session's folder, its siblings and Freeflow's own checkout, where a task's repositories may be (P96).
+    const parent = e.cwd.slice(0, e.cwd.lastIndexOf(separatorOf(e.cwd))) || e.cwd;
+    const scan = [e.cwd, parent, $.plugin.root].join(separatorOf(e.cwd) === "\\" ? ";" : ":");
+    const menu = await script($, ["task", "here", "--cwd", e.cwd, "--scan", scan], { session: e.session_id });
     if (menu.exitCode !== 0) return result;
+    const text = [menu.stdout.trimEnd(), ...missing].join("\n");
     return {
       ...result,
-      additionalContext: [...(result.additionalContext ?? []), `Freeflow task memory:\n${menu.stdout}`],
+      additionalContext: [...(result.additionalContext ?? []), `Freeflow task memory:\n${text}\n`],
     };
   });
 

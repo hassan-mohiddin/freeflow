@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import test from "node:test";
 import { sessionIdentity } from "../../../skills/track-work/scripts/lib/projects5.mjs";
 
@@ -180,7 +180,7 @@ test("a session holds one task at a time: take refuses a second, switch releases
   });
 });
 
-test("the menu lists the open tasks of the project whose tasks name the folder's remote, and says what this session holds", async () => {
+test("the menu lists the open tasks of the project whose tasks name the folder's remote, or of every project elsewhere (P95), and says what this session holds", async () => {
   await withStore(async ({ folder, work, cli }) => {
     ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
     ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Other"]));
@@ -230,7 +230,7 @@ test("the menu lists the open tasks of the project whose tasks name the folder's
     const elsewhere = ok(cli("bbbbbbbb-2", ["task", "here"], folder));
     assert.match(
       elsewhere,
-      /This folder is not in a repository a task names\. Projects:\n- other: 0 task\(s\)\n- widget: 2 task\(s\); repositories github.com\/acme\/widget\n/,
+      /This folder is not in a repository a task names\.\nOpen tasks in the store:\n- widget\/task-002 — Mine · active · held by this session · read when my task matters\n- widget\/task-001 — Held elsewhere · active · held by aaaaaaaa .+\n$/,
     );
     assert.match(
       ok(cli("bbbbbbbb-2", ["view", "recover", "--record", "widget/task-001"])),
@@ -402,4 +402,37 @@ test("the session is read from the environment: Claude Code's IDs, a cloud sessi
   assert.equal(local.back, "claude --resume 4b1e90c2-aaaa");
   assert.notEqual(local.where, "cloud");
   assert.equal(sessionIdentity({ FREEFLOW_SESSION: "pi-123456789", FREEFLOW_HARNESS: "Pi" }).harness, "Pi");
+});
+
+test("task here --scan remembers where a task's repository is on this machine, so recovery resolves its pointers (P96)", async () => {
+  await withStore(async ({ folder, home, work, cli }) => {
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
+    ok(
+      cli(
+        "aaaaaaaa-1",
+        [
+          "task",
+          "create",
+          "--title",
+          "Queue",
+          "--goal",
+          "g",
+          "--cue",
+          "read when the queue matters",
+          "--project",
+          "widget",
+        ],
+        work,
+      ),
+    );
+    // A fresh container: the store is cloned, but it does not know where the work repository is.
+    await rm(join(home, "local", "repositories.json"), { force: true });
+    const found = ok(cli("aaaaaaaa-1", ["task", "here", "--scan", ["/nowhere", folder].join(delimiter)]));
+    assert.ok(found.endsWith(`Found on this machine: github.com/acme/widget at ${await realpath(work)}.\n`), found);
+    assert.deepEqual(JSON.parse(await readFile(join(home, "local", "repositories.json"), "utf8")), {
+      "github.com/acme/widget": await realpath(work),
+    });
+    // Known already: nothing more to say.
+    assert.doesNotMatch(ok(cli("aaaaaaaa-1", ["task", "here", "--scan", folder])), /Found on this machine/);
+  });
 });

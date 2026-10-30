@@ -84,13 +84,13 @@ Send one reply, not a dialog, before the first edit:
 ```text
 What I'll do:   <the outcome>
 Where I stop:   <done when; what I won't touch>
-Size:           <for work past this compaction cycle: the compaction cycles it takes and its cost at API list price>
 Your decisions: 1. <a choice the request leaves open, as the user meets it>. I'd go with <default>, because <reason>.
                 2. ...
 Technical:      <N> more choices; say "show technical" to see them.
+Size:           <for work past this compaction cycle: the compaction cycles it takes and its cost at API list price>
 ```
 
-`choices.mjs agreement --do <outcome> --stop <where you stop>` renders this reply from the list. When the work will outlast this compaction cycle, first save the output of Track Work's `working-record.mjs estimate --plan --json` to a file (with `--record` for the task's Future Work, or `--input -` with the Slices you propose) and pass it as `--plan <file>`: the reply gains the Size line, and its Technical part the plan, with the context and cost of each compaction cycle and Slice and the model and effort they were measured on. Show the technical list in full when the user asks or has said they always want it, and leave the line out when they have said never. With no plain items, say so and still wait.
+`choices.mjs agreement --do <outcome> --stop <where you stop>` renders this reply from the list. When the work will outlast this compaction cycle, first save the output of Track Work's `working-record.mjs estimate --plan --json` to a file (with `--record` for the task's Future Work, or `--input -` with the Slices you propose) and pass it as `--plan <file>`: the reply gains the Size line, last so it stands out, and its Technical part the plan, with the context and cost of each compaction cycle and Slice and the model and effort they were measured on. Show the technical list in full when the user asks or has said they always want it, and leave the line out when they have said never. With no plain items, say so and still wait.
 
 `Where I stop` names the endpoint the user can hold you to, and where you come back. After discussing several possible Slices, an ambiguous "proceed" needs it settled: the next Slice and return, or the whole task? Do not ask when the user already named the endpoint.
 

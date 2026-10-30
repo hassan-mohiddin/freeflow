@@ -29,7 +29,7 @@ The Freeflow store is one Git repository at `FREEFLOW_HOME` (default `~/.freeflo
 
 `rules/` holds the user's always-on context, like `CLAUDE.md` with room to organize: every file in the store's `rules/`, and the project's once the session holds one of its tasks, is read at every recovery and never counted against the budget. Create or edit a rule only when the user asks; the checks show their size, and you never trim them.
 
-**Local or cloud.** The same store either way. A local store, the default, lives on this device only: `store init` makes it, and nothing leaves the machine. A cloud store is the same store with the user's private repository as its remote, kept in step on every device: `store init --remote <url>` clones it into `FREEFLOW_HOME`, laying out an empty repository as a store or joining one that already is, and `store remote --url <url>` moves a local store's whole history into an empty repository. A cloud session needs a cloud store, since its container is thrown away: the store's repository is one of the session's repositories, `FREEFLOW_HOME` points at its clone, and pushing needs the host's access to that repository. `store init` refuses a folder that holds Pi's Task Memory (`registry.json`) or anything else: ask the user where the store should go. Commits are authored as the user, with no trailers.
+**Local or cloud.** The same store either way. A local store, the default, lives on this device only: `store init` makes it, and nothing leaves the machine. A cloud store is the same store with the user's private repository as its remote, kept in step on every device: `store init --remote <url>` clones it into `FREEFLOW_HOME`, laying out an empty repository as a store or joining one that already is, and `store remote --url <url>` moves a local store's whole history into an empty repository. A cloud session needs a cloud store, since its container is thrown away: the store's repository is one of the session's repositories, `FREEFLOW_HOME` points at its clone, and pushing needs the host's access to that repository; Setup Freeflow's [store setup](../../setup-freeflow/references/store-setup.md) says what the user sets, and `session status` lists what is missing. `store init` refuses a folder that holds Pi's Task Memory (`registry.json`) or anything else: ask the user where the store should go. Commits are authored as the user, with no trailers.
 
 ## Sync
 
@@ -51,7 +51,7 @@ When a sync fails:
 
 ## Projects
 
-A project is a folder, `projects/<project>/`, with its `rules/` and `tasks/`; a task belongs to the project whose folder holds it, and its ID is `<project>/task-NNN`. A task in no project is in the store's own `tasks/`, its ID `task-NNN`; `task create` puts it there with `--no-project`, or when no project's tasks name the repository. A session finds its project by matching the repository's remote against the repositories its tasks name in Space; a folder with no repository, or one no task names, gets the list of projects. The store writes nothing into code repositories; only a task kept without a store lives in one, in its Git-ignored `.freeflow/tasks/`.
+A project is a folder, `projects/<project>/`, with its `rules/` and `tasks/`; a task belongs to the project whose folder holds it, and its ID is `<project>/task-NNN`. A task in no project is in the store's own `tasks/`, its ID `task-NNN`; `task create` puts it there with `--no-project`, or when no project's tasks name the repository. A session finds its project by matching the repository's remote against the repositories its tasks name in Space; a folder with no repository, or one no task names, such as the store's own, gets every project's open tasks. The store writes nothing into code repositories; only a task kept without a store lives in one, in its Git-ignored `.freeflow/tasks/`.
 
 ```text
 working-record.mjs project new --name <name>                         a project, on the user's word
@@ -105,7 +105,7 @@ task-NNN-<short-name>/
   scratch/           temporary, ignored                           anyone
 ```
 
-In the Freeflow store the folder is `<store>/projects/<project>/tasks/task-NNN-<short-name>/`, and its ID is `<project>/task-NNN`, or in no project `<store>/tasks/task-NNN-<short-name>/`, and `task-NNN`; every command that takes `--record` also takes the ID. Without a store it is `<repository>/.freeflow/tasks/task-NNN-<short-name>/`, which Git must ignore. `NNN` is three or more digits; a new task takes the next number after the highest one there, and numbers are never reused. `init` and `task create` write `record.md`, `history.md`, `decisions.md` and `scratch/`, and `task create` also `sessions.md`; the rest appear when needed. Nothing anything points to is ever under `scratch/`. `sources/notes.md` holds free notes when a task wants them; they carry no authority.
+In the Freeflow store the folder is `<store>/projects/<project>/tasks/task-NNN-<short-name>/`, and its ID is `<project>/task-NNN`, or in no project `<store>/tasks/task-NNN-<short-name>/`, and `task-NNN`; every command that takes `--record` also takes the ID. A task kept before the store, without one, is in `<repository>/.freeflow/tasks/task-NNN-<short-name>/`, which Git must ignore, until it is moved into the store. `NNN` is three or more digits; a new task takes the next number after the highest one there, and numbers are never reused. `init` and `task create` write `record.md`, `history.md`, `decisions.md` and `scratch/`, and `task create` also `sessions.md`; the rest appear when needed. Nothing anything points to is ever under `scratch/`. `sources/notes.md` holds free notes when a task wants them; they carry no authority.
 
 A delegation's folder, `delegations/D-NNN-<slug>/` with `brief.md`, `progress.md` and `return.md`, and a sub-worker's inside its worker's, are Execute Work's [delegation](../../execute-work/references/delegation.md) reference's.
 
@@ -409,7 +409,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 
 | Change | Command |
 | --- | --- |
-| Create a task | `task create --title <title> --goal <goal> --cue <cue> [--project <p> \| --no-project]` in the store (this session holds it); `init --root <folder> --name <name> --cue <cue> --input -` elsewhere (Goal and Next action required); on Pi with Task Memory on, Task Memory's `create`, or `init --schema 4` ([Schema 4](schema-4.md)) |
+| Create a task | `task create --title <title> --goal <goal> --cue <cue> [--project <p> \| --no-project]` in the store (this session holds it); on Pi with Task Memory on, Task Memory's `create`, or `init --schema 4` ([Schema 4](schema-4.md)) |
 | Hold a task, give it up, move to another | `task take --id <ID> [--takeover]`, `task release`, `task switch --id <ID>` |
 | Move a task into a project, or out of one | `task move --id <ID> (--project <p> \| --no-project)`, on the user's word |
 | Open, change, close the agreement | `agreement open`, `agreement update`, `agreement close --state <completed\|ended\|replaced>` |

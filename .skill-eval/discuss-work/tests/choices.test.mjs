@@ -112,7 +112,17 @@ test("choices validates a list and refuses a broken one", async () => {
     assert.match(broken.stdout, expected);
 });
 
-test("the agreement shows the plan's size, and its Technical part the plan from estimate --plan --json (P87)", async () => {
+test("a list with no items yet, such as a new task's decisions.md, is valid (P98)", async () => {
+  const empty = choices(
+    process.cwd(),
+    ["validate", "--list", "-"],
+    "# Decisions\n\nThe build's decisions are in the Spec.\n",
+  );
+  assert.equal(empty.status, 0, empty.stdout);
+  assert.match(empty.stdout, /Decision list valid: 0 item\(s\)/);
+});
+
+test("the agreement shows the plan's size last (P101), and its Technical part the plan from estimate --plan --json (P87)", async () => {
   const folder = await realpath(await mkdtemp(join(tmpdir(), "choices-plan-")));
   try {
     const plan = join(folder, "plan.json");
@@ -152,10 +162,10 @@ test("the agreement shows the plan's size, and its Technical part the plan from 
       [
         "What I'll do:   Add a queue",
         "Where I stop:   the queue works",
-        "Size:           3 compaction cycles (this one and 2 more), about $5.85 at API list price",
         'Your decisions: 1. Text when the queue is full? I\'d go with "Queue full, try later"',
         "                2. Retry count? I'd go with 3, because the client does",
         'Technical:      1 more choice and the plan; say "show technical" to see them.',
+        "Size:           3 compaction cycles (this one and 2 more), about $5.85 at API list price",
         "",
       ].join("\n"),
     );
@@ -173,6 +183,7 @@ test("the agreement shows the plan's size, and its Technical part the plan from 
           "                in all: about 270,000 tokens of context, working about 2 h 30 min, about $5.85",
           "                could run in parallel: Parser, Docs",
           "                prices: API list price as of 2026-10-30, from the Claude API reference bundled with Claude Code 2.1.311",
+          "Size:           3 compaction cycles (this one and 2 more), about $5.85 at API list price",
           "",
         ].join("\n"),
       ),
