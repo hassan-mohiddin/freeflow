@@ -26,8 +26,8 @@ import { Inbound, renderNotice } from "./host/inbound.js";
 import { currentSections, headSections, keepSections } from "./host/section-keeper.js";
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController, RECOVERY_TYPE, USER_REQUEST, type TurnEnd } from "./compaction/controller.js";
-import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
 import { strictest } from "./compaction/thresholds.js";
+import { StoreLayer, scriptRunner, sessionEnvironment } from "./store/layer.js";
 import { SNAPSHOT_TYPE, TASK_ENTRY, TaskMemory, type TaskResult } from "./task-memory/runtime.js";
 import { applyTaskMemoryTools, registerTaskMemoryTool } from "./task-memory/tool.js";
 import { freeflowHome } from "./task-memory/registry.js";
@@ -69,6 +69,8 @@ type FreeflowAPI = ExtensionAPI;
 const COMPACTION_NOTICE_TYPE = "freeflow-compaction-notice";
 // The user's /freeflow compact, delivered as Freeflow's message.
 const COMPACT_REQUEST_TYPE = "freeflow-compaction-request";
+// The Freeflow store's menu and rules at session start, or what keeps the session from a store.
+const STORE_TYPE = "freeflow-store";
 
 /** Estimated size of the full native history plus the system prompt: what a request without projection carries. */
 /**
@@ -226,6 +228,9 @@ export default function freeflow(pi: FreeflowAPI) {
   const api = pi as any;
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   const routing = new RoutingRuntime(api, [packageRoot]);
+  // The Freeflow store's layer: Track Work's script on Pi's events, as the Claude Code mod is on Claude Code's.
+  const store = new StoreLayer(scriptRunner(packageRoot));
+  const trackWork = `node ${resolve(packageRoot, "skills/track-work/scripts/working-record.mjs")}`;
   // A Coordinator waiting on its worker will resume, so its prompt cache is worth keeping warm.
   providerSupport.keepAlive.setHoldSource(() => routing.suspendedCoordinator());
   // A worker may share the Coordinator's model; each profile keeps its own warmed request.
@@ -302,12 +307,11 @@ export default function freeflow(pi: FreeflowAPI) {
   function status(ctx: any) {
     applyRoutingToolVisibility(api, routing, capability?.cognitiveRouting?.effective === true);
     applyToolExecutionTools(api, toolExecutionEffective());
-    applyCompactionTools(api, compactionEffective());
     applyTaskMemoryTools(api, taskMemoryEffective());
     applyAskUserTool(api, askUserEffective());
     applyMessagingTools(api, messagingEffective());
     syncMessaging(ctx);
-    setFreeflowStatus(ctx, capability, routing.state(), prompts);
+    setFreeflowStatus(ctx, capability, routing.state(), prompts, { task: store.heldTask() });
   }
   // Control and setting changes made between prompts are staged; their net effect is written as a prompt starts.
   function writeStagedControl(ctx: any) {
@@ -363,6 +367,7 @@ export default function freeflow(pi: FreeflowAPI) {
   api.registerMessageRenderer?.(NOTICE_TYPE, renderNotice("Background"));
   api.registerMessageRenderer?.(MONITOR_TYPE, renderNotice("Monitor"));
   api.registerMessageRenderer?.(COMPACT_REQUEST_TYPE, renderNotice("Compaction"));
+  api.registerMessageRenderer?.(STORE_TYPE, renderNotice("Task memory"));
   // Compaction's warnings and its recovery message, and the changed-file notice: one line each, the rest on expand.
   api.registerMessageRenderer?.(COMPACTION_NOTICE_TYPE, renderNotice("Compaction"));
   api.registerMessageRenderer?.(RECOVERY_TYPE, renderNotice("Compaction"));
@@ -399,12 +404,17 @@ export default function freeflow(pi: FreeflowAPI) {
       return state.effective ? state.activeProfile : undefined;
     },
     routingAssignment: () => routing.currentAssignment(),
-    assignmentResults: () => routing.assignmentResults(),
     background: () => background.running().map(({ id, label, outputPath }) => ({ id, label, outputPath })),
     notice: (text: string) => freeflowNotice("compaction", text),
     carryEnabled: () => capability?.compaction?.carry !== false,
-    nativeRefs: () => capability?.cognitiveRouting?.effective === true,
-    resolveRef: (ref: string) => routing.evidenceSource(ref),
+    store: {
+      current: () => store.current(),
+      refresh: () => store.refresh(),
+      runEnded: () => store.runEnded(),
+      bundle: (options) => store.bundle(options),
+      answered: () => store.answered(),
+      command: () => trackWork,
+    },
     coordinatorUnderProjection: () =>
       capability?.cognitiveRouting?.effective === true &&
       capability.cognitiveRouting.projection === true &&
@@ -446,7 +456,44 @@ export default function freeflow(pi: FreeflowAPI) {
       return { tokens, thresholds: limits };
     },
   });
-  registerCompactionTool(api, compaction);
+  /**
+   * Session start: the store's menu with the rules every task follows, or what keeps the session from a store, as one
+   * Freeflow message for the next turn. Not awaited, so a pull over the network never holds up Pi's start; a reload
+   * keeps the conversation, so it only reads the state again.
+   */
+  const storeStart = async (ctx: any, reason: string | undefined, generation: number) => {
+    const held = store.heldTask();
+    try {
+      if (reason === "reload") await store.refresh();
+      else {
+        const text = await store.start(ctx.cwd, [ctx.cwd, dirname(ctx.cwd), packageRoot]);
+        if (generation !== surfaceGeneration) return;
+        if (text)
+          await Promise.resolve(
+            api.sendMessage(
+              {
+                customType: STORE_TYPE,
+                content: freeflowNotice("store", `Freeflow task memory:\n${text}`),
+                display: true,
+                details: {},
+              },
+              { deliverAs: "nextTurn" },
+            ),
+          );
+      }
+      // The footer names the held task; refreshed only when it changed, since a refresh costs a branch walk.
+      if (generation === surfaceGeneration && store.heldTask() !== held) status(ctx);
+    } catch {
+      // The store is optional: without one, compaction works through the session summary (P4).
+    }
+  };
+  /** The store's line in /freeflow status: where it is and the task this session holds, as last read. */
+  const storeStatusText = (): string | undefined => {
+    const state = store.current();
+    if (!state) return undefined;
+    if (!state.store) return state.missing?.length ? `not ready (${state.missing[0].what})` : undefined;
+    return `${state.home}${state.task ? `, holding ${state.task.id}` : ", no task held"}${state.changed ? ", changes not synced" : ""}`;
+  };
   const sendSnapshot = (content: string, record: string): void =>
     void Promise.resolve(
       api.sendMessage({ customType: SNAPSHOT_TYPE, content, display: true, details: { record } }),
@@ -721,20 +768,15 @@ export default function freeflow(pi: FreeflowAPI) {
     refreshState = true;
     status(ctx);
   }
-  // The user's /freeflow compact makes compaction due now: the agent prepares, compacts and recovers.
+  // The user's /freeflow compact asks the agent to checkpoint with --compact; Freeflow compacts when the run ends.
   async function compactNow(ctx: any) {
     if (!compactionEffective()) {
       ctx.ui.notify("Freeflow compaction is off; Pi's /compact still works.", "warning");
       return;
     }
-    compaction.requestByUser(ctx);
     // Freeflow's message saying the user asked, not text in the user's name (Task 002 D-008); the run it starts keeps
     // Freeflow's system sections (host/section-keeper.ts).
-    const index = compaction.indexText(ctx);
-    const text = freeflowNotice(
-      "compaction",
-      `The user ran /freeflow compact. ${USER_REQUEST}${index ? `\n\n${index}` : ""}`,
-    );
+    const text = freeflowNotice("compaction", USER_REQUEST);
     await Promise.resolve(
       api.sendMessage(
         { customType: COMPACT_REQUEST_TYPE, content: text, display: true, details: {} },
@@ -787,6 +829,14 @@ export default function freeflow(pi: FreeflowAPI) {
     files.reset();
     stateSkills = [];
     compaction.reset();
+    store.reset();
+    // What Track Work's script reads about this session, for the agent's commands and Freeflow's own (T6).
+    sessionEnvironment({
+      id: ctx.sessionManager?.getSessionId?.(),
+      file: ctx.sessionManager?.getSessionFile?.(),
+      window: ctx.model?.contextWindow,
+    });
+    if (capability?.enabled === true) void storeStart(ctx, (event as any)?.reason, generation);
     await routing.bind(ctx, capability.cognitiveRouting, (event as any)?.reason !== "reload");
     taskMemory.rebuild(cachedBranch(ctx.sessionManager));
     if (taskMemoryEffective()) {
@@ -833,6 +883,9 @@ export default function freeflow(pi: FreeflowAPI) {
   });
   pi.on("session_shutdown", async () => {
     surfaceGeneration++;
+    // The hold is released and the store pushed, before the next session's layer starts.
+    await store.shutdown().catch(() => {});
+    store.reset();
     // Leave the live registry and close the socket, after any start still queued; sessions waiting for this one learn
     // that it ended.
     messagingSync = messagingSync.then(() => messaging.stop()).catch(() => {});
@@ -933,6 +986,7 @@ export default function freeflow(pi: FreeflowAPI) {
     }
   });
   pi.on("tool_call", async (event, ctx) => {
+    store.note(event.toolName, event.input, ctx.cwd);
     const recordGate = await taskMemory.gate(event.toolName, event.input, ctx.cwd);
     if (recordGate) return recordGate;
     const gate = routing.preflight(event, ctx);
@@ -942,6 +996,17 @@ export default function freeflow(pi: FreeflowAPI) {
     return (await files.toolCall(event, ctx)) ?? gate;
   });
   pi.on("tool_result", async (event, ctx) => {
+    // After the agent ran Track Work's script, the held task may have changed: read it off the request path, for the
+    // footer and the notice.
+    if (event.toolName === "bash" && String((event.input as any)?.command ?? "").includes("working-record.mjs")) {
+      const held = store.heldTask();
+      void store
+        .refresh()
+        .then(() => {
+          if (store.heldTask() !== held) status(ctx);
+        })
+        .catch(() => {});
+    }
     if (!toolExecutionEffective()) return undefined;
     const shaped = await files.toolResult(event, ctx);
     // The push retriever's notice joins the result before it is delivered, after anything Tool Execution added.
@@ -954,18 +1019,17 @@ export default function freeflow(pi: FreeflowAPI) {
     await routing.turnEnd(event, ctx);
     files.clearPending();
     status(ctx);
-    const compacting = await compaction.turnEnd(event, ctx);
-    if (compacting) {
-      // The focused record arrives after the summary, so recovery starts from it rather than a path to look up.
-      const snapshot = await taskMemory.snapshotEntry();
-      if (snapshot) compacting.entries.push(snapshot);
-      return compacting;
+    // The run's last turn, one with no tool calls: after a run that touched the store, the store is read again and
+    // synced, and a checkpoint --compact that waits is answered by compacting with the bundle and continuing the run.
+    const midRun = ((event.message as any)?.content ?? []).some((block: any) => block?.type === "toolCall");
+    if (!midRun) {
+      const compacting = await compaction.settle(event, ctx);
+      if (compacting) return compacting;
     }
     const notice = compaction.observe(ctx, event);
     if (notice) {
       // Mid-run the notice joins the next request; when the run is ending it waits for the next prompt rather than
       // starting work nobody asked for.
-      const midRun = ((event.message as any)?.content ?? []).some((block: any) => block?.type === "toolCall");
       await Promise.resolve(
         api.sendMessage(
           { customType: COMPACTION_NOTICE_TYPE, content: notice.text, display: true, details: { level: notice.level } },
@@ -1001,7 +1065,10 @@ export default function freeflow(pi: FreeflowAPI) {
     }
     status(ctx);
   };
-  pi.on("model_select", async (_event, ctx) => externalChange(ctx));
+  pi.on("model_select", async (_event, ctx) => {
+    if (ctx.model?.contextWindow) process.env.FREEFLOW_CONTEXT_WINDOW = String(ctx.model.contextWindow);
+    await externalChange(ctx);
+  });
   pi.on("thinking_level_select", async (_event, ctx) => externalChange(ctx));
   pi.on("context_with_system", async (event, ctx) => {
     writeStagedControl(ctx);
@@ -1208,6 +1275,7 @@ export default function freeflow(pi: FreeflowAPI) {
           backgroundRunning: background.running().length,
           compaction: compaction.statusText(ctx),
           taskMemory: taskMemory.attachedText(),
+          store: storeStatusText(),
           messaging: messaging.self()
             ? `this session is ${messaging.self()!.name}${messaging.heldCount() ? `, ${messaging.heldCount()} held` : ""}`
             : undefined,

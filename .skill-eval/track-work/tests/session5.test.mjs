@@ -66,10 +66,14 @@ test("session status prints this session's state in the store as JSON: its task,
   await withFolder(async ({ folder, cli }) => {
     const holder = { FREEFLOW_SESSION: "aaaaaaaa-1111", FREEFLOW_HARNESS: "Probe" };
     const status = (env) => JSON.parse(ok(cli(["session", "status"], { env })));
-    // FREEFLOW_HOME names a store that is not there yet: what is missing, and who sets it up (P94).
+    // FREEFLOW_HOME names a store that is not there yet: what is missing, and who sets it up (P94); the session's own
+    // summary and compaction request, which need no store (P4).
     assert.deepEqual(status(holder), {
       home: join(folder, "store"),
       store: false,
+      session: "aaaaaaaa-1111",
+      summary: null,
+      compact: null,
       missing: [
         {
           what: `FREEFLOW_HOME is ${join(folder, "store")}, and the store is not there`,
@@ -221,5 +225,35 @@ test("view bundle --fallback adds the user's messages since the checkpoint, word
       cli(["view", "recover", "--record", record, "--fallback"]).stderr,
       /--fallback is for view bundle --record/,
     );
+  });
+});
+
+test("with no store, a session summary still asks for Freeflow's compaction, and session status reports both (P4)", async () => {
+  await withFolder(async ({ folder, cli }) => {
+    const env = { FREEFLOW_SESSION: "bbbbbbbb-2222", FREEFLOW_HARNESS: "Pi" };
+    const summary = [
+      "## Goal",
+      "- Answer a question.",
+      "## Settled",
+      "(none)",
+      "## Open",
+      "(none)",
+      "## Agreement",
+      "(none)",
+      "## In flight",
+      "- Now: reading.",
+      "## Read when",
+      "(none)",
+      "## Next action",
+      "- Answer.",
+    ].join("\n");
+    assert.match(
+      ok(cli(["checkpoint", "--session", "--compact", "--input", "-"], { input: summary, env })),
+      /\nCompaction requested: Freeflow's harness layer compacts the session/,
+    );
+    const status = JSON.parse(ok(cli(["session", "status"], { env })));
+    assert.equal(status.store, false);
+    assert.equal(status.summary.path, join(folder, "store", "sessions", "bbbbbbbb-2222", "summary.md"));
+    assert.equal(status.compact.done, false);
   });
 });

@@ -50,6 +50,7 @@ import {
   removeTask,
   searchTasks,
   sessionIdentity,
+  sessionFiles,
   sessionStatus,
   showProject,
   STORE_TASK_ID,
@@ -984,7 +985,13 @@ async function runCore(command, rest) {
     const home = storeHome(options["--home"]);
     const status = isFreeflowStore(home)
       ? await sessionStatus(home, sessionIdentity())
-      : { home, store: false, missing: await missingParts(home) };
+      : {
+          home,
+          store: false,
+          session: sessionIdentity()?.id ?? null,
+          ...sessionFiles(home, sessionIdentity()),
+          missing: await missingParts(home),
+        };
     return `${JSON.stringify(status, null, 2)}\n`;
   }
   if (
@@ -1209,8 +1216,9 @@ async function requestCompaction(args) {
   const at = args.indexOf("--home");
   const home = storeHome(at === -1 ? undefined : args[at + 1]);
   const identity = sessionIdentity();
-  if (!identity || !isFreeflowStore(home))
-    return "Compaction not requested: it needs a session ID and the Freeflow store.\n";
+  // A session summary lives in the Freeflow home whether or not a store is there, so its compaction needs none (P4).
+  if (!identity || (!args.includes("--session") && !isFreeflowStore(home)))
+    return "Compaction not requested: it needs a session ID, and for a task the Freeflow store.\n";
   await writeCompactionRequest(home, identity);
   return "Compaction requested: Freeflow's harness layer compacts the session when this turn ends, with the record in place of the conversation. End your turn now.\n";
 }
