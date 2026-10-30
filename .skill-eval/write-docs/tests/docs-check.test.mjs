@@ -176,6 +176,21 @@ test("--stamp moves a stale doc's Verified at to HEAD, so the doc and the code g
   assert.doesNotMatch(again.stdout, /stamped/);
 });
 
+test("a Verified at commit a shallow clone lacks is reported with how to fetch it", async (t) => {
+  const { root } = await repository();
+  const shallow = await mkdtemp(join(tmpdir(), "docs-check-shallow-"));
+  t.after(() => Promise.all([root, shallow].map((path) => rm(path, { recursive: true, force: true }))));
+  git(tmpdir(), "clone", "--quiet", "--depth", "1", `file://${root}`, shallow);
+  const result = spawnSync(process.execPath, [scriptPath, "dev-docs"], { cwd: shallow, env: gitEnv, encoding: "utf8" });
+  assert.match(
+    result.stdout + result.stderr,
+    /names a commit this repository does not have: \w+ \(this clone is shallow: fetch its history with git fetch --unshallow/,
+  );
+  // A full clone says nothing about history.
+  const full = spawnSync(process.execPath, [scriptPath, "dev-docs"], { cwd: root, env: gitEnv, encoding: "utf8" });
+  assert.doesNotMatch(full.stdout + full.stderr, /shallow/);
+});
+
 test("--stamp leaves a feature file alone, since its Verified at is the commit it was driven at", async (t) => {
   const { root, base } = await repository();
   t.after(() => rm(root, { recursive: true, force: true }));

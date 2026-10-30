@@ -26,6 +26,8 @@ let threshold = null;
 let workers = null;
 /** @type {string | null | undefined} where the store really is; null where there is none, undefined until read */
 let storeRoot = undefined;
+/** @type {{ session: string, cwd: string } | null} a session that started with no store, until a turn ends with one */
+let awaitingStore = null;
 
 /**
  * Runs Track Work's script for this session (or the one ending), as its commands run in the session's shell.
@@ -357,9 +359,35 @@ async function compactAndContinue($) {
   }
 }
 
+/**
+ * What a session does once it has a store: the transcript for the script, a pull, and the menu, which also remembers
+ * where a task's repositories are.
+ * @param {any} $
+ * @param {any} state session status, with a store
+ * @param {string} session
+ * @param {string} cwd the session's folder
+ */
+async function storeArrived($, state, session, cwd) {
+  // The session's transcript, which Track Work's script reads to measure what a Slice uses (Spec section 12).
+  if (state.transcript) await $.env.set("FREEFLOW_TRANSCRIPT", state.transcript);
+  await script($, ["store", "sync", "--pull"], { session });
+  // The session's folder, its siblings and Freeflow's own checkout, where a task's repositories may be (P96).
+  const parent = cwd.slice(0, cwd.lastIndexOf(separatorOf(cwd))) || cwd;
+  const scan = [cwd, parent, $.plugin.root].join(separatorOf(cwd) === "\\" ? ";" : ":");
+  return script($, ["task", "here", "--cwd", cwd, "--scan", scan], { session });
+}
+
 async function turnEnded($, e) {
   const state = await status($);
   if (!state) return;
+  if (awaitingStore) {
+    // A store attached after the session started, as a repository added to a running cloud session is: what session
+    // start does with a store, done now, so its transcript, sync, repositories and permission are not lost.
+    const { session, cwd } = awaitingStore;
+    awaitingStore = null;
+    await storeRootOf($, state);
+    await storeArrived($, state, session, cwd);
+  }
   if (state.changed) await script($, ["store", "sync"]);
   // Only the agent's own request compacts (P102): checkpoint --compact, answered once, after a turn that ended.
   const request = state.compact;
@@ -382,6 +410,7 @@ export function register(on) {
     const state = found?.store ? found : null;
     await storeRootOf($, state);
     const missing = missingText(found);
+    awaitingStore = state ? null : { session: e.session_id, cwd: e.cwd };
     if (!state)
       return missing.length
         ? {
@@ -392,13 +421,7 @@ export function register(on) {
             ],
           }
         : result;
-    // The session's transcript, which Track Work's script reads to measure what a Slice uses (Spec section 12).
-    if (state.transcript) await $.env.set("FREEFLOW_TRANSCRIPT", state.transcript);
-    await script($, ["store", "sync", "--pull"], { session: e.session_id });
-    // The session's folder, its siblings and Freeflow's own checkout, where a task's repositories may be (P96).
-    const parent = e.cwd.slice(0, e.cwd.lastIndexOf(separatorOf(e.cwd))) || e.cwd;
-    const scan = [e.cwd, parent, $.plugin.root].join(separatorOf(e.cwd) === "\\" ? ";" : ":");
-    const menu = await script($, ["task", "here", "--cwd", e.cwd, "--scan", scan], { session: e.session_id });
+    const menu = await storeArrived($, state, e.session_id, e.cwd);
     if (menu.exitCode !== 0) return result;
     const text = [menu.stdout.trimEnd(), ...missing].join("\n");
     return {

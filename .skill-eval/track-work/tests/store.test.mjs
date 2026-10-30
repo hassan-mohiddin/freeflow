@@ -466,13 +466,14 @@ test("session status names what keeps the session from a working store, and who 
       return JSON.parse(run.stdout).missing;
     };
     const cloud = { CLAUDE_CODE_REMOTE: "true" };
-    // FREEFLOW_HOME names a store that is not there: in a cloud session the user selects its repository.
+    // FREEFLOW_HOME names a store that is not there: in a cloud session, which starts with one repository, the agent
+    // attaches the store's repository on the user's word.
     const absent = join(folder, "absent");
     assert.deepEqual(
       status(absent, cloud).map((part) => part.by),
-      ["user"],
+      ["agent"],
     );
-    assert.match(status(absent, cloud)[0].fix, /select the store's repository when starting a session/);
+    assert.match(status(absent, cloud)[0].fix, /^attach the store's repository to this session and clone it to /);
     assert.match(status(absent)[0].fix, /^store init \(local only\) or store init --remote <url>/);
     // An empty clone of the store's repository: the agent lays it out.
     const clone = join(folder, "clone");

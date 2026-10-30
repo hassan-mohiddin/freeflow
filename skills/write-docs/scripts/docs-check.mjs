@@ -116,7 +116,12 @@ function check(file) {
         );
         stale = { since: commit, changed };
       } catch {
-        errors.push(`Verified at names a commit this repository does not have: ${commit}`);
+        // A shallow clone, such as a cloud session's, lacks the older commits rather than the repository.
+        const shallow = git(root, ["rev-parse", "--is-shallow-repository"]).trim() === "true";
+        errors.push(
+          `Verified at names a commit this repository does not have: ${commit}` +
+            (shallow ? " (this clone is shallow: fetch its history with git fetch --unshallow, then check again)" : ""),
+        );
       }
     }
   }

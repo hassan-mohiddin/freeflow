@@ -34,11 +34,11 @@ On each other device, the same `store init --remote <url>` joins it.
 
 ## Cloud Sessions
 
-A cloud session's store is one of the session's repositories; Freeflow clones nothing itself, since a setup script cannot clone a private repository the session did not select. What the user does in the cloud environment's settings, in words you can relay:
+A cloud session's store is a repository attached to the session; Freeflow clones nothing itself, since a setup script cannot clone a private repository the session did not select. A session starts with one repository, the code it works on, so the store is attached during the session when the work needs task memory; a session that works on the store alone can start with it. What the user sets once in the cloud environment's settings, in words you can relay:
 
-> In the environment's settings: add your store repository under Repositories; set `FREEFLOW_HOME` to the folder it is cloned to (`/home/user/` and the repository's name); and load Freeflow's plugin, with a setup-script line that clones Freeflow and `CLAUDE_CODE_PLUGIN_DIRS` naming that folder. Then select the store as one of the session's repositories when you start a session.
+> In the environment's settings: set `FREEFLOW_HOME` to `/home/user/` and your store repository's name, where it is cloned when attached; and load Freeflow's plugin with a setup-script line that clones a Freeflow release, `git clone --depth 1 --branch <release tag> https://github.com/hassan-mohiddin/freeflow.git /opt/freeflow`, and `CLAUDE_CODE_PLUGIN_DIRS` set to `/opt/freeflow`. To move to another release, change the tag in that line. Pushing the store needs the Claude GitHub App on its repository.
 
-When a session starts without it, Freeflow says so at session start. Where the harness can attach a repository to a running session (on Claude Code on the web, `add_repo` with push access), you can attach the store and clone it to `FREEFLOW_HOME` on the user's word; otherwise the user starts a new session with it selected.
+When a session starts without the store, Freeflow says so at session start. Where the harness can attach a repository to a running session (on Claude Code on the web, `add_repo`), attach the store and clone it to `FREEFLOW_HOME` on the user's word, and Freeflow takes it up when that turn ends. Ask for read access first: the session's Git proxy may push for it, and asking for push access can be refused; ask for push access only when `store sync` reports it cannot push. Where the harness cannot attach one, the user starts a new session with the store as its repository.
 
 ## Move Existing Records In
 

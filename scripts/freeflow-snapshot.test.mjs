@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
 
-import { FREEFLOW_PACKAGE_NAME, refreshSnapshot } from "./freeflow-snapshot.mjs";
+import { FREEFLOW_PACKAGE_NAME, cloudSnapshot, refreshSnapshot } from "./freeflow-snapshot.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -256,5 +256,57 @@ test("a failed first publication leaves no partial snapshot", async () => {
     assert.equal(await exists(metadata), false);
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("--cloud gives the setup-script line for a pushed commit, and refuses one no remote branch holds", async () => {
+  const base = await mkdtemp(join(tmpdir(), "freeflow-cloud-snapshot-test-"));
+  try {
+    const remote = join(base, "acme", "widget.git");
+    await mkdir(remote, { recursive: true });
+    await runGit(remote, ["init", "-q", "--bare"]);
+    const root = join(base, "work");
+    await mkdir(root);
+    await runGit(root, ["init", "-q", "-b", "main"]);
+    await runGit(root, [
+      "-c",
+      "user.name=T",
+      "-c",
+      "user.email=t@example.invalid",
+      "commit",
+      "-q",
+      "--allow-empty",
+      "-m",
+      "first",
+    ]);
+    await runGit(root, ["remote", "add", "origin", remote]);
+    await runGit(root, ["push", "-q", "origin", "main"]);
+    const pushed = await runGit(root, ["rev-parse", "HEAD"]);
+
+    const snapshot = await cloudSnapshot({ sourceRoot: root });
+    assert.equal(snapshot.commit, pushed);
+    assert.equal(snapshot.url, "https://github.com/acme/widget.git");
+    assert.equal(
+      snapshot.line,
+      `rm -rf /opt/freeflow && git init -q /opt/freeflow && git -C /opt/freeflow fetch -q --depth 1 https://github.com/acme/widget.git ${pushed} && git -C /opt/freeflow checkout -q --detach FETCH_HEAD`,
+    );
+
+    // A commit not pushed yet: a cloud session could not fetch it.
+    await runGit(root, [
+      "-c",
+      "user.name=T",
+      "-c",
+      "user.email=t@example.invalid",
+      "commit",
+      "-q",
+      "--allow-empty",
+      "-m",
+      "second",
+    ]);
+    await assert.rejects(cloudSnapshot({ sourceRoot: root }), /is on no remote branch here: push it/);
+    // An older commit that is pushed still works.
+    assert.equal((await cloudSnapshot({ sourceRoot: root, commit: "HEAD~1" })).commit, pushed);
+  } finally {
+    await rm(base, { recursive: true, force: true });
   }
 });

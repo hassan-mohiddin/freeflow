@@ -315,9 +315,9 @@ export async function missingParts(home, env = process.env) {
   return [
     cloud
       ? {
-          what: `FREEFLOW_HOME is ${home}, and the store is not there: this session did not get the store's repository`,
-          fix: `select the store's repository when starting a session (it is listed under Repositories in the environment's settings); in this session, the agent can attach it and clone it to ${home}, as ${setup} says`,
-          by: "user",
+          what: `FREEFLOW_HOME is ${home}, and the store is not there: its repository is not attached to this session`,
+          fix: `attach the store's repository to this session and clone it to ${home}, on the user's word, as ${setup} says; a session starts with one repository, so the store is attached during it unless the session works on the store alone`,
+          by: "agent",
         }
       : {
           what: `FREEFLOW_HOME is ${home}, and the store is not there`,

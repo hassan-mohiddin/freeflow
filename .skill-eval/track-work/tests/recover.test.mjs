@@ -136,6 +136,7 @@ test("validate warns on unresolved pointers, fails on them only with --strict, a
       "Evidence — claim: compared; pointer: ~/elsewhere/notes.md",
       "Extension — added scope: a new script, src/planned.mjs",
       "Result — merged upstream as 2d3dd0bc",
+      "Extension — seen again in session d5d6ba82 (Session 4b1e90c2)",
     ],
   });
   try {
@@ -147,6 +148,8 @@ test("validate warns on unresolved pointers, fails on them only with --strict, a
     assert.match(warned.stdout, /src\/planned\.mjs does not exist/);
     assert.match(warned.stdout, /commit 2d3dd0bc is not in this repository/);
     assert.doesNotMatch(warned.stdout, /17\/9/);
+    // A session's ID is a hex word too, but not a commit.
+    assert.doesNotMatch(warned.stdout, /d5d6ba82|4b1e90c2/);
     assert.match(warned.stdout, /outside the repository, not checked:\n- line \d+: ~\/elsewhere\/notes\.md/);
 
     const strict = run(root, ["validate", "--record", recordPath, "--strict"]);

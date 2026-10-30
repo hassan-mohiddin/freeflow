@@ -236,6 +236,31 @@ test("session start: with a store, pull it, give the scripts the window and the 
   expect(w.commands()).toEqual(["session status"]);
 });
 
+test("a store attached after session start: the turn that ends with it does what session start does with a store, once", async ($, on) => {
+  const w = world(on);
+  w.answers["task here"] = { stdout: MENU };
+  const edit = () => $.tool.check({ tool: "Edit", input: { file_path: RECORD } } as any);
+
+  await start($);
+  expect((await edit()).decision).toBe("ask");
+
+  // The store's repository is added to the running session: at the turn's end the transcript is set, the store pulled
+  // and the task's repositories remembered (P96), and its files are the agent's to keep (P69).
+  w.status = store({ transcript: "/home/u/.claude/projects/p/sess-1.jsonl" });
+  w.runs.length = 0;
+  await $.turn.complete(turnEnd("answer"));
+  expect(w.env.FREEFLOW_TRANSCRIPT).toBe("/home/u/.claude/projects/p/sess-1.jsonl");
+  expect(w.commands().slice(0, 2)).toEqual(["session status", "store sync --pull"]);
+  expect(w.commands()[2]).toStartWith("task here --cwd /work/widget --scan /work/widget:/work:");
+  expect(w.commands().length).toBe(3);
+  expect(w.runs.every((run) => run.session === SESSION)).toBe(true);
+  expect((await edit()).decision).toBe("allow");
+
+  w.runs.length = 0;
+  await $.turn.complete(turnEnd("answer"));
+  expect(w.commands()).toEqual(["session status"]);
+});
+
 test("a request ends: one notice a cycle, at the lower of 75% and a tenth before Claude's threshold, asking for a checkpoint at a safe point", async ($, on) => {
   const w = world(on);
   w.status = held(at(-30));
