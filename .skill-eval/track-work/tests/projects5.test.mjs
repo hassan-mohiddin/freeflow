@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import test from "node:test";
 import { sessionIdentity } from "../../../skills/track-work/scripts/lib/projects5.mjs";
 
@@ -427,7 +427,7 @@ test("task here --scan remembers where a task's repository is on this machine, s
     );
     // A fresh container: the store is cloned, but it does not know where the work repository is.
     await rm(join(home, "local", "repositories.json"), { force: true });
-    const found = ok(cli("aaaaaaaa-1", ["task", "here", "--scan", ["/nowhere", folder].join(":")]));
+    const found = ok(cli("aaaaaaaa-1", ["task", "here", "--scan", ["/nowhere", folder].join(delimiter)]));
     assert.ok(found.endsWith(`Found on this machine: github.com/acme/widget at ${await realpath(work)}.\n`), found);
     assert.deepEqual(JSON.parse(await readFile(join(home, "local", "repositories.json"), "utf8")), {
       "github.com/acme/widget": await realpath(work),
