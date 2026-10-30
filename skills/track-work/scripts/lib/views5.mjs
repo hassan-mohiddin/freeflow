@@ -273,7 +273,10 @@ function sinceCheckpoint(stateAsOf) {
 }
 
 /** The bundle (P60): everything recovery reads, in the Spec's section 9 order, with its sizes. */
-export async function renderBundle5({ root, path, text }, { window = contextWindow(), fallback = false } = {}) {
+export async function renderBundle5(
+  { root, path, text },
+  { window = contextWindow(), fallback = false, recent: withRecent = true } = {},
+) {
   const task = await loadTask5(path, text);
   const measured = measureTask(task, { root, path, window });
   const { files } = measured;
@@ -289,7 +292,7 @@ export async function renderBundle5({ root, path, text }, { window = contextWind
     text: readFileSync(skill, "utf8"),
   }));
   const skillWords = skills.reduce((sum, skill) => sum + words(skill.text), 0);
-  const recent = recentResults(files.results, window.tokens);
+  const recent = withRecent ? recentResults(files.results, window.tokens) : null;
   const unread = (list) =>
     list
       .filter((file) => file.text === null)
@@ -346,6 +349,7 @@ export function renderSessionBundle({
   home: explicit = null,
   identity = sessionIdentity(),
   window = contextWindow(),
+  recent: withRecent = true,
 } = {}) {
   if (!identity)
     throw new Error("No session ID: Claude Code sets CLAUDE_CODE_SESSION_ID; other harnesses set FREEFLOW_SESSION.");
@@ -361,7 +365,7 @@ export function renderSessionBundle({
   const carry = (from < 0 ? [] : lines.slice(from + 1, to < 0 ? lines.length : to)).map(carryItem).filter(Boolean);
   const files = carriedFiles(carry, { root: process.cwd(), taskDir: process.cwd() });
   const results = carriedResults(carry);
-  const recent = recentResults(results, window.tokens);
+  const recent = withRecent ? recentResults(results, window.tokens) : null;
   const out = [
     SESSION_OPENING,
     "",
