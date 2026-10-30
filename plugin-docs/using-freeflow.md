@@ -464,7 +464,7 @@ It keeps Pi's `read`, `bash`, `edit`, `write`, `grep`, `find` and codemode, and 
 
 ## Long sessions and compaction
 
-On native Pi, Freeflow compaction is on by default. As the context nears the model's window, Freeflow warns the agent; at a safe point it updates its Working Record, writes a summary, picks what to carry, and compacts itself, then continues the same run. Pi's own compaction stays on as the fallback. Run `/freeflow compact` to ask for a compaction now, and `/freeflow status` to see the cycle and how close the context is to each point. If a task matters across compactions, keep a Working Record (Track Work): the summary names it, and recovery starts from it. With task memory on, Freeflow also gives the agent the focused record's current state right after the compaction. See [Compaction](capabilities/compaction.md).
+On native Pi, Freeflow compaction is on by default. As the context nears the model's window, Freeflow tells the agent once; at a safe point it checkpoints its task's Working Record with Track Work's `checkpoint --compact` (or, with no task, writes a session summary), and Freeflow replaces the conversation with the task's bundle and continues the same run. Pi's own compaction stays on as the fallback. Run `/freeflow compact` to ask for it now, and `/freeflow status` to see the cycle and how close the context is to the notice. See [Compaction](capabilities/compaction.md).
 
 ## Choose a Cognitive Routing mode
 

@@ -1,4 +1,4 @@
-/** carry: context reuse, the agent carrying selected files and tool results into the next cycle. */
+/** carry: context reuse, the bundle carrying the cycle's newest tool results into the next cycle. */
 export type CompactionState = Readonly<{ enabled: boolean; effective: boolean; carry: boolean }>;
 
 /** Freeflow compaction is on whenever Freeflow is, unless a config turns it off. */

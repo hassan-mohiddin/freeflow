@@ -845,7 +845,7 @@ function sessionFreeflowItems(
   const carryItem = sessionSwitch(
     "freeflow.compaction.carry",
     "Context reuse",
-    "Let the agent carry selected files and tool results into the next cycle.",
+    "Carry the cycle's newest tool results into the next cycle with the task's bundle.",
     "compaction.carry",
     state.compaction?.carry ?? DEFAULT_COMPACTION_CARRY,
     DEFAULT_COMPACTION_CARRY,

@@ -125,7 +125,7 @@ Freeflow owns its prompts, skills, capability source, host adapters and the Pi e
 | Capability | Status | What it does |
 | --- | --- | --- |
 | [Tool Execution](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/tool-execution.md) | Experimental; on by default | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors, and a skill's key lines at the tool call that needs them (`toolExecution.guidanceNotices`) |
-| [Compaction](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/compaction.md) | Experimental; on by default | The agent compacts at a safe point from its own summary and Working Record; Pi's compaction stays the fallback |
+| [Compaction](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/compaction.md) | Experimental; on by default | After the agent checkpoints its Working Record at a safe point, the task's bundle replaces the conversation; Pi's compaction stays the fallback |
 | [Task Memory](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/task-memory.md) | Preview; off by default | Working Records attached to the session and delivered after context loss; projects and child tasks |
 | [Messaging](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/messaging.md) | Preview; off by default | Messages between the agents in your Pi sessions on this machine |
 | [Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md) | Experimental; off by default | Coordinator, Helper and Executor profiles on different models in one session |
