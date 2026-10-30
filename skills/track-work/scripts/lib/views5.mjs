@@ -19,6 +19,7 @@ import {
   rules,
   words,
 } from "./budget5.mjs";
+import { carryBudget, sessionTranscript, toolResults } from "./carry5.mjs";
 import { storeHome, storeStatus } from "./freeflow-store.mjs";
 import { delegationChecks, workerSection } from "./delegations5.mjs";
 import { OPENING_LINE, SESSION_OPENING, claudeCodeLog, userMessages } from "./discussion5.mjs";
@@ -90,7 +91,9 @@ async function recoveryHead(task, measured, { path, delegation }) {
         ]
       : []),
   ]);
-  const carryProblems = measured.files.carry.filter((file) => file.problem).map((file) => `- Carry: ${file.problem}`);
+  const carryProblems = [...measured.files.carry, ...measured.files.results]
+    .filter((file) => file.problem)
+    .map((file) => `- Carry: ${file.problem}`);
   const budget = measuredLines(measured);
   const worker = delegation ? workerSection(dirname(path), delegation) : [];
   return [
@@ -165,6 +168,67 @@ function fileBlock(label, text) {
   return [`<file path="${label}">`, text.replace(/\n$/, ""), "</file>", ""];
 }
 
+function resultBlock(result) {
+  return [
+    `<result id="${result.id}" call="${result.label.replace(/"/g, "'")}"${result.at ? ` at="${result.at}"` : ""}>`,
+    result.text.replace(/\n$/, ""),
+    "</result>",
+    "",
+  ];
+}
+
+/**
+ * What a bundle adds after the Carry (P2), as Pi's context reuse does: the newest tool results of this compaction
+ * cycle that In flight did not carry, newest first, at most RECENT_SHOWN, each whole, skipping one too big for what is
+ * left of the carry budget; printed oldest first. The rest are listed by reference, newest first, at most
+ * RECENT_LISTED. A result under RECENT_SMALLEST tokens, such as a command's one-line acknowledgement, is neither.
+ */
+const RECENT_SHOWN = 40;
+const RECENT_LISTED = 30;
+const RECENT_SMALLEST = 25;
+function recentResults(carried, window) {
+  const transcript = sessionTranscript();
+  if (!transcript) return null;
+  const budget = carryBudget(window);
+  const taken = new Set(carried.map((result) => result.id));
+  const newest = toolResults(transcript, { afterCompaction: true })
+    .filter((result) => !taken.has(result.id) && result.tokens >= RECENT_SMALLEST)
+    .reverse();
+  const shown = [];
+  const listed = [];
+  let used = 0;
+  for (const result of newest) {
+    if (shown.length < RECENT_SHOWN && used + result.tokens <= budget) {
+      shown.push(result);
+      used += result.tokens;
+    } else listed.push(result);
+  }
+  return { budget, shown: shown.reverse(), listed, used };
+}
+
+function recentLines(recent) {
+  if (!recent || (!recent.shown.length && !recent.listed.length)) return [];
+  const minute = (at) => (at ? new Date(at).toISOString().slice(11, 16) : "time not recorded");
+  return [
+    `## Recent results (counted, within the carry budget of ${number(recent.budget)} tokens)`,
+    "",
+    ...(recent.shown.length ? recent.shown.flatMap(resultBlock) : ["None.", ""]),
+    ...(recent.listed.length
+      ? [
+          "Older results of this compaction cycle, not carried; read one again with `carry show --id <ID>`:",
+          "",
+          ...recent.listed
+            .slice(0, RECENT_LISTED)
+            .map(
+              (result) => `- ${minute(result.at)} · ${result.label} · ${number(result.tokens)} tokens · ${result.id}`,
+            ),
+          ...(recent.listed.length > RECENT_LISTED ? [`- and ${recent.listed.length - RECENT_LISTED} older.`] : []),
+          "",
+        ]
+      : []),
+  ];
+}
+
 /** A carried file's lines, numbered by file line, as Pi's carry numbers them. */
 function numbered(file) {
   const width = String(file.to).length;
@@ -223,6 +287,7 @@ export async function renderBundle5({ root, path, text }, { window = contextWind
     text: readFileSync(skill, "utf8"),
   }));
   const skillWords = skills.reduce((sum, skill) => sum + words(skill.text), 0);
+  const recent = recentResults(files.results, window.tokens);
   const unread = (list) =>
     list
       .filter((file) => file.text === null)
@@ -237,13 +302,17 @@ export async function renderBundle5({ root, path, text }, { window = contextWind
     ...unread(files.readNow),
     "## Carry (counted)",
     "",
-    ...(files.carry.length
-      ? files.carry
-          .filter((file) => file.text !== null)
-          .flatMap((file) =>
-            fileBlock(`${file.path}${file.ranged ? ` lines ${file.from}–${file.to}` : ""}`, numbered(file)),
-          )
+    ...(files.carry.length || files.results.length
+      ? [
+          ...files.carry
+            .filter((file) => file.text !== null)
+            .flatMap((file) =>
+              fileBlock(`${file.path}${file.ranged ? ` lines ${file.from}–${file.to}` : ""}`, numbered(file)),
+            ),
+          ...files.results.filter((result) => result.text !== null).flatMap(resultBlock),
+        ]
       : ["None.", ""]),
+    ...recentLines(recent),
     "## Defined by (not counted)",
     "",
     ...(files.definedBy.length
@@ -258,6 +327,11 @@ export async function renderBundle5({ root, path, text }, { window = contextWind
     ...measured.counted.map((part) => `- ${part.name}: ${number(part.words)} words, counted`),
     ...measured.uncounted.map((part) => `- ${part.name}: ${number(part.words)} words, not counted`),
     `- core skills: ${number(skillWords)} words, not counted`,
+    ...(recent?.shown.length
+      ? [
+          `- recent results: ${number(words(recent.shown.map((result) => result.text).join("\n")))} words, counted, outside the budget's total`,
+        ]
+      : []),
     `- Counted: ${number(measured.total)} of about ${number(measured.budget.total)} words; not counted: ${number(measured.uncounted.reduce((sum, part) => sum + part.words, 0) + skillWords)} words.`,
     "",
     ...(fallback ? sinceCheckpoint(task.record.header.stateAsOf) : [RECOVERY_LINE]),

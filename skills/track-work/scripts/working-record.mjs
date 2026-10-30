@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { findResult, listResults, sessionTranscript } from "./lib/carry5.mjs";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { cwd } from "node:process";
@@ -197,6 +198,14 @@ const COMMAND_HELP = new Map([
   [
     "agreement close",
     "Usage: agreement close --record <record.md> --state <completed|ended|replaced> [--next-action <text>] --input <file|->\nAppends the agreement's History entry (its lines, updates and decisions.md's list), removes it from Current Work, empties decisions.md, then syncs the Freeflow store holding the task. Refused while the current Slice works under it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required; Settled optional: choices that still govern the task, added to Current Context's Settled.",
+  ],
+  [
+    "carry list",
+    "Usage: carry list [--transcript <path>]\nThe tool results of this compaction cycle, numbered, each with its time, what the call was for, its size in tokens and its tool-use ID, read from the session's transcript (--transcript, else FREEFLOW_TRANSCRIPT, else this Claude Code session's log). In flight carries one with \"- Carry: result <n> — <why>\"; checkpoint pins the number to its ID. Changes nothing.",
+  ],
+  [
+    "carry show",
+    "Usage: carry show --id <tool-use ID or n> [--transcript <path>]\nPrints one tool result whole, by its ID (from any compaction cycle of the session) or its number in carry list. Changes nothing.",
   ],
   [
     "estimate",
@@ -427,6 +436,8 @@ function allowedOptions(command, operation) {
   if (command === "view")
     return new Set(["--root", "--record", "--view", "--delegation", "--session", "--fallback", "--home", "--help"]);
   if (command === "budget") return new Set(["--root", "--record", "--window", "--mode", "--help"]);
+  if (command === "carry" && operation === "list") return new Set(["--transcript", "--help"]);
+  if (command === "carry" && operation === "show") return new Set(["--id", "--transcript", "--help"]);
   if (command === "estimate")
     return new Set([
       "--used",
@@ -981,6 +992,17 @@ async function runCore(command, rest) {
     const task = await new Registry().task(options["--record"]);
     if (!task) throw new CliError(`No task ${options["--record"]} in the registry.`);
     options["--record"] = task.record;
+  }
+  if (command === "carry") {
+    const transcript = sessionTranscript(options["--transcript"] ?? null);
+    if (!transcript) throw new CliError("No transcript: pass --transcript <path>, or set FREEFLOW_TRANSCRIPT.");
+    if (operation === "list") return listResults(transcript);
+    const key = options["--id"];
+    if (typeof key !== "string") throw new CliError("carry show requires --id <tool-use ID or n>");
+    const result = findResult(transcript, key);
+    if (!result)
+      throw new CliError(`No tool result ${key} in ${transcript}; carry list numbers this compaction cycle's.`);
+    return `${result.label} · ${result.at ?? "time not recorded"} · ${result.id}\n${result.text}\n`;
   }
   if (command === "estimate") {
     try {
