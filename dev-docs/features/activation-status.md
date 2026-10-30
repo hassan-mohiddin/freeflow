@@ -1,7 +1,7 @@
 # Activation and Status
 
 > **Covers:** `pi-extension/src/host/status.ts`, `pi-extension/src/host/config.ts`, `pi-extension/src/host/config-validation.ts`, `pi-extension/src/store/layer.ts`
-> **Verified at:** `608c48d2` (2026-10-23)
+> **Verified at:** `77c132c6` (2026-10-30)
 > **User docs:** `plugin-docs/settings.md`
 
 Freeflow is active in a repository only when `.freeflow/config.json` exists and is valid. Pi's footer shows the effective state on every screen, and `/freeflow status` prints the effective capabilities. How configuration is read and validated: [Prompt assembly](../subsystems/prompt-assembly.md) and the overview's [Cross-Cutting Concerns](../README.md#cross-cutting-concerns). Neither the footer nor `/freeflow status` shows the `review`, `prompts` or `skills` settings, and prompts turned off, one or all with `prompts.enabled`, leave Freeflow active; the agent gets it in the Runtime State, and an invalid `review` makes the file invalid like any other key.
@@ -28,7 +28,7 @@ Preconditions:
 - A fresh run for each state below, since the config is read at launch. Clean up between them.
 
 - **On.** Run `scripts/verify-live.sh launch`. It prints `ready: freeflow: on`.
-- **Status.** Run `scripts/verify-live.sh cmd "/freeflow status"`. The pane shows `Freeflow: enabled; cognitive routing: disabled; tool execution: enabled; compaction: enabled (cycle 1)`. Then `scripts/verify-live.sh snap act-status`.
+- **Status.** Run `scripts/verify-live.sh cmd "/freeflow status"`. The pane shows `Freeflow: enabled; cognitive routing: disabled; tool execution: enabled; compaction: enabled (cycle 1)`, then `store: not ready (FREEFLOW_HOME is` the run's `home` folder: the run names a Freeflow home with no store in it. Then `scripts/verify-live.sh snap act-status`.
 - **Config on disk.** Run `scripts/verify-live.sh observe act-on-config -- cat .freeflow/config.json`. Exit code `0`, output `{}`. Then clean up.
 - **Setup needed.** Run `scripts/verify-live.sh launch --no-config`. It prints `ready: freeflow: setup needed`. Run `scripts/verify-live.sh cmd "/freeflow status"`. The pane shows `Freeflow: inactive (repo not set up); run /setup-freeflow`. Then `scripts/verify-live.sh snap act-setup`.
 - **Personal file alone.** In the same run, run `scripts/verify-live.sh observe act-local-only -- bash -c 'mkdir -p .freeflow && printf "{\"enabled\": true}\n" > .freeflow/local.json && ls -A .freeflow'`. Exit code `0`, output `local.json`. Run `scripts/verify-live.sh cmd "/reload"`. The footer still reads `freeflow: setup needed`. Then `scripts/verify-live.sh snap act-local-only` and clean up.

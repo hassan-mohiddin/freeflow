@@ -1605,7 +1605,7 @@ function freeflowItems(
     localConfig,
     id: "freeflow.compaction.carry",
     label: "Context reuse",
-    description: "Let the agent carry selected files and tool results into the next cycle.",
+    description: "Carry the cycle's newest tool results into the next cycle with the task's bundle.",
     path: ["compaction", "carry"],
     effectiveValue: compactionState?.carry ?? DEFAULT_COMPACTION_CARRY,
     effectiveSource: toolSource(["compaction", "carry"]),
