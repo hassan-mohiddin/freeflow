@@ -16,7 +16,9 @@ A task is a folder, normally in the Freeflow store: one private Git repository a
 - `history.md`, one entry per closed Slice, agreement or delegation; `decisions.md`, the open agreement's decision list; `sessions.md`, every session that held the task, its last open line the hold.
 - `sources/` (with `sources/discussion.md`, the user's messages that shaped the work), `delegations/`, `evidence/`, `specs/`, `plans/` and `scratch/`.
 
-This is Schema 5. A record whose header says `Schema: 4` follows [Schema 4](references/schema-4.md) instead.
+This is Schema 5. A record whose header says `Schema: 4` follows [Schema 4](references/schema-4.md) instead, and on Pi with Task Memory on every record is Schema 4 (`init --schema 4`).
+
+The script works on any harness. Where Freeflow also runs a layer in the harness, it calls the script at the right moments: a task menu at session start, a notice when compaction is near, a sync when a turn ends, and, where the harness lets it, Freeflow's own compaction. Today Claude Code has all of these, through Freeflow's mod. Where no layer runs, do those steps yourself, as the sections below say.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
@@ -49,21 +51,21 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 Goal: each session works on the task the user means, and each task has one writer.
 
-A session holds at most one task, and a task has at most one holder; any session may read any task. On Claude Code, Freeflow's mod gives the agent a menu at session start: which task this session holds, if any, then the open tasks of the project whose tasks name this repository, newest first, each with its holder, when that holder last synced, and its cue. Elsewhere, run `task here` when the work may already have a task. The menu takes nothing.
+A session holds at most one task, and a task has at most one holder; any session may read any task. Freeflow's harness layer gives the agent a menu at session start: which task this session holds, if any, then the open tasks of the project whose tasks name this repository, newest first, each with its holder, when that holder last synced, and its cue. Elsewhere, run `task here` when the work may already have a task. The menu takes nothing.
 
 | The user's message | Do |
 | --- | --- |
 | points to one task | `task take --id <ID>`, recover it, and say in one line what you read |
 | could be about more than one | ask, with the likely tasks and "a new task" as the options |
-| points to a task another session holds | `take` refuses and names that session and when it last synced: ask before `task take --takeover`; that session learns at its next sync and stops writing |
+| points to a task another session holds | `take` refuses and names that session and when it last synced: ask before `task take --id <ID> --takeover`; that session learns at its next sync and stops writing |
 | asks for work that needs memory and no task fits | propose a task in one line; on yes, `task create` (this session holds it); a project the same way, with `project new` |
 | turns to another task | checkpoint the held task, `task switch --id <ID>`, then recover the new one |
-| closes the task or ends the session | checkpoint what changed, then `task release` (the mod releases at the session's end); `task set-state` only when the user says the task is done or abandoned |
+| closes the task or ends the session | checkpoint what changed, then `task release` (Freeflow's harness layer releases it at the session's end); `task set-state` only when the user says the task is done or abandoned |
 | asks for something the held task does not cover | do it; propose a task only if that work needs memory of its own |
 
 A task's memory is worth keeping when the work spans several steps, compactions or sessions, or when losing its decisions, route or partial state would misdirect continuation. A question or a short self-contained result needs none, a session with no task is normal, and a user's choice not to keep one stands. Create a task with the understanding that justified it, not an empty shell; if even the Goal is unclear, discuss first.
 
-Where no store exists yet, ask once whether to make the local one (`store init`; nothing leaves the machine): without it nothing syncs and Freeflow's Claude Code layer stays off. If the user says no, `init --root <repository>` puts the task in the repository's `.freeflow/tasks/`, which must stay out of the repository's version control; if `init` reports that folder is not ignored by Git, ask before changing ignore rules.
+Where no store exists yet, ask once whether to make the local one (`store init`; nothing leaves the machine): without it nothing syncs, and Freeflow's harness layer, which acts only where a store exists, stays off. If the user says no, `init --root <repository>` puts the task in the repository's `.freeflow/tasks/`, which must stay out of the repository's version control; if `init` reports that folder is not ignored by Git, ask before changing ignore rules.
 
 Read another task when it bears on what you are about to decide or build (`task search --query <words>`, then `view recover --record <ID>` or `view entry`), and record what matters to this task in this task's own record.
 
@@ -76,7 +78,7 @@ Ask: **if context were lost now, what would the next context need that it could 
 | When this happens | Record it in |
 | --- | --- |
 | A fact is settled, or a choice the user accepted still governs the task | Settled, at the next checkpoint |
-| A question opens, or you propose something the user has not answered | Open, at the next checkpoint; a proposal as `Proposed: …` with its date |
+| A question opens, or you propose something the user has not answered | Open, at the next checkpoint; a proposal as `Proposed: …` with its date, which permission to investigate it does not accept |
 | The user agrees a piece of work, or changes what is agreed | the agreement, in their words |
 | The work meets a choice the user owns | `decisions.md`, Discuss Work's decision list |
 | Work with partial state is about to begin | a Slice |
@@ -89,7 +91,7 @@ Ask: **if context were lost now, what would the next context need that it could 
 | The next step or the rough route becomes clear | the Next action and Future Work |
 | A discussion with the user shaped the work | discussion blocks, at the checkpoint |
 
-Until a checkpoint, the conversation holds new understanding; Current Context changes only then, whole.
+Until a checkpoint, the conversation holds new understanding; Current Context changes only then, whole, and when `agreement close` adds to Settled the choices that still govern. Check Settled, the agreement and `decisions.md` before asking the user something again.
 
 Default to less. One accurate line beats a paragraph. Update at boundaries, not after every step, and do not narrate routine actions. If maintaining the record is taking noticeable time from the task, you are tracking too much. But concise is not lossy: keep a detail when removing it could change the next action.
 
@@ -139,7 +141,7 @@ Before starting a proposal, check its dependencies against what actually happene
 
 Goal: what recovery reads of the memory you shaped fits a fresh context, and you know the limit before you write.
 
-The recovery budget counts the memory the agent shapes: `record.md`, the active decisions shown, the History and project indexes, Read on recovery's sources and In flight's Carry files. It does not count the store's and the project's `rules/`, the skills, or Defined by's entries, which recovery reads whole. It grows with the square root of the context window (about 10,000 words at 200,000 tokens), and a task's header sets `normal` or `expanded`, half as large again. Current Context (about 600 words) and Future Work (about 300) stay fixed.
+The recovery budget counts the memory the agent shapes: `record.md`, the active decisions shown, the History and project indexes, Read on recovery's sources and In flight's Carry files. It does not count the store's and the project's `rules/`, the skills, or Defined by's entries, which recovery reads whole. It grows with the context window, a task's header sets `normal` or `expanded`, and Current Context (about 600 words) and Future Work (about 300) stay fixed.
 
 Run `budget` before you write a record or a checkpoint; `budget --record` shows what each part holds and what is left, and `init` and `checkpoint` print the same lines. The budget only warns. When a part runs over, distill it at the next checkpoint: rewrite Current Context tighter, give a source only some situations need a `Read when` trigger, drop sources the work no longer needs, and close Slices whose result is settled, never one that is not. When a task's memory keeps running over, propose expanded mode to the user; `task set-budget` changes it on their word.
 
@@ -149,7 +151,7 @@ Put a source under Defined by only when it is an accepted definition or a method
 
 Goal: at a compaction, a switch or a transfer, the task folder holds everything the next cycle needs, so the work never depends on a summary.
 
-**When.** On Claude Code, Freeflow's notice comes once each cycle, before Claude's own compaction would start. Keep working until a safe point: a finished step whose result you know, such as a check run and read, a set of edits complete, or a report written; not mid-edit, with a command still running, or partway through reads you need together. If your work ends within a step or two, finish it first. Then checkpoint and end your turn: Freeflow compacts the session with the record in place of the conversation and starts the next turn. Checkpoint the same way before a switch, a pause or a transfer, when a harness without Freeflow's notice says the context is nearly full, and when the user asks.
+**When.** Freeflow's notice comes once each cycle, before the harness's own compaction would start. Keep working until a safe point: a finished step whose result you know, such as a check run and read, a set of edits complete, or a report written; not mid-edit, with a command still running, or partway through reads you need together. If your work ends within a step or two, finish it first. Then checkpoint and end your turn. Where the harness lets Freeflow compact, Freeflow then compacts the session with the record in place of the conversation and starts the next turn; elsewhere the harness compacts on its own, and you recover after it. Checkpoint the same way before a switch, a pause or a transfer, when a harness without Freeflow's notice says the context is nearly full, and when the user asks.
 
 **How:**
 
@@ -174,8 +176,8 @@ A checkpoint closes nothing and is not a Slice transition: pause a Slice only wh
 Context loss means the conversation about the current work is no longer in context: after a compaction, a summary that replaces it, a clear, a transfer to another session, or a branch that continues the work without it. With that conversation still in context (a new message, a pause, a resumed session), read `record.md` or the part you need instead.
 
 - **After Freeflow's compaction** the conversation is the bundle: the opening line, the rules, the record, the active decisions, the History and project indexes, the checks, then every source recovery reads, whole, with their sizes. It was all read when the bundle was made: read none of it again unless something changed it since, but read again before you apply it any skill the bundle did not carry. Check the live state the next step depends on, and go on from In flight and the Next action.
-- **After a compaction that came before the checkpoint,** Claude's summary comes first, then the bundle as of the last checkpoint, then the user's messages since then word for word. The record is behind: where the summary or those messages differ from it, they win, and the transcript the bundle names holds what the summary lost.
-- **Otherwise,** when you take a task or no bundle came: `view recover --record <ID>` prints the opening line, the rules, the record, the active decisions, the indexes and the checks, which name any pointer that does not resolve. Read every Defined by entry, every Read on recovery source and the core skills (Track Work, Discuss Work and Execute Work), whole; a Read when source once its trigger applies; and, with `view entry <ID>`, the History entries the next action depends on: closed work on the same result, an attempt that failed or was abandoned, and any entry the record names. Then say in one line what you read.
+- **After the harness's own compaction,** its summary replaces the conversation, and where Freeflow's harness layer can add to it, the bundle as of the last checkpoint and the user's messages since then, word for word, follow. When the compaction came before a checkpoint, the record is behind: where the summary or those messages differ from it, they win, and the transcript holds what the summary lost. With no bundle after the summary, recover as the next line says.
+- **Otherwise,** when you take a task or no bundle came, recover only the task this session holds or the user's message points to; when that task and the user's current work disagree, report it instead of recovering it. `view recover --record <ID>` prints the opening line, the rules, the record, the active decisions, the indexes and the checks, which name any pointer that does not resolve. Read every Defined by entry, every Read on recovery source and the core skills (Track Work, Discuss Work and Execute Work), whole; a Read when source once its trigger applies; and, with `view entry <ID>`, the History entries the next action depends on: closed work on the same result, an attempt that failed or was abandoned, and any entry the record names. Then say in one line what you read.
 - **A worker** recovers with `view recover --record <ID> --delegation <D-NNN>`: its brief is its scope and wins where it and the record disagree.
 
 Then reconcile before acting:
@@ -183,7 +185,7 @@ Then reconcile before acting:
 - The user's latest direction supersedes older instructions in the record, including a record written on another conversation branch. Establish the agreement (or, without one, the agreed outcome and return condition) and whether that direction has changed it, the active decisions, the Slice and its state, open delegations, partial effects, and whether the next action's prerequisites hold.
 - Compare the record with the live state the next action depends on: the checks name where each repository in Space stands and the store's unpushed commits. If they disagree, resolve it from sources; do not follow whichever version lets work continue.
 - If the record conflicts with a Spec or Plan under Defined by, the record does not win. Return the conflict to that artifact's owner before dependent work.
-- Check an important completion, verification, review, or commit claim, and the identity of what it examined, before repeating it; a run that happened may not apply to the current state. Reuse evidence that still applies instead of repeating the investigation.
+- Check an important completion, verification, review, or commit claim, and the identity of what it examined, before repeating it; a run that happened may not apply to the current state. Reuse evidence that still applies instead of repeating the investigation, and reopen a source only when its exact content or freshness changes the next action.
 - A next action a handoff names authorizes nothing by itself. Without a record, as when resuming from a handoff alone, reconstruct from it and the exact sources it names, and report a missing boundary instead of inventing it.
 
 ## Maintain The Record
@@ -194,7 +196,6 @@ Edit meaning directly: Current Context (at a checkpoint), a Slice's update lines
 
 If a command exits with code 2, the write may have happened: read `view full` before retrying or editing, and never duplicate an entity to recover from an uncertain result. If a record fails validation, read it through `view full` and stop before edits or transitions; repair needs separate authorization.
 
-A Schema 4 record keeps working with its own commands. Offer the user to convert it with `migrate`, and convert it only on their word.
 
 Keep temporary files for the task, such as throwaway scripts, saved command output and downloads, in its `scratch/`. They stay with the task and out of version control; nothing in them is memory unless the record points to it.
 

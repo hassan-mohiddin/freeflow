@@ -29,6 +29,7 @@ Track Work keeps one task's memory so a fresh context, after a compaction, in an
 - **What goes where as one table.** Schema 5 has more places than Schema 4 (agreement, decisions, Slice updates, delegations, Defined by, two kinds of read source, Space, In flight, discussion blocks), and the table is where an agent decides; Current Context's rule, that it changes only at a checkpoint (P5), follows it.
 - **The store, projects and holds in the format reference** (2026-10-30, the owner's choice). They were a reference of their own; they are read with the task folder's shape often enough, and the two linked each other, so they merged. The file keeps its name, since Review Work and the developer docs link to it.
 - **Choosing a task borrows Task Memory's request table, improved:** one row per thing the user's message can do, each with the script command, and the takeover, switch and close cases the hold adds (P40 to P44).
+- **Harness-neutral, with the harness layer named once** (2026-10-30, P74). The script, the record and the checkpoint work on any harness; the text names "Freeflow's harness layer" for what calls the script at the right moments (the menu, the notice, the sync, and, where the harness allows it, Freeflow's own compaction), and Claude Code's mod only as today's example. The notice and the checkpoint are the core; Freeflow's own compaction is optional, since Codex's hooks, for one, can only stop a compaction.
 - **Recovery has two paths.** After Freeflow's compaction the bundle is the conversation, so the text says not to read it again; elsewhere `view recover` and the reads it lists. The fallback (a compaction before the checkpoint) gets its own line because there the record is behind the summary (P16).
 
 ## Evidence
@@ -36,7 +37,7 @@ Track Work keeps one task's memory so a fresh context, after a compaction, in an
 - `skill-author validate skills/track-work`, with the routing map: valid, no link cycles, after the merge of the store reference.
 - `skill-author compare origin/main --all-units` with a verdicts file: every unit settled; eight unmatched, each with a verdict naming its new owner or the choice that removed it; the reworded units read for meaning, and seven clauses the rewrite had lost restored (task-004's `evidence/phase-7.1-compare/`). This shows the text survived, not that behavior did.
 - `npm run test:track-work` (128) covers the script the text names; the CLI's [feature file](../features/track-work-cli.md) drives every command the body uses.
-- One independent review, by a Haiku reviewer at xhigh effort, of the rewritten package (task-004, D-001); its adjudication is in that task's record.
+- One independent review, by a Haiku reviewer at xhigh effort, of the rewritten package (task-004, D-001): Non-blocking, with seven issues accepted and fixed (Pi's `init --schema 4` not named where `init` is, five judgments kept only for Schema 4, the Review lines' shapes owned by no Schema 5 file, Current Context's agreement-close exception, required options shown as optional, the no-notice case of a done checkpoint, and two contradicting sentences) and one partly (the budget's formula and a duplicate migration offer cut from the body; the study-run sentence kept, since Research Work sends the agent here for it).
 - Not yet: any agent using the new text. Task-004's Phase 8 converts that task and works through a checkpoint and a compaction under it, Write Skill's trial on a real task; the continuity test that tunes the budget is Phase 8.3.
 
 ## Rejected
@@ -53,5 +54,5 @@ Track Work keeps one task's memory so a fresh context, after a compaction, in an
 
 ## Open Questions
 
-- Whether the body, now about 4,800 words, is short enough to pay at every recovery; the continuity test (Phase 8.3) and the friction log of Phase 8's conversion are the evidence that would settle it.
+- Whether the body, now about 4,900 words, is short enough to pay at every recovery; the continuity test (Phase 8.3) and the friction log of Phase 8's conversion are the evidence that would settle it.
 - Whether agents save discussion blocks when they matter and skip them when not; the live run's agent read them as required before the text said they are optional.

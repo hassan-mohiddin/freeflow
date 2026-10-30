@@ -34,10 +34,10 @@ The Freeflow store is one Git repository at `FREEFLOW_HOME` (default `~/.freeflo
 
 | When | What runs |
 | --- | --- |
-| Session start | The remote's commits are taken under the local ones (Freeflow's Claude Code layer runs `store sync --pull`). |
+| Session start | The remote's commits are taken under the local ones: Freeflow's harness layer runs `store sync --pull`; elsewhere, run it yourself. |
 | `task take`, `release`, `switch` | The hold is written, committed and pushed. |
 | A Slice, agreement or delegation closes; each `checkpoint` | Commit, take the remote's commits, push. |
-| A turn that changed the store ends; the session ends | Freeflow's Claude Code layer runs `store sync`; elsewhere, run it yourself after direct edits you need kept. |
+| A turn that changed the store ends; the session ends | Freeflow's harness layer runs `store sync`; elsewhere, run it yourself after direct edits you need kept. |
 
 `store status` says, with no network, what is not committed or not pushed and when the store last synced. A local store commits and has nothing to push.
 
@@ -50,7 +50,7 @@ When a sync fails:
 
 ## Projects
 
-A project is a folder, `projects/<project>/`, with its `rules/` and `tasks/`; a task belongs to the project whose folder holds it, and its ID is `<project>/task-NNN`. A session finds its project by matching the repository's remote against the repositories its tasks name in Space; a folder with no repository, or one no task names, gets the list of projects. Nothing is written into code repositories.
+A project is a folder, `projects/<project>/`, with its `rules/` and `tasks/`; a task belongs to the project whose folder holds it, and its ID is `<project>/task-NNN`. A session finds its project by matching the repository's remote against the repositories its tasks name in Space; a folder with no repository, or one no task names, gets the list of projects. The store writes nothing into code repositories; only a task kept without a store lives in one, in its Git-ignored `.freeflow/tasks/`.
 
 ```text
 working-record.mjs project new --name <name>                         a project, on the user's word
@@ -93,7 +93,7 @@ A task has one holder, so work that must run in parallel interactive sessions is
 task-NNN-<short-name>/
   record.md          the state                                    the session holding the task
   history.md         closed Slices, agreements and delegations    the closing commands
-  sessions.md        every session that held the task            task take, release and switch
+  sessions.md        every session that held the task            task create, take, release and switch
   decisions.md       the open agreement's decision list           the session holding the task
   sources/           material from outside the work, notes        the session holding the task
     discussion.md    the user's messages that shaped the work     discussion save and drop
@@ -154,7 +154,7 @@ The three top-level sections are fixed, in this order. Current Work holds its se
 | `# <task name>` | The task's name. |
 | `Schema: 5 · State: <state> · Budget: <mode>` | The task state (`active`, `paused`, `completed`, `abandoned`) and the budget mode (`normal` or `expanded`; `normal` when absent). |
 | `Cue:` | When the task matters, starting "read when", in at most 25 words. The menu and the project index show it. |
-| `State as of:` | When the record was last checkpointed: `init` and `checkpoint` set it, nothing else. Freeflow's compaction counts a checkpoint as done when this is later than the cycle's notice. |
+| `State as of:` | When the record was last checkpointed: `init` and `checkpoint` set it, nothing else. Where Freeflow compacts for the harness, it counts a checkpoint as done when this is later than the cycle's notice, or, with no notice in the cycle, than the cycle's start. |
 
 ### Fields
 
@@ -169,7 +169,7 @@ Use only the fields defined for the block; omit an optional field that has no va
 
 ### Current Context
 
-Bullets under Goal, Settled and Open, in about 600 words in every mode and window. It is written at `init` and rewritten whole before each `checkpoint`.
+Bullets under Goal, Settled and Open, in about 600 words in every mode and window. It is written at `init` and rewritten whole before each `checkpoint`; `agreement close` also adds to Settled the choices that still govern.
 
 | Heading | Holds |
 | --- | --- |
@@ -223,7 +223,14 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 | Waits on | no | The delegations whose result it needs, `D-NNN`, comma-separated. |
 | Dependencies | no | |
 
-After the fields come its update lines, one line each, a kind and then the claim and its pointer; the detail lives in the file the line points to. The kinds: `Evidence (observed)`, `Evidence (reported)`, `Result`, `Review`, `Review gate`, `Contradiction`, `Blocker`, `Correction`, `Paused`, `Resumed`, `Extension`; [Review Work](../../review-work/SKILL.md) says what its two hold. `slice pause` and `slice resume` write the `Paused` and `Resumed` lines; the rest are direct edits. An Evidence line identifies the state it observed well enough to tell it apart from later versions; append counterevidence as a new line instead of rewriting the earlier one, and label what you did not observe yourself `reported`.
+After the fields come its update lines, one line each, a kind and then the claim and its pointer; the detail lives in the file the line points to. The kinds: `Evidence (observed)`, `Evidence (reported)`, `Result`, `Review`, `Review gate`, `Contradiction`, `Blocker`, `Correction`, `Paused`, `Resumed`, `Extension`. `slice pause` and `slice resume` write the `Paused` and `Resumed` lines; the rest are direct edits. An Evidence line identifies the state it observed well enough to tell it apart from later versions; append counterevidence as a new line instead of rewriting the earlier one, and label what you did not observe yourself `reported`.
+
+Two kinds have a fixed shape, so outcomes and rounds can be counted later. [Review Work](../../review-work/SKILL.md) says when each is written:
+
+```markdown
+- Review gate: mode: auto | off | always; tier: standard | security | none; because: <trigger> | no trigger; result: dispatched | proposed | skipped
+- Review: round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: <adjudicated judgment>; Accepted: <n>; Rejected: <n>; Open: <n>; reviewed: <commit or version>; report: <path>; effect: <the next route>
+```
 
 `in_progress` means the Slice's result is being pursued. `paused` means it is still current but safe continuation is suspended; an ordinary turn, feedback, or a context boundary is not a pause.
 
@@ -290,7 +297,7 @@ A pointer is a path (from the task folder, else from the work repository's root)
 
 ### Next action
 
-One bullet: a concise action, or an honest wait or stop condition. Slice, agreement and task-state commands replace it when given `--next-action`.
+One bullet: a concise action, or an honest wait or stop condition. The Slice and task-state commands require `--next-action` and replace it with that text; the agreement commands replace it when given one.
 
 ### Future Work
 
@@ -354,7 +361,7 @@ The open agreement's decision list, one line per item in Discuss Work's format, 
 - 4b1e90c2 · Pi · laptop · 2026-10-28 21:10 – 23:02 · released · <Pi's resume command>
 ```
 
-One line per hold: the session, the harness, where it ran, from and to, how it ended (`holding`, `released`, `taken over`), and the way back to it. The last line that says `holding` is the hold. Only `task take`, `task release` and `task switch` write it; Git merges it by keeping both sides' lines.
+One line per hold: the session, the harness, where it ran, from and to, how it ended (`holding`, `released`, `taken over`), and the way back to it. The last line that says `holding` is the hold. Only `task create`, `task take`, `task release` and `task switch` write it; Git merges it by keeping both sides' lines.
 
 ## sources/discussion.md
 
@@ -388,7 +395,7 @@ active | paused -> completed | abandoned
 completed | abandoned -> active
 ```
 
-Only the user changes task state, through `task set-state`. A new task starts `active`. Pausing the task pauses its Slice; reactivating it resumes nothing. A completed or abandoned task has no Slice: close it first. Completing a Slice never completes the task.
+Only the user changes task state, through `task set-state`. A new task starts `active`. Pausing the task pauses its Slice; reactivating it resumes nothing. A completed or abandoned task has no Slice: close it first. Completing a Slice never completes the task. Before completing or abandoning a task, keep a proposal in Future Work only if it is clearly non-binding; otherwise reconcile it first.
 
 ## Lifecycle Commands
 
@@ -396,7 +403,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 
 | Change | Command |
 | --- | --- |
-| Create a task | `task create --title <title> --goal <goal> --cue <cue>` in the store (this session holds it); `init --root <folder> --name <name> --cue <cue> --input -` elsewhere (Goal and Next action required) |
+| Create a task | `task create --title <title> --goal <goal> --cue <cue>` in the store (this session holds it); `init --root <folder> --name <name> --cue <cue> --input -` elsewhere (Goal and Next action required); on Pi with Task Memory on, Task Memory's `create`, or `init --schema 4` ([Schema 4](schema-4.md)) |
 | Hold a task, give it up, move to another | `task take --id <ID> [--takeover]`, `task release`, `task switch --id <ID>` |
 | Open, change, close the agreement | `agreement open`, `agreement update`, `agreement close --state <completed\|ended\|replaced>` |
 | Propose a Slice | `slice propose` |
