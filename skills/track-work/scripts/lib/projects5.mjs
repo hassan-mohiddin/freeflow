@@ -8,6 +8,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
+import { releaseClaims } from "./claims5.mjs";
 import { slugify } from "./format.mjs";
 import { claudeCodeLog } from "./discussion5.mjs";
 import { missingParts, storeStatus, syncStore } from "./freeflow-store.mjs";
@@ -524,8 +525,10 @@ export async function releaseTask(home, identity, id = null, { ended = false } =
     since: holdStart(sessions.hold.from),
   });
   await writeFile(sessions.path, `${closeHold(sessions, sessions.hold, state).replace(/\s+$/, "")}\n`);
+  // The session's claims end with it (SPEC-009 4.5), in the same commit.
+  const claims = ended ? await releaseClaims({ home, identity }).catch(() => []) : [];
   const done = ended ? `Released ${task.id} as ended: a resume of this session takes it back.` : `Released ${task.id}.`;
-  return `${done}\n${events ? `${events}\n` : ""}${await sync(home, `Release ${task.id} (${identity.short}${ended ? ", ended" : ""})`)}\n`;
+  return `${done}${claims.length ? ` Released this session's ${claims.length} claim(s).` : ""}\n${events ? `${events}\n` : ""}${await sync(home, `Release ${task.id} (${identity.short}${ended ? ", ended" : ""})`)}\n`;
 }
 
 /**

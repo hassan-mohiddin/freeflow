@@ -62,7 +62,7 @@ test("store init lays an empty remote out as the store and pushes its first comm
     );
     assert.equal(
       await readFile(join(home, ".gitattributes"), "utf8"),
-      "history.md merge=union\nsessions.md merge=union\n",
+      "history.md merge=union\nsessions.md merge=union\nchannel.jsonl merge=union\nclaims.jsonl merge=union\n",
     );
     for (const folderName of ["rules", "projects"]) assert.ok(existsSync(join(home, folderName, ".gitkeep")));
     assert.equal(git(home, ["branch", "--show-current"]), "main");
