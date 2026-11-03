@@ -4,15 +4,15 @@ import { resolveCognitiveRoutingState, supportsCognitiveRoutingModelRegistry } f
 import { sessionStage, stagedFor } from "./staging.js";
 import { resolveToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig } from "../compaction/config.js";
-import { INBOUND_POLICIES, resolveMessagingConfig } from "../messaging/config.js";
+import { resolveMessagingConfig } from "../messaging/config.js";
 import {
-  REVIEW_MODES,
-  RUNTIME_PROMPTS,
-  SWITCHABLE_SKILLS,
   resolveReviewSettings,
+  SETTINGS,
   sectionEnabled,
   selectedRuntimePrompts,
+  settingSpec,
   skillsOff,
+  validSettingValue,
   validateLocalConfig,
   validateRepositoryConfig,
 } from "./config-validation.js";
@@ -24,35 +24,12 @@ import { cachedBranch } from "./branch.js";
 /**
  * Settings a session may override, as dotted config paths: every setting the settings screen shows, so the Session
  * scope has what the file scopes have. "enabled" is Freeflow's master switch; the others are applied as a layer above
- * the personal config. Most are switches; SESSION_CHOICES lists the ones that hold a value.
+ * the personal config. The settings table says which keys and what each accepts.
  */
-export const SESSION_OVERRIDE_KEYS = [
-  "enabled",
-  "cognitiveRouting.enabled",
-  "cognitiveRouting.projection",
-  "toolExecution.enabled",
-  "toolExecution.guidanceNotices",
-  "compaction.enabled",
-  "messaging.enabled",
-  "messaging.inbound",
-  "review.mode",
-  "review.model",
-  "prompts.enabled",
-  ...RUNTIME_PROMPTS.map((prompt) => `prompts.${prompt}`),
-  "skills.enabled",
-  ...SWITCHABLE_SKILLS.map((skill) => `skills.${skill}`),
-];
-/** The overrides that hold a value rather than on or off, and the values each accepts (a model is any one-line name). */
-const SESSION_CHOICES = {
-  "messaging.inbound": INBOUND_POLICIES,
-  "review.mode": REVIEW_MODES,
-  "review.model": "name",
-};
+export const SESSION_OVERRIDE_KEYS = SETTINGS.filter((spec) => spec.session).map((spec) => spec.key);
 function validSessionValue(key, value) {
-  const choice = SESSION_CHOICES[key];
-  if (!choice) return typeof value === "boolean";
-  if (choice === "name") return typeof value === "string" && value.trim() !== "" && !/[\p{Cc}`]/u.test(value);
-  return choice.includes(value);
+  const spec = settingSpec(key);
+  return spec !== undefined && spec.session && validSettingValue(spec, value);
 }
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
 const SESSION_CORE_KEYS = new Set(SESSION_OVERRIDE_KEYS);

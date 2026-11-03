@@ -173,8 +173,17 @@ test("a hook host's Runtime State names the skills the user turned off, and drop
   assert.doesNotMatch(codex, /# Freeflow Working Method/);
   // The master switches: no prompt at all, and every skill but Setup Freeflow off.
   const none = createWorkspace('{"prompts":{"enabled":false},"skills":{"enabled":false}}\n');
-  // With no prompt selected the hook renders nothing, as before.
-  assert.equal(contextOf(runAdapter(adapters.codex[0], none, inputFor("codex", none))), undefined);
+  // With no prompt selected, no prompt text comes; the Runtime State still names the off skills, since the rest of
+  // Freeflow stays on (SPEC-005 P9).
+  const bare = contextOf(runAdapter(adapters.codex[0], none, inputFor("codex", none)));
+  assert.doesNotMatch(bare, /# Freeflow Working Method|# Freeflow Interaction Contract/);
+  assert.match(
+    bare,
+    /^# Freeflow Runtime State\n\nFreeflow: active\nSkills off: `deliver-work`, .*`write-skill`; do not open or follow them\.$/,
+  );
+  // With nothing turned off as well, the hook renders nothing, as before.
+  const silent = createWorkspace('{"prompts":{"enabled":false}}\n');
+  assert.equal(contextOf(runAdapter(adapters.codex[0], silent, inputFor("codex", silent))), undefined);
   const all = createWorkspace("{}\n");
   assert.match(contextOf(runAdapter(adapters.codex[0], all, inputFor("codex", all))), /# Freeflow Working Method/);
 });

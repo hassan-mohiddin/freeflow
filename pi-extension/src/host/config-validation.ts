@@ -1,5 +1,6 @@
 import { validateCompactionConfig } from "../compaction/config.js";
-import { validateMessagingConfig } from "../messaging/config.js";
+import { DELEGATION_MODES, EFFORTS, PROFILES } from "../cognitive-routing/types.js";
+import { INBOUND_POLICIES, validateMessagingConfig } from "../messaging/config.js";
 import { validateToolExecutionConfig } from "../tool-execution/config.js";
 import { FREEFLOW_MODEL_SKILL_NAMES } from "./catalog.js";
 
@@ -122,6 +123,175 @@ export function reviewStateLine(review: ReviewSettings | undefined): string | nu
   return `Review: \`${review.mode}\`${review.model === undefined ? "" : `, reviewer model \`${review.model}\``}`;
 }
 
+/** The keys `cognitiveRouting` accepts; the settings test checks each has a /freeflow settings row. */
+export const COGNITIVE_ROUTING_KEYS = ["enabled", "delegation", "projection", "profiles"] as const;
+
+/**
+ * Whether a `cognitiveRouting` section is valid, with the messages Pi's routing gives (cognitive-routing/config.ts
+ * throws them): one check for Pi and for the hooks, which before checked nothing here.
+ */
+export function validateCognitiveRoutingConfig(value: unknown): string | null {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).some((key) => !(COGNITIVE_ROUTING_KEYS as readonly string[]).includes(key))
+  )
+    return "Routing requires the enabled/delegation/projection/profiles schema; experimental legacy configuration is not migrated.";
+  for (const key of ["enabled", "projection"])
+    if (value[key] !== undefined && typeof value[key] !== "boolean") return `${key} must be boolean.`;
+  if (value.delegation !== undefined && !(DELEGATION_MODES as readonly unknown[]).includes(value.delegation))
+    return "delegation must be executor, helper, or both.";
+  if (value.profiles !== undefined) {
+    if (
+      !isRecord(value.profiles) ||
+      Object.keys(value.profiles).some((key) => !(PROFILES as readonly string[]).includes(key))
+    )
+      return "Profiles must be coordinator, helper, or executor.";
+    for (const profile of Object.values(value.profiles) as any[])
+      if (
+        !isRecord(profile) ||
+        Object.keys(profile).some((key) => !["provider", "model", "thinking"].includes(key)) ||
+        typeof profile.provider !== "string" ||
+        !profile.provider.trim() ||
+        typeof profile.model !== "string" ||
+        !profile.model.trim() ||
+        !(EFFORTS as readonly unknown[]).includes(profile.thinking)
+      )
+        return "Each profile requires provider, model, and supported thinking.";
+  }
+  return null;
+}
+
+/** Where a setting can live: the repository's file, the personal file, or the running session. */
+export type SettingScope = "repository" | "personal" | "session";
+export type SettingValue = boolean | string;
+/**
+ * One setting Freeflow acts on. `values` is `boolean`, a list of choices, `name` (one line of text, such as a model) or
+ * `profile` (a routing profile object, set only on Pi's screen); `default` is `null` when unset means none; `hosts` is
+ * `all` when every host acts on it and `pi` when only Pi does; `session` says whether the Session scope holds it as a key
+ * (routing's delegation and profiles have their own session controller on Pi).
+ */
+export type SettingSpec = {
+  key: string;
+  label: string;
+  values: "boolean" | "name" | "profile" | readonly string[];
+  default: SettingValue | null;
+  hosts: "all" | "pi";
+  session: boolean;
+};
+
+const PROMPT_LABELS: Record<(typeof RUNTIME_PROMPTS)[number], string> = {
+  core: "Core prompt",
+  interactionContract: "Interaction Contract",
+  workingMethod: "Working Method",
+};
+
+/**
+ * Every setting Freeflow acts on, once: the validators' keys, Pi's Session keys, the defaults a repository write drops,
+ * the settings script and the settings test read this table. The settings doc and Pi's screen each have a row per key,
+ * which the settings test checks.
+ */
+export const SETTINGS: readonly SettingSpec[] = [
+  { key: "enabled", label: "Freeflow", values: "boolean", default: true, hosts: "all", session: true },
+  { key: "prompts.enabled", label: "Runtime prompts", values: "boolean", default: true, hosts: "all", session: true },
+  ...RUNTIME_PROMPTS.map((prompt) => ({
+    key: `prompts.${prompt}`,
+    label: PROMPT_LABELS[prompt],
+    values: "boolean" as const,
+    default: true,
+    hosts: "all" as const,
+    session: true,
+  })),
+  { key: "skills.enabled", label: "Skills", values: "boolean", default: true, hosts: "all", session: true },
+  ...SWITCHABLE_SKILLS.map((skill) => ({
+    key: `skills.${skill}`,
+    label: `Skill ${skill}`,
+    values: "boolean" as const,
+    default: true,
+    hosts: "all" as const,
+    session: true,
+  })),
+  { key: "review.mode", label: "Review", values: REVIEW_MODES, default: "auto", hosts: "all", session: true },
+  { key: "review.model", label: "Reviewer model", values: "name", default: null, hosts: "all", session: true },
+  {
+    key: "toolExecution.enabled",
+    label: "Tool Execution",
+    values: "boolean",
+    default: true,
+    hosts: "pi",
+    session: true,
+  },
+  {
+    key: "toolExecution.guidanceNotices",
+    label: "Guidance notices",
+    values: "boolean",
+    default: true,
+    hosts: "pi",
+    session: true,
+  },
+  { key: "compaction.enabled", label: "Compaction", values: "boolean", default: true, hosts: "pi", session: true },
+  { key: "messaging.enabled", label: "Messaging", values: "boolean", default: false, hosts: "pi", session: true },
+  {
+    key: "messaging.inbound",
+    label: "Ask before delivering",
+    values: INBOUND_POLICIES,
+    default: "accept",
+    hosts: "pi",
+    session: true,
+  },
+  {
+    key: "cognitiveRouting.enabled",
+    label: "Cognitive Routing",
+    values: "boolean",
+    default: false,
+    hosts: "pi",
+    session: true,
+  },
+  {
+    key: "cognitiveRouting.projection",
+    label: "Context projection",
+    values: "boolean",
+    default: true,
+    hosts: "pi",
+    session: true,
+  },
+  {
+    key: "cognitiveRouting.delegation",
+    label: "Delegation",
+    values: DELEGATION_MODES,
+    default: "executor",
+    hosts: "pi",
+    session: false,
+  },
+  ...PROFILES.map((profile) => ({
+    key: `cognitiveRouting.profiles.${profile}`,
+    label: `${profile[0]!.toUpperCase()}${profile.slice(1)} preset`,
+    values: "profile" as const,
+    default: null,
+    hosts: "pi" as const,
+    session: false,
+  })),
+];
+
+/** The table's row for a dotted key, or undefined. */
+export function settingSpec(key: string): SettingSpec | undefined {
+  return SETTINGS.find((spec) => spec.key === key);
+}
+
+/** Whether `value` is one `spec` accepts; a profile is checked by the routing validator, not here. */
+export function validSettingValue(spec: SettingSpec, value: unknown): value is SettingValue {
+  if (spec.values === "boolean") return typeof value === "boolean";
+  if (spec.values === "name") return typeof value === "string" && value.trim() !== "" && !/[\p{Cc}`]/u.test(value);
+  if (spec.values === "profile") return false;
+  return spec.values.includes(value as string);
+}
+
+/** The schema version a file may name as `"v"`; nothing writes it yet, so an older Freeflow still reads the file. */
+export const CONFIG_VERSION = 1;
+
+function validateVersion(value: ConfigObject) {
+  return value.v === undefined || value.v === CONFIG_VERSION ? null : `v must be ${CONFIG_VERSION}`;
+}
+
 function removedContextConfigError(value: ConfigObject, filePath: string) {
   const removedKeys = ["contextVirtualization", "conversationHistory"].filter((key) =>
     Object.prototype.hasOwnProperty.call(value, key),
@@ -163,15 +333,19 @@ export function validateRepositoryConfig(value: unknown): string | null {
   const removedContextError = removedContextConfigError(value, ".freeflow/config.json");
   if (removedContextError) return removedContextError;
 
-  const allowedKeys = new Set<string>([...CONFIG_SECTIONS, ...RETIRED_SECTIONS]);
+  const allowedKeys = new Set<string>(["v", ...CONFIG_SECTIONS, ...RETIRED_SECTIONS]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return `unsupported top-level config key: ${key}`;
     }
   }
 
-  const coreError = validateCoreConfigFields(value);
+  const coreError = validateCoreConfigFields(value) ?? validateVersion(value);
   if (coreError) return coreError;
+  if (value.cognitiveRouting !== undefined) {
+    const error = validateCognitiveRoutingConfig(value.cognitiveRouting);
+    if (error) return error;
+  }
 
   for (const key of ["outputRouter", "observedRouting", "scriptTransform"]) {
     if (value[key] !== undefined && !isRecord(value[key])) {
@@ -214,6 +388,7 @@ export function validateLocalConfig(value: unknown): string | null {
   // processing and taskMemory belong to retired features; they are accepted and ignored so existing local configs keep
   // loading.
   const allowedKeys = new Set([
+    "v",
     "enabled",
     "processing",
     "cognitiveRouting",
@@ -231,8 +406,12 @@ export function validateLocalConfig(value: unknown): string | null {
     }
   }
 
-  const coreError = validateCoreConfigFields(value);
+  const coreError = validateCoreConfigFields(value) ?? validateVersion(value);
   if (coreError) return coreError;
+  if (value.cognitiveRouting !== undefined) {
+    const error = validateCognitiveRoutingConfig(value.cognitiveRouting);
+    if (error) return error;
+  }
   if (value.toolExecution !== undefined) {
     const error = validateToolExecutionConfig(value.toolExecution);
     if (error) return error;

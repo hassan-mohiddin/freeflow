@@ -128,9 +128,11 @@ function loadRuntimeContext(selection, part) {
 }
 
 // The review and skills lines are Pi's, and as on Pi only a choice the user made adds them. This host loads plugin
-// skills itself, so the skills line is how an off skill reaches the agent here.
+// skills itself, so the skills line is how an off skill reaches the agent here. With the core prompt off, which the
+// Runtime State belongs to, the lines still come when there are any: the rest of Freeflow stays on.
 function runtimeStateContext(config) {
   const lines = [reviewStateLine(config.review), skillsStateLine(config.skillsOff)].filter(Boolean);
+  if (!config.prompts.core && lines.length === 0) return null;
   return ["# Freeflow Runtime State", "", "Freeflow: active", ...lines].join("\n");
 }
 
@@ -157,7 +159,8 @@ export function renderRuntimeContext(root, part = undefined) {
 
   // The user chooses the prompts on hosts other than Pi; with none selected there is nothing to deliver.
   const prompts = loadRuntimeContext(config.prompts, part);
-  if (config.prompts.core && (!part || part === "core")) prompts.push(runtimeStateContext(config));
+  const state = !part || part === "core" ? runtimeStateContext(config) : null;
+  if (state) prompts.push(state);
   return prompts.join("\n\n");
 }
 
