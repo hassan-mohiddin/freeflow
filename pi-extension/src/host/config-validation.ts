@@ -128,6 +128,36 @@ export function resolveGateSettings(repository: unknown, local: unknown): GateSe
 }
 
 /**
+ * Delegation across sessions (SPEC-009 4.7): how long a claim on paths lasts, in hours (`claimHours`, one of a few
+ * choices, default 4), and whether a delegation the coordinator waits on wakes its idle session when it comes back
+ * (`wakeOnReturn`, on by default). Every driver reads them; Track Work's claim takes the hours from the driver.
+ */
+export const DELEGATION_KEYS = ["claimHours", "wakeOnReturn"] as const;
+export const CLAIM_HOURS = ["1", "2", "4", "8", "24"] as const;
+export type DelegationSettings = { claimHours: (typeof CLAIM_HOURS)[number]; wakeOnReturn: boolean };
+
+function validateDelegationConfig(value: unknown) {
+  if (!isRecord(value)) return "delegation must be an object";
+  const unknown = Object.keys(value).find((key) => !(DELEGATION_KEYS as readonly string[]).includes(key));
+  if (unknown) return `delegation has unsupported key: ${unknown}`;
+  if (value.claimHours !== undefined && !(CLAIM_HOURS as readonly unknown[]).includes(value.claimHours))
+    return `delegation.claimHours must be one of ${CLAIM_HOURS.join(", ")}`;
+  if (value.wakeOnReturn !== undefined && typeof value.wakeOnReturn !== "boolean")
+    return "delegation.wakeOnReturn must be a boolean";
+  return null;
+}
+
+/** Delegation's settings for two valid config layers: the personal layer overrides the repository's, key by key. */
+export function resolveDelegationSettings(repository: unknown, local: unknown): DelegationSettings {
+  const layer = (config: any) => (isRecord(config?.delegation) ? config.delegation : {});
+  const [shared, personal] = [layer(repository), layer(local)];
+  return {
+    claimHours: personal.claimHours ?? shared.claimHours ?? "4",
+    wakeOnReturn: personal.wakeOnReturn ?? shared.wakeOnReturn ?? true,
+  };
+}
+
+/**
  * How Review Work reviews finished work. Without the key it runs `auto`, its own risk gate; `off` and `always` are the
  * user's choice for every task, and `model` names the model a reviewer runs on. `auto` is accepted so a personal file
  * can return a shared `off` or `always` to the default.
@@ -266,6 +296,23 @@ export const SETTINGS: readonly SettingSpec[] = [
     hosts: "all",
     session: true,
   },
+  // Delegation across sessions (SPEC-009 4.7).
+  {
+    key: "delegation.claimHours",
+    label: "Claim hours",
+    values: CLAIM_HOURS,
+    default: "4",
+    hosts: "all",
+    session: true,
+  },
+  {
+    key: "delegation.wakeOnReturn",
+    label: "Wake on return",
+    values: "boolean",
+    default: true,
+    hosts: "all",
+    session: true,
+  },
   { key: "review.mode", label: "Review", values: REVIEW_MODES, default: "auto", hosts: "all", session: true },
   { key: "review.model", label: "Reviewer model", values: "name", default: null, hosts: "all", session: true },
   {
@@ -377,6 +424,7 @@ export const CONFIG_SECTIONS = [
   "skills",
   "events",
   "gates",
+  "delegation",
 ] as const;
 
 // outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
@@ -438,6 +486,10 @@ export function validateRepositoryConfig(value: unknown): string | null {
     const error = validateGatesConfig(value.gates);
     if (error) return error;
   }
+  if (value.delegation !== undefined) {
+    const error = validateDelegationConfig(value.delegation);
+    if (error) return error;
+  }
   if (value.review !== undefined) return validateReviewConfig(value.review);
 
   return null;
@@ -467,6 +519,7 @@ export function validateLocalConfig(value: unknown): string | null {
     "skills",
     "events",
     "gates",
+    "delegation",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -506,6 +559,10 @@ export function validateLocalConfig(value: unknown): string | null {
   }
   if (value.gates !== undefined) {
     const error = validateGatesConfig(value.gates);
+    if (error) return error;
+  }
+  if (value.delegation !== undefined) {
+    const error = validateDelegationConfig(value.delegation);
     if (error) return error;
   }
   if (value.review !== undefined) return validateReviewConfig(value.review);

@@ -94,7 +94,7 @@ Freeflow settings for /home/you/project (Claude Code)
   Reviewer model   none      default
 Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)
 Remove one: /freeflow settings <key> inherit [--session | --personal | --repository]
-Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.agreement, gates.slice, gates.delivery, gates.delegation, review.mode, review.model.
+Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.agreement, gates.slice, gates.delivery, gates.delegation, delegation.claimHours, delegation.wakeOnReturn, review.mode, review.model.
 Pi-only settings (tool execution, compaction, messaging, Cognitive Routing) are changed on Pi or in the files.
 ```
 
@@ -174,6 +174,8 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Slice gate | `gates.slice` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
 | Delivery gate | `gates.delivery` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
 | Delegation gate | `gates.delegation` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
+| Claim hours | `delegation.claimHours` | `1`, `2`, `4`, `8`, `24`: how long a claim on paths lasts, renewed while its session syncs | `4` | Session, Personal, Repository (Claude Code and Pi) |
+| Wake on return | `delegation.wakeOnReturn` | `true`, `false`: a delegation the current Slice waits on wakes the idle session when it comes back | `true` | Session, Personal, Repository (Claude Code and Pi) |
 | Review | `review.mode` | `auto`, `off`, `always` | `auto` | Session, Personal, Repository (every host) |
 | Reviewer model | `review.model` | a model name, such as `claude-opus-4-5` | none | Session, Personal, Repository (every host) |
 
