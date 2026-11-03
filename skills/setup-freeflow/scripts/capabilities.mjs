@@ -35,7 +35,7 @@ const USAGE = `Usage:
   capabilities.mjs check <request> [--session <ID>] [--home <folder>]
 What Freeflow's driver in this session claims for each request (${REQUESTS.join(", ")}): yes, possible or no,
 with how or why not, and the event log. check exits 0 when the request is yes, 1 otherwise with the reason.
-The session is this one (CLAUDE_CODE_SESSION_ID or FREEFLOW_SESSION) unless --session names another; the home is
+The session is this one (FREEFLOW_SESSION, else CLAUDE_CODE_SESSION_ID) unless --session names another; the home is
 FREEFLOW_HOME, else ~/.freeflow.`;
 
 /** What a host with no Freeflow driver can do: its session-start hook delivers the guidance, and the agent runs scripts. */
@@ -150,7 +150,8 @@ export function run(argv, env = process.env) {
   const [operation = "list", request, extra] = positionals;
   if (!["list", "check"].includes(operation) || extra !== undefined) throw new Error(USAGE);
   const home = homeOf(options["--home"], env);
-  const session = options["--session"] ?? (env.CLAUDE_CODE_SESSION_ID || env.FREEFLOW_SESSION || null);
+  // As Track Work's script reads it (T6): a harness layer's FREEFLOW_SESSION first, then Claude Code's own.
+  const session = options["--session"] ?? (env.FREEFLOW_SESSION || env.CLAUDE_CODE_SESSION_ID || null);
   const found = readCapabilities({ home, session });
   if (operation === "check") {
     if (!REQUESTS.includes(request ?? ""))

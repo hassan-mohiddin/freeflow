@@ -10,18 +10,23 @@ import { isAbsolute, join, resolve, sep } from "node:path";
 const SCRIPT = join("skills", "track-work", "scripts", "working-record.mjs");
 /** Pi's file tools, whose `path` may land in the store. */
 const FILE_TOOLS = new Set(["read", "edit", "write", "apply_patch"]);
-/** Runs Track Work's script from Freeflow's package, as the agent's commands run it, with the session's environment. */
+/**
+ * Runs Track Work's script from Freeflow's package, as the agent's commands run it, with the session's environment;
+ * `input` goes to its standard input.
+ */
 export function scriptRunner(packageRoot) {
-  return (args, { timeoutMs = 60_000 } = {}) =>
-    new Promise((done) =>
-      execFile(
+  return (args, { timeoutMs = 60_000, input } = {}) =>
+    new Promise((done) => {
+      const child = execFile(
         process.execPath,
         [join(packageRoot, SCRIPT), ...args],
         { env: process.env, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 },
         (error, stdout, stderr) =>
           done({ code: error ? (typeof error.code === "number" ? error.code : 1) : 0, stdout, stderr }),
-      ),
-    );
+      );
+      child.stdin?.on("error", () => {});
+      child.stdin?.end(input ?? "");
+    });
 }
 /**
  * What the scripts read about this session (T6): who it is, the harness, its transcript, the window and the way back.

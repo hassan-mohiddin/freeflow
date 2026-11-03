@@ -1,5 +1,7 @@
 import { calculateContextTokens, compact as piCompact, estimateTokens } from "@earendil-works/pi-coding-agent";
-import { dirname, resolve } from "node:path";
+import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RequestHistory } from "./host/request-history.js";
 import { registerProviderSupport } from "./provider-support/index.js";
@@ -26,7 +28,8 @@ import { currentSections, headSections, keepSections } from "./host/section-keep
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController, RECOVERY_TYPE, USER_REQUEST } from "./compaction/controller.js";
 import { strictest } from "./compaction/thresholds.js";
-import { StoreLayer, scriptRunner, sessionEnvironment } from "./store/layer.js";
+import { StoreLayer, scriptRunner, sessionEnvironment, touchesStore } from "./store/layer.js";
+import { EventRecorder } from "./events/recorder.js";
 import { DEFAULT_INBOUND_POLICY } from "./messaging/config.js";
 import { MESSAGE_TYPE, Messaging } from "./messaging/messaging.js";
 import { freeflowHome } from "./messaging/registry.js";
@@ -166,6 +169,7 @@ function freeflowCompletions(prefix, routingAvailable) {
       : [
           ["settings", "settings", "Open settings; Tab switches Session, Personal and Repository"],
           ["status", "status", "Show effective Freeflow state"],
+          ["capabilities", "capabilities", "What Freeflow can do in this session, and the event log"],
           ["compact", "compact", "Prepare, compact and recover now"],
           ...(routingAvailable
             ? [
@@ -193,7 +197,30 @@ export default function freeflow(pi) {
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   const routing = new RoutingRuntime(api, [packageRoot]);
   // The Freeflow store's layer: Track Work's script on Pi's events, as the Claude Code mod is on Claude Code's.
-  const store = new StoreLayer(scriptRunner(packageRoot));
+  const runScript = scriptRunner(packageRoot);
+  const store = new StoreLayer(runScript);
+  // The event log and the claims (SPEC-006): written off the request path, when a run settles and at shutdown.
+  const events = new EventRecorder(runScript);
+  const version = (() => {
+    try {
+      return JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")).version;
+    } catch {
+      return undefined;
+    }
+  })();
+  const claimInputs = () => ({
+    enabled: capability?.enabled === true,
+    events: capability?.events?.enabled === true,
+    compaction: capability?.compaction?.effective === true,
+    routing: capability?.cognitiveRouting?.effective === true,
+    messaging: capability?.messaging?.effective === true,
+    askUser: capability?.askUser?.effective === true,
+  });
+  /** The claims follow the capabilities as they change; a file write only when they did, never awaited. */
+  const syncClaims = () => {
+    events.setOn(capability?.events?.enabled === true);
+    void events.writeClaims(claimInputs(), version);
+  };
   const trackWork = `node ${resolve(packageRoot, "skills/track-work/scripts/working-record.mjs")}`;
   // A Coordinator waiting on its worker will resume, so its prompt cache is worth keeping warm.
   providerSupport.keepAlive.setHoldSource(() => routing.suspendedCoordinator());
@@ -264,6 +291,7 @@ export default function freeflow(pi) {
       next.cognitiveRouting = unavailable(next.cognitiveRouting, "Routing bootstrap cue is unavailable.");
     capability = next;
     prompts = loaded;
+    syncClaims();
     return next;
   }
   function status(ctx) {
@@ -427,6 +455,7 @@ export default function freeflow(pi) {
       else {
         const text = await store.start(ctx.cwd, [ctx.cwd, dirname(ctx.cwd), packageRoot]);
         if (generation !== surfaceGeneration) return;
+        if (text) events.freeflow("menu");
         if (text)
           await Promise.resolve(
             api.sendMessage(
@@ -445,6 +474,27 @@ export default function freeflow(pi) {
     } catch {
       // The store is optional: without one, compaction works through the session summary (P4).
     }
+  };
+  /** `/freeflow capabilities`: Setup Freeflow's capabilities.mjs, the listing the agent reads too (section 4.6). */
+  const capabilitiesText = async () => {
+    // The claims as they stand now, written before the script reads them.
+    await events.writeClaims(claimInputs(), version);
+    const ran = await new Promise((done) =>
+      execFile(
+        process.execPath,
+        [
+          join(packageRoot, "skills/setup-freeflow/scripts/capabilities.mjs"),
+          "list",
+          ...(events.sessionId() ? ["--session", events.sessionId()] : []),
+        ],
+        { env: process.env, timeout: 8_000 },
+        (error, stdout, stderr) =>
+          done({ code: error ? (typeof error.code === "number" ? error.code : 1) : 0, stdout, stderr }),
+      ),
+    );
+    return ran.code === 0
+      ? ran.stdout.trimEnd()
+      : `Freeflow capabilities: ${(ran.stderr.split("\n")[0] || `exit code ${ran.code}`).replace(/^Error: /, "")}`;
   };
   /** The store's line in /freeflow status: where it is and the task this session holds, as last read. */
   const storeStatusText = () => {
@@ -589,12 +639,18 @@ export default function freeflow(pi) {
       file: ctx.sessionManager?.getSessionFile?.(),
       window: ctx.model?.contextWindow,
     });
+    events.begin(ctx.sessionManager?.getSessionId?.(), capability?.events?.enabled === true);
+    events.sessionStarted(event?.reason, ctx.hasUI !== false);
+    syncClaims();
     if (capability?.enabled === true) void storeStart(ctx, event?.reason, generation);
     await routing.bind(ctx, capability.cognitiveRouting, event?.reason !== "reload");
     status(ctx);
   });
   pi.on("session_shutdown", async (event) => {
     surfaceGeneration++;
+    // The session's last lines, before the release, whose summary counts them.
+    events.sessionEnded(event?.reason);
+    await events.flush();
     // The hold is released as ended and the store pushed, before the next session's layer starts; a reload keeps it.
     await store.shutdown({ reload: event?.reason === "reload" }).catch(() => {});
     store.reset();
@@ -656,6 +712,7 @@ export default function freeflow(pi) {
       return { message: { customType: "freeflow-files", content: freeflowNotice("files", changed), display: true } };
   });
   pi.on("agent_start", () => {
+    events.runStarted();
     routing.runStarted();
     guidance.runStarted();
     agentRunning = true;
@@ -663,6 +720,7 @@ export default function freeflow(pi) {
   });
   pi.on("message_end", async (event, ctx) => {
     const message = event.message;
+    if (message?.role === "assistant") events.modelRequest(message, ctx.thinkingLevel);
     if (
       capability?.enabled === true &&
       message?.role === "assistant" &&
@@ -699,6 +757,13 @@ export default function freeflow(pi) {
   });
   pi.on("tool_call", async (event, ctx) => {
     store.note(event.toolName, event.input, ctx.cwd);
+    events.toolCall(event.toolCallId);
+    // Before a checkpoint or a release runs, the lines so far are written, so the summary it commits counts them.
+    if (
+      event.toolName === "bash" &&
+      /working-record\.mjs\s+(checkpoint|task\s+(release|switch))\b/.test(String(event.input?.command ?? ""))
+    )
+      await events.flush();
     const gate = routing.preflight(event, ctx);
     if (gate?.block || !toolExecutionEffective()) return gate;
     const refusal = event.toolName === "bash" ? backgroundRefusal(event.input?.command) : undefined;
@@ -706,6 +771,14 @@ export default function freeflow(pi) {
     return (await files.toolCall(event, ctx)) ?? gate;
   });
   pi.on("tool_result", async (event, ctx) => {
+    // Freeflow's own: a command that runs a script from Freeflow's package, or a file tool in the store (Part 8).
+    const command = String(event.input?.command ?? "");
+    events.toolResult(
+      event,
+      ctx.cwd,
+      (event.toolName === "bash" && command.includes(packageRoot)) ||
+        touchesStore(event.toolName, event.input, ctx.cwd, store.current()?.home),
+    );
     // After the agent ran Track Work's script, the held task may have changed: read it off the request path, for the
     // footer and the notice.
     if (event.toolName === "bash" && String(event.input?.command ?? "").includes("working-record.mjs")) {
@@ -726,6 +799,7 @@ export default function freeflow(pi) {
     return lines.length ? { content: withLines(shaped?.content ?? event.content ?? [], lines) } : shaped;
   });
   pi.on("turn_end", async (event, ctx) => {
+    events.turnEnd(event.message?.stopReason);
     await routing.turnEnd(event, ctx);
     files.clearPending();
     status(ctx);
@@ -734,10 +808,14 @@ export default function freeflow(pi) {
     const midRun = (event.message?.content ?? []).some((block) => block?.type === "toolCall");
     if (!midRun) {
       const compacting = await compaction.settle(event, ctx);
-      if (compacting) return compacting;
+      if (compacting) {
+        if (compacting.entries.some((entry) => entry?.type === "compaction")) events.compaction("freeflow");
+        return compacting;
+      }
     }
     const notice = compaction.observe(ctx, event);
     if (notice) {
+      events.freeflow("notice", notice.level);
       // Mid-run the notice joins the next request; when the run is ending it waits for the next prompt rather than
       // starting work nobody asked for.
       await Promise.resolve(
@@ -751,6 +829,7 @@ export default function freeflow(pi) {
   });
   // A Freeflow compaction fires no session_compact, so its resets run here, before the new cycle's first request.
   pi.on("turn_start", async (_event, ctx) => {
+    events.turnStart();
     const compacted = compaction.takeCompacted();
     if (!compacted) return;
     // File state first, so the state restore refreshes lists no skill from before the compaction.
@@ -758,6 +837,8 @@ export default function freeflow(pi) {
     await restore(ctx, false);
   });
   pi.on("agent_settled", async (_event, ctx) => {
+    // The run's lines, written in one script run once the session stays idle: nothing waits on the log (T3).
+    events.settled();
     promptRun = false;
     messageRun = false;
     agentRunning = false;
@@ -875,6 +956,7 @@ export default function freeflow(pi) {
   // Pi compacting on its own (threshold, overflow, /compact) keeps its summarizer and kept tail, with Freeflow's additions.
   pi.on("session_before_compact", async (event, ctx) => compaction.fallback(event, ctx));
   pi.on("session_compact", async (_event, ctx) => {
+    events.compaction("harness");
     files.piCompacted();
     await restore(ctx, false);
     background.restate();
@@ -936,6 +1018,10 @@ export default function freeflow(pi) {
           typeof api.setThinkingLevel === "function",
       ),
     handler: async (args, ctx) => {
+      if ((args ?? "").trim().toLowerCase() === "capabilities") {
+        ctx.ui.notify(await capabilitiesText(), "info");
+        return;
+      }
       if ((args ?? "").trim().toLowerCase() === "compact") {
         await compactNow(ctx);
         return;

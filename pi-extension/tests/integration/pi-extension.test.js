@@ -1186,6 +1186,11 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
       description: "Open settings; Tab switches Session, Personal and Repository",
     },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
+    {
+      value: "capabilities",
+      label: "capabilities",
+      description: "What Freeflow can do in this session, and the event log",
+    },
     { value: "compact", label: "compact", description: "Prepare, compact and recover now" },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "resume", label: "resume", description: "Resume the current saved routing responsibility" },

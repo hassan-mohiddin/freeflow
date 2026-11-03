@@ -9,6 +9,7 @@
 | [`tool-execution/`](tool-execution/README.md) | Tool Execution: guidance sections, file tracking and notices, `apply_patch`, background commands. |
 | [`provider-support/`](provider-support/README.md) | Provider-specific prompt-cache support: breakpoints, keep-alive, effort history, cache health. |
 | [`compaction/`](compaction/README.md) | Freeflow compaction: the notice, then the task's bundle in place of the conversation after the agent's checkpoint, and Pi's own compaction with the bundle after it. |
+| [`events/`](events/README.md) | The event log and claims on Pi: each loop event as a schema v1 line, written when a run settles; the session's claims for request set 1. |
 | [`store/`](store/README.md) | The Freeflow store on Pi: Track Work's script on Pi's events, the menu at session start, the sync, the held task in the footer. |
 | [`ask-user/`](ask-user/README.md) | The `ask_user` tool: questions put to the user in a dialog, and the confirmation dialog Freeflow's own proposals use. |
 
