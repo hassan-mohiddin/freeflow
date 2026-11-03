@@ -1299,6 +1299,13 @@ test("the claims: written at session start in the Freeflow home, with section 4.
     sensors: "yes",
     timers: "yes",
   });
+  // Each yes has its conformance test (conformance.mjs; hooks/tests checks each test exists).
+  expect(
+    Object.entries(file.claims)
+      .filter(([, each]: any) => each.claim === "yes")
+      .map(([request]) => request)
+      .sort(),
+  ).toEqual(Object.keys(CONFORMANCE).sort());
   // Every claim says how, or why not.
   expect(Object.values(file.claims).every((each: any) => typeof each.how === "string" && each.how.length > 0)).toBe(
     true,
@@ -1331,4 +1338,51 @@ test("/freeflow capabilities prints the capabilities script's listing for this s
   w.capabilityAnswer = { exitCode: 2, stderr: "Error: Unknown option --x\n" };
   expect((await freeflow($, "capabilities")).text).toBe("Freeflow capabilities: Unknown option --x");
   expect(w.commands()).toEqual([]);
+});
+
+// The golden event log (SPEC-006 4.7): a scripted session through the mod, its lines normalized (the plugin's path on
+// this machine) and compared on kinds, order and fields with golden-events.mjs. A change to what the mod writes fails
+// here until that file is updated on purpose, with the lines this test prints. The mods test kit runs no process, so
+// hooks/tests/golden-events.test.mjs runs the same lines through Track Work's real `events append`: the schema test.
+import CONFORMANCE from "./conformance.mjs";
+import GOLDEN from "./golden-events.mjs";
+
+test("the golden event log: a scripted session through the mod matches golden-events.mjs (4.7)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  w.answers["view bundle"] = { stdout: "BUNDLE" };
+  w.verdict = { decision: "allow" };
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  await start($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  w.response = { input_tokens: 4, cache_read_input_tokens: 2_000, cache_creation_input_tokens: 300 };
+  await step($, w, 2_304, { effort: "high" });
+  await $.tool.call({ tool: "Bash", command: "npm test -- --token=abc123" } as any);
+  await $.tool.call({ tool: "Read", file_path: "/work/widget/src.mjs" } as any);
+  await $.agent.spawn(spawn("Do D-012's part."));
+  await $.turn.start({ text: "x", turnId: "turn-w", agentId: "agent-7" } as any);
+  await step($, w, 1_000, { agentId: "agent-7", model: "haiku" });
+  await $.turn.complete({ ...turnEnd("answer"), agentId: "agent-7" } as any);
+  await $.classic.SubagentStop({ agent_id: "agent-7", agent_type: "general-purpose", stop_hook_active: false } as any);
+  await $.tool.call({
+    tool: "Bash",
+    command: `node ${w.scriptPath} checkpoint --record widget/task-001 --input -`,
+  } as any);
+  await $.turn.complete(turnEnd("answer"));
+  // The checkpoint is done: Freeflow's own compaction, then the session's end.
+  w.status = held(at(30));
+  w.tokens = 150_000;
+  await $.session.compact({ trigger: "manual", messages: CONVERSATION } as any);
+  await $.session.end({ reason: "prompt_input_exit", sessionId: SESSION } as any);
+
+  const root = w.scriptPath.slice(0, -"/skills/track-work/scripts/working-record.mjs".length);
+  const lines = w
+    .events()
+    .map((line: any) =>
+      line.command ? { ...line, command: String(line.command).split(root).join("<plugin>") } : line,
+    );
+  if (JSON.stringify(lines) !== JSON.stringify(GOLDEN))
+    console.log(`golden-events.mjs would be:\n${JSON.stringify(lines, null, 2)}`);
+  expect(lines).toEqual(GOLDEN);
 });

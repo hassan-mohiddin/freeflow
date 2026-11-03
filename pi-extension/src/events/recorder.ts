@@ -313,11 +313,12 @@ export class EventRecorder {
     const text = `${JSON.stringify(file, null, 2)}\n`;
     if (text === this.claimsWritten) return;
     this.claimsWritten = text;
+    // Its line where the claims changed, not where the disk finished.
+    this.freeflow("capabilities", file.mode);
     const folder = join(resolve(freeflowHome()), "sessions", this.session);
     try {
       await mkdir(folder, { recursive: true });
       await writeFile(join(folder, "capabilities.json"), text);
-      this.freeflow("capabilities", file.mode);
     } catch {
       // A home that cannot be written: the claims read as none, and every request as no.
       this.claimsWritten = undefined;

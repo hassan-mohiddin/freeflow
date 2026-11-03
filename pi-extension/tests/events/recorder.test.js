@@ -1,17 +1,19 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { EventRecorder, eventPath, exitCode, IDLE_FLUSH_MS, piClaims, REQUESTS } from "../../dist/events/recorder.js";
 import { fixture } from "../fixtures/routing-native.js";
+import { CONFORMANCE } from "./conformance.js";
 
 // Freeflow's event log and claims on Pi (SPEC-006 4.2, 4.5): the recorder alone, then a real in-process Pi session with
 // Track Work's real script writing the log.
 const script = resolve("skills/track-work/scripts/working-record.mjs");
 const noRouting = { cognitiveRouting: { enabled: false }, freeflowConfig: { toolExecution: { enabled: true } } };
 const bash = (command) => ({ name: "bash", args: { command } });
+const GOLDEN = new URL("./golden-events.jsonl", import.meta.url).pathname;
 
 /** The Freeflow home for one test, set in Pi's process as a user's environment would, and restored after. */
 async function withHome(run) {
@@ -196,6 +198,26 @@ test(
           assert.doesNotMatch(JSON.stringify(lines), /abc123|TUPTUO_TERCES|Complete the fixture assignment/);
           assert.ok(lines.some((line) => line.kind === "freeflow" && line.what === "capabilities"));
 
+          // The golden event log (SPEC-006 4.7): this session's lines as the real writer stored them, normalized, on
+          // kinds, order and fields. A change fails here until the file is updated on purpose:
+          // FREEFLOW_UPDATE_GOLDEN=1 node --test pi-extension/tests/events/recorder.test.js writes it.
+          // The menu's line lands when the store's session start finishes, which runs beside the first request by
+          // design: once, wherever it lands.
+          assert.equal(lines.filter((line) => line.kind === "freeflow" && line.what === "menu").length, 1);
+          const normal = lines
+            .filter((line) => !(line.kind === "freeflow" && line.what === "menu"))
+            .map((line, index) => ({ ...line, seq: index + 1 }))
+            .map((line) => {
+              const { ts: _ts, session: _session, ...rest } = line;
+              return JSON.stringify({
+                ...rest,
+                ...(rest.ms === undefined ? {} : { ms: "<ms>" }),
+                ...(rest.command ? { command: rest.command.split(resolve(".")).join("<repo>") } : {}),
+              });
+            });
+          if (process.env.FREEFLOW_UPDATE_GOLDEN === "1") writeFileSync(GOLDEN, `${normal.join("\n")}\n`);
+          assert.deepEqual(normal, readFileSync(GOLDEN, "utf8").trim().split("\n"));
+
           const claims = JSON.parse(readFileSync(join(home, "sessions", session, "capabilities.json"), "utf8"));
           assert.equal(claims.driver, "pi-extension");
           assert.equal(claims.requestSet, 1);
@@ -276,4 +298,19 @@ test("the lines wait for the session to stay idle after a run settles; a run tha
     runs[0].split("\n").map((line) => JSON.parse(line).kind),
     ["turn.start", "turn.end"],
   );
+});
+
+test("every request Pi claims as yes has its conformance test, and each test named exists (4.7)", () => {
+  const all = { enabled: true, events: true, compaction: true, routing: true, messaging: true, askUser: true };
+  const yes = Object.entries(piClaims(all))
+    .filter(([, claim]) => claim.claim === "yes")
+    .map(([request]) => request);
+  assert.deepEqual(yes.sort(), Object.keys(CONFORMANCE).sort());
+  for (const [request, [file, name]] of Object.entries(CONFORMANCE)) {
+    const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+    assert.ok(
+      source.includes(`test(\n  ${JSON.stringify(name)}`) || source.includes(`test(${JSON.stringify(name)}`),
+      `${request}: ${file} has the test ${name}`,
+    );
+  }
 });
