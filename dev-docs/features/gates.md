@@ -1,7 +1,7 @@
 # Gates
 
 > **Covers:** `skills/track-work/scripts/lib/gates5.mjs`, `skills/track-work/scripts/lib/gate-state5.mjs`, `pi-extension/src/gates/`, `hooks/claude/freeflow.mjs`, `hooks/codex/driver.mjs`
-> **Verified at:** `42191e4d` (2026-11-03)
+> **Verified at:** `64348e71` (2026-11-03)
 > **User docs:** `plugin-docs/capabilities/gates.md`
 
 Before each tool call on Claude Code, Pi and Codex, Freeflow checks four rules: an agreement before a change, a Slice before a change while a task is held, a reminder that a delivery step needs the user's yes, and a worker writing only its scope. Every gate warns by default: the call runs, and the agent reads the rule, why and the way through, once per gate in a turn. Each gate is `off`, `warn` or `block` in every scope (`gates.*`); under `block` the call is refused, and a delivery step is put to the person where someone can answer (never on Codex, which has no ask). The state the gates read is `<FREEFLOW_HOME>/sessions/<session ID>/gates.json`, which Track Work's commands write. How it works: [Gates](../subsystems/gates.md).
