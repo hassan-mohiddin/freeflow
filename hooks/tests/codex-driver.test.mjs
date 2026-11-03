@@ -366,6 +366,218 @@ test(CONFORMANCE.sensors, () => {
   }
 });
 
+// The gates (SPEC-008 4.3, SPEC-012 4.2): PreToolUse decides each call with gates5.decide from the session's gate
+// state. Codex's own parser (codex-rs/hooks/src/engine/output_parser.rs at 079e17a4) refuses a PreToolUse output with
+// permissionDecision ask, allow without updatedInput, or deny without a reason; additionalContext alone is read.
+
+const PATCH = "*** Begin Patch\n*** Update File: src/app.js\n@@\n-a\n+b\n*** End Patch\n";
+const patchCall = (id = "call_p", fields = {}) => ({
+  tool_name: "apply_patch",
+  tool_use_id: id,
+  tool_input: { command: PATCH },
+  ...fields,
+});
+const shellCall = (command, id = "call_s", fields = {}) => ({
+  tool_name: "Bash",
+  tool_use_id: id,
+  tool_input: { command },
+  ...fields,
+});
+const reasonOf = (output) => output?.hookSpecificOutput?.permissionDecisionReason;
+
+/** The PreToolUse output's keys are its schema's, and Codex's parser would apply it, not report it invalid. */
+function codexReads(output) {
+  const schema = JSON.parse(readFileSync(join(FIXTURES, OUTPUT_SCHEMAS.PreToolUse), "utf8"));
+  for (const key of Object.keys(output)) assert.ok(key in schema.properties, key);
+  const wire = schema.definitions.PreToolUseHookSpecificOutputWire.properties;
+  const specific = output.hookSpecificOutput;
+  for (const key of Object.keys(specific)) assert.ok(key in wire, key);
+  assert.equal(specific.hookEventName, "PreToolUse");
+  if ("permissionDecision" in specific) {
+    assert.equal(specific.permissionDecision, "deny", "Codex refuses ask, and allow without updatedInput");
+    assert.ok(specific.permissionDecisionReason.trim(), "a deny needs a reason");
+  } else assert.equal(typeof specific.additionalContext, "string");
+}
+
+test(CONFORMANCE.block, () => {
+  const { hook, log, sessionFile, done } = setUp({
+    config: { gates: { agreement: "block", slice: "block", delivery: "block" } },
+  });
+  try {
+    hook("SessionStart");
+    hook("UserPromptSubmit");
+    // The task is held with no agreement and no Slice: a patch is refused, each refusing gate's text the reason.
+    const refused = hook("PreToolUse", patchCall());
+    codexReads(refused);
+    assert.match(
+      reasonOf(refused),
+      /^Freeflow gate \(block, agreement\): apply_patch on src\/app\.js before an agreement in widget\/task-001\.\nWhy: /,
+    );
+    assert.match(
+      reasonOf(refused),
+      /\n\nFreeflow gate \(block, slice\): apply_patch on src\/app\.js with no open Slice/,
+    );
+    assert.doesNotMatch(reasonOf(refused), /only warns/);
+    // Every call that a gate fires on is refused, not only a turn's first.
+    assert.equal(hook("PreToolUse", patchCall("call_p2")).hookSpecificOutput.permissionDecision, "deny");
+    // A delivery step is refused too: Codex has no ask (P4).
+    const push = hook("PreToolUse", shellCall("git status && git push origin main"));
+    codexReads(push);
+    assert.match(reasonOf(push), /Freeflow gate \(block, delivery\): git push is a delivery step\./);
+    // A read, a test run and a tool the gates do not judge run.
+    assert.equal(hook("PreToolUse", shellCall("git status")), null);
+    assert.equal(hook("PreToolUse", shellCall("npm test")), null);
+    assert.equal(hook("PreToolUse", { tool_name: "mcp__docs__write", tool_input: {} }), null);
+    // No gate state: the gates that need it fail closed (SPEC-008 section 5).
+    rmSync(sessionFile("gates.json"), { force: true });
+    assert.match(reasonOf(hook("PreToolUse", patchCall("call_p3"))), /cannot read its gate state/);
+    // Each refusal is a gate line, decision block, valid in schema v1.
+    hook("Stop");
+    const lines = log().filter((line) => line.kind === "gate");
+    for (const line of lines) assert.equal(lineProblem(line), null, JSON.stringify(line));
+    assert.deepEqual(
+      lines.map(({ gate, decision }) => `${gate} ${decision}`),
+      [
+        "agreement block",
+        "slice block",
+        "agreement block",
+        "slice block",
+        "agreement block",
+        "slice block",
+        "delivery block",
+        "agreement block",
+        "slice block",
+      ],
+    );
+  } finally {
+    done();
+  }
+});
+
+test("the gates warn by default: the call runs, the row reaches the model once per gate per turn, and each would-fire is a gate line", () => {
+  const { hook, log, cli, done } = setUp();
+  try {
+    hook("SessionStart");
+    hook("UserPromptSubmit");
+    // A patch with no agreement and no Slice: no decision (the call runs), and both rows as additionalContext.
+    const first = hook("PreToolUse", patchCall());
+    codexReads(first);
+    assert.equal(first.hookSpecificOutput.permissionDecision, undefined);
+    const rows = contextOf(first);
+    assert.match(rows, /^Freeflow gate \(warn, agreement\): apply_patch on src\/app\.js before an agreement/);
+    assert.match(rows, /\n\nFreeflow gate \(warn, slice\): apply_patch on src\/app\.js with no open Slice/);
+    assert.match(rows, /This gate only warns for now\.$/);
+    // The same gates in the same turn: no row again, though each would-fire is logged.
+    assert.equal(hook("PreToolUse", patchCall("call_p2")), null);
+    // A push is a change too (agreement and Slice, already warned this turn) and a delivery step, not yet warned: its
+    // row only.
+    assert.match(
+      contextOf(hook("PreToolUse", shellCall("git push"))),
+      /^Freeflow gate \(warn, delivery\): git push is a delivery step\.\nWhy: .+\nWay through: .+ This gate only warns for now\.$/,
+    );
+    // A subagent's call is its own loop: its rows come once in its turn.
+    assert.match(contextOf(hook("PreToolUse", patchCall("call_a", { agent_id: "agent-1" }))), /\(warn, agreement\)/);
+    assert.equal(hook("PreToolUse", patchCall("call_a2", { agent_id: "agent-1" })), null);
+    // The next turn warns again.
+    hook("UserPromptSubmit", { turn_id: "turn-2" });
+    assert.match(contextOf(hook("PreToolUse", patchCall("call_p3", { turn_id: "turn-2" }))), /\(warn, agreement\)/);
+    // An agreement and a Slice opened through Track Work's script: the next patch passes every gate.
+    cli(["agreement", "open", "--record", "widget/task-001", "--title", "Demo", "--input", "-"], {
+      input: "- Build the demo.\n",
+    });
+    cli(
+      [
+        "slice",
+        "start-direct",
+        "--record",
+        "widget/task-001",
+        "--title",
+        "Build",
+        "--next-action",
+        "Build.",
+        "--input",
+        "-",
+      ],
+      {
+        input:
+          "- Result wanted: r.\n- Under: A-001.\n- Scope: s.\n- Done when: d.\n- Stop if: x.\n- Started from: y.\n",
+      },
+    );
+    assert.equal(hook("PreToolUse", patchCall("call_p4", { turn_id: "turn-3" })), null);
+    hook("Stop");
+    const gates = log().filter((line) => line.kind === "gate");
+    for (const line of gates) assert.equal(lineProblem(line), null, JSON.stringify(line));
+    assert.deepEqual(
+      gates.map(({ agent, gate, decision, tool }) => [agent, gate, decision, tool]),
+      [
+        ["main", "agreement", "warn", "apply_patch"],
+        ["main", "slice", "warn", "apply_patch"],
+        ["main", "agreement", "warn", "apply_patch"],
+        ["main", "slice", "warn", "apply_patch"],
+        ["main", "agreement", "warn", "Bash"],
+        ["main", "slice", "warn", "Bash"],
+        ["main", "delivery", "warn", "Bash"],
+        ["agent-1", "agreement", "warn", "apply_patch"],
+        ["agent-1", "slice", "warn", "apply_patch"],
+        ["agent-1", "agreement", "warn", "apply_patch"],
+        ["agent-1", "slice", "warn", "apply_patch"],
+        ["main", "agreement", "warn", "apply_patch"],
+        ["main", "slice", "warn", "apply_patch"],
+      ],
+    );
+    assert.match(cli(["events", "summary"]), /Gates: agreement 6, slice 6, delivery 1, delegation 0 would-fire/);
+  } finally {
+    done();
+  }
+});
+
+test("the gates fail open under warn and closed under block: no gate state, and an error deciding", () => {
+  // Under warn: no gate state is quiet and said once a session; an error deciding lets the call run.
+  const warn = setUp();
+  try {
+    warn.hook("SessionStart");
+    rmSync(warn.sessionFile("gates.json"), { force: true });
+    assert.equal(warn.hook("PreToolUse", patchCall()), null);
+    assert.equal(warn.hook("PreToolUse", patchCall("call_p2")), null);
+    writeFileSync(warn.sessionFile("gates.json"), "{ not json");
+    assert.equal(warn.hook("PreToolUse", patchCall("call_p3")), null);
+    warn.hook("Stop");
+    const said = warn.log().filter((line) => line.kind === "freeflow" && line.what === "gates");
+    assert.equal(said.length, 1);
+    assert.equal(said[0].detail, "no gate state for this session");
+    assert.equal(lineProblem(said[0]), null);
+    // The buffer cannot take the gate line: the error is caught and the call runs.
+    warn.cli(["session", "status"]);
+    rmSync(warn.sessionFile("events-buffer.jsonl"), { force: true });
+    mkdirSync(warn.sessionFile("events-buffer.jsonl"));
+    assert.equal(warn.hook("PreToolUse", patchCall("call_p4")), null);
+  } finally {
+    warn.done();
+  }
+  // Under block: no gate state refuses the call with the way to make one; an error deciding refuses it too.
+  const block = setUp({ config: { gates: { agreement: "block" } } });
+  try {
+    block.hook("SessionStart");
+    rmSync(block.sessionFile("gates.json"), { force: true });
+    const missing = block.hook("PreToolUse", patchCall());
+    codexReads(missing);
+    assert.equal(
+      reasonOf(missing),
+      "Freeflow gate (block, agreement): Freeflow cannot read its gate state; run `task here` or `agree`, then go on.",
+    );
+    // The slice gate still warns, and a warn gate needs no state: nothing more is refused.
+    assert.equal(block.hook("PreToolUse", shellCall("git status")), null);
+    block.cli(["session", "status"]);
+    rmSync(block.sessionFile("events-buffer.jsonl"), { force: true });
+    mkdirSync(block.sessionFile("events-buffer.jsonl"));
+    const failed = block.hook("PreToolUse", patchCall("call_p2"));
+    codexReads(failed);
+    assert.equal(reasonOf(failed), "Freeflow's gates could not decide this call; try again.");
+  } finally {
+    block.done();
+  }
+});
+
 test("each conformance test names a yes claim of the driver, and every yes claim has one (SPEC-006 4.7)", () => {
   const yes = Object.entries(claims(true))
     .filter(([, claim]) => claim.claim === "yes")
@@ -373,8 +585,8 @@ test("each conformance test names a yes claim of the driver, and every yes claim
   assert.deepEqual(Object.keys(CONFORMANCE).sort(), yes.sort());
   const source = readFileSync(resolve("hooks/tests/codex-driver.test.mjs"), "utf8");
   for (const request of yes) assert.ok(source.includes(`test(CONFORMANCE.${request},`), request);
-  // The rest say so: block is possible until Part 5's gates land; compact and the others no.
-  assert.equal(claims(true).block.claim, "possible");
+  // The rest say so: block is yes with Part 5's gates; compact and the others no.
+  assert.equal(claims(true).block.claim, "yes");
   for (const request of ["forget", "compact", "rewind", "route", "spawn", "send", "wake", "ask", "timers"])
     assert.equal(claims(true)[request].claim, "no", request);
   assert.equal(claims(false).sensors.claim, "possible");
@@ -391,7 +603,7 @@ test("capabilities.mjs lists Codex's claims from the file the driver writes", ()
     assert.equal(run.status, 0, run.stderr);
     assert.match(run.stdout, /^Freeflow on Codex \(codex-driver \d+\.\d+\.\d+, request set 1\)\n/);
     assert.match(run.stdout, /\n {2}pin +yes +session-start context, again after each compaction/);
-    assert.match(run.stdout, /\n {2}block +possible +PreToolUse can deny/);
+    assert.match(run.stdout, /\n {2}block +yes +PreToolUse denies a gate's call under block/);
     assert.match(run.stdout, /\n {2}compact +no +Codex compacts on its own/);
     assert.match(run.stdout, /\nEvent log: on, /);
     const check = spawnSync(

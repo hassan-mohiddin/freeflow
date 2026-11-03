@@ -10,7 +10,8 @@
 // files (never synced): sessions/<session>/cycle.json (the context cycle, its notice and rows, the window), due.json (a
 // row or notice waiting for the next hook that can add context), events-buffer.jsonl (event lines until a turn ends)
 // and calls/ (when each tool call started). Every handler fails open: on an error it prints nothing, Codex goes on, and
-// a `freeflow` line in the event log says what failed.
+// a `freeflow` line in the event log says what failed. The one exception is PreToolUse's gates under `block`, which
+// fail closed (SPEC-008, section 5).
 
 import { spawnSync } from "node:child_process";
 import {
@@ -27,6 +28,18 @@ import { homedir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import {
+  DEFAULT_GATE_SETTINGS,
+  FILE_WRITE_TOOLS,
+  GATES,
+  GATE_MODES,
+  SHELL_TOOLS,
+  decide,
+  gateEvent,
+  gateText,
+  validGateState,
+} from "../../skills/track-work/scripts/lib/gates5.mjs";
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SCRIPT = join(PLUGIN_ROOT, "skills/track-work/scripts/working-record.mjs");
@@ -265,14 +278,18 @@ async function resolveSwitches(root, ctx) {
   const validation = await import(pathToFileURL(join(PLUGIN_ROOT, "pi-extension/dist/host/config-validation.js")).href);
   const repository = store.readConfigFile(root, "repository");
   const personal = store.readConfigFile(root, "personal");
-  if (repository.error || personal.error) return { enabled: true, events: true };
+  if (repository.error || personal.error) return { enabled: true, events: true, gates: { ...DEFAULT_GATE_SETTINGS } };
   const layers = {
     repository: repository.value,
     personal: personal.value,
     session: store.readSessionSettings(ctx.home, ctx.session),
   };
   const value = (/** @type {string} */ key) => store.resolveSetting(validation.settingSpec(key), layers).value;
-  return { enabled: value("enabled") !== false, events: value("events.enabled") !== false };
+  return {
+    enabled: value("enabled") !== false,
+    events: value("events.enabled") !== false,
+    gates: Object.fromEntries(GATES.map((gate) => [gate, value(`gates.${gate}`)])),
+  };
 }
 
 /**
@@ -352,8 +369,8 @@ export function claims(eventsOn) {
     wake: claim("no", "nothing runs in an idle Codex session until the next prompt"),
     ask: claim("no", "no Codex hook asks the user; the agent asks in its reply"),
     block: claim(
-      "possible",
-      "PreToolUse can deny a call (not hosted tools such as web search); Freeflow's gates (SPEC-008) do not use it yet",
+      "yes",
+      "PreToolUse denies a gate's call under block (gates.*), with the reason; not hosted tools such as web search",
     ),
     sensors: eventsOn
       ? claim("yes", "tool calls, model requests with token usage, compactions, workers, written to the event log")
@@ -677,18 +694,114 @@ function userPromptSubmit(ctx) {
 }
 
 /**
- * PreToolUse: allows every call and keeps when it started, for the call's line. Part 5's gates join here.
- * TODO(SPEC-008): the agreement, Slice, delivery and delegation-scope gates, warn first, through
- * permissionDecision: deny once a gate blocks; until then block stays possible in the claims.
+ * PreToolUse: keeps when the call started, for the call's line, then the gates decide it (SPEC-008 4.3). An error in
+ * keeping the start time loses only the line's `ms`; the gates still run.
  * @param {any} ctx
  */
 function preToolUse(ctx) {
-  const path = callFile(ctx, ctx.input.tool_use_id);
-  if (path) {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, String(Date.now()));
+  try {
+    const path = callFile(ctx, ctx.input.tool_use_id);
+    if (path) {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, String(Date.now()));
+    }
+  } catch (error) {
+    note(ctx, error);
+  }
+  return gated(ctx);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The gates (SPEC-008): Track Work's gates5.mjs decides each file-writing or shell call from the session's gate state,
+// which Track Work's lifecycle commands write to sessions/<session>/gates.json; each gate's mode (gates.*) was resolved
+// with enabled at session start. Under warn the call runs and the agent reads one row per gate per turn, as
+// additionalContext; under block Codex refuses the call with the same text (permissionDecision: deny). Codex has no
+// ask, so a delivery step under block is refused too. Each gate that fired leaves a `gate` line in the buffer.
+
+/** The gates' modes as session start resolved them; a state from before gates.* existed gives the defaults. */
+function gateModes(ctx) {
+  const kept = ctx.state?.gates ?? {};
+  return Object.fromEntries(
+    GATES.map((gate) => [gate, GATE_MODES.includes(kept[gate]) ? kept[gate] : DEFAULT_GATE_SETTINGS[gate]]),
+  );
+}
+
+/**
+ * The session's gate state, read once for this call; null where it is missing or not a version this module reads,
+ * said once a session in the event log.
+ * @param {any} ctx
+ */
+function readGates(ctx) {
+  const state = readJson(fileOf(ctx, "gates.json"), null);
+  if (validGateState(state)) return state;
+  if (!ctx.state?.gatesMissing) {
+    ctx.state = updateState(ctx, { gatesMissing: true });
+    emit(ctx, "freeflow", { what: "gates", detail: "no gate state for this session" });
   }
   return null;
+}
+
+/**
+ * The gates among `fired` not yet warned in this loop's turn (its turn_id), marked warned now: one row per gate per
+ * turn, for the main conversation and each subagent apart.
+ * @param {any} ctx
+ * @param {string} agent
+ * @param {{ gate: string }[]} fired
+ */
+function firstWarnings(ctx, agent, fired) {
+  const path = fileOf(ctx, "gates-warned.json");
+  const warned = readJson(path, {}) ?? {};
+  const turn =
+    typeof ctx.input.turn_id === "string" && ctx.input.turn_id ? ctx.input.turn_id : String(ctx.state?.turn ?? 0);
+  const kept = warned[agent]?.turn === turn ? warned[agent].gates : [];
+  const fresh = fired.filter((each) => !kept.includes(each.gate));
+  if (fresh.length)
+    writeJson(path, { ...warned, [agent]: { turn, gates: [...kept, ...fresh.map((each) => each.gate)] } });
+  return fresh;
+}
+
+/** Codex's refusal of a tool call: the reason reaches the model as the call's result. @param {string} reason */
+const deny = (reason) => ({
+  hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: reason },
+});
+
+/**
+ * The gates on one tool call: nothing printed where every gate allows; under warn, the rows not yet read this turn as
+ * additionalContext; under block, a deny with each refusing gate's text. A failure is open under warn and closed
+ * while any gate is at block (section 5); a hook Codex stops for its timeout is open, which no driver can change.
+ * @param {any} ctx
+ */
+function gated(ctx) {
+  const modes = gateModes(ctx);
+  const tool = String(ctx.input.tool_name ?? "");
+  if (!FILE_WRITE_TOOLS.has(tool) && !SHELL_TOOLS.has(tool)) return null;
+  if (GATES.every((gate) => modes[gate] === "off")) return null;
+  try {
+    const input = ctx.input.tool_input;
+    const result = decide(
+      readGates(ctx),
+      { tool, paths: toolPaths(tool, input, ctx.cwd), command: commandOf(tool, input), cwd: ctx.cwd, canAsk: false },
+      modes,
+    );
+    if (result.decision === "allow") return null;
+    const agent = agentOf(ctx);
+    for (const fired of result.fired) emit(ctx, "gate", gateEvent(fired, tool), agent);
+    if (result.decision === "warn") {
+      const rows = firstWarnings(ctx, agent, result.fired).map((fired) => gateText(fired));
+      return rows.length ? context("PreToolUse", rows.join("\n\n")) : null;
+    }
+    return deny(
+      result.fired
+        .filter((fired) => fired.decision !== "warn")
+        .map((fired) => gateText(fired))
+        .join("\n\n"),
+    );
+  } catch (error) {
+    note(ctx, error);
+    return Object.values(modes).includes("block")
+      ? deny("Freeflow's gates could not decide this call; try again.")
+      : null;
+  }
 }
 
 /**

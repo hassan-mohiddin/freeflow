@@ -99,9 +99,10 @@ Some rules must always hold: no change before the user's agreement, no effect ou
 - `.skill-eval/track-work/tests/gates5.test.mjs`: `decide` on a table of states and calls for each gate, the classifier, globs, the state each lifecycle command writes, `agree`, the summary's and `estimate --store`'s counts.
 - `hooks/claude/freeflow.test.ts`: warn, block and ask, the worker's scope, a missing state, the golden log's delivery line.
 - `pi-extension/tests/gates/runtime.test.js`: the runtime, the handlers, and a real Pi session.
+- `hooks/tests/codex-driver.test.mjs`: Codex's `PreToolUse` with recorded inputs: warn once per gate per turn and loop, block and delivery denied in the shape Codex's parser accepts, a missing state and an error open under warn and closed under block, the gate lines and the golden log's two.
 
 ## Limits
 
-- Codex's `PreToolUse` gate is the Codex driver's (SPEC-012); Cursor, Copilot and Gemini cannot check a call before it runs with Freeflow's hooks.
+- Codex's `PreToolUse` covers Codex's own tools (`Bash`, `apply_patch`); Codex does not run it for hosted tools such as web search, and a hook it stops at its 2 s timeout is open whatever the mode. Codex's subagents carry no delegation the driver can map (`SubagentStart` has no prompt), so the delegation gate does not fire there and their calls are gated as the main loop's. Cursor, Copilot and Gemini cannot check a call before it runs with Freeflow's hooks.
 - Part 4's review gate, the return-point gate and the recovery gate are not built.
 - The delivery gate reads the command's text; a script or alias that pushes is not seen.
