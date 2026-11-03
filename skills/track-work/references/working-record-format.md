@@ -191,7 +191,7 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 - Update: Narrowed to diagnosis: "just find the cause first" (2026-10-30)
 ```
 
-`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`) and quotes the user where it rests on their reply. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
+`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`, `Review:`) and quotes the user where it rests on their reply. A `Review:` line names paths, or `all`, the user wants reviewed and optionally the depth (`- Review: src/billing/** deep`); Review Work's plan reads it and can only be raised by it. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
 
 ### The Slice
 
@@ -237,8 +237,8 @@ After the fields come its update lines, one line each, a kind and then the claim
 Two kinds have a fixed shape, so outcomes and rounds can be counted later. [Review Work](../../review-work/SKILL.md) says when each is written:
 
 ```markdown
-- Review gate: mode: auto | off | always; tier: standard | security | none; because: <trigger> | no trigger; result: dispatched | proposed | skipped
-- Review: round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: <adjudicated judgment>; Accepted: <n>; Rejected: <n>; Open: <n>; reviewed: <commit or version>; report: <path>; effect: <the next route>
+- Review gate: plan: quick | standard | deep, standard | security, because <triggers and rules> | nothing matched; unit: pr | push | commit | agreement | manual; result: dispatched | proposed | on record
+- Review: round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: <adjudicated judgment>; Accepted: <n>; Rejected: <n>; Open: <n>; head: <the commit reviewed>; report: <path>; effect: <the next route>
 ```
 
 `in_progress` means the Slice's result is being pursued. `paused` means it is still current but safe continuation is suspended; an ordinary turn, feedback, or a context boundary is not a pause.

@@ -152,7 +152,7 @@ supported findings with file locations and evidence. Do not edit or dispatch
 another review.
 ```
 
-Independent review must be selected explicitly and must come from a context that did not produce the reviewed state. Another Cognitive Routing profile in the same session is not independent review.
+Independent review runs at each review unit your `review.unit` setting names (a pull request by default), as deep as Review Work's plan says, or when you ask for one; it must come from a context that did not produce the reviewed state ([Review and verification](workflow.md#review-and-verification)). Another Cognitive Routing profile in the same session is not independent review.
 
 ### Documentation or artifact work
 
