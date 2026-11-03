@@ -1,14 +1,28 @@
 #!/usr/bin/env node
 
 import { cwd } from "node:process";
-import { readFileSync } from "node:fs";
-import { delimiter, isAbsolute, join, resolve, sep } from "node:path";
-import { displayPath, readInput, readRecord, resolveRecordPath, storeOf, isFreeflowStore } from "./lib/store.mjs";
+import { existsSync, readFileSync } from "node:fs";
+import { delimiter, dirname, isAbsolute, join, resolve, sep } from "node:path";
+import {
+  displayPath,
+  readInput,
+  readRecord,
+  resolveRecordPath,
+  storeOf,
+  isFreeflowStore,
+  freeflowStoreOf,
+} from "./lib/store.mjs";
 import { checkLinePointers } from "./lib/recover.mjs";
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { checkpointSession, runTransition5, writeCompactionRequest } from "./lib/transitions5.mjs";
 import { budgetLines, budgetFor, contextWindow, measureTask, renderBudget } from "./lib/budget5.mjs";
-import { copyTaskIntoStore, migrateTask, readCues } from "./lib/migrate5.mjs";
+import {
+  copyTaskIntoStore,
+  hasOldRecoveryHeadings,
+  migrateRecoveryHeadings,
+  migrateTask,
+  readCues,
+} from "./lib/migrate5.mjs";
 import { dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
 import { renderBundle5, renderEntries5, renderIndex5, renderRecover5, renderSessionBundle } from "./lib/views5.mjs";
 import {
@@ -24,6 +38,7 @@ import {
   createTask,
   createTaskFolder5,
   findRepositories,
+  heldTask,
   listProjects,
   menu,
   sessionRules,
@@ -45,6 +60,8 @@ import {
 } from "./lib/projects5.mjs";
 import { EstimateError, estimate } from "./lib/estimate5.mjs";
 import { runEvents } from "./lib/events-cli.mjs";
+import { appendEvents, HARNESSES } from "./lib/events5.mjs";
+import { delegationScope, gateDrift, gatesPath, readGateState, refreshGates } from "./lib/gate-state5.mjs";
 import { PlanError } from "./lib/planner5.mjs";
 
 const ROOT_HELP =
@@ -59,6 +76,7 @@ function usage() {
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|task> <operation> ...",
     "  working-record.mjs agreement <open|update|close> ...",
+    '  working-record.mjs agree --outcome <text> [--exact-spec "<reason>"] (a session holding no task)',
     "  working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] [--compact]",
     "  working-record.mjs checkpoint --session --input <file|-> [--compact] (a session holding no task)",
     "  working-record.mjs budget [--record <record.md>] [--window <tokens>] [--mode normal|expanded]",
@@ -81,6 +99,10 @@ function usage() {
 }
 
 const COMMAND_HELP = new Map([
+  [
+    "agree",
+    "Usage: agree --outcome <text> [--exact-spec \"<reason>\"] [--home <folder>]\nRecords the user's agreement for a session that holds no task (a task's agreement is agreement open): in this session's gate state, <FREEFLOW_HOME>/sessions/<session>/gates.json, which the gates read, and as an agreement line in its event log. --exact-spec declares that the request fixes every choice, with the reason; the declaration lasts the session and is logged, for a reviewer to audit. Refused while the session holds a task.",
+  ],
   [
     "events append",
     "Usage: events append --input <file|-> [--home <folder>]\nAppends a Freeflow driver's event lines (JSON Lines, schema v1) to each line's session log in <FREEFLOW_HOME>/events/<session>.jsonl, on this machine only: it sets seq under a lock on the file, redacts and cuts a shell command to 200 characters, refuses a line that is not schema v1 and writes the rest, with a freeflow line saying how many it dropped.",
@@ -143,7 +165,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "migrate",
-    "Usage: migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name> [--home <folder>]]\nConverts a Schema 4 record to Schema 5: Goal, Settled (with the active Decisions) and Open (with Tentative and pending Checkpoints); the Work agreement and Boundaries become the open agreement A-001; What defines this task and the Recovery sources become Recovery lines (a definition or a skill always and not counted, a source with \"read when …\" a when line, the rest always); the Current Slice and its Material updates carry over; proposed Slices stay in Future Work, with Current direction as one more; closed Slices become history.md entries. The Schema 4 record is kept whole in sources/schema4-record.md, Notes move to sources/notes.md, and the decision list moves to decisions.md when an agreement is open. --cue is the task's cue; --cues is a file of \"S-NNN: read when …\" lines for closed Slices, and a Slice without one is marked missing. Without --project the folder converts in place; with it, the folder is copied into that project in the Freeflow store as its next task, converted there and pushed, and the original stays as it was. A Schema 5 record kept without a store, in a repository's .freeflow/tasks/, is brought into the store the same way with --project, unchanged, and needs no --cue. migrate is the only command that reads a Schema 4 record, whether kept in a repository's .freeflow/tasks/ or by Pi's former Task Memory (its projects' records under the folder that holds registry.json).",
+    "Usage: migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name> [--home <folder>]]\nConverts a Schema 4 record to Schema 5: Goal, Settled (with the active Decisions) and Open (with Tentative and pending Checkpoints); the Work agreement and Boundaries become the open agreement A-001; What defines this task and the Recovery sources become Recovery lines (a definition or a skill always and not counted, a source with \"read when …\" a when line, the rest always); the Current Slice and its Material updates carry over; proposed Slices stay in Future Work, with Current direction as one more; closed Slices become history.md entries. The Schema 4 record is kept whole in sources/schema4-record.md, Notes move to sources/notes.md, and the decision list moves to decisions.md when an agreement is open. --cue is the task's cue; --cues is a file of \"S-NNN: read when …\" lines for closed Slices, and a Slice without one is marked missing. Without --project the folder converts in place; with it, the folder is copied into that project in the Freeflow store as its next task, converted there and pushed, and the original stays as it was. A Schema 5 record kept without a store, in a repository's .freeflow/tasks/, is brought into the store the same way with --project, unchanged, and needs no --cue. A Schema 5 record written before the one Recovery list (with Defined by, Read on recovery and Read when, or Carry lines in In flight) is converted in place, needing no --cue: each Defined by entry becomes an always, not counted line, each Read on recovery entry and Carry file an always line, and each Read when entry a when line with its trigger; the record as it was is kept in sources/record-before-recovery.md. migrate is the only command that reads a Schema 4 record, whether kept in a repository's .freeflow/tasks/ or by Pi's former Task Memory (its projects' records under the folder that holds registry.json).",
   ],
   [
     "delegate",
@@ -151,7 +173,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate open",
-    "Usage: delegate open --record <record.md> --title <title> --kind <build|review|research|eval|gather> --agent \"<model>, <effort>\" [--repo <path> [--base <ref>] [--branch <name>] [--worktree <path>]] [--from S-NNN] [--under A-NNN] [--continues D-NNN] [--handle <agent ID>] [--parent D-NNN] --input <file|->\nAssigns D-NNN (or D-NNN.n with --parent), writes brief.md from the template, and, with --repo, makes the worker's own worktree on a new branch at the base (default HEAD). Without --parent it writes the delegation's line in Current Work's Delegations; --parent opens a sub-worker's delegation inside its worker's folder, and is refused for a sub-worker (no fourth level). --from defaults to the current Slice and --under to the open agreement.\nInput: the brief's sections under \"## <section>\" headings: Result wanted, Scope and Done when required; Settled, Read and Return when optional. Read gains the delegation reference and the worker's recover command.\nWith no task, --scratch <folder> in place of --record keeps the delegation in <folder>/delegations/ with the same brief, and records nothing.",
+    "Usage: delegate open --record <record.md> --title <title> --kind <build|review|research|eval|gather> --agent \"<model>, <effort>\" [--repo <path> [--base <ref>] [--branch <name>] [--worktree <path>]] [--from S-NNN] [--under A-NNN] [--continues D-NNN] [--handle <agent ID>] [--parent D-NNN] [--writes <glob> ...] --input <file|->\nAssigns D-NNN (or D-NNN.n with --parent), writes brief.md from the template, and, with --repo, makes the worker's own worktree on a new branch at the base (default HEAD). Without --parent it writes the delegation's line in Current Work's Delegations; --parent opens a sub-worker's delegation inside its worker's folder, and is refused for a sub-worker (no fourth level). --from defaults to the current Slice and --under to the open agreement. --writes, once per glob, names what the worker may write (relative to its worktree; absolute without one) and puts a \"May write:\" line at the top of the brief's Scope, which the delegation gate reads; without it a worker with a worktree may write the worktree, and one without is a reader.\nInput: the brief's sections under \"## <section>\" headings: Result wanted, Scope and Done when required; Settled, Read and Return when optional. Read gains the delegation reference and the worker's recover command.\nWith no task, --scratch <folder> in place of --record keeps the delegation in <folder>/delegations/ with the same brief, and records nothing.",
   ],
   [
     "delegate amend",
@@ -319,7 +341,7 @@ const COMMAND_HELP = new Map([
 function commandHelp(command, operation) {
   const help = COMMAND_HELP.get([command, operation].filter(Boolean).join(" ")) ?? COMMAND_HELP.get(command);
   if (!help) return `${usage()}\n`;
-  return ["init", "store", "session", "events"].includes(command) ? `${help}\n` : `${help}\n${ROOT_HELP}\n`;
+  return ["init", "store", "session", "events", "agree"].includes(command) ? `${help}\n` : `${help}\n${ROOT_HELP}\n`;
 }
 
 class CliError extends Error {
@@ -338,6 +360,13 @@ function parseOptions(args, { valued = [] } = {}) {
     const token = args[index];
     if (!token.startsWith("--")) {
       positionals.push(token);
+      continue;
+    }
+    if (token === "--writes") {
+      const value = args[index + 1];
+      if (value === undefined || value.startsWith("--")) throw new CliError(`Missing value for ${token}`);
+      options[token] = [...(options[token] ?? []), value];
+      index += 1;
       continue;
     }
     if (options[token] !== undefined) throw new CliError(`Duplicate option: ${token}`);
@@ -423,6 +452,7 @@ function allowedOptions(command, operation) {
         "--worktree",
         "--parent",
         "--scratch",
+        "--writes",
       ]);
     if (operation === "amend") return new Set([...record, "--id", "--text", "--handle", "--input"]);
     if (operation === "status") return new Set(record);
@@ -431,6 +461,7 @@ function allowedOptions(command, operation) {
       return new Set([...record, "--id", "--outcome", "--merge", "--tokens", "--minutes", "--transcript", "--input"]);
   }
   if (command === "validate") return new Set(["--root", "--record", "--strict", "--help"]);
+  if (command === "agree" && operation === undefined) return new Set(["--outcome", "--exact-spec", "--home", "--help"]);
   if (command === "slice") {
     if (operation === "propose") return new Set([...common, "--title"]);
     if (operation === "start" || operation === "start-direct")
@@ -563,8 +594,16 @@ async function validate5(loaded, options) {
   });
   const pointers = checkLinePointers(updates, { root: loaded.root, recordPath: loaded.path });
   const unresolved = options["--strict"] ? pointers.warnings : [...pointers.problems, ...pointers.warnings];
+  const identity = sessionIdentity();
+  const drift = identity
+    ? gateDrift(readGateState(storeHome(), identity.id), task.record, loaded.path).map(
+        (each) =>
+          `warning: this session's gate state differs from the record (${each}); the next lifecycle command rewrites it`,
+      )
+    : [];
   const notes = [
     ...warnings5(task).map((warning) => `warning: ${warning}`),
+    ...drift,
     ...unresolved.map((each) => `warning: a pointer in the Slice's updates does not resolve here: ${each}`),
     ...pointers.outside.map((each) => `outside the repository, not checked: ${each}`),
   ];
@@ -731,9 +770,17 @@ async function runCore(command, rest) {
       throw new CliError(error.message);
     }
   }
+  if (command === "agree") {
+    if (positionals.length) throw new CliError("agree takes no operation");
+    return agree(options);
+  }
   if (command === "session") {
     if (operation !== "status") throw new CliError(`Unknown command: session ${operation ?? ""}`.trim());
     const home = storeHome(options["--home"]);
+    // The drivers run session status at session start: a session whose gate state no command wrote yet gets one, so
+    // the gates read what holds now rather than nothing (SPEC-008 section 5).
+    const identity = sessionIdentity();
+    if (identity && !existsSync(gatesPath(home, identity.id))) await refreshGates({ home, identity });
     const status = isFreeflowStore(home)
       ? await sessionStatus(home, sessionIdentity())
       : {
@@ -814,6 +861,12 @@ async function runCore(command, rest) {
   }
   if (command === "migrate") {
     const loaded = await readExisting(options);
+    if (schemaOf(loaded.text) === 5 && (hasOldRecoveryHeadings(loaded.text) || /^- Carry:/m.test(loaded.text)))
+      return migrateRecoveryHeadings({
+        recordPath: loaded.path,
+        text: loaded.text,
+        home: freeflowStoreOf(loaded.path),
+      });
     if (schemaOf(loaded.text) === 5 && options["--project"])
       return copyTaskIntoStore({
         recordPath: loaded.path,
@@ -822,7 +875,7 @@ async function runCore(command, rest) {
       });
     if (schemaOf(loaded.text) !== 4)
       throw new CliError(
-        `migrate converts a Schema 4 record, or with --project brings a Schema 5 one into the store; this one is Schema ${schemaOf(loaded.text) ?? "unknown"}`,
+        `migrate converts a Schema 4 record, a Schema 5 one written before the Recovery list, or with --project brings a Schema 5 one into the store; this one is Schema ${schemaOf(loaded.text) ?? "unknown"}`,
       );
     return migrateTask({
       recordPath: loaded.path,
@@ -897,6 +950,103 @@ async function runCore(command, rest) {
   return runTransition5(command, positionals, options, input, loaded);
 }
 
+/** The event log's name for this session's harness, or null for one the schema does not know. */
+function eventHarness(identity) {
+  const name = String(identity?.harness ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+  return HARNESSES.includes(name) ? name : null;
+}
+
+/**
+ * `agree` (SPEC-008 4.1): the user's agreement for a session that holds no task, in the session's gate state and as an
+ * agreement line in its event log; with --exact-spec, the declaration that the request fixes every choice, logged.
+ */
+async function agree(options) {
+  const identity = sessionIdentity();
+  if (!identity)
+    throw new CliError("No session ID: Claude Code sets CLAUDE_CODE_SESSION_ID; other harnesses set FREEFLOW_SESSION.");
+  const home = storeHome(options["--home"]);
+  const outcome = String(requireOption(options, "--outcome")).replace(/\s+/g, " ").trim();
+  const reason =
+    options["--exact-spec"] === undefined ? null : String(options["--exact-spec"]).replace(/\s+/g, " ").trim();
+  if (reason === "") throw new CliError("--exact-spec gives the reason the request fixes every choice");
+  const held = isFreeflowStore(home) ? heldTask(home, identity) : null;
+  if (held)
+    throw new CliError(
+      `This session holds ${held.id}: record the agreement in its record with agreement open --record ${held.id}.`,
+    );
+  const at = new Date().toISOString();
+  const path = await refreshGates({
+    home,
+    identity,
+    agreed: { outcome, at, ...(reason ? { exactSpec: { reason, at } } : {}) },
+  });
+  if (!path) throw new CliError(`Could not write this session's gate state in ${join(home, "sessions", identity.id)}`);
+  const harness = eventHarness(identity);
+  let logged = "no event line: this harness has no name in the event log's schema";
+  if (harness) {
+    const line = { v: 1, ts: at, session: identity.id, harness, agent: "main", kind: "agreement", outcome };
+    if (reason) line.exactSpec = reason;
+    try {
+      const { written, refused } = await appendEvents(home, JSON.stringify(line));
+      logged = refused.length
+        ? `no event line (${refused[0].problem})`
+        : written.length
+          ? "an agreement line in the event log"
+          : "no event line";
+    } catch (error) {
+      logged = `no event line (${error.message})`;
+    }
+  }
+  return `Agreed for this session: ${outcome}${reason ? `\nExact spec declared: ${reason}; a reviewer audits it` : ""}\nRecorded in ${path} and ${logged}.\n`;
+}
+
+/** The commands after which this session's gate state is written again (SPEC-008 4.1). */
+const GATE_COMMANDS = new Set([
+  "task take",
+  "task release",
+  "task switch",
+  "task create",
+  "task here",
+  "agreement open",
+  "agreement close",
+  "slice start",
+  "slice start-direct",
+  "slice pause",
+  "slice resume",
+  "slice close",
+  "delegate open",
+  "delegate close",
+]);
+
+/** After a lifecycle command succeeded: this session's gate state, derived again; never fails the command. */
+async function gatesAfter(command, rest, output) {
+  let parsed;
+  try {
+    parsed = parseOptions(rest, { valued: command === "events" ? ["--session"] : [] });
+  } catch {
+    return;
+  }
+  const { options, positionals } = parsed;
+  const key = `${command} ${positionals[0] ?? ""}`;
+  if (!GATE_COMMANDS.has(key) || options["--help"]) return;
+  if (key === "task here" && !options["--take-back"]) return;
+  const home = storeHome(options["--home"]);
+  const record = options["--record"];
+  const recordPath =
+    typeof record === "string" && !STORE_TASK_ID.test(record) ? resolveRecordPath(rootOption(options), record) : null;
+  // A scratch delegation has no record to read it back from: its scope joins a state that holds no task.
+  let extra = null;
+  if (key === "delegate open" && options["--scratch"] !== undefined) {
+    const id = /^Opened (D-\d{3,}(?:\.\d+)?) — /m.exec(output)?.[1];
+    const brief = output.split("\n")[1]?.trim();
+    if (id && brief) extra = { [id]: delegationScope(dirname(brief)) };
+  }
+  await refreshGates({ home, identity: sessionIdentity(), recordPath, extra });
+}
+
 /** Leaves this session's request for Freeflow's compaction in the store (P102); says where it went, or why none did. */
 async function requestCompaction(args) {
   const at = args.indexOf("--home");
@@ -939,6 +1089,7 @@ try {
     process.stdout.write(`${usage()}\n`);
   } else {
     const output = await runCore(command, rest);
+    await gatesAfter(command, rest, output).catch(() => {});
     // A checkpoint that asks for Freeflow's compaction leaves its request once it is written (P102).
     process.stdout.write(
       command === "checkpoint" && rest.includes("--compact") ? `${output}${await requestCompaction(rest)}` : output,

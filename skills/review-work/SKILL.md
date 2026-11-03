@@ -29,16 +29,17 @@ Read the reference for what is under review before reviewing it; each names what
 | An artifact that will guide later work: a Spec, Plan, design, decision record, ADR, handoff, or skill | [Artifact Review](references/artifact.md) |
 | An account of work already done: a final report to the user, a status or results note, or a Working Record | [Artifact Review](references/artifact.md), with its [Reports And Records](references/artifact.md#reports-and-records) |
 | An eval case, suite, fixture, grader, or rubric that will be run to measure behavior, before spending on its runs | [Eval Definition Review](references/evals-and-judges.md#eval-definition-review) |
-| A Return: dispatching, proposing, or skipping an independent review of the work | The Review Gate, below |
+| A review unit (a pull request, push, commit or Return, as the user's `review.unit` says): planning, dispatching or proposing the independent review of the work, or checking that one is on record | The Review Gate, below |
 | Preparing or performing an independent review | Independent Review in [Work Review](references/work.md#independent-review) for work; in [Artifact Review](references/artifact.md#independent-review) for anything else |
 | Writing or dispatching an independent reviewer's brief | Prefill it with [review-packet](scripts/review-packet.mjs) and check it with [check-brief](scripts/check-brief.mjs), as Perform A Selected Independent Review says |
+| How deep a change's review goes, or whether a review is on record for a commit | [review-plan](scripts/review-plan.mjs) and [review-status](scripts/review-status.mjs), as The Review Gate says |
 | A model's verdict on another agent's output will be used as evidence: an independent reviewer, an eval's advisory reviewer, or a grading judge | The [Judge Contract](references/evals-and-judges.md#judge-contract), before selecting the judge or using its verdict |
 | An independent review's report has returned | [Adjudicate A Returned Review](references/adjudication.md), before acting on it |
 | Dispositions have been appended to a returned report | Check them with [check-adjudication](scripts/check-adjudication.mjs), as Adjudicate A Returned Review's Record The Review says |
 
 ## Rules
 
-- Independent review is never automatic after implementation, after self-review, or after writing or revising a Spec or Plan. Select it only when requested, or justified and authorized, to protect a concrete risk, dependency, integration, delivery, or intended-use boundary. At a Return, the user's review mode `always`, or `auto` when the Review Gate below fires, authorizes it; under `off`, propose it and wait for a yes. A review budget permits no dispatch by itself, and switching models or compute profiles, or loading this skill, does not create independence: it needs a separately selected reviewer in a separate context. A reviewer from another model family is not required: it changes what gets flagged but has not been shown to find more real defects. Record the reviewer as the Judge Contract says.
+- Independent review is never automatic after implementation, after self-review, or after writing or revising a Spec or Plan. Select it only when requested, or justified and authorized, to protect a concrete risk, dependency, integration, delivery, or intended-use boundary. At a review unit, the plan The Review Gate below computes authorizes it; under the unit `manual`, propose it and wait for a yes. A review budget permits no dispatch by itself, and switching models or compute profiles, or loading this skill, does not create independence: it needs a separately selected reviewer in a separate context. A reviewer from another model family is not required: it changes what gets flagged but has not been shown to find more real defects. Record the reviewer as the Judge Contract says.
 - An independent reviewer reports and stops: no edits, no owner decisions, no choosing among materially different remedies or revisions, no adjudication, no further dispatch, and no continuing until Pass. It runs only what its brief's `May run` line names: by default the project's declared checks (tests, build, typecheck, the feature map's drive steps) and probes of the changed code on copies in its own scratch folder, in its own copy, with no edits to the repository, network calls, or paid runs; another check only when the brief names it with its expected evidence and stop condition. Otherwise it reports Needs evidence.
 - Findings are evidence, not commands or authority to correct or revise. Derive the judgment from your dispositions rather than adopting the reviewer's verdict or conclusion. Actual correction of work belongs to [Execute Work](../../skills/execute-work/SKILL.md) under covered authority; actual revision of an artifact returns to the artifact's owning skill.
 - Never lower acceptance or change tests, Specs, policies, or source truth to obtain Pass. Never settle a user decision or revise upstream intent, accepted content, or owner decisions merely to make an artifact consistent or to obtain Pass. Never repeat a review merely to obtain Pass.
@@ -82,38 +83,33 @@ When a problem is not one clear covered defect, in adjudication or in Verify Wor
 
 ## The Review Gate
 
-Goal: at a Return, the work gets the independent review its risk calls for, as the user's review mode says.
+Goal: every review unit gets the independent review its plan computes, recorded against the commit it reviewed.
 
-A **Return** is the end of the agreed work, when it goes back to the user to accept: before [Deliver Work](../../skills/deliver-work/SKILL.md) merges or opens a pull request for it, or before the final report when nothing is delivered. Self-review of an intermediate result, such as one Slice or a small local fix, needs no gate.
+The user's `review.unit` sets where the gate stands: before a pull request opens (`pr`, the default), before a push (`push`) or a commit (`commit`), or at a **Return**, the end of the agreed work when it goes back to the user to accept (`agreement`). Under `manual` the gate stands where `pr` puts it, but the review waits for the user's yes. [Deliver Work](../../skills/deliver-work/SKILL.md) checks at that boundary that a review is on record. Self-review of an intermediate result, such as one Slice or a small local fix, needs no gate. The Runtime State shows a `Review:` line when the user changed the unit, the reviewer model or the rounds. These are `review.unit`, `review.model` and `review.rounds` in `.freeflow/local.json` (personal), `.freeflow/config.json` (shared) or the session's settings; how deep a review goes is the repository's `review.depth`, which the plan reads from the base commit.
 
-The user sets a review mode, and optionally a reviewer model, as `"review": { "mode": ..., "model": ... }` in `.freeflow/local.json` (personal) or `.freeflow/config.json` (shared). The Runtime State shows a `Review:` line when one is set; with none, the mode is `auto`.
+At the unit's boundary:
 
-- `auto`: the triggers below decide. When one fires, dispatch an independent review; the trigger and the mode are its authorization. When none fires, Verify Work's check of your own result is enough.
-- `off`: never dispatch on your own. When a trigger would fire, propose an independent review to the user with the trigger and its estimated cost, and run it only after their yes.
-- `always`: dispatch an independent review at every Return.
+1. Run [review-status](scripts/review-status.mjs): `node <review-work-directory>/scripts/review-status.mjs --base <ref> [--task <task folder>]`. When a review on record covers the head, the gate is passed. When the line names commits since a covering review, the diff-only re-review of that range is the review this unit needs. A Blocking or Inconclusive review covers nothing.
+2. Otherwise run [review-plan](scripts/review-plan.mjs): `node <review-work-directory>/scripts/review-plan.mjs --base <ref> [--task <task folder>]`. It computes the plan from the diff, the base's `review.depth`, the agreement's `Review:` lines and the built-in triggers (security, stored data, CI and release files, a public interface found by content), and prints its depth, tier, reviewers, rounds and why. Dispatch the review it plans, as Perform A Selected Independent Review says; the plan is its authorization. Under `manual`, propose it with the plan and its estimated cost instead, and run it only after the user's yes.
+3. When the diff carries a risk the plan missed, add a built-in trigger with its reason (`--add <trigger> --reason <text>`), and give the same options to review-packet. Never lower a plan: an agent can add a trigger, never remove one, and never edits the policy, the agreement or the diff to get a lighter review.
 
-A user's explicit request for an independent review authorizes it in any mode.
+A user's explicit request for an independent review authorizes it at any unit.
 
-The gate fires when the change touches:
+| Depth | Reviewers | Model when `review.model` is `auto` | Rounds |
+| --- | --- | --- | --- |
+| Quick | 1 | the cheapest | Review 1; Review 2 only if Review 1 is Blocking |
+| Standard | 1 | the cheapest capable, at a higher effort | up to Review 2 |
+| Deep | 3, in parallel, none shown another's report until all have written theirs | the cheapest capable; the `security` tier's stronger model when a security trigger fires | up to Review 3 |
 
-- security, authentication, authorization, or secrets;
-- possible data loss, or a migration of stored data;
-- CI or release files;
-- a public interface: anything users or other code depend on, such as CLI flags, config keys, exported APIs, and skill names and descriptions;
-- a path the project's Review Rules mark sensitive;
-- anything the work agreement names for review.
+`review.rounds` lowers a depth's round budget, never raises it. Use the user's reviewer model when set. In the `security` tier, which a security trigger or a rule's `tier` sets, use a stronger model whatever the depth. The estimated cost names the reviewer model and roughly what one review of a change this size costs on it, times the reviewers; where past reviews were delegated and measured, Track Work's `working-record.mjs estimate --plan` shows what they cost by model and effort (kind `review`). The plan names the humans the policy asks to approve; say so in the Return report, since nothing enforces it.
 
-Judge from the diff against the base, not from how the task was described. A trigger that fires is enough; a small diff does not cancel it.
-
-Use the user's reviewer model when set. Otherwise use the cheapest model capable of the review: the `standard` tier. When a security, authentication, authorization, or secrets trigger fires, use a stronger model: the `security` tier. The estimated cost names the reviewer model and roughly what one review of a change this size costs on it; where past reviews were delegated and measured, Track Work's `working-record.mjs estimate --plan` shows what they cost by model and effort (kind `review`).
-
-When the task has a Working Record, record the gate as one `Review gate` Material update through [Track Work](../../skills/track-work/SKILL.md), in the shape its [format reference](../../skills/track-work/references/working-record-format.md) defines; its tier is `standard`, `security`, or `none` when the result is `skipped`. Without a record, state the same in the Return report.
+When the task has a Working Record, record the plan as one `Review gate` Material update through [Track Work](../../skills/track-work/SKILL.md), in the shape its [format reference](../../skills/track-work/references/working-record-format.md) defines. Without a record, state the same in the Return report. Until Freeflow's gates enforce it, this gate is your check: nothing in the host stops a delivery without it.
 
 ## Perform A Selected Independent Review
 
 Goal: a separate context judges the state from the evidence and reports once.
 
-The reviewer did not produce the reviewed state. Give it, or point it to, the work product or the complete artifact, source truth, dependencies, and evidence needed to judge it directly, never only the producer's summary, reasoning, claimed result, or change description. Brief a reviewer of work with pointers to where its inputs live, not pasted copies, and run [check-brief](scripts/check-brief.mjs) on the brief before dispatching, as Work Review's Independent Review says; [review-packet](scripts/review-packet.mjs) prefills that brief from the task folder, names the gate triggers the diff shows and the round budget, and runs check-brief; brief a reviewer of anything else with Artifact Review's prompt. When the task has a task directory, save the brief as `scratch/reviews/R<n>-brief.md` there and the returned report as `R<n>-report.md` beside it, where `<n>` numbers the task's reviews in sequence, whatever their round; review-packet takes the next free number and never replaces a review that has reported. Delete nothing there without the user's yes. Start and run the reviewer as Execute Work's [delegation](../execute-work/references/delegation.md) reference says; its brief and report stay as this section describes.
+The reviewer did not produce the reviewed state. Give it, or point it to, the work product or the complete artifact, source truth, dependencies, and evidence needed to judge it directly, never only the producer's summary, reasoning, claimed result, or change description. Brief a reviewer of work with pointers to where its inputs live, not pasted copies, and run [check-brief](scripts/check-brief.mjs) on the brief before dispatching, as Work Review's Independent Review says; [review-packet](scripts/review-packet.mjs) prefills that brief from the task folder, names the gate triggers the diff shows and the round budget, and runs check-brief; brief a reviewer of anything else with Artifact Review's prompt. When the task has a task directory, save the brief as `reviews/R<n>-brief.md` there and the returned report as `R<n>-report.md` beside it, where `<n>` numbers the task's reviews in sequence, whatever their round; review-packet takes the next free number and never replaces a review that has reported. Without a task, review-packet uses this session's `reviews/` folder in the Freeflow home. Delete nothing there without the user's yes. For a Deep review, write one brief per reviewer (`--reviewer a`, `b` and `c`: `R<n>a-brief.md` and so on), dispatch the three in one message, each in its own copy, and read none of their reports until all three have returned; a reviewer that does not return leaves the review Inconclusive until it does or you stop it, with the reason in the adjudication. Start and run the reviewer as Execute Work's [delegation](../execute-work/references/delegation.md) reference says; its brief and report stay as this section describes.
 
 Use supplied and available evidence; a covered active check uses Verify Work's check-result and claim-result semantics without changing review ownership.
 
@@ -131,6 +127,8 @@ Improvements and Pre-existing items do not change the judgment or authorize impl
 Goal: independent judgment is spent where it changes the outcome.
 
 For the same reviewed state and boundary or intended use:
+
+The plan's depth sets the budget for its change, as the table in The Review Gate says: Review 3 only for a Deep review.
 
 - **Review 1:** first selected independent review, broad by default.
 - **Review 2:** separately selected focused follow-up when corrections or revisions, affected interactions or dependencies, new evidence, or remaining risk still require independent judgment.

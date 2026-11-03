@@ -52,7 +52,6 @@ export interface ClaimInputs {
   enabled: boolean;
   events: boolean;
   compaction: boolean;
-  routing: boolean;
   messaging: boolean;
   askUser: boolean;
 }
@@ -67,17 +66,19 @@ export function piClaims(inputs: ClaimInputs): Claims {
   return {
     pin: claim("yes", "before_agent_start sections"),
     inject: claim("yes", "sendMessage, steered into the run or on the next turn"),
-    forget: inputs.routing
-      ? claim("yes", "Cognitive Routing's projection in context_with_system (the request only)")
-      : claim("possible", "context_with_system can drop messages from a request; Cognitive Routing is off"),
+    forget: claim(
+      "possible",
+      "Pi offers setModel, setThinkingLevel and context_with_system; Freeflow does not use them",
+    ),
     compact: inputs.compaction
       ? claim("yes", "its own compaction after a checkpoint, the bundle in place of the summary")
       : claim("possible", "Freeflow's compaction is off (compaction.enabled)"),
     checkpoint: claim("yes", "through Track Work's script"),
     rewind: claim("no", "the session tree is observed only"),
-    route: inputs.routing
-      ? claim("yes", "Cognitive Routing's setModel and setThinkingLevel")
-      : claim("possible", "setModel and setThinkingLevel exist; Cognitive Routing is off"),
+    route: claim(
+      "possible",
+      "Pi offers setModel, setThinkingLevel and context_with_system; Freeflow does not use them",
+    ),
     spawn: claim("no", "Pi's extension starts no agent"),
     send: inputs.messaging
       ? claim("yes", "Messaging's sockets between Pi sessions on this machine")
@@ -86,7 +87,10 @@ export function piClaims(inputs: ClaimInputs): Claims {
       ? claim("yes", "the run continues after its compaction")
       : claim("possible", "sendUserMessage exists; Freeflow wakes the run only after its compaction, which is off"),
     ask: inputs.askUser ? claim("yes", "the ask_user tool") : claim("no", "no person to ask in a subagent"),
-    block: claim("yes", "tool_call returns a block with its reason"),
+    block: claim(
+      "yes",
+      "tool_call returns a block with its reason: the gates under block (gates.*), Tool Execution's guards",
+    ),
     sensors: inputs.events
       ? claim("yes", "runs, turns, model requests, tool calls and compactions, written to the event log")
       : claim("possible", "the event log is off (events.enabled)"),

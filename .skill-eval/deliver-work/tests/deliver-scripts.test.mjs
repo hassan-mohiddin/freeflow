@@ -88,6 +88,30 @@ test("delivery-state reports branch, upstream counts, dirt, operations, worktree
   }
 });
 
+test("delivery-state prints Review Work's line for HEAD: none with the plan's depth, then covered by a record", async () => {
+  const { top, root } = await clone();
+  try {
+    const base = git(root, "rev-parse", "HEAD");
+    await write(root, { "index.js": "export default 5;\n" });
+    git(root, "commit", "--quiet", "-am", "change");
+    const head = git(root, "rev-parse", "HEAD");
+    const task = join(top, "task");
+    const none = run("delivery-state.mjs", root, ["--task", task, "--base", base, "--json"]).json;
+    assert.equal(none.review.state, "none");
+    assert.equal(none.review.line, `Review: none for ${head.slice(0, 12)}; the plan says standard`);
+    await write(task, {
+      "reviews/records.jsonl": `${JSON.stringify({ v: 1, round: 1, base, head, depth: "standard", judgment: "Pass" })}\n`,
+    });
+    const text = run("delivery-state.mjs", root, ["--task", task]).stdout;
+    assert.match(
+      text,
+      new RegExp(`^Review: on record for ${head.slice(0, 12)} \\(standard, Pass after Review 1\\)$`, "m"),
+    );
+  } finally {
+    await rm(top, { recursive: true, force: true });
+  }
+});
+
 test("delivery-state reports a merge in progress", async () => {
   const { top, root } = await clone();
   try {

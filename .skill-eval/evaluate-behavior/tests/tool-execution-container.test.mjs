@@ -149,7 +149,7 @@ test(
       await mkdir(path.join(workspace, ".freeflow"), { recursive: true });
       await writeFile(
         path.join(workspace, ".freeflow", "config.json"),
-        `${JSON.stringify({ cognitiveRouting: { enabled: false }, toolExecution: { enabled: true } })}\n`,
+        `${JSON.stringify({ toolExecution: { enabled: true } })}\n`,
       );
       const isolation = await prepareIsolation(root, null, { settings: { retry: { enabled: false } } });
       const temporary = isolation.environment.TMPDIR;

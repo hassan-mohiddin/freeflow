@@ -720,6 +720,25 @@ const billedRow = (name, row, word) =>
   `- ${name}: ${plural(row.n, word)}, ${count(row.input)} in, ${count(row.written)} written, ${count(row.read)} read, ${count(row.output)} out, ${dollars(row.usd)}`;
 
 /** `estimate --store` (B): every project's and task's measured use, by model and effort, and delegations by kind. */
+/** The gates' would-fire counts in a task folder's event summaries (SPEC-008 4.4), or null where none has any. */
+function gateCounts(taskDir) {
+  const folder = join(taskDir, "events");
+  if (!existsSync(folder)) return null;
+  let found = null;
+  for (const name of readdirSync(folder).filter((each) => each.endsWith(".json"))) {
+    try {
+      const gates = JSON.parse(readFileSync(join(folder, name), "utf8"))?.gates;
+      if (!gates || typeof gates !== "object") continue;
+      found ??= {};
+      for (const [gate, value] of Object.entries(gates))
+        if (Number.isInteger(value)) found[gate] = (found[gate] ?? 0) + value;
+    } catch {
+      // A summary that cannot be read counts nothing.
+    }
+  }
+  return found;
+}
+
 export function storeView(home) {
   requireStore(home);
   const groups = [
@@ -731,7 +750,15 @@ export function storeView(home) {
   const byProject = [];
   let totalSlices = 0;
   let totalDelegations = 0;
+  const gates = {};
+  let gated = false;
   for (const group of groups) {
+    for (const dir of group.dirs) {
+      const counts = gateCounts(dir);
+      if (!counts) continue;
+      gated = true;
+      for (const [gate, value] of Object.entries(counts)) gates[gate] = (gates[gate] ?? 0) + value;
+    }
     const figures = group.dirs.map(taskFigures).filter(Boolean);
     const groupSlices = figures.flatMap((task) => task.slices);
     const groupDelegations = figures.flatMap((task) => task.delegations);
@@ -760,5 +787,13 @@ export function storeView(home) {
       ...[...delegations].map(([name, row]) => billedRow(name, row, "delegation")),
     );
   if (byProject.length) lines.push("By project:", ...byProject);
+  if (gated) {
+    const { blocked = 0, ...each } = gates;
+    lines.push(
+      `Gates, would-fire in the sessions' summaries: ${Object.entries(each)
+        .map(([gate, value]) => `${gate} ${value}`)
+        .join(", ")}${blocked ? `; ${blocked} asked or refused` : ""}`,
+    );
+  }
   return `${lines.join("\n")}\n`;
 }

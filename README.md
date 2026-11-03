@@ -92,16 +92,10 @@ Native Pi controls:
 /freeflow settings session
 /freeflow settings local
 /freeflow settings repo
-/freeflow profile coordinator
-/freeflow profile helper
-/freeflow profile executor
-/freeflow profile auto
-/freeflow profile history
-/freeflow resume
 /freeflow compact
 ```
 
-Profile changes and resume require an idle host. These commands do not prove installed-host delivery or authorize task work.
+Settings changes require an idle host. These commands do not prove installed-host delivery or authorize task work.
 
 ## Host support
 
@@ -115,7 +109,7 @@ Profile changes and resume require an idle host. These commands do not prove ins
 | Kiro | Agent Plugins 1.0 Power and shared skills | Not available; skills-only claim |
 | OpenCode v2 | Canonical `skills/` through a documented project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 package and canonical skills | Not available; skills-only support |
-| Pi | Shared skills and the native extension | Tool Execution and Compaction on by default; Messaging and Cognitive Routing opt-in |
+| Pi | Shared skills and the native extension | Tool Execution and Compaction on by default; Messaging opt-in |
 
 Freeflow owns its prompts, skills, capability source, host adapters and the Pi extension. Each host owns launch, package installation, session state, trust and updates.
 
@@ -126,7 +120,6 @@ Freeflow owns its prompts, skills, capability source, host adapters and the Pi e
 | [Tool Execution](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/tool-execution.md) | Experimental; on by default | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors, and a skill's key lines at the tool call that needs them (`toolExecution.guidanceNotices`) |
 | [Compaction](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/compaction.md) | Experimental; on by default | After the agent checkpoints its Working Record at a safe point, the task's bundle replaces the conversation; Pi's compaction stays the fallback |
 | [Messaging](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/messaging.md) | Preview; off by default | Messages between the agents in your Pi sessions on this machine |
-| [Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md) | Experimental; off by default | Coordinator, Helper and Executor profiles on different models in one session |
 
 Native fixtures and live sessions exercise these capabilities; their effect on task results, cost and long real use is not yet measured. Freeflow's Pi extension also keeps request history cache-friendly and has a qualified effort-history route for `gpt-6-astra`, `gpt-6-luna` and `gpt-6-sol`; that is request-construction behavior, not proof of a provider cache hit or a billing reduction ([Pi cache reuse boundaries](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/integrations/pi.md#cache-reuse-boundaries)).
 
@@ -215,7 +208,7 @@ User-owned choices: what must come back to me?
 Stop and return: where should the agent stop?
 ```
 
-Natural language is preferred. Answer the agent's agreement with "go" to accept its defaults, or correct the line you disagree with. Read [Using Freeflow Effectively](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/using-freeflow.md) for prompt examples, steering the agreement, Track Work, settings, Cognitive Routing modes and presets, cache and cost boundaries, and troubleshooting.
+Natural language is preferred. Answer the agent's agreement with "go" to accept its defaults, or correct the line you disagree with. Read [Using Freeflow Effectively](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/using-freeflow.md) for prompt examples, steering the agreement, Track Work, settings, cache and cost boundaries, and troubleshooting.
 
 ## Evidence and limits
 
