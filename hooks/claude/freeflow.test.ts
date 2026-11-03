@@ -841,6 +841,59 @@ test("the session ends: release the hold and push, as the ending session", async
   expect(w.commands()).toEqual(["session status", "store sync"]);
 });
 
+test("a worker session (SPEC-009): its compaction installs the worker's bundle; its end releases its claims", async ($, on) => {
+  const w = world(on);
+  const joined = (progressAsOf: string | null) =>
+    store({
+      delegation: { id: "D-031", task: "widget/task-001", record: RECORD, taskDir: "/t", progressAsOf },
+    });
+  w.answers[`view bundle --record ${RECORD} --delegation D-031`] = { stdout: "THE WORKER BUNDLE\n" };
+  w.status = joined(null);
+  await start($);
+  // Before its progress checkpoint: Claude's compaction, told whose worker it is, then the worker's bundle.
+  const before = await $.session.compact({ trigger: "auto", messages: CONVERSATION });
+  expect(w.compactions.at(-1).instructions).toContain("this session is the worker for D-031 of widget/task-001");
+  expect(before.messages?.map((m: any) => m.text)).toEqual(["Claude's summary.", "THE WORKER BUNDLE\n"]);
+  // After checkpoint --delegation in this cycle: the worker's bundle alone.
+  await w.clock.advance(2 * 60_000);
+  w.status = joined(at(1));
+  const own = await $.session.compact({ trigger: "manual", messages: CONVERSATION });
+  expect(own.messages?.map((m: any) => [m.role, m.text])).toEqual([
+    ["user", "THE WORKER BUNDLE\n"],
+    ["assistant", "Recovered from Freeflow's bundle."],
+  ]);
+  // Its end: its claims released and the log told it ended, then the store pushed.
+  w.runs.length = 0;
+  await $.session.end({ reason: "prompt_input_exit", sessionId: "sess-old", resume: { id: "sess-old" } });
+  expect(w.commands()).toEqual(["session status", "release --ended", "store sync"]);
+});
+
+test("a delegation the Slice waits on comes back (SPEC-009 4.4): one row, and the idle session woken once", async ($, on) => {
+  const w = world(on);
+  const waiting = (returned: string | null) =>
+    held(at(-30), {
+      waits: {
+        slice: "S-057",
+        channel: "/t/channel.jsonl",
+        delegations: [{ id: "D-031", returned, at: returned && at(1) }],
+      },
+    });
+  w.status = waiting(null);
+  await start($);
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(61_000);
+  expect(w.submitted).toEqual([]);
+  // The return: after the batching window, one prompt that names it.
+  w.status = waiting("done");
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(61_000);
+  expect(w.submitted).toEqual(["Freeflow: D-031 returned (done). S-057 waits on it: check it and close it."]);
+  // The same return never wakes it again.
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(61_000);
+  expect(w.submitted.length).toBe(1);
+});
+
 test("the store is the agent's to keep: file tools inside it are allowed where the mode would ask, and nothing else changes", async ($, on) => {
   const w = world(on);
   const check = (tool: string, input: object) => $.tool.check({ tool, input } as any);

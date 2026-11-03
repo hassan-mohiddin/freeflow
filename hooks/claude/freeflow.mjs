@@ -88,6 +88,13 @@ let gateMissingSaid = false;
 /** @type {Map<string, Set<string>>} the gates that warned in each loop's current turn, by agent ID or "main" */
 const warnedGates = new Map();
 
+// Delegation across sessions (SPEC-009): the returns a Waits on row already named, whether a return wakes the idle
+// session (`delegation.wakeOnReturn`), and the window that folds several returns into one prompt.
+/** @type {Set<string>} */
+const seenReturns = new Set();
+let wakeOnReturn = true;
+const WAIT_BATCH_MS = 60_000;
+
 /**
  * Keeps one event line for the next flush, while Freeflow and its event log are on.
  * @param {any} $
@@ -368,9 +375,11 @@ const share = (context) =>
 function noticeText($, context, state, number) {
   const command = `node ${$.plugin.root}/${SCRIPT}`;
   const limit = threshold ? `; Claude Code compacts on its own at about ${Math.round(threshold)} tokens` : "";
-  const checkpoint = state.task
-    ? `At that point, checkpoint ${state.task.id}: rewrite ${state.task.id}'s Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${state.task.id} --compact --input - with In flight's lines.`
-    : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
+  const checkpoint = state.delegation
+    ? `This session is the worker for ${state.delegation.id} of ${state.delegation.task}: at that point, rewrite its progress.md with ${command} checkpoint --delegation ${state.delegation.id} --record ${state.delegation.task} --compact --input - (## Done, ## Half done, ## Didn't work, ## Next).`
+    : state.task
+      ? `At that point, checkpoint ${state.task.id}: rewrite ${state.task.id}'s Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${state.task.id} --compact --input - with In flight's lines.`
+      : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
   return `Freeflow, context cycle ${number}: the context is at ${share(context)}${limit}. Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: on that request, Freeflow compacts the session with the record in place of the conversation, and starts the next turn where it can. This is the only notice this context cycle; if Claude Code compacts before the checkpoint, the record as of its last checkpoint follows Claude's summary.`;
 }
 
@@ -452,7 +461,11 @@ async function noticeWorker($, step, response) {
 /** Whether the checkpoint this cycle asked for is done: the record's State as of, or the summary's time, is later
  * than the cycle's last notice, or than its start when no notice came (T12, P68). */
 function checkpointDone(state) {
-  const asOf = state.task ? state.task.stateAsOf : state.summary?.asOf;
+  const asOf = state.task
+    ? state.task.stateAsOf
+    : state.delegation
+      ? state.delegation.progressAsOf
+      : state.summary?.asOf;
   return Boolean(asOf) && Date.parse(asOf) > (cycle.notice ?? cycle.startedAt);
 }
 
@@ -496,14 +509,11 @@ function unmade($, state, made) {
 
 /** Freeflow's compaction (P63, T14): the bundle as the whole conversation, with no summarizer request. */
 async function ownCompaction($, e, next, state) {
-  const made = await script(
-    $,
-    state.task ? ["view", "bundle", "--record", state.task.record] : ["view", "bundle", "--session"],
-  );
+  const made = await script($, bundleArgs(state));
   if (made.exitCode !== 0) return withMessage(await next(e), unmade($, state, made));
   // The bundle replaces the conversation: a checkpoint --compact waiting for this is answered, whoever compacted.
   if (state.compact && !state.compact.done) await answered($, state.compact);
-  if (!state.task)
+  if (!state.task && !state.delegation)
     await $.process.run([
       "node",
       "-e",
@@ -511,6 +521,63 @@ async function ownCompaction($, e, next, state) {
       state.summary.path,
     ]);
   return ownMessages(made.stdout);
+}
+
+/**
+ * The bundle Freeflow's compaction installs: the held task's, a worker session's (SPEC-009 4.1), or the summary's.
+ * @param {any} state
+ */
+function bundleArgs(state) {
+  if (state.task) return ["view", "bundle", "--record", state.task.record];
+  if (state.delegation)
+    return ["view", "bundle", "--record", state.delegation.record, "--delegation", state.delegation.id];
+  return ["view", "bundle", "--session"];
+}
+
+/** A worker session's compaction before its progress checkpoint: Claude's, told whose worker it is, then its bundle. */
+async function workerSessionCompaction($, e, next, state) {
+  const { id, task } = state.delegation;
+  const note = `Freeflow: this session is the worker for ${id} of ${task}; its progress.md holds the work up to ${state.delegation.progressAsOf ?? "its last checkpoint --delegation"}. Say so in the summary, and keep what happened after that.`;
+  const compacted = await next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${note}` : note });
+  if (compacted.skip) return compacted;
+  const made = await script($, bundleArgs(state));
+  return withMessage(
+    compacted,
+    made.exitCode === 0
+      ? made.stdout
+      : `Freeflow could not make ${id}'s bundle: ${made.stderr.replace(/^Error: /, "").trim()}. Recover with node ${$.plugin.root}/${SCRIPT} view recover --record ${task} --delegation ${id}.`,
+  );
+}
+
+/**
+ * The Waits on row (SPEC-009 4.4): when a delegation the current Slice waits on has come back, one row at the turn
+ * boundary, and, where nobody is at work and the session can be woken, the row as the next prompt. Each return gives
+ * one row once.
+ * @param {any} $
+ * @param {any} state session status
+ * @param {{ wake: boolean }} options
+ */
+async function waitsReturned($, state, { wake }) {
+  const back = (state?.waits?.delegations ?? []).filter(
+    (/** @type {any} */ each) => each.returned && !seenReturns.has(`${each.id} ${each.returned} ${each.at}`),
+  );
+  if (!back.length) return;
+  for (const each of back) seenReturns.add(`${each.id} ${each.returned} ${each.at}`);
+  const row = back
+    .map(
+      (/** @type {any} */ each) =>
+        `${each.id} returned (${each.returned}). ${state.waits.slice} waits on it: check it and close it.`,
+    )
+    .join(" ");
+  await emit($, "freeflow", { what: "waits", detail: back.map((/** @type {any} */ each) => each.id).join(", ") });
+  if (wake && interactive && wakeOnReturn) {
+    const turns = mainTurns;
+    // A message that woke the session meanwhile starts its turn first, and the row goes into that turn instead.
+    $.clock.after(WAIT_BATCH_MS, async () => {
+      if (mainTurns === turns) await $.prompt.submit({ text: `Freeflow: ${row}` });
+      else await appendRow($, `Freeflow: ${row}`);
+    });
+  } else await appendRow($, `Freeflow: ${row}`);
 }
 
 /** A compaction before the checkpoint (P16): Claude's, told what the record holds, then the bundle as of the last
@@ -627,6 +694,7 @@ async function turnEnded($, e) {
     await script($, ["store", "sync"]);
     await emit($, "freeflow", { what: "sync" });
   }
+  await waitsReturned($, state, { wake: e.reason === "answer" });
   // Only the agent's own request compacts (P102): checkpoint --compact, after a turn that ended, until the bundle
   // replaces the conversation; one /compact queued at a time.
   const request = state.compact;
@@ -667,6 +735,9 @@ async function resolveEnabled($) {
   const listed = await settings($, ["list"]);
   if (listed.ok)
     for (const row of listed.data.settings ?? []) {
+      if (row.key === "delegation.wakeOnReturn" && typeof row.value === "boolean") wakeOnReturn = row.value;
+      if (row.key === "delegation.claimHours" && row.value != null)
+        await $.env.set("FREEFLOW_CLAIM_HOURS", String(row.value));
       const gate = /^gates\.(\w+)$/.exec(row.key)?.[1];
       if (gate && GATE_KEYS.includes(gate) && ["off", "warn", "block"].includes(row.value))
         gateModes = { ...gateModes, [gate]: row.value };
@@ -1091,16 +1162,18 @@ export function register(on) {
     const before = (await $.session.usage()).context.tokens;
     const state = await status($);
     const result =
-      !state || (!state.task && !state.summary)
+      !state || (!state.task && !state.summary && !state.delegation)
         ? await next(e)
         : checkpointDone(state)
           ? await ownCompaction($, e, next, state)
           : state.task
             ? await fallbackCompaction($, e, next, state)
-            : await next(e);
+            : state.delegation
+              ? await workerSessionCompaction($, e, next, state)
+              : await next(e);
     // Every compaction of the main conversation starts the next cycle, Claude's own without a task included.
     if (!result.skip) {
-      const ours = Boolean(state) && (state.task || state.summary) && checkpointDone(state);
+      const ours = Boolean(state) && (state.task || state.summary || state.delegation) && checkpointDone(state);
       await emit($, "compaction", {
         trigger: typeof e.trigger === "string" ? e.trigger : undefined,
         by: ours ? "freeflow" : "harness",
@@ -1149,7 +1222,10 @@ export function register(on) {
       await flush($, { session: e.sessionId, timeoutMs: Math.min(EVENT_FLUSH_MS, options.timeoutMs) });
       const state = await status($, options);
       if (state?.task) await script($, ["task", "release", "--ended"], options);
-      else if (state?.changed) await script($, ["store", "sync"], options);
+      // A worker session's end, or one holding claims, releases them, and the worker's log says it ended (SPEC-009 5).
+      else if (state?.delegation || state?.claims) await script($, ["release", "--ended"], options);
+      if (!state?.task && (state?.changed || state?.delegation || state?.claims))
+        await script($, ["store", "sync"], options);
     } catch (error) {
       $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
     }
