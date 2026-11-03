@@ -166,3 +166,50 @@ test(
     });
   },
 );
+
+test("a reload keeps the session's hold, since the same session goes on (F36)", { timeout: 60000 }, async () => {
+  await withHome(async (home) => {
+    await fixture(
+      async (n) =>
+        n === 1
+          ? [
+              bash(
+                `node ${script} task create --title "Probe" --goal "Prove the hold." --cue "read when probing Pi" --no-project`,
+              ),
+            ]
+          : [],
+      false,
+      async ({ session }) => {
+        const sessions = join(home, "tasks", "task-001-probe", "sessions.md");
+        const holds = () =>
+          readFileSync(sessions, "utf8")
+            .split("\n")
+            .filter((line) => line.startsWith("- "));
+        assert.equal(holds().length, 1);
+        assert.match(holds()[0], / – now · holding · /);
+        // A reload runs session_shutdown, then session_start again, in the same session.
+        await session.reload();
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        assert.equal(holds().length, 1);
+        assert.match(holds()[0], / – now · holding · /, "the hold is neither released nor ended");
+      },
+      true,
+      {
+        ...noRouting,
+        beforePrompt: async () => {
+          execFileSync(process.execPath, [
+            script,
+            "store",
+            "init",
+            "--home",
+            home,
+            "--git-name",
+            "Probe",
+            "--git-email",
+            "probe@example.com",
+          ]);
+        },
+      },
+    );
+  });
+});

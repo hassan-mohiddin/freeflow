@@ -8,13 +8,15 @@ import { StoreLayer, sessionEnvironment, touchesStore } from "../../dist/store/l
 /** A fake script: each command's answer, and the commands run, in order. */
 function fake(answers) {
   const ran = [];
+  const full = [];
   const run = async (args) => {
     ran.push(args.slice(0, 2).join(" "));
+    full.push(args.join(" "));
     const answer = answers[args.slice(0, 2).join(" ")];
     const value = typeof answer === "function" ? answer(args) : answer;
     return { code: 0, stdout: "", stderr: "", ...value };
   };
-  return { ran, run };
+  return { ran, full, run };
 }
 const status = (state) => ({ stdout: JSON.stringify(state) });
 
@@ -62,6 +64,8 @@ test("session start: the menu with the rules after a pull, or what is missing, o
   const layer = new StoreLayer(withStore.run);
   assert.equal(await layer.start("/w", ["/w", "/"]), "Freeflow store at /s.\n\n## Rules\n\nPlain words.");
   assert.deepEqual(withStore.ran, ["session status", "store sync", "task here", "session status"]);
+  // The menu comes with the rules, after taking back the task this session held when it ended (F36).
+  assert.match(withStore.full[2], /^task here --cwd \/w --scan \/w[:;]\/ --rules --take-back$/);
 
   const missing = fake({
     "session status": status({
@@ -91,8 +95,12 @@ test("a run that touched the store reads it again and syncs what changed; others
   assert.equal((await layer.runEnded()).task.id, "p/task-001");
   assert.deepEqual(script.ran, ["session status", "session status", "store sync"]);
   assert.equal(layer.heldTask(), "p/task-001");
+  // A reload is the same session going on: it keeps its hold, and syncs what changed.
+  await layer.shutdown({ reload: true });
+  assert.equal(script.full.at(-1), "store sync");
+  // The session's end closes its hold as ended, so a resume takes it back (F36).
   await layer.shutdown();
-  assert.equal(script.ran.at(-1), "task release");
+  assert.equal(script.full.at(-1), "task release --ended");
 });
 
 test("answering a compaction request marks its file done", async () => {

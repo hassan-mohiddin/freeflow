@@ -82,10 +82,11 @@ Space names every repository the task changes, and `local/` where each one is on
 A task's `sessions.md` keeps one line per session that held it; its last open line is the hold. A take refused because another session holds the task names that session and when it last synced: ask the user before `--takeover`; that session learns at its next sync and stops writing.
 
 - **A compaction** keeps the session and its hold.
-- **`/clear`** starts a new session: the old one's end releases the hold, and the new menu lists that task first.
+- **The session's end** closes its hold as `ended` (Freeflow's harness layer runs `task release --ended`). A resume of that session takes the task back at its start (`task here --take-back`), unless another session took it since; a release or a switch on purpose is never taken back.
 - **A fork** has a new session ID; taking the task asks first, since the session it forked from still holds it.
-- **A session reopened later** finds its hold by its ID. If the task was taken over meanwhile, ask before taking it back; if it changed, recover.
-- **A cloud session that goes idle** keeps its hold until another session takes the task over.
+- **`/clear`** starts a new session: the old one's end closes the hold, and the new menu lists that task first.
+- **A session reopened later** finds its hold by its ID, taken back if its end closed it. If the task was taken over meanwhile, ask before taking it back; if it changed, recover.
+- **A cloud session** keeps its hold while it is idle; when its container is reclaimed, the session ends and its hold closes as `ended`, and the session takes it back when it resumes.
 
 A task has one holder, so work that must run in parallel interactive sessions is separate tasks, each with its own record; parallel work inside one session is delegation (Execute Work's [delegation](../../execute-work/references/delegation.md) reference).
 
@@ -371,7 +372,7 @@ The open agreement's decision list, one line per item in Discuss Work's format, 
 - 4b1e90c2 · Pi · laptop · 2026-10-28 21:10 – 23:02 · released · <Pi's resume command>
 ```
 
-One line per hold: the session, the harness, where it ran, from and to, how it ended (`holding`, `released`, `taken over`), and the way back to it. The last line that says `holding` is the hold. Only `task create`, `task take`, `task release` and `task switch` write it; Git merges it by keeping both sides' lines.
+One line per hold: the session, the harness, where it ran, from and to, how it ended (`holding`, `released` on purpose, `ended` with its session, `taken over`), and the way back to it. The last line that says `holding` is the hold, and `checkpoint` refuses a task this session does not hold. Only `task create`, `task take`, `task release` and `task switch` write it; Git merges it by keeping both sides' lines.
 
 ## sources/discussion.md
 

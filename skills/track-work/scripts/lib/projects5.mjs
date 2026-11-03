@@ -22,7 +22,14 @@ import {
 } from "./record5.mjs";
 import { rules } from "./budget5.mjs";
 import { searchRecords } from "./search.mjs";
-import { LAST_TASK_NUMBER, createRecordPath, nextTaskNumber, writeInitialAtomically, writeTaskFile } from "./store.mjs";
+import {
+  LAST_TASK_NUMBER,
+  createRecordPath,
+  isFreeflowStore,
+  nextTaskNumber,
+  writeInitialAtomically,
+  writeTaskFile,
+} from "./store.mjs";
 import {
   REPOSITORIES_FILE,
   compactionRequestPath,
@@ -33,7 +40,9 @@ import {
 
 export const SESSIONS_FILE = "sessions.md";
 export const MENU_TASKS = 15;
-const SESSION_LINE = /^- (\S+) · (.+?) · (.+?) · (.+?) – (.+?) · (holding|released|taken over) · (.+)$/;
+// How a hold ends: released on purpose (a release or a switch), ended with its session (which a resume of that session
+// takes back, F36), or taken over by another session.
+const SESSION_LINE = /^- (\S+) · (.+?) · (.+?) · (.+?) – (.+?) · (holding|released|ended|taken over) · (.+)$/;
 
 class ProjectError extends Error {
   constructor(message) {
@@ -339,10 +348,14 @@ export function sessionRules(home, directory, identity) {
   return files.length ? `\n## Rules\n\n${files.map((file) => `### ${file.path}\n\n${file.text}\n`).join("\n")}` : "";
 }
 
-/** The session-start menu: the open tasks of the folder's project, or of every project where none matches, newest activity first. */
-export function menu(home, directory, identity) {
+/**
+ * The session-start menu: the open tasks of the folder's project, or of every project where none matches, newest
+ * activity first; tookBack, the line takeBack printed, comes first.
+ */
+export function menu(home, directory, identity, tookBack = null) {
   const lines = [
-    "The record is memory; the user's message decides the work. Nothing is taken: take a task only when the user's message points to it (task take --id <ID>), and ask when it could be more than one.",
+    ...(tookBack ? [tookBack] : []),
+    `The record is memory; the user's message decides the work. Nothing ${tookBack ? "else " : ""}is taken: take a task only when the user's message points to it (task take --id <ID>), and ask when it could be more than one.`,
   ];
   const held = heldTask(home, identity);
   if (held) lines.push(`This session holds ${held.id}: recover it with view recover --record ${held.id}.`);
@@ -489,15 +502,85 @@ export async function takeTask(home, id, identity, { takeover = false } = {}) {
   return `This session holds ${id}${previous ? `, taken over from ${previous.short}` : ""}${note}.\n${await sync(home, `Take ${id} (${identity.short})`)}\n`;
 }
 
-export async function releaseTask(home, identity, id = null) {
+/**
+ * Closes this session's hold: released, or with ended, as a harness layer closes it when the session ends, so that a
+ * resume of this session takes the task back (F36).
+ */
+export async function releaseTask(home, identity, id = null, { ended = false } = {}) {
   requireIdentity(identity);
   const task = id ? findTask(home, id) : heldTask(home, identity);
   if (!task) return "This session holds no task.\n";
   const sessions = readSessions(task.dir);
   if (sessions.hold?.short !== identity.short)
     fail(`This session does not hold ${task.id}; it is ${holderText(task)}.`);
-  await writeFile(sessions.path, `${closeHold(sessions, sessions.hold, "released").replace(/\s+$/, "")}\n`);
-  return `Released ${task.id}.\n${await sync(home, `Release ${task.id} (${identity.short})`)}\n`;
+  const state = ended ? "ended" : "released";
+  await writeFile(sessions.path, `${closeHold(sessions, sessions.hold, state).replace(/\s+$/, "")}\n`);
+  const done = ended ? `Released ${task.id} as ended: a resume of this session takes it back.` : `Released ${task.id}.`;
+  return `${done}\n${await sync(home, `Release ${task.id} (${identity.short}${ended ? ", ended" : ""})`)}\n`;
+}
+
+/**
+ * At a session's start, takes back the task this session held when it last ended (F36): only a hold closed as ended,
+ * never one released on purpose, and only when it is still the task's last line, so no other session took the task
+ * since. Returns the line that says so, or null when there is nothing to take back.
+ */
+export async function takeBack(home, identity) {
+  if (!identity || heldTask(home, identity)) return null;
+  // This session's last closed hold anywhere. A session holds one task at a time, so its holds never overlap: within
+  // a task the later line is later, and across tasks the one that started later. Times are to the minute, so where
+  // both times match the end is not taken as last, and nothing is taken back that may have been released on purpose.
+  const after = (x, y) =>
+    x.task === y.task
+      ? x.hold.index > y.hold.index
+      : x.hold.from !== y.hold.from
+        ? x.hold.from > y.hold.from
+        : x.hold.to !== y.hold.to
+          ? x.hold.to > y.hold.to
+          : y.hold.state === "ended" && x.hold.state !== "ended";
+  let last = null;
+  for (const task of allTasks(home)) {
+    const { holds } = readSessions(task.dir);
+    for (const hold of holds) {
+      if (hold.short !== identity.short || hold.state === "holding") continue;
+      const each = { task, hold, isLast: hold.index === holds.at(-1).index };
+      if (!last || after(each, last)) last = each;
+    }
+  }
+  if (!last || last.hold.state !== "ended" || !last.isLast || last.task.hold) return null;
+  const sessions = readSessions(last.task.dir);
+  await writeFile(sessions.path, openHold(sessions, identity));
+  await sync(home, `Take ${last.task.id} back (${identity.short})`);
+  return `Took ${last.task.id} back: this session held it until it ended.`;
+}
+
+/** The Freeflow store a task folder sits in, as <store>/tasks/<task> or <store>/projects/<project>/tasks/<task>; or null. */
+function storeHolding(taskDir) {
+  const tasks = dirname(taskDir);
+  if (basename(tasks) !== "tasks") return null;
+  const above = dirname(tasks);
+  if (isFreeflowStore(above)) return above;
+  const projects = dirname(above);
+  return basename(projects) === "projects" && isFreeflowStore(dirname(projects)) ? dirname(projects) : null;
+}
+
+/**
+ * A checkpoint writes the task this session holds, and no other (F36): refused for a task in the store that this
+ * session does not hold, naming task take. A session with no ID, or a record outside a store, is not checked.
+ */
+export function requireHold(recordPath, identity) {
+  if (!identity) return;
+  const dir = dirname(recordPath);
+  const home = storeHolding(dir);
+  if (!home) return;
+  const parts = relative(home, dir).split(/[\\/]/);
+  const number = /^task-\d{3,}/.exec(parts.at(-1))?.[0];
+  const id = parts[0] === "projects" ? `${parts[1]}/${number}` : number;
+  const task = findTask(home, id);
+  if (task.hold?.short === identity.short) return;
+  if (!task.hold) fail(`This session does not hold ${id}: take it with task take --id ${id}, then checkpoint.`);
+  fail(
+    `This session does not hold ${id}; it is ${holderText(task)}. Ask the user before task take --id ${id} --takeover, then checkpoint.`,
+  );
 }
 
 export async function switchTask(home, id, identity, options) {

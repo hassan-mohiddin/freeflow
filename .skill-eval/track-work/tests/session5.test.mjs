@@ -153,7 +153,7 @@ test("session status prints this session's state in the store as JSON: its task,
     assert.match(requested.requestedAt, /^\d{4}-\d\d-\d\dT/);
     assert.equal(status(other).compact, null);
     assert.doesNotMatch(
-      ok(cli(["checkpoint", "--record", "widget/task-001"], { env: other, cwd: work })),
+      ok(cli(["checkpoint", "--record", "widget/task-001"], { env: holder, cwd: work })),
       /Compaction/,
     );
   });

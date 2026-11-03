@@ -29,6 +29,7 @@ import {
   moveTask,
   releaseTask,
   removeProject,
+  requireHold,
   removeTask,
   searchTasks,
   sessionIdentity,
@@ -38,6 +39,7 @@ import {
   STORE_TASK_ID,
   storeRecordPath,
   switchTask,
+  takeBack,
   takeTask,
 } from "./lib/projects5.mjs";
 import { EstimateError, estimate } from "./lib/estimate5.mjs";
@@ -90,7 +92,7 @@ const COMMAND_HELP = new Map([
     [
       "Usage: working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] [--compact]",
       "       working-record.mjs checkpoint --session --input <file|-> [--compact] (a session holding no task)",
-      'The checkpoint, before a compaction or a transfer, once Current Context is rewritten: with --input, rewrites In flight whole from its lines (each "- Now|Observed|Hypothesis|Dropped|Pending|Carry: …", a Carry line "- Carry: <path> (lines <a>–<b>) — <why>"; "none" empties it); checks the task folder\'s structure and the recovery budget for the session\'s window (FREEFLOW_CONTEXT_WINDOW) and the task\'s mode, warning when the counted memory or a fixed part is over; writes the Space line for the work repository at --repo (default: the current directory, unless it is the Freeflow store), sets State as of, then commits and pushes the Freeflow store holding the task.',
+      'The checkpoint, before a compaction or a transfer, once Current Context is rewritten: with --input, rewrites In flight whole from its lines (each "- Now|Observed|Hypothesis|Dropped|Pending|Carry: …", a Carry line "- Carry: <path> (lines <a>–<b>) — <why>"; "none" empties it); checks the task folder\'s structure and the recovery budget for the session\'s window (FREEFLOW_CONTEXT_WINDOW) and the task\'s mode, warning when the counted memory or a fixed part is over; writes the Space line for the work repository at --repo (default: the current directory, unless it is the Freeflow store), sets State as of, then commits and pushes the Freeflow store holding the task. Refused for a task in the store that this session does not hold: take it first with task take.',
       "With --session, for a session that holds no task: writes the session summary to <store>/sessions/<session ID>/summary.md, which Freeflow's compaction installs and removes. Input: the headings ## Goal, ## Settled, ## Open, ## Agreement, ## In flight, ## Read when, ## Next action, in order; Goal and Next action must say something; (none) where a heading has nothing.",
       "With --compact, either form also asks Freeflow's harness layer to compact the session at the end of this turn, with the record in place of the conversation: it leaves a request in <store>/sessions/<session ID>/compact.json, which session status reports. A checkpoint without it never compacts. Where no harness layer runs, nothing more happens.",
       "Use --input - to read Markdown fragments from stdin.",
@@ -218,7 +220,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task here",
-    "Usage: task here [--cwd <directory>] [--scan <folders>] [--rules]\nThe session-start menu. It opens by saying the record is memory and the user's message decides the work; says which task this session holds, if any; then lists the open tasks of each project whose tasks name --cwd's repository, and those with no project that name it (newest activity first, at most 15 each), each with who holds it and when it last synced, and its cue; or every project's open tasks, when none matches. --scan <folders>, separated as in PATH, remembers where each repository a task names is on this machine, from the Git checkouts at those folders and directly inside them, so recovery resolves its pointers there. --rules adds, after the menu, the store's rules and those of the folder's project and of the task this session holds, each whole: what Freeflow's harness layer gives a session at its start. It takes nothing.",
+    "Usage: task here [--cwd <directory>] [--scan <folders>] [--rules]\nThe session-start menu. It opens by saying the record is memory and the user's message decides the work; says which task this session holds, if any; then lists the open tasks of each project whose tasks name --cwd's repository, and those with no project that name it (newest activity first, at most 15 each), each with who holds it and when it last synced, and its cue; or every project's open tasks, when none matches. --scan <folders>, separated as in PATH, remembers where each repository a task names is on this machine, from the Git checkouts at those folders and directly inside them, so recovery resolves its pointers there. --rules adds, after the menu, the store's rules and those of the folder's project and of the task this session holds, each whole: what Freeflow's harness layer gives a session at its start. It takes nothing, except with --take-back, which a harness layer passes at a session's start: when this session's last hold ended with the session (task release --ended) and no other session took that task since, it takes the task back, and the menu opens with \"Took <ID> back: this session held it until it ended.\"",
   ],
   [
     "project show",
@@ -242,7 +244,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task release",
-    "Usage: task release [--id <task ID>]\nCloses this session's hold on the task it holds (or --id) as released, commits and pushes.",
+    "Usage: task release [--id <task ID>] [--ended]\nCloses this session's hold on the task it holds (or --id) as released, commits and pushes. With --ended, as a harness layer closes it when the session ends: the hold is closed as ended, and when this session is resumed, task here --take-back takes the task back.",
   ],
   [
     "task switch",
@@ -338,6 +340,8 @@ function parseOptions(args) {
         "--json",
         "--compact",
         "--rules",
+        "--ended",
+        "--take-back",
       ].includes(token)
     ) {
       options[token] = true;
@@ -627,9 +631,9 @@ const STORE_OPTIONS = new Map([
   ["task create", ["--title", "--goal", "--cue", "--project", "--no-project", "--cwd", "--next-action"]],
   ["task move", ["--id", "--project", "--no-project"]],
   ["task take", ["--id", "--takeover"]],
-  ["task release", ["--id"]],
+  ["task release", ["--id", "--ended"]],
   ["task switch", ["--id", "--takeover"]],
-  ["task here", ["--cwd", "--scan", "--rules"]],
+  ["task here", ["--cwd", "--scan", "--rules", "--take-back"]],
   ["task search", ["--query", "--project"]],
   ["task remove", ["--id"]],
 ]);
@@ -665,14 +669,16 @@ async function runProjects5(command, operation, options, home) {
     );
   if (key === "task take")
     return takeTask(home, requireOption(options, "--id"), identity, { takeover: options["--takeover"] === true });
-  if (key === "task release") return releaseTask(home, identity, options["--id"] ?? null);
+  if (key === "task release")
+    return releaseTask(home, identity, options["--id"] ?? null, { ended: options["--ended"] === true });
   if (key === "task switch")
     return switchTask(home, requireOption(options, "--id"), identity, { takeover: options["--takeover"] === true });
   if (key === "task here") {
     const found = options["--scan"] ? await findRepositories(home, String(options["--scan"]).split(delimiter)) : [];
     const lines = found.map((each) => `Found on this machine: ${each.name} at ${each.top}.`);
     const rulesText = options["--rules"] ? sessionRules(home, where, identity) : "";
-    return `${menu(home, where, identity)}${lines.length ? `${lines.join("\n")}\n` : ""}${rulesText}`;
+    const tookBack = options["--take-back"] ? await takeBack(home, identity) : null;
+    return `${menu(home, where, identity, tookBack)}${lines.length ? `${lines.join("\n")}\n` : ""}${rulesText}`;
   }
   if (key === "task search") return searchTasks(home, requireOption(options, "--query"), options["--project"] ?? null);
   if (key === "task remove") return removeTask(home, requireOption(options, "--id"));
@@ -858,6 +864,8 @@ async function runCore(command, rest) {
       command === "checkpoint" ? "checkpoint takes no operation" : `Expected one operation for ${command}`,
     );
   const loaded = requireSchema5(await readExisting(options));
+  // A checkpoint writes only the task this session holds (F36).
+  if (command === "checkpoint") requireHold(loaded.path, sessionIdentity());
   const input = await readInput(options["--input"], cwd());
   return runTransition5(command, positionals, options, input, loaded);
 }
