@@ -121,7 +121,7 @@ A Slice is a unit of your work that would leave something to reconcile if interr
 
 Start a Slice before its first effect (Rules): `slice start` for a proposal in Future Work, `slice start-direct` for one that was never proposed. It names its result, scope, what shows it done, when to stop, and the state of what it will change. A Slice with no effects, such as an investigation, may be recorded once it becomes substantial.
 
-The commands measure what each Slice uses, so you keep no figures by hand: `slice start` records its prediction from past Slices and its first reading, each `checkpoint` adds what was used since, and `slice close` keeps both in History, where the planner learns from them. They read the harness's transcript where they can; where they cannot, pass `--used <tokens>` as the harness shows it, or leave the Slice unmeasured.
+The commands measure what each Slice uses, so you keep no figures by hand: `slice start` records its prediction from past Slices and its first reading, each `checkpoint` adds what was used since, and `slice close` keeps both in History, with the files the Slice changed, where the planner learns from them. Give a Slice a `Size: <n> files` when you propose or start it, the files it will add or change as the touch map or a survey shows them: the prediction scales with it, where one Slice's median would treat a one-line fix and a 200-file removal alike. They read the harness's transcript where they can; where they cannot, pass `--used <tokens>` as the harness shows it, or leave the Slice unmeasured.
 
 Size a Slice by one coherent result that can be checked and corrected with a manageable working set. A Slice may cover a whole phase of a Plan, or one Plan step may take several Slices. Do not split by tool call, file, or test, and do not merge unrelated results because they happen together.
 
@@ -136,7 +136,7 @@ An experiment or investigation completes when its question is answered or its li
 Future Work is your route at this moment, not a commitment: proposed Slices only, each with the result it wants, in about 300 words. At the next boundary, drop, add, reorder or reword proposals freely; they cost nothing and authorize nothing.
 
 - After discussing what and how, propose the route before starting.
-- With a Plan, propose only the next few steps and point into the Plan rather than copying it. To see where its remaining steps land across compaction cycles, give them to `estimate --plan --input -`.
+- With a Plan, propose only the next few steps and point into the Plan rather than copying it. To see where its remaining steps land across compaction cycles, give them to `estimate --plan --input -`, each with its size.
 - During hands-on iteration, where each step depends on the last result, keep only the Next action. Do not invent distant steps.
 
 Before starting a proposal, check its dependencies against what actually happened and against the current agreement; being next in Future Work is not a reason to take on its obligations. Check the History index for closed work on the same result and read it with `view entry`: a failed or abandoned approach lives there.
