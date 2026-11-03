@@ -22,7 +22,7 @@ Answer setup questions and delivery checks read-only. An explicit action request
 | Setting up the Freeflow store for task memory, local only or local + cloud, in a cloud session too; moving a local store to the cloud; moving older records (a repository's `.freeflow/tasks/`, Pi's former Task Memory) into the store | [store setup](references/store-setup.md) |
 | Whether the host delivers Freeflow, or which host action refreshes it | Hosts, below |
 | Changing any setting the user asks for, in a file or for this session only | Change A Setting, below |
-| Cognitive Routing or Tool Execution values | Change A Setting, only when the user requests them; a routing profile only on Pi's `/freeflow settings` |
+| Tool Execution values | Change A Setting, only when the user requests them |
 
 ## Establish Mutation Authority
 
@@ -51,7 +51,7 @@ Resolve each configurable value in this order:
 host session override -> personal override -> repository value -> built-in default
 ```
 
-Host session overrides last one session and cannot bypass missing or invalid repository activation. Pi keeps them in the Pi session, and Cognitive Routing has its own host-managed session control there; other hosts keep them in the Freeflow home's `sessions/<session>/settings.json`, which the settings script writes and the session-start hook reads. Effective Freeflow requires a valid repository config, a missing or valid local config, session-resolved `enabled: true`, and the prompt files the host delivers (Hosts, below).
+Host session overrides last one session and cannot bypass missing or invalid repository activation. Pi keeps them in the Pi session; other hosts keep them in the Freeflow home's `sessions/<session>/settings.json`, which the settings script writes and the session-start hook reads. Effective Freeflow requires a valid repository config, a missing or valid local config, session-resolved `enabled: true`, and the prompt files the host delivers (Hosts, below).
 
 If setup is already valid and no change was requested, preserve it and report the effective sources. Do not rewrite config merely to normalize formatting or materialize defaults.
 
@@ -79,7 +79,7 @@ Use `.freeflow/local.json` for an explicitly selected per-checkout override of `
 }
 ```
 
-Omitted values inherit from repository config and built-in defaults; local precedence is per property, not whole-file replacement. Configure optional Cognitive Routing values only when the user requests them, through Change A Setting.
+Omitted values inherit from repository config and built-in defaults; local precedence is per property, not whole-file replacement.
 
 Before writing local config in a Git checkout, verify it is untracked and ignored. Do not modify shared ignore policy merely to store a personal preference: prefer the host's safe settings path, `.git/info/exclude`, or an existing ignore rule. Refuse to overwrite a tracked local config.
 
@@ -95,7 +95,7 @@ When the user asks to change a setting, run [settings](scripts/settings.mjs) rat
 
 ## Hosts
 
-When Freeflow is effective, host adapters deliver `runtime/prompts/core.md`, `interaction-contract.md` and `working-method.md`, the base Freeflow skill surface, and compact current capability state; on Pi also `tool-execution.md` and `cognitive-routing.md` while those capabilities are effective, with their skills and tools. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions. Context Virtualization and Conversation History are removed.
+When Freeflow is effective, host adapters deliver `runtime/prompts/core.md`, `interaction-contract.md` and `working-method.md`, the base Freeflow skill surface, and compact current capability state; on Pi also `tool-execution.md` while Tool Execution is effective, with its tools. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions. Context Virtualization and Conversation History are removed.
 
 ### Pi
 
@@ -105,11 +105,11 @@ Settings scopes:
 
 ```text
 /freeflow settings          personal overrides
-/freeflow settings session  temporary Freeflow and Cognitive Routing session controls
+/freeflow settings session  temporary Freeflow session controls
 /freeflow settings repo     shared repository settings
 ```
 
-Session settings can temporarily inherit, enable, or disable Freeflow and override Cognitive Routing profiles and delegation; one reset action clears them. They persist in the active Pi session branch, never write either config file, and cannot bypass missing or invalid repository activation. The personal settings path uses omission to inherit, refuses to overwrite invalid or tracked local config, and establishes local Git exclusion when needed. These user-operated controls update state before the next model turn and reload Pi resources when supported.
+Session settings can temporarily inherit, enable, or disable Freeflow; one reset action clears them. They persist in the active Pi session branch, never write either config file, and cannot bypass missing or invalid repository activation. The personal settings path uses omission to inherit, refuses to overwrite invalid or tracked local config, and establishes local Git exclusion when needed. These user-operated controls update state before the next model turn and reload Pi resources when supported.
 
 A config written during setup is visible to the adapter on the next agent turn. After first activation, tell the user to run `/reload` so Pi refreshes skills and resources fully; without it, core runtime context loads on the next turn but resource discovery waits. Confirm automatic delivery through current extension status or runtime evidence.
 

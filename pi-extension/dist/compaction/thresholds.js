@@ -24,7 +24,7 @@ export function thresholds(window, reserve) {
     notice: Math.max(0, Math.floor(Math.min(window * NOTICE_SHARE, trigger - TRIGGER_LEAD * window))),
   };
 }
-/** The strictest thresholds across models that may receive the full history (the active model and routing workers). */
+/** The strictest thresholds across models that may receive the full history. */
 export function strictest(models, settings) {
   const all = models
     .filter((model) => typeof model?.contextWindow === "number" && model.contextWindow > 0)

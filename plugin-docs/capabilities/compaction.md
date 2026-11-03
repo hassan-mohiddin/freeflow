@@ -35,7 +35,7 @@ The notice is soft: keep working to a safe point, then checkpoint and end the tu
 
 ## What the next cycle starts from
 
-The bundle, which Track Work's script prints: an opening line saying the record is memory and your direction decides the work, your rules from the store, the record (with its In flight section, where the step in progress stands), the active decisions, the History and project indexes, the checks, every source the record says recovery reads, the files In flight carries, and the core skills. Freeflow appends the cycle, the routing profile and running background commands, then a line saying the conversation is now the bundle. Nothing of the old conversation is kept raw.
+The bundle, which Track Work's script prints: an opening line saying the record is memory and your direction decides the work, your rules from the store, the record (with its In flight section, where the step in progress stands), the active decisions, the History and project indexes, the checks, every source the record says recovery reads, the files In flight carries, and the core skills. Freeflow appends the cycle and running background commands, then a line saying the conversation is now the bundle. Nothing of the old conversation is kept raw.
 
 Without a task, the session summary takes the record's place.
 
@@ -46,11 +46,6 @@ If Pi compacts before the agent checkpoints, Pi's summarizer runs as usual, told
 ## The Freeflow store on Pi
 
 Where the store exists, a new session gets the task menu and your rules with its first turn; the footer shows the task the session holds; the store is synced after a run that changed it, and the session's hold is released when it ends.
-
-## With Cognitive Routing
-
-- The notice is measured on the full history the next worker request carries, not on the Coordinator's smaller projected view, and on the smallest window among the models that may receive it.
-- The Coordinator under projection does not checkpoint itself: its view leaves out what workers did. Its notice tells it to delegate an assignment that checkpoints with `--compact` and returns; Freeflow compacts when the run ends.
 
 ## Prompt cache
 
@@ -63,7 +58,6 @@ Native Pi tests cover the notice and rows, Freeflow's compaction with a task and
 ## Related documentation
 
 - [Capabilities](README.md)
-- [Cognitive Routing](cognitive-routing.md)
 - [Tool Execution](tool-execution.md)
 - [Pi integration](../integrations/pi.md)
 - [Prompt caching](../prompt-caching.md)

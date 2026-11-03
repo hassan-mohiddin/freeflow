@@ -191,7 +191,7 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 - Update: Narrowed to diagnosis: "just find the cause first" (2026-10-30)
 ```
 
-`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`) and quotes the user where it rests on their reply. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
+`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`, `Review:`) and quotes the user where it rests on their reply. A `Review:` line names paths, or `all`, the user wants reviewed and optionally the depth (`- Review: src/billing/** deep`); Review Work's plan reads it and can only be raised by it. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
 
 ### The Slice
 
@@ -237,8 +237,8 @@ After the fields come its update lines, one line each, a kind and then the claim
 Two kinds have a fixed shape, so outcomes and rounds can be counted later. [Review Work](../../review-work/SKILL.md) says when each is written:
 
 ```markdown
-- Review gate: mode: auto | off | always; tier: standard | security | none; because: <trigger> | no trigger; result: dispatched | proposed | skipped
-- Review: round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: <adjudicated judgment>; Accepted: <n>; Rejected: <n>; Open: <n>; reviewed: <commit or version>; report: <path>; effect: <the next route>
+- Review gate: plan: quick | standard | deep, standard | security, because <triggers and rules> | nothing matched; unit: pr | push | commit | agreement | manual; result: dispatched | proposed | on record
+- Review: round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: <adjudicated judgment>; Accepted: <n>; Rejected: <n>; Open: <n>; head: <the commit reviewed>; report: <path>; effect: <the next route>
 ```
 
 `in_progress` means the Slice's result is being pursued. `paused` means it is still current but safe continuation is suspended; an ordinary turn, feedback, or a context boundary is not a pause.
@@ -296,7 +296,7 @@ What recovery reads, one line per source, each starting with its class, then a p
 
 A pointer is a path (from the task folder, else from the work repository's root, else from each repository in Space at its path on this machine), an absolute path, a `~/` path, a URL, or a commit; put it first after the class. A file pointer followed by `(lines <a>–<b>)` is read for those lines only, numbered by file line. An `always` or `always, not counted` line that names no pointer is never read for you, and the checks say so. `sources/discussion.md` takes an `always` line while it holds blocks.
 
-The list is decided at each checkpoint and kept unless changed: after In flight's lines, `checkpoint --input` takes a line `Recovery:` and the whole new list under it, or `Recovery: none` to empty it; without that line the list stays, and with only that block In flight stays. The checkpoint prints each line with the size of what it names and an `always` line's share of the budget, and names an `always, not counted` line the new list dropped. Records written with the earlier headings, Defined by, Read on recovery, Read when and a Carry line in In flight, are refused like any unknown heading.
+The list is decided at each checkpoint and kept unless changed: after In flight's lines, `checkpoint --input` takes a line `Recovery:` and the whole new list under it, or `Recovery: none` to empty it; without that line the list stays, and with only that block In flight stays. The checkpoint prints each line with the size of what it names and an `always` line's share of the budget, and names an `always, not counted` line the new list dropped. Records written with the earlier headings, Defined by, Read on recovery, Read when and a Carry line in In flight, are refused like any unknown heading until `migrate --record <ID>` converts them: each Defined by entry becomes an `always, not counted` line, each Read on recovery entry and Carry file an `always` line, each Read when entry a `when` line with its trigger, and the record as it was is kept in `sources/record-before-recovery.md`.
 
 ### Next action
 

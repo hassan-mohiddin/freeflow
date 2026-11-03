@@ -61,7 +61,7 @@ test("a received message shows its sender and text, not the tag; outcomes and st
 
 test("ask_user rows show the question and the answer, or that the dialog was closed", () => {
   let tool;
-  registerAskUserTool({ registerTool: (definition) => (tool = definition) }, { refusal: () => undefined });
+  registerAskUserTool({ registerTool: (definition) => (tool = definition) });
   const args = {
     questions: [
       {

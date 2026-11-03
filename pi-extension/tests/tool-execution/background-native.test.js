@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 
-const on = { freeflowConfig: { toolExecution: { enabled: true } }, cognitiveRouting: { enabled: false } };
+const on = { freeflowConfig: { toolExecution: { enabled: true } } };
 const toolNames = (body) => (body.tools ?? []).map((tool) => tool.name);
 const idIn = (body) => JSON.stringify(body).match(/background with ID (bg[0-9a-z]{6})/)?.[1];
 const pathIn = (body) => JSON.stringify(body).match(/Output: ([^ ]+?\.output)/)?.[1];
@@ -49,7 +49,7 @@ test("background tools are declared only while Tool Execution is on", async () =
       assert.ok(!toolNames(requests[0]).includes("stop_background"));
     },
     true,
-    { freeflowConfig: { toolExecution: { enabled: false } }, cognitiveRouting: { enabled: false } },
+    { freeflowConfig: { toolExecution: { enabled: false } } },
   );
 });
 

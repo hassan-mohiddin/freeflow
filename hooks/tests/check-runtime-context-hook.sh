@@ -114,7 +114,7 @@ cp "$ROOT_DIR/hooks/adapters/codex-session-start.mjs" "$whitespace_root/hooks/ad
 cp "$ROOT_DIR/hooks/shared/runtime-context.mjs" "$whitespace_root/hooks/shared/runtime-context.mjs"
 cp -R "$ROOT_DIR/runtime/prompts/." "$whitespace_root/runtime/prompts/"
 # The renderer validates config with Pi's built validator.
-for validator in host/config-validation.js host/config-store.js host/catalog.js host/canonical.js cognitive-routing/types.js tool-execution/config.js compaction/config.js messaging/config.js; do
+for validator in host/config-validation.js host/config-store.js host/catalog.js host/canonical.js tool-execution/config.js compaction/config.js messaging/config.js; do
   mkdir -p "$(dirname "$whitespace_root/pi-extension/dist/$validator")"
   cp "$ROOT_DIR/pi-extension/dist/$validator" "$whitespace_root/pi-extension/dist/$validator"
 done
@@ -146,13 +146,14 @@ for source in startup resume clear compact; do
 done
 
 # Pi-only configuration remains isolated from the shared non-Pi hook.
-cognitive_dir="$(mktemp -d)"
-mkdir -p "$cognitive_dir/.freeflow"
-printf '{"cognitiveRouting":{"enabled":true}}\n' >"$cognitive_dir/.freeflow/config.json"
-cognitive_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$cognitive_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$cognitive_output" "# Freeflow Stable Guidance" "Pi-only capability tolerance"
-assert_not_contains "$cognitive_output" "Cognitive Routing" "non-Pi capability isolation"
-rm -rf "$cognitive_dir"
+pi_only_dir="$(mktemp -d)"
+mkdir -p "$pi_only_dir/.freeflow"
+printf '{"toolExecution":{"enabled":true},"messaging":{"enabled":true}}\n' >"$pi_only_dir/.freeflow/config.json"
+pi_only_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$pi_only_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$pi_only_output" "# Freeflow Stable Guidance" "Pi-only capability tolerance"
+assert_not_contains "$pi_only_output" "Tool Execution" "non-Pi capability isolation"
+assert_not_contains "$pi_only_output" "Messaging" "non-Pi capability isolation"
+rm -rf "$pi_only_dir"
 
 # Old mode and core-toggle configuration is a breaking invalidation, not a compatibility path. `skills.enabled` is
 # valid again, as the master switch over the skills.
