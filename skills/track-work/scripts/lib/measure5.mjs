@@ -125,6 +125,26 @@ export function cycleStart(path) {
   return null;
 }
 
+/** How the Measured line keys a request's billed tokens: its model and effort. */
+const billedKey = (event) => `${event.model} ${event.effort ?? "default"}`;
+
+/**
+ * The model and effort of the newest request in a Claude Code log, keyed as the Measured line keys them, or null when
+ * it holds none: what a Slice starting now runs on (P8 of A-005). Claude Code's own `<synthetic>` entries are not
+ * requests to a model, so they are skipped.
+ */
+export function modelNow(path) {
+  for (const bytes of TAIL_STEPS) {
+    const { text, whole } = readTail(path, bytes);
+    const newest = parseEvents(text)
+      .filter((event) => event.kind === "request" && !event.model.startsWith("<"))
+      .at(-1);
+    if (newest) return billedKey(newest);
+    if (whole) return null;
+  }
+  return null;
+}
+
 /**
  * What a worker used, from its own log (a Claude Code subagent's `agent-<id>.jsonl`): its whole context from its
  * first request on, its billed tokens and cost, and its working and wall-clock time; null when the log holds no
@@ -198,8 +218,14 @@ export function addEvents(measure, { events, reached }, table = PRICES) {
     current = contextOf(event.usage);
     if (event.time - previous <= IDLE_MS) next.workingMs += event.time - previous;
     previous = event.time;
-    const key = `${event.model} ${event.effort ?? "default"}`;
-    const billed = (next.billed[key] ??= { input: 0, written: 0, read: 0, output: 0, usd: 0, priced: true });
+    const billed = (next.billed[billedKey(event)] ??= {
+      input: 0,
+      written: 0,
+      read: 0,
+      output: 0,
+      usd: 0,
+      priced: true,
+    });
     billed.input += event.usage.input_tokens ?? 0;
     billed.written += event.usage.cache_creation_input_tokens ?? 0;
     billed.read += event.usage.cache_read_input_tokens ?? 0;

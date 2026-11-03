@@ -41,6 +41,7 @@ import {
   addEvents,
   addUsed,
   emptyMeasure,
+  modelNow,
   parseMeasure,
   priceTable,
   renderMeasure,
@@ -275,10 +276,20 @@ function takeReading(measure, options, env = process.env) {
   return addEvents(measure, transcriptEvents(transcript, since), priceTable(env));
 }
 
+/**
+ * The model and effort a Slice starts on, from the transcript its reading reads; null with --used or no transcript,
+ * so its cost is then drawn from Slices of every model (P8 of A-005).
+ */
+function startingModel(options, env = process.env) {
+  if (options["--used"] !== undefined) return null;
+  const transcript = options["--transcript"] ?? env.FREEFLOW_TRANSCRIPT;
+  return transcript && existsSync(transcript) ? modelNow(transcript) : null;
+}
+
 /** The Slice's prediction from measured Slices (P89), or null: one that cannot be made never blocks the start. */
-function predicted(recordPath, size = null) {
+function predicted(recordPath, size = null, model = null) {
   try {
-    const prediction = predictSlice(recordPath, size);
+    const prediction = predictSlice(recordPath, size, model);
     return prediction ? [prediction.line] : null;
   } catch {
     return null;
@@ -306,7 +317,7 @@ async function startSlice(options, text, loaded, direct) {
   const size = requireSize(values.Size, command);
   const base = workRepository(options, record, loaded.path);
   values.Base = base ? [`${base.name} ${base.commit}`] : null;
-  values.Predicted = predicted(loaded.path, size);
+  values.Predicted = predicted(loaded.path, size, startingModel(options));
   values["Result wanted"] = direct ? fields.require("Result wanted") : fieldLines5(proposal, "Result wanted");
   values["Done when"] ??= proposal ? fieldLines5(proposal, "Done when") : null;
   values.Dependencies ??= proposal ? fieldLines5(proposal, "Dependencies") : null;

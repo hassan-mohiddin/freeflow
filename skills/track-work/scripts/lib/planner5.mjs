@@ -68,9 +68,12 @@ function measureOf(entry) {
 }
 
 const PREDICTED =
-  /^context ([\d,]+)(?: \(×([\d.]+)\))?(?:, working (\d+) min(?: \(×([\d.]+)\))?, \$([\d.]+)(?: \(×([\d.]+)\))?)?; (?:median of (\d+) Slices of (.+?)|(\d+) files at the median rate of (\d+) sized Slices of (.+?))(?:, corrected from (\d+) predictions? of (.+))?$/;
+  /^context ([\d,]+)(?: \(×([\d.]+)\))?(?:, working (\d+) min(?: \(×([\d.]+)\))?, \$([\d.]+)(?: \(×([\d.]+)\))?)?; (?:median of (\d+) Slices of (.+?)|(\d+) files at the median rate of (\d+) sized Slices of (.+?))(?:, cost (?:from the (\d+) run on|measured mostly on) (.+?))?(?:, corrected from (\d+) predictions? of (.+))?$/;
 
-/** A Predicted line's figures, and the uncorrected median they were scaled from; null when it is not one. */
+/**
+ * A Predicted line's figures, the uncorrected median they were scaled from, and the model and effort its cost was
+ * measured on (null on a line that names none); null when it is not one.
+ */
 export function parsePredicted(text) {
   const match = PREDICTED.exec(text ?? "");
   if (!match) return null;
@@ -84,6 +87,7 @@ export function parsePredicted(text) {
     workingMs,
     usd,
     sized: match[9] !== undefined,
+    costModel: match[13] ?? null,
     base: { context: base(context, match[2]), workingMs: base(workingMs, match[4]), usd: base(usd, match[6]) },
   };
 }
@@ -183,18 +187,38 @@ function mostBilled(measures) {
   return [...totals].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 }
 
-/** The median and range of the nearest pool with enough measured Slices, or null. */
-function sizeFrom(pools) {
+/**
+ * What a Slice's cost is drawn from (P8 of A-005): of these Slices, those run mostly on `model`, the model and effort
+ * the Slice predicted runs on, once MIN_MEASURED of them are measured; otherwise all of them, named by the model and
+ * effort that took most of their cost. `usd` gives a Slice's figure (its cost, or its cost per file).
+ */
+function costFrom(slices, model, usd) {
+  const same = model ? slices.filter((slice) => mostBilled([slice.measure]) === model) : [];
+  const matched = same.length >= MIN_MEASURED;
+  return {
+    model: matched ? model : mostBilled(slices.map((slice) => slice.measure)),
+    matched: matched ? same.length : 0,
+    usd: spread((matched ? same : slices).map(usd)),
+  };
+}
+
+/**
+ * The median and range of the nearest pool with enough measured Slices, or null; its cost from those run on `model`
+ * where enough were, context and working time from all.
+ */
+function sizeFrom(pools, model = null) {
   for (const pool of pools) {
     const measured = complete(pool.slices);
     const figures = measured.map((slice) => figuresOf(slice.measure));
-    if (figures.length >= MIN_MEASURED)
+    if (figures.length >= MIN_MEASURED) {
+      const cost = costFrom(measured, model, (slice) => figuresOf(slice.measure).usd);
       return {
         pool: pool.name,
         n: figures.length,
-        model: mostBilled(measured.map((slice) => slice.measure)),
         ...Object.fromEntries(QUANTITIES.map((name) => [name, spread(figures.map((each) => each[name]))])),
+        ...cost,
       };
+    }
   }
   return null;
 }
@@ -203,21 +227,19 @@ function sizeFrom(pools) {
  * The per-file rate of the nearest pool with enough sized Slices (P15, T13): each Slice's figures over the files it
  * added, changed or renamed; the median and range per quantity, or null.
  */
-function rateFrom(pools) {
+function rateFrom(pools, model = null) {
   for (const pool of pools) {
     const sized = complete(pool.slices).filter((slice) => slice.files > 0);
     if (sized.length < MIN_MEASURED) continue;
-    const rates = sized.map((slice) => {
-      const figures = figuresOf(slice.measure);
-      return Object.fromEntries(
-        QUANTITIES.map((name) => [name, figures[name] === null ? null : figures[name] / slice.files]),
-      );
-    });
+    const rateOf = (slice, name) => {
+      const figure = figuresOf(slice.measure)[name];
+      return figure === null ? null : figure / slice.files;
+    };
     return {
       pool: pool.name,
       n: sized.length,
-      model: mostBilled(sized.map((slice) => slice.measure)),
-      ...Object.fromEntries(QUANTITIES.map((name) => [name, spread(rates.map((each) => each[name]))])),
+      ...Object.fromEntries(QUANTITIES.map((name) => [name, spread(sized.map((slice) => rateOf(slice, name)))])),
+      ...costFrom(sized, model, (slice) => rateOf(slice, "usd")),
     };
   }
   return null;
@@ -226,15 +248,18 @@ function rateFrom(pools) {
 /**
  * Actual over the uncorrected prediction, per quantity, from the nearest pool with any Slice predicted the same way
  * (from its size, or as the median Slice) that has its actual (P16): their geometric mean, pulled toward 1 by
- * CORRECTION_PRIOR on-target Slices, with the raw range. A per-file prediction is corrected only by per-file ones.
+ * CORRECTION_PRIOR on-target Slices, with the raw range. A per-file prediction is corrected only by per-file ones, and
+ * a cost only by predictions whose cost was measured on the model and effort their Slice then ran on (P8 of A-005).
  */
 function correctionFrom(pools, sized) {
   for (const pool of pools) {
     const pairs = complete(pool.slices).filter((slice) => slice.predicted && slice.predicted.sized === sized);
     if (!pairs.length) continue;
+    const comparable = (slice, name) =>
+      name !== "usd" || !slice.predicted.costModel || slice.predicted.costModel === mostBilled([slice.measure]);
     const ratios = (name) => {
       const values = pairs
-        .filter((slice) => figuresOf(slice.measure)[name] && slice.predicted.base[name])
+        .filter((slice) => comparable(slice, name) && figuresOf(slice.measure)[name] && slice.predicted.base[name])
         .map((slice) => figuresOf(slice.measure)[name] / slice.predicted.base[name]);
       if (!values.length) return { median: 1, min: 1, max: 1 };
       const logs = values.reduce((total, value) => total + Math.log(value), 0);
@@ -255,11 +280,11 @@ const priced = (prediction) => Boolean(prediction) && prediction.usd !== null &&
 /**
  * A Slice's prediction: with its size in files and a pool with enough sized Slices, the size times their median
  * per-file rate (P15); otherwise the median Slice. Each quantity is scaled by the correction, with its low and high
- * from the lowest and highest rate or Slice.
+ * from the lowest and highest rate or Slice; its cost from Slices run on `model` where enough were (P8 of A-005).
  */
-function predictFrom(pools, files = null) {
-  const rate = files ? rateFrom(pools) : null;
-  const size = rate ? null : sizeFrom(pools);
+function predictFrom(pools, files = null, model = null) {
+  const rate = files ? rateFrom(pools, model) : null;
+  const size = rate ? null : sizeFrom(pools, model);
   if (!rate && !size) return null;
   const basis = rate ?? size;
   const scale = rate ? files : 1;
@@ -275,6 +300,10 @@ function predictFrom(pools, files = null) {
   return prediction;
 }
 
+/** What the cost was drawn from: the Slices run on the model and effort, or all of them, by the one most of it went to. */
+const costBasis = (basis) =>
+  basis.matched ? `cost from the ${basis.matched} run on ${basis.model}` : `cost measured mostly on ${basis.model}`;
+
 function renderPredicted(prediction) {
   const scaled = (text, name) => {
     const factor = prediction.factor(name).toFixed(2);
@@ -288,17 +317,19 @@ function renderPredicted(prediction) {
   const basis = prediction.rate
     ? `${prediction.files} files at the median rate of ${size.n} sized Slices of ${size.pool}`
     : `median of ${size.n} Slices of ${size.pool}`;
+  const cost = timeAndCost && size.model ? `, ${costBasis(size)}` : "";
   const corrected = correction ? `, corrected from ${plural(correction.n, "prediction")} of ${correction.pool}` : "";
-  return `${scaled(`context ${count(prediction.context)}`, "context")}${timeAndCost}; ${basis}${corrected}`;
+  return `${scaled(`context ${count(prediction.context)}`, "context")}${timeAndCost}; ${basis}${cost}${corrected}`;
 }
 
 /**
  * The prediction a Slice starts with (P89, P15, P16): from its size in files where it has one and enough sized Slices
- * exist, else the median Slice of the nearest pool with enough measured, scaled by the correction; null with too few
- * measured anywhere.
+ * exist, else the median Slice of the nearest pool with enough measured, scaled by the correction; its cost from the
+ * Slices run on `model`, the model and effort it starts on, where enough were (P8 of A-005); null with too few measured
+ * anywhere.
  */
-export function predictSlice(recordPath, files = null) {
-  const prediction = predictFrom(loadPools(recordPath), files);
+export function predictSlice(recordPath, files = null, model = null) {
+  const prediction = predictFrom(loadPools(recordPath), files, model);
   return prediction && { ...prediction, line: renderPredicted(prediction) };
 }
 
@@ -366,7 +397,8 @@ function delegationRows(pools, fanOut) {
  * `estimate --plan` (P84): each Slice left with its expected size, the compaction cycle it lands in counting from
  * what is left of this one, any Slice bigger than a compaction cycle, the totals, the Slices with no dependency
  * between them, and delegated work's measured cost; with `json`, the same as data, which Discuss Work's
- * `choices.mjs agreement --plan` renders as the agreement's size and plan (P87).
+ * `choices.mjs agreement --plan` renders as the agreement's size and plan (P87). `model` is the model and effort the
+ * session runs on, which prices the Slices where enough were run on it (P8 of A-005).
  */
 export function planView({
   recordPath,
@@ -378,13 +410,14 @@ export function planView({
   start,
   done,
   fanOut,
+  model = null,
   json = false,
   table = PRICES,
 }) {
   if (!items.length) throw new PlanError("No Slice is left to plan: Future Work proposes none, and no list was given.");
   const pools = loadPools(recordPath, home);
-  const median = predictFrom(pools);
-  const rate = rateFrom(pools);
+  const median = predictFrom(pools, null, model);
+  const rate = rateFrom(pools, model);
   const lines = [`Plan: ${plural(items.length, "Slice")} left, from ${from}.`];
   if (!median && !done)
     throw new PlanError(
@@ -393,7 +426,7 @@ export function planView({
   // Each Slice's prediction: from its size where it has one and sized Slices exist (P15), else the median Slice,
   // else, with too few measured, at most this compaction cycle's rate per part done.
   const atRate = median ? null : used / done;
-  const predictions = items.map((item) => (item.size && rate ? predictFrom(pools, item.size) : median));
+  const predictions = items.map((item) => (item.size && rate ? predictFrom(pools, item.size, model) : median));
   const contextOf = (index) => predictions[index]?.context ?? atRate;
   const anyPriced = predictions.every((each) => priced(each));
   const sumOf = (pick) => predictions.reduce((total, each, index) => total + pick(each, index), 0);
@@ -430,7 +463,7 @@ export function planView({
       ...(size.usd ? [`${dollars(size.usd.min)} to ${dollars(size.usd.max)}`] : []),
     ].join("; ");
     const timeAndCost = priced(median)
-      ? `, working about ${duration(median.workingMs)}, about ${dollars(median.usd)} at list price${size.model ? `, mostly ${size.model}` : ""}`
+      ? `, working about ${duration(median.workingMs)}, about ${dollars(median.usd)} at list price${size.model ? `, ${costBasis(size)}` : ""}`
       : ", no time or cost (its Slices were measured from --used)";
     if (sizedCount < items.length)
       lines.push(
@@ -445,7 +478,11 @@ export function planView({
     const perFile = [
       `context ${count(rate.context.median)} (${count(rate.context.min)} to ${count(rate.context.max)})`,
       ...(rate.workingMs ? [`working ${(rate.workingMs.median / 60_000).toFixed(1)} min`] : []),
-      ...(rate.usd ? [`${dollars(rate.usd.median)} (${dollars(rate.usd.min)} to ${dollars(rate.usd.max)})`] : []),
+      ...(rate.usd
+        ? [
+            `${dollars(rate.usd.median)} (${dollars(rate.usd.min)} to ${dollars(rate.usd.max)})${rate.model ? `, ${costBasis(rate)}` : ""}`,
+          ]
+        : []),
     ].join(", ");
     const sizedCorrection = predictions.find((each) => each?.rate)?.correction;
     lines.push(

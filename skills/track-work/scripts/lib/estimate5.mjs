@@ -8,7 +8,7 @@ import { closeSync, existsSync, fstatSync, openSync, readSync } from "node:fs";
 import { contextWindow } from "./budget5.mjs";
 import { claudeCodeLog } from "./discussion5.mjs";
 import { storeHome } from "./freeflow-store.mjs";
-import { cycleStart, priceTable } from "./measure5.mjs";
+import { cycleStart, modelNow, priceTable } from "./measure5.mjs";
 import { futureItems, listItems, planView, projectView, storeView } from "./planner5.mjs";
 
 /** Where Freeflow's notice comes, as a share of the window (the mod's own point, before Claude's threshold). */
@@ -124,6 +124,7 @@ export function estimate(options, env = process.env, input = "") {
       used,
       window,
       start: transcript ? cycleStart(transcript) : null,
+      model: transcript ? modelNow(transcript) : null,
       done: options["--done"] === undefined ? null : positiveInteger(options["--done"], "--done"),
       fanOut: options["--fan-out"] === undefined ? null : positiveInteger(options["--fan-out"], "--fan-out"),
       table: priceTable(env),
