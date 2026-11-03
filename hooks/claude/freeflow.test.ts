@@ -1322,6 +1322,14 @@ test("the claims: written at session start in the Freeflow home, with section 4.
     how: "on the next compaction; it cannot start one in a headless run",
   });
 
+  // In the other order, the classic SessionStart before session.start, the claims are written again once it says
+  // a headless run, as a -p run's are.
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  await start($);
+  expect(JSON.parse(w.claims.at(-1)!.text).mode).toBe("interactive");
+  await ready($);
+  expect(JSON.parse(w.claims.at(-1)!.text).mode).toBe("headless");
+
   // A session start with no Freeflow home to read writes none.
   w.claims.length = 0;
   w.answers["session status"] = { exitCode: 1, stderr: "broken" };

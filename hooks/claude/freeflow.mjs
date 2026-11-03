@@ -801,9 +801,12 @@ export function register(on) {
         "Freeflow's settings: list them, or change one for this session, you or the repository; and what Freeflow can do here",
       argumentHint: "settings [<key> <value|inherit> [--session | --personal | --repository]] | capabilities",
     });
-    // A -p run or the SDK has no one at the prompt, so nothing runs between its turns (section 4.5).
+    // A -p run or the SDK has no one at the prompt, so nothing runs between its turns (section 4.5). Claims written
+    // before this event came, at the classic SessionStart, are written again with what it says.
+    const was = interactive;
     if (typeof e.isInteractive === "boolean") interactive = e.isInteractive;
     await resolveEnabled($);
+    if (interactive !== was && freeflowHome && enabled) await writeCapabilities($, freeflowHome);
     return next(e);
   });
 
