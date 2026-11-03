@@ -296,6 +296,8 @@ function pin($, values) {
  * @returns {Promise<{ text: string }>}
  */
 export async function paneCommand($) {
+  // The switches as the files hold them now, whatever session start read.
+  await resolvePane($);
   if (!switches.enabled) return { text: "Freeflow is off in this session (enabled): the pane has nothing to show." };
   if (!switches.pane)
     return { text: "Freeflow's pane is off (pane.enabled); /freeflow settings pane.enabled on turns it on." };
