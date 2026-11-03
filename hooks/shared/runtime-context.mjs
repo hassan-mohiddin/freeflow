@@ -232,3 +232,27 @@ export function isMainModule(metaUrl) {
     return pathToFileURL(path.resolve(process.argv[1])).href === metaUrl;
   }
 }
+
+/**
+ * What Claude Code's session-start hooks deliver, one entry per hook in `hooks/claude/hooks.json`'s order (`core`,
+ * `interactionContract`, `workingMethod`), each the text that hook prints or "" when it prints nothing. Claude Code's mod
+ * pins them, joined, as one system prompt section, and knows each hook's text by it (SPEC-013).
+ */
+export function hookParts(root, { session = null, env = process.env } = {}) {
+  if (env.FREEFLOW_DISABLE_RUNTIME_CONTEXT === "1") return Object.keys(PROMPT_FILES).map(() => "");
+  return Object.keys(PROMPT_FILES).map((part) => {
+    const text = renderRuntimeContext(root, part, { session, env });
+    return text.trim() ? text : "";
+  });
+}
+
+// The mod runs in no Node, so it asks for the parts here: `node runtime-context.mjs section --cwd <dir>`, the session
+// from CLAUDE_CODE_SESSION_ID as the hooks read it, prints `{ "parts": [...], "home": <the Freeflow home> }`, the home
+// where the mod's session-start ledger is before the mod has read it from the store's status.
+if (isMainModule(import.meta.url) && process.argv[2] === "section")
+  runSafely(() => {
+    const at = process.argv.indexOf("--cwd");
+    const cwd = at > 0 ? process.argv[at + 1] : process.cwd();
+    const parts = hookParts(findWorkspaceRoot(cwd), { session: hookSessionId({}) });
+    process.stdout.write(`${JSON.stringify({ parts, home: freeflowHome(process.env) })}\n`);
+  });

@@ -2,6 +2,7 @@
 // freeflow.test.ts that shows it, a precondition, the request and its effect observed from outside. freeflow.test.ts
 // checks that every yes claim is here; hooks/tests/golden-events.test.mjs that every test named here exists.
 export default {
+  pin: "the guidance pinned: one section of the system prompt, the hooks' own text, their copies left out while it is there, still there after a compaction, and rendered again once at a settings change (SPEC-013)",
   inject:
     "a request ends: one notice a cycle, at the lower of 75% and a tenth before Claude's threshold, asking for a checkpoint at a safe point",
   compact:

@@ -56,6 +56,15 @@ function world(on: any) {
     capabilityAnswer: {
       stdout: "Freeflow on Claude Code (claude-code-mod 0.9.0, request set 1, interactive)",
     } as Answer,
+    // The renderer's runs (SPEC-013), which print the session-start hooks' texts, and what it answers: the parts as the
+    // hooks print them, and the Freeflow home.
+    sectionRuns: [] as Run[],
+    parts: ["CORE GUIDANCE", "THE CONTRACT", "THE METHOD"] as string[],
+    sectionAnswer: undefined as Answer | undefined,
+    // The session-start ledger the mod keeps, by path, apart from the other writes.
+    ledgers: new Map<string, any>(),
+    // What the settings hooks beneath the mod add to a classic SessionStart: none, unless a test gives them.
+    hookContext: undefined as string[] | undefined,
     registered: [] as any[],
     env: {} as Record<string, string | undefined>,
     sent: [] as any[],
@@ -102,6 +111,10 @@ function world(on: any) {
         isStderrTruncated: false,
       },
     });
+    if (e.argv[0] === "node" && String(e.argv[1]).endsWith("hooks/shared/runtime-context.mjs")) {
+      w.sectionRuns.push({ args: e.argv.slice(2), session: e.init?.env?.CLAUDE_CODE_SESSION_ID });
+      return result(w.sectionAnswer ?? { stdout: JSON.stringify({ parts: w.parts, home: HOME }) });
+    }
     if (e.argv[0] === "node" && String(e.argv[1]).endsWith("setup-freeflow/scripts/capabilities.mjs")) {
       w.capabilityRuns.push({ args: e.argv.slice(2), session: e.init?.env?.CLAUDE_CODE_SESSION_ID });
       return result(w.capabilityAnswer);
@@ -203,6 +216,11 @@ function world(on: any) {
       w.claims.push({ path: e.path ?? e[0], text: e.text ?? e[1] });
       return { value: undefined };
     }
+    if (String(e.path ?? e[0]).endsWith("/start.json")) {
+      w.ledgers.set(e.path ?? e[0], JSON.parse(e.text ?? e[1]));
+      w.stored.set(e.path ?? e[0], e.text ?? e[1]);
+      return { value: undefined };
+    }
     w.writes.push({ path: e.path ?? e[0], text: e.text ?? e[1] });
     w.stored.set(e.path ?? e[0], e.text ?? e[1]);
     return { value: undefined };
@@ -228,7 +246,14 @@ function world(on: any) {
     return { messages: [{ role: "user", text: "Claude's summary.", toolUses: [] }] };
   });
   on("session.start", (_: any, e: any) => ({ cwd: e.cwd }));
-  on("classic.SessionStart", () => ({}));
+  on("classic.SessionStart", () => (w.hookContext ? { additionalContext: [...w.hookContext] } : {}));
+  // The engine's own system prompt, as it composes it.
+  on("prompt.compose", () => ({
+    sections: [
+      { id: "intro", text: "You are Claude Code.", scope: "shared" },
+      { id: "memory", text: "Project notes.", scope: "session" },
+    ],
+  }));
   on("classic.SubagentStop", () => ({}));
   on("turn.complete", () => ({ text: "" }));
   on("turn.start", (_: any, e: any) => ({ turnId: e.turnId }));
@@ -1284,7 +1309,7 @@ test("the claims: written at session start in the Freeflow home, with section 4.
   const claimOf = (claims: any) =>
     Object.fromEntries(Object.entries(claims).map(([request, each]: any) => [request, each.claim]));
   expect(claimOf(file.claims)).toEqual({
-    pin: "possible",
+    pin: "yes",
     inject: "yes",
     forget: "no",
     compact: "yes",
@@ -1393,4 +1418,244 @@ test("the golden event log: a scripted session through the mod matches golden-ev
   if (JSON.stringify(lines) !== JSON.stringify(GOLDEN))
     console.log(`golden-events.mjs would be:\n${JSON.stringify(lines, null, 2)}`);
   expect(lines).toEqual(GOLDEN);
+});
+
+// Freeflow arriving mid-session, and its guidance pinned (SPEC-013).
+const LEDGER = `${HOME}/sessions/${SESSION}/start.json`;
+const STEPS = ["window", "cycle", "capabilities", "sync", "menu", "guidance"];
+const SECTION = "CORE GUIDANCE\n\nTHE CONTRACT\n\nTHE METHOD";
+const MID_SESSION =
+  "Freeflow started mid-session: its session start did not run in this session, so what it gives a session at its start follows now.";
+const COMPOSE = { model: "opus", promptModel: "opus", surfaces: [], tools: [], outputStyle: null, traits: [] } as any;
+/** The settings script's answer to a change of one key, with no Runtime State lines. */
+const changeOf = (key: string, value: unknown) => ({
+  stdout: JSON.stringify({
+    key,
+    label: key,
+    value,
+    scope: "personal",
+    hosts: "all",
+    state: [],
+    changed: [],
+    cleared: [],
+    notes: [],
+  }),
+});
+
+test("the guidance pinned: one section of the system prompt, the hooks' own text, their copies left out while it is there, still there after a compaction, and rendered again once at a settings change (SPEC-013)", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  w.answers["task here"] = { stdout: MENU };
+  // The three session-start hooks' texts, and another plugin's context, which stays.
+  w.hookContext = ["CORE GUIDANCE", "THE CONTRACT", "THE METHOD", "ANOTHER PLUGIN'S CONTEXT"];
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  expect((await start($)).additionalContext).toEqual(["ANOTHER PLUGIN'S CONTEXT", `Freeflow task memory:\n${MENU}`]);
+  // Rendered by the hooks' own renderer, for the session's folder and the session.
+  expect(w.sectionRuns).toEqual([{ args: ["section", "--cwd", "/work/widget"], session: SESSION }]);
+
+  // The engine's sections first, as it composed them, then Freeflow's after the cache boundary's session side.
+  const composed = await $.prompt.compose(COMPOSE);
+  expect(composed.sections).toEqual([
+    { id: "intro", text: "You are Claude Code.", scope: "shared" },
+    { id: "memory", text: "Project notes.", scope: "session" },
+    { id: "freeflow:guidance", text: SECTION, scope: "session" },
+  ]);
+  // Every request's prompt the same: no render, no change.
+  expect((await $.prompt.compose(COMPOSE)).sections).toEqual(composed.sections);
+  expect(w.sectionRuns.length).toBe(1);
+  expect(w.ledgers.get(LEDGER)).toMatchObject({ v: 1, pinned: true });
+  expect(Object.keys(w.ledgers.get(LEDGER).steps).sort()).toEqual([...STEPS].sort());
+
+  // A turn starts: its session start ran, so nothing comes twice.
+  w.runs.length = 0;
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  expect(appended(w)).toEqual([]);
+  expect(w.runs).toEqual([]);
+
+  // A compaction: the hooks deliver again and their copies are left out; the prompt starts over with the section.
+  await $.session.compact({ trigger: "manual", messages: CONVERSATION } as any);
+  expect((await start($, { source: "compact" })).additionalContext).toEqual(["ANOTHER PLUGIN'S CONTEXT"]);
+  expect((await $.prompt.compose(COMPOSE)).sections.at(-1)).toEqual({
+    id: "freeflow:guidance",
+    text: SECTION,
+    scope: "session",
+  });
+  expect(w.ledgers.get(LEDGER).pinned).toBe(true);
+
+  // A settings change renders the section again, once; the next prompt the engine composes carries it.
+  const renders = w.sectionRuns.length;
+  w.parts = ["CORE GUIDANCE", "THE CONTRACT", ""];
+  w.settingsAnswers["set prompts.workingMethod off --scope personal "] = changeOf("prompts.workingMethod", false);
+  await freeflow($, "settings prompts.workingMethod off");
+  expect(w.sectionRuns.length).toBe(renders + 1);
+  expect((await $.prompt.compose(COMPOSE)).sections.at(-1)!.text).toBe("CORE GUIDANCE\n\nTHE CONTRACT");
+  await $.prompt.compose(COMPOSE);
+  expect(w.sectionRuns.length).toBe(renders + 1);
+
+  // --bare keeps its one section; and with Freeflow off there is no section to send.
+  expect((await $.prompt.compose({ ...COMPOSE, traits: ["bare"] })).sections.map((s: any) => s.id)).toEqual([
+    "intro",
+    "memory",
+  ]);
+  w.enabled = false;
+  w.settingsAnswers["set enabled off --scope personal "] = changeOf("enabled", false);
+  await freeflow($, "settings enabled off");
+  expect((await $.prompt.compose(COMPOSE)).sections.map((s: any) => s.id)).toEqual(["intro", "memory"]);
+});
+
+test("a resumed thread keeps the prompt it recorded: the hooks' copies are left out only where its ledger says the section was there (SPEC-013)", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  w.answers["task here"] = { stdout: MENU };
+  w.hookContext = ["CORE GUIDANCE", "THE CONTRACT", "THE METHOD"];
+  await start($);
+  expect(w.ledgers.get(LEDGER).pinned).toBe(true);
+  // The ledger read on resume is the store's, from the Freeflow home the renderer names.
+  expect((await start($, { source: "resume" })).additionalContext).toEqual([`Freeflow task memory:\n${MENU}`]);
+
+  // A thread recorded before the section existed, or a fork, which is a new session: the hooks keep the job.
+  w.stored.delete(LEDGER);
+  w.ledgers.clear();
+  expect((await start($, { source: "resume" })).additionalContext).toEqual([
+    "CORE GUIDANCE",
+    "THE CONTRACT",
+    "THE METHOD",
+    `Freeflow task memory:\n${MENU}`,
+  ]);
+  expect(w.ledgers.get(LEDGER).pinned).toBe(false);
+  // Its compaction starts the prompt over, with the section.
+  expect((await start($, { source: "compact" })).additionalContext).toBeUndefined();
+  expect(w.ledgers.get(LEDGER).pinned).toBe(true);
+
+  // A renderer that fails leaves the hooks' copies in place.
+  w.sectionAnswer = { exitCode: 1, stderr: "Error: no prompts\n" };
+  expect((await start($)).additionalContext).toEqual([
+    "CORE GUIDANCE",
+    "THE CONTRACT",
+    "THE METHOD",
+    `Freeflow task memory:\n${MENU}`,
+  ]);
+  expect(w.logs.at(-1)).toBe(
+    "Freeflow: the guidance could not be rendered: Error: no prompts; the session-start hooks keep it",
+  );
+});
+
+test("Freeflow arriving mid-session: a session whose start never ran gets the guidance, the menu and its claims at its first turn's start, once (SPEC-013)", async ($, on) => {
+  const w = world(on);
+  w.status = store({ transcript: "/home/u/.claude/projects/p/sess-1.jsonl" });
+  w.answers["task here"] = { stdout: MENU };
+  // The module loads into a running session: no SessionStart comes.
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  expect(w.runs).toEqual([]);
+
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  expect(appended(w)).toEqual([`${MID_SESSION}\n\n${SECTION}\n\nFreeflow task memory:\n${MENU.trimEnd()}`]);
+  // What session start does with a store: the transcript, a pull, the menu with the repositories and the take-back.
+  expect(w.commands().slice(0, 2)).toEqual(["session status", "store sync --pull"]);
+  expect(w.commands()[2]).toStartWith("task here --cwd /work/widget --scan /work/widget:/work:");
+  expect(w.commands()[2]).toEndWith(" --rules --take-back");
+  expect(w.env.FREEFLOW_TRANSCRIPT).toBe("/home/u/.claude/projects/p/sess-1.jsonl");
+  expect(w.env.FREEFLOW_CONTEXT_WINDOW).toBe("200000");
+  expect(w.claims.map((write) => write.path)).toEqual(["/store/sessions/sess-1/capabilities.json"]);
+  // The ledger keeps every step; the thread's prompt was recorded without the section.
+  expect(w.ledgers.get(LEDGER).pinned).toBe(false);
+  expect(Object.keys(w.ledgers.get(LEDGER).steps).sort()).toEqual([...STEPS].sort());
+  // The store's files are the agent's to keep from now.
+  expect((await $.tool.check({ tool: "Edit", input: { file_path: RECORD } } as any)).decision).toBe("allow");
+
+  // Once: the next turns run nothing for it, and the turn end does not take the store up again.
+  const runs = w.runs.length;
+  await $.turn.complete(turnEnd("answer"));
+  await $.turn.start({ text: "go on", turnId: "turn-2" } as any);
+  expect(appended(w).length).toBe(1);
+  expect(w.commands().slice(runs)).toEqual(["session status"]);
+  expect(w.events().filter((line: any) => line.kind === "freeflow")).toEqual([
+    expect.objectContaining({ what: "capabilities" }),
+    expect.objectContaining({ what: "menu", detail: "mid-session: window, cycle, capabilities, guidance, sync, menu" }),
+  ]);
+});
+
+test("a normal session gets nothing twice, and a reloaded mod reads the ledger its session start kept (SPEC-013)", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  w.answers["task here"] = { stdout: MENU };
+  w.stored.set(
+    LEDGER,
+    JSON.stringify({ v: 1, steps: Object.fromEntries(STEPS.map((step) => [step, at(-5)])), pinned: true }),
+  );
+  // The mod reloads mid-session: one status read finds the ledger complete, and nothing else runs.
+  await ready($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  await $.turn.start({ text: "go on", turnId: "turn-2" } as any);
+  expect(w.commands()).toEqual(["session status"]);
+  expect(appended(w)).toEqual([]);
+  expect(w.sectionRuns).toEqual([]);
+});
+
+test("enabled switched on mid-session: the next turn's start does what the session start it skipped would have (SPEC-013)", async ($, on) => {
+  const w = world(on);
+  w.enabled = false;
+  w.status = store();
+  w.answers["task here"] = { stdout: MENU };
+  await ready($);
+  await start($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  expect(w.commands()).toEqual([]);
+  expect(appended(w)).toEqual([]);
+
+  w.enabled = true;
+  w.settingsAnswers["set enabled on --scope personal "] = changeOf("enabled", true);
+  await freeflow($, "settings enabled on");
+  await $.turn.start({ text: "go on", turnId: "turn-2" } as any);
+  expect(appended(w)).toEqual([`${MID_SESSION}\n\n${SECTION}\n\nFreeflow task memory:\n${MENU.trimEnd()}`]);
+  // The turn end that follows does not take the store up a second time.
+  await $.turn.complete(turnEnd("answer"));
+  expect(w.commands().filter((command) => command === "store sync --pull").length).toBe(1);
+});
+
+test("a catch-up step that fails is logged and tried once more at the next turn, then left (SPEC-013 section 4)", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  w.answers["task here"] = { exitCode: 1, stderr: "Error: the store is locked\n" };
+  await ready($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  // What ran is delivered; the menu is not, and the log says why.
+  expect(appended(w)).toEqual([`${MID_SESSION}\n\n${SECTION}`]);
+  expect(w.logs).toContain("Freeflow: session start's menu step failed mid-session: the store is locked");
+  await $.turn.complete(turnEnd("answer"));
+  expect(w.events().filter((line: any) => line.kind === "freeflow" && line.what === "menu")).toEqual([
+    expect.objectContaining({ detail: "mid-session, menu failed: the store is locked" }),
+    expect.objectContaining({ detail: "mid-session: window, cycle, capabilities, guidance, sync" }),
+  ]);
+
+  // The next turn tries the menu once more; it comes when it works, and the turn after tries nothing.
+  const tries = () => w.commands().filter((command) => command.startsWith("task here")).length;
+  w.answers["task here"] = { stdout: MENU };
+  await $.turn.start({ text: "go on", turnId: "turn-2" } as any);
+  expect(tries()).toBe(2);
+  expect(appended(w).at(-1)).toBe(`${MID_SESSION}\n\nFreeflow task memory:\n${MENU.trimEnd()}`);
+
+  // The turn after tries nothing.
+  await $.turn.start({ text: "and on", turnId: "turn-3" } as any);
+  expect(tries()).toBe(2);
+});
+
+test("a catch-up step that fails twice is left, one try a turn (SPEC-013 section 4)", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  w.answers["task here"] = { exitCode: 1, stderr: "Error: the store is locked\n" };
+  await ready($);
+  const tries = () => w.commands().filter((command) => command.startsWith("task here")).length;
+  for (const [turn, expected] of [
+    ["turn-1", 1],
+    ["turn-2", 2],
+    ["turn-3", 2],
+    ["turn-4", 2],
+  ] as const) {
+    await $.turn.start({ text: "go", turnId: turn } as any);
+    expect(tries()).toBe(expected);
+  }
+  expect(w.logs.filter((line) => /menu step failed mid-session/.test(line)).length).toBe(2);
+  // Only the first turn's catch-up had something to show.
+  expect(appended(w)).toEqual([`${MID_SESSION}\n\n${SECTION}`]);
 });
