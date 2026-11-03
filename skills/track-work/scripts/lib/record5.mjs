@@ -1,7 +1,7 @@
 // Schema 5: a task folder's record.md, history.md and decisions.md (the Spec's sections 5 to 8). record.md holds the
 // state, rewritten as the work moves; history.md holds one entry per closed Slice, delegation or agreement, appended by
-// the command that closes it and never edited; decisions.md holds the open agreement's decision list. Schema 4 stays in
-// document.mjs and transitions.mjs until its records are migrated (T9).
+// the command that closes it and never edited; decisions.md holds the open agreement's decision list. A Schema 4
+// record is read only by migrate (migrate5.mjs, through document.mjs's parser), which converts it (P7).
 
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";

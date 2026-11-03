@@ -29,19 +29,7 @@ async function withTask(run) {
       });
     const record = ok(
       cli(
-        [
-          "init",
-          "--schema",
-          "5",
-          "--root",
-          folder,
-          "--name",
-          "Delegating",
-          "--cue",
-          "read when delegation matters",
-          "--input",
-          "-",
-        ],
+        ["init", "--root", folder, "--name", "Delegating", "--cue", "read when delegation matters", "--input", "-"],
         "### Goal\n- Hand work out.\n### Next action\n- Delegate.\n",
       ),
     ).split("\n")[0];
@@ -498,22 +486,6 @@ test("delegate close measures the worker from its own log, beside the coordinato
       /\n- Measured: context 12,302 over 1 compaction cycle\(s\); working 3 min, wall 3 min; claude-haiku-5-5 xhigh: 4 in, 11,000 written, 10,500 read, 1,300 out, \$0\.00; as of 2026-10-30T10:03:00\.000Z at 12,302 tokens\n/,
     );
   });
-});
-
-test("delegate is for Schema 5 records", async () => {
-  const folder = await mkdtemp(join(tmpdir(), "track-work-delegations5-four-"));
-  try {
-    const run = (args, input = "") =>
-      spawnSync(process.execPath, [scriptPath, ...args], { cwd: folder, input, encoding: "utf8" });
-    const four = run(
-      ["init", "--schema", "4", "--root", folder, "--name", "Four", "--input", "-"],
-      "### Goal\n- G.\n\n### Next useful action\n- N.\n",
-    ).stdout.trim();
-    assert.match(run(["delegate", "status", "--record", four]).stderr, /delegate is for Schema 5 records/);
-    assert.ok(!existsSync(join(dirname(four), "delegations")));
-  } finally {
-    await rm(folder, { recursive: true, force: true });
-  }
 });
 
 test("delegate open and check-return --scratch keep a delegation in a folder with no task, and record nothing", async () => {

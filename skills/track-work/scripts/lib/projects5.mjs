@@ -1,7 +1,7 @@
 // Projects, tasks and holds in the Freeflow store (the Spec's section 4). A project is a folder under projects/, a task
 // a folder under its tasks/, and who holds a task is the last open line of its sessions.md: a session holds at most
-// one task and a task has at most one holder. Every change is committed and, in a cloud store, pushed. Pi's Task
-// Memory registry is untouched: these commands run only where the Freeflow home is a store.
+// one task and a task has at most one holder. Every change is committed and, in a cloud store, pushed. These
+// commands run only where the Freeflow home is a store.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";

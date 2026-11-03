@@ -127,7 +127,7 @@ test("store init refuses a remote that holds another repository, and leaves no f
   });
 });
 
-test("store init stops on a home that holds Pi's Task Memory, and clones nothing", async () => {
+test("store init stops on a home that holds Pi's former Task Memory, says how to move its records, and clones nothing", async () => {
   await withFolder(async (folder) => {
     const remote = await bareRemote(folder);
     const home = join(folder, "home");
@@ -135,8 +135,9 @@ test("store init stops on a home that holds Pi's Task Memory, and clones nothing
     await writeFile(join(home, "registry.json"), "{}\n");
     const stopped = store(folder, ["init", "--remote", remote], { FREEFLOW_HOME: home });
     assert.equal(stopped.status, 1);
-    assert.match(stopped.stderr, /holds Pi's Task Memory \(registry\.json\), which stays as it is/);
+    assert.match(stopped.stderr, /holds Pi's former Task Memory \(registry\.json\), which Freeflow no longer runs/);
     assert.match(stopped.stderr, /--home <folder>/);
+    assert.match(stopped.stderr, /move the old records into it with migrate/);
     assert.deepEqual(await readdir(home), ["registry.json"]);
   });
 });
@@ -184,15 +185,14 @@ test("the Git check accepts a record inside the store and still refuses one a co
     const remote = await bareRemote(folder);
     const home = join(folder, "home");
     assert.equal(store(folder, ["init", "--remote", remote, "--home", home, ...IDENTITY]).status, 0);
-    // A project folder in the project-store layout Track Work already reads (its records under tasks/).
+    // A project's folder in the store, whose tasks/ holds its records.
     const project = join(home, "projects", "demo");
     await mkdir(project, { recursive: true });
-    await writeFile(join(project, "store.json"), `${JSON.stringify({ version: 1, project: "demo" })}\n`);
-    const input = "### Goal\n- Test task.\n\n### Next useful action\n- Continue.\n";
+    const input = "### Goal\n- Test task.\n\n### Next action\n- Continue.\n";
     const init = (root) =>
       spawnSync(
         process.execPath,
-        [scriptPath, "init", "--schema", "4", "--root", root, "--name", "Demo", "--input", "-"],
+        [scriptPath, "init", "--root", root, "--name", "Demo", "--cue", "read when testing", "--input", "-"],
         {
           encoding: "utf8",
           input,

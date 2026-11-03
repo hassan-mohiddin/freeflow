@@ -366,16 +366,23 @@ test("a task with no project: created where no project names the folder, listed 
   });
 });
 
-test("outside a Freeflow store, project and task keep Pi's registry, and the hold commands say a store is needed", async () => {
+test("outside a Freeflow store, every project and task command says a store is needed", async () => {
   const folder = await mkdtemp(join(tmpdir(), "track-work-projects5-registry-"));
   try {
     const env = { ...process.env, FREEFLOW_HOME: join(folder, "home"), FREEFLOW_SESSION: "aaaaaaaa-1" };
     const run = (args) => spawnSync(process.execPath, [scriptPath, ...args], { cwd: folder, encoding: "utf8", env });
-    assert.equal(run(["project", "list"]).stdout, "No projects.\n");
-    assert.match(
-      run(["task", "take", "--id", "widget/task-001"]).stderr,
-      /task take works in a Freeflow store; .+ is not one \(store init makes one\)/,
-    );
+    for (const args of [
+      ["project", "list"],
+      ["project", "new", "--name", "Widget"],
+      ["task", "here"],
+      ["task", "create", "--title", "T", "--goal", "G", "--cue", "read when testing"],
+      ["task", "take", "--id", "widget/task-001"],
+    ])
+      assert.match(
+        run(args).stderr,
+        new RegExp(`${args[0]} ${args[1]} works in a Freeflow store; .+ is not one \\(store init makes one\\)`),
+      );
+    assert.equal(existsSync(join(folder, "home")), false);
   } finally {
     await rm(folder, { recursive: true, force: true });
   }

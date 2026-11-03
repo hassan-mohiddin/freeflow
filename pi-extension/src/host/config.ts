@@ -5,7 +5,6 @@ import { resolveCognitiveRoutingState, supportsCognitiveRoutingModelRegistry } f
 import { sessionStage, stagedFor } from "./staging.js";
 import { resolveToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig } from "../compaction/config.js";
-import { AUTO_APPROVE_GROUPS, resolveTaskMemoryConfig } from "../task-memory/config.js";
 import { INBOUND_POLICIES, resolveMessagingConfig } from "../messaging/config.js";
 import {
   type ConfigObject,
@@ -36,8 +35,6 @@ export const SESSION_OVERRIDE_KEYS = [
   "toolExecution.enabled",
   "toolExecution.guidanceNotices",
   "compaction.enabled",
-  "taskMemory.enabled",
-  ...Object.keys(AUTO_APPROVE_GROUPS).map((group) => `taskMemory.autoApprove.${group}`),
   "messaging.enabled",
   "messaging.inbound",
   "review.mode",
@@ -295,7 +292,6 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
   const sessionLocalConfig = withSessionLayer(localConfig, sessionLayer);
   const toolExecution = resolveToolExecutionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const compaction = resolveCompactionConfig(repositoryConfig, sessionLocalConfig, enabled);
-  const taskMemory = resolveTaskMemoryConfig(repositoryConfig, sessionLocalConfig, enabled);
   const messaging = resolveMessagingConfig(repositoryConfig, sessionLocalConfig, enabled);
   // Not capabilities: the user's choices for Review Work, the runtime prompts and the skills, on every host.
   const review = resolveReviewSettings(repositoryConfig, sessionLocalConfig);
@@ -325,7 +321,8 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
     cognitiveRouting,
     toolExecution,
     compaction,
-    taskMemory,
+    // Pi's Task Memory is gone: a config that still sets it loads, and /freeflow status says so (P6).
+    taskMemoryRetired: repositoryConfig.taskMemory !== undefined || localConfig.taskMemory !== undefined,
     messaging,
     review,
     prompts,
@@ -341,7 +338,6 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
     cognitiveRouting: disableSubagentCapability(capabilityState.cognitiveRouting),
     toolExecution: disableSubagentCapability(capabilityState.toolExecution),
     compaction: disableSubagentCapability(capabilityState.compaction),
-    taskMemory: disableSubagentCapability(capabilityState.taskMemory),
     messaging: disableSubagentCapability(capabilityState.messaging),
     askUser: disableSubagentCapability(capabilityState.askUser),
   };

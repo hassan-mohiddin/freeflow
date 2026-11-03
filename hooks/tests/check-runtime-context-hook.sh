@@ -113,7 +113,7 @@ cp "$ROOT_DIR/hooks/adapters/codex-session-start.mjs" "$whitespace_root/hooks/ad
 cp "$ROOT_DIR/hooks/shared/runtime-context.mjs" "$whitespace_root/hooks/shared/runtime-context.mjs"
 cp -R "$ROOT_DIR/runtime/prompts/." "$whitespace_root/runtime/prompts/"
 # The renderer validates config with Pi's built validator.
-for validator in host/config-validation.js host/catalog.js tool-execution/config.js compaction/config.js task-memory/config.js messaging/config.js; do
+for validator in host/config-validation.js host/catalog.js tool-execution/config.js compaction/config.js messaging/config.js; do
   mkdir -p "$(dirname "$whitespace_root/pi-extension/dist/$validator")"
   cp "$ROOT_DIR/pi-extension/dist/$validator" "$whitespace_root/pi-extension/dist/$validator"
 done

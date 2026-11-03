@@ -60,7 +60,7 @@ export class Messaging {
   heldCount() {
     return this.held.length;
   }
-  /** Listen and list this session; idempotent. Call again after the identity changes (name, focus) to refresh it. */
+  /** Listen and list this session; idempotent. Call again after the identity changes (name, held task) to refresh it. */
   async start() {
     const identity = await this.host.identity();
     const socket = socketPathFor(identity.sessionId);

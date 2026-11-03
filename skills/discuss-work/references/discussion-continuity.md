@@ -64,7 +64,7 @@ After preservation, return to the discussion unless the user chose another route
 
 ## Carry Return Points On The Route
 
-A commit, publication, review, user decision, or planned handoff that the discussion anticipates is a return point on the route, not a Slice. While it is only anticipated, keep it in the conversation, or with a record as a `Proposed:` item in Open at the next checkpoint. Once the user agrees it, it goes in the work agreement: with a Schema 5 record, a `Back at` line through Track Work; with a Schema 4 record, a Checkpoint, as Track Work's Schema 4 reference says.
+A commit, publication, review, user decision, or planned handoff that the discussion anticipates is a return point on the route, not a Slice. While it is only anticipated, keep it in the conversation, or with a record as a `Proposed:` item in Open at the next checkpoint. Once the user agrees it, it goes in the work agreement: with a record, a `Back at` line through Track Work.
 
 Keep local commit authority separate from push or publication, and keep migration, release, and launch separately controlled.
 

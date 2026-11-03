@@ -112,7 +112,7 @@ Review: [1 | 2 | 3]
 Boundary: [the protected future action]
 Reviewed state: [commit]
 Method: [path to Review Work's SKILL.md and its references/work.md, read from the base branch]
-Agreement: [path to the Working Record, read through `view recover` (a Schema 4 record: its resume view), or to the accepted outcome, requirements and non-goals; plus any Spec or Plan it names]
+Agreement: [path to the Working Record, read through `view recover`, or to the accepted outcome, requirements and non-goals; plus any Spec or Plan it names]
 Docs: [paths to the dev docs covering the changed files, read from the base branch | none]
 Review rules: [path to the project's Review Rules or REVIEW.md, read from the base branch | none]
 Diff: [base]..[head]
@@ -136,7 +136,7 @@ Review work you did not produce. Inspect the work, source truth, and evidence th
 
 A pass is valid. Use a high evidence bar, not a high item count. Do not broaden scope or treat possible improvement as unfinished work. Lead with the few items that can change the boundary judgment; prior review, urgency, implementation effort, or producer confidence does not establish correctness.
 
-Read the brief's pointers: the agreement (through the Working Record's `view recover`, or a Schema 4 record's resume view, when the brief names one), the docs, the Review Rules, and the diff. Then read the evidence as claims to check. Run a check listed under `May run`, in your own copy, only when that evidence is missing or does not convince you; run nothing else, and make no edits, network calls, or paid runs. Reading files, with any command that only reads, is inspection, not a check. When a claim still lacks evidence, report **Needs evidence** with the claim and required observing boundary. When you run a check, apply Verify Work's check-result and claim-result semantics; active evidence does not authorize editing or broaden the review.
+Read the brief's pointers: the agreement (through the Working Record's `view recover`, when the brief names one), the docs, the Review Rules, and the diff. Then read the evidence as claims to check. Run a check listed under `May run`, in your own copy, only when that evidence is missing or does not convince you; run nothing else, and make no edits, network calls, or paid runs. Reading files, with any command that only reads, is inspection, not a check. When a claim still lacks evidence, report **Needs evidence** with the claim and required observing boundary. When you run a check, apply Verify Work's check-result and claim-result semantics; active evidence does not authorize editing or broaden the review.
 
 Apply the lenses the brief names, or all of those under Apply The Lenses. Do not search for unrelated issues. Report an out-of-scope issue only when it materially affects whether this boundary may be crossed. Classify each item and determine the judgment as Review Work's SKILL.md does: "Classify Before Calling Something A Defect" and the independent judgment under "Perform A Selected Independent Review".
 

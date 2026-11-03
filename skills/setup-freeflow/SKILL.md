@@ -19,7 +19,7 @@ Answer setup questions and delivery checks read-only. An explicit action request
 | --- | --- |
 | Activating, or changing shared or personal setup | Establish Mutation Authority, then Inspect The Layers, then the section for that layer |
 | Repository config invalid, or conflicting with accepted source truth or repository instructions | [Discuss Work](../discuss-work/SKILL.md), before replacing or reinterpreting it |
-| Setting up the Freeflow store for task memory, local only or local + cloud, in a cloud session too; moving a local store to the cloud; moving older records (a repository's `.freeflow/tasks/`, Pi's Task Memory) into the store | [store setup](references/store-setup.md) |
+| Setting up the Freeflow store for task memory, local only or local + cloud, in a cloud session too; moving a local store to the cloud; moving older records (a repository's `.freeflow/tasks/`, Pi's former Task Memory) into the store | [store setup](references/store-setup.md) |
 | Whether the host delivers Freeflow, or which host action refreshes it | Hosts, below |
 | Cognitive Routing or Tool Execution values | Their explicit settings surface (on Pi, `/freeflow settings`), only when the user requests them |
 

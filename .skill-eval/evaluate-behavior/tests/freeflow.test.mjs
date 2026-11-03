@@ -74,11 +74,11 @@ emit({ type: "agent_settled" });
   return bin;
 }
 
-function freeflowGroup({ candidateRepository = { taskMemory: { enabled: true } }, prompt = "host" } = {}) {
+function freeflowGroup({ candidateRepository = { messaging: { enabled: true } }, prompt = "host" } = {}) {
   return {
     schema_version: 2,
     kind: "group",
-    id: "task-memory",
+    id: "messaging",
     type: "description",
     input: { prompt: "Pick up where the last session left off." },
     fixture: null,
@@ -88,10 +88,10 @@ function freeflowGroup({ candidateRepository = { taskMemory: { enabled: true } }
       model: { model: "fake/model" },
       subject: { kind: "none" },
       runtime: { prompt },
-      freeflow: { source: { kind: "git", ref: "HEAD" }, repository: { taskMemory: { enabled: false } } },
+      freeflow: { source: { kind: "git", ref: "HEAD" }, repository: { messaging: { enabled: false } } },
     },
     arms: { baseline: {}, candidate: { freeflow: { repository: candidateRepository } } },
-    component: ["freeflow.repository.taskMemory.enabled"],
+    component: ["freeflow.repository.messaging.enabled"],
     expectations: [{ id: "no-skill-read", kind: "skill-read", variant: "candidate", expect: "never" }],
     review_questions: [],
   };
@@ -113,7 +113,7 @@ test("a Freeflow configuration is built once per commit, loaded after the guard,
   await withTempDirectory(async (root) => {
     await installFakeSnapshot(root);
     const bin = await installRecordingPi(root);
-    const definition = await writeJson(path.join(root, "groups/task-memory.json"), freeflowGroup());
+    const definition = await writeJson(path.join(root, "groups/messaging.json"), freeflowGroup());
 
     const result = runCli(root, bin, definition);
 
@@ -125,7 +125,7 @@ test("a Freeflow configuration is built once per commit, loaded after the guard,
       .map((line) => JSON.parse(line));
     assert.deepEqual(
       calls.map((call) => call.config),
-      [{ taskMemory: { enabled: false } }, { taskMemory: { enabled: true } }],
+      [{ messaging: { enabled: false } }, { messaging: { enabled: true } }],
     );
     for (const call of calls) {
       const extensions = call.args.flatMap((arg, index) => (arg === "--extension" ? [call.args[index + 1]] : []));
@@ -134,10 +134,10 @@ test("a Freeflow configuration is built once per commit, loaded after the guard,
       assert.ok(call.allowedRoots.some((entry) => entry.endsWith("resources/freeflow/0/package")));
     }
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
-    const run = JSON.parse(await readFile(path.join(resultDirectory, "groups/task-memory/candidate/run.json"), "utf8"));
+    const run = JSON.parse(await readFile(path.join(resultDirectory, "groups/messaging/candidate/run.json"), "utf8"));
     assert.equal(run.resources.freeflow.commit, COMMIT);
     assert.equal(run.resources.freeflow.package, "freeflow@0.0.0-test");
-    assert.deepEqual(run.resources.freeflow.repository, { taskMemory: { enabled: true } });
+    assert.deepEqual(run.resources.freeflow.repository, { messaging: { enabled: true } });
   });
 });
 
@@ -146,8 +146,8 @@ test("Freeflow settings its own build rejects refuse the group before any subjec
     await installFakeSnapshot(root);
     const bin = await installRecordingPi(root);
     const definition = await writeJson(
-      path.join(root, "groups/task-memory.json"),
-      freeflowGroup({ candidateRepository: { taskMemory: { enabled: true }, bogus: 1 } }),
+      path.join(root, "groups/messaging.json"),
+      freeflowGroup({ candidateRepository: { messaging: { enabled: true }, bogus: 1 } }),
     );
     // bogus is a second difference, so declare it too; the validator, not the diff, must refuse it.
     const value = JSON.parse(await readFile(definition, "utf8"));
@@ -158,7 +158,7 @@ test("Freeflow settings its own build rejects refuse the group before any subjec
 
     assert.notEqual(result.status, 0);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
-    const run = JSON.parse(await readFile(path.join(resultDirectory, "groups/task-memory/candidate/run.json"), "utf8"));
+    const run = JSON.parse(await readFile(path.join(resultDirectory, "groups/messaging/candidate/run.json"), "utf8"));
     assert.equal(run.state, "invalid");
     assert.match(
       JSON.stringify(run),
@@ -213,14 +213,14 @@ test("run metrics count reads of the loaded Freeflow package's skills and the pe
     group.reference = "plain";
     group.component = ["freeflow"];
     group.expectations = [{ id: "no-skill-read", kind: "skill-read", variant: "freeflow", expect: "never" }];
-    const definition = await writeJson(path.join(root, "groups/task-memory.json"), group);
+    const definition = await writeJson(path.join(root, "groups/messaging.json"), group);
 
     const result = runCli(root, bin, definition);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     const metrics = async (arm) =>
-      JSON.parse(await readFile(path.join(resultDirectory, "groups/task-memory", arm, "run.json"), "utf8")).metrics;
+      JSON.parse(await readFile(path.join(resultDirectory, "groups/messaging", arm, "run.json"), "utf8")).metrics;
     // Two reads of 40 bytes each, 10 estimated tokens each; the largest request carried 20 + 400 tokens.
     const freeflow = await metrics("freeflow");
     assert.deepEqual([freeflow.peakContext, freeflow.skillReads, freeflow.skillReadTokens], [420, 2, 20]);

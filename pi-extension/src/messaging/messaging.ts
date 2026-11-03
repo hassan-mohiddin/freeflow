@@ -46,7 +46,7 @@ export type Identity = Readonly<{
 }>;
 
 export interface MessagingHost {
-  /** Who this session is now: its Pi session ID, Pi's session name if set, folder, project, focused and owned tasks. */
+  /** Who this session is now: its Pi session ID, Pi's session name if set, folder, and the task it holds in the Freeflow store with its project. */
   identity(): Promise<Identity>;
   policy(): InboundPolicy;
   busy(): boolean;
@@ -114,7 +114,7 @@ export class Messaging {
     return this.held.length;
   }
 
-  /** Listen and list this session; idempotent. Call again after the identity changes (name, focus) to refresh it. */
+  /** Listen and list this session; idempotent. Call again after the identity changes (name, held task) to refresh it. */
   async start(): Promise<void> {
     const identity = await this.host.identity();
     const socket = socketPathFor(identity.sessionId);

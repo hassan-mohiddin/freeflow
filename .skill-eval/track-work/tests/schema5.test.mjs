@@ -67,7 +67,7 @@ function initTask(folder, root, name = "Demo task") {
   const out = ok(
     run(
       folder,
-      ["init", "--schema", "5", "--root", root, "--name", name, "--cue", "read when testing Schema 5", "--input", "-"],
+      ["init", "--root", root, "--name", name, "--cue", "read when testing Schema 5", "--input", "-"],
       "### Goal\n- Try Schema 5.\n### Next action\n- Open the agreement.\n",
     ),
   );
@@ -168,7 +168,7 @@ test("the Schema 5 fixture's record.md, history.md and decisions.md validate, an
   });
 });
 
-test("init --schema 5 writes record.md, history.md and decisions.md, and refuses a cue that is not one", async () => {
+test("init writes record.md, history.md and decisions.md, and refuses a cue that is not one", async () => {
   await withFolder(async (folder) => {
     const record = initTask(folder, folder);
     assert.equal(record, join(folder, ".freeflow", "tasks", "task-001-demo-task", "record.md"));
@@ -185,7 +185,7 @@ test("init --schema 5 writes record.md, history.md and decisions.md, and refuses
     const second = ok(
       run(
         folder,
-        ["init", "--schema", "5", "--root", folder, "--name", "Second", "--cue", "read when testing", "--input", "-"],
+        ["init", "--root", folder, "--name", "Second", "--cue", "read when testing", "--input", "-"],
         "### Goal\n- Two.\n### Defined by\n- specs/two.md — the design.\n### Next action\n- Go.\n",
       ),
     ).split("\n");
@@ -204,21 +204,17 @@ test("init --schema 5 writes record.md, history.md and decisions.md, and refuses
     ]) {
       const refused = run(
         folder,
-        ["init", "--schema", "5", "--root", folder, "--name", "Other", "--cue", cue, "--input", "-"],
+        ["init", "--root", folder, "--name", "Other", "--cue", cue, "--input", "-"],
         "### Goal\n- G.\n### Next action\n- N.\n",
       );
       assert.equal(refused.status, 1);
       assert.match(refused.stderr, message);
     }
     assert.ok(!existsSync(join(folder, ".freeflow", "tasks", "task-002-other")));
-    assert.match(
-      run(folder, ["init", "--schema", "4", "--root", folder, "--name", "Four", "--cue", "read when x"]).stderr,
-      /--cue is for Schema 5; --schema 4 takes none/,
-    );
   });
 });
 
-test("init writes Schema 5 unless --schema 4 is given (T18)", async () => {
+test("init writes Schema 5 and requires a cue", async () => {
   await withFolder(async (folder) => {
     const five = ok(
       run(
@@ -235,18 +231,8 @@ test("init writes Schema 5 unless --schema 4 is given (T18)", async () => {
       "### Goal\n- G.\n### Next action\n- N.\n",
     );
     assert.equal(noCue.status, 1);
-    assert.match(
-      noCue.stderr,
-      /init requires --cue, saying when the task matters \("read when …"\); --schema 4 writes a Schema 4 record/,
-    );
-    const four = ok(
-      run(
-        folder,
-        ["init", "--schema", "4", "--root", folder, "--name", "Four", "--input", "-"],
-        "### Goal\n- G.\n\n### Next useful action\n- N.\n",
-      ),
-    ).trim();
-    assert.match(await readFile(four, "utf8"), /^# Working Record: Four\n\nSchema: 4\n/);
+    assert.match(noCue.stderr, /init requires --cue, saying when the task matters \("read when …"\)/);
+    assert.ok(!existsSync(join(folder, ".freeflow", "tasks", "task-002-no-cue")));
   });
 });
 
@@ -638,47 +624,19 @@ test("in a cloud store, checkpoint writes the work repository's Space line, and 
   });
 });
 
-test("Schema 4 records keep their commands and refuse Schema 5's; Schema 5 records refuse Schema 4's", async () => {
+test("Schema 4's commands and views are gone: a Schema 5 record is refused them by name", async () => {
   await withFolder(async (folder) => {
-    const four = ok(
-      run(
-        folder,
-        ["init", "--schema", "4", "--root", folder, "--name", "Four", "--input", "-"],
-        "### Goal\n- G.\n\n### Next useful action\n- N.\n",
-      ),
-    ).trim();
-    assert.match(
-      run(folder, ["agreement", "open", "--record", four, "--title", "x", "--input", "-"], "- x\n").stderr,
-      /agreement is for Schema 5 records; this one is Schema 4/,
-    );
-    assert.match(
-      run(folder, ["checkpoint", "--record", four]).stderr,
-      /checkpoint without an operation is for Schema 5/,
-    );
-    ok(
-      run(
-        folder,
-        ["slice", "start-direct", "--record", four, "--title", "Four's slice", "--next-action", "n", "--input", "-"],
-        "- Intended result: r.\n- Authority source: a.\n- Scope: s.\n- Expected evidence: e.\n- Stop condition: x.\n- Starting state: y.\n",
-      ),
-    );
-    ok(
-      run(
-        folder,
-        ["checkpoint", "propose", "--record", four, "--title", "Commit", "--input", "-"],
-        "- Type: preserve\n- Condition: c.\n- Applies to: S-001\n",
-      ),
-    );
-    assert.match(ok(run(folder, ["view", "resume", "--record", four])), /#### S-001 — Four's slice/);
     const five = initTask(folder, folder, "Five");
-    assert.match(
-      run(folder, ["decision", "add", "--record", five, "--title", "x", "--input", "-"], "- Decision: d.\n").stderr,
-      /Not a Schema 5 command: decision add/,
-    );
-    assert.match(
-      run(folder, ["slice", "reopen", "--record", five, "--id", "S-001", "--next-action", "n"]).stderr,
-      /Not a Schema 5 command: slice reopen/,
-    );
+    for (const [args, message] of [
+      [["decision", "add", "--record", five, "--title", "x", "--input", "-"], /Unknown command: decision add/],
+      [["slice", "reopen", "--record", five, "--id", "S-001", "--next-action", "n"], /Unknown command: slice reopen/],
+      [
+        ["checkpoint", "propose", "--record", five, "--title", "x", "--input", "-"],
+        /Unknown command: checkpoint propose/,
+      ],
+      [["view", "resume", "--record", five], /View must be recover, full, entry, index, or bundle/],
+    ])
+      assert.match(run(folder, args, "- Decision: d.\n").stderr, message);
     assert.match(ok(run(folder, ["view", "full", "--record", five])), /^# Five\n/);
   });
 });

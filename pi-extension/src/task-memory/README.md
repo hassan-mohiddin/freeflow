@@ -1,9 +1,0 @@
-# Task memory
-
-Working Records attached to a Pi session: which tasks the session works on, projects and child records, the focused record's resume view at the boundaries where context changes, and a gate on record writes. A preview, off unless `taskMemory.enabled` is set. Design: `dev-docs/subsystems/task-memory.md`.
-
-- `config.ts`: the `taskMemory` config key, its validation and layering.
-- `runtime.ts`: session state as a fold over `freeflow-task-memory-v1` branch entries; attach, focus, detach, hold and confirm; snapshots through Track Work's `views.mjs`; the write gate; Runtime State lines.
-- `registry.ts`: a typed facade over Track Work's portable registry (`skills/track-work/scripts/lib/registry.mjs`: projects, stores, registered tasks, children, owners), loaded on first use.
-- `tool.ts`: the `task_memory` tool: every task and project operation, with a dialog before those that create something or grant writes.
-- `render.ts`: how `task_memory` calls and results, and delivered resume views, look in the transcript: one line collapsed, the full text expanded.

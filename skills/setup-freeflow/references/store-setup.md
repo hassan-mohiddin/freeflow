@@ -6,7 +6,7 @@ This reference sets up the Freeflow store that keeps task memory for [Track Work
 
 - Make the store, add its remote, and move records into it only when the user asks or says yes to your question.
 - The store's remote is the user's own private repository. Never point the store at, or push it to, any other.
-- Moving records into the store copies them: never delete or change the originals, and never take Pi's Task Memory's folder for the store.
+- Moving records into the store copies them: never delete or change the originals, and never take the folder that holds Pi's former Task Memory for the store.
 
 ## Ask Once
 
@@ -16,7 +16,7 @@ Ask one question, through the harness's question tool where it has one, with loc
 - **Local + cloud:** the same store, kept in step with the user's own private repository, so every device and every cloud session has it. A cloud session needs this, since its container is thrown away.
 - **No store:** then there is no task. Say that the work goes on without memory beyond this compaction cycle.
 
-The store lives at `FREEFLOW_HOME`, `~/.freeflow` when it is unset. If that folder holds Pi's Task Memory (`registry.json`), `store init` refuses it: propose another folder, such as `~/.freeflow-store`, and tell the user to set `FREEFLOW_HOME` to it for every session that uses the store.
+The store lives at `FREEFLOW_HOME`, `~/.freeflow` when it is unset. If that folder holds Pi's former Task Memory (`registry.json`), `store init` refuses it: propose another folder, such as `~/.freeflow-store`, and tell the user to set `FREEFLOW_HOME` to it for every session that uses the store.
 
 ## Local Only
 
@@ -45,16 +45,16 @@ When a session starts without the store, Freeflow says so at session start. Wher
 Look for records kept before the store, and list them for the user before moving any:
 
 - in a repository's Git-ignored `.freeflow/tasks/`: each `task-NNN-*/record.md`, Schema 4 or 5 as its header says;
-- Pi's Task Memory: `registry.json` and its projects' records in `~/.freeflow`, or in the folder `FREEFLOW_HOME` named for Pi.
+- Pi's former Task Memory: `registry.json` in `~/.freeflow`, or in the folder `FREEFLOW_HOME` named for Pi, with each project's records under its `projects/<project>/tasks/`; a child record moves in as a task of its own, since the store has no child records.
 
 Each moves into a project of the store, made first with `project new` on the user's word, as that project's next task:
 
 | The record | Command |
 | --- | --- |
-| Schema 4, in a repository or Pi's Task Memory | `migrate --record <record.md> --cue <cue> [--cues <file>] --project <name> --home <store>`: copies the folder, converts it to Schema 5 and pushes it. Ask the user for the task's cue, and for each closed Slice's cue or leave it marked missing. |
+| Schema 4, in a repository or Pi's former Task Memory | `migrate --record <record.md> --cue <cue> [--cues <file>] --project <name> --home <store>`: copies the folder, converts it to Schema 5 and pushes it. Ask the user for the task's cue, and for each closed Slice's cue or leave it marked missing. |
 | Schema 5, in a repository | `migrate --record <record.md> --project <name> --home <store>`: copies it as it is and pushes it. |
 
-The original stays where it was: a repository's copy until the user removes it, and Pi's until Freeflow's Pi layer moves to the store, since Pi still reads its own. Say which originals are left and that edits made there from now on do not reach the store.
+The original stays where it was, and no Freeflow command but `migrate` reads it any more: it is the user's to remove once they have checked the store's copy. Say which originals are left and that edits made there do not reach the store.
 
 ## Check And Report
 

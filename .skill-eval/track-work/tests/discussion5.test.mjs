@@ -110,19 +110,7 @@ async function withTask(run) {
         env: { ...process.env, FREEFLOW_HOME: "", CLAUDE_CODE_SESSION_ID: "" },
       });
     const record = cli(
-      [
-        "init",
-        "--schema",
-        "5",
-        "--root",
-        folder,
-        "--name",
-        "Talking",
-        "--cue",
-        "read when discussion matters",
-        "--input",
-        "-",
-      ],
+      ["init", "--root", folder, "--name", "Talking", "--cue", "read when discussion matters", "--input", "-"],
       "### Goal\n- Talk.\n### Next action\n- Decide.\n",
     ).stdout.split("\n")[0];
     // The record's last checkpoint is before the discussion, so list starts after it.

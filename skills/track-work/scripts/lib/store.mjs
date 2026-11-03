@@ -71,7 +71,7 @@ async function assertNoSymlinkPath(target, stopAt) {
   }
 }
 
-/** The marker a project store keeps at its root; see registry.mjs. The Freeflow store's root marker has the same name. */
+/** The Freeflow store's root marker; a project store of Pi's former Task Memory, which migrate reads, has one too. */
 export const STORE_MARKER = "store.json";
 
 /** The store's local/repositories.json: where each repository a task names in Space is on this machine. */
@@ -93,7 +93,10 @@ export function isFreeflowStore(root) {
 /** In a tasks directory: the highest task number a removal took away, so numbering never goes back. */
 export const LAST_TASK_NUMBER = ".last-task-number";
 
-/** Whether root is a project store: its store.json is the registry's marker, not some other file of that name. */
+/**
+ * Whether root is a project store of Pi's former Task Memory (<its home>/projects/<project>, marked by a store.json
+ * naming the project), whose records migrate reads and moves into the Freeflow store.
+ */
 function isStore(root) {
   try {
     const marker = JSON.parse(readFileSync(join(root, STORE_MARKER), "utf8"));

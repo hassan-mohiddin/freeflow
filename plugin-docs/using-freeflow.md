@@ -12,7 +12,7 @@ Freeflow is a feedback-based control system for coding agents: each step checks 
 | --- | --- | --- |
 | **The cycle** | Agree before building, build and verify, review and hand over, in a short always-loaded prompt with the Interaction Contract and the Working Method. | Every host where Freeflow delivers its prompts. |
 | **Eleven skills** | One per capability: discussing and agreeing, executing, verifying, reviewing, delivering, task memory, documents, research, and a few for contributors. Each brings references for less common situations and scripts that gather the facts a decision needs. | Every host. |
-| **Pi capabilities** | Tool Execution (including skill guidance at the tool call that needs it), Compaction, Task Memory, Messaging and Cognitive Routing. | Native Pi. |
+| **Pi capabilities** | Tool Execution (including skill guidance at the tool call that needs it), Compaction, Messaging and Cognitive Routing. | Native Pi. |
 
 [How Freeflow Works](workflow.md) describes the cycle, the agreement and every skill.
 
@@ -282,7 +282,7 @@ Every task's memory lives in the Freeflow store: one private Git repository at `
 
 The store writes nothing into your code repositories, and only Track Work's script commits and syncs it. If you choose not to make a store, a task's folder goes in the repository's Git-ignored `.freeflow/tasks/` instead.
 
-A session holds at most one task, and a task has one holder at a time. Where Freeflow runs inside the host (on Claude Code, through its mod), a session starts with a task menu: the open tasks of the project whose tasks name this repository, followed by your rules from the store's `rules/` and that project's `rules/`, so they hold before any task is taken. The agent takes only the task your message points to, asks when it could be more than one, and asks before taking over a task another session holds.
+A session holds at most one task, and a task has one holder at a time. Where Freeflow runs inside the host (on Claude Code, through its mod, and on Pi), a session starts with a task menu: the open tasks of the project whose tasks name this repository, followed by your rules from the store's `rules/` and that project's `rules/`, so they hold before any task is taken. The agent takes only the task your message points to, asks when it could be more than one, and asks before taking over a task another session holds.
 
 ### What a task folder keeps
 
@@ -337,36 +337,15 @@ Pause safely and prepare a handoff. Preserve partial effects and the exact
 condition for resuming.
 ```
 
-### Task memory on Pi
+### Tasks on Pi
 
-On native Pi, Working Records keep the format Pi's task memory reads, in the repository or Pi's own projects, until Pi moves onto the Freeflow store. Task memory (a preview, off by default) lets the session hold its Working Records instead of leaving the agent to find them. Turn it on with the Task Memory switch in `/freeflow settings`. Then:
+On native Pi, tasks live in the same Freeflow store as on Claude Code. There is no picker: a session starts with the task menu, and you choose by talking to the agent, naming the task your message means or saying that the work needs none. Then:
 
-- **Attach the records a session works on.** The agent proposes attaching a record when the work needs one, and you confirm; or run `/freeflow task` to pick one. A session that needs no memory attaches nothing.
-- **The focused record comes back on its own.** After a compaction, `/reload`, a resume or `/tree` navigation, the agent receives the focused record's resume view, so recovery does not depend on the agent remembering which record it was using.
-- **Wrong-record writes are refused.** With two records attached, each update goes to the record it concerns; writes to a record you have not attached are refused and reported.
-- **Group tasks in a project.** A project keeps its records in `~/.freeflow` with IDs such as `my-app/task-003`, so they outlive the worktree they were made in. Each task's resume view lists the project's other tasks, and the agent reads the ones that bear on its work.
-- **Split a task across sessions.** Fan-out creates a child record with its own worktree and branch, and gives you a command to paste into a new terminal; Pi there offers to attach the child. You run both sessions; the parent's session reads the child's record.
-- **Ask in plain language.** "List my projects", "open the retry task", "start a task for the parser port", "split the parser off": the agent proposes the action, and anything that creates something or lets the session write opens a dialog for you to confirm. Every action also has a `/freeflow task` or `/freeflow project` command.
+- **The held task shows in the footer**, as `freeflow: task <ID>`, for as long as the session holds it.
+- **`/freeflow status` has a `store:` line** with the store's folder, the task the session holds or that none is held, and whether changes wait to be synced; or, when the store is not ready, what is missing.
+- **Compaction works as on Claude Code.** At a safe point the agent checkpoints the task with `--compact`, and Freeflow replaces the conversation with the task's bundle; see [Before a compaction, and after](#before-a-compaction-and-after).
 
-Useful requests:
-
-```text
-Attach the retry task and continue from its next action.
-```
-
-```text
-Fan the parser port out into a child task so I can run it in another session.
-```
-
-```text
-Check whether another task in this project already decided the retry limits.
-```
-
-```text
-Search this project's tasks for where we decided the cache key format.
-```
-
-See [Task Memory](capabilities/task-memory.md) for commands, projects, child records, and limits.
+Pi's former Task Memory is gone, and so are its `/freeflow task`, `/freeflow project` and `/freeflow trash` commands and its `taskMemory` settings: a configuration that still sets `taskMemory` loads and ignores it, and `/freeflow status` says so. Records you kept under Pi's former Task Memory move into the store through Setup Freeflow, as described in [Getting Started](getting-started.md#set-up-task-memory); the originals stay where they are. Tasks in a project are in the store's `projects/<project>/tasks/`, so a task outlives the worktree it was made in. With Messaging on, `list_sessions` shows the task each Pi session holds in the store and its project.
 
 ## Configure Freeflow
 
@@ -614,10 +593,6 @@ Under automatic Cognitive Routing, worker return ends the worker assignment but 
 
 Ask the agent to recover the Working Record, current assignment, and applicable live sources. If no record exists, reconstruct only what can be supported rather than treating a summary as exact history.
 
-### A Working Record write is refused (Pi task memory)
-
-With task memory on, the agent may write only records attached to the session, not held, and, for a project record, owned by the session. The refusal names which. Attach the record with `/freeflow task attach <record>` if the work belongs to it; after a fork, run `/freeflow task confirm` to make an inherited record writable; if another session owns a project record, attaching it here asks before taking it over.
-
 ### A verification passed but completion remains open
 
 The check may observe only part of the required claim, apply to an older candidate, or omit compatibility, artifact, consumer, or deployment boundaries. Ask what the check proves and what remains unobserved.
@@ -650,7 +625,6 @@ Keep claims at the boundary actually observed.
 - [Skill routing and dependencies](../dev-docs/subsystems/skill-routing.md)
 - [Cognitive Routing](capabilities/cognitive-routing.md)
 - [Tool Execution](capabilities/tool-execution.md)
-- [Task Memory](capabilities/task-memory.md)
 - [Pi integration](integrations/pi.md)
 - [Capabilities](capabilities/README.md)
 - [Release process](../dev-docs/guides/release.md)

@@ -5,7 +5,7 @@ Capabilities are optional Pi extensions outside the shared skill surface. They a
 ## Common rules
 
 - Capabilities are off or unavailable unless their configuration and host gates are effective.
-- Cognitive Routing, Tool Execution, Compaction, Task Memory and Messaging are independently gated. Compaction and Tool Execution are on by default with Freeflow; the others are off by default.
+- Cognitive Routing, Tool Execution, Compaction and Messaging are independently gated. Compaction and Tool Execution are on by default with Freeflow; the others are off by default.
 - One effective-state snapshot controls each capability’s prompt cue, discoverable skill, settings, and tools.
 - Runtime State reports current availability; it does not authorize work or prove behavioral readiness.
 - Capabilities leave the skill doing the work in charge and return evidence or state changes to it.
@@ -18,7 +18,6 @@ Capabilities are optional Pi extensions outside the shared skill surface. They a
 | [Cognitive Routing](cognitive-routing.md) | Experimental, native Pi | Place compute among Coordinator and enabled Helper or Executor profiles without changing authority or ownership |
 | [Tool Execution](tool-execution.md) | Experimental, native Pi | Freeflow's layer over Pi's tools: working guidance, file tracking, clearer edit errors, `apply_patch`, background commands |
 | [Compaction](compaction.md) | Experimental, native Pi | Let the agent compact at a safe point from its own summary and carried context, with Pi's compaction as the fallback |
-| [Task Memory](task-memory.md) | Preview, native Pi | Attach Working Records to the session, deliver the focused one when context is rebuilt, refuse writes to the wrong record; projects and child records for parallel sessions |
 | [Messaging](messaging.md) | Preview, native Pi | Let the agents in your Pi sessions on this machine send each other messages, delivered while the other works or waits |
 
 ## Composition
@@ -29,9 +28,9 @@ Cognitive Routing changes compute placement and selects eligible evidence for Co
 
 Tool Execution adds to Pi's tools without changing who may act: routing still owns which profile works, and Pi's tools, permissions and file-mutation queue carry every effect.
 
-Compaction composes with Cognitive Routing: workers compact themselves mid-assignment, a Coordinator under projection delegates compaction instead of compacting, and the Coordinator's view after a worker compaction names the worker's carried copies rather than repeating them. Compaction never creates or names a Working Record; the agent's summary names it. With Task Memory on, Freeflow also delivers the focused record's resume view after the compaction, after its own recovery message. Under automatic Cognitive Routing the Coordinator handles task memory and workers only read it.
+Compaction composes with Cognitive Routing: workers compact themselves mid-assignment, a Coordinator under projection delegates compaction instead of compacting, and the Coordinator's view after a worker compaction names the worker's carried copies rather than repeating them. Compaction never creates or names a Working Record; the agent's summary names it. Under automatic Cognitive Routing the Coordinator may run Track Work's script for the task it holds; workers only read it.
 
-Messaging composes with Task Memory: a child task's session reports to the session that owns its parent. Messages from other sessions are information for the agent, not your instructions, under every capability.
+Messaging composes with the Freeflow store: `list_sessions` shows the task each session holds and its project, and the `project` inbound policy delivers messages from sessions holding a task in the same project. Messages from other sessions are information for the agent, not your instructions, under every capability.
 
 ## Related documentation
 
@@ -39,6 +38,5 @@ Messaging composes with Task Memory: a child task's session reports to the sessi
 - [System prompt architecture](../../dev-docs/subsystems/prompt-assembly.md)
 - [Architecture](../../dev-docs/README.md)
 - [Pi integration](../integrations/pi.md)
-- [Task Memory](task-memory.md)
 - [Messaging](messaging.md)
 - [How Freeflow Works](../workflow.md)

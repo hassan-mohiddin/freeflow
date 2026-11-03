@@ -362,15 +362,15 @@ A configuration with `freeflow` runs the subject with Freeflow loaded, built fro
     "runtime": { "prompt": "host" },
     "freeflow": {
       "source": { "kind": "git", "ref": "<commit>" },
-      "repository": { "taskMemory": { "enabled": false } },
+      "repository": { "messaging": { "enabled": false } },
       "personal": {}
     }
   },
   "arms": {
     "baseline": {},
-    "candidate": { "freeflow": { "repository": { "taskMemory": { "enabled": true } } } }
+    "candidate": { "freeflow": { "repository": { "messaging": { "enabled": true } } } }
   },
-  "component": ["freeflow.repository.taskMemory.enabled"]
+  "component": ["freeflow.repository.messaging.enabled"]
 }
 ```
 

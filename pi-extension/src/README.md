@@ -11,7 +11,6 @@
 | [`compaction/`](compaction/README.md) | Freeflow compaction: the notice, then the task's bundle in place of the conversation after the agent's checkpoint, and Pi's own compaction with the bundle after it. |
 | [`store/`](store/README.md) | The Freeflow store on Pi: Track Work's script on Pi's events, the menu at session start, the sync, the held task in the footer. |
 | [`ask-user/`](ask-user/README.md) | The `ask_user` tool: questions put to the user in a dialog, and the confirmation dialog Freeflow's own proposals use. |
-| [`task-memory/`](task-memory/README.md) | Task memory (prototype): Working Records attached to the session, snapshots of the focused record, and the record write gate. |
 
 ## How a request flows through `index.ts`
 

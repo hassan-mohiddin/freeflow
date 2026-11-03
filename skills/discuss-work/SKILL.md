@@ -73,7 +73,7 @@ Write one line per item, plain items first:
 - T1 [default] FIFO array in queue.ts -> serves P1
 ```
 
-Check the list with [choices](scripts/choices.mjs): `node <discuss-work-directory>/scripts/choices.mjs validate --list <file|->`, or `--record <record.md>` for the task's list (`decisions.md` beside a Schema 5 record, `sources/decisions.md` beside a Schema 4 one). It refuses a bad ID, state or `T -> P` link, or a plain item without a default.
+Check the list with [choices](scripts/choices.mjs): `node <discuss-work-directory>/scripts/choices.mjs validate --list <file|->`, or `--record <record.md>` for the task's list (`decisions.md` beside the record). It refuses a bad ID, state or `T -> P` link, or a plain item without a default.
 
 ### Send The Agreement
 
@@ -135,7 +135,7 @@ Goal: the user decides from one look, knows what you recommend, and their answer
 
 When the host has a question tool (`ask_user` on Pi with Freeflow, `AskUserQuestion` on Claude Code), a bounded choice of two to four real options usually goes in its dialog, with what you found and why it matters in your reply. Ask in your reply when the choice needs more explanation, or no dialog can be shown.
 
-- The question is one full sentence about the outcome the user owns ("Ship Task Memory on or off by default?"), not the mechanics ("Which value for `taskMemory.enabled`?").
+- The question is one full sentence about the outcome the user owns ("Ship messaging on or off by default?"), not the mechanics ("Which value for `messaging.enabled`?").
 - Give two to four real options, each a few words with what choosing it does and costs; leave out dominated, unsafe, unavailable and hypothetical ones, and never add "Other".
 - Put your recommendation first, its label ending in "(Recommended)", when evidence supports one.
 - If the user closes the dialog, ask in your reply and do not act on the choice meanwhile.
@@ -146,4 +146,4 @@ Record the question and the user's answer in their words.
 
 Goal: before you claim done, the user sees every choice they have not seen.
 
-The decision check runs in [Review Work](../review-work/SKILL.md)'s self-review of work, against this list. Find the choices the work made that the agreement did not settle, reading the change for anything the user would see: names, messages, defaults, behavior on error or in cases nobody specified, data written, and conventions copied from nearby code. Bring each `agreed` item with where the user agreed it (the work agreement, the decision list's own quote, or their message) and the `file:line`, test or output that shows it was done as agreed, and each `changed` item with its reason; add each choice the diff shows that no item covers as `new`. Choices for the user stay in this list, never in the record's Settled (or a Schema 4 Decision), which holds only what the user accepted; building a choice does not settle it. The hand-over (the pull request through [Deliver Work](../deliver-work/SKILL.md), or the final report) shows what done looks like against what was done, and only the `new`, `changed` and `default` items. Agreed items stay out. `choices.mjs handover` lists those items; after an unattended run, `choices.mjs catch-up --record <record.md>` lists the defaults taken, the choices waiting and what ran.
+The decision check runs in [Review Work](../review-work/SKILL.md)'s self-review of work, against this list. Find the choices the work made that the agreement did not settle, reading the change for anything the user would see: names, messages, defaults, behavior on error or in cases nobody specified, data written, and conventions copied from nearby code. Bring each `agreed` item with where the user agreed it (the work agreement, the decision list's own quote, or their message) and the `file:line`, test or output that shows it was done as agreed, and each `changed` item with its reason; add each choice the diff shows that no item covers as `new`. Choices for the user stay in this list, never in the record's Settled, which holds only what the user accepted; building a choice does not settle it. The hand-over (the pull request through [Deliver Work](../deliver-work/SKILL.md), or the final report) shows what done looks like against what was done, and only the `new`, `changed` and `default` items. Agreed items stay out. `choices.mjs handover` lists those items; after an unattended run, `choices.mjs catch-up --record <record.md>` lists the defaults taken, the choices waiting and what ran.

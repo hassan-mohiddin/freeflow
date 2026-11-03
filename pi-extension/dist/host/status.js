@@ -66,7 +66,7 @@ export function setFreeflowStatus(
   // The footer shows state that changes while you work: routing's, and the task this session holds; other
   // capabilities are settings (Task 005). With every capability off it says so.
   if (options.task) active.push(`task ${options.task}`);
-  const anyOn = ["compaction", "toolExecution", "taskMemory", "messaging", "cognitiveRouting"].some(
+  const anyOn = ["compaction", "toolExecution", "messaging", "cognitiveRouting"].some(
     (name) => capabilityState?.[name]?.effective === true || capabilityState?.[name]?.enabled === true,
   );
   ctx.ui.setStatus(
@@ -105,8 +105,10 @@ export function freeflowStatusText(state, cognitiveRoutingController, diagnostic
     `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"}`,
     ...(diagnostics?.backgroundRunning ? [`background commands: ${diagnostics.backgroundRunning} running`] : []),
     `compaction: ${state.compaction?.effective ? `enabled${diagnostics?.compaction ? ` (${diagnostics.compaction})` : ""}` : "disabled"}`,
-    ...(state.taskMemory?.effective
-      ? [`task memory: enabled${diagnostics?.taskMemory ? ` (${diagnostics.taskMemory})` : ""}`]
+    ...(state.taskMemoryRetired
+      ? [
+          "task memory: Pi's Task Memory is gone, and its taskMemory settings are ignored: tasks live in the Freeflow store (Setup Freeflow moves old records in)",
+        ]
       : []),
     ...(diagnostics?.store ? [`store: ${diagnostics.store}`] : []),
     ...(state.messaging?.effective

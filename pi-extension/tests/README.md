@@ -24,7 +24,6 @@ Rebuild after changing `src/`; a stale `dist/` tests old code.
 | [`provider-support/`](provider-support/README.md) | Cache breakpoints, keep-alive, cache health, OpenAI effort history, Sign in with ChatGPT. |
 | [`compaction/`](compaction/README.md) | Freeflow compaction: the notice and rows, the compaction with the bundle at a run's end, and Pi's own compaction. |
 | [`store/`](store/README.md) | The Freeflow store's layer on Pi. |
-| [`task-memory/`](task-memory/README.md) | Task memory: attaching, snapshots, the write gate, and state across reload, navigation and compaction. |
 | [`cache-reuse/`](cache-reuse/README.md) | End-to-end prompt-cache reuse: each request extends the previous one, per view and per provider. |
 | [`host/`](host/README.md) | Settings widgets and persisted-session checks. |
 | [`integration/`](integration/README.md) | The whole extension: prompt architecture, Runtime State placement, configuration, and regressions. |
