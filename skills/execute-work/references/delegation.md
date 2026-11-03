@@ -9,6 +9,7 @@ The **coordinator** is the agent the user talks to. A **worker** does one assign
 - One writer per file. Only the coordinator writes the task's Working Record and its decision list. The agent that hands work out writes its brief, and only it merges that work's branch into its own; a worker writes only its own `progress.md` and `return.md`, the files its brief's Scope names, its own branch, and its sub-workers' briefs. Concurrent writers to one record have lost a write that reported success.
 - No two agents write in one checkout. A worker that writes, including one that builds or runs checks, gets its own worktree at the base its brief names before it starts; whether a worker that only reads gets one is your call.
 - A choice the user owns is never handed to a worker. A worker that reaches one stops and returns it; only the coordinator asks the user, through [Discuss Work](../../discuss-work/SKILL.md).
+- The coordinator assigns every part, and workers talk only to it, never to each other: independent agents with no central check amplified their errors about four times as much as agents under one coordinator.
 - A return is not acceptance. Check it, as Check The Return says, before recording its result or building on it.
 - Start an agent on the strongest model only with the user's yes, unless the work agreement or the user's standing policy covers it; ask with the reason, the effort and roughly what it will cost.
 
@@ -93,6 +94,16 @@ Goal: workers run at once without overwriting each other, and the fan-out is no 
 - Before scaling a fan-out, read one worker's prompt as the host delivered it: a harness can add context of its own, such as the user's latest message framed as the request.
 - Run many identical assignments through a script or the host's workflow tool rather than one call each, within the host's limit on agents running at once.
 
+## Workers In Separate Sessions
+
+Goal: long work runs in its own session, with the same brief, progress, return and checks as a subagent's.
+
+- Use a subagent for work that fits in your turn and one context. Use a separate session for work that outlives your turn or needs context cycles of its own: `delegate open --session`, which prints the command that starts the worker on Claude Code and Pi. Starting it is your act or the user's.
+- The worker session runs `delegate join`, which prints its recovery. From then on it holds no task and cannot write the record: it keeps `progress.md` with `checkpoint --delegation`, writes `return.md`, runs `delegate check-return` on it, then sends you one message naming the delegation and the return's path through the harness's tool (Claude Code `SendMessage`, Pi `send_message`); with no tool, your Waits on and the user tell you.
+- Name the delegation under the Slice's `Waits on`: when its return is logged, your driver gives you one row, and wakes you where it can. Check and close it as for a subagent; `delegate log` shows what happened.
+- A session worker hands parts down only to its own subagents (`delegate open --parent`), never to another session.
+- `delegate open --writes` claims the worker's scope for it, so other sessions are warned before they write there; claim and release your own shared paths with `claim` and `release`. Messages between sessions follow [parallel sessions](parallel-sessions.md).
+
 ## Work While Workers Run
 
 Goal: no one waits idle, and no worker builds on a premise that has changed.
@@ -109,7 +120,7 @@ Goal: as a worker, produce the brief's result within its scope, and hand back wh
 - The brief is your scope. Where it and the Working Record disagree, the brief wins, and a dated change in it overrides the earlier text.
 - When part of your assignment is worth handing down, hand it down as [Hand Work Down One Level](#hand-work-down-one-level) says, and brief them as Write The Brief says.
 - Write only what its Scope allows, in your own worktree. Choose ordinary mechanics yourself and list them in the return. A choice that is not yours, a premise the work disproves, or a choice the user owns ends the round: return it.
-- Keep `progress.md` in the delegation folder, rewritten before your context is compacted, so you or another agent can pick the work up:
+- Keep `progress.md` in the delegation folder, rewritten before your context is compacted, so you or another agent can pick the work up; with a Working Record, `checkpoint --delegation D-012 --input -` writes it:
 
   ```markdown
   # D-012 progress
@@ -128,7 +139,7 @@ Goal: as a worker, produce the brief's result within its scope, and hand back wh
   ## Result
   ## Identities    branch, commits, files
   ## Checks        what ran and what it showed; what was not verified
-  ## Left open     choices the brief did not settle, and what you took
+  ## Left open     one line per choice the brief did not settle: - <the choice> -> <what you took>[, technical]
   ## Not done
   ```
 

@@ -16,6 +16,8 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Never ask another session to do what this session was refused or is not authorized to do.
 - A held message that is refused or not answered, and a refused message, are that user's answer: do not send it again, rephrase it, or reach that session another way. Tell your user.
 
+When to send a message to another session, what to send, and what a message you receive may change are in Execute Work's [parallel sessions](../../skills/execute-work/references/parallel-sessions.md) reference, for every harness. This skill keeps what is Pi's: turning Messaging on, its tools and its inbound policy.
+
 ## Find The Session
 
 Goal: the message reaches the one session it is meant for.

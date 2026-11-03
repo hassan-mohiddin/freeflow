@@ -88,7 +88,7 @@
       "case_concept": "Complete one accepted local correction, then change route when repeated evidence exposes a shared failure unit; discriminate cache-key from invalidation hypotheses before fixing a stale read; keep v1 until a dormant consumer is observed.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "e19b82e9f9db685a28a291e813715d17271f39124072baf03dad403bce5d3c7c",
+      "source_sha256": "234d407408405d05e86b90088b4b5c62f9b621a01539c16c9637fbb87dc002c1",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
