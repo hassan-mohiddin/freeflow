@@ -214,7 +214,7 @@ test("session start: with a store, pull it, give the scripts the window and the 
   expect(w.commands().slice(0, 2)).toEqual(["session status", "store sync --pull"]);
   expect(w.commands()[2]).toStartWith("task here --cwd /work/widget --scan /work/widget:/work:");
   // The rules come with the menu, so the session has them before it takes a task (Spec section 4).
-  expect(w.commands()[2]).toEndWith(" --rules");
+  expect(w.commands()[2]).toEndWith(" --rules --take-back");
   expect(w.commands().length).toBe(3);
   expect(w.runs.every((run) => run.session === SESSION)).toBe(true);
   expect(result.additionalContext).toEqual([`Freeflow task memory:\n${MENU}`]);
@@ -264,6 +264,20 @@ test("a store attached after session start: the turn that ends with it does what
   w.runs.length = 0;
   await $.turn.complete(turnEnd("answer"));
   expect(w.commands()).toEqual(["session status"]);
+  expect(appended(w)).toEqual([]);
+});
+
+test("a store attached after session start that takes back the task this session's end released tells the agent so (F36)", async ($, on) => {
+  const w = world(on);
+  await start($);
+  w.status = store();
+  w.answers["task here"] = {
+    stdout: `Took widget/task-001 back: this session held it until it ended.\n${MENU}`,
+  };
+  w.runs.length = 0;
+  await $.turn.complete(turnEnd("answer"));
+  expect(w.commands()[2]).toEndWith(" --rules --take-back");
+  expect(appended(w)).toEqual(["Freeflow: Took widget/task-001 back: this session held it until it ended."]);
 });
 
 test("a request ends: one notice a cycle, at the lower of 75% and a tenth before Claude's threshold, asking for a checkpoint at a safe point", async ($, on) => {
@@ -713,7 +727,8 @@ test("the session ends: release the hold and push, as the ending session", async
   const w = world(on);
   w.status = held(at(-30));
   await $.session.end({ reason: "prompt_input_exit", sessionId: "sess-old", resume: { id: "sess-old" } });
-  expect(w.commands()).toEqual(["session status", "task release"]);
+  // As ended, so a resume of this session takes the task back (F36).
+  expect(w.commands()).toEqual(["session status", "task release --ended"]);
   expect(w.runs.every((run) => run.session === "sess-old")).toBe(true);
 
   w.runs.length = 0;

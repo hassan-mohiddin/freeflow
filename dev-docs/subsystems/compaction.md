@@ -40,10 +40,10 @@ It deliberately does not:
 
 `StoreLayer` (`store/layer.ts`) runs Track Work's script from Freeflow's package with Pi's environment and keeps `session status` in memory. It is read at session start, after the agent's own run of the script (off the request path, not awaited), when a run that touched the store ends, and at a compaction; the request path never reads it.
 
-- **Session start** (`index.ts`): `sessionEnvironment()` sets `FREEFLOW_SESSION` (Pi's session ID), `FREEFLOW_HARNESS=Pi`, `FREEFLOW_TRANSCRIPT` (the session file), `FREEFLOW_RESUME` (`pi --session <file>`) and `FREEFLOW_CONTEXT_WINDOW` in the process, so the agent's commands, which Pi's bash runs with its environment, and Freeflow's own see the same session (T6). Then, not awaited: where a store exists, `store sync --pull` and `task here --rules`, delivered as one `freeflow-store` message for the next turn; where none exists, what `session status` lists as missing. A `/reload` only reads the state again.
+- **Session start** (`index.ts`): `sessionEnvironment()` sets `FREEFLOW_SESSION` (Pi's session ID), `FREEFLOW_HARNESS=Pi`, `FREEFLOW_TRANSCRIPT` (the session file), `FREEFLOW_RESUME` (`pi --session <file>`) and `FREEFLOW_CONTEXT_WINDOW` in the process, so the agent's commands, which Pi's bash runs with its environment, and Freeflow's own see the same session (T6). Then, not awaited: where a store exists, `store sync --pull` and `task here --rules --take-back`, which first takes back the task this session held when it ended, delivered as one `freeflow-store` message for the next turn; where none exists, what `session status` lists as missing. A `/reload` only reads the state again.
 - **A tool call** that runs `working-record.mjs`, or a file tool on a path inside the store, marks the run as touching the store (`touchesStore()`).
 - **The run's last turn** (a `turn_end` whose message has no tool calls): after a run that touched the store, `session status` is read again and `store sync` runs when something changed; then the compaction below.
-- **Shutdown:** `task release` for a held task, else `store sync` when something changed.
+- **Shutdown:** `task release --ended` for a held task, so a resume of the session takes it back, else `store sync` when something changed. A reload's shutdown is not the session's end (the same session starts again), so it keeps the hold and only syncs.
 - **Footer and status:** the footer adds `task <ID>` while the session holds one; `/freeflow status` has a `store:` line.
 
 ### Notices

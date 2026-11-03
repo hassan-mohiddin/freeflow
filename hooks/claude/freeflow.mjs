@@ -414,7 +414,7 @@ async function compactAndContinue($, request) {
 
 /**
  * What a session does once it has a store: the transcript for the script, a pull, and the menu, which also remembers
- * where a task's repositories are.
+ * where a task's repositories are and takes back the task this session held when it ended (F36).
  * @param {any} $
  * @param {any} state session status, with a store
  * @param {string} session
@@ -428,7 +428,7 @@ async function storeArrived($, state, session, cwd) {
   const parent = cwd.slice(0, cwd.lastIndexOf(separatorOf(cwd))) || cwd;
   const scan = [cwd, parent, $.plugin.root].join(separatorOf(cwd) === "\\" ? ";" : ":");
   // The menu, then the rules every task follows, so a session has them before it takes a task (Spec section 4).
-  return script($, ["task", "here", "--cwd", cwd, "--scan", scan, "--rules"], { session });
+  return script($, ["task", "here", "--cwd", cwd, "--scan", scan, "--rules", "--take-back"], { session });
 }
 
 async function turnEnded($, e) {
@@ -440,7 +440,10 @@ async function turnEnded($, e) {
     const { session, cwd } = awaitingStore;
     awaitingStore = null;
     await storeRootOf($, state);
-    await storeArrived($, state, session, cwd);
+    const menu = await storeArrived($, state, session, cwd);
+    // The menu has no place to go now, but a task taken back does: the agent learns it holds the task (F36).
+    const tookBack = menu.exitCode === 0 ? /^Took .+ back: .+$/m.exec(menu.stdout)?.[0] : undefined;
+    if (tookBack) await appendRow($, `Freeflow: ${tookBack}`);
   }
   if (state.changed) await script($, ["store", "sync"]);
   // Only the agent's own request compacts (P102): checkpoint --compact, after a turn that ended, until the bundle
@@ -454,7 +457,7 @@ async function turnEnded($, e) {
 /** @param {import("claude-code").On} on */
 export function register(on) {
   // Session start, /clear and resume: pull the store, give the scripts the window, and give the agent the menu, which
-  // says which task this session holds (Spec section 4).
+  // says which task this session holds, taken back when a resume finds the task its end released (Spec section 4, F36).
   on("classic.SessionStart", async ($, e, next) => {
     const result = await next(e);
     if (e.source === "compact") return result;
@@ -580,12 +583,13 @@ export function register(on) {
     };
   });
 
-  // The session ends: release its hold and push, within the short time an exit allows.
+  // The session ends: release its hold as ended, so a resume of this session takes it back (F36), and push, within
+  // the short time an exit allows.
   on("session.end", async ($, e, next) => {
     try {
       const options = { session: e.sessionId, timeoutMs: Math.min(60_000, Math.max(1, next.budget.remainingMs - 500)) };
       const state = await status($, options);
-      if (state?.task) await script($, ["task", "release"], options);
+      if (state?.task) await script($, ["task", "release", "--ended"], options);
       else if (state?.changed) await script($, ["store", "sync"], options);
     } catch (error) {
       $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);

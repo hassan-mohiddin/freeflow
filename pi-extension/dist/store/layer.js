@@ -90,7 +90,8 @@ export class StoreLayer {
   }
   /**
    * Session start: where a store exists, take the remote's changes and return the menu with the rules every task
-   * follows (Spec section 4); where none exists, what is missing, if anything; undefined when there is nothing to say.
+   * follows (Spec section 4), after taking back the task this session held when it ended (F36); where none exists,
+   * what is missing, if anything; undefined when there is nothing to say.
    */
   async start(cwd, scan) {
     const state = await this.refresh();
@@ -108,6 +109,7 @@ export class StoreLayer {
       "--scan",
       scan.join(process.platform === "win32" ? ";" : ":"),
       "--rules",
+      "--take-back",
     ]);
     await this.refresh();
     if (menu.code !== 0) return missing.length ? missing.join("\n") : undefined;
@@ -141,11 +143,14 @@ export class StoreLayer {
     await writeFile(path, `${JSON.stringify({ ...rest, done: true }, null, 2)}\n`);
     this.state = { ...this.state, compact: { ...request, done: true } };
   }
-  /** The session ends: release the hold, or sync what is left, within the time Pi gives a shutdown. */
-  async shutdown() {
+  /**
+   * The session ends: release the hold as ended, so a resume of this session takes it back (F36), or sync what is
+   * left, within the time Pi gives a shutdown. A reload is not an end: the same session goes on, so it keeps its hold.
+   */
+  async shutdown(options = {}) {
     const state = this.state;
     if (!state?.store) return;
-    if (state.task) await this.run(["task", "release"], { timeoutMs: 10_000 });
+    if (state.task && !options.reload) await this.run(["task", "release", "--ended"], { timeoutMs: 10_000 });
     else if (state.changed || this.touched) await this.run(["store", "sync"], { timeoutMs: 10_000 });
   }
 }

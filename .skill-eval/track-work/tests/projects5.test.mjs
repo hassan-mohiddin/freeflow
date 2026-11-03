@@ -475,3 +475,104 @@ test("task here --rules adds the store's rules and the folder's and held task's 
     assert.doesNotMatch(other, /projects\/(widget|other)\/rules/);
   });
 });
+
+test("a resumed session takes back the task its end released (F36), never one released on purpose or taken since", async () => {
+  await withStore(async ({ home, remote, work, cli }) => {
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
+    const create = (session, title) =>
+      cli(
+        session,
+        [
+          "task",
+          "create",
+          "--title",
+          title,
+          "--goal",
+          "g",
+          "--cue",
+          `read when ${title} matters`,
+          "--project",
+          "widget",
+        ],
+        work,
+      );
+    ok(create("aaaaaaaa-1", "One"));
+    const sessions = join(home, "projects", "widget", "tasks", "task-001-one", "sessions.md");
+    // The session ends holding it: its harness layer closes the hold as ended.
+    assert.equal(
+      ok(cli("aaaaaaaa-1", ["task", "release", "--ended"])),
+      "Released widget/task-001 as ended: a resume of this session takes it back.\nStore: committed and pushed.\n",
+    );
+    assert.match(
+      await readFile(sessions, "utf8"),
+      /- aaaaaaaa · .+ – \d{4}-\d{2}-\d{2} \d{2}:\d{2} · ended · resume aaaaaaaa-1\n$/,
+    );
+    // Another session's start takes nothing; without --take-back, neither does this one's.
+    assert.doesNotMatch(ok(cli("bbbbbbbb-2", ["task", "here", "--take-back"], work)), /Took/);
+    assert.doesNotMatch(ok(cli("aaaaaaaa-1", ["task", "here"], work)), /Took|This session holds/);
+    // Resumed, it takes the task back, and the menu opens by saying so.
+    const resumed = ok(cli("aaaaaaaa-1", ["task", "here", "--take-back"], work));
+    assert.match(
+      resumed,
+      /^Took widget\/task-001 back: this session held it until it ended\.\nThe record is memory; the user's message decides the work\. Nothing else is taken: .+\nThis session holds widget\/task-001: recover it with view recover --record widget\/task-001\.\n/,
+    );
+    assert.match(
+      await readFile(sessions, "utf8"),
+      /· ended · resume aaaaaaaa-1\n- aaaaaaaa · .+ – now · holding · resume aaaaaaaa-1\n$/,
+    );
+    assert.match(
+      pushedLog(remote),
+      /^Take widget\/task-001 back \(aaaaaaaa\)\nRelease widget\/task-001 \(aaaaaaaa, ended\)\n/,
+    );
+    // Holding it, a second start takes nothing more.
+    assert.doesNotMatch(ok(cli("aaaaaaaa-1", ["task", "here", "--take-back"], work)), /Took/);
+
+    // Released on purpose, it stays released.
+    ok(cli("aaaaaaaa-1", ["task", "release"]));
+    assert.doesNotMatch(ok(cli("aaaaaaaa-1", ["task", "here", "--take-back"], work)), /Took|This session holds/);
+
+    // Taken by another session after this one ended: not taken back, even once that session released it.
+    ok(cli("aaaaaaaa-1", ["task", "take", "--id", "widget/task-001"]));
+    ok(cli("aaaaaaaa-1", ["task", "release", "--ended"]));
+    ok(cli("bbbbbbbb-2", ["task", "take", "--id", "widget/task-001"]));
+    ok(cli("bbbbbbbb-2", ["task", "release"]));
+    assert.doesNotMatch(ok(cli("aaaaaaaa-1", ["task", "here", "--take-back"], work)), /Took|This session holds/);
+
+    // Only the task held at the session's last end: one ended earlier and still free is not taken back.
+    ok(create("cccccccc-3", "Two"));
+    ok(cli("cccccccc-3", ["task", "release", "--ended"]));
+    ok(cli("cccccccc-3", ["task", "take", "--id", "widget/task-001"]));
+    ok(cli("cccccccc-3", ["task", "release"]));
+    assert.doesNotMatch(ok(cli("cccccccc-3", ["task", "here", "--take-back"], work)), /Took/);
+  });
+});
+
+test("checkpoint refuses a store task this session does not hold, naming task take (F36)", async () => {
+  await withStore(async ({ work, cli }) => {
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
+    ok(
+      cli(
+        "aaaaaaaa-1",
+        ["task", "create", "--title", "One", "--goal", "g", "--cue", "read when one matters", "--project", "widget"],
+        work,
+      ),
+    );
+    const checkpoint = (session) => cli(session, ["checkpoint", "--record", "widget/task-001"], work);
+    assert.match(ok(checkpoint("aaaaaaaa-1")), /Checkpoint/i);
+    const other = checkpoint("bbbbbbbb-2");
+    assert.equal(other.status, 1);
+    assert.match(
+      other.stderr,
+      /^Error: This session does not hold widget\/task-001; it is held by aaaaaaaa \(Test harness, .+\) since .+, last synced .+\. Ask the user before task take --id widget\/task-001 --takeover, then checkpoint\.\n$/,
+    );
+    ok(cli("aaaaaaaa-1", ["task", "release", "--ended"]));
+    const free = checkpoint("aaaaaaaa-1");
+    assert.equal(free.status, 1);
+    assert.equal(
+      free.stderr,
+      "Error: This session does not hold widget/task-001: take it with task take --id widget/task-001, then checkpoint.\n",
+    );
+    ok(cli("aaaaaaaa-1", ["task", "take", "--id", "widget/task-001"]));
+    ok(checkpoint("aaaaaaaa-1"));
+  });
+});

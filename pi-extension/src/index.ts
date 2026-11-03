@@ -605,10 +605,10 @@ export default function freeflow(pi: FreeflowAPI) {
     await routing.bind(ctx, capability.cognitiveRouting, (event as any)?.reason !== "reload");
     status(ctx);
   });
-  pi.on("session_shutdown", async () => {
+  pi.on("session_shutdown", async (event) => {
     surfaceGeneration++;
-    // The hold is released and the store pushed, before the next session's layer starts.
-    await store.shutdown().catch(() => {});
+    // The hold is released as ended and the store pushed, before the next session's layer starts; a reload keeps it.
+    await store.shutdown({ reload: (event as any)?.reason === "reload" }).catch(() => {});
     store.reset();
     // Leave the live registry and close the socket, after any start still queued; sessions waiting for this one learn
     // that it ended.
