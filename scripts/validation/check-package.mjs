@@ -12,6 +12,7 @@ const requiredFiles = [
   "hooks/claude/hooks.json",
   "hooks/claude/freeflow.mjs",
   "hooks/codex/hooks.json",
+  "hooks/codex/driver.mjs",
   "hooks/hooks.json",
   "hooks/cursor/hooks.json",
   "hooks/shared/runtime-context.mjs",

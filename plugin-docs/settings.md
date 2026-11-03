@@ -14,7 +14,7 @@ With nothing configured, Freeflow on Pi runs with these capabilities; each one's
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
 | [Cognitive Routing](capabilities/cognitive-routing.md) | off | Coordinator, Helper and Executor profiles on different models |
 
-On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts`, `skills` and `review` apply, and on Claude Code `events` too; the capabilities above are Pi only. OpenCode reads no settings.
+On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts`, `skills` and `review` apply, and on Claude Code and Codex `events` too; the capabilities above are Pi only. OpenCode reads no settings.
 
 ## Where a setting lives
 

@@ -6,7 +6,7 @@ Freeflow is a feedback-based control system for coding agents: a short always-lo
 
 | Host | Use it for | Cognitive Routing |
 | --- | --- | --- |
-| Codex | Shared Freeflow skills and Codex `SessionStart` hook delivery | Not available |
+| Codex | Shared Freeflow skills and Freeflow's Codex driver: session-start guidance, the task menu, context notices, the task's bundle after Codex compacts, and the event log | Not available |
 | Claude Code | Shared Freeflow skills and Claude Code `SessionStart` hook delivery | Not available |
 | Gemini CLI | Gemini extension, shared skills, and Gemini `SessionStart` hook delivery | Not available |
 | Cursor | Agent Plugins 1.0 skills and Cursor-specific `sessionStart` hook delivery | Not available |
@@ -28,7 +28,9 @@ codex plugin marketplace upgrade freeflow
 codex plugin add freeflow@freeflow
 ```
 
-Codex installs Freeflow from its npm package, so it needs Node.js and `npm`, and it receives released versions. Then open `/hooks` in Codex, approve the Freeflow hook, and start a new session. Codex silently skips a plugin hook you have not approved, and an update that changes the hook needs approving again. Freeflow 0.7.1 through 0.8.0 shipped no hook Codex could load, so Codex users of those versions got Freeflow's skills but not its session-start guidance; upgrade with `codex plugin marketplace upgrade freeflow` and approve the hook.
+Codex installs Freeflow from its npm package, so it needs Node.js and `npm`, and it receives released versions. Then open `/hooks` in Codex, approve Freeflow's hooks, and start a new session. Freeflow's Codex driver runs on these events, each a hook to approve: `SessionStart` (twice: at startup, resume, clear and fork, and after a compaction), `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostModelRequest`, `PreCompact`, `PostCompact`, `SubagentStart`, `SubagentStop`, `Stop` and `SessionEnd`. Codex silently skips a plugin hook you have not approved, and an update that changes a hook or its script needs approving again.
+
+Codex compacts on its own, mid-turn once the context reaches its limit. Freeflow tells the agent when compaction is near so it can checkpoint first, and after Codex's compaction it adds the task's record after Codex's summary. To have Codex compact between turns instead, after the agent has had its chance to checkpoint, you can set `model_post_turn_compact_threshold_percent` in Codex's `config.toml`, for example to `70`. Freeflow 0.7.1 through 0.8.0 shipped no hook Codex could load, so Codex users of those versions got Freeflow's skills but not its session-start guidance; upgrade with `codex plugin marketplace upgrade freeflow` and approve the hook.
 
 ### Claude Code
 
@@ -165,7 +167,7 @@ If you want neither, the agent works without memory beyond the current compactio
 
 Use the host-native surface to confirm the installation:
 
-- **Codex:** trust the hook from `/hooks`, start a new session, and confirm the core Freeflow context is delivered.
+- **Codex:** trust Freeflow's hooks from `/hooks`, start a new session, and confirm the core Freeflow context is delivered; with the Freeflow store set up, the task menu follows it.
 - **Claude Code:** reload plugins or start a new session, then use a namespaced Freeflow skill such as `/freeflow:discuss-work`.
 - **Gemini CLI:** use `/extensions list` and `/skills`; start or resume a session and confirm the core context is delivered by the Gemini `SessionStart` hook.
 - **Cursor:** confirm the installed plugin exposes the shared skills; if hooks are enabled, inspect the session-start result for the shared core context.

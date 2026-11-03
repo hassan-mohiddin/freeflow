@@ -1,6 +1,6 @@
 # Event log and capabilities
 
-Freeflow keeps a log of what happens in each session's loop, and says what it can do in the session. Both come from Freeflow's driver for the host: Claude Code's mod and Pi's extension. Codex, Cursor, Copilot and Gemini have no driver: there Freeflow delivers its session-start guidance, keeps no log, and says so.
+Freeflow keeps a log of what happens in each session's loop, and says what it can do in the session. Both come from Freeflow's driver for the host: Claude Code's mod, Pi's extension and Codex's driver. Cursor, Copilot and Gemini have no driver: there Freeflow delivers its session-start guidance, keeps no log, and says so.
 
 ## The event log
 
@@ -8,7 +8,7 @@ One line per event, in `events/<session ID>.jsonl` in the Freeflow home (`FREEFL
 
 - the session's start and end, and each turn;
 - each model request: the model, its effort, and its tokens (input, cache read and written, output);
-- each tool call: the tool, whether it failed, the exit code where the host gives one (Pi does, Claude Code does not), how long it took, the paths a file tool named, and a shell command's text;
+- each tool call: the tool, whether it failed, the exit code where the host gives one (Pi does, Claude Code and Codex do not), how long it took, the paths a file tool named, and a shell command's text;
 - compactions, and whether Freeflow or the host ran them; workers started and stopped;
 - Freeflow's own actions: a notice, a context row, the task menu, a compaction it ran, a store sync, its claims.
 
@@ -24,7 +24,7 @@ node <track-work>/scripts/working-record.mjs events summary --session <ID>  anot
 node <track-work>/scripts/working-record.mjs events show [--kind <kind>]    the lines themselves
 ```
 
-The log is on by default. Turn it off with the Event log row in `/freeflow settings` on Pi, `/freeflow settings events.enabled off` on Claude Code, or in a file:
+The log is on by default. Turn it off with the Event log row in `/freeflow settings` on Pi, `/freeflow settings events.enabled off` on Claude Code, by asking the agent on Codex (it runs Setup Freeflow's settings script), or in a file:
 
 ```json
 {
@@ -32,11 +32,11 @@ The log is on by default. Turn it off with the Event log row in `/freeflow setti
 }
 ```
 
-Off, nothing is written from the next event on.
+Off, nothing is written from the next event on (on Codex, from the next session start).
 
 ## What Freeflow can do here
 
-Run `/freeflow capabilities` on Claude Code or Pi. Each request Freeflow knows reads `yes` (Freeflow does it here today), `possible` (the host offers it and Freeflow does not use it yet) or `no` (the host cannot), with how or why not:
+Run `/freeflow capabilities` on Claude Code or Pi; on Codex, ask the agent, which runs the same list. Each request Freeflow knows reads `yes` (Freeflow does it here today), `possible` (the host offers it and Freeflow does not use it yet) or `no` (the host cannot), with how or why not:
 
 | Request | What it is |
 | --- | --- |
@@ -53,6 +53,6 @@ Run `/freeflow capabilities` on Claude Code or Pi. Each request Freeflow knows r
 | `block` | refuse a tool call with its reason |
 | `sensors`, `timers` | write the event log; act after a delay |
 
-On Claude Code today: `inject`, `compact`, `checkpoint`, `send`, `wake`, `sensors` and `timers` are yes, and `pin`, `route`, `spawn`, `ask` and `block` possible. A headless run (`claude -p`) has no one at the prompt, so `wake` is no and `compact` happens on the next compaction that comes. On Pi: `pin`, `inject`, `compact`, `checkpoint`, `wake`, `ask`, `block`, `sensors` and `timers` are yes; `forget` and `route` are yes while Cognitive Routing is on, and `send` while Messaging is on.
+On Claude Code today: `inject`, `compact`, `checkpoint`, `send`, `wake`, `sensors` and `timers` are yes, and `pin`, `route`, `spawn`, `ask` and `block` possible. A headless run (`claude -p`) has no one at the prompt, so `wake` is no and `compact` happens on the next compaction that comes. On Pi: `pin`, `inject`, `compact`, `checkpoint`, `wake`, `ask`, `block`, `sensors` and `timers` are yes; `forget` and `route` are yes while Cognitive Routing is on, and `send` while Messaging is on. On Codex: `pin`, `inject`, `checkpoint` and `sensors` are yes and `block` possible (Codex's `PreToolUse` hook can refuse a call, though not a hosted tool such as web search); the rest are no. Codex compacts on its own, so `compact` is no: after Codex's compaction, Freeflow adds the task's record after Codex's summary.
 
 The agent reads the same list with Setup Freeflow's `capabilities.mjs`, and never assumes a request that is not yes. When a request is not available, Freeflow says so instead of doing nothing: `checkpoint --compact` where no driver compacts writes the checkpoint and tells the agent that the host compacts on its own and how to recover after it.
