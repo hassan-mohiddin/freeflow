@@ -904,7 +904,8 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
   expect(listed.text).toContain("  Review unit      manual    Repository\n");
   expect(listed.text).toContain("  Review rounds    3         default\n");
   expect(listed.text).not.toContain("write-skill");
-  expect(listed.text).not.toContain("review.depth)");
+  // review.depth has no row: the repository's file holds it, and the plan reads it from the base.
+  expect(listed.text).not.toContain("\n  Review depth rules");
   expect(listed.text).toContain("Review depth rules (review.depth) are edited in .freeflow/config.json");
   expect(listed.text).toContain("Pi-only settings (tool execution, compaction, messaging, Cognitive Routing)");
   expect(listed.context).toBeUndefined();
