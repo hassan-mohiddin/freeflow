@@ -3,12 +3,26 @@
 import { cwd } from "node:process";
 import { readFileSync } from "node:fs";
 import { delimiter, isAbsolute, join, resolve, sep } from "node:path";
-import { displayPath, readInput, readRecord, resolveRecordPath, storeOf, isFreeflowStore, freeflowStoreOf } from "./lib/store.mjs";
+import {
+  displayPath,
+  readInput,
+  readRecord,
+  resolveRecordPath,
+  storeOf,
+  isFreeflowStore,
+  freeflowStoreOf,
+} from "./lib/store.mjs";
 import { checkLinePointers } from "./lib/recover.mjs";
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { checkpointSession, runTransition5, writeCompactionRequest } from "./lib/transitions5.mjs";
 import { budgetLines, budgetFor, contextWindow, measureTask, renderBudget } from "./lib/budget5.mjs";
-import { copyTaskIntoStore, hasOldRecoveryHeadings, migrateRecoveryHeadings, migrateTask, readCues } from "./lib/migrate5.mjs";
+import {
+  copyTaskIntoStore,
+  hasOldRecoveryHeadings,
+  migrateRecoveryHeadings,
+  migrateTask,
+  readCues,
+} from "./lib/migrate5.mjs";
 import { dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
 import { renderBundle5, renderEntries5, renderIndex5, renderRecover5, renderSessionBundle } from "./lib/views5.mjs";
 import {
