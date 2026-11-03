@@ -612,3 +612,86 @@ test("estimate --store totals the gates' would-fire counts across the task folde
     );
   });
 });
+
+test("slice start from a proposal, task switch and task here's take-back write the gate state too", async () => {
+  await withStore(async ({ home, cli, state }) => {
+    ok(cli(["project", "new", "--name", "widget"]));
+    for (const title of ["One", "Two"])
+      ok(
+        cli(
+          [
+            "task",
+            "create",
+            "--project",
+            "widget",
+            "--title",
+            title,
+            "--goal",
+            "A demo.",
+            "--cue",
+            "read when the demo matters",
+          ],
+          { session: title === "One" ? "aaaaaaaa-1111" : "cccccccc-3333" },
+        ),
+      );
+    ok(cli(["task", "release"], { session: "cccccccc-3333" }));
+    ok(
+      cli(["agreement", "open", "--record", "widget/task-001", "--title", "One", "--input", "-"], {
+        input: "- Build one.\n",
+      }),
+    );
+    ok(
+      cli(["slice", "propose", "--record", "widget/task-001", "--title", "Proposed", "--input", "-"], {
+        input: "- Result wanted: r.\n- Size: 1 files\n- Done when: d.\n",
+      }),
+    );
+    ok(
+      cli(
+        [
+          "slice",
+          "start",
+          "--record",
+          "widget/task-001",
+          "--title",
+          "Proposed",
+          "--next-action",
+          "Go.",
+          "--input",
+          "-",
+        ],
+        {
+          input: "- Under: A-001.\n- Scope: s.\n- Stop if: x.\n- Started from: y.\n",
+        },
+      ),
+    );
+    assert.deepEqual((await state()).slice, { id: "S-001", state: "in_progress" });
+    ok(cli(["task", "switch", "--id", "widget/task-002"]));
+    const switched = await state();
+    assert.equal(switched.task, "widget/task-002");
+    assert.equal(switched.agreement, null);
+    assert.equal(switched.slice, null);
+    // A session's end closes its hold as ended; its resume takes the task back, and the state follows.
+    const d = { session: "dddddddd-4444" };
+    ok(
+      cli(
+        [
+          "task",
+          "create",
+          "--project",
+          "widget",
+          "--title",
+          "Three",
+          "--goal",
+          "A demo.",
+          "--cue",
+          "read when the demo matters",
+        ],
+        d,
+      ),
+    );
+    ok(cli(["task", "release", "--ended"], d));
+    assert.equal((await state("dddddddd-4444")).task, null);
+    assert.match(ok(cli(["task", "here", "--take-back"], d)), /Took widget\/task-003 back/);
+    assert.equal((await state("dddddddd-4444")).task, "widget/task-003");
+  });
+});
