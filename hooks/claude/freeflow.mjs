@@ -1,10 +1,11 @@
 // Freeflow's Claude Code layer: a hooks module Claude Code runs on its own events (the task-004 Spec's section 11).
 // It decides when Track Work's script runs and delivers what the script prints; what happens to a task's memory is
-// the script's. It acts only where the Freeflow store exists (session status says so): elsewhere every hook passes
-// its event on unchanged.
+// the script's. Its task memory work runs only where the Freeflow store exists (session status says so); its event
+// log and claims (SPEC-006) need none. Elsewhere every hook passes its event on unchanged.
 
 const SCRIPT = "skills/track-work/scripts/working-record.mjs";
 const SETTINGS_SCRIPT = "skills/setup-freeflow/scripts/settings.mjs";
+const CAPABILITIES_SCRIPT = "skills/setup-freeflow/scripts/capabilities.mjs";
 const SETTINGS_TIMEOUT_MS = 8_000; // within the 10 seconds a hook gets
 const NOTICE_AT = 0.75; // of the window, one notice a cycle (P50)
 const THRESHOLD_LEAD = 0.1; // and at least a tenth of the window before Claude's own threshold (T13)
@@ -37,6 +38,8 @@ let awaitingStore = null;
  * session start; a script that fails leaves it as it was.
  */
 let enabled = true;
+/** @type {string | undefined} the Freeflow home, from session status at session start, where the claims are written */
+let freeflowHome;
 /** Whether a /compact this mod asked for is still queued, so a turn end does not ask for a second one. */
 let compactQueued = false;
 /** @type {Map<string, number>} how many of a request's /compact runs were dropped, by the request's time */
@@ -47,6 +50,149 @@ const MAX_COMPACT_TRIES = 3;
 let mainTurns = 0;
 /** How long after its /compact the mod waits for input queued meanwhile to start a turn, before it prompts (F35). */
 const CONTINUE_AFTER_MS = 2_000;
+
+// The event log (SPEC-006): what happens in the session's loop, never contents, one line per event in schema v1. The
+// mods API cannot append to a file, so the lines wait here and one `events append` run writes them at a turn's end, a
+// compaction, a worker's hand-back and the session's end (T2); lines waiting when the process dies are lost. A flush
+// that fails drops its lines and the next one says how many (section 5): the log is a sensor, and a sensor fails open.
+const EVENT_HARNESS = "claude-code";
+const EVENT_FLUSH_MS = 5_000;
+const COMMAND_TOOLS = new Set(["Bash"]);
+/** @type {Record<string, unknown>[]} */
+let buffered = [];
+/** Lines a failed flush dropped, said in the next one. */
+let droppedLines = 0;
+/** Whether the event log is on (`events.enabled`), resolved with `enabled`. */
+let eventsOn = true;
+/** Whether a person is at the prompt (`session.start`'s isInteractive): a headless run cannot wake or start a compaction. */
+let interactive = true;
+/** @type {string | null} this session's ID, read once */
+let sessionId = null;
+/** @type {Map<string, number>} each worker's turns, and the main loop's under "main" */
+const turnsOf = new Map();
+
+/**
+ * Keeps one event line for the next flush, while Freeflow and its event log are on.
+ * @param {any} $
+ * @param {string} kind
+ * @param {Record<string, unknown>} fields
+ * @param {string} [agent]
+ */
+async function emit($, kind, fields, agent = "main") {
+  if (!enabled || !eventsOn) return;
+  sessionId ??= await $.session.id();
+  const line = { v: 1, ts: new Date(await $.clock.now()).toISOString(), session: sessionId, harness: EVENT_HARNESS };
+  buffered.push({
+    ...line,
+    agent,
+    kind,
+    ...Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)),
+  });
+}
+
+/**
+ * Writes the waiting lines with one script run; never fails the hook it runs in.
+ * @param {any} $
+ * @param {{ session?: string, timeoutMs?: number }} [options]
+ */
+async function flush($, options = {}) {
+  if (!buffered.length) return;
+  const lines = buffered;
+  buffered = [];
+  const { v, ts, session, harness } = lines[0];
+  const note = droppedLines
+    ? [{ v, ts, session, harness, agent: "main", kind: "freeflow", what: "dropped", dropped: droppedLines }]
+    : [];
+  try {
+    const run = await script($, ["events", "append", "--input", "-"], {
+      session: options.session,
+      stdin: [...note, ...lines].map((line) => JSON.stringify(line)).join("\n"),
+      timeoutMs: options.timeoutMs ?? EVENT_FLUSH_MS,
+    });
+    if (run.exitCode !== 0) throw new Error(run.stderr.replace(/^Error: /, "").trim() || `exit code ${run.exitCode}`);
+    droppedLines = 0;
+  } catch (error) {
+    droppedLines += lines.length;
+    $.ui.log(
+      `Freeflow: ${lines.length} event line(s) not written: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+/**
+ * The paths a file tool's call names, relative to the session's folder when inside it.
+ * @param {Record<string, unknown>} input
+ * @param {string} cwd
+ */
+function toolPaths(input, cwd) {
+  const named = [input.file_path, input.notebook_path, input.path].filter(
+    (path) => typeof path === "string" && path !== "",
+  );
+  const base = cwd.endsWith("/") ? cwd : `${cwd}/`;
+  return named.map((path) => (String(path).startsWith(base) ? String(path).slice(base.length) : String(path)));
+}
+
+/**
+ * The requests this driver claims (section 4.5): yes for what it carries out today, possible for what Claude Code
+ * offers and Freeflow does not use yet, no for what the mods API cannot carry. A headless run (`-p`) wakes nothing and
+ * starts no compaction, so its claims say so; with the event log off, so does sensors.
+ */
+function claims() {
+  const claim = (/** @type {string} */ value, /** @type {string} */ how) => ({ claim: value, how });
+  return {
+    pin: claim("possible", "prompt.section exists; Freeflow does not use it yet"),
+    inject: claim("yes", "appends rows the agent reads ($.session.append)"),
+    forget: claim("no", "nothing removes a stored row"),
+    compact: interactive
+      ? claim("yes", "its own compaction after a checkpoint, the bundle in place of the summary")
+      : claim("yes", "on the next compaction; it cannot start one in a headless run"),
+    checkpoint: claim("yes", "through Track Work's script"),
+    rewind: claim("no", "no rewind in the mods API"),
+    route: claim("possible", "turn.step can change model and effort; Freeflow does not yet"),
+    spawn: claim("possible", "$.agent.spawn exists; Freeflow does not start workers itself"),
+    send: claim("yes", "messages to its workers ($.session.send)"),
+    wake: interactive
+      ? claim("yes", "a prompt after its compaction ($.prompt.submit)")
+      : claim("no", "nothing runs between turns in a headless run"),
+    ask: claim("possible", "$.ui.ask exists; Freeflow does not ask through it yet"),
+    block: claim("possible", "tool.check can deny; Freeflow only allows store files today"),
+    sensors: eventsOn
+      ? claim("yes", "turns, model requests, tool calls, compactions, workers, written to the event log")
+      : claim("possible", "the event log is off (events.enabled)"),
+    timers: claim("yes", "$.clock.after"),
+  };
+}
+
+/**
+ * Writes this session's claims to `<home>/sessions/<session>/capabilities.json` (T4), which capabilities.mjs and
+ * Track Work's checkpoint --compact read; with Freeflow off, every request is no.
+ * @param {any} $
+ * @param {string | undefined} home the Freeflow home, from session status
+ */
+async function writeCapabilities($, home) {
+  if (!home) return;
+  sessionId ??= await $.session.id();
+  const version = await $.fs
+    .read(`${$.plugin.root}/plugin.json`)
+    .then((/** @type {string} */ text) => JSON.parse(text).version ?? null)
+    .catch(() => null);
+  const all = claims();
+  const off = Object.fromEntries(
+    Object.keys(all).map((request) => [request, { claim: "no", how: "Freeflow is off in this session (enabled)" }]),
+  );
+  const file = {
+    v: 1,
+    requestSet: 1,
+    driver: "claude-code-mod",
+    freeflow: version,
+    mode: interactive ? "interactive" : "headless",
+    enabled,
+    events: enabled && eventsOn,
+    claims: enabled ? all : off,
+  };
+  await $.fs.write(`${home}/sessions/${sessionId}/capabilities.json`, `${JSON.stringify(file, null, 2)}\n`);
+  await emit($, "freeflow", { what: "capabilities", detail: file.mode });
+}
 
 /**
  * Runs Track Work's script for this session (or the one ending), as its commands run in the session's shell.
@@ -240,6 +386,7 @@ async function watchMain($) {
       $,
       `Freeflow, context cycle ${number}: the context is at ${share(context)}; the checkpoint notice comes at about ${Math.round(point)} tokens.`,
     );
+    await emit($, "freeflow", { what: "row", detail: `cycle ${number}, ${Math.round(row * 100)}%` });
     return;
   }
   const state = await status($);
@@ -250,6 +397,7 @@ async function watchMain($) {
   cycle.notice = await $.clock.now();
   const number = await cycleNumber($, state);
   await appendRow($, noticeText($, context, state, number));
+  await emit($, "freeflow", { what: "notice", detail: `cycle ${number}` });
 }
 
 /** The workers this session started, by agent ID: read once from the store's sessions/ folder after a reload. */
@@ -389,6 +537,7 @@ async function compactAndContinue($, request) {
     const { text } = await $.command.run({ command: "compact" });
     if (/^Not compacted/.test(text ?? "")) dropped = (text ?? "").split("\n")[0];
     else {
+      await emit($, "freeflow", { what: "compact", detail: "ran /compact after the checkpoint" });
       await newCycle($);
       // Input queued meanwhile, a notification or the person's own prompt, starts its turn first, and that turn goes
       // on from the bundle; a prompt submitted now would wait behind it and arrive out of date (F35).
@@ -454,7 +603,10 @@ async function turnEnded($, e) {
     const tookBack = menu.exitCode === 0 ? /^Took .+ back: .+$/m.exec(menu.stdout)?.[0] : undefined;
     if (tookBack) await appendRow($, `Freeflow: ${tookBack}`);
   }
-  if (state.changed) await script($, ["store", "sync"]);
+  if (state.changed) {
+    await script($, ["store", "sync"]);
+    await emit($, "freeflow", { what: "sync" });
+  }
   // Only the agent's own request compacts (P102): checkpoint --compact, after a turn that ended, until the bundle
   // replaces the conversation; one /compact queued at a time.
   const request = state.compact;
@@ -490,6 +642,8 @@ async function settings($, args) {
 async function resolveEnabled($) {
   const result = await settings($, ["get", "enabled"]);
   if (result.ok && typeof result.data.value === "boolean") enabled = result.data.value;
+  const events = await settings($, ["get", "events.enabled"]);
+  if (events.ok && typeof events.data.value === "boolean") eventsOn = events.data.value;
 }
 
 const SCOPE_NAMES = /** @type {Record<string, string>} */ ({
@@ -502,7 +656,14 @@ const FILES = /** @type {Record<string, string>} */ ({
   repository: ".freeflow/config.json",
   personal: ".freeflow/local.json",
 });
-const SECTION_ROWS = new Set(["enabled", "prompts.enabled", "skills.enabled", "review.mode", "review.model"]);
+const SECTION_ROWS = new Set([
+  "enabled",
+  "prompts.enabled",
+  "skills.enabled",
+  "events.enabled",
+  "review.mode",
+  "review.model",
+]);
 const COMMAND_USAGE = [
   "Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)",
   "Remove one: /freeflow settings <key> inherit [--session | --personal | --repository]",
@@ -533,9 +694,29 @@ function listText(data) {
         `  ${row.label.padEnd(width)}  ${shown(row.value).padEnd(8)}  ${SCOPE_NAMES[row.scope]}${SECTION_ROWS.has(row.key) ? "" : `  (${row.key})`}`,
     ),
     COMMAND_USAGE,
-    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, review.mode, review.model.",
+    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.mode, review.model.",
     "Pi-only settings (tool execution, compaction, messaging, Cognitive Routing) are changed on Pi or in the files.",
   ].join("\n");
+}
+
+/**
+ * Serves `/freeflow capabilities`: what Freeflow can do in this session, from the claims this mod wrote, through Setup
+ * Freeflow's capabilities.mjs, the script the agent runs (section 4.6).
+ * @param {any} $
+ * @returns {Promise<{ text: string }>}
+ */
+async function capabilitiesCommand($) {
+  try {
+    const run = await $.process.run(["node", `${$.plugin.root}/${CAPABILITIES_SCRIPT}`, "list"], {
+      env: { CLAUDE_CODE_SESSION_ID: await $.session.id() },
+      timeoutMs: SETTINGS_TIMEOUT_MS,
+    });
+    const text =
+      run.exitCode === 0 ? run.stdout.trimEnd() : (run.stderr.split("\n")[0] || `exit code ${run.exitCode}`).trim();
+    return { text: run.exitCode === 0 ? text : `Freeflow capabilities: ${text.replace(/^Error: /, "")}` };
+  } catch (error) {
+    return { text: `Freeflow capabilities: ${error instanceof Error ? error.message : String(error)}` };
+  }
 }
 
 /**
@@ -548,7 +729,9 @@ function listText(data) {
 async function settingsCommand($, args) {
   const words = args.trim().split(/\s+/).filter(Boolean);
   if (words[0] !== "settings")
-    return { text: "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one." };
+    return {
+      text: "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session.",
+    };
   const flags = words.slice(1).filter((word) => word.startsWith("--"));
   const [key, value, extra] = words.slice(1).filter((word) => !word.startsWith("--"));
   const scopes = flags.map((flag) => flag.slice(2));
@@ -577,7 +760,11 @@ async function settingsCommand($, args) {
   if (!result.ok) return { text: `Freeflow settings: ${result.error}` };
   const data = result.data;
   const wasOn = enabled;
-  if (data.key === "enabled") await resolveEnabled($);
+  if (data.key === "enabled" || data.key === "events.enabled") {
+    await resolveEnabled($);
+    // The claims follow the switch: off, every request is no; the event log's own off, sensors is only possible.
+    await writeCapabilities($, freeflowHome);
+  }
   if (!wasOn && enabled) {
     // On again: the next turn end does what session start does with a store, and the window is read at the next request.
     awaitingStore = { session: await $.session.id(), cwd: await $.session.cwd() };
@@ -610,26 +797,40 @@ export function register(on) {
   on("session.start", async ($, e, next) => {
     await $.command.register({
       name: "freeflow",
-      description: "Freeflow's settings: list them, or change one for this session, you or the repository",
-      argumentHint: "settings [<key> <value|inherit> [--session | --personal | --repository]]",
+      description:
+        "Freeflow's settings: list them, or change one for this session, you or the repository; and what Freeflow can do here",
+      argumentHint: "settings [<key> <value|inherit> [--session | --personal | --repository]] | capabilities",
     });
+    // A -p run or the SDK has no one at the prompt, so nothing runs between its turns (section 4.5). Claims written
+    // before this event came, at the classic SessionStart, are written again with what it says.
+    const was = interactive;
+    if (typeof e.isInteractive === "boolean") interactive = e.isInteractive;
     await resolveEnabled($);
+    if (interactive !== was && freeflowHome && enabled) await writeCapabilities($, freeflowHome);
     return next(e);
   });
 
-  on("command.run", { command: "freeflow" }, ($, e) => settingsCommand($, e.args));
+  on("command.run", { command: "freeflow" }, ($, e) =>
+    /^\s*capabilities\b/.test(e.args ?? "") ? capabilitiesCommand($) : settingsCommand($, e.args),
+  );
 
   // Session start, /clear and resume: pull the store, give the scripts the window, and give the agent the menu, which
   // says which task this session holds, taken back when a resume finds the task its end released (Spec section 4, F36).
   on("classic.SessionStart", async ($, e, next) => {
     const result = await next(e);
-    if (e.source === "compact") return result;
+    if (e.source === "compact") {
+      await emit($, "session.start", { source: "compact", interactive });
+      return result;
+    }
     await resolveEnabled($);
     if (!enabled) return result;
+    await emit($, "session.start", { source: e.source, interactive });
     await newCycle($, null);
     workers = null;
     await readWindow($);
     const found = await sessionStatus($, { session: e.session_id });
+    freeflowHome = found?.home;
+    await writeCapabilities($, freeflowHome);
     const state = found?.store ? found : null;
     await storeRootOf($, state);
     const missing = missingText(found);
@@ -646,6 +847,7 @@ export function register(on) {
         : result;
     const menu = await storeArrived($, state, e.session_id, e.cwd);
     if (menu.exitCode !== 0) return result;
+    await emit($, "freeflow", { what: "menu" });
     const text = [menu.stdout.trimEnd(), ...missing].join("\n");
     return {
       ...result,
@@ -653,14 +855,41 @@ export function register(on) {
     };
   });
 
-  on("turn.start", ($, e, next) => {
+  on("turn.start", async ($, e, next) => {
     if (e.agentId === undefined) mainTurns += 1;
+    const agent = e.agentId ?? "main";
+    turnsOf.set(agent, (turnsOf.get(agent) ?? 0) + 1);
+    await emit($, "turn.start", { turn: turnsOf.get(agent) }, agent);
     return next(e);
   });
 
   on("turn.step", async function* ($, e, next) {
     const response = yield* next(e);
     if (!enabled) return response;
+    const usage = response?.usage;
+    const model = e.model ?? usage?.model;
+    if (model) {
+      const [input, read, written] = [
+        usage?.input_tokens,
+        usage?.cache_read_input_tokens,
+        usage?.cache_creation_input_tokens,
+      ].map((count) => (Number.isInteger(count) ? count : undefined));
+      await emit(
+        $,
+        "model.request",
+        {
+          model: String(model),
+          effort: typeof e.effort === "string" ? e.effort : null,
+          in: input,
+          out: Number.isInteger(usage?.output_tokens) ? usage.output_tokens : undefined,
+          cacheRead: read,
+          cacheWrite: written,
+          context: usage ? (input ?? 0) + (read ?? 0) + (written ?? 0) : undefined,
+          stop: typeof response?.stopReason === "string" && response.stopReason ? response.stopReason : undefined,
+        },
+        e.agentId ?? "main",
+      );
+    }
     try {
       if (e.agentId === undefined) await watchMain($);
       else await noticeWorker($, e, response);
@@ -672,12 +901,58 @@ export function register(on) {
 
   on("turn.complete", async ($, e, next) => {
     const result = await next(e);
+    const agent = e.agentId ?? "main";
+    await emit(
+      $,
+      "turn.end",
+      {
+        turn: turnsOf.get(agent),
+        reason: ["answer", "aborted", "refusal", "error"].includes(e.reason) ? e.reason : undefined,
+        ms: Number.isInteger(e.durationMs) && e.durationMs >= 0 ? e.durationMs : undefined,
+      },
+      agent,
+    );
     if (e.agentId !== undefined || !enabled) return result;
     try {
       await turnEnded($, e);
     } catch (error) {
       $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
     }
+    // The turn's lines, written in one run (T2).
+    await flush($);
+    return result;
+  });
+
+  // Every tool call, as one line: the tool, whether it ran without error, its time, the paths a file tool names and a
+  // shell command's text, which the writer redacts and cuts (P4). Before a checkpoint or a release runs, the lines so
+  // far are written, so the summary it commits counts this turn too.
+  on("tool.call", async ($, e, next) => {
+    if (!enabled || !eventsOn) return next(e);
+    const input = /** @type {Record<string, unknown>} */ (e);
+    const command = COMMAND_TOOLS.has(e.tool) && typeof input.command === "string" ? input.command : undefined;
+    if (command !== undefined && /working-record\.mjs\s+(checkpoint|task\s+(release|switch))\b/.test(command))
+      await flush($);
+    const started = await $.clock.now();
+    const result = await next(e);
+    const ended = await $.clock.now();
+    const paths = FILE_TOOLS.has(e.tool) ? toolPaths(input, await $.session.cwd()) : [];
+    const root = storeRoot ?? null;
+    const ours =
+      (command !== undefined && command.includes(`${$.plugin.root}/`)) ||
+      (root !== null && paths.some((path) => path === root || path.startsWith(`${root}/`)));
+    await emit(
+      $,
+      "tool.call",
+      {
+        tool: String(e.tool),
+        ok: !result.deny && !result.isError,
+        ms: Math.max(0, Math.round(ended - started)),
+        paths: paths.length ? paths : undefined,
+        command,
+        source: ours ? "freeflow" : "agent",
+      },
+      e.agentId ?? "main",
+    );
     return result;
   });
 
@@ -696,7 +971,13 @@ export function register(on) {
 
   on("session.compact", async ($, e, next) => {
     if (e.trigger === "precompute" || !enabled) return next(e);
-    if (e.agentId !== undefined) return workerCompaction($, e, next);
+    if (e.agentId !== undefined) {
+      const compacted = await workerCompaction($, e, next);
+      if (!compacted.skip) await emit($, "compaction", { trigger: e.trigger, by: "harness" }, e.agentId);
+      await flush($);
+      return compacted;
+    }
+    const before = (await $.session.usage()).context.tokens;
     const state = await status($);
     const result =
       !state || (!state.task && !state.summary)
@@ -707,7 +988,16 @@ export function register(on) {
             ? await fallbackCompaction($, e, next, state)
             : await next(e);
     // Every compaction of the main conversation starts the next cycle, Claude's own without a task included.
-    if (!result.skip) await nextCycle($, state);
+    if (!result.skip) {
+      const ours = Boolean(state) && (state.task || state.summary) && checkpointDone(state);
+      await emit($, "compaction", {
+        trigger: typeof e.trigger === "string" ? e.trigger : undefined,
+        by: ours ? "freeflow" : "harness",
+        before: Number.isInteger(before) ? before : undefined,
+      });
+      await nextCycle($, state);
+    }
+    await flush($);
     return result;
   });
 
@@ -715,6 +1005,10 @@ export function register(on) {
   on("agent.spawn", async ($, e, next) => {
     const result = await next(e);
     const delegation = DELEGATION.exec(e.prompt ?? "")?.[0];
+    if (result.agentId) {
+      const model = typeof result.model === "string" ? result.model : typeof e.model === "string" ? e.model : undefined;
+      await emit($, "agent.spawn", { delegation, model }, result.agentId);
+    }
     if (!enabled || !result.agentId || !delegation) return result;
     const state = await status($);
     const map = await workerMap($, state);
@@ -729,31 +1023,19 @@ export function register(on) {
 
   // A worker hands back: its return is checked, and once it is told what is missing.
   on("classic.SubagentStop", async ($, e, next) => {
-    const result = await next(e);
-    if (!enabled || e.stop_hook_active || result.block) return result;
-    const state = await status($);
-    const worker = (await workerMap($, state)).get(e.agent_id);
-    if (!state?.task || !worker) return result;
-    const checked = await script($, [
-      "delegate",
-      "check-return",
-      "--record",
-      state.task.record,
-      "--id",
-      worker.delegation,
-    ]);
-    if (checked.exitCode === 0 || !/return is not ready/.test(checked.stderr)) return result;
-    return {
-      ...result,
-      block: `Freeflow: ${checked.stderr.replace(/^Error: /, "").trim()} Write return.md as your brief says, then hand back.`,
-    };
+    const result = await stopChecked($, e, await next(e));
+    await emit($, "agent.stop", { blocked: Boolean(result.block) }, e.agent_id || "main");
+    await flush($);
+    return result;
   });
 
   // The session ends: release its hold as ended, so a resume of this session takes it back (F36), and push, within
-  // the short time an exit allows.
+  // the short time an exit allows; the event log's last lines go first, so the release's summary counts them.
   on("session.end", async ($, e, next) => {
     try {
       const options = { session: e.sessionId, timeoutMs: Math.min(60_000, Math.max(1, next.budget.remainingMs - 500)) };
+      await emit($, "session.end", { reason: typeof e.reason === "string" && e.reason ? e.reason : undefined });
+      await flush($, { session: e.sessionId, timeoutMs: Math.min(EVENT_FLUSH_MS, options.timeoutMs) });
       const state = await status($, options);
       if (state?.task) await script($, ["task", "release", "--ended"], options);
       else if (state?.changed) await script($, ["store", "sync"], options);
@@ -762,4 +1044,30 @@ export function register(on) {
     }
     return next(e);
   });
+}
+
+/**
+ * A worker hands back: its return is checked, and once it is told what is missing.
+ * @param {any} $
+ * @param {any} e
+ * @param {any} result
+ */
+async function stopChecked($, e, result) {
+  if (!enabled || e.stop_hook_active || result.block) return result;
+  const state = await status($);
+  const worker = (await workerMap($, state)).get(e.agent_id);
+  if (!state?.task || !worker) return result;
+  const checked = await script($, [
+    "delegate",
+    "check-return",
+    "--record",
+    state.task.record,
+    "--id",
+    worker.delegation,
+  ]);
+  if (checked.exitCode === 0 || !/return is not ready/.test(checked.stderr)) return result;
+  return {
+    ...result,
+    block: `Freeflow: ${checked.stderr.replace(/^Error: /, "").trim()} Write return.md as your brief says, then hand back.`,
+  };
 }

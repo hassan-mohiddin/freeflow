@@ -87,6 +87,7 @@ Native Pi controls:
 ```text
 /freeflow
 /freeflow status
+/freeflow capabilities
 /freeflow settings
 /freeflow settings session
 /freeflow settings local

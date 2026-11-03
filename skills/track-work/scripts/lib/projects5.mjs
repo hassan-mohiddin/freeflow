@@ -20,6 +20,7 @@ import {
   parseRecord5,
   skeleton5,
 } from "./record5.mjs";
+import { holdStart, summaryForTask } from "./events5.mjs";
 import { rules } from "./budget5.mjs";
 import { searchRecords } from "./search.mjs";
 import {
@@ -514,9 +515,17 @@ export async function releaseTask(home, identity, id = null, { ended = false } =
   if (sessions.hold?.short !== identity.short)
     fail(`This session does not hold ${task.id}; it is ${holderText(task)}.`);
   const state = ended ? "ended" : "released";
+  // The session's event summary since it took the task goes into the same commit as the release (P7).
+  const events = await summaryForTask({
+    home,
+    taskDir: task.dir,
+    taskId: task.id,
+    identity,
+    since: holdStart(sessions.hold.from),
+  });
   await writeFile(sessions.path, `${closeHold(sessions, sessions.hold, state).replace(/\s+$/, "")}\n`);
   const done = ended ? `Released ${task.id} as ended: a resume of this session takes it back.` : `Released ${task.id}.`;
-  return `${done}\n${await sync(home, `Release ${task.id} (${identity.short}${ended ? ", ended" : ""})`)}\n`;
+  return `${done}\n${events ? `${events}\n` : ""}${await sync(home, `Release ${task.id} (${identity.short}${ended ? ", ended" : ""})`)}\n`;
 }
 
 /**

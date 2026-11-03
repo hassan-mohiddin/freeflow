@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { cwd } from "node:process";
-import { delimiter, isAbsolute, resolve, sep } from "node:path";
+import { readFileSync } from "node:fs";
+import { delimiter, isAbsolute, join, resolve, sep } from "node:path";
 import { displayPath, readInput, readRecord, resolveRecordPath, storeOf, isFreeflowStore } from "./lib/store.mjs";
 import { checkLinePointers } from "./lib/recover.mjs";
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
@@ -43,6 +44,7 @@ import {
   takeTask,
 } from "./lib/projects5.mjs";
 import { EstimateError, estimate } from "./lib/estimate5.mjs";
+import { runEvents } from "./lib/events-cli.mjs";
 import { PlanError } from "./lib/planner5.mjs";
 
 const ROOT_HELP =
@@ -71,6 +73,7 @@ function usage() {
     "  working-record.mjs task <create|take|release|switch|move|here|search|remove> ... (in a Freeflow store)",
     "  working-record.mjs store <init|remote|status|sync> ...",
     "  working-record.mjs session status [--home <folder>] (for a harness layer)",
+    "  working-record.mjs events <append|summary|show> ... (the event log; append is for a harness layer)",
     "",
     ROOT_HELP,
     "In a Freeflow store, a task's ID (such as my-project/task-003, or task-004 in no project) may be given as --record.",
@@ -78,6 +81,18 @@ function usage() {
 }
 
 const COMMAND_HELP = new Map([
+  [
+    "events append",
+    "Usage: events append --input <file|-> [--home <folder>]\nAppends a Freeflow driver's event lines (JSON Lines, schema v1) to each line's session log in <FREEFLOW_HOME>/events/<session>.jsonl, on this machine only: it sets seq under a lock on the file, redacts and cuts a shell command to 200 characters, refuses a line that is not schema v1 and writes the rest, with a freeflow line saying how many it dropped.",
+  ],
+  [
+    "events summary",
+    "Usage: events summary [--session <ID>] [--json] [--home <folder>]\nWhat a session's event log adds up to: model requests and tokens by model and effort, tool calls by tool with failures, compactions, workers, and the share of tool calls that were Freeflow's own; since this session took its task when it holds one. The session is this one unless --session names another; with neither, every log here with its size.",
+  ],
+  [
+    "events show",
+    "Usage: events show [--session <ID>] [--kind <kind>] [--home <folder>]\nPrints a session's event log as stored, one JSON line each, only the lines of one kind with --kind; a line that cannot be read is named on standard error and skipped.",
+  ],
   [
     "slice",
     [
@@ -94,7 +109,7 @@ const COMMAND_HELP = new Map([
       "       working-record.mjs checkpoint --session --input <file|-> [--compact] (a session holding no task)",
       'The checkpoint, before a compaction or a transfer, once Current Context is rewritten: with --input, rewrites In flight whole from its lines (each "- Now|Observed|Hypothesis|Dropped|Pending: …"; "none" empties it), and, after a line "Recovery:", replaces the Recovery list whole with the lines below it (each "- always: <pointer> — <why>", "- always, not counted: <pointer> — <why>" or "- when <trigger>: <pointer> — <why>", a file pointer optionally followed by "(lines <a>–<b>)"); "Recovery: none" empties the list, input without that line keeps it, and input with only that block keeps In flight; prints each Recovery line with the size of what it names and an always line\'s share of the budget, and names an always, not counted line the new list dropped; checks the task folder\'s structure and the recovery budget for the session\'s window (FREEFLOW_CONTEXT_WINDOW) and the task\'s mode, warning when the counted memory or a fixed part is over; writes the Space line for the work repository at --repo (default: the current directory, unless it is the Freeflow store), sets State as of, then commits and pushes the Freeflow store holding the task. Refused for a task in the store that this session does not hold: take it first with task take.',
       "With --session, for a session that holds no task: writes the session summary to <store>/sessions/<session ID>/summary.md, which Freeflow's compaction installs and removes. Input: the headings ## Goal, ## Settled, ## Open, ## Agreement, ## In flight, ## Recovery, ## Next action, in order; Goal and Next action must say something; (none) where a heading has nothing; Recovery\'s lines as a record\'s, whose always files view bundle --session copies fresh.",
-      "With --compact, either form also asks Freeflow's harness layer to compact the session at the end of this turn, with the record in place of the conversation: it leaves a request in <store>/sessions/<session ID>/compact.json, which session status reports. A checkpoint without it never compacts. Where no harness layer runs, nothing more happens.",
+      "With --compact, either form also asks Freeflow's harness layer to compact the session at the end of this turn, with the record in place of the conversation: it leaves a request in <store>/sessions/<session ID>/compact.json, which session status reports, where the session's Freeflow driver claims it can compact (its capabilities.json); elsewhere it leaves none and says so. A checkpoint without it never compacts. Where no harness layer runs, nothing more happens.",
       "Use --input - to read Markdown fragments from stdin.",
     ].join("\n"),
   ],
@@ -304,7 +319,7 @@ const COMMAND_HELP = new Map([
 function commandHelp(command, operation) {
   const help = COMMAND_HELP.get([command, operation].filter(Boolean).join(" ")) ?? COMMAND_HELP.get(command);
   if (!help) return `${usage()}\n`;
-  return ["init", "store", "session"].includes(command) ? `${help}\n` : `${help}\n${ROOT_HELP}\n`;
+  return ["init", "store", "session", "events"].includes(command) ? `${help}\n` : `${help}\n${ROOT_HELP}\n`;
 }
 
 class CliError extends Error {
@@ -315,7 +330,8 @@ class CliError extends Error {
   }
 }
 
-function parseOptions(args) {
+/** `--session` is a flag elsewhere (a session that holds no task); the events commands take it with a session ID. */
+function parseOptions(args, { valued = [] } = {}) {
   const options = {};
   const positionals = [];
   for (let index = 0; index < args.length; index += 1) {
@@ -342,7 +358,8 @@ function parseOptions(args) {
         "--rules",
         "--ended",
         "--take-back",
-      ].includes(token)
+      ].includes(token) &&
+      !valued.includes(token)
     ) {
       options[token] = true;
       continue;
@@ -444,6 +461,11 @@ function allowedOptions(command, operation) {
     if (operation === "open") return new Set([...withNextAction, "--title"]);
     if (operation === "update") return new Set([...common, "--text"]);
     if (operation === "close") return new Set([...withNextAction, "--state"]);
+  }
+  if (command === "events") {
+    if (operation === "append") return new Set(["--input", "--home", "--help"]);
+    if (operation === "summary") return new Set(["--session", "--json", "--home", "--help"]);
+    if (operation === "show") return new Set(["--session", "--kind", "--home", "--help"]);
   }
   if (command === "store" && operation === "init")
     return new Set(["--remote", "--home", "--git-name", "--git-email", "--help"]);
@@ -683,7 +705,7 @@ async function runProjects5(command, operation, options, home) {
 }
 
 async function runCore(command, rest) {
-  const { options, positionals } = parseOptions(rest);
+  const { options, positionals } = parseOptions(rest, { valued: command === "events" ? ["--session"] : [] });
   const operation = positionals[0];
   if (options["--help"]) return commandHelp(command, operation);
   // Projects and tasks are the Freeflow store's folders.
@@ -694,6 +716,17 @@ async function runCore(command, rest) {
   }
   validateCommandOptions(command, operation, options);
   if (command === "store") return runStore(operation, options);
+  if (command === "events") {
+    try {
+      return await runEvents(operation, options, {
+        home: storeHome(options["--home"]),
+        identity: sessionIdentity(),
+        input: operation === "append" ? await readInput(requireOption(options, "--input"), cwd()) : "",
+      });
+    } catch (error) {
+      throw new CliError(error.message);
+    }
+  }
   if (command === "session") {
     if (operation !== "status") throw new CliError(`Unknown command: session ${operation ?? ""}`.trim());
     const home = storeHome(options["--home"]);
@@ -868,8 +901,32 @@ async function requestCompaction(args) {
   // A session summary lives in the Freeflow home whether or not a store is there, so its compaction needs none (P4).
   if (!identity || (!args.includes("--session") && !isFreeflowStore(home)))
     return "Compaction not requested: it needs a session ID, and for a task the Freeflow store.\n";
+  // Only a driver that claims compact answers the request (SPEC-006 P11): elsewhere none is written for no one.
+  const refused = compactRefusal(home, identity);
+  if (refused) return refused;
   await writeCompactionRequest(home, identity);
   return "Compaction requested: Freeflow's harness layer compacts the session when this turn ends, with the record in place of the conversation. End your turn now.\n";
+}
+
+/**
+ * Why this session's Freeflow driver will not compact it, from the claims it wrote at session start
+ * (<home>/sessions/<session>/capabilities.json, read by Setup Freeflow's capabilities.mjs too), or null when it claims
+ * compact as yes.
+ */
+function compactRefusal(home, identity) {
+  const path = join(home, "sessions", identity.id, "capabilities.json");
+  let claim = null;
+  try {
+    const file = JSON.parse(readFileSync(path, "utf8"));
+    if (file?.v === 1 && file.requestSet === 1) claim = file.claims?.compact ?? null;
+  } catch {
+    // No file, or not one this script reads: no driver here claims anything.
+  }
+  if (claim?.claim === "yes") return null;
+  const why = claim
+    ? `Freeflow's driver here does not compact (compact: ${claim.claim}, ${claim.how})`
+    : "No Freeflow driver here compacts (no capabilities for this session)";
+  return `${why}. The harness compacts on its own; after it, recover with view recover.\n`;
 }
 
 try {

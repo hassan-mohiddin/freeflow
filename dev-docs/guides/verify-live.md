@@ -1,7 +1,7 @@
 # Verify Live
 
 > **Covers:** `scripts/verify-live.sh`
-> **Verified at:** `ac856ad0` (2026-10-30)
+> **Verified at:** `aa1d65b9` (2026-11-03)
 
 For anyone checking a Freeflow change in the running software rather than only in `node --test`, people or agents: how to start an isolated Pi session with this checkout's extension, check that it is worth driving, drive it, keep evidence, and clean up, and which inputs cost a model call. What to drive for each feature is in the [feature map](../features/README.md).
 
@@ -84,7 +84,7 @@ Clean-up saves `final-pane.txt`, stops only this run's tmux server (`tmux -L ffv
 
 ## Paid Calls
 
-Free text and every slash command that hands a skill to Pi's agent (`/verify-work`, `/discuss-work` and the others in `WORKFLOW_COMMANDS` and `CONTRIBUTOR_COMMANDS` in `pi-extension/src/host/catalog.ts`) send a request to a model. So do `/freeflow compact` and anything else that starts a turn. `/freeflow status`, `/freeflow settings` and Pi's `/reload` run locally.
+Free text and every slash command that hands a skill to Pi's agent (`/verify-work`, `/discuss-work` and the others in `WORKFLOW_COMMANDS` and `CONTRIBUTOR_COMMANDS` in `pi-extension/src/host/catalog.ts`) send a request to a model. So do `/freeflow compact` and anything else that starts a turn. `/freeflow status`, `/freeflow capabilities`, `/freeflow settings` and Pi's `/reload` run locally.
 
 Two guards stand between a mistyped step and a paid request:
 

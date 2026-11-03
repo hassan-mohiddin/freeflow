@@ -32,16 +32,21 @@ test(
         assert.match(JSON.stringify(requests[1]), /"name":"send_message"/);
         assert.deepEqual(requests[1].system, requests[0].system);
         // Messaging starts after the status update that turned it on, without holding up the request.
+        // The registry's entries are the .json files in sessions/, which also holds each session's own folder.
+        const registered = async () =>
+          (await readdir(join(process.env.FREEFLOW_HOME, "sessions")).catch(() => [])).filter((name) =>
+            name.endsWith(".json"),
+          );
         let entries = [];
         for (let i = 0; i < 100 && entries.length === 0; i++) {
-          entries = await readdir(join(process.env.FREEFLOW_HOME, "sessions")).catch(() => []);
+          entries = await registered();
           if (entries.length === 0) await new Promise((resolve) => setTimeout(resolve, 50));
         }
         assert.equal(entries.length, 1, "the session is in the live registry while it runs");
         // A reload ends the session (session_shutdown) and starts it again: one entry, one socket, no address in use.
         await session.reload();
         await new Promise((resolve) => setTimeout(resolve, 300));
-        assert.equal((await readdir(join(process.env.FREEFLOW_HOME, "sessions"))).length, 1);
+        assert.equal((await registered()).length, 1);
       },
       true,
       on,

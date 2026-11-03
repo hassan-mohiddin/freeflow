@@ -290,6 +290,7 @@ A session holds at most one task, and a task has one holder at a time. Where Fre
 - `history.md`: one entry per closed Slice, agreement or delegation, each with a cue saying when it matters, and what each Slice used: its context and the context cycles it touched and, where the host's transcript can be read (on Claude Code), its time and its cost at API list price by model and effort.
 - `decisions.md`: the open agreement's decision list.
 - `sessions.md`: every session that held the task.
+- `events/<session>.json`: a short summary of each session's event log, written at each checkpoint and when the session releases the task (see [Event log and capabilities](capabilities/event-log.md)).
 - `sources/discussion.md`: your messages that shaped the work, word for word.
 
 The memory the agent shapes has a recovery budget that grows with the context window; when a task's memory keeps running over, the agent may propose expanded mode, which only you turn on. `working-record.mjs estimate --plan` sizes the work left from what past Slices used, and the work agreement can show it: how many context cycles, and the cost at list price.
@@ -309,7 +310,7 @@ Only the user changes task state. Closing a Slice does not complete the task.
 
 ### Before a compaction, and after
 
-Freeflow's notice comes once each context cycle, before the host's own compaction would start. The agent works on to a safe point, checkpoints the record with `--compact` and ends its turn. On Claude Code (2.1.287 or later), Freeflow then compacts the session itself, with the record and everything recovery reads in place of the conversation, and starts the next turn. It compacts only when the agent asks this way, so a checkpoint before a pause or a switch keeps the conversation, and the agent may ask earlier, at a point where the conversation holds mostly finished work. Where the host compacts on its own, Freeflow adds the record as of the last checkpoint after the host's summary where it can; otherwise, and after a clear or a transfer to another session, the agent recovers with `working-record.mjs view recover` and reads every source it lists. Either way it reconciles the record with your latest direction and the live state before acting, and says in one line what it read.
+Freeflow's notice comes once each context cycle, before the host's own compaction would start. The agent works on to a safe point, checkpoints the record with `--compact` and ends its turn. Where no Freeflow driver can compact (`/freeflow capabilities` says), the checkpoint is still written, the command says so, and the host compacts on its own. On Claude Code (2.1.287 or later), Freeflow then compacts the session itself, with the record and everything recovery reads in place of the conversation, and starts the next turn. It compacts only when the agent asks this way, so a checkpoint before a pause or a switch keeps the conversation, and the agent may ask earlier, at a point where the conversation holds mostly finished work. Where the host compacts on its own, Freeflow adds the record as of the last checkpoint after the host's summary where it can; otherwise, and after a clear or a transfer to another session, the agent recovers with `working-record.mjs view recover` and reads every source it lists. Either way it reconciles the record with your latest direction and the live state before acting, and says in one line what it read.
 
 While the conversation about the work is still in context, including after a new message, a pause or a resumed session, re-reading the record wastes context and does not make it more authoritative.
 
@@ -516,6 +517,7 @@ Coordinator must differ from every enabled worker as a complete provider/model/t
 
 ```text
 /freeflow status
+/freeflow capabilities
 /freeflow settings
 /freeflow settings session
 /freeflow settings local

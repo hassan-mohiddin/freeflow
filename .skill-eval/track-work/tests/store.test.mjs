@@ -56,7 +56,10 @@ test("store init lays an empty remote out as the store and pushes its first comm
       kind: "freeflow-store",
       version: 1,
     });
-    assert.equal(await readFile(join(home, ".gitignore"), "utf8"), "scratch/\nevidence/**/raw/\nlocal/\nsessions/\n");
+    assert.equal(
+      await readFile(join(home, ".gitignore"), "utf8"),
+      "scratch/\nevidence/**/raw/\nlocal/\nsessions/\n/events/\n",
+    );
     assert.equal(
       await readFile(join(home, ".gitattributes"), "utf8"),
       "history.md merge=union\nsessions.md merge=union\n",

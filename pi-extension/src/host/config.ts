@@ -277,6 +277,8 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
     off: skillsOff(repositoryConfig, sessionLocalConfig),
   };
   const promptsEnabled = sectionEnabled(repositoryConfig, sessionLocalConfig, "prompts");
+  // The event log (SPEC-006 P5): written while Freeflow and its own switch are on.
+  const events = { enabled: enabled && sectionEnabled(repositoryConfig, sessionLocalConfig, "events") };
   const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -304,6 +306,7 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
     prompts,
     promptsEnabled,
     skills,
+    events,
     // ask_user: core, on whenever Freeflow is enabled (Task 002 D-001); off in subagents, which have no user.
     askUser: { enabled, effective: enabled },
   };

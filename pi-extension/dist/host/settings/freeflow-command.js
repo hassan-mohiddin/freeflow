@@ -426,6 +426,7 @@ const SECTION_ORDER = [
   "freeflow.toolExecution",
   "freeflow.messaging",
   "freeflow.cognitiveRouting",
+  "freeflow.events",
   "freeflow.review",
   "freeflow.session",
 ];
@@ -606,6 +607,20 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
     state.compaction?.enabled ?? DEFAULT_COMPACTION_ENABLED,
     DEFAULT_COMPACTION_ENABLED,
   );
+  // The event log, on every host with a Freeflow driver (SPEC-006 P5).
+  const eventsInherited = configuredSetting(rawConfig, localConfig, ["events", "enabled"], true);
+  const eventsOn =
+    typeof sessionOverrides["events.enabled"] === "boolean"
+      ? sessionOverrides["events.enabled"]
+      : eventsInherited.value;
+  const eventsItem = sessionSwitch(
+    "freeflow.events.enabled",
+    "Enabled",
+    "Write what happens in this session's loop to the event log on this machine.",
+    "events.enabled",
+    eventsOn,
+    true,
+  );
   const inboundInherited = configuredSetting(rawConfig, localConfig, ["messaging", "inbound"], DEFAULT_INBOUND_POLICY);
   const inboundItem = createSessionChoiceItem({
     id: "freeflow.messaging.inbound",
@@ -733,6 +748,9 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
     sectionItem("freeflow.messaging", "Messaging", "Messaging for this session.", capabilityStatus(state.messaging), [
       messagingItem,
       inboundItem,
+    ]),
+    sectionItem("freeflow.events", "Event log", "The event log for this session.", eventsOn ? "on" : "off", [
+      eventsItem,
     ]),
     sectionItem("freeflow.review", "Review", "Review Work for this session.", "", [reviewModeItem, reviewModelItem]),
     sectionItem("freeflow.session", "Session", "Session overrides.", "", [
@@ -1387,6 +1405,32 @@ function freeflowItems(rawConfig, options = {}) {
   walkSettingsItems([promptsGroup, skillsGroup], (item) => {
     item.inactive = freeflowInactive;
   });
+  // The event log, on every host with a Freeflow driver (SPEC-006 P5).
+  const eventsOn = sectionEnabled(rawConfig, localConfig, "events");
+  const eventsEnabledItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.events.enabled",
+    label: "Enabled",
+    description:
+      "Write what happens in each session's loop (commands, exit status, paths, token counts, never contents) to the event log on this machine.",
+    path: ["events", "enabled"],
+    effectiveValue: eventsOn,
+    effectiveSource: toolSource(["events", "enabled"]),
+    defaultValue: true,
+  });
+  eventsEnabledItem.inactive = freeflowInactive;
+  const eventsGroup = {
+    id: "freeflow.events",
+    label: "Event log",
+    description: "Configure the event log Freeflow's drivers write; a checkpoint commits a summary of it.",
+    kind: "group",
+    value: eventsOn,
+    inactive: freeflowInactive,
+    displaySuffix: eventsOn ? "on" : "off",
+    children: [eventsEnabledItem],
+  };
   // Review Work's choice on every host (config-validation.ts).
   const review = resolveReviewSettings(rawConfig, localConfig);
   const reviewModeItem = createScopedChoiceItem({
@@ -1431,6 +1475,7 @@ function freeflowItems(rawConfig, options = {}) {
     toolExecutionGroup,
     compactionGroup,
     messagingGroup,
+    eventsGroup,
     reviewGroup,
     promptsGroup,
     skillsGroup,
@@ -1590,6 +1635,14 @@ function refreshSettingsDerivedState(items) {
     const on = effectiveItemValue(compactionEnabled) === true;
     compactionGroup.value = on;
     compactionGroup.displaySuffix = on && !freeflowInactive ? "active" : on ? "inactive" : "disabled";
+  }
+  // The event log's row follows its switch as it changes on this screen.
+  const eventsGroup = findSettingsItem(items, "freeflow.events");
+  const eventsEnabled = findSettingsItem(items, "freeflow.events.enabled");
+  if (eventsGroup && eventsEnabled) {
+    const on = effectiveItemValue(eventsEnabled) === true;
+    eventsGroup.value = on;
+    eventsGroup.displaySuffix = on ? "on" : "off";
   }
   const messagingGroup = findSettingsItem(items, "freeflow.messaging");
   const messagingEnabled = findSettingsItem(items, "freeflow.messaging.enabled");

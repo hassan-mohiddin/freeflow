@@ -39,7 +39,23 @@ function world(on: any) {
     // The settings script's runs, apart from Track Work's, and what it answers: `get enabled` from `enabled`.
     settingsRuns: [] as Run[],
     enabled: true as boolean,
+    eventsEnabled: true as boolean,
+    // Every event line the mod flushed, in order, parsed.
+    events: () =>
+      w.eventRuns.flatMap((run) =>
+        String(run.stdin)
+          .split("\n")
+          .map((line) => JSON.parse(line)),
+      ),
     settingsAnswers: {} as Record<string, Answer>,
+    // The event log's flushes, apart from the other runs: each is one `events append` with its lines (SPEC-006 T2).
+    eventRuns: [] as Run[],
+    eventAnswer: { stdout: "Wrote" } as Answer,
+    // The capabilities script's runs, and what it answers.
+    capabilityRuns: [] as Run[],
+    capabilityAnswer: {
+      stdout: "Freeflow on Claude Code (claude-code-mod 0.9.0, request set 1, interactive)",
+    } as Answer,
     registered: [] as any[],
     env: {} as Record<string, string | undefined>,
     sent: [] as any[],
@@ -47,6 +63,7 @@ function world(on: any) {
     commandsRun: [] as string[],
     compactions: [] as any[],
     writes: [] as { path: string; text: string }[],
+    claims: [] as { path: string; text: string }[],
     // The files the mod wrote, by path, which it reads back.
     stored: new Map<string, string>(),
     logs: [] as any[],
@@ -71,6 +88,9 @@ function world(on: any) {
       ["/store-other/notes.md", "/store-other/notes.md"],
     ]),
     verdict: { decision: "ask" } as { decision: string; rule?: string },
+    toolFails: false as boolean,
+    // Track Work's script as the mod runs it, under the plugin's root.
+    scriptPath: "" as string,
   };
   on("process.run", async (_: any, e: any) => {
     const result = (answer: Answer) => ({
@@ -82,11 +102,33 @@ function world(on: any) {
         isStderrTruncated: false,
       },
     });
+    if (e.argv[0] === "node" && String(e.argv[1]).endsWith("setup-freeflow/scripts/capabilities.mjs")) {
+      w.capabilityRuns.push({ args: e.argv.slice(2), session: e.init?.env?.CLAUDE_CODE_SESSION_ID });
+      return result(w.capabilityAnswer);
+    }
+    if (
+      e.argv[0] === "node" &&
+      String(e.argv[1]).endsWith("working-record.mjs") &&
+      e.argv.slice(2, 4).join(" ") === "events append"
+    ) {
+      w.eventRuns.push({ args: e.argv.slice(2), session: e.init?.env?.CLAUDE_CODE_SESSION_ID, stdin: e.init?.stdin });
+      return result(w.eventAnswer);
+    }
     if (e.argv[0] === "node" && String(e.argv[1]).endsWith("setup-freeflow/scripts/settings.mjs")) {
       const args = e.argv.slice(2);
       w.settingsRuns.push({ args, session: e.init?.env?.CLAUDE_CODE_SESSION_ID });
       const key = args.join(" ");
       for (const [prefix, value] of Object.entries(w.settingsAnswers)) if (key.startsWith(prefix)) return result(value);
+      if (key.startsWith("get events.enabled "))
+        return result({
+          stdout: JSON.stringify({
+            key: "events.enabled",
+            label: "Event log",
+            value: w.eventsEnabled,
+            scope: "default",
+            hosts: "all",
+          }),
+        });
       if (key.startsWith("get enabled "))
         return result({
           stdout: JSON.stringify({
@@ -100,6 +142,7 @@ function world(on: any) {
       return result({ exitCode: 1, stderr: `no answer for settings ${key}` });
     }
     const script = e.argv[0] === "node" && String(e.argv[1]).endsWith("working-record.mjs");
+    if (script) w.scriptPath = String(e.argv[1]);
     const args = script ? e.argv.slice(2) : [...e.argv];
     w.runs.push({ args, session: e.init?.env?.CLAUDE_CODE_SESSION_ID, stdin: e.init?.stdin });
     const key = args.join(" ");
@@ -152,7 +195,14 @@ function world(on: any) {
       : { value: { kind: "file", size: 1, mtimeMs: 0, isLink: false, ...(e.resolve ? { realPath: real } : {}) } };
   });
   on("tool.check", () => ({ ...w.verdict }));
+  // A tool runs: its result, or an error result when the scenario says so.
+  on("tool.call", () => ({ result: {}, text: "", ...(w.toolFails ? { isError: true } : {}) }));
   on("fs.write", (_: any, e: any) => {
+    // The claims a session start writes are kept apart, as the event runs are (SPEC-006 T4).
+    if (String(e.path ?? e[0]).endsWith("/capabilities.json")) {
+      w.claims.push({ path: e.path ?? e[0], text: e.text ?? e[1] });
+      return { value: undefined };
+    }
     w.writes.push({ path: e.path ?? e[0], text: e.text ?? e[1] });
     w.stored.set(e.path ?? e[0], e.text ?? e[1]);
     return { value: undefined };
@@ -836,7 +886,11 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
   const w = world(on);
   await ready($);
   expect(w.registered.map((command) => command.name)).toEqual(["freeflow"]);
-  expect(w.settingsRuns.map((run) => run.args.join(" "))).toEqual(["get enabled --root /work/widget --json"]);
+  // enabled, and the event log's own switch (SPEC-006 P5).
+  expect(w.settingsRuns.map((run) => run.args.join(" "))).toEqual([
+    "get enabled --root /work/widget --json",
+    "get events.enabled --root /work/widget --json",
+  ]);
   expect(w.settingsRuns[0].session).toBe(SESSION);
 
   w.settingsAnswers["list "] = { stdout: JSON.stringify(LISTED) };
@@ -898,7 +952,7 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
     "Freeflow settings: unknown option --global.",
   );
   expect((await freeflow($, "status")).text).toBe(
-    "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one.",
+    "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session.",
   );
   expect(w.commands()).toEqual([]);
 });
@@ -972,4 +1026,371 @@ test("a settings script that fails leaves enabled as it was", async ($, on) => {
   w.answers["task here"] = { stdout: MENU };
   await ready($);
   expect((await start($)).additionalContext).toEqual([`Freeflow task memory:\n${MENU}`]);
+});
+
+/** The kinds and agents of the lines flushed so far, in order. */
+const kinds = (w: any) =>
+  w.events().map((line: any) => (line.agent === "main" ? line.kind : `${line.kind}@${line.agent}`));
+
+test("the event log: each loop event the mod sees is one schema v1 line, in order, written in one run at the turn's end (SPEC-006 4.2)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30), { changed: true });
+  w.answers["task here"] = { stdout: MENU };
+  await ready($);
+  await start($);
+  expect(w.eventRuns).toEqual([]);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  w.response = { input_tokens: 3, cache_read_input_tokens: 900, cache_creation_input_tokens: 40 };
+  await step($, w, 1_000, { effort: "high" });
+  // Allowed, as the mode would: an ask here refuses a test's call, which no person can answer.
+  w.verdict = { decision: "allow" };
+  await $.tool.call({ tool: "Bash", command: "npm test -- --token=abc123" } as any);
+  w.toolFails = true;
+  await $.tool.call({ tool: "Edit", file_path: "/work/widget/src.mjs", old_string: "a", new_string: "b" } as any);
+  expect(w.eventRuns).toEqual([]);
+  await $.turn.complete(turnEnd("answer"));
+
+  // One run, as this session, with every line of the turn.
+  expect(w.eventRuns.length).toBe(1);
+  expect(w.eventRuns[0].args).toEqual(["events", "append", "--input", "-"]);
+  expect(w.eventRuns[0].session).toBe(SESSION);
+  expect(kinds(w)).toEqual([
+    "session.start",
+    "freeflow",
+    "freeflow",
+    "turn.start",
+    "model.request",
+    "tool.call",
+    "tool.call",
+    "turn.end",
+    "freeflow",
+  ]);
+  const lines = w.events();
+  for (const line of lines) {
+    expect(line.v).toBe(1);
+    expect(line.ts).toBe(new Date(T0).toISOString());
+    expect(line.session).toBe(SESSION);
+    expect(line.harness).toBe("claude-code");
+    expect(line.seq).toBeUndefined();
+  }
+  // A -p run: no one at the prompt (section 4.5).
+  expect(lines[0]).toMatchObject({ kind: "session.start", source: "startup", interactive: false });
+  expect(lines.filter((line: any) => line.kind === "freeflow").map((line: any) => line.what)).toEqual([
+    "capabilities",
+    "menu",
+    "sync",
+  ]);
+  expect(lines[3]).toMatchObject({ kind: "turn.start", agent: "main", turn: 1 });
+  expect(lines[4]).toMatchObject({
+    kind: "model.request",
+    model: "opus",
+    effort: "high",
+    in: 3,
+    out: 10,
+    cacheRead: 900,
+    cacheWrite: 40,
+    context: 943,
+    stop: "end_turn",
+  });
+  // The command goes to the writer, which redacts and cuts it; Claude Code gives no exit code.
+  expect(lines[5]).toMatchObject({
+    kind: "tool.call",
+    tool: "Bash",
+    ok: true,
+    command: "npm test -- --token=abc123",
+    source: "agent",
+  });
+  expect(lines[5].exit).toBeUndefined();
+  expect(lines[5].paths).toBeUndefined();
+  expect(lines[6]).toMatchObject({ kind: "tool.call", tool: "Edit", ok: false, paths: ["src.mjs"], source: "agent" });
+  expect(lines[6].command).toBeUndefined();
+  // Never contents: no prompt text, answer, file content or tool output.
+  expect(JSON.stringify(lines)).not.toContain("go");
+  expect(JSON.stringify(lines)).not.toContain("Done.");
+  expect(JSON.stringify(lines)).not.toContain("old_string");
+  expect(lines[7]).toMatchObject({ kind: "turn.end", turn: 1, reason: "answer", ms: 1_000 });
+
+  // Nothing new, nothing written.
+  await $.turn.complete(turnEnd("answer"));
+  expect(w.eventRuns.length).toBe(2);
+  expect(kinds(w).slice(9)).toEqual(["turn.end", "freeflow"]);
+});
+
+test("the event log is written at a compaction, a worker's hand-back and the session's end, and before a checkpoint or release runs (T2)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  await ready($);
+  await start($);
+  // A worker's turn and its stop: its lines carry its agent ID, and its hand-back writes them.
+  await $.agent.spawn(spawn("Do D-012's part."));
+  await $.turn.start({ text: "x", turnId: "turn-w", agentId: "agent-7" } as any);
+  await step($, w, 1_000, { agentId: "agent-7", model: "haiku" });
+  await $.turn.complete({ ...turnEnd("answer"), agentId: "agent-7" } as any);
+  expect(w.eventRuns).toEqual([]);
+  await $.classic.SubagentStop({ agent_id: "agent-7", agent_type: "general-purpose", stop_hook_active: false } as any);
+  expect(w.eventRuns.length).toBe(1);
+  expect(kinds(w).slice(-5)).toEqual([
+    "agent.spawn@agent-7",
+    "turn.start@agent-7",
+    "model.request@agent-7",
+    "turn.end@agent-7",
+    "agent.stop@agent-7",
+  ]);
+  expect(w.events().at(-5)).toMatchObject({ delegation: "D-012", model: "haiku" });
+  expect(w.events().at(-1)).toMatchObject({ blocked: false });
+
+  // A checkpoint the agent runs: the lines so far are written first, so the summary it commits counts them.
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  await $.tool.call({
+    tool: "Bash",
+    command: `node ${w.scriptPath} checkpoint --record widget/task-001 --input -`,
+  } as any);
+  expect(w.eventRuns.length).toBe(2);
+  expect(kinds(w).at(-1)).toBe("turn.start");
+
+  // A compaction of the main conversation, before the checkpoint: Claude's, by the harness; written before it answers.
+  w.tokens = 150_000;
+  await $.session.compact({ trigger: "manual", messages: CONVERSATION } as any);
+  expect(w.eventRuns.length).toBe(3);
+  expect(w.events().at(-1)).toMatchObject({ kind: "compaction", trigger: "manual", by: "harness", before: 150_000 });
+  // A script under Freeflow's own plugin is Freeflow's overhead, which Part 8 counts.
+  expect(w.scriptPath).toEndWith("/skills/track-work/scripts/working-record.mjs");
+  expect(w.events().at(-2)).toMatchObject({ kind: "tool.call", tool: "Bash", source: "freeflow" });
+
+  // After a checkpoint made in the cycle, Freeflow's own.
+  w.status = held(at(30));
+  w.answers["view bundle"] = { stdout: "BUNDLE" };
+  await $.session.compact({ trigger: "manual", messages: CONVERSATION } as any);
+  expect(w.events().at(-1)).toMatchObject({ kind: "compaction", by: "freeflow" });
+
+  // The session's end: its line, written before the hold is released, so the release's summary has it.
+  w.runs.length = 0;
+  await $.session.end({ reason: "prompt_input_exit", sessionId: SESSION } as any);
+  expect(w.events().at(-1)).toMatchObject({ kind: "session.end", reason: "prompt_input_exit" });
+  expect(w.eventRuns.at(-1)!.session).toBe(SESSION);
+  expect(w.commands()).toEqual(["session status", "task release --ended"]);
+});
+
+test("a flush that fails drops its lines and says so: one log line now, and a dropped line first in the next flush (section 5)", async ($, on) => {
+  const w = world(on);
+  await ready($);
+  await start($);
+  w.eventAnswer = { exitCode: 1, stderr: "Error: sess-1.jsonl is locked by another writer" };
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  await $.turn.complete(turnEnd("answer"));
+  // The session's start, its claims, the turn's start and end.
+  expect(w.logs.at(-1)).toBe("Freeflow: 4 event line(s) not written: sess-1.jsonl is locked by another writer");
+  w.eventAnswer = { stdout: "Wrote" };
+  await $.turn.start({ text: "go", turnId: "turn-2" } as any);
+  await $.turn.complete(turnEnd("answer"));
+  const last = String(w.eventRuns.at(-1)!.stdin)
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  expect(last.map((line: any) => line.kind)).toEqual(["freeflow", "turn.start", "turn.end"]);
+  // Only the fields schema v1 gives a freeflow line, whatever line came first (the writer refuses any other).
+  expect(last[0]).toEqual({
+    v: 1,
+    ts: new Date(T0).toISOString(),
+    session: SESSION,
+    harness: "claude-code",
+    agent: "main",
+    kind: "freeflow",
+    what: "dropped",
+    dropped: 4,
+  });
+  // Written, the count starts again.
+  await $.turn.start({ text: "go", turnId: "turn-3" } as any);
+  await $.turn.complete(turnEnd("answer"));
+  expect(String(w.eventRuns.at(-1)!.stdin)).not.toContain("dropped");
+});
+
+test("events.enabled off writes no line and claims sensors only as possible; Freeflow off writes nothing (P5)", async ($, on) => {
+  const w = world(on);
+  w.eventsEnabled = false;
+  w.status = store();
+  await ready($);
+  await start($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  await $.tool.call({ tool: "Bash", command: "ls" } as any);
+  await $.turn.complete(turnEnd("answer"));
+  expect(w.eventRuns).toEqual([]);
+  const claims = JSON.parse(w.claims.at(-1)!.text);
+  expect(claims.events).toBe(false);
+  expect(claims.claims.sensors).toEqual({ claim: "possible", how: "the event log is off (events.enabled)" });
+
+  // On again with the command: the claims follow at once, and the next turn's lines are written.
+  w.eventsEnabled = true;
+  w.settingsAnswers["set events.enabled on --scope session "] = {
+    stdout: JSON.stringify({
+      key: "events.enabled",
+      label: "Event log",
+      value: true,
+      scope: "session",
+      hosts: "all",
+      state: [],
+      changed: [],
+      cleared: [],
+      notes: [],
+    }),
+  };
+  await freeflow($, "settings events.enabled on --session");
+  expect(JSON.parse(w.claims.at(-1)!.text).claims.sensors.claim).toBe("yes");
+  await $.turn.start({ text: "go", turnId: "turn-2" } as any);
+  await $.turn.complete(turnEnd("answer"));
+  expect(kinds(w)).toEqual(["freeflow", "turn.start", "turn.end"]);
+
+  // Freeflow off: no claims but no, and nothing written.
+  w.enabled = false;
+  w.settingsAnswers["set enabled off --scope session "] = {
+    stdout: JSON.stringify({
+      key: "enabled",
+      label: "Freeflow",
+      value: false,
+      scope: "session",
+      hosts: "all",
+      state: [],
+      changed: [],
+      cleared: [],
+      notes: [],
+    }),
+  };
+  await freeflow($, "settings enabled off --session");
+  const off = JSON.parse(w.claims.at(-1)!.text);
+  expect(off.enabled).toBe(false);
+  expect(Object.values(off.claims).every((claim: any) => claim.claim === "no")).toBe(true);
+  const runs = w.eventRuns.length;
+  await $.turn.start({ text: "go", turnId: "turn-3" } as any);
+  await $.tool.call({ tool: "Bash", command: "ls" } as any);
+  await $.turn.complete(turnEnd("answer"));
+  expect(w.eventRuns.length).toBe(runs);
+});
+
+test("the claims: written at session start in the Freeflow home, with section 4.5's claims for an interactive and a headless session", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  await start($);
+  expect(w.claims.map((write) => write.path)).toEqual(["/store/sessions/sess-1/capabilities.json"]);
+  const file = JSON.parse(w.claims[0].text);
+  expect(file).toMatchObject({
+    v: 1,
+    requestSet: 1,
+    driver: "claude-code-mod",
+    mode: "interactive",
+    enabled: true,
+    events: true,
+  });
+  const claimOf = (claims: any) =>
+    Object.fromEntries(Object.entries(claims).map(([request, each]: any) => [request, each.claim]));
+  expect(claimOf(file.claims)).toEqual({
+    pin: "possible",
+    inject: "yes",
+    forget: "no",
+    compact: "yes",
+    checkpoint: "yes",
+    rewind: "no",
+    route: "possible",
+    spawn: "possible",
+    send: "yes",
+    wake: "yes",
+    ask: "possible",
+    block: "possible",
+    sensors: "yes",
+    timers: "yes",
+  });
+  // Each yes has its conformance test (conformance.mjs; hooks/tests checks each test exists).
+  expect(
+    Object.entries(file.claims)
+      .filter(([, each]: any) => each.claim === "yes")
+      .map(([request]) => request)
+      .sort(),
+  ).toEqual(Object.keys(CONFORMANCE).sort());
+  // Every claim says how, or why not.
+  expect(Object.values(file.claims).every((each: any) => typeof each.how === "string" && each.how.length > 0)).toBe(
+    true,
+  );
+
+  // Headless (-p): nothing runs between turns, so no wake, and compaction only on the next one that comes (P51).
+  await ready($);
+  await start($);
+  const headless = JSON.parse(w.claims.at(-1)!.text);
+  expect(headless.mode).toBe("headless");
+  expect(headless.claims.wake).toEqual({ claim: "no", how: "nothing runs between turns in a headless run" });
+  expect(headless.claims.compact).toEqual({
+    claim: "yes",
+    how: "on the next compaction; it cannot start one in a headless run",
+  });
+
+  // In the other order, the classic SessionStart before session.start, the claims are written again once it says
+  // a headless run, as a -p run's are.
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  await start($);
+  expect(JSON.parse(w.claims.at(-1)!.text).mode).toBe("interactive");
+  await ready($);
+  expect(JSON.parse(w.claims.at(-1)!.text).mode).toBe("headless");
+
+  // A session start with no Freeflow home to read writes none.
+  w.claims.length = 0;
+  w.answers["session status"] = { exitCode: 1, stderr: "broken" };
+  await start($);
+  expect(w.claims).toEqual([]);
+});
+
+test("/freeflow capabilities prints the capabilities script's listing for this session (section 4.6)", async ($, on) => {
+  const w = world(on);
+  await ready($);
+  const listed = await freeflow($, "capabilities");
+  expect(w.capabilityRuns).toEqual([{ args: ["list"], session: SESSION }]);
+  expect(listed.text).toBe("Freeflow on Claude Code (claude-code-mod 0.9.0, request set 1, interactive)");
+  w.capabilityAnswer = { exitCode: 2, stderr: "Error: Unknown option --x\n" };
+  expect((await freeflow($, "capabilities")).text).toBe("Freeflow capabilities: Unknown option --x");
+  expect(w.commands()).toEqual([]);
+});
+
+// The golden event log (SPEC-006 4.7): a scripted session through the mod, its lines normalized (the plugin's path on
+// this machine) and compared on kinds, order and fields with golden-events.mjs. A change to what the mod writes fails
+// here until that file is updated on purpose, with the lines this test prints. The mods test kit runs no process, so
+// hooks/tests/golden-events.test.mjs runs the same lines through Track Work's real `events append`: the schema test.
+import CONFORMANCE from "./conformance.mjs";
+import GOLDEN from "./golden-events.mjs";
+
+test("the golden event log: a scripted session through the mod matches golden-events.mjs (4.7)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  w.answers["view bundle"] = { stdout: "BUNDLE" };
+  w.verdict = { decision: "allow" };
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  await start($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  w.response = { input_tokens: 4, cache_read_input_tokens: 2_000, cache_creation_input_tokens: 300 };
+  await step($, w, 2_304, { effort: "high" });
+  await $.tool.call({ tool: "Bash", command: "npm test -- --token=abc123" } as any);
+  await $.tool.call({ tool: "Read", file_path: "/work/widget/src.mjs" } as any);
+  await $.agent.spawn(spawn("Do D-012's part."));
+  await $.turn.start({ text: "x", turnId: "turn-w", agentId: "agent-7" } as any);
+  await step($, w, 1_000, { agentId: "agent-7", model: "haiku" });
+  await $.turn.complete({ ...turnEnd("answer"), agentId: "agent-7" } as any);
+  await $.classic.SubagentStop({ agent_id: "agent-7", agent_type: "general-purpose", stop_hook_active: false } as any);
+  await $.tool.call({
+    tool: "Bash",
+    command: `node ${w.scriptPath} checkpoint --record widget/task-001 --input -`,
+  } as any);
+  await $.turn.complete(turnEnd("answer"));
+  // The checkpoint is done: Freeflow's own compaction, then the session's end.
+  w.status = held(at(30));
+  w.tokens = 150_000;
+  await $.session.compact({ trigger: "manual", messages: CONVERSATION } as any);
+  await $.session.end({ reason: "prompt_input_exit", sessionId: SESSION } as any);
+
+  const root = w.scriptPath.slice(0, -"/skills/track-work/scripts/working-record.mjs".length);
+  const lines = w
+    .events()
+    .map((line: any) =>
+      line.command ? { ...line, command: String(line.command).split(root).join("<plugin>") } : line,
+    );
+  if (JSON.stringify(lines) !== JSON.stringify(GOLDEN))
+    console.log(`golden-events.mjs would be:\n${JSON.stringify(lines, null, 2)}`);
+  expect(lines).toEqual(GOLDEN);
 });

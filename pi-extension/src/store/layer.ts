@@ -30,20 +30,25 @@ export interface Ran {
   stderr: string;
 }
 
-export type Run = (args: string[], options?: { timeoutMs?: number }) => Promise<Ran>;
+export type Run = (args: string[], options?: { timeoutMs?: number; input?: string }) => Promise<Ran>;
 
-/** Runs Track Work's script from Freeflow's package, as the agent's commands run it, with the session's environment. */
+/**
+ * Runs Track Work's script from Freeflow's package, as the agent's commands run it, with the session's environment;
+ * `input` goes to its standard input.
+ */
 export function scriptRunner(packageRoot: string): Run {
-  return (args, { timeoutMs = 60_000 } = {}) =>
-    new Promise((done) =>
-      execFile(
+  return (args, { timeoutMs = 60_000, input } = {}) =>
+    new Promise((done) => {
+      const child = execFile(
         process.execPath,
         [join(packageRoot, SCRIPT), ...args],
         { env: process.env, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 },
         (error: any, stdout, stderr) =>
           done({ code: error ? (typeof error.code === "number" ? error.code : 1) : 0, stdout, stderr }),
-      ),
-    );
+      );
+      child.stdin?.on("error", () => {});
+      child.stdin?.end(input ?? "");
+    });
 }
 
 /**
