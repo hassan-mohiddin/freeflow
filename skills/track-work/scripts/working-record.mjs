@@ -23,7 +23,6 @@ import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { checkpointSession, runTransition5, writeCompactionRequest } from "./lib/transitions5.mjs";
 import { budgetLines, budgetFor, contextWindow, measureTask, renderBudget } from "./lib/budget5.mjs";
 import { copyTaskIntoStore, migrateTask, readCues } from "./lib/migrate5.mjs";
-import { findResult, listResults, sessionTranscript } from "./lib/carry5.mjs";
 import { dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
 import { renderBundle5, renderEntries5, renderIndex5, renderRecover5, renderSessionBundle } from "./lib/views5.mjs";
 import {
@@ -201,14 +200,6 @@ const COMMAND_HELP = new Map([
     "Usage: agreement close --record <record.md> --state <completed|ended|replaced> [--next-action <text>] --input <file|->\nAppends the agreement's History entry (its lines, updates and decisions.md's list), removes it from Current Work, empties decisions.md, then syncs the Freeflow store holding the task. Refused while the current Slice works under it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required; Settled optional: choices that still govern the task, added to Current Context's Settled.",
   ],
   [
-    "carry list",
-    "Usage: carry list [--transcript <path>]\nThe tool results of this compaction cycle, numbered, each with its time, what the call was for, its size in tokens and its tool-use ID, read from the session's transcript (--transcript, else FREEFLOW_TRANSCRIPT, else this Claude Code session's log; Claude Code's log or Pi's session file, along its active branch). In flight carries one with \"- Carry: result <n> — <why>\"; checkpoint pins the number to its ID. Changes nothing.",
-  ],
-  [
-    "carry show",
-    "Usage: carry show --id <tool-use ID or n> [--transcript <path>]\nPrints one tool result whole, by its ID (from any compaction cycle of the session) or its number in carry list. Changes nothing.",
-  ],
-  [
     "estimate",
     "Usage: estimate [--used <tokens>] [--window <tokens>] [--done <n> --left <m>] [--transcript <path>]\n       estimate --plan --record <ID> [--input -] [--fan-out <n>] [--done <n>] [--used <tokens>] [--window <tokens>]\n       estimate --project <name> | --store\nHow much of the context window the work has used, before you decide what fits in this compaction cycle: the context's use (--used, as the harness shows it; else the latest request in the session's transcript, --transcript or FREEFLOW_TRANSCRIPT or this Claude Code session's log) against the window (--window, else FREEFLOW_CONTEXT_WINDOW, else 200,000 tokens) and the point where Freeflow's notice comes (75% of the window), with what is left before it. With --done <n> --left <m>, the parts of the work done in this compaction cycle and the parts still to do: what the rest needs at the rate so far (an upper bound), and whether it fits before the notice or about how many more compaction cycles it takes.\nWith --plan, the Slices left (Future Work's proposals, or with --input one Slice a line, \"- <title>\", then optionally \" · after: <titles it waits for>\"): each one's expected context, working time and cost at API list price, from the median of the nearest of this task, its project and the store holding 3 measured Slices, corrected by the median of actual over predicted; the compaction cycle each lands in; any Slice bigger than a compaction cycle; the totals; the Slices with no dependency between them; and delegations' measured cost by kind, model and effort, with --fan-out <n> pricing n workers. With fewer than 3 measured Slices anywhere, --done <n> plans at this compaction cycle's rate. --project <name> lists each of the project's tasks with what it used and what its proposed Slices would take; --store adds up every project and task by model and effort, and delegations by kind. Prices are the dated table in lib/measure5.mjs, or the JSON file FREEFLOW_PRICES names. It prints costs and never picks a model.",
   ],
@@ -218,7 +209,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "view",
-    "Usage: view resume|recover|full|index|bundle --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\n       view bundle --record <record.md> [--fallback] [--no-recent]\n       view bundle --session [--home <store>] [--no-recent]\nSchema 5: recover [--delegation <D-NNN[.n]>] prints an opening line (the record is memory; the user's direction decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (the newest within the budget, and any the record names), the project's other tasks with their cues, and the checks: the budget, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. bundle: the same, then Read on recovery's sources and In flight's Carry files (counted), Defined by's entries and the core skills (not counted), each whole and read now, In flight's carried tool results, this compaction cycle's newest other results within the carry budget (--no-recent leaves them out, as a harness layer does where context reuse is off), their sizes, and the recovery line: what Freeflow's compaction installs. With --fallback, for a compaction that came before the checkpoint, what Freeflow adds after the harness's own summary: the same bundle as of the record's State as of, then the user's messages since then word for word (as discussion list reads them), and a closing line naming that time and the transcript, to read back what the summary lost. With --session, the bundle of a session that holds no task: the store's rules and the session summary. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored. With --delegation, recover is a worker's: after the opening line it states the worker's rule (the brief is its scope and wins over the record) and prints the delegation's brief, progress and return.\nSchema 4: resume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
+    "Usage: view resume|recover|full|index|bundle --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\n       view bundle --record <record.md> --fallback\n       view bundle --session [--home <store>]\nSchema 5: recover [--delegation <D-NNN[.n]>] prints an opening line (the record is memory; the user's direction decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (the newest within the budget, and any the record names), the project's other tasks with their cues, and the checks: the budget, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. bundle: the same, then Read on recovery's sources and In flight's Carry files (counted), Defined by's entries and the core skills (not counted), each whole and read now, their sizes, and the recovery line: what Freeflow's compaction installs. With --fallback, for a compaction that came before the checkpoint, what Freeflow adds after the harness's own summary: the same bundle as of the record's State as of, then the user's messages since then word for word (as discussion list reads them), and a closing line naming that time and the transcript, to read back what the summary lost. With --session, the bundle of a session that holds no task: the store's rules and the session summary. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored. With --delegation, recover is a worker's: after the opening line it states the worker's rule (the brief is its scope and wins over the record) and prints the delegation's brief, progress and return.\nSchema 4: resume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. recover: the resume view, then each defining artifact and Recovery source with its trigger, whether it resolves and its size, then live Git state and where it disagrees with the record: what recovery after context loss reads first. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
   ],
   [
     "validate",
@@ -421,7 +412,6 @@ function parseOptions(args) {
         "--json",
         "--compact",
         "--rules",
-        "--no-recent",
       ].includes(token)
     ) {
       options[token] = true;
@@ -440,20 +430,8 @@ function allowedOptions(command, operation) {
   const withNextAction = new Set([...common, "--next-action"]);
   if (command === "init") return new Set(["--root", "--name", "--input", "--schema", "--cue", "--help"]);
   if (command === "view")
-    return new Set([
-      "--root",
-      "--record",
-      "--view",
-      "--delegation",
-      "--session",
-      "--fallback",
-      "--home",
-      "--no-recent",
-      "--help",
-    ]);
+    return new Set(["--root", "--record", "--view", "--delegation", "--session", "--fallback", "--home", "--help"]);
   if (command === "budget") return new Set(["--root", "--record", "--window", "--mode", "--help"]);
-  if (command === "carry" && operation === "list") return new Set(["--transcript", "--help"]);
-  if (command === "carry" && operation === "show") return new Set(["--id", "--transcript", "--help"]);
   if (command === "estimate")
     return new Set([
       "--used",
@@ -1017,17 +995,6 @@ async function runCore(command, rest) {
     if (!task) throw new CliError(`No task ${options["--record"]} in the registry.`);
     options["--record"] = task.record;
   }
-  if (command === "carry") {
-    const transcript = sessionTranscript(options["--transcript"] ?? null);
-    if (!transcript) throw new CliError("No transcript: pass --transcript <path>, or set FREEFLOW_TRANSCRIPT.");
-    if (operation === "list") return listResults(transcript);
-    const key = options["--id"];
-    if (typeof key !== "string") throw new CliError("carry show requires --id <tool-use ID or n>");
-    const result = findResult(transcript, key);
-    if (!result)
-      throw new CliError(`No tool result ${key} in ${transcript}; carry list numbers this compaction cycle's.`);
-    return `${result.label} · ${result.at ?? "time not recorded"} · ${result.id}\n${result.text}\n`;
-  }
   if (command === "estimate") {
     try {
       const input = options["--input"] === undefined ? "" : await readInput(options["--input"], cwd());
@@ -1058,7 +1025,6 @@ async function runCore(command, rest) {
       home: options["--home"],
       identity: sessionIdentity(),
       text: await readInput(requireOption(options, "--input"), cwd()),
-      transcript: options["--transcript"] ?? null,
     });
   }
   if (command === "discussion") {
@@ -1154,7 +1120,7 @@ async function runCore(command, rest) {
     if (view === "bundle" && options["--session"]) {
       if (options["--record"])
         throw new CliError("view bundle --session is for a session that holds no task: no --record");
-      return renderSessionBundle({ home: options["--home"] ?? null, recent: options["--no-recent"] !== true });
+      return renderSessionBundle({ home: options["--home"] ?? null });
     }
     const ids = positionals.slice(1);
     if (view === "entry") {
@@ -1166,11 +1132,7 @@ async function runCore(command, rest) {
     if (view === "full") return renderFull(loaded.text);
     if (schemaOf(loaded.text) === 5) {
       if (view === "recover") return renderRecover5(loaded, { delegation: options["--delegation"] ?? null });
-      if (view === "bundle")
-        return renderBundle5(loaded, {
-          fallback: options["--fallback"] === true,
-          recent: options["--no-recent"] !== true,
-        });
+      if (view === "bundle") return renderBundle5(loaded, { fallback: options["--fallback"] === true });
       if (view === "entry") return renderEntries5(loaded, ids);
       if (view === "index") return renderIndex5(loaded);
       throw new CliError("Schema 5 has no resume view: read record.md, or after context loss view recover");

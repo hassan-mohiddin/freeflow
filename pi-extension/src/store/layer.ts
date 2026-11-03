@@ -157,13 +157,13 @@ export class StoreLayer {
   }
 
   /** The text Freeflow's compaction installs: the held task's bundle, or the session summary's. */
-  async bundle(options: { fallback?: boolean; recent: boolean }): Promise<Ran> {
+  async bundle(options: { fallback?: boolean }): Promise<Ran> {
     const state = this.state;
-    const args =
+    return this.run(
       state?.store && state.task
         ? ["view", "bundle", "--record", state.task.record, ...(options.fallback ? ["--fallback"] : [])]
-        : ["view", "bundle", "--session"];
-    return this.run([...args, ...(options.recent ? [] : ["--no-recent"])]);
+        : ["view", "bundle", "--session"],
+    );
   }
 
   /** Marks a checkpoint --compact request answered, once the bundle has replaced the conversation. */

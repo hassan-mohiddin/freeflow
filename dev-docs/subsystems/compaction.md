@@ -29,8 +29,7 @@ It deliberately does not:
 | Row | One line at 50, 60 or 70% of the window, below the notice, once each a cycle. | `ROWS_AT`, notice level `"row"` |
 | Trigger | Where Pi compacts on its own: window minus Pi's reserve. | `Thresholds.trigger` |
 | Checkpoint done | The held task's State as of, or the session summary's time, is later than this cycle's notice, or its start when no notice came (P68). | `checkpointDone()` |
-| Bundle | Track Work's `view bundle`: the record and everything recovery reads, whole, with this compaction cycle's newest tool results (P2, P60). | `StoreLayer.bundle()` |
-| Context reuse | Whether the bundle adds the newest tool results; off passes `--no-recent`. | `compaction.carry`, `CompactionHost.carryEnabled()` |
+| Bundle | Track Work's `view bundle`: the record and everything recovery reads, whole, with the files In flight carries (P60). | `StoreLayer.bundle()` |
 | Store state | `session status` as last read: the store, the held task, the session summary, a waiting compaction request. | `StoreLayer.current()` |
 | Harness part | The part of the summary Freeflow writes from facts it holds: the cycle, what asked for the compaction, the routing profile, running background commands, the Freeflow skills read in the cycle it ends. | `harnessPart()` in `harness.ts` |
 | Fallback | Pi's own compaction, with the bundle after its summary when a task is held. | `CompactionController.fallback()` |
@@ -60,7 +59,7 @@ The agent's `checkpoint --compact` writes the request into the store's `sessions
 
 1. reads the store again (the run touched it), and finds a request not yet done;
 2. skips a turn that errored, was aborted or hit its length limit, and a checkpoint not done;
-3. makes the bundle (`view bundle --record <record>`, or `--session`), with `--no-recent` when context reuse is off;
+3. makes the bundle (`view bundle --record <record>`, or `--session`);
 4. returns two entries and `continue: true`, which Pi appends before continuing the run: a Pi `compaction` entry with `firstKeptEntryId: null` (nothing raw is kept), the bundle followed by the harness part, and `details` holding Pi's file lists and `freeflow: { version: 2, cycle, bundle: "task" | "session", profile?, assignment? }`; and a visible `freeflow-compaction-recovery` message saying the conversation is now the bundle;
 5. marks the request done and removes a session summary it installed.
 
@@ -92,7 +91,7 @@ Pi's file lists from an earlier Freeflow compaction are added back into Pi's pre
 | One soft notice a cycle at the lower of 75% and a tenth of the window before Pi's trigger; rows at 50, 60 and 70% (P5, P80). | As on Claude Code: a soft notice the agent acts on at a safe point; repeats turned a soft notice into a hard one. | The warning, then "compact now" every further 10k tokens. | task-004 P5, P50 |
 | The store's state is held in memory and read only at session start, after the agent's own script run, at a run's end after a store touch, and at a compaction. | Performance rule R-1: the request path never reads store files. A notice names the task from memory. | `session status` on every turn, as the mod's turn end does. | [Performance](../guides/performance.md) |
 | The session's environment is set in Pi's process. | Pi's bash spreads `process.env` into each command (`getShellEnv()`, Pi 1.4.0), so the agent's own `checkpoint` writes for the same session Freeflow reads. | Passing the session to each script run only, which leaves the agent's commands without it. | Pi `src/utils/shell.ts` at v1.4.0 |
-| Track Work's script reads Pi's session file along its active branch for `carry list`, the bundle's results and `discussion list` (P2). | One reader per transcript format serves every command; the branch walk ignores a branch left with `/tree`. | Pi's own result index (`r12`) and carry: a second carry path that would differ from Claude Code's. | `skills/track-work/scripts/lib/pi-session.mjs` |
+| Track Work's script reads Pi's session file along its active branch for `discussion list` (P2). | One reader per transcript format serves every command; the branch walk ignores a branch left with `/tree`. | Pi's own result index (`r12`) and carry: a second carry path that would differ from Claude Code's. Tool results are not carried at all since 2026-11-03: Carry is files only. | `skills/track-work/scripts/lib/pi-session.mjs` |
 | Pi's own compaction stays on; with the checkpoint done the bundle replaces its summary, otherwise the bundle follows it. | Pi's `compaction.enabled = false` also disables its recovery from an overflowing request. | Turning Pi's automatic compaction off. | `d75ac55`, P16 |
 | Freeflow's code never names a Working Record; the bundle and the notice name the task the store says this session holds. | The store's hold is the only reliable link between a session and a task. | Guessing from the repository. | P40 |
 
@@ -109,7 +108,7 @@ Pi's file lists from an earlier Freeflow compaction are added back into Pi's pre
 
 ## Surface
 
-**Configuration:** `compaction.enabled` (default on; off: no notices, no Freeflow compaction, Pi's compaction unchanged) and `compaction.carry` (context reuse; off: `--no-recent`). Pi settings read, never written: `compaction.reserveTokens` and its per-model overrides.
+**Configuration:** `compaction.enabled` (default on; off: no notices, no Freeflow compaction, Pi's compaction unchanged). `compaction.carry` (context reuse) is retired: tool results are not carried, so a config that sets it still loads and it does nothing. Pi settings read, never written: `compaction.reserveTokens` and its per-model overrides.
 
 **Environment set:** `FREEFLOW_SESSION`, `FREEFLOW_HARNESS`, `FREEFLOW_TRANSCRIPT`, `FREEFLOW_RESUME`, `FREEFLOW_CONTEXT_WINDOW` (also on `model_select`). Read: `FREEFLOW_HOME`, through the script.
 

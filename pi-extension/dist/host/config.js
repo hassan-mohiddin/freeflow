@@ -34,7 +34,6 @@ export const SESSION_OVERRIDE_KEYS = [
   "toolExecution.enabled",
   "toolExecution.guidanceNotices",
   "compaction.enabled",
-  "compaction.carry",
   "taskMemory.enabled",
   ...Object.keys(AUTO_APPROVE_GROUPS).map((group) => `taskMemory.autoApprove.${group}`),
   "messaging.enabled",
@@ -164,7 +163,7 @@ function normalizeSessionOverrides(value) {
   }
   return overrides;
 }
-/** The setting overrides of this session as a config layer, e.g. { compaction: { carry: false } }. */
+/** The setting overrides of this session as a config layer, e.g. { compaction: { enabled: false } }. */
 function sessionConfigLayer(overrides) {
   const layer = {};
   for (const [key, value] of Object.entries(overrides)) {

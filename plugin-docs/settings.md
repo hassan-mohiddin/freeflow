@@ -41,7 +41,6 @@ Freeflow settings    Session  [Personal]  Repository
     Skills                   on (inherited)
       Each skill             all
     Compaction               on (inherited)
-      Context reuse          on (inherited)
     Tool Execution           on (inherited)
       Guidance notices       on (inherited)
     Task Memory              off (inherited)
@@ -117,7 +116,6 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Each skill › Write Docs | `skills.write-docs` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
 | Each skill › Write Skill | `skills.write-skill` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
 | Compaction | `compaction.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
-| Context reuse | `compaction.carry` | `true`, `false` | `true` | Session, Personal, Repository |
 | Tool Execution | `toolExecution.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
 | Guidance notices | `toolExecution.guidanceNotices` | `true`, `false` | `true` | Session, Personal, Repository |
 | Task Memory | `taskMemory.enabled` | `true`, `false` | `false` | Session, Personal, Repository |

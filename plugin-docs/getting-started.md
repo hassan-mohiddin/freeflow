@@ -142,7 +142,7 @@ Tool Execution and Compaction are on unless you turn them off, and Task Memory i
 ```json
 {
   "toolExecution": { "enabled": true, "guidanceNotices": true },
-  "compaction": { "enabled": true, "carry": true },
+  "compaction": { "enabled": true },
   "taskMemory": { "enabled": true }
 }
 ```

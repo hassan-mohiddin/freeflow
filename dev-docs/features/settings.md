@@ -33,7 +33,7 @@ A setting a user changes gets a row on this screen, in all three scopes. A key w
 Preconditions:
 
 - A fresh `scripts/verify-live.sh launch` (config `{}`), and `scripts/verify-live.sh doctor` passes.
-- Rows run, from the top: Freeflow, Runtime prompts, Each prompt, Skills, Each skill, Compaction, Context reuse, Tool Execution, Guidance notices, Task Memory, then the rest, and Review and Reviewer model last (in the Session scope, before Reset overrides). Nine `Down`s from the top reach Task Memory in every scope; nineteen reach Review in the file scopes. The list scrolls past 18 rows, with `(n/total)` under it.
+- Rows run, from the top: Freeflow, Runtime prompts, Each prompt, Skills, Each skill, Compaction, Tool Execution, Guidance notices, Task Memory, then the rest, and Review and Reviewer model last (in the Session scope, before Reset overrides). Nine `Down`s from the top reach Task Memory in every scope; nineteen reach Review in the file scopes. The list scrolls past 18 rows, with `(n/total)` under it.
 
 - **Open each scope.** Run `scripts/verify-live.sh cmd "/freeflow settings repo"`. The pane shows `Freeflow settings    Session   Personal  [Repository]`, the line `.freeflow/config.json: shared with everyone who uses this repository.`, and the cursor on `› Freeflow                 on (inherited)`. Then `scripts/verify-live.sh snap settings-open`.
 - **Nothing written by opening.** Run `scripts/verify-live.sh observe settings-open-files -- bash -c 'ls -A .freeflow; cat .freeflow/config.json'`. Output `config.json` and `{}`.
