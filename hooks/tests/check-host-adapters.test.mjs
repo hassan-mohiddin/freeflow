@@ -125,6 +125,19 @@ test("the hooks and Pi agree on every config's validity", async () => {
     ["{}", '{"review":{"effort":"high"}}'],
     ["{invalid", undefined],
     ["[]", undefined],
+    // Routing is checked on every host as Pi's routing checks it (SPEC-005 T1).
+    ['{"cognitiveRouting":{"delegation":"both","projection":false}}', undefined],
+    ['{"cognitiveRouting":{"delegation":"everyone"}}', undefined],
+    ["{}", '{"cognitiveRouting":{"enabled":"yes"}}'],
+    ['{"cognitiveRouting":{"legacy":true}}', undefined],
+    [
+      '{"cognitiveRouting":{"profiles":{"helper":{"provider":"anthropic","model":"claude-haiku-5-5","thinking":"high"}}}}',
+      undefined,
+    ],
+    ['{"cognitiveRouting":{"profiles":{"helper":{"provider":"anthropic"}}}}', undefined],
+    // An optional version, which a later Freeflow writes (SPEC-005 4.6).
+    ['{"v":1,"enabled":true}', '{"v":1}'],
+    ['{"v":2}', undefined],
   ];
   for (const [config, local] of cases) {
     const workspace = createWorkspace(`${config}\n`, local === undefined ? undefined : `${local}\n`);
@@ -158,6 +171,11 @@ test("a hook host's Runtime State names the user's review choice, and only a cho
   const workspace = createWorkspace('{"review":{"mode":"sometimes"}}\n');
   const invalid = contextOf(runAdapter(adapters.codex[0], workspace, inputFor("codex", workspace)));
   assert.match(invalid, /\.freeflow\/config\.json is invalid: review\.mode must be one of auto, off, always/);
+  const routing = createWorkspace('{"cognitiveRouting":{"delegation":"everyone"}}\n');
+  assert.match(
+    contextOf(runAdapter(adapters.codex[0], routing, inputFor("codex", routing))),
+    /\.freeflow\/config\.json is invalid: .*delegation must be executor, helper, or both\./,
+  );
 });
 
 // A host that loads plugin skills itself cannot leave one out; the Runtime State tells the agent which are off.
