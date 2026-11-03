@@ -682,9 +682,14 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
   // A setting the user changes is changed on the screen (dev-docs/features/settings.md). A key with no row is listed
   // here with its reason, with the user's agreement, and its row in plugin-docs/settings.md names no screen row.
   // Every setting has a row in all three scopes: Session, Personal and Repository.
-  const FILE_ONLY = {};
+  const FILE_ONLY = {
+    "pane.enabled":
+      "Claude Code's pane (SPEC-015): only Claude Code's mod acts on it, through its own /freeflow settings",
+    "pane.statusLine":
+      "Claude Code's status line (SPEC-015): only Claude Code's mod acts on it, through its own /freeflow settings",
+  };
   const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
-  const { CONFIG_SECTIONS, REVIEW_KEYS, PROMPTS_KEYS, SKILLS_KEYS, EVENTS_KEYS } =
+  const { CONFIG_SECTIONS, REVIEW_KEYS, PROMPTS_KEYS, SKILLS_KEYS, EVENTS_KEYS, PANE_KEYS } =
     await import("../../dist/host/config-validation.js");
   const { COGNITIVE_ROUTING_KEYS } = await import("../../dist/cognitive-routing/config.js");
   const { TOOL_EXECUTION_KEYS } = await import("../../dist/tool-execution/config.js");
@@ -699,6 +704,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     review: REVIEW_KEYS,
     skills: SKILLS_KEYS,
     events: EVENTS_KEYS,
+    pane: PANE_KEYS,
   };
   const nested = {
     "cognitiveRouting.profiles": ["coordinator", "helper", "executor"],

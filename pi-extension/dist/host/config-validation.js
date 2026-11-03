@@ -85,6 +85,19 @@ function validateEventsConfig(value) {
   return null;
 }
 /**
+ * Freeflow's pane and status line on Claude Code (SPEC-015): whether the mod keeps them, each on unless a config turns
+ * it off. Only Claude Code's mod acts on them; Pi's footer already shows the held task.
+ */
+export const PANE_KEYS = ["enabled", "statusLine"];
+function validatePaneConfig(value) {
+  if (!isRecord(value)) return "pane must be an object";
+  const unknown = Object.keys(value).find((key) => !PANE_KEYS.includes(key));
+  if (unknown) return `pane has unsupported key: ${unknown}`;
+  for (const key of PANE_KEYS)
+    if (value[key] !== undefined && typeof value[key] !== "boolean") return `pane.${key} must be a boolean`;
+  return null;
+}
+/**
  * How Review Work reviews finished work. Without the key it runs `auto`, its own risk gate; `off` and `always` are the
  * user's choice for every task, and `model` names the model a reviewer runs on. `auto` is accepted so a personal file
  * can return a shared `off` or `always` to the default.
@@ -181,6 +194,15 @@ export const SETTINGS = [
   { key: "events.enabled", label: "Event log", values: "boolean", default: true, hosts: "all", session: true },
   { key: "review.mode", label: "Review", values: REVIEW_MODES, default: "auto", hosts: "all", session: true },
   { key: "review.model", label: "Reviewer model", values: "name", default: null, hosts: "all", session: true },
+  { key: "pane.enabled", label: "Pane", values: "boolean", default: true, hosts: "claude-code", session: true },
+  {
+    key: "pane.statusLine",
+    label: "Status line",
+    values: "boolean",
+    default: true,
+    hosts: "claude-code",
+    session: true,
+  },
   {
     key: "toolExecution.enabled",
     label: "Tool Execution",
@@ -281,6 +303,7 @@ export const CONFIG_SECTIONS = [
   "review",
   "skills",
   "events",
+  "pane",
 ];
 // outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
 // ignored so existing configs keep loading, and /freeflow status says Task Memory is gone (P6).
@@ -332,6 +355,10 @@ export function validateRepositoryConfig(value) {
     const error = validateEventsConfig(value.events);
     if (error) return error;
   }
+  if (value.pane !== undefined) {
+    const error = validatePaneConfig(value.pane);
+    if (error) return error;
+  }
   if (value.review !== undefined) return validateReviewConfig(value.review);
   return null;
 }
@@ -356,6 +383,7 @@ export function validateLocalConfig(value) {
     "review",
     "skills",
     "events",
+    "pane",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -390,6 +418,10 @@ export function validateLocalConfig(value) {
   }
   if (value.events !== undefined) {
     const error = validateEventsConfig(value.events);
+    if (error) return error;
+  }
+  if (value.pane !== undefined) {
+    const error = validatePaneConfig(value.pane);
     if (error) return error;
   }
   if (value.review !== undefined) return validateReviewConfig(value.review);

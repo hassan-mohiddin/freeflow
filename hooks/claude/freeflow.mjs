@@ -3,6 +3,8 @@
 // the script's. Its task memory work runs only where the Freeflow store exists (session status says so); its event
 // log and claims (SPEC-006) need none. Elsewhere every hook passes its event on unchanged.
 
+import { paneCommand, paneRead, registerPane, resolvePane } from "./pane.mjs";
+
 const SCRIPT = "skills/track-work/scripts/working-record.mjs";
 const SETTINGS_SCRIPT = "skills/setup-freeflow/scripts/settings.mjs";
 const CAPABILITIES_SCRIPT = "skills/setup-freeflow/scripts/capabilities.mjs";
@@ -663,6 +665,8 @@ const SECTION_ROWS = new Set([
   "events.enabled",
   "review.mode",
   "review.model",
+  "pane.enabled",
+  "pane.statusLine",
 ]);
 const COMMAND_USAGE = [
   "Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)",
@@ -694,7 +698,7 @@ function listText(data) {
         `  ${row.label.padEnd(width)}  ${shown(row.value).padEnd(8)}  ${SCOPE_NAMES[row.scope]}${SECTION_ROWS.has(row.key) ? "" : `  (${row.key})`}`,
     ),
     COMMAND_USAGE,
-    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.mode, review.model.",
+    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.mode, review.model, pane.enabled, pane.statusLine.",
     "Pi-only settings (tool execution, compaction, messaging, Cognitive Routing) are changed on Pi or in the files.",
   ].join("\n");
 }
@@ -730,7 +734,7 @@ async function settingsCommand($, args) {
   const words = args.trim().split(/\s+/).filter(Boolean);
   if (words[0] !== "settings")
     return {
-      text: "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session.",
+      text: "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session; /freeflow pane opens or closes Freeflow's pane.",
     };
   const flags = words.slice(1).filter((word) => word.startsWith("--"));
   const [key, value, extra] = words.slice(1).filter((word) => !word.startsWith("--"));
@@ -741,7 +745,7 @@ async function settingsCommand($, args) {
       text: `Freeflow settings: ${unknown !== undefined ? `unknown option --${unknown}` : "too many arguments"}.\n${COMMAND_USAGE}`,
     };
   if (key === undefined) {
-    const result = await settings($, ["list"]);
+    const result = await settings($, ["list", "--host", "claude-code"]);
     return { text: result.ok ? listText(result.data) : `Freeflow settings: ${result.error}` };
   }
   if (value === undefined) {
@@ -764,6 +768,11 @@ async function settingsCommand($, args) {
     await resolveEnabled($);
     // The claims follow the switch: off, every request is no; the event log's own off, sensors is only possible.
     await writeCapabilities($, freeflowHome);
+  }
+  // The pane and the status line follow their switches, and Freeflow's (SPEC-015).
+  if (data.key === "enabled" || data.key.startsWith("pane.")) {
+    await resolvePane($);
+    paneRead($);
   }
   if (!wasOn && enabled) {
     // On again: the next turn end does what session start does with a store, and the window is read at the next request.
@@ -798,8 +807,8 @@ export function register(on) {
     await $.command.register({
       name: "freeflow",
       description:
-        "Freeflow's settings: list them, or change one for this session, you or the repository; and what Freeflow can do here",
-      argumentHint: "settings [<key> <value|inherit> [--session | --personal | --repository]] | capabilities",
+        "Freeflow's settings: list them, or change one for this session, you or the repository; what Freeflow can do here; and Freeflow's pane",
+      argumentHint: "settings [<key> <value|inherit> [--session | --personal | --repository]] | capabilities | pane",
     });
     // A -p run or the SDK has no one at the prompt, so nothing runs between its turns (section 4.5). Claims written
     // before this event came, at the classic SessionStart, are written again with what it says.
@@ -807,11 +816,17 @@ export function register(on) {
     if (typeof e.isInteractive === "boolean") interactive = e.isInteractive;
     await resolveEnabled($);
     if (interactive !== was && freeflowHome && enabled) await writeCapabilities($, freeflowHome);
+    // The pane's and the status line's switches (SPEC-015).
+    await resolvePane($);
     return next(e);
   });
 
   on("command.run", { command: "freeflow" }, ($, e) =>
-    /^\s*capabilities\b/.test(e.args ?? "") ? capabilitiesCommand($) : settingsCommand($, e.args),
+    /^\s*capabilities\b/.test(e.args ?? "")
+      ? capabilitiesCommand($)
+      : /^\s*pane\b/.test(e.args ?? "")
+        ? paneCommand($)
+        : settingsCommand($, e.args),
   );
 
   // Session start, /clear and resume: pull the store, give the scripts the window, and give the agent the menu, which
@@ -831,6 +846,8 @@ export function register(on) {
     const found = await sessionStatus($, { session: e.session_id });
     freeflowHome = found?.home;
     await writeCapabilities($, freeflowHome);
+    // The pane and the status line read the script after this hook returns (SPEC-015).
+    paneRead($);
     const state = found?.store ? found : null;
     await storeRootOf($, state);
     const missing = missingText(found);
@@ -920,6 +937,8 @@ export function register(on) {
     }
     // The turn's lines, written in one run (T2).
     await flush($);
+    // The pane and the status line read the script again after the turn (SPEC-015).
+    paneRead($);
     return result;
   });
 
@@ -1020,6 +1039,9 @@ export function register(on) {
       );
     return result;
   });
+
+  // Freeflow's pane and status line (SPEC-015): their drawing, and a read after each Track Work command a tool ran.
+  registerPane(on);
 
   // A worker hands back: its return is checked, and once it is told what is missing.
   on("classic.SubagentStop", async ($, e, next) => {

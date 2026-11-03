@@ -324,6 +324,32 @@ test("open --parent nests a sub-worker's folder in its worker's and refuses a fo
       ok(cli(["delegate", "status", "--record", record])),
       /^- D-001 — Build the thing · build, Haiku xhigh · opened .+ · branch d-001-build-the-thing · no return yet · .+\n  - D-001\.1 — Find the names · gather, Haiku xhigh · no return yet\n$/,
     );
+    // The same as data, for Freeflow's Claude Code pane (SPEC-015), with a return's State once there is one.
+    await writeFile(join(worker, "D-001.1-find-the-names", "return.md"), "# D-001.1 return\nState: done\n");
+    const status = JSON.parse(ok(cli(["delegate", "status", "--record", record, "--json"])));
+    assert.equal(status.delegations.length, 1);
+    const [top] = status.delegations;
+    assert.deepEqual(
+      { ...top, opened: undefined, sub: undefined },
+      {
+        id: "D-001",
+        title: "Build the thing",
+        kind: "build",
+        agent: "Haiku, xhigh",
+        opened: undefined,
+        handle: top.handle,
+        branch: "d-001-build-the-thing",
+        worktree: top.worktree,
+        returned: null,
+        folder: worker,
+        sub: undefined,
+      },
+    );
+    assert.match(top.opened, /^\d{4}-\d{2}-\d{2}$/);
+    assert.deepEqual(
+      top.sub.map((each) => [each.id, each.title, each.kind, each.agent, each.returned, each.branch, each.sub]),
+      [["D-001.1", "Find the names", "gather", "Haiku, xhigh", "done", null, undefined]],
+    );
     // The coordinator's own recovery lists its open delegations with where each stands.
     assert.match(
       ok(cli(["view", "recover", "--record", record])),

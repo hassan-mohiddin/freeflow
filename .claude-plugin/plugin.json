@@ -10,6 +10,7 @@
   "license": "MIT",
   "skills": "./skills/",
   "hooks": "./hooks/claude/hooks.json",
+  "types": "./hooks/claude/types.d.ts",
   "keywords": [
     "workflow",
     "skills",

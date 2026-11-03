@@ -63,7 +63,7 @@ function usage() {
     "  working-record.mjs checkpoint --session --input <file|-> [--compact] (a session holding no task)",
     "  working-record.mjs budget [--record <record.md>] [--window <tokens>] [--mode normal|expanded]",
     "  working-record.mjs estimate [--used <tokens>] [--window <tokens>] [--done <n> --left <m>] [--transcript <path>]",
-    "  working-record.mjs estimate --plan --record <ID> [--input -] [--fan-out <n>] [--done <n>] | --project <name> | --store",
+    "  working-record.mjs estimate --plan --record <ID> [--input -] [--fan-out <n>] [--done <n>] | --spent --record <ID> [--json] | --project <name> | --store",
     "  working-record.mjs view bundle --record <record.md> | --session",
     "  working-record.mjs delegate <open|amend|status|check-return|close> ...",
     "  working-record.mjs discussion <list|save|drop> --record <record.md> ...",
@@ -159,7 +159,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate status",
-    "Usage: delegate status --record <record.md>\nThe open delegations: ID, title, kind, agent, when opened, branch, whether a return is there, and each one's sub-workers.",
+    "Usage: delegate status --record <record.md> [--json]\nThe open delegations: ID, title, kind, agent, when opened, branch, whether a return is there, and each one's sub-workers. With --json, the same as data for a harness layer such as Freeflow's Claude Code pane: delegations, each with id, title, kind, agent, opened, handle, branch, worktree, returned (its return's State, or null), folder and sub (its sub-workers, the same way).",
   ],
   [
     "delegate check-return",
@@ -187,7 +187,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "estimate",
-    "Usage: estimate [--used <tokens>] [--window <tokens>] [--done <n> --left <m>] [--transcript <path>]\n       estimate --plan --record <ID> [--input -] [--fan-out <n>] [--done <n>] [--used <tokens>] [--window <tokens>]\n       estimate --project <name> | --store\nHow much of the context window the work has used, before you decide what fits in this context cycle: the context's use (--used, as the harness shows it; else the latest request in the session's transcript, --transcript or FREEFLOW_TRANSCRIPT or this Claude Code session's log) against the window (--window, else FREEFLOW_CONTEXT_WINDOW, else 200,000 tokens) and the point where Freeflow's notice comes (75% of the window), with what is left before it. With --done <n> --left <m>, the parts of the work done in this context cycle and the parts still to do: what the rest needs at the rate so far (an upper bound), and whether it fits before the notice or about how many more context cycles it takes.\nWith --plan, the Slices left (Future Work's proposals, or with --input one Slice a line, \"- <title>\", then optionally \" · after: <titles it waits for>\"): each one's expected context, working time and cost at API list price, from the median of the nearest of this task, its project and the store holding 3 measured Slices, corrected by the median of actual over predicted; the context cycle each lands in; any Slice bigger than a context cycle; the totals; the Slices with no dependency between them; and delegations' measured cost by kind, model and effort, with --fan-out <n> pricing n workers. With fewer than 3 measured Slices anywhere, --done <n> plans at this context cycle's rate. --project <name> lists each of the project's tasks with what it used and what its proposed Slices would take; --store adds up every project and task by model and effort, and delegations by kind. Prices are the dated table in lib/measure5.mjs, or the JSON file FREEFLOW_PRICES names. It prints costs and never picks a model.",
+    "Usage: estimate [--used <tokens>] [--window <tokens>] [--done <n> --left <m>] [--transcript <path>]\n       estimate --plan --record <ID> [--input -] [--fan-out <n>] [--done <n>] [--used <tokens>] [--window <tokens>]\n       estimate --spent --record <ID> [--json]\n       estimate --project <name> | --store\nHow much of the context window the work has used, before you decide what fits in this context cycle: the context's use (--used, as the harness shows it; else the latest request in the session's transcript, --transcript or FREEFLOW_TRANSCRIPT or this Claude Code session's log) against the window (--window, else FREEFLOW_CONTEXT_WINDOW, else 200,000 tokens) and the point where Freeflow's notice comes (75% of the window), with what is left before it. With --done <n> --left <m>, the parts of the work done in this context cycle and the parts still to do: what the rest needs at the rate so far (an upper bound), and whether it fits before the notice or about how many more context cycles it takes.\nWith --plan, the Slices left (Future Work's proposals, or with --input one Slice a line, \"- <title>\", then optionally \" · after: <titles it waits for>\"): each one's expected context, working time and cost at API list price, from the median of the nearest of this task, its project and the store holding 3 measured Slices, corrected by the median of actual over predicted; the context cycle each lands in; any Slice bigger than a context cycle; the totals; the Slices with no dependency between them; and delegations' measured cost by kind, model and effort, with --fan-out <n> pricing n workers. With fewer than 3 measured Slices anywhere, --done <n> plans at this context cycle's rate. --project <name> lists each of the project's tasks with what it used and what its proposed Slices would take; --store adds up every project and task by model and effort, and delegations by kind. --spent adds up what one task has used so far, from its History's Measured lines: its Slices and delegations measured, their cost, and by model and effort; with --json, as data (slices, partial, delegations, usd, byModel) for a harness layer such as Freeflow's Claude Code pane. Prices are the dated table in lib/measure5.mjs, or the JSON file FREEFLOW_PRICES names. It prints costs and never picks a model.",
   ],
   [
     "budget",
@@ -243,7 +243,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "project list",
-    "Usage: project list\nEach project in the Freeflow store with its number of tasks and the repositories its tasks name in Space.",
+    "Usage: project list [--json]\nEach project in the Freeflow store with its number of tasks and the repositories its tasks name in Space. With --json, for a harness layer such as Freeflow's Claude Code pane: every project (the store's tasks with no project under the name null) with each of its tasks, newest first: its ID, title, state and cue; hold, the session holding it (its short ID, harness, where and since when) or null, and thisSession; lastSync; its open agreement and Slice (ID and title) or null; decisions, the open agreement's decision items (id, state, text), those waiting on the user and those the user answered first; and problem, why its record cannot be read, or null.",
   ],
   [
     "project remove",
@@ -352,6 +352,7 @@ function parseOptions(args, { valued = [] } = {}) {
         "--fallback",
         "--no-project",
         "--plan",
+        "--spent",
         "--store",
         "--json",
         "--compact",
@@ -387,6 +388,7 @@ function allowedOptions(command, operation) {
       "--left",
       "--transcript",
       "--plan",
+      "--spent",
       "--record",
       "--input",
       "--fan-out",
@@ -424,7 +426,7 @@ function allowedOptions(command, operation) {
         "--scratch",
       ]);
     if (operation === "amend") return new Set([...record, "--id", "--text", "--handle", "--input"]);
-    if (operation === "status") return new Set(record);
+    if (operation === "status") return new Set([...record, "--json"]);
     if (operation === "check-return") return new Set([...record, "--id", "--scratch"]);
     if (operation === "close")
       return new Set([...record, "--id", "--outcome", "--merge", "--tokens", "--minutes", "--transcript", "--input"]);
@@ -638,7 +640,7 @@ async function runStore(operation, options) {
 const STORE_OPTIONS = new Map([
   ["project new", ["--name"]],
   ["project remove", ["--name"]],
-  ["project list", []],
+  ["project list", ["--json"]],
   ["project show", ["--name", "--cwd"]],
   ["task create", ["--title", "--goal", "--cue", "--project", "--no-project", "--cwd", "--next-action"]],
   ["task move", ["--id", "--project", "--no-project"]],
@@ -660,7 +662,7 @@ async function runProjects5(command, operation, options, home) {
   const key = `${command} ${operation}`;
   if (key === "project new") return createProject(home, requireOption(options, "--name"));
   if (key === "project remove") return removeProject(home, requireOption(options, "--name"));
-  if (key === "project list") return listProjects(home);
+  if (key === "project list") return listProjects(home, { json: options["--json"] === true, identity });
   if (key === "project show") {
     if (options["--name"]) return showProject(home, options["--name"], identity);
     return menu(home, where, identity);
@@ -843,7 +845,7 @@ async function runCore(command, rest) {
     const input = await readInput(options["--input"], cwd());
     if (operation === "open") return openDelegation(loaded, options, input);
     if (operation === "amend") return amendDelegation(loaded, options, input);
-    if (operation === "status") return delegationStatus(loaded);
+    if (operation === "status") return delegationStatus(loaded, { json: options["--json"] === true });
     if (operation === "check-return") return checkReturn(loaded, options);
     if (operation === "close") return closeDelegation(loaded, options, input);
   }

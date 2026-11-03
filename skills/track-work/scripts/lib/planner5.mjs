@@ -719,6 +719,44 @@ function addBilled(rows, key, measure) {
 const billedRow = (name, row, word) =>
   `- ${name}: ${plural(row.n, word)}, ${count(row.input)} in, ${count(row.written)} written, ${count(row.read)} read, ${count(row.output)} out, ${dollars(row.usd)}`;
 
+/**
+ * `estimate --spent --record <ID>` (SPEC-015): what the task has used so far, from its History's Measured lines: its
+ * closed Slices and delegations, each counted, their cost at API list price, and by model and effort; with `json`, the
+ * same as data for a harness layer such as Freeflow's Claude Code pane.
+ */
+export function spentView(recordPath, { json = false } = {}) {
+  const figures = taskFigures(dirname(recordPath)) ?? { slices: [], delegations: [] };
+  const totals = totalsOf(figures.slices, figures.delegations);
+  const rows = new Map();
+  for (const slice of figures.slices.filter((each) => each.measure)) addBilled(rows, "slice\u0000", slice.measure);
+  for (const item of figures.delegations.filter((each) => each.measure))
+    addBilled(rows, "delegation\u0000", item.measure);
+  const byModel = new Map();
+  for (const [key, row] of rows) {
+    const [part, name] = key.split("\u0000");
+    const entry = byModel.get(name) ?? { name, slices: 0, delegations: 0, usd: 0 };
+    entry[part === "slice" ? "slices" : "delegations"] += row.n;
+    entry.usd += row.usd;
+    byModel.set(name, entry);
+  }
+  const data = {
+    slices: totals.slices,
+    partial: totals.partial,
+    delegations: totals.delegations,
+    usd: totals.usd + totals.delegationUsd,
+    byModel: [...byModel.values()].sort((left, right) => right.usd - left.usd || left.name.localeCompare(right.name)),
+  };
+  if (json) return `${JSON.stringify(data, null, 2)}\n`;
+  const lines = [
+    `Spent: ${plural(data.slices, "Slice")} measured${data.partial ? ` (${data.partial} partly)` : ""}, ${data.delegations ? `${plural(data.delegations, "delegation")} measured` : "no delegation measured"}, ${dollars(data.usd)} at API list price.`,
+    ...data.byModel.map(
+      (row) =>
+        `- ${row.name}: ${[row.slices ? plural(row.slices, "Slice") : null, row.delegations ? plural(row.delegations, "delegation") : null].filter(Boolean).join(", ")}, ${dollars(row.usd)}`,
+    ),
+  ];
+  return `${lines.join("\n")}\n`;
+}
+
 /** `estimate --store` (B): every project's and task's measured use, by model and effort, and delegations by kind. */
 export function storeView(home) {
   requireStore(home);

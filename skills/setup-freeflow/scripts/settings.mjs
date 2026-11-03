@@ -30,13 +30,13 @@ const SCOPES = ["repository", "personal", "session"];
 const SCOPE_NAMES = { repository: "Repository", personal: "Personal", session: "Session", default: "default" };
 
 const USAGE = `Usage:
-  settings.mjs list [--host all|pi] [--root <folder>] [--json]
+  settings.mjs list [--host all|pi|claude-code] [--root <folder>] [--json]
   settings.mjs get <key> [--root <folder>] [--json]
   settings.mjs set <key> <value> --scope repository|personal|session [--root <folder>] [--json]
   settings.mjs unset <key> --scope repository|personal|session [--root <folder>] [--json]
 --root names a folder in the repository (default: the current folder); the settings are its repository's.
 The value "inherit" unsets the key in that scope. --host all (the default) lists the settings every host acts on;
---host pi lists Pi's too. The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
+--host pi lists Pi's too, and --host claude-code Claude Code's (its pane and status line). The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
 FREEFLOW_SESSION).`;
 
 class UsageError extends Error {}
@@ -106,7 +106,7 @@ function row(item) {
 
 function list(state, root, host, json) {
   const resolved = resolveAll(state);
-  const rows = resolved.filter((item) => host === "pi" || item.spec.hosts === "all");
+  const rows = resolved.filter((item) => item.spec.hosts === "all" || item.spec.hosts === host);
   if (json) return `${JSON.stringify({ root, settings: rows.map(row), state: stateLines(resolved) }, null, 2)}\n`;
   const width = Math.max(...rows.map((item) => item.spec.key.length));
   const lines = rows.map(
@@ -147,6 +147,7 @@ function requireSpec(key) {
 /** What else the person should know after a change, beyond the lines. */
 function notes(spec) {
   if (spec.hosts === "pi") return ["Only Pi acts on this setting."];
+  if (spec.hosts === "claude-code") return ["Only Claude Code's Freeflow mod acts on this setting."];
   if (spec.key.startsWith("prompts."))
     return ["Prompt text already given in this session stays until the next session start or compaction."];
   return [];
@@ -196,7 +197,7 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   const json = Boolean(options["--json"]);
   if (command === "list") {
     const host = options["--host"] ?? "all";
-    if (!["all", "pi"].includes(host)) throw new UsageError("--host must be all or pi");
+    if (!["all", "pi", "claude-code"].includes(host)) throw new UsageError("--host must be all, pi or claude-code");
     if (state.error) throw new Error(state.error);
     return { out: list(state, root, host, json), code: 0 };
   }
