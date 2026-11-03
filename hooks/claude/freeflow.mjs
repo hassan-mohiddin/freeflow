@@ -4,6 +4,8 @@
 // its event on unchanged.
 
 const SCRIPT = "skills/track-work/scripts/working-record.mjs";
+const SETTINGS_SCRIPT = "skills/setup-freeflow/scripts/settings.mjs";
+const SETTINGS_TIMEOUT_MS = 8_000; // within the 10 seconds a hook gets
 const NOTICE_AT = 0.75; // of the window, one notice a cycle (P50)
 const THRESHOLD_LEAD = 0.1; // and at least a tenth of the window before Claude's own threshold (T13)
 const ROWS_AT = [0.5, 0.6, 0.7]; // of the window, one row each a cycle below the notice point, showing the context (P80)
@@ -28,6 +30,13 @@ let workers = null;
 let storeRoot = undefined;
 /** @type {{ session: string, cwd: string } | null} a session that started with no store, until a turn ends with one */
 let awaitingStore = null;
+/**
+ * Whether Freeflow is on for the session's folder (`enabled`, Session then Personal then Repository then the default),
+ * resolved through the settings script at session start and after each /freeflow settings change, so no event pays for
+ * a script run. Off, the mod serves /freeflow and nothing else (SPEC-005 P6). A file edited by hand counts from the next
+ * session start; a script that fails leaves it as it was.
+ */
+let enabled = true;
 /** Whether a /compact this mod asked for is still queued, so a turn end does not ask for a second one. */
 let compactQueued = false;
 /** @type {Map<string, number>} how many of a request's /compact runs were dropped, by the request's time */
@@ -454,13 +463,169 @@ async function turnEnded($, e) {
   $.clock.after(0, () => compactAndContinue($, request));
 }
 
+/**
+ * Runs the settings script on the session's folder, as the session's own shell would.
+ * @param {any} $
+ * @param {string[]} args
+ * @returns {Promise<{ ok: true, data: any } | { ok: false, error: string }>}
+ */
+async function settings($, args) {
+  try {
+    const run = await $.process.run(
+      ["node", `${$.plugin.root}/${SETTINGS_SCRIPT}`, ...args, "--root", await $.session.cwd(), "--json"],
+      { env: { CLAUDE_CODE_SESSION_ID: await $.session.id() }, timeoutMs: SETTINGS_TIMEOUT_MS },
+    );
+    if (run.exitCode !== 0)
+      return { ok: false, error: (run.stderr.split("\n")[0] || `exit code ${run.exitCode}`).trim() };
+    return { ok: true, data: JSON.parse(run.stdout) };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Reads `enabled` for the session's folder again; it stays as it was when the script fails or a file is invalid.
+ * @param {any} $
+ */
+async function resolveEnabled($) {
+  const result = await settings($, ["get", "enabled"]);
+  if (result.ok && typeof result.data.value === "boolean") enabled = result.data.value;
+}
+
+const SCOPE_NAMES = /** @type {Record<string, string>} */ ({
+  repository: "Repository",
+  personal: "Personal",
+  session: "Session",
+  default: "default",
+});
+const FILES = /** @type {Record<string, string>} */ ({
+  repository: ".freeflow/config.json",
+  personal: ".freeflow/local.json",
+});
+const SECTION_ROWS = new Set(["enabled", "prompts.enabled", "skills.enabled", "review.mode", "review.model"]);
+const COMMAND_USAGE = [
+  "Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)",
+  "Remove one: /freeflow settings <key> inherit [--session | --personal | --repository]",
+].join("\n");
+
+/** A value as the person reads it. @param {unknown} value */
+const shown = (value) => (value === null ? "none" : value === true ? "on" : value === false ? "off" : String(value));
+
+/** Where a resolved value comes from, in words. @param {string} scope */
+const from = (scope) =>
+  scope === "default"
+    ? "the default"
+    : scope === "session"
+      ? "this session (Session)"
+      : `${FILES[scope]} (${SCOPE_NAMES[scope]})`;
+
+/**
+ * Lists the settings Claude Code acts on: each section's switch and the review, always, and any other key a scope sets.
+ * @param {any} data the script's list
+ */
+function listText(data) {
+  const rows = data.settings.filter((/** @type {any} */ row) => SECTION_ROWS.has(row.key) || row.scope !== "default");
+  const width = Math.max(...rows.map((/** @type {any} */ row) => row.label.length));
+  return [
+    `Freeflow settings for ${data.root} (Claude Code)`,
+    ...rows.map(
+      (/** @type {any} */ row) =>
+        `  ${row.label.padEnd(width)}  ${shown(row.value).padEnd(8)}  ${SCOPE_NAMES[row.scope]}${SECTION_ROWS.has(row.key) ? "" : `  (${row.key})`}`,
+    ),
+    COMMAND_USAGE,
+    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, review.mode, review.model.",
+    "Pi-only settings (tool execution, compaction, messaging, Cognitive Routing) are changed on Pi or in the files.",
+  ].join("\n");
+}
+
+/**
+ * Serves `/freeflow settings [<key> [<value>] [--session | --personal | --repository]]` through the settings script:
+ * the lines for the person, and for the model the setting and the Runtime State lines that changed (SPEC-005 4.4).
+ * @param {any} $
+ * @param {string} args
+ * @returns {Promise<{ text: string, context?: string[] }>}
+ */
+async function settingsCommand($, args) {
+  const words = args.trim().split(/\s+/).filter(Boolean);
+  if (words[0] !== "settings")
+    return { text: "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one." };
+  const flags = words.slice(1).filter((word) => word.startsWith("--"));
+  const [key, value, extra] = words.slice(1).filter((word) => !word.startsWith("--"));
+  const scopes = flags.map((flag) => flag.slice(2));
+  const unknown = scopes.find((scope) => !["session", "personal", "repository"].includes(scope));
+  if (unknown !== undefined || scopes.length > 1 || extra !== undefined)
+    return {
+      text: `Freeflow settings: ${unknown !== undefined ? `unknown option --${unknown}` : "too many arguments"}.\n${COMMAND_USAGE}`,
+    };
+  if (key === undefined) {
+    const result = await settings($, ["list"]);
+    return { text: result.ok ? listText(result.data) : `Freeflow settings: ${result.error}` };
+  }
+  if (value === undefined) {
+    const result = await settings($, ["get", key]);
+    return {
+      text: result.ok
+        ? `${result.data.label}: ${shown(result.data.value)}, from ${from(result.data.scope)}.`
+        : `Freeflow settings: ${result.error}`,
+    };
+  }
+  const scope = scopes[0] ?? "personal";
+  const result = await settings(
+    $,
+    value === "inherit" ? ["unset", key, "--scope", scope] : ["set", key, value, "--scope", scope],
+  );
+  if (!result.ok) return { text: `Freeflow settings: ${result.error}` };
+  const data = result.data;
+  const wasOn = enabled;
+  if (data.key === "enabled") await resolveEnabled($);
+  if (!wasOn && enabled) {
+    // On again: the next turn end does what session start does with a store, and the window is read at the next request.
+    awaitingStore = { session: await $.session.id(), cwd: await $.session.cwd() };
+    contextWindow = null;
+  }
+  const notes = [...data.notes];
+  if (data.key === "enabled")
+    notes.push(
+      enabled
+        ? "Freeflow's task menu, notices and compaction work in this session from its next event."
+        : "Freeflow's task memory layer stops in this session now: no menu, notices, context rows, compaction, hold or sync; the session-start context stops from the next session.",
+    );
+  const line = `${data.label}: ${shown(data.value)}, from ${from(data.scope)}.`;
+  return {
+    text: [`${line} The agent sees it now.`, ...notes].join("\n"),
+    context: [
+      [
+        `The user changed a Freeflow setting with /freeflow settings: ${data.key} is now ${shown(data.value)}, from ${from(data.scope)}.`,
+        ...data.changed.map((/** @type {string} */ each) => `Runtime State now: ${each}`),
+        ...data.cleared.map((/** @type {string} */ each) => `Runtime State no longer: ${each}`),
+        ...notes,
+      ].join("\n"),
+    ],
+  };
+}
+
 /** @param {import("claude-code").On} on */
 export function register(on) {
+  // The session is ready, or the module reloaded: declare /freeflow, and read whether Freeflow is on for this folder.
+  on("session.start", async ($, e, next) => {
+    await $.command.register({
+      name: "freeflow",
+      description: "Freeflow's settings: list them, or change one for this session, you or the repository",
+      argumentHint: "settings [<key> <value|inherit> [--session | --personal | --repository]]",
+    });
+    await resolveEnabled($);
+    return next(e);
+  });
+
+  on("command.run", { command: "freeflow" }, ($, e) => settingsCommand($, e.args));
+
   // Session start, /clear and resume: pull the store, give the scripts the window, and give the agent the menu, which
   // says which task this session holds, taken back when a resume finds the task its end released (Spec section 4, F36).
   on("classic.SessionStart", async ($, e, next) => {
     const result = await next(e);
     if (e.source === "compact") return result;
+    await resolveEnabled($);
+    if (!enabled) return result;
     await newCycle($, null);
     workers = null;
     await readWindow($);
@@ -495,6 +660,7 @@ export function register(on) {
 
   on("turn.step", async function* ($, e, next) {
     const response = yield* next(e);
+    if (!enabled) return response;
     try {
       if (e.agentId === undefined) await watchMain($);
       else await noticeWorker($, e, response);
@@ -506,7 +672,7 @@ export function register(on) {
 
   on("turn.complete", async ($, e, next) => {
     const result = await next(e);
-    if (e.agentId !== undefined) return result;
+    if (e.agentId !== undefined || !enabled) return result;
     try {
       await turnEnded($, e);
     } catch (error) {
@@ -519,7 +685,7 @@ export function register(on) {
   // the mode would ask, as in a working directory with edits allowed; any deny, a rule's or a hook's, still stands.
   on("tool.check", async ($, e, next) => {
     const verdict = await next(e);
-    if (verdict.decision !== "ask" || !FILE_TOOLS.has(e.tool)) return verdict;
+    if (!enabled || verdict.decision !== "ask" || !FILE_TOOLS.has(e.tool)) return verdict;
     const input = /** @type {Record<string, unknown>} */ (e.input ?? {});
     const root = await storeRootOf($);
     if (!root) return verdict;
@@ -529,7 +695,7 @@ export function register(on) {
   });
 
   on("session.compact", async ($, e, next) => {
-    if (e.trigger === "precompute") return next(e);
+    if (e.trigger === "precompute" || !enabled) return next(e);
     if (e.agentId !== undefined) return workerCompaction($, e, next);
     const state = await status($);
     const result =
@@ -549,7 +715,7 @@ export function register(on) {
   on("agent.spawn", async ($, e, next) => {
     const result = await next(e);
     const delegation = DELEGATION.exec(e.prompt ?? "")?.[0];
-    if (!result.agentId || !delegation) return result;
+    if (!enabled || !result.agentId || !delegation) return result;
     const state = await status($);
     const map = await workerMap($, state);
     map.set(result.agentId, { delegation, noticed: false });
@@ -564,7 +730,7 @@ export function register(on) {
   // A worker hands back: its return is checked, and once it is told what is missing.
   on("classic.SubagentStop", async ($, e, next) => {
     const result = await next(e);
-    if (e.stop_hook_active || result.block) return result;
+    if (!enabled || e.stop_hook_active || result.block) return result;
     const state = await status($);
     const worker = (await workerMap($, state)).get(e.agent_id);
     if (!state?.task || !worker) return result;

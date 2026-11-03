@@ -36,6 +36,11 @@ function world(on: any) {
     compactionWindow: undefined as number | undefined,
     response: { input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
     runs: [] as Run[],
+    // The settings script's runs, apart from Track Work's, and what it answers: `get enabled` from `enabled`.
+    settingsRuns: [] as Run[],
+    enabled: true as boolean,
+    settingsAnswers: {} as Record<string, Answer>,
+    registered: [] as any[],
     env: {} as Record<string, string | undefined>,
     sent: [] as any[],
     submitted: [] as string[],
@@ -68,6 +73,32 @@ function world(on: any) {
     verdict: { decision: "ask" } as { decision: string; rule?: string },
   };
   on("process.run", async (_: any, e: any) => {
+    const result = (answer: Answer) => ({
+      value: {
+        exitCode: answer.exitCode ?? 0,
+        stdout: answer.stdout ?? "",
+        stderr: answer.stderr ?? "",
+        isStdoutTruncated: false,
+        isStderrTruncated: false,
+      },
+    });
+    if (e.argv[0] === "node" && String(e.argv[1]).endsWith("setup-freeflow/scripts/settings.mjs")) {
+      const args = e.argv.slice(2);
+      w.settingsRuns.push({ args, session: e.init?.env?.CLAUDE_CODE_SESSION_ID });
+      const key = args.join(" ");
+      for (const [prefix, value] of Object.entries(w.settingsAnswers)) if (key.startsWith(prefix)) return result(value);
+      if (key.startsWith("get enabled "))
+        return result({
+          stdout: JSON.stringify({
+            key: "enabled",
+            label: "Freeflow",
+            value: w.enabled,
+            scope: "default",
+            hosts: "all",
+          }),
+        });
+      return result({ exitCode: 1, stderr: `no answer for settings ${key}` });
+    }
     const script = e.argv[0] === "node" && String(e.argv[1]).endsWith("working-record.mjs");
     const args = script ? e.argv.slice(2) : [...e.argv];
     w.runs.push({ args, session: e.init?.env?.CLAUDE_CODE_SESSION_ID, stdin: e.init?.stdin });
@@ -98,6 +129,11 @@ function world(on: any) {
     },
   }));
   on("session.id", () => ({ value: SESSION }));
+  on("session.cwd", () => ({ value: "/work/widget" }));
+  on("command.register", (_: any, e: any) => {
+    w.registered.push(e);
+    return { value: { command: e.name } };
+  });
   on("env.set", (_: any, e: any) => {
     w.env[e.name] = e.value;
     return { value: {} };
@@ -141,6 +177,7 @@ function world(on: any) {
     w.compactions.push(e);
     return { messages: [{ role: "user", text: "Claude's summary.", toolUses: [] }] };
   });
+  on("session.start", (_: any, e: any) => ({ cwd: e.cwd }));
   on("classic.SessionStart", () => ({}));
   on("classic.SubagentStop", () => ({}));
   on("turn.complete", () => ({ text: "" }));
@@ -777,4 +814,162 @@ test("the store is the agent's to keep: file tools inside it are allowed where t
   // A deny stands, inside the store too.
   w.verdict = { decision: "deny", rule: "Edit(/store/**)" };
   expect((await check("Edit", { file_path: record })).decision).toBe("deny");
+});
+
+const ready = ($: any) => $.session.start({ cwd: "/work/widget", surface: null, isInteractive: false });
+const freeflow = ($: any, args: string) => $.command.run({ command: "freeflow", args });
+const LISTED = {
+  root: "/work/widget",
+  settings: [
+    { key: "enabled", label: "Freeflow", value: true, scope: "default", hosts: "all" },
+    { key: "prompts.enabled", label: "Runtime prompts", value: true, scope: "default", hosts: "all" },
+    { key: "prompts.core", label: "Core prompt", value: false, scope: "personal", hosts: "all" },
+    { key: "skills.enabled", label: "Skills", value: true, scope: "default", hosts: "all" },
+    { key: "skills.write-skill", label: "Skill write-skill", value: true, scope: "default", hosts: "all" },
+    { key: "review.mode", label: "Review", value: "always", scope: "repository", hosts: "all" },
+    { key: "review.model", label: "Reviewer model", value: null, scope: "default", hosts: "all" },
+  ],
+  state: ["Review: `always`"],
+};
+
+test("/freeflow settings: declared at session start, lists what Claude Code acts on, and changes one with the line the model reads now (SPEC-005 4.4)", async ($, on) => {
+  const w = world(on);
+  await ready($);
+  expect(w.registered.map((command) => command.name)).toEqual(["freeflow"]);
+  expect(w.settingsRuns.map((run) => run.args.join(" "))).toEqual(["get enabled --root /work/widget --json"]);
+  expect(w.settingsRuns[0].session).toBe(SESSION);
+
+  w.settingsAnswers["list "] = { stdout: JSON.stringify(LISTED) };
+  const listed = await freeflow($, "settings");
+  expect(w.settingsRuns.at(-1)!.args.join(" ")).toBe("list --root /work/widget --json");
+  // Each section's switch and the review always; another key only when a scope sets it.
+  expect(listed.text).toStartWith("Freeflow settings for /work/widget (Claude Code)\n  Freeflow ");
+  expect(listed.text).toContain("  Core prompt      off       Personal  (prompts.core)");
+  expect(listed.text).toContain("  Review           always    Repository\n");
+  expect(listed.text).not.toContain("write-skill");
+  expect(listed.text).toContain("Pi-only settings (tool execution, compaction, messaging, Cognitive Routing)");
+  expect(listed.context).toBeUndefined();
+
+  w.settingsAnswers["set review.mode always --scope personal "] = {
+    stdout: JSON.stringify({
+      key: "review.mode",
+      label: "Review",
+      value: "always",
+      scope: "personal",
+      hosts: "all",
+      state: ["Review: `always`"],
+      changed: ["Review: `always`"],
+      cleared: [],
+      notes: [],
+    }),
+  };
+  const changed = await freeflow($, "settings review.mode always");
+  expect(changed.text).toBe("Review: always, from .freeflow/local.json (Personal). The agent sees it now.");
+  expect(changed.context).toEqual([
+    "The user changed a Freeflow setting with /freeflow settings: review.mode is now always, from .freeflow/local.json (Personal).\nRuntime State now: Review: `always`",
+  ]);
+
+  // A scope flag and inherit reach the script as its scope and unset.
+  w.settingsAnswers["unset review.mode --scope session "] = {
+    stdout: JSON.stringify({
+      key: "review.mode",
+      label: "Review",
+      value: "auto",
+      scope: "default",
+      hosts: "all",
+      state: [],
+      changed: [],
+      cleared: ["Review: `always`"],
+      notes: [],
+    }),
+  };
+  const inherited = await freeflow($, "settings review.mode inherit --session");
+  expect(inherited.text).toBe("Review: auto, from the default. The agent sees it now.");
+  expect(inherited.context![0]).toEndWith("\nRuntime State no longer: Review: `always`");
+
+  // A refusal is the script's first line, and the model is told nothing.
+  w.settingsAnswers["set review.mode sometimes "] = {
+    exitCode: 1,
+    stderr: "review.mode takes auto, off, always, not sometimes\nUsage: ...",
+  };
+  const refused = await freeflow($, "settings review.mode sometimes");
+  expect(refused).toEqual({ text: "Freeflow settings: review.mode takes auto, off, always, not sometimes" });
+  expect((await freeflow($, "settings review.mode always --global")).text).toStartWith(
+    "Freeflow settings: unknown option --global.",
+  );
+  expect((await freeflow($, "status")).text).toBe(
+    "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one.",
+  );
+  expect(w.commands()).toEqual([]);
+});
+
+test("enabled off: the mod does nothing but serve /freeflow, and turning it on brings the store back at the next turn end (SPEC-005 P6)", async ($, on) => {
+  const w = world(on);
+  w.enabled = false;
+  w.status = held(at(-30), { changed: true });
+  w.answers["task here"] = { stdout: MENU };
+  await ready($);
+  expect((await start($)).additionalContext).toBeUndefined();
+  await step($, w, 190_000);
+  await $.turn.complete(turnEnd("answer"));
+  expect(appended(w)).toEqual([]);
+  expect((await $.tool.check({ tool: "Edit", input: { file_path: RECORD } } as any)).decision).toBe("ask");
+  const compacted = await $.session.compact({ trigger: "manual", messages: CONVERSATION } as any);
+  expect(compacted.messages[0].text).toBe("Claude's summary.");
+  expect(w.commands()).toEqual([]);
+
+  // On again with the command: the change says so, and the next turn end does what session start does with a store.
+  w.enabled = true;
+  w.settingsAnswers["set enabled on --scope personal "] = {
+    stdout: JSON.stringify({
+      key: "enabled",
+      label: "Freeflow",
+      value: true,
+      scope: "personal",
+      hosts: "all",
+      state: [],
+      changed: [],
+      cleared: [],
+      notes: [],
+    }),
+  };
+  const on_ = await freeflow($, "settings enabled on");
+  expect(on_.text).toContain("Freeflow's task menu, notices and compaction work in this session from its next event.");
+  await $.turn.complete(turnEnd("answer"));
+  expect(w.commands().slice(0, 2)).toEqual(["session status", "store sync --pull"]);
+  expect(w.commands()).toContain("store sync");
+
+  // Off again: from the next event nothing runs.
+  w.enabled = false;
+  w.settingsAnswers["set enabled off --scope session "] = {
+    stdout: JSON.stringify({
+      key: "enabled",
+      label: "Freeflow",
+      value: false,
+      scope: "session",
+      hosts: "all",
+      state: [],
+      changed: [],
+      cleared: [],
+      notes: [],
+    }),
+  };
+  const off = await freeflow($, "settings enabled off --session");
+  expect(off.text).toStartWith("Freeflow: off, from this session (Session). The agent sees it now.\n");
+  expect(off.context![0]).toContain("no menu, notices, context rows, compaction, hold or sync");
+  w.runs.length = 0;
+  await $.turn.complete(turnEnd("answer"));
+  expect(w.commands()).toEqual([]);
+});
+
+test("a settings script that fails leaves enabled as it was", async ($, on) => {
+  const w = world(on);
+  w.settingsAnswers["get enabled "] = {
+    exitCode: 1,
+    stderr: ".freeflow/config.json is invalid: enabled must be a boolean",
+  };
+  w.status = store();
+  w.answers["task here"] = { stdout: MENU };
+  await ready($);
+  expect((await start($)).additionalContext).toEqual([`Freeflow task memory:\n${MENU}`]);
 });

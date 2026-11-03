@@ -1,6 +1,6 @@
 # Settings
 
-Every Freeflow setting in one place: what Freeflow turns on by default, every setting with its key and values, the three places a setting can live, and what `/freeflow settings` shows on Pi. The capability pages explain what each feature does; this page is the reference to look a setting up in.
+Every Freeflow setting in one place: what Freeflow turns on by default, every setting with its key and values, the three places a setting can live, what `/freeflow settings` shows on Pi and does on Claude Code, and the settings script the agent runs on every host. The capability pages explain what each feature does; this page is the reference to look a setting up in.
 
 ## What is on by default
 
@@ -14,7 +14,7 @@ With nothing configured, Freeflow on Pi runs with these capabilities; each one's
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
 | [Cognitive Routing](capabilities/cognitive-routing.md) | off | Coordinator, Helper and Executor profiles on different models |
 
-On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts`, `skills` and `review` apply, from the files; the capabilities above, and every Session value, are Pi only.
+On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts`, `skills` and `review` apply; the capabilities above are Pi only. OpenCode reads no settings.
 
 ## Where a setting lives
 
@@ -22,7 +22,7 @@ On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` 
 | --- | --- | --- | --- |
 | Repository | `.freeflow/config.json` | everyone using the repository; commit it to share it | the defaults |
 | Personal | `.freeflow/local.json` | only you, in this checkout; Freeflow adds it to `.git/info/exclude` and refuses to write it if Git tracks it | the repository |
-| Session | none: kept in the Pi session | only this session | personal and repository |
+| Session | none on Pi: kept in the Pi session; elsewhere `sessions/<session ID>/settings.json` in `FREEFLOW_HOME`, never synced | only this session; a new session, and `/clear`, start without it | personal and repository |
 
 A setting you leave unset in a scope follows the next scope down: Session follows Personal, Personal follows Repository, Repository follows the default.
 
@@ -68,6 +68,38 @@ How to read it:
 - **The bracket on a section's row** can also say `not active` (the switch is on but the capability is not running, for example while Freeflow is off) or `unavailable` (this host cannot run it).
 - **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level, Reviewer model opens a picker of your authenticated models, and Each prompt and Each skill open their switches on a screen of their own (`Esc` returns). The list scrolls when it is taller than the screen; `(5/21)` under it says where you are. In the Session and Personal tabs the values include `inherit`, which removes the setting from that tab so it follows the scope below.
 - **When it is saved**: each change is written at once, one at a time ("Saving…" while it writes). Closing the screen after changing a file setting, or a Session switch (Freeflow or a capability), reloads the session so the change applies; other Session changes (routing presets, Delegation, Control) apply from the next prompt.
+
+## On Claude Code
+
+Freeflow's mod adds `/freeflow settings`. With nothing set it shows:
+
+```text
+Freeflow settings for /home/you/project (Claude Code)
+  Freeflow         on        default
+  Runtime prompts  on        default
+  Skills           on        default
+  Review           auto      default
+  Reviewer model   none      default
+Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)
+Remove one: /freeflow settings <key> inherit [--session | --personal | --repository]
+Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, review.mode, review.model.
+Pi-only settings (tool execution, compaction, messaging, Cognitive Routing) are changed on Pi or in the files.
+```
+
+A setting another scope sets is listed too, with its key. `/freeflow settings review.mode always` answers `Review: always, from .freeflow/local.json (Personal). The agent sees it now.`, and the agent works under the Runtime State line it changed from its next step. Prompt text the agent already has stays until the next session start or compaction, so the cached prompt is never rewritten; the command says so when you change a prompt. `/freeflow settings enabled off` also stops the mod's task menu, notices, context rows, compaction, hold and store sync in this session; turning it on again brings them back from the next event. A file you edit by hand counts from the next session start. The command runs without a model call, and shows in a cloud session too.
+
+## The settings script
+
+On every host the agent changes a setting when you ask by running Setup Freeflow's script, the one writer outside Pi's screen, with the same rules:
+
+```text
+node <setup-freeflow>/scripts/settings.mjs list [--host pi] [--json]
+node <setup-freeflow>/scripts/settings.mjs get <key> [--json]
+node <setup-freeflow>/scripts/settings.mjs set <key> <value> --scope repository|personal|session [--json]
+node <setup-freeflow>/scripts/settings.mjs unset <key> --scope repository|personal|session [--json]
+```
+
+It refuses a key or value this page does not list, and writes nothing while either file is invalid. A Repository write drops a value equal to the default; a Personal write keeps it, so your file can set the default over a shared value. After a change it prints the Runtime State lines that changed, so the agent knows at once; the session-start hook reads the files again at the next session start, resume, `/clear` or compaction. The Session scope needs a host that names its session (Claude Code does); a routing preset is set on Pi's screen only.
 
 ## The footer
 
