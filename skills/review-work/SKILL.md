@@ -1,6 +1,6 @@
 ---
 name: review-work
-description: "Use whenever finished work or a document is judged fit to use: reviewing code, a diff, a commit or a pull request; checking your own change before reporting it done; reviewing a spec, plan, design, ADR, handoff, skill, final report, status note or Working Record; reviewing changes to authentication, permissions, secrets, untrusted input or other security boundaries; reviewing an eval case, suite, grader or rubric before paying for its runs; preparing, dispatching or skipping an independent review; choosing a model as judge or relying on its verdict; and weighing a review report that came back."
+description: "Use whenever finished work or a document is judged fit to use: reviewing code, a diff, a commit or a pull request; reviewing a spec, plan, design, ADR, handoff, skill, final report, status note or Working Record; reviewing changes to authentication, permissions, secrets, untrusted input or other security boundaries; reviewing an eval case, suite, grader or rubric before paying for its runs; preparing, dispatching or skipping an independent review; choosing a model as judge or relying on its verdict; and weighing a review report that came back."
 ---
 
 # Review Work
@@ -9,11 +9,12 @@ Judge whether the actual work satisfies the accepted outcome, remains proportion
 
 [Verify Work](../../skills/verify-work/SKILL.md) establishes what observations prove. Review judges their sufficiency and the resulting work or artifact; it does not replace verification, create evidence, choose user-owned behavior, settle owner decisions, or authorize corrections or revisions.
 
-Review has three roles:
+Review has two roles:
 
-- **Self-review:** the producer or author checks its own supported result or artifact before accepting, reusing, or using it. This is the normal required route.
 - **Independent review:** a separately selected reviewer judges a state it did not produce, from a separate context.
 - **Adjudication:** the receiving agent checks a returned independent report and decides what its findings establish.
+
+The producer's own check of its result, self-review, is verification: [Verify Work](../../skills/verify-work/SKILL.md)'s Check Your Own Result, which applies this skill's lenses for the kind.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
@@ -69,19 +70,9 @@ Needs evidence identifies the load-bearing claim, required observer, existing ev
 
 Do not turn preferences, wording or presentation, imagined or exhaustive edge cases, intentional deferrals, or hypothetical completeness into Issues. Finding no material issue is valid.
 
-## Self-Review And Re-enter Narrowly
-
-Goal: catch real defects in your own result without turning review into an open-ended editing or rewriting loop.
-
-Apply the kind's lenses silently once evidence initially supports the produced result or the artifact's load-bearing facts; do not create formal review items, a numbered review cycle, or an independent-review judgment for self-review. For work, also run Work Review's decision and test-integrity checks.
-
-For one clear covered defect (for an artifact, one whose revision basis is settled), return to the producing or authoring activity, correct or revise it, reconcile an artifact's affected dependencies within authority, re-verify the affected boundary or factual claims, and repeat only the affected lenses once (for an artifact, source alignment as well). Do not restart every check or add a reviewer because a local correction occurred. Route anything else as below.
-
-Stop self-review when the supported state is accepted, the artifact is fit for its agreed use, or a material issue has a clear next route. Optional polish is not permission to continue editing, and self-review is not a reason to add independent review.
-
 ## Route A Problem To Its Owner
 
-When a problem is not one clear covered defect, in self-review or adjudication, send it by what changed:
+When a problem is not one clear covered defect, in adjudication or in Verify Work's check of your own result, send it by what changed:
 
 - the outcome remains settled but the implementation approach is invalidated: back to implementation preparation in Execute Work;
 - an unclear, unsupported, or repeated cause: Execute Work's [diagnose](../../skills/execute-work/references/diagnose.md);
@@ -97,7 +88,7 @@ A **hand-over** is the end of the agreed work, when it goes back to the user to 
 
 The user sets a review mode, and optionally a reviewer model, as `"review": { "mode": ..., "model": ... }` in `.freeflow/local.json` (personal) or `.freeflow/config.json` (shared). The Runtime State shows a `Review:` line when one is set; with none, the mode is `auto`.
 
-- `auto`: the triggers below decide. When one fires, dispatch an independent review; the trigger and the mode are its authorization. When none fires, self-review is enough.
+- `auto`: the triggers below decide. When one fires, dispatch an independent review; the trigger and the mode are its authorization. When none fires, Verify Work's check of your own result is enough.
 - `off`: never dispatch on your own. When a trigger would fire, propose an independent review to the user with the trigger and its estimated cost, and run it only after their yes.
 - `always`: dispatch an independent review at every hand-over.
 
@@ -149,4 +140,4 @@ A fix or revision does not automatically require another review. Corrections tha
 
 ## Stop At The Selected Result
 
-Self-review ends with acceptance, supported fitness, or a routed issue. Independent review ends with its report. Adjudication ends with dispositions and an explicit next route. Do not turn optional improvement into unfinished work; preserve the agreed user-facing return boundary and any unresolved limits.
+Independent review ends with its report. Adjudication ends with dispositions and an explicit next route. Do not turn optional improvement into unfinished work; preserve the agreed user-facing return boundary and any unresolved limits.

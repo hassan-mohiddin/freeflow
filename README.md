@@ -21,7 +21,7 @@ Agents often act without opening the skill that describes the step they are taki
 | --- | --- |
 | A question or tentative idea becomes an edit. | The Interaction Contract tells discussion apart from a request to act. |
 | A request leaves choices open that the agent settles silently. | Before building, the agent sends what it will do, where it stops, and your decisions with its defaults, then waits; the hand-over shows any choice you have not seen. |
-| A change misses a caller, a test or a doc. | Execute Work's `touch-map.mjs` lists what a change touches, and `self-review.mjs` reports every changed test and whether each requirement's check ran after the last edit. |
+| A change misses a caller, a test or a doc. | Execute Work's `touch-map.mjs` lists what a change touches, and Verify Work's `self-review.mjs` reports every changed test and whether each requirement's check ran after the last edit. |
 | A passing command becomes an unsupported completion claim. | Verify Work ties the claim to what the check actually observed. |
 | Context loss erases decisions and partial work. | Track Work recovers the Working Record in one call and reconciles it with live state. |
 | Risky changes ship without a second look. | Review Work's gate calls for an independent review when the change touches security, data, release files or a public interface. |

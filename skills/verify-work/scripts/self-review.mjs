@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Puts the facts a self-review needs in one scratch report, so the agent reads its actual change rather than its
 // memory of it: Git status, the diff stat against a base, every changed existing test, fixture, snapshot or shared
-// test setup with its hunk (Verify Work's test-changes.mjs), each new test and whether it fails on the base, added lines
+// test setup with its hunk (test-changes.mjs, beside it), each new test and whether it fails on the base, added lines
 // that look like leftover debug output, per requirement the last recorded check and whether it ran after the last
 // edit, and the feature files (Verify Work's feature map) that cover a changed file, each with whether it was driven
 // live since that code last changed (Write Docs' docs-check --covering --driven). It lists; judging each item is the
@@ -31,7 +31,7 @@ const USAGE = [
   "Usage: self-review.mjs --base <ref> [--root <repository>] [--requirements <file>] [--test-command <command>] [--scratch <dir>] [--json]",
   "       self-review.mjs check --id <R1> [--root <repository>] [--scratch <dir>] (--command <shell command> | -- <argv>)",
 ].join("\n");
-const TEST_CHANGES = resolve(dirname(fileURLToPath(import.meta.url)), "../../verify-work/scripts/test-changes.mjs");
+const TEST_CHANGES = resolve(dirname(fileURLToPath(import.meta.url)), "test-changes.mjs");
 const DOCS_CHECK = resolve(dirname(fileURLToPath(import.meta.url)), "../../write-docs/scripts/docs-check.mjs");
 const CAP = 40;
 const LEFTOVER =

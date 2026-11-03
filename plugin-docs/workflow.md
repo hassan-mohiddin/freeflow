@@ -107,7 +107,7 @@ The agent runs these itself; you see their output in its report. They are under 
 | Script | What it answers |
 | --- | --- |
 | Execute Work `touch-map.mjs` | What a change touches: entry points, readers, writers, scheduled code, covering tests and developer docs, each block saying what it did not search. |
-| Execute Work `self-review.mjs` | One report before handing over: status, diff stat, every changed existing test or fixture with its hunk, each new test and whether it fails on the base, whether each requirement's check ran after the last edit, and the feature files covering the change with whether each was driven live since. |
+| Verify Work `self-review.mjs` | One report before handing over: status, diff stat, every changed existing test or fixture with its hunk, each new test and whether it fails on the base, whether each requirement's check ran after the last edit, and the feature files covering the change with whether each was driven live since. |
 | Verify Work `test-changes.mjs` | Every test, fixture or test setup file changed since a base commit, with its hunks; `--new` lists added test files. |
 | Discuss Work `choices.mjs` | Checks the decision list and renders the agreement, the hand-over's unseen choices, and a catch-up after an unattended run. |
 | Review Work `review-packet.mjs`, `check-brief.mjs` | Prefills an independent reviewer's brief, names the review gate's triggers and round budget, and refuses a brief with a missing line or a path that does not exist. |

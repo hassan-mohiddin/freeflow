@@ -62,7 +62,7 @@ None recorded before this record was started.
 
 ## Open Questions
 
-- The reasons for the rest of Execute Work (the three layers of a request, `touch-map`, `self-review`, the routed references) are not recorded here yet.
+- The reasons for the rest of Execute Work (the three layers of a request, `touch-map`, the routed references) are not recorded here yet.
 - The reference's first real use is task-004's own build; its friction log is adjudicated before the reference changes.
 - Whether a worker reads the reference's worker section when its brief points to it is not measured.
 - Nesting has not been used yet: whether workers hand work down only where it pays, and whether a sub-worker's choices reach the coordinator one level at a time.

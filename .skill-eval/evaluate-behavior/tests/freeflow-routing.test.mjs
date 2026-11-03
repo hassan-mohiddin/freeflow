@@ -316,7 +316,7 @@ test("the report counts a reference read or named, a script run with node, and a
     [...runs[0].used.entries()],
     [
       ["execute-work/scripts/touch-map.mjs", 1],
-      ["execute-work/scripts/self-review.mjs", 2],
+      ["verify-work/scripts/self-review.mjs", 2],
     ],
   );
   assert.equal(runs[1].used.size, 0);

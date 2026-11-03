@@ -110,7 +110,7 @@ test(
         assert.doesNotMatch(before, /self-review\.mjs/);
         assert.match(
           after,
-          /Before your final report \(Execute Work's step before reporting; read Execute Work if its body is not in your context\): run `node \S+\/skills\/execute-work\/scripts\/self-review\.mjs --base <ref>`/,
+          /Before your final report \(Verify Work's Check Your Own Result; read Verify Work if its body is not in your context\): run `node \S+\/skills\/verify-work\/scripts\/self-review\.mjs --base <ref>`/,
         );
         assert.doesNotMatch(again, /self-review\.mjs/);
       },
