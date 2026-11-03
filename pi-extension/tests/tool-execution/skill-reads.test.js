@@ -37,7 +37,7 @@ test("instruction files are named by their path inside the package, however the 
   assert.equal(isFreeflowInstruction("read", { path: SKILL }, cwd), true);
   assert.equal(isFreeflowInstruction("bash", { path: SKILL }, cwd), false);
   assert.equal(skillName(SKILL, cwd), "track-work");
-  assert.equal(skillName(join(ROOT, "capabilities/compaction/SKILL.md"), cwd), "compaction");
+  assert.equal(skillName(join(ROOT, "capabilities/messaging/SKILL.md"), cwd), "messaging");
   assert.equal(skillName(REFERENCE, cwd), undefined, "a reference is not a skill");
 });
 
@@ -80,7 +80,7 @@ const result = (id, text, extra = {}) => ({
 
 test("rebuilt from the branch: reads since the latest compaction of any kind, not an earlier version's one-line results", () => {
   const reads = new SkillReads();
-  const capabilitySkill = join(ROOT, "capabilities/compaction/SKILL.md");
+  const capabilitySkill = join(ROOT, "capabilities/messaging/SKILL.md");
   const writeDocs = join(ROOT, "skills/write-docs/SKILL.md");
   const branch = [
     call("1", { path: capabilitySkill }),
@@ -95,7 +95,7 @@ test("rebuilt from the branch: reads since the latest compaction of any kind, no
   ];
   reads.rebuild(branch, cwd);
   assert.deepEqual(reads.skills(), ["write-docs"], "before compaction, a replacement and a failure are not listed");
-  assert.deepEqual(skillsRead(branch, cwd), ["compaction", "track-work", "write-docs"], "successful reads, by skill");
+  assert.deepEqual(skillsRead(branch, cwd), ["messaging", "track-work", "write-docs"], "successful reads, by skill");
   assert.deepEqual(skillsRead(branch.slice(3), cwd), ["track-work", "write-docs"]);
 });
 

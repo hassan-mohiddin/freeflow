@@ -9,7 +9,7 @@ With nothing configured, Freeflow on Pi runs with these capabilities; each one's
 | Feature | Default | What it is |
 | --- | --- | --- |
 | Freeflow | on | The core guidance, the Interaction Contract, the Working Method and the skills, plus `ask_user` dialogs |
-| [Compaction](capabilities/compaction.md) | on | The agent compacts at a safe point from its own summary; Pi's compaction stays the fallback |
+| [Compaction](capabilities/compaction.md) | on | After the agent's checkpoint, the task's bundle replaces the conversation; Pi's compaction stays the fallback |
 | [Tool Execution](capabilities/tool-execution.md) | on | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors, and skill guidance at the tool call that needs it |
 | [Task Memory](capabilities/task-memory.md) | off | Working Records attached to the session; projects and child tasks |
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
@@ -41,7 +41,6 @@ Freeflow settings    Session  [Personal]  Repository
     Skills                   on (inherited)
       Each skill             all
     Compaction               on (inherited)
-      Context reuse          on (inherited)
     Tool Execution           on (inherited)
       Guidance notices       on (inherited)
     Task Memory              off (inherited)
@@ -117,7 +116,6 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Each skill › Write Docs | `skills.write-docs` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
 | Each skill › Write Skill | `skills.write-skill` | `true`, `false` | `true` | Session, Personal, Repository (every host) |
 | Compaction | `compaction.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
-| Context reuse | `compaction.carry` | `true`, `false` | `true` | Session, Personal, Repository |
 | Tool Execution | `toolExecution.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
 | Guidance notices | `toolExecution.guidanceNotices` | `true`, `false` | `true` | Session, Personal, Repository |
 | Task Memory | `taskMemory.enabled` | `true`, `false` | `false` | Session, Personal, Repository |

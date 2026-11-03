@@ -241,21 +241,33 @@ function compactionRequest(home, identity) {
  * whether the store holds changes not yet synced (paths not committed, or commits not pushed); its transcript; and
  * what is missing for a working store, with who fixes it (P94); and its request for Freeflow's compaction (P102).
  */
-export async function sessionStatus(home, identity, env = process.env) {
-  const held = heldTask(home, identity);
+/**
+ * This session's summary and compaction request: both live in the Freeflow home's sessions/ folder, which a session
+ * with no store uses too (P64, P4), so its compaction works without one.
+ */
+export function sessionFiles(home, identity) {
   const summaryPath = identity ? sessionSummaryPath(home, identity) : null;
   const summary = summaryPath && existsSync(summaryPath) ? readFileSync(summaryPath, "utf8") : null;
+  return {
+    summary: summary ? { path: summaryPath, asOf: /^As of: (\S+)$/m.exec(summary)?.[1] ?? null } : null,
+    compact: compactionRequest(home, identity),
+  };
+}
+
+export async function sessionStatus(home, identity, env = process.env) {
+  const held = heldTask(home, identity);
+  const { summary, compact } = sessionFiles(home, identity);
   const status = await storeStatus({ home });
   return {
     home,
     store: true,
     session: identity?.id ?? null,
     task: held ? { id: held.id, record: join(held.dir, "record.md"), stateAsOf: held.header?.stateAsOf ?? null } : null,
-    summary: summary ? { path: summaryPath, asOf: /^As of: (\S+)$/m.exec(summary)?.[1] ?? null } : null,
+    summary,
     changed: status.uncommitted > 0 || (status.unpushed ?? 0) > 0,
     transcript: env.FREEFLOW_TRANSCRIPT || claudeCodeLog(env),
     missing: await missingParts(home, env),
-    compact: compactionRequest(home, identity),
+    compact,
   };
 }
 

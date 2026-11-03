@@ -19,7 +19,7 @@ const usage = [5_000, 50_000, 100_000, 100_000];
 
 // Task 004 D-001: under automatic routing the Coordinator holds task memory with the user; workers only read it.
 test(
-  "under automatic routing every profile gets the resume view once, also after a worker compacts; a worker only reads",
+  "under automatic routing every profile gets the resume view once; a worker only reads",
   { timeout: 60000 },
   async () => {
     await fixture(
@@ -28,14 +28,11 @@ test(
           [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt and report." } }],
           [{ name: "task_memory", args: { action: "attach", record: RECORD } }],
           [{ name: "task_memory", args: { action: "list" } }],
-          [{ name: "compact_context", args: { summary: "WORKER_SUMMARY" } }],
           [{ name: "return_work", args: { operation: "submit", report: "Done.", outcome: "completed" } }],
           [{ name: "routing_unit", args: { operation: "close", outcome: "accepted", assessment: "ok" } }],
         ][n - 1] ?? [],
       true,
-      async ({ requests, manager }) => {
-        const compaction = manager.getBranch().find((entry) => entry.type === "compaction");
-        assert.equal(compaction?.details?.freeflow?.profile, "executor", "the worker compacted");
+      async ({ requests }) => {
         const worker = requests.filter((body) => body.model === "gpt-4.1-mini");
         const coordinator = requests.filter((body) => body.model === "gpt-4o");
         assert.ok(worker.length >= 3 && coordinator.length >= 3);

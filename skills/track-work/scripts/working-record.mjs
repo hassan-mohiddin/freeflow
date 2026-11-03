@@ -49,6 +49,7 @@ import {
   removeTask,
   searchTasks,
   sessionIdentity,
+  sessionFiles,
   sessionStatus,
   showProject,
   STORE_TASK_ID,
@@ -140,11 +141,11 @@ const COMMAND_HELP = new Map([
   ],
   [
     "discussion",
-    'Usage: working-record.mjs discussion <list|save|drop> --record <record.md> ... (Schema 5)\nThe user\'s messages that shaped the work, kept word for word as blocks in sources/discussion.md, each message with the agent\'s line saying what it answered; blocks are added or dropped, never edited. The transcript is --transcript <path> (--format claude-code or plain), else FREEFLOW_TRANSCRIPT, else this Claude Code session\'s log; --transcript - reads a plain export (lines starting "User:" or "Assistant:") from standard input.',
+    'Usage: working-record.mjs discussion <list|save|drop> --record <record.md> ... (Schema 5)\nThe user\'s messages that shaped the work, kept word for word as blocks in sources/discussion.md, each message with the agent\'s line saying what it answered; blocks are added or dropped, never edited. The transcript is --transcript <path> (--format claude-code, pi or plain; a Pi session file is known by its header), else FREEFLOW_TRANSCRIPT, else this Claude Code session\'s log; --transcript - reads a plain export (lines starting "User:" or "Assistant:") from standard input.',
   ],
   [
     "discussion list",
-    "Usage: discussion list --record <record.md> [--since <time>] [--until <time>] [--transcript <path>] [--format <claude-code|plain>]\nNumbers the user's messages since the record's State as of (or --since), each with its time and first words; messages sent while a turn ran are included, and resent duplicates and cut-off copies left out.",
+    "Usage: discussion list --record <record.md> [--since <time>] [--until <time>] [--transcript <path>] [--format <claude-code|pi|plain>]\nNumbers the user's messages since the record's State as of (or --since), each with its time and first words; messages sent while a turn ran are included, and resent duplicates and cut-off copies left out.",
   ],
   [
     "discussion save",
@@ -968,7 +969,13 @@ async function runCore(command, rest) {
     const home = storeHome(options["--home"]);
     const status = isFreeflowStore(home)
       ? await sessionStatus(home, sessionIdentity())
-      : { home, store: false, missing: await missingParts(home) };
+      : {
+          home,
+          store: false,
+          session: sessionIdentity()?.id ?? null,
+          ...sessionFiles(home, sessionIdentity()),
+          missing: await missingParts(home),
+        };
     return `${JSON.stringify(status, null, 2)}\n`;
   }
   if (
@@ -1177,8 +1184,9 @@ async function requestCompaction(args) {
   const at = args.indexOf("--home");
   const home = storeHome(at === -1 ? undefined : args[at + 1]);
   const identity = sessionIdentity();
-  if (!identity || !isFreeflowStore(home))
-    return "Compaction not requested: it needs a session ID and the Freeflow store.\n";
+  // A session summary lives in the Freeflow home whether or not a store is there, so its compaction needs none (P4).
+  if (!identity || (!args.includes("--session") && !isFreeflowStore(home)))
+    return "Compaction not requested: it needs a session ID, and for a task the Freeflow store.\n";
   await writeCompactionRequest(home, identity);
   return "Compaction requested: Freeflow's harness layer compacts the session when this turn ends, with the record in place of the conversation. End your turn now.\n";
 }

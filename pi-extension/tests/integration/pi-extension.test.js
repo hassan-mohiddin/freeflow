@@ -409,8 +409,9 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
     toolNames.filter((name) =>
       ["delegate_work", "return_work", "routing_unit", "select_evidence", "compact_context"].includes(name),
     ),
-    ["delegate_work", "return_work", "routing_unit", "select_evidence", "compact_context"],
+    ["delegate_work", "return_work", "routing_unit", "select_evidence"],
   );
+  // Freeflow compacts on the agent's checkpoint --compact, so compact_context is gone (P1).
   // No Freeflow tool keeps the freeflow_ prefix, which models confused with /freeflow commands.
   assert.deepEqual(
     toolNames.filter((name) => name.startsWith("freeflow_")),
@@ -500,7 +501,8 @@ test("Pi settings show Tool Execution as one switch and status reports it", asyn
 });
 
 test("Pi settings show Compaction as one switch, on by default, and status reports it", async () => {
-  const cwd = await configuredRepo({});
+  // The retired context-reuse setting keeps loading and does nothing.
+  const cwd = await configuredRepo({ compaction: { carry: false } });
   try {
     const { commands, handlers } = loadExtension(freeflowExtension, {
       appendEntry() {},
@@ -513,7 +515,9 @@ test("Pi settings show Compaction as one switch, on by default, and status repor
     const settingsCtx = context(cwd);
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(renderText(component, 180), /Compaction\s+on \(inherited\)\n\s+Context reuse\s+on \(inherited\)/);
+      const text = renderText(component, 180);
+      assert.match(text, /Compaction\s+on \(inherited\)\n/);
+      assert.doesNotMatch(text, /Context reuse/);
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);
@@ -552,7 +556,7 @@ test("settings: a section's switch is its own row, sections run everyday to expe
       assert.doesNotMatch(text, /\bEnabled\b/);
       assert.match(
         text,
-        /Freeflow\s+on \(inherited\)\n[\s\S]*Compaction\s+on \(inherited\)\n\s+Context reuse[\s\S]*Tool Execution\s+on \(inherited\)\n[\s\S]*Task Memory\s+off \(inherited\)[\s\S]*Messaging\s+off \(inherited\)/,
+        /Freeflow\s+on \(inherited\)\n[\s\S]*Compaction\s+on \(inherited\)\n[\s\S]*Tool Execution\s+on \(inherited\)\n[\s\S]*Task Memory\s+off \(inherited\)[\s\S]*Messaging\s+off \(inherited\)/,
       );
       // Where an inherited value comes from is on the help line, not in the list (Task 005 D-002).
       assert.match(text, /Inherited: not set in \.freeflow\/config\.json, so Freeflow's default applies\./);

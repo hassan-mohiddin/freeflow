@@ -1,30 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { reserveTokens, strictest, thresholds } from "../../dist/compaction/thresholds.js";
-import { renderIndex, resolveResult, resultIndex } from "../../dist/compaction/results.js";
-import { carryBudget } from "../../dist/compaction/carry.js";
+import { ROWS_AT, reserveTokens, strictest, thresholds } from "../../dist/compaction/thresholds.js";
 
-test("compact now comes 25k before Pi's trigger; the warning at 70%, and at least 20k before compact now", () => {
-  const at = (window) => {
-    const { warning, compactNow, trigger } = thresholds(window, 16_384);
-    return [warning, compactNow, trigger];
+test("the notice comes at 75% of the window, or a tenth of the window before Pi's trigger if that is earlier", () => {
+  const at = (window, reserve = 16_384) => {
+    const { notice, trigger } = thresholds(window, reserve);
+    return [notice, trigger];
   };
-  assert.deepEqual(at(128_000), [66_616, 86_616, 111_616]);
-  assert.deepEqual(at(200_000), [138_616, 158_616, 183_616]);
-  assert.deepEqual(at(400_000), [280_000, 358_616, 383_616]);
-  assert.deepEqual(at(1_000_000), [700_000, 958_616, 983_616]);
+  assert.deepEqual(at(128_000), [96_000, 111_616]);
+  assert.deepEqual(at(200_000), [150_000, 183_616]);
+  assert.deepEqual(at(1_000_000), [750_000, 983_616]);
+  // A large reserve brings Pi's trigger close: the notice keeps a tenth of the window before it.
+  assert.deepEqual(at(200_000, 60_000), [120_000, 140_000]);
+  assert.deepEqual(ROWS_AT, [0.5, 0.6, 0.7]);
 });
 
-test("a model's output limit moves neither the thresholds nor the carry budget", () => {
-  // From Pi 1.4.0 Pi's reserve only says when Pi compacts: its summarizer may write up to the model's output limit,
-  // which Pi itself reduces to what the window leaves. Freeflow's points stay window and reserve arithmetic, and an
-  // agent's summary stays under Freeflow's own limit, so a large-output model gets the same points as any other.
+test("a model's output limit does not move the notice", () => {
   const model = (maxTokens) => ({ provider: "anthropic", id: "large", contextWindow: 200_000, maxTokens });
-  const small = strictest([model(16_384)], {});
-  const large = strictest([model(128_000)], {});
-  assert.deepEqual(large, small);
-  assert.deepEqual(large, { window: 200_000, trigger: 183_616, warning: 138_616, compactNow: 158_616 });
-  assert.equal(carryBudget(200_000, large.warning), carryBudget(200_000, small.warning));
+  assert.deepEqual(strictest([model(128_000)], {}), strictest([model(16_384)], {}));
+  assert.deepEqual(strictest([model(128_000)], {}), { window: 200_000, trigger: 183_616, notice: 150_000 });
 });
 
 test("Pi's reserve comes from the model override, then the ordinary setting, then Pi's default", () => {
@@ -51,54 +45,4 @@ test("the smallest window that may receive the full history decides", () => {
   );
   assert.equal(limits.window, 200_000);
   assert.equal(strictest([undefined], {}), undefined);
-});
-
-const call = (id, name, args) => ({
-  type: "message",
-  message: { role: "assistant", content: [{ type: "toolCall", id, name, arguments: args }] },
-});
-const result = (id, text) => ({
-  type: "message",
-  message: { role: "toolResult", toolCallId: id, content: [{ type: "text", text }] },
-});
-
-test("the index lists this cycle's larger results newest first, without Freeflow control calls, ids stable across compaction", () => {
-  const big = "x".repeat(4_000);
-  const branch = [
-    call("c1", "read", { path: "old.txt" }),
-    result("c1", big),
-    { type: "compaction", details: { freeflow: { carried: [{ kind: "result", ref: "r1", firstCycle: 2 }] } } },
-    call("c2", "bash", { command: "npm test\necho done" }),
-    result("c2", big),
-    call("c3", "read", { path: "small.txt" }),
-    result("c3", "tiny"),
-    call("c4", "read", { path: "new.txt" }),
-    result("c4", big),
-    call("c5", "select_evidence", { operation: "inspect" }),
-    result("c5", big),
-    call("c6", "codemode", { code: "\n  const r = await tools.read({ path: 'x' });\n  return r;" }),
-    result("c6", big),
-  ];
-  assert.deepEqual(
-    resultIndex(branch).map(({ id, tool, label, firstCycle }) => [id, tool, label, firstCycle]),
-    [
-      ["r6", "codemode", "script: const r = await tools.read({ path: 'x' });", undefined],
-      ["r4", "read", "new.txt", undefined],
-      ["r2", "bash", "npm test", undefined],
-      ["r1", "read", "old.txt", 2],
-    ],
-  );
-  assert.equal(resolveResult(branch, "r1").text, big, "a result from before compaction still resolves");
-  assert.equal(resolveResult(branch, "r9"), undefined);
-  assert.match(renderIndex(resultIndex(branch)), /- r1  read  old\.txt  ~1000 tokens  \(carried since cycle 2\)/);
-});
-
-test("the carry budget is 15% of the window, at most 40k, and at most a quarter of the warning point", () => {
-  const warningAt = (window, reserve) => thresholds(window, reserve).warning;
-  // Pi's default reserve: on a large window the 40k cap decides; on a small one the warning point does.
-  assert.equal(carryBudget(128_000, warningAt(128_000, 16_384)), 16_654);
-  assert.equal(carryBudget(272_000, warningAt(272_000, 16_384)), 40_000);
-  // A large reserve leaves little room before the warning, so the carried context must shrink with it.
-  assert.equal(carryBudget(272_000, warningAt(272_000, 180_000)), 11_750);
-  assert.equal(carryBudget(undefined, undefined), 40_000);
 });

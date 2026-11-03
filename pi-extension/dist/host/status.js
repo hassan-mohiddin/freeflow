@@ -63,8 +63,9 @@ export function setFreeflowStatus(
       active.push(`routing blocked · ${reason}`);
     }
   }
-  // The footer shows state that changes while you work, which only routing has; other capabilities are settings
-  // (Task 005). With every capability off it says so.
+  // The footer shows state that changes while you work: routing's, and the task this session holds; other
+  // capabilities are settings (Task 005). With every capability off it says so.
+  if (options.task) active.push(`task ${options.task}`);
   const anyOn = ["compaction", "toolExecution", "taskMemory", "messaging", "cognitiveRouting"].some(
     (name) => capabilityState?.[name]?.effective === true || capabilityState?.[name]?.enabled === true,
   );
@@ -107,6 +108,7 @@ export function freeflowStatusText(state, cognitiveRoutingController, diagnostic
     ...(state.taskMemory?.effective
       ? [`task memory: enabled${diagnostics?.taskMemory ? ` (${diagnostics.taskMemory})` : ""}`]
       : []),
+    ...(diagnostics?.store ? [`store: ${diagnostics.store}`] : []),
     ...(state.messaging?.effective
       ? [`messaging: enabled${diagnostics?.messaging ? ` (${diagnostics.messaging})` : ""}`]
       : []),

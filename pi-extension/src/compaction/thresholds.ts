@@ -1,21 +1,22 @@
 /**
- * When compaction is due. Pi compacts on its own once context passes the window minus its reserve, and stays as the
- * fallback for a full context. Freeflow says "compact now" 25k tokens before that, leaving room to prepare after a
- * safe point, and warns earlier still: at 70% of the window, and at least 20k tokens before "compact now", so the
- * agent has room to reach a safe point first.
+ * Where Freeflow's notice comes. Pi compacts on its own once context passes the window minus its reserve, and stays as
+ * the fallback for a full context. Freeflow's one notice a compaction cycle comes at 75% of the window, or a tenth of
+ * the window before Pi's trigger if that is earlier, as on Claude Code (P5, T13), so the agent has room to reach a safe
+ * point and checkpoint first; rows at 50, 60 and 70% show the context as it grows, below the notice (P80).
  */
 
 export const DEFAULT_RESERVE_TOKENS = 16_384;
-const WARNING_SHARE = 0.7;
-const WARNING_LEAD = 20_000;
-const COMPACT_NOW_HEADROOM = 25_000;
+const NOTICE_SHARE = 0.75;
+const TRIGGER_LEAD = 0.1;
+/** Shares of the window a row shows, once each a cycle, below the notice point. */
+export const ROWS_AT = [0.5, 0.6, 0.7] as const;
 
 export interface Thresholds {
   window: number;
   /** Where Pi compacts on its own. */
   trigger: number;
-  warning: number;
-  compactNow: number;
+  /** Where Freeflow's one notice a cycle comes. */
+  notice: number;
 }
 
 /** Pi's effective reserve for a model: its per-model override, else the ordinary setting, else Pi's default. */
@@ -28,12 +29,10 @@ export function reserveTokens(settings: any, model: { provider?: string; id?: st
 
 export function thresholds(window: number, reserve: number): Thresholds {
   const trigger = Math.max(0, window - reserve);
-  const compactNow = Math.max(0, trigger - COMPACT_NOW_HEADROOM);
   return {
     window,
     trigger,
-    warning: Math.max(0, Math.min(Math.floor(window * WARNING_SHARE), compactNow - WARNING_LEAD)),
-    compactNow,
+    notice: Math.max(0, Math.floor(Math.min(window * NOTICE_SHARE, trigger - TRIGGER_LEAD * window))),
   };
 }
 
@@ -43,5 +42,5 @@ export function strictest(models: readonly any[], settings: any): Thresholds | u
     .filter((model) => typeof model?.contextWindow === "number" && model.contextWindow > 0)
     .map((model) => thresholds(model.contextWindow, reserveTokens(settings, model)));
   if (!all.length) return undefined;
-  return all.reduce((a, b) => (b.warning < a.warning ? b : a));
+  return all.reduce((a, b) => (b.notice < a.notice ? b : a));
 }

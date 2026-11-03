@@ -38,7 +38,7 @@ import type {
 } from "../../cognitive-routing/config.js";
 import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG, type ToolExecutionState } from "../../tool-execution/config.js";
-import { DEFAULT_COMPACTION_CARRY, DEFAULT_COMPACTION_ENABLED, type CompactionState } from "../../compaction/config.js";
+import { DEFAULT_COMPACTION_ENABLED, type CompactionState } from "../../compaction/config.js";
 import {
   AUTO_APPROVE_GROUPS,
   DEFAULT_TASK_MEMORY_ENABLED,
@@ -842,14 +842,6 @@ function sessionFreeflowItems(
     state.compaction?.enabled ?? DEFAULT_COMPACTION_ENABLED,
     DEFAULT_COMPACTION_ENABLED,
   );
-  const carryItem = sessionSwitch(
-    "freeflow.compaction.carry",
-    "Context reuse",
-    "Let the agent carry selected files and tool results into the next cycle.",
-    "compaction.carry",
-    state.compaction?.carry ?? DEFAULT_COMPACTION_CARRY,
-    DEFAULT_COMPACTION_CARRY,
-  );
   const autoApproveItems = (Object.keys(AUTO_APPROVE_GROUPS) as AutoApproveGroup[]).map((group) =>
     sessionSwitch(
       `freeflow.taskMemory.autoApprove.${group}`,
@@ -992,7 +984,7 @@ function sessionFreeflowItems(
       "Compaction",
       "Compaction for this session.",
       capabilityStatus(state.compaction),
-      [compactionItem, carryItem],
+      [compactionItem],
     ),
     sectionItem(
       "freeflow.taskMemory",
@@ -1599,19 +1591,7 @@ function freeflowItems(
     effectiveSource: toolSource(["compaction", "enabled"]),
     defaultValue: DEFAULT_COMPACTION_ENABLED,
   });
-  const compactionCarryItem = createScopedBooleanItem({
-    scope,
-    rawConfig,
-    localConfig,
-    id: "freeflow.compaction.carry",
-    label: "Context reuse",
-    description: "Let the agent carry selected files and tool results into the next cycle.",
-    path: ["compaction", "carry"],
-    effectiveValue: compactionState?.carry ?? DEFAULT_COMPACTION_CARRY,
-    effectiveSource: toolSource(["compaction", "carry"]),
-    defaultValue: DEFAULT_COMPACTION_CARRY,
-  });
-  const compactionItems = [compactionEnabledItem, compactionCarryItem];
+  const compactionItems = [compactionEnabledItem];
   walkSettingsItems(compactionItems, (item) => {
     item.inactive = freeflowInactive;
   });
@@ -1869,7 +1849,6 @@ function pruneKnownDefaults(config: Record<string, unknown>) {
     { path: ["toolExecution", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.enabled },
     { path: ["toolExecution", "guidanceNotices"], value: DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices },
     { path: ["compaction", "enabled"], value: DEFAULT_COMPACTION_ENABLED },
-    { path: ["compaction", "carry"], value: DEFAULT_COMPACTION_CARRY },
     { path: ["taskMemory", "enabled"], value: DEFAULT_TASK_MEMORY_ENABLED },
     ...(Object.keys(AUTO_APPROVE_GROUPS) as AutoApproveGroup[]).map((group) => ({
       path: ["taskMemory", "autoApprove", group],

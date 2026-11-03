@@ -37,8 +37,6 @@ const requiredFiles = [
   "capabilities/cognitive-routing/SKILL.md",
   "capabilities/cognitive-routing/references/coordinator.md",
   "capabilities/cognitive-routing/references/worker.md",
-  "capabilities/compaction/SKILL.md",
-  "capabilities/compaction/references/summary-format.md",
   "pi-extension/dist/compaction/controller.js",
   "capabilities/task-memory/SKILL.md",
   "pi-extension/dist/task-memory/runtime.js",

@@ -7,6 +7,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { isPiSession, piUserMessages } from "./pi-session.mjs";
 import { loadTask5 } from "./record5.mjs";
 
 export const DISCUSSION_FILE = join("sources", "discussion.md");
@@ -101,7 +102,7 @@ export function readPlain(text) {
     .filter((message) => message.text);
 }
 
-export const READERS = { "claude-code": readClaudeCode, plain: readPlain };
+export const READERS = { "claude-code": readClaudeCode, pi: piUserMessages, plain: readPlain };
 
 /** Drops resent duplicates and cut-off copies: a message the next one repeats, or begins with. */
 export function distinct(messages) {
@@ -149,7 +150,8 @@ export function claudeCodeLog(env = process.env) {
 /**
  * The user's messages from the transcript, numbered from 1, at or after `since` and before `until` when given. The
  * transcript is --transcript, else FREEFLOW_TRANSCRIPT (which a harness layer sets, as it sets FREEFLOW_SESSION), else
- * this Claude Code session's log; "-" reads a plain export from standard input.
+ * this Claude Code session's log; "-" reads a plain export from standard input. A Pi session file is known by its
+ * header line.
  */
 export function userMessages({ transcript, format, since = null, until = null, stdin = null, env = process.env }) {
   const path = transcript ?? env.FREEFLOW_TRANSCRIPT ?? claudeCodeLog(env);
@@ -157,14 +159,17 @@ export function userMessages({ transcript, format, since = null, until = null, s
     fail(
       "No transcript found: pass --transcript <path> (and --format plain for a plain export), or set FREEFLOW_TRANSCRIPT.",
     );
-  const chosen = format ?? env.FREEFLOW_TRANSCRIPT_FORMAT ?? (path.endsWith(".jsonl") ? "claude-code" : "plain");
+  const text =
+    path === "-" ? (stdin ?? fail("--transcript - reads standard input, which is empty.")) : readFileSync(path, "utf8");
+  const chosen =
+    format ??
+    env.FREEFLOW_TRANSCRIPT_FORMAT ??
+    (isPiSession(text) ? "pi" : path.endsWith(".jsonl") ? "claude-code" : "plain");
   const reader = READERS[chosen];
   if (!reader) fail(`--format is one of ${Object.keys(READERS).join(", ")}.`);
   const inRange = (message) =>
     !message.at ||
     ((!since || Date.parse(message.at) >= Date.parse(since)) && (!until || Date.parse(message.at) < Date.parse(until)));
-  const text =
-    path === "-" ? (stdin ?? fail("--transcript - reads standard input, which is empty.")) : readFileSync(path, "utf8");
   return distinct(reader(text).filter(inRange)).map((message, index) => ({ ...message, number: index + 1 }));
 }
 

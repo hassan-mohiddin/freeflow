@@ -1,14 +1,16 @@
 /** Freeflow compaction is on whenever Freeflow is, unless a config turns it off. */
 export const DEFAULT_COMPACTION_ENABLED = true;
-export const DEFAULT_COMPACTION_CARRY = true;
-/** The keys `compaction` accepts; the settings test checks each has a /freeflow settings row. */
-export const COMPACTION_KEYS = ["enabled", "carry"];
+/** The keys `compaction` acts on; the settings test checks each has a /freeflow settings row. */
+export const COMPACTION_KEYS = ["enabled"];
+// `carry`, context reuse, is retired: Track Work's bundle carries the files In flight names, and nothing else.
+// Existing configuration files keep loading; the value no longer does anything.
+const RETIRED_KEYS = ["carry"];
 function record(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 export function validateCompactionConfig(value) {
   if (!record(value)) return "compaction must be an object";
-  const unknown = Object.keys(value).find((key) => !COMPACTION_KEYS.includes(key));
+  const unknown = Object.keys(value).find((key) => !COMPACTION_KEYS.includes(key) && !RETIRED_KEYS.includes(key));
   if (unknown) return `compaction has unsupported key: ${unknown}`;
   for (const key of COMPACTION_KEYS)
     if (value[key] !== undefined && typeof value[key] !== "boolean") return `compaction.${key} must be a boolean`;
@@ -19,6 +21,5 @@ export function resolveCompactionConfig(repository, local, freeflowEnabled) {
   const localConfig = record(local.compaction) ? local.compaction : {};
   const layered = (key) => (Object.hasOwn(localConfig, key) ? localConfig[key] : repositoryConfig[key]);
   const enabled = layered("enabled") === undefined ? DEFAULT_COMPACTION_ENABLED : layered("enabled") === true;
-  const carry = layered("carry") === undefined ? DEFAULT_COMPACTION_CARRY : layered("carry") === true;
-  return { enabled, effective: freeflowEnabled && enabled, carry };
+  return { enabled, effective: freeflowEnabled && enabled };
 }

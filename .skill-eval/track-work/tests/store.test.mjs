@@ -492,3 +492,44 @@ test("session status names what keeps the session from a working store, and who 
     assert.match(status(local, cloud)[0].what, /has no remote, so its task memory is lost with this container/);
   });
 });
+
+test("a home that holds only Freeflow's own sessions/ has no store yet: store init lays the store out there and keeps sessions/", async () => {
+  await withFolder(async (folder) => {
+    const remote = await bareRemote(folder);
+    const live = async (home) => {
+      await mkdir(join(home, "sessions", "s-1"), { recursive: true });
+      await writeFile(join(home, "sessions", "s-1", "summary.md"), "## Goal\n- kept\n");
+    };
+    // Local only.
+    const local = join(folder, "local");
+    await live(local);
+    const made = store(folder, ["init", "--home", local, ...IDENTITY]);
+    assert.equal(made.status, 0, made.stderr);
+    assert.equal(await readFile(join(local, "sessions", "s-1", "summary.md"), "utf8"), "## Goal\n- kept\n");
+    assert.equal(git(local, ["status", "--porcelain"]), "", "the store ignores sessions/");
+    // From a remote: the clone needs an empty folder, so sessions/ waits beside it and comes back.
+    const cloud = join(folder, "cloud");
+    await live(cloud);
+    const cloned = store(folder, ["init", "--remote", remote, "--home", cloud, ...IDENTITY]);
+    assert.equal(cloned.status, 0, cloned.stderr);
+    assert.ok(existsSync(join(cloud, "store.json")));
+    assert.equal(await readFile(join(cloud, "sessions", "s-1", "summary.md"), "utf8"), "## Goal\n- kept\n");
+    assert.deepEqual(
+      (await readdir(folder)).filter((entry) => entry.startsWith("cloud.")),
+      [],
+    );
+    // A failed init leaves sessions/ as it found it.
+    const failed = join(folder, "failed");
+    await live(failed);
+    const refused = store(folder, ["init", "--remote", join(folder, "nowhere.git"), "--home", failed, ...IDENTITY]);
+    assert.equal(refused.status, 1);
+    assert.deepEqual(await readdir(failed), ["sessions"]);
+    assert.equal(await readFile(join(failed, "sessions", "s-1", "summary.md"), "utf8"), "## Goal\n- kept\n");
+    // Anything else in the home is still refused.
+    await writeFile(join(failed, "notes.txt"), "mine\n");
+    assert.match(
+      store(folder, ["init", "--home", failed, ...IDENTITY]).stderr,
+      /is not empty and is not a Freeflow store/,
+    );
+  });
+});
