@@ -405,11 +405,7 @@ test("a session can switch each capability without changing either config file",
     const { pi } = loadExtension();
     const ctx = context(cwd);
     const { readCapabilityState } = await import("../../dist/host/config.js");
-    for (const key of [
-      "toolExecution.enabled",
-      "compaction.enabled",
-      "cognitiveRouting.projection",
-    ])
+    for (const key of ["toolExecution.enabled", "compaction.enabled", "cognitiveRouting.projection"])
       assert.equal((await setSessionCoreOverride(key, false, ctx, pi)).reloadRequired, true);
     const state = await readCapabilityState(cwd);
     assert.equal(state.toolExecution.enabled, false);
