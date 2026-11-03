@@ -23,8 +23,11 @@ export type RuntimePromptSelection = Record<(typeof RUNTIME_PROMPTS)[number], bo
 /** The keys `prompts` accepts: a master switch for all three, and one switch per prompt. */
 export const PROMPTS_KEYS = ["enabled", ...RUNTIME_PROMPTS] as const;
 
-/** A section's master switch (`prompts.enabled`, `skills.enabled`) for two valid layers; on unless a config turns it off. */
-export function sectionEnabled(repository: unknown, local: unknown, section: "prompts" | "skills"): boolean {
+/**
+ * A section's master switch (`prompts.enabled`, `skills.enabled`, `events.enabled`) for two valid layers; on unless a
+ * config turns it off.
+ */
+export function sectionEnabled(repository: unknown, local: unknown, section: "prompts" | "skills" | "events"): boolean {
   const layer = (config: any) => (isRecord(config?.[section]) ? config[section] : {});
   return (layer(local).enabled ?? layer(repository).enabled ?? true) === true;
 }
@@ -82,6 +85,20 @@ export function skillsOff(repository: unknown, local: unknown): string[] {
 /** The Runtime State line for skills the user turned off; none while every skill is on. */
 export function skillsStateLine(off: readonly string[] | undefined): string | null {
   return off?.length ? `Skills off: ${off.map((name) => `\`${name}\``).join(", ")}; do not open or follow them.` : null;
+}
+
+/**
+ * The event log (SPEC-006, P5): whether a Freeflow driver (Claude Code's mod, the Pi extension) writes what happens in
+ * the session's loop to `<FREEFLOW_HOME>/events/<session>.jsonl`. On unless a config turns it off.
+ */
+export const EVENTS_KEYS = ["enabled"] as const;
+
+function validateEventsConfig(value: unknown) {
+  if (!isRecord(value)) return "events must be an object";
+  const unknown = Object.keys(value).find((key) => !(EVENTS_KEYS as readonly string[]).includes(key));
+  if (unknown) return `events has unsupported key: ${unknown}`;
+  if (value.enabled !== undefined && typeof value.enabled !== "boolean") return "events.enabled must be a boolean";
+  return null;
 }
 
 /**
@@ -210,6 +227,7 @@ export const SETTINGS: readonly SettingSpec[] = [
     hosts: "all" as const,
     session: true,
   })),
+  { key: "events.enabled", label: "Event log", values: "boolean", default: true, hosts: "all", session: true },
   { key: "review.mode", label: "Review", values: REVIEW_MODES, default: "auto", hosts: "all", session: true },
   { key: "review.model", label: "Reviewer model", values: "name", default: null, hosts: "all", session: true },
   {
@@ -319,6 +337,7 @@ export const CONFIG_SECTIONS = [
   "prompts",
   "review",
   "skills",
+  "events",
 ] as const;
 
 // outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
@@ -372,6 +391,10 @@ export function validateRepositoryConfig(value: unknown): string | null {
     const error = validateSkillsConfig(value.skills);
     if (error) return error;
   }
+  if (value.events !== undefined) {
+    const error = validateEventsConfig(value.events);
+    if (error) return error;
+  }
   if (value.review !== undefined) return validateReviewConfig(value.review);
 
   return null;
@@ -399,6 +422,7 @@ export function validateLocalConfig(value: unknown): string | null {
     "prompts",
     "review",
     "skills",
+    "events",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -430,6 +454,10 @@ export function validateLocalConfig(value: unknown): string | null {
   }
   if (value.skills !== undefined) {
     const error = validateSkillsConfig(value.skills);
+    if (error) return error;
+  }
+  if (value.events !== undefined) {
+    const error = validateEventsConfig(value.events);
     if (error) return error;
   }
   if (value.review !== undefined) return validateReviewConfig(value.review);

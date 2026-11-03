@@ -684,7 +684,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
   // Every setting has a row in all three scopes: Session, Personal and Repository.
   const FILE_ONLY = {};
   const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
-  const { CONFIG_SECTIONS, REVIEW_KEYS, PROMPTS_KEYS, SKILLS_KEYS } =
+  const { CONFIG_SECTIONS, REVIEW_KEYS, PROMPTS_KEYS, SKILLS_KEYS, EVENTS_KEYS } =
     await import("../../dist/host/config-validation.js");
   const { COGNITIVE_ROUTING_KEYS } = await import("../../dist/cognitive-routing/config.js");
   const { TOOL_EXECUTION_KEYS } = await import("../../dist/tool-execution/config.js");
@@ -698,6 +698,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     prompts: PROMPTS_KEYS,
     review: REVIEW_KEYS,
     skills: SKILLS_KEYS,
+    events: EVENTS_KEYS,
   };
   const nested = {
     "cognitiveRouting.profiles": ["coordinator", "helper", "executor"],

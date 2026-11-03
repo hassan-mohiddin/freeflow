@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { cwd } from "node:process";
-import { delimiter, isAbsolute, resolve, sep } from "node:path";
+import { readFileSync } from "node:fs";
+import { delimiter, isAbsolute, join, resolve, sep } from "node:path";
 import { displayPath, readInput, readRecord, resolveRecordPath, storeOf, isFreeflowStore } from "./lib/store.mjs";
 import { checkLinePointers } from "./lib/recover.mjs";
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
@@ -900,8 +901,32 @@ async function requestCompaction(args) {
   // A session summary lives in the Freeflow home whether or not a store is there, so its compaction needs none (P4).
   if (!identity || (!args.includes("--session") && !isFreeflowStore(home)))
     return "Compaction not requested: it needs a session ID, and for a task the Freeflow store.\n";
+  // Only a driver that claims compact answers the request (SPEC-006 P11): elsewhere none is written for no one.
+  const refused = compactRefusal(home, identity);
+  if (refused) return refused;
   await writeCompactionRequest(home, identity);
   return "Compaction requested: Freeflow's harness layer compacts the session when this turn ends, with the record in place of the conversation. End your turn now.\n";
+}
+
+/**
+ * Why this session's Freeflow driver will not compact it, from the claims it wrote at session start
+ * (<home>/sessions/<session>/capabilities.json, read by Setup Freeflow's capabilities.mjs too), or null when it claims
+ * compact as yes.
+ */
+function compactRefusal(home, identity) {
+  const path = join(home, "sessions", identity.id, "capabilities.json");
+  let claim = null;
+  try {
+    const file = JSON.parse(readFileSync(path, "utf8"));
+    if (file?.v === 1 && file.requestSet === 1) claim = file.claims?.compact ?? null;
+  } catch {
+    // No file, or not one this script reads: no driver here claims anything.
+  }
+  if (claim?.claim === "yes") return null;
+  const why = claim
+    ? `Freeflow's driver here does not compact (compact: ${claim.claim}, ${claim.how})`
+    : "No Freeflow driver here compacts (no capabilities for this session)";
+  return `${why}. The harness compacts on its own; after it, recover with view recover.\n`;
 }
 
 try {

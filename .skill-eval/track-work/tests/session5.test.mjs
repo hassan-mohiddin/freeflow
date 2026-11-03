@@ -40,6 +40,15 @@ function ok(result) {
   return result.stdout;
 }
 
+/** The claims a Freeflow driver writes at session start (SPEC-006 T4), here with compact as given. */
+async function claimCompact(home, session, compact = { claim: "yes", how: "its own compaction" }) {
+  await mkdir(join(home, "sessions", session), { recursive: true });
+  await writeFile(
+    join(home, "sessions", session, "capabilities.json"),
+    JSON.stringify({ v: 1, requestSet: 1, driver: "probe", claims: { compact } }),
+  );
+}
+
 const human = (at, content) =>
   JSON.stringify({ type: "user", timestamp: at, origin: { kind: "human" }, message: { role: "user", content } });
 
@@ -145,6 +154,21 @@ test("session status prints this session's state in the store as JSON: its task,
     assert.equal(summary.compact, null);
 
     // checkpoint --compact asks the harness layer to compact at the turn's end; a plain checkpoint never does (P102).
+    // Only where this session's driver claims compact (SPEC-006 P11): with no claims, the checkpoint is written and no
+    // request is left for no one.
+    const refused = ok(cli(["checkpoint", "--record", "widget/task-001", "--compact"], { env: holder, cwd: work }));
+    assert.match(
+      refused,
+      /\nNo Freeflow driver here compacts \(no capabilities for this session\)\. The harness compacts on its own; after it, recover with view recover\.\n$/,
+    );
+    assert.equal(status(holder).compact, null);
+    await claimCompact(join(folder, "store"), "aaaaaaaa-1111", { claim: "possible", how: "not yet" });
+    assert.match(
+      ok(cli(["checkpoint", "--record", "widget/task-001", "--compact"], { env: holder, cwd: work })),
+      /\nFreeflow's driver here does not compact \(compact: possible, not yet\)\. The harness compacts on its own/,
+    );
+    assert.equal(status(holder).compact, null);
+    await claimCompact(join(folder, "store"), "aaaaaaaa-1111");
     const asked = ok(cli(["checkpoint", "--record", "widget/task-001", "--compact"], { env: holder, cwd: work }));
     assert.match(asked, /\nCompaction requested: Freeflow's harness layer compacts the session when this turn ends/);
     const requested = status(holder).compact;
@@ -236,6 +260,11 @@ test("with no store, a session summary still asks for Freeflow's compaction, and
       "## Next action",
       "- Answer.",
     ].join("\n");
+    assert.match(
+      ok(cli(["checkpoint", "--session", "--compact", "--input", "-"], { input: summary, env })),
+      /\nNo Freeflow driver here compacts/,
+    );
+    await claimCompact(join(folder, "store"), "bbbbbbbb-2222");
     assert.match(
       ok(cli(["checkpoint", "--session", "--compact", "--input", "-"], { input: summary, env })),
       /\nCompaction requested: Freeflow's harness layer compacts the session/,
