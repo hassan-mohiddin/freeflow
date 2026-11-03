@@ -1,5 +1,5 @@
 // The event log (SPEC-006, sections 4.1 to 4.4): what happens in a session's loop, one JSON object per line, in one
-// schema for every Freeflow driver. The drivers (Claude Code's mod, the Pi extension) hand their lines to
+// schema for every Freeflow driver. The drivers (Claude Code's mod, the Pi extension, Codex's driver) hand their lines to
 // `events append`, which checks each against schema v1, redacts and cuts a shell command, sets `seq` under a lock on the
 // file and appends; one writer keeps the schema in one place (T1). The log lives on this machine only, in
 // `<FREEFLOW_HOME>/events/<session>.jsonl`, which the store's Git ignores (P1); a checkpoint and a release write a short
@@ -16,7 +16,7 @@ import { isFreeflowStore } from "./store.mjs";
 /** The schema's major version; readers accept it and the one before (there is none before 1). */
 export const EVENT_VERSION = 1;
 export const EVENTS_FOLDER = "events";
-export const HARNESSES = ["claude-code", "pi"];
+export const HARNESSES = ["claude-code", "pi", "codex"];
 /** How long a shell command's text may be once redacted (P4). */
 export const COMMAND_LIMIT = 200;
 /** Every line has these, set by its driver; `seq` alone is the writer's. */
@@ -68,7 +68,7 @@ export const KINDS = {
   "agent.spawn": { delegation: [(value) => /^D-\d{3,}(\.\d+)?$/.test(value)], model: [text] },
   "agent.stop": { blocked: [boolean] },
   freeflow: {
-    what: [oneOf(["notice", "row", "menu", "compact", "sync", "capabilities", "dropped"]), true],
+    what: [oneOf(["notice", "row", "menu", "compact", "sync", "capabilities", "dropped", "error"]), true],
     detail: [(value) => typeof value === "string"],
     dropped: [count],
   },

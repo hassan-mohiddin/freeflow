@@ -80,7 +80,9 @@ test("schema v1: each kind's required fields, its values, and no field it does n
     "ts must be an ISO 8601 UTC time with milliseconds",
   );
   assert.match(lineProblem({ ...base("../escape"), kind: "turn.start" }), /^session must be a session ID/);
-  assert.match(lineProblem({ ...base(), harness: "codex", kind: "turn.start" }), /^harness must be one of/);
+  // Codex's driver writes "codex" (SPEC-012); a harness with no driver is still refused.
+  assert.equal(lineProblem({ ...base(), harness: "codex", kind: "turn.start" }), null);
+  assert.match(lineProblem({ ...base(), harness: "cursor", kind: "turn.start" }), /^harness must be one of/);
   assert.match(lineProblem({ ...base(), kind: "prompt" }), /^kind must be one of/);
   // Never contents (P4): a tool's output, a prompt, an answer, a file's text have no field to go in.
   assert.equal(
