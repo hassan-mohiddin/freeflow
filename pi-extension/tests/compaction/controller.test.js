@@ -70,7 +70,7 @@ test("rows at 50, 60 and 70% once each, then the cycle's one notice, naming the 
   assert.equal(row.level, "row");
   assert.match(
     row.text,
-    /Compaction cycle 1: the context is at 53% of its window \(105000 of 200000 tokens\); the checkpoint notice comes at about 150000 tokens\./,
+    /Context cycle 1: the context is at 53% of its window \(105000 of 200000 tokens\); the checkpoint notice comes at about 150000 tokens\./,
   );
   assert.equal(controller.observe(ctx), undefined, "the 50% row is shown once");
   at(145_000);
@@ -84,7 +84,7 @@ test("rows at 50, 60 and 70% once each, then the cycle's one notice, naming the 
     once.text,
     /run node \/pkg\/working-record\.mjs checkpoint --record freeflow\/task-001 --compact --input -/,
   );
-  assert.match(once.text, /This is the only notice this compaction cycle/);
+  assert.match(once.text, /This is the only notice this context cycle/);
   assert.doesNotMatch(once.text, /compact_context|Compact now/);
   at(170_000);
   assert.equal(controller.observe(ctx), undefined, "no second notice and no repeat");
@@ -124,7 +124,7 @@ test("a run that ends with checkpoint --compact done compacts with the bundle, k
   assert.equal(recovery.customType, RECOVERY_TYPE);
   assert.match(
     recovery.content,
-    /compaction cycle 2 starts here, and the conversation is now the bundle of freeflow\/task-001/,
+    /context cycle 2 starts here, and the conversation is now the bundle of freeflow\/task-001/,
   );
   assert.deepEqual(calls.bundle, [{}]);
   assert.equal(calls.answered, 1);

@@ -80,7 +80,7 @@ test(
           assert.doesNotMatch(after.join("\n"), /Complete the fixture assignment/, "nothing raw is kept");
           assert.match(
             after[1],
-            /compaction cycle 2 starts here, and the conversation is now the session summary's bundle/,
+            /context cycle 2 starts here, and the conversation is now the session summary's bundle/,
           );
           const compaction = manager.getBranch().find((entry) => entry.type === "compaction");
           assert.equal(compaction.details.freeflow.bundle, "session");

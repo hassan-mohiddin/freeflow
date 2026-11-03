@@ -86,7 +86,7 @@ Pi's footer shows one `freeflow:` line with what changes while you work: Cogniti
 | `freeflow: unavailable` | Freeflow on, but its packaged guidance cannot be read |
 | `freeflow: setup needed`, `freeflow: config error` | no configuration file, or one Freeflow cannot read |
 
-`/freeflow status` gives the full state, with prompt-cache diagnostics, running background commands and the compaction cycle.
+`/freeflow status` gives the full state, with prompt-cache diagnostics, running background commands and the context cycle.
 
 ## All settings
 

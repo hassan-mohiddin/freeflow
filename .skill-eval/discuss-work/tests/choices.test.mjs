@@ -115,7 +115,7 @@ test("the agreement shows the plan's size last (P101), and its Technical part th
         'Your decisions: 1. Text when the queue is full? I\'d go with "Queue full, try later"',
         "                2. Retry count? I'd go with 3, because the client does",
         'Technical:      1 more choice and the plan; say "show technical" to see them.',
-        "Size:           3 compaction cycles (this one and 2 more), about $5.85 at API list price",
+        "Size:           3 context cycles (this one and 2 more), about $5.85 at API list price",
         "",
       ].join("\n"),
     );
@@ -126,14 +126,14 @@ test("the agreement shows the plan's size last (P101), and its Technical part th
         [
           "Technical:      T1 FIFO array in queue.ts (serves P1)",
           "Plan:           each Slice about 90,000 tokens of context, working about 50 min, about $1.95, mostly claude-opus-5-5 high (the median of 6 measured Slices of project demo, corrected from 3 predictions)",
-          "                - Parser: this compaction cycle into the next",
+          "                - Parser: this context cycle into the next",
           "                - CLI: the next",
           "                - Docs: the next into +2",
-          "                by compaction cycle: this one about 50,000 tokens, $1.08; the next about 150,000, $3.25; +2 about 70,000, $1.52",
+          "                by context cycle: this one about 50,000 tokens, $1.08; the next about 150,000, $3.25; +2 about 70,000, $1.52",
           "                in all: about 270,000 tokens of context, working about 2 h 30 min, about $5.85",
           "                could run in parallel: Parser, Docs",
           "                prices: API list price as of 2026-10-30, from the Claude API reference bundled with Claude Code 2.1.311",
-          "Size:           3 compaction cycles (this one and 2 more), about $5.85 at API list price",
+          "Size:           3 context cycles (this one and 2 more), about $5.85 at API list price",
           "",
         ].join("\n"),
       ),
@@ -189,7 +189,7 @@ test("a sized plan: the Size line gives the range, the most likely cost and what
     const lines = technical.stdout.split("\n");
     assert.ok(
       lines.includes(
-        "Size:           2 compaction cycles (this one and 1 more), $4.10 to $7.80 at API list price, most likely $5.20 (from 5 measured Slices of this task, 5 of them sized; 2 of 2 Slices left sized; not corrected yet)",
+        "Size:           2 context cycles (this one and 1 more), $4.10 to $7.80 at API list price, most likely $5.20 (from 5 measured Slices of this task, 5 of them sized; 2 of 2 Slices left sized; not corrected yet)",
       ),
       technical.stdout,
     );
@@ -200,13 +200,11 @@ test("a sized plan: the Size line gives the range, the most likely cost and what
       technical.stdout,
     );
     assert.ok(
-      lines.includes("                - One (12 files): this compaction cycle, about 36,000 tokens, $1.20"),
+      lines.includes("                - One (12 files): this context cycle, about 36,000 tokens, $1.20"),
       technical.stdout,
     );
     assert.ok(
-      lines.includes(
-        "                - Two (40 files): this compaction cycle into the next, about 120,000 tokens, $4.00",
-      ),
+      lines.includes("                - Two (40 files): this context cycle into the next, about 120,000 tokens, $4.00"),
       technical.stdout,
     );
     // A plan from Slices measured with --used has no cost: the Size line says so instead of a range.
@@ -218,14 +216,14 @@ test("a sized plan: the Size line gives the range, the most likely cost and what
     assert.equal(brief.status, 0, brief.stderr);
     assert.match(
       brief.stdout,
-      /\nSize: {11}2 compaction cycles \(this one and 1 more\); no cost measured yet \(from 5 measured Slices of this task, .*\)\n$/,
+      /\nSize: {11}2 context cycles \(this one and 1 more\); no cost measured yet \(from 5 measured Slices of this task, .*\)\n$/,
     );
   } finally {
     await rm(folder, { recursive: true, force: true });
   }
 });
 
-test("choices renders the agreement and the hand-over filter, and refuses a Schema 4 record", async () => {
+test("choices renders the agreement and the Return filter, and refuses a Schema 4 record", async () => {
   const agreement = choices(
     process.cwd(),
     ["agreement", "--list", "-", "--do", "Add a queue", "--stop", "the queue works"],
@@ -243,8 +241,11 @@ test("choices renders the agreement and the hand-over filter, and refuses a Sche
       "",
     ].join("\n"),
   );
-  const handover = choices(process.cwd(), ["handover", "--list", "-", "--json"], LIST);
+  const handover = choices(process.cwd(), ["return", "--list", "-", "--json"], LIST);
   assert.deepEqual(JSON.parse(handover.stdout).shown, ["P2", "P3", "T1"]);
+  // Its former name still works.
+  const former = choices(process.cwd(), ["handover", "--list", "-", "--json"], LIST);
+  assert.deepEqual(JSON.parse(former.stdout).shown, ["P2", "P3", "T1"]);
   assert.equal(choices(process.cwd(), ["agreement", "--list", "-"], LIST).status, 2);
 
   // A Schema 4 record is refused, naming migrate: only Track Work's migrate reads one now.

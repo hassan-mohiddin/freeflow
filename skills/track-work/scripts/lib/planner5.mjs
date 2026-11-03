@@ -343,7 +343,7 @@ function priceLine(table) {
 }
 
 const cycleName = (cycle) =>
-  cycle === 0 ? "this compaction cycle" : cycle === 1 ? "the next compaction cycle" : `compaction cycle +${cycle}`;
+  cycle === 0 ? "this context cycle" : cycle === 1 ? "the next context cycle" : `context cycle +${cycle}`;
 const laterName = (cycle) => (cycle === 1 ? "the next" : cycleName(cycle));
 
 /** Whether a Slice's dependency text names another Slice, by its title or the part of it before " — ". */
@@ -394,8 +394,8 @@ function delegationRows(pools, fanOut) {
 }
 
 /**
- * `estimate --plan` (P84): each Slice left with its expected size, the compaction cycle it lands in counting from
- * what is left of this one, any Slice bigger than a compaction cycle, the totals, the Slices with no dependency
+ * `estimate --plan` (P84): each Slice left with its expected size, the context cycle it lands in counting from
+ * what is left of this one, any Slice bigger than a context cycle, the totals, the Slices with no dependency
  * between them, and delegated work's measured cost; with `json`, the same as data, which Discuss Work's
  * `choices.mjs agreement --plan` renders as the agreement's size and plan (P87). `model` is the model and effort the
  * session runs on, which prices the Slices where enough were run on it (P8 of A-005).
@@ -421,10 +421,10 @@ export function planView({
   const lines = [`Plan: ${plural(items.length, "Slice")} left, from ${from}.`];
   if (!median && !done)
     throw new PlanError(
-      `There are fewer than ${MIN_MEASURED} measured Slices (${counts(pools)}): pass --done <n>, the parts of the work done in this compaction cycle, to plan at its rate.`,
+      `There are fewer than ${MIN_MEASURED} measured Slices (${counts(pools)}): pass --done <n>, the parts of the work done in this context cycle, to plan at its rate.`,
     );
   // Each Slice's prediction: from its size where it has one and sized Slices exist (P15), else the median Slice,
-  // else, with too few measured, at most this compaction cycle's rate per part done.
+  // else, with too few measured, at most this context cycle's rate per part done.
   const atRate = median ? null : used / done;
   const predictions = items.map((item) => (item.size && rate ? predictFrom(pools, item.size, model) : median));
   const contextOf = (index) => predictions[index]?.context ?? atRate;
@@ -449,7 +449,7 @@ export function planView({
   // What the plan rests on, first, with the range it leaves (P18).
   const sureness = median
     ? `from ${plural(median.size.n, "measured Slice")} of ${median.size.pool}${rate ? `, ${rate.n} of them sized` : ", none sized"}; ${sizedCount} of ${items.length} Slices left sized; ${correction ? `corrected from ${plural(correction.n, "prediction")} of ${correction.pool}` : "not corrected yet"}`
-    : `from this compaction cycle's rate, with ${plural(measured, "measured Slice")}: an upper bound, no cost`;
+    : `from this context cycle's rate, with ${plural(measured, "measured Slice")}: an upper bound, no cost`;
   lines.push(
     money
       ? `Expected in all: ${dollars(money.low)} to ${dollars(money.high)} at list price, most likely ${dollars(money.usd)}; context ${count(total.low)} to ${count(total.high)}, most likely ${count(total.context)}; working about ${duration(money.workingMs)}. Resting on: ${sureness}.`
@@ -471,7 +471,7 @@ export function planView({
       );
   } else {
     lines.push(
-      `Each Slice, expected: context at most about ${count(atRate)}, at this compaction cycle's rate (${count(used)} tokens over ${done} parts done), since fewer than ${MIN_MEASURED} Slices are measured (${counts(pools)}); no cost or time until they are.`,
+      `Each Slice, expected: context at most about ${count(atRate)}, at this context cycle's rate (${count(used)} tokens over ${done} parts done), since fewer than ${MIN_MEASURED} Slices are measured (${counts(pools)}); no cost or time until they are.`,
     );
   }
   if (rate && sizedCount) {
@@ -497,10 +497,10 @@ export function planView({
   const capacity = notice - startsAt;
   if (capacity <= 0)
     throw new PlanError(
-      `A compaction cycle starts at about ${count(startsAt)} tokens, at or past the notice point: nothing fits.`,
+      `A context cycle starts at about ${count(startsAt)} tokens, at or past the notice point: nothing fits.`,
     );
   lines.push(
-    `Context now: about ${count(used)} of ${count(window.tokens)} tokens; Freeflow's notice at about ${count(notice)}. ${start ? `A compaction cycle starts at about ${count(startsAt)} (${start.from}), so each later one holds about ${count(capacity)}.` : `Where a compaction cycle starts is unknown (no transcript read): taken as empty, so each later compaction cycle holds about ${count(capacity)}.`}`,
+    `Context now: about ${count(used)} of ${count(window.tokens)} tokens; Freeflow's notice at about ${count(notice)}. ${start ? `A context cycle starts at about ${count(startsAt)} (${start.from}), so each later one holds about ${count(capacity)}.` : `Where a context cycle starts is unknown (no transcript read): taken as empty, so each later context cycle holds about ${count(capacity)}.`}`,
   );
   // Each Slice from where the last one ended: what does not fit before the notice goes on after the next start.
   const inCycle = new Map();
@@ -543,10 +543,10 @@ export function planView({
     const landing = first === cycle ? cycleName(first) : `${cycleName(first)} into ${laterName(cycle)}`;
     const figures = `context about ${count(context)}${priced(prediction) ? `, about ${dollars(prediction.usd)}` : ""}`;
     lines.push(
-      `- ${item.title}${item.size ? ` (${plural(item.size, "file")})` : ""}: ${landing}; ${figures}${oversized ? `; bigger than a compaction cycle (about ${count(capacity)}): split it or delegate it` : ""}`,
+      `- ${item.title}${item.size ? ` (${plural(item.size, "file")})` : ""}: ${landing}; ${figures}${oversized ? `; bigger than a context cycle (about ${count(capacity)}): split it or delegate it` : ""}`,
     );
   }
-  const reach = cycle === 0 ? "within this compaction cycle" : `reaching ${cycleName(cycle)}`;
+  const reach = cycle === 0 ? "within this context cycle" : `reaching ${cycleName(cycle)}`;
   lines.push(
     money
       ? `In all: about ${count(total.context)} tokens of context, ${reach}; working about ${duration(money.workingMs)}; about ${dollars(money.usd)} at list price (${dollars(money.low)} to ${dollars(money.high)}).`
@@ -575,7 +575,7 @@ export function planView({
         upperBound: !perSlice,
         source: perSlice
           ? `the median of ${perSlice.size.n} measured Slices of ${perSlice.size.pool}${perSlice.correction ? `, corrected from ${plural(perSlice.correction.n, "prediction")}` : ""}`
-          : `this compaction cycle's rate (${count(used)} tokens over ${done} parts done)`,
+          : `this context cycle's rate (${count(used)} tokens over ${done} parts done)`,
       },
       sureness,
       landings,

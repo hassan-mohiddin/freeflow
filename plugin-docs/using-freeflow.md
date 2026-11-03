@@ -10,7 +10,7 @@ Freeflow is a feedback-based control system for coding agents: each step checks 
 
 | Part | What it gives the agent | Where |
 | --- | --- | --- |
-| **The cycle** | Agree before building, build and verify, review and hand over, in a short always-loaded prompt with the Interaction Contract and the Working Method. | Every host where Freeflow delivers its prompts. |
+| **The cycle** | Agree before building, build and verify, review and return, in a short always-loaded prompt with the Interaction Contract and the Working Method. | Every host where Freeflow delivers its prompts. |
 | **Eleven skills** | One per capability: discussing and agreeing, executing, verifying, reviewing, delivering, task memory, documents, research, and a few for contributors. Each brings references for less common situations and scripts that gather the facts a decision needs. | Every host. |
 | **Pi capabilities** | Tool Execution (including skill guidance at the tool call that needs it), Compaction, Messaging and Cognitive Routing. | Native Pi. |
 
@@ -210,13 +210,13 @@ A plan can describe a release, but it does not authorize publication. A review c
 
 ## Steer the work
 
-Freeflow runs one cycle: agree, build and verify, review and hand over. [How Freeflow Works](workflow.md) describes it in full.
+Freeflow runs one cycle: agree, build and verify, review and return. [How Freeflow Works](workflow.md) describes it in full.
 
 ### The agreement
 
 Before the first edit on a task that builds or changes behavior, the agent sends one message: what it will do, where it stops, and your decisions, each with its default and why. "Go" accepts every default; a correction changes only the line it names. A question, an exactly specified change, or a run where no one can answer needs no agreement; the agent then takes its defaults and lists them at the end.
 
-A choice that comes up during the work stops it only when the work cannot go on without your answer. On Pi the agent can put that choice to you in a dialog and continue on your answer; see [Questions in a dialog](integrations/pi.md#questions-in-a-dialog). At the end, the hand-over shows the choices you have not seen.
+A choice that comes up during the work stops it only when the work cannot go on without your answer. On Pi the agent can put that choice to you in a dialog and continue on your answer; see [Questions in a dialog](integrations/pi.md#questions-in-a-dialog). At the end, the Return shows the choices you have not seen.
 
 You can ask the agent to skip an optional step, such as waiting for the agreement, a plan, a review or a record; it skips only that, and still asks before a hard-to-reverse choice.
 
@@ -259,11 +259,11 @@ A valid exit may be an answer, completion, wait, pause, handoff, deferment, cont
 
 ## Preserve memory with Track Work
 
-Track Work keeps a Working Record for a task whose work will outlast the current compaction cycle (from a session's start or a compaction to the next compaction), or whose decisions, route or partial state would misdirect the next session if they were lost. The record is the agent's memory, kept through Track Work's script; it is not authority.
+Track Work keeps a Working Record for a task whose work will outlast the current context cycle (from a session's start or a compaction to the next compaction), or whose decisions, route or partial state would misdirect the next session if they were lost. The record is the agent's memory, kept through Track Work's script; it is not authority.
 
 ### Use a Working Record when
 
-- the work will outlast this compaction cycle: `working-record.mjs estimate` compares the context used so far with the work left;
+- the work will outlast this context cycle: `working-record.mjs estimate` compares the context used so far with the work left;
 - decisions or constraints must survive context loss;
 - evidence, blockers, partial effects, or failed approaches matter later;
 - another session or person may continue the work;
@@ -287,12 +287,12 @@ A session holds at most one task, and a task has one holder at a time. Where Fre
 ### What a task folder keeps
 
 - `record.md`: the Goal, what is settled and what is still open; the work agreement in your words, with its return points; the current Slice; work handed to other agents; where each repository stands; where the step in progress stands; what recovery must read; the next action; and the proposed route.
-- `history.md`: one entry per closed Slice, agreement or delegation, each with a cue saying when it matters, and what each Slice used: its context and the compaction cycles it touched and, where the host's transcript can be read (on Claude Code), its time and its cost at API list price by model and effort.
+- `history.md`: one entry per closed Slice, agreement or delegation, each with a cue saying when it matters, and what each Slice used: its context and the context cycles it touched and, where the host's transcript can be read (on Claude Code), its time and its cost at API list price by model and effort.
 - `decisions.md`: the open agreement's decision list.
 - `sessions.md`: every session that held the task.
 - `sources/discussion.md`: your messages that shaped the work, word for word.
 
-The memory the agent shapes has a recovery budget that grows with the context window; when a task's memory keeps running over, the agent may propose expanded mode, which only you turn on. `working-record.mjs estimate --plan` sizes the work left from what past Slices used, and the work agreement can show it: how many compaction cycles, and the cost at list price.
+The memory the agent shapes has a recovery budget that grows with the context window; when a task's memory keeps running over, the agent may propose expanded mode, which only you turn on. `working-record.mjs estimate --plan` sizes the work left from what past Slices used, and the work agreement can show it: how many context cycles, and the cost at list price.
 
 ### What it does not do
 
@@ -309,7 +309,7 @@ Only the user changes task state. Closing a Slice does not complete the task.
 
 ### Before a compaction, and after
 
-Freeflow's notice comes once each compaction cycle, before the host's own compaction would start. The agent works on to a safe point, checkpoints the record with `--compact` and ends its turn. On Claude Code (2.1.287 or later), Freeflow then compacts the session itself, with the record and everything recovery reads in place of the conversation, and starts the next turn. It compacts only when the agent asks this way, so a checkpoint before a pause or a switch keeps the conversation, and the agent may ask earlier, at a point where the conversation holds mostly finished work. Where the host compacts on its own, Freeflow adds the record as of the last checkpoint after the host's summary where it can; otherwise, and after a clear or a transfer to another session, the agent recovers with `working-record.mjs view recover` and reads every source it lists. Either way it reconciles the record with your latest direction and the live state before acting, and says in one line what it read.
+Freeflow's notice comes once each context cycle, before the host's own compaction would start. The agent works on to a safe point, checkpoints the record with `--compact` and ends its turn. On Claude Code (2.1.287 or later), Freeflow then compacts the session itself, with the record and everything recovery reads in place of the conversation, and starts the next turn. It compacts only when the agent asks this way, so a checkpoint before a pause or a switch keeps the conversation, and the agent may ask earlier, at a point where the conversation holds mostly finished work. Where the host compacts on its own, Freeflow adds the record as of the last checkpoint after the host's summary where it can; otherwise, and after a clear or a transfer to another session, the agent recovers with `working-record.mjs view recover` and reads every source it lists. Either way it reconciles the record with your latest direction and the live state before acting, and says in one line what it read.
 
 While the conversation about the work is still in context, including after a new message, a pause or a resumed session, re-reading the record wastes context and does not make it more authoritative.
 
@@ -318,12 +318,12 @@ While the conversation about the work is still in context, including after a new
 Useful requests include:
 
 ```text
-Keep a task for this; it will take several compaction cycles. Preserve the
+Keep a task for this; it will take several context cycles. Preserve the
 decisions, evidence limits and next action.
 ```
 
 ```text
-Before you send the agreement, show me how many compaction cycles the plan
+Before you send the agreement, show me how many context cycles the plan
 takes and what it costs at list price.
 ```
 

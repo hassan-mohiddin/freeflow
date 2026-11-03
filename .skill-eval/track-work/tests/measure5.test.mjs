@@ -31,7 +31,7 @@ const usage = (read, written = 0, output = 100, input = 2) => ({
   output_tokens: output,
 });
 
-// A session: three requests, a subagent's request, a compaction, then two requests in the next compaction cycle.
+// A session: three requests, a subagent's request, a compaction, then two requests in the next context cycle.
 const LOG = [
   request(0, "m1", usage(50_000, 898)),
   request(2, "m2", usage(51_000, 900)),
@@ -48,7 +48,7 @@ const LOG = [
   request(30, "m5", usage(45_000, 900)), // after a 24-minute wait: wall time, not working time
 ].join("\n");
 
-test("a measure takes its first reading, then adds the context each compaction cycle grew, and billed tokens by model and effort", async () => {
+test("a measure takes its first reading, then adds the context each context cycle grew, and billed tokens by model and effort", async () => {
   const folder = await mkdtemp(join(tmpdir(), "track-work-measure5-"));
   try {
     const log = join(folder, "session.jsonl");
@@ -77,7 +77,7 @@ test("a measure takes its first reading, then adds the context each compaction c
     const line = renderMeasure(measured);
     assert.match(
       line,
-      /^context 45,002 over 2 compaction cycle\(s\); working 6 min, wall 30 min; claude-opus-5-5 high: 8 in, 4,800 written, 196,000 read, 400 out, \$0\.07; as of 2026-10-30T10:30:00\.000Z at 46,002 tokens$/,
+      /^context 45,002 over 2 context cycle\(s\); working 6 min, wall 30 min; claude-opus-5-5 high: 8 in, 4,800 written, 196,000 read, 400 out, \$0\.07; as of 2026-10-30T10:30:00\.000Z at 46,002 tokens$/,
     );
     assert.deepEqual(parseMeasure(line).billed["claude-opus-5-5 high"].read, 196_000);
     const again = addEvents(parseMeasure(line), transcriptEvents(log, Date.parse(at(30))));
@@ -177,7 +177,7 @@ test("slice start takes the first reading from the transcript the harness names,
     assert.equal(started.status, 0, started.stderr);
     assert.match(
       await readFile(record, "utf8"),
-      /\n- Measured: context 0 over 1 compaction cycle\(s\); working 0 min, wall 0 min; as of \S+ at 40,000 tokens\n/,
+      /\n- Measured: context 0 over 1 context cycle\(s\); working 0 min, wall 0 min; as of \S+ at 40,000 tokens\n/,
     );
 
     // A checkpoint adds what was used since the last reading.
@@ -186,7 +186,7 @@ test("slice start takes the first reading from the transcript the harness names,
     assert.equal(checkpointed.status, 0, checkpointed.stderr);
     assert.match(
       await readFile(record, "utf8"),
-      /\n- Measured: context 12,000 over 1 compaction cycle\(s\); working 2 min, wall 2 min; claude-opus-5-5 high: 0 in, 0 written, 52,000 read, 0 out, \$0\.01; as of \S+ at 52,000 tokens\n/,
+      /\n- Measured: context 12,000 over 1 context cycle\(s\); working 2 min, wall 2 min; claude-opus-5-5 high: 0 in, 0 written, 52,000 read, 0 out, \$0\.01; as of \S+ at 52,000 tokens\n/,
     );
     await appendFile(log, `${line(3, "c", 60_000)}\n`);
     const closed = run(
@@ -197,7 +197,7 @@ test("slice start takes the first reading from the transcript the harness names,
     const history = await readFile(join(dirname(record), "history.md"), "utf8");
     assert.match(
       history,
-      /\n- Measured: context 20,000 over 1 compaction cycle\(s\); working 4 min, wall 4 min; claude-opus-5-5 high: 0 in, 0 written, 112,000 read, 0 out, \$0\.02; as of \S+ at 60,000 tokens\n/,
+      /\n- Measured: context 20,000 over 1 context cycle\(s\); working 4 min, wall 4 min; claude-opus-5-5 high: 0 in, 0 written, 112,000 read, 0 out, \$0\.02; as of \S+ at 60,000 tokens\n/,
     );
 
     // With no transcript named and no --used, nothing is measured, and the entry says so.
@@ -218,4 +218,14 @@ test("slice start takes the first reading from the transcript the harness names,
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("a Measured line written before the rename, with compaction cycle(s), still parses", () => {
+  const measure = parseMeasure(
+    "context 61,090 over 2 compaction cycle(s) (partly measured); working 8 min, wall 9 min",
+  );
+  assert.equal(measure.context, 61_090);
+  assert.equal(measure.cycles, 2);
+  assert.equal(measure.partial, true);
+  assert.equal(measure.workingMs, 8 * 60_000);
 });

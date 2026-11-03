@@ -1,6 +1,6 @@
 /**
  * Where Freeflow's notice comes. Pi compacts on its own once context passes the window minus its reserve, and stays as
- * the fallback for a full context. Freeflow's one notice a compaction cycle comes at 75% of the window, or a tenth of
+ * the fallback for a full context. Freeflow's one notice a context cycle comes at 75% of the window, or a tenth of
  * the window before Pi's trigger if that is earlier, as on Claude Code (P5, T13), so the agent has room to reach a safe
  * point and checkpoint first; rows at 50, 60 and 70% show the context as it grows, below the notice (P80).
  */

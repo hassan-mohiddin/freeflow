@@ -483,7 +483,7 @@ test("delegate close measures the worker from its own log, beside the coordinato
     );
     assert.match(
       await readFile(join(taskDir, "history.md"), "utf8"),
-      /\n- Measured: context 12,302 over 1 compaction cycle\(s\); working 3 min, wall 3 min; claude-haiku-5-5 xhigh: 4 in, 11,000 written, 10,500 read, 1,300 out, \$0\.00; as of 2026-10-30T10:03:00\.000Z at 12,302 tokens\n/,
+      /\n- Measured: context 12,302 over 1 context cycle\(s\); working 3 min, wall 3 min; claude-haiku-5-5 xhigh: 4 in, 11,000 written, 10,500 read, 1,300 out, \$0\.00; as of 2026-10-30T10:03:00\.000Z at 12,302 tokens\n/,
     );
   });
 });

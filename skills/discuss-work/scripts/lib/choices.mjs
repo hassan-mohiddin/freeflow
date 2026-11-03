@@ -4,7 +4,7 @@
 //   validate   IDs, states, T -> P links, a default on every plain item, the user's words on agreed items, a reason on
 //              changed ones;
 //   agreement  the reply sent before building: What I'll do / Where I stop / Your decisions / Technical: N;
-//   handover   the items a hand-over shows: new, changed and default;
+//   return     the items a Return shows: new, changed and default;
 //   catch-up   after an unattended run: defaults taken, choices waiting, changes, and what ran (the record's current
 //              Slice's updates).
 
@@ -96,16 +96,16 @@ function duration(ms) {
   const total = Math.round(ms / 60_000);
   return total < 60 ? `${total} min` : `${Math.floor(total / 60)} h${total % 60 ? ` ${total % 60} min` : ""}`;
 }
-const cycleName = (cycle) => (cycle === 0 ? "this compaction cycle" : cycle === 1 ? "the next" : `+${cycle}`);
+const cycleName = (cycle) => (cycle === 0 ? "this context cycle" : cycle === 1 ? "the next" : `+${cycle}`);
 const shortName = (cycle) => (cycle === 0 ? "this one" : cycleName(cycle));
 
-// The agreement's Size line, from Track Work's `estimate --plan --json` (P87): the compaction cycles the work touches
+// The agreement's Size line, from Track Work's `estimate --plan --json` (P87): the context cycles the work touches
 // and its cost at API list price.
 function sizeLine(plan) {
   const cycles =
     plan.cycles <= 1
-      ? "within this compaction cycle"
-      : `${plan.cycles} compaction cycles (this one and ${plan.cycles - 1} more)`;
+      ? "within this context cycle"
+      : `${plan.cycles} context cycles (this one and ${plan.cycles - 1} more)`;
   const ranged = plan.total.usdLow !== undefined && plan.total.usdLow !== null;
   const cost =
     plan.total.usd === null
@@ -129,9 +129,9 @@ function planLines(plan) {
         : `each Slice${plan.landings.some((item) => item.files) ? " with no size" : ""} about ${count(each.context)} tokens of context, working about ${duration(each.workingMs)}, about ${dollars(each.usd)}${each.model ? `, mostly ${each.model}` : ""} (${each.source})`,
     ...plan.landings.map(
       (item) =>
-        `- ${item.title}${item.files ? ` (${item.files} files)` : ""}: ${item.first === item.last ? cycleName(item.first) : `${cycleName(item.first)} into ${cycleName(item.last)}`}${item.context === undefined ? "" : `, about ${count(item.context)} tokens${item.usd === null ? "" : `, ${dollars(item.usd)}`}`}${item.oversized ? "; bigger than a compaction cycle" : ""}`,
+        `- ${item.title}${item.files ? ` (${item.files} files)` : ""}: ${item.first === item.last ? cycleName(item.first) : `${cycleName(item.first)} into ${cycleName(item.last)}`}${item.context === undefined ? "" : `, about ${count(item.context)} tokens${item.usd === null ? "" : `, ${dollars(item.usd)}`}`}${item.oversized ? "; bigger than a context cycle" : ""}`,
     ),
-    `by compaction cycle: ${plan.perCycle
+    `by context cycle: ${plan.perCycle
       .map(
         (part, index) =>
           `${shortName(part.cycle)} about ${count(part.context)}${index ? "" : " tokens"}${part.usd === null ? "" : `, ${dollars(part.usd)}`}`,
@@ -192,7 +192,7 @@ export function renderChoices(
     ].join("\n");
     return { text, data: { decisions: open.map((item) => item.id), technical: technical.length } };
   }
-  if (view === "handover") {
+  if (view === "return") {
     const shown = byState(items, ["new", "changed", "default"]);
     return {
       text: shown.length

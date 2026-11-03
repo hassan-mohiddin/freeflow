@@ -1,6 +1,6 @@
 # Compaction
 
-Freeflow compaction on Pi: one soft notice a compaction cycle, then the agent checkpoints with Track Work's `checkpoint --compact`, and at the run's end Freeflow writes Pi's compaction with the task's bundle; Pi's own compaction stays as the fallback, with the bundle after its summary. How it works and why, including the behavior that looks wrong but is intended: [`dev-docs/subsystems/compaction.md`](../../../dev-docs/subsystems/compaction.md). The model-facing method is Track Work's checkpoint, [`skills/track-work/SKILL.md`](../../../skills/track-work/SKILL.md).
+Freeflow compaction on Pi: one soft notice a context cycle, then the agent checkpoints with Track Work's `checkpoint --compact`, and at the run's end Freeflow writes Pi's compaction with the task's bundle; Pi's own compaction stays as the fallback, with the bundle after its summary. How it works and why, including the behavior that looks wrong but is intended: [`dev-docs/subsystems/compaction.md`](../../../dev-docs/subsystems/compaction.md). The model-facing method is Track Work's checkpoint, [`skills/track-work/SKILL.md`](../../../skills/track-work/SKILL.md).
 
 | File | Owns |
 |---|---|

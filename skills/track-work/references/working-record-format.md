@@ -153,7 +153,7 @@ The three top-level sections are fixed, in this order. Current Work holds its se
 | `# <task name>` | The task's name. |
 | `Schema: 5 · State: <state> · Budget: <mode>` | The task state (`active`, `paused`, `completed`, `abandoned`) and the budget mode (`normal` or `expanded`; `normal` when absent). |
 | `Cue:` | When the task matters, starting "read when", in at most 25 words. The menu and the project index show it. |
-| `State as of:` | When the record was last checkpointed: `init` and `checkpoint` set it, nothing else. Where Freeflow compacts for the harness, it counts a checkpoint as done when this is later than the compaction cycle's notice, or, with no notice in it, than its start. |
+| `State as of:` | When the record was last checkpointed: `init` and `checkpoint` set it, nothing else. Where Freeflow compacts for the harness, it counts a checkpoint as done when this is later than the context cycle's notice, or, with no notice in it, than its start. |
 
 ### Fields
 
@@ -208,7 +208,7 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 - Base: github.com/acme/widget 1a2b3c4d
 - Waits on: D-012
 - Predicted: context 14,000, working 9 min, $0.42; 2 files at the median rate of 6 sized Slices of this task, cost from the 4 run on claude-opus-5-5 high
-- Measured: context 12,000 over 1 compaction cycle(s); working 8 min, wall 15 min; claude-opus-5-5 high: 2 in, 3,000 written, 400,000 read, 9,000 out, $0.28; as of 2026-10-30T10:15:00.000Z at 52,000 tokens
+- Measured: context 12,000 over 1 context cycle(s); working 8 min, wall 15 min; claude-opus-5-5 high: 2 in, 3,000 written, 400,000 read, 9,000 out, $0.28; as of 2026-10-30T10:15:00.000Z at 52,000 tokens
 - Evidence (observed): the retry test passes — scratch/retry-test.txt
 - Result: commit 5e6f7a8b
 ```
@@ -228,7 +228,7 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 | Waits on | no | The delegations whose result it needs, `D-NNN`, comma-separated. |
 | Dependencies | no | |
 | Predicted | no | Written by `slice start`. With a Size and 3 Slices with Files in the nearest of this task, its project and the store: the size times their median context, working time and cost per file (`<n> files at the median rate of <n> sized Slices of <pool>`); otherwise the median Slice of the nearest holding 3 measured (`median of <n> Slices of <pool>`). The cost comes from those of them run mostly on the model and effort the Slice starts on, its transcript's newest request, once 3 were (`cost from the <n> run on <model> <effort>`), else from all of them (`cost measured mostly on <model> <effort>`, the one that took most of their cost); context and working time from all. Each figure is scaled `(×<n>)` by the correction: the geometric mean of actual over predicted of the Slices predicted the same way, from the first that has its actual, pulled toward 1 as if two more had been on target; a cost only by predictions whose cost was measured on the model and effort their Slice ran on. A reading that found no requests is not measured. None when too few are measured. |
-| Measured | no | Written by `slice start`, `checkpoint` and `slice close`: the context the Slice added and the compaction cycles it touched (`partly measured` where a reading missed some), working and wall-clock time, then per model and effort its billed tokens (input, cache written, cache read, output) and their cost at API list price, and the last reading. Read from the harness's transcript, or `--used`; none when neither is available. |
+| Measured | no | Written by `slice start`, `checkpoint` and `slice close`: the context the Slice added and the context cycles it touched (`partly measured` where a reading missed some), working and wall-clock time, then per model and effort its billed tokens (input, cache written, cache read, output) and their cost at API list price, and the last reading. Read from the harness's transcript, or `--used`; none when neither is available. |
 
 After the fields come its update lines, one line each, a kind and then the claim and its pointer; the detail lives in the file the line points to. The kinds: `Evidence (observed)`, `Evidence (reported)`, `Result`, `Review`, `Review gate`, `Contradiction`, `Blocker`, `Correction`, `Paused`, `Resumed`, `Extension`. `slice pause` and `slice resume` write the `Paused` and `Resumed` lines; the rest are direct edits. An Evidence line identifies the state it observed well enough to tell it apart from later versions; append counterevidence as a new line instead of rewriting the earlier one, and label what you did not observe yourself `reported`.
 
@@ -273,7 +273,7 @@ Rewritten whole by `checkpoint --input`; each line starts with its label:
 - Pending: CI on 5e6f7a8b — its result
 ```
 
-An input of `none` empties In flight, and a labelled line that says only `none` (`- Pending: none`) is left out. What the next compaction cycle reads goes under Recovery, not here.
+An input of `none` empties In flight, and a labelled line that says only `none` (`- Pending: none`) is left out. What the next context cycle reads goes under Recovery, not here.
 
 ### Recovery
 
@@ -418,8 +418,8 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task; either with `--compact` to have Freeflow's harness layer compact when the turn ends, which it does only on that request |
 | Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
 | The budget | `budget [--record <ID>]`; `task set-budget --mode <normal\|expanded>` on the user's word |
-| The context used, and whether the rest fits in this compaction cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
-| The Slices left, predicted from measured ones (by their Size where they have one), across compaction cycles, with the range and what it rests on first; a project's or the store's measured use | `estimate --plan [--record <ID>] [--input -] [--fan-out <n>] [--json]`, an input line `- <title> · size: <n> · after: <titles>`; `estimate --project <name>`, `estimate --store`: change nothing |
+| The context used, and whether the rest fits in this context cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
+| The Slices left, predicted from measured ones (by their Size where they have one), across context cycles, with the range and what it rests on first; a project's or the store's measured use | `estimate --plan [--record <ID>] [--input -] [--fan-out <n>] [--json]`, an input line `- <title> · size: <n> · after: <titles>`; `estimate --project <name>`, `estimate --store`: change nothing |
 | Change the task state | `task set-state --state <state>` |
 | Convert a Schema 4 record | `migrate`, on the user's word |
 

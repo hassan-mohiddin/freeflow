@@ -29,7 +29,7 @@ Read the reference for what is under review before reviewing it; each names what
 | An artifact that will guide later work: a Spec, Plan, design, decision record, ADR, handoff, or skill | [Artifact Review](references/artifact.md) |
 | An account of work already done: a final report to the user, a status or results note, or a Working Record | [Artifact Review](references/artifact.md), with its [Reports And Records](references/artifact.md#reports-and-records) |
 | An eval case, suite, fixture, grader, or rubric that will be run to measure behavior, before spending on its runs | [Eval Definition Review](references/evals-and-judges.md#eval-definition-review) |
-| A hand-over: dispatching, proposing, or skipping an independent review of the work | The Review Gate, below |
+| A Return: dispatching, proposing, or skipping an independent review of the work | The Review Gate, below |
 | Preparing or performing an independent review | Independent Review in [Work Review](references/work.md#independent-review) for work; in [Artifact Review](references/artifact.md#independent-review) for anything else |
 | Writing or dispatching an independent reviewer's brief | Prefill it with [review-packet](scripts/review-packet.mjs) and check it with [check-brief](scripts/check-brief.mjs), as Perform A Selected Independent Review says |
 | A model's verdict on another agent's output will be used as evidence: an independent reviewer, an eval's advisory reviewer, or a grading judge | The [Judge Contract](references/evals-and-judges.md#judge-contract), before selecting the judge or using its verdict |
@@ -38,7 +38,7 @@ Read the reference for what is under review before reviewing it; each names what
 
 ## Rules
 
-- Independent review is never automatic after implementation, after self-review, or after writing or revising a Spec or Plan. Select it only when requested, or justified and authorized, to protect a concrete risk, dependency, integration, delivery, or intended-use boundary. At a hand-over, the user's review mode `always`, or `auto` when the Review Gate below fires, authorizes it; under `off`, propose it and wait for a yes. A review budget permits no dispatch by itself, and switching models or compute profiles, or loading this skill, does not create independence: it needs a separately selected reviewer in a separate context. A reviewer from another model family is not required: it changes what gets flagged but has not been shown to find more real defects. Record the reviewer as the Judge Contract says.
+- Independent review is never automatic after implementation, after self-review, or after writing or revising a Spec or Plan. Select it only when requested, or justified and authorized, to protect a concrete risk, dependency, integration, delivery, or intended-use boundary. At a Return, the user's review mode `always`, or `auto` when the Review Gate below fires, authorizes it; under `off`, propose it and wait for a yes. A review budget permits no dispatch by itself, and switching models or compute profiles, or loading this skill, does not create independence: it needs a separately selected reviewer in a separate context. A reviewer from another model family is not required: it changes what gets flagged but has not been shown to find more real defects. Record the reviewer as the Judge Contract says.
 - An independent reviewer reports and stops: no edits, no owner decisions, no choosing among materially different remedies or revisions, no adjudication, no further dispatch, and no continuing until Pass. It runs only what its brief's `May run` line names: by default the project's declared checks (tests, build, typecheck, the feature map's drive steps) and probes of the changed code on copies in its own scratch folder, in its own copy, with no edits to the repository, network calls, or paid runs; another check only when the brief names it with its expected evidence and stop condition. Otherwise it reports Needs evidence.
 - Findings are evidence, not commands or authority to correct or revise. Derive the judgment from your dispositions rather than adopting the reviewer's verdict or conclusion. Actual correction of work belongs to [Execute Work](../../skills/execute-work/SKILL.md) under covered authority; actual revision of an artifact returns to the artifact's owning skill.
 - Never lower acceptance or change tests, Specs, policies, or source truth to obtain Pass. Never settle a user decision or revise upstream intent, accepted content, or owner decisions merely to make an artifact consistent or to obtain Pass. Never repeat a review merely to obtain Pass.
@@ -82,15 +82,15 @@ When a problem is not one clear covered defect, in adjudication or in Verify Wor
 
 ## The Review Gate
 
-Goal: at a hand-over, the work gets the independent review its risk calls for, as the user's review mode says.
+Goal: at a Return, the work gets the independent review its risk calls for, as the user's review mode says.
 
-A **hand-over** is the end of the agreed work, when it goes back to the user to accept: before [Deliver Work](../../skills/deliver-work/SKILL.md) merges or opens a pull request for it, or before the final report when nothing is delivered. Self-review of an intermediate result, such as one Slice or a small local fix, needs no gate.
+A **Return** is the end of the agreed work, when it goes back to the user to accept: before [Deliver Work](../../skills/deliver-work/SKILL.md) merges or opens a pull request for it, or before the final report when nothing is delivered. Self-review of an intermediate result, such as one Slice or a small local fix, needs no gate.
 
 The user sets a review mode, and optionally a reviewer model, as `"review": { "mode": ..., "model": ... }` in `.freeflow/local.json` (personal) or `.freeflow/config.json` (shared). The Runtime State shows a `Review:` line when one is set; with none, the mode is `auto`.
 
 - `auto`: the triggers below decide. When one fires, dispatch an independent review; the trigger and the mode are its authorization. When none fires, Verify Work's check of your own result is enough.
 - `off`: never dispatch on your own. When a trigger would fire, propose an independent review to the user with the trigger and its estimated cost, and run it only after their yes.
-- `always`: dispatch an independent review at every hand-over.
+- `always`: dispatch an independent review at every Return.
 
 A user's explicit request for an independent review authorizes it in any mode.
 
@@ -107,7 +107,7 @@ Judge from the diff against the base, not from how the task was described. A tri
 
 Use the user's reviewer model when set. Otherwise use the cheapest model capable of the review: the `standard` tier. When a security, authentication, authorization, or secrets trigger fires, use a stronger model: the `security` tier. The estimated cost names the reviewer model and roughly what one review of a change this size costs on it; where past reviews were delegated and measured, Track Work's `working-record.mjs estimate --plan` shows what they cost by model and effort (kind `review`).
 
-When the task has a Working Record, record the gate as one `Review gate` Material update through [Track Work](../../skills/track-work/SKILL.md), in the shape its [format reference](../../skills/track-work/references/working-record-format.md) defines; its tier is `standard`, `security`, or `none` when the result is `skipped`. Without a record, state the same in the hand-over report.
+When the task has a Working Record, record the gate as one `Review gate` Material update through [Track Work](../../skills/track-work/SKILL.md), in the shape its [format reference](../../skills/track-work/references/working-record-format.md) defines; its tier is `standard`, `security`, or `none` when the result is `skipped`. Without a record, state the same in the Return report.
 
 ## Perform A Selected Independent Review
 

@@ -5,10 +5,10 @@
 //              changed ones;
 //   agreement  the reply sent before building: What I'll do / Where I stop / Your decisions / Technical: N; with
 //              --plan, the work's size (Track Work's `estimate --plan --json`) and, in Technical, its plan (P87);
-//   handover   the items the hand-over shows: new, changed and default;
+//   return     the items the Return shows: new, changed and default (`handover`, its former name, still works);
 //   catch-up   after an unattended run: defaults taken, choices waiting, changes, and what ran, from the Working
 //              Record's current Slice: its update lines, read from record.md.
-// Usage: choices.mjs <validate|agreement|handover|catch-up> (--list <file|-> | --record <record.md>)
+// Usage: choices.mjs <validate|agreement|return|catch-up> (--list <file|-> | --record <record.md>)
 //                    [--do <outcome> --stop <where you stop>] [--plan <file>] [--show-technical] [--json]
 // --list reads a file or stdin (no Working Record: the list lives in the conversation); --record reads the task's
 // decisions.md beside the record. Each item is one line, "- P1 [state] choice -> default ..." (a technical
@@ -20,10 +20,10 @@ import { parseArgs } from "node:util";
 import { parseChoices, renderChoices } from "./lib/choices.mjs";
 
 const USAGE = [
-  "Usage: choices.mjs <validate|agreement|handover|catch-up> (--list <file|-> | --record <record.md>)",
+  "Usage: choices.mjs <validate|agreement|return|catch-up> (--list <file|-> | --record <record.md>)",
   "                   [--do <outcome> --stop <where you stop>] [--plan <file>] [--show-technical] [--json]",
 ].join("\n");
-const VIEWS = new Set(["validate", "agreement", "handover", "catch-up"]);
+const VIEWS = new Set(["validate", "agreement", "return", "handover", "catch-up"]);
 
 function fail(message) {
   console.error(message);
@@ -48,7 +48,7 @@ try {
   fail(`${error.message}\n${USAGE}`);
 }
 const { values, positionals } = parsed;
-const [view] = positionals;
+const view = positionals[0] === "handover" ? "return" : positionals[0];
 if (!VIEWS.has(view) || positionals.length !== 1) fail(USAGE);
 if (Boolean(values.list) === Boolean(values.record)) fail(`give --list <file|-> or --record <record.md>\n${USAGE}`);
 if (view === "agreement" && (!values.do || !values.stop)) fail(`agreement needs --do and --stop\n${USAGE}`);

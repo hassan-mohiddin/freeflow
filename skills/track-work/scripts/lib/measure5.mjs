@@ -1,5 +1,5 @@
 // What a stretch of work used, read from the harness's transcript or given as --used (task-004's Spec, section 12
-// "Planning from measured cost", P83, P89, T29 to T31): the context it added, the compaction cycles it touched, its
+// "Planning from measured cost", P83, P89, T29 to T31): the context it added, the context cycles it touched, its
 // requests' billed tokens by model and effort with their cost at API list price, and its working and wall-clock time.
 // Everything here is arithmetic over what was measured; nothing is guessed.
 
@@ -108,7 +108,7 @@ export function transcriptEvents(path, sinceMs) {
 }
 
 /**
- * Where this compaction cycle started in a Claude Code log: the context after its last compaction, else the session's
+ * Where this context cycle started in a Claude Code log: the context after its last compaction, else the session's
  * first request's; null when the log holds neither.
  */
 export function cycleStart(path) {
@@ -258,7 +258,7 @@ const minutes = (ms) => Math.round(ms / 60_000);
 /** The measure as the one line a Slice and its History entry hold (T29). */
 export function renderMeasure(measure) {
   const parts = [
-    `context ${count(measure.context)} over ${measure.cycles} compaction cycle(s)${measure.partial ? " (partly measured)" : ""}`,
+    `context ${count(measure.context)} over ${measure.cycles} context cycle(s)${measure.partial ? " (partly measured)" : ""}`,
     `working ${minutes(measure.workingMs)} min, wall ${minutes(measure.wallMs)} min`,
     ...Object.entries(measure.billed).map(
       ([key, billed]) =>
@@ -272,12 +272,12 @@ export function renderMeasure(measure) {
 
 const number = (text) => Number(text.replace(/,/g, ""));
 
-/** The measure a line holds; the inverse of renderMeasure. */
+/** The measure a line holds; the inverse of renderMeasure. Lines written before the rename say "compaction cycle(s)". */
 export function parseMeasure(text) {
   const measure = emptyMeasure();
   for (const part of text.split("; ")) {
     let match;
-    if ((match = /^context ([\d,]+) over (\d+) compaction cycle\(s\)( \(partly measured\))?$/.exec(part))) {
+    if ((match = /^context ([\d,]+) over (\d+) (?:context|compaction) cycle\(s\)( \(partly measured\))?$/.exec(part))) {
       measure.context = number(match[1]);
       measure.cycles = Number(match[2]);
       measure.partial = Boolean(match[3]);

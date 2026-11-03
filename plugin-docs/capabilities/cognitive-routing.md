@@ -53,7 +53,7 @@ Coordinator, Helper, and Executor are sequential compute profiles, not independe
 ### Ownership nesting
 
 ```text
-The cycle (agree, build and verify, review and hand over)
+The cycle (agree, build and verify, review and return)
 ├─ the agreement establishes authority and the required result
 └─ Cognitive Routing — when effective
    ├─ Coordinator selects the next producer

@@ -14,7 +14,7 @@ Ask one question, through the harness's question tool where it has one, with loc
 
 - **Local only:** the store on this device; nothing leaves the machine.
 - **Local + cloud:** the same store, kept in step with the user's own private repository, so every device and every cloud session has it. A cloud session needs this, since its container is thrown away.
-- **No store:** then there is no task. Say that the work goes on without memory beyond this compaction cycle.
+- **No store:** then there is no task. Say that the work goes on without memory beyond this context cycle.
 
 The store lives at `FREEFLOW_HOME`, `~/.freeflow` when it is unset. If that folder holds Pi's former Task Memory (`registry.json`), `store init` refuses it: propose another folder, such as `~/.freeflow-store`, and tell the user to set `FREEFLOW_HOME` to it for every session that uses the store.
 
