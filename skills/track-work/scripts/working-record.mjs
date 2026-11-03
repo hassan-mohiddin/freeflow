@@ -43,6 +43,7 @@ import {
   takeTask,
 } from "./lib/projects5.mjs";
 import { EstimateError, estimate } from "./lib/estimate5.mjs";
+import { runEvents } from "./lib/events-cli.mjs";
 import { PlanError } from "./lib/planner5.mjs";
 
 const ROOT_HELP =
@@ -71,6 +72,7 @@ function usage() {
     "  working-record.mjs task <create|take|release|switch|move|here|search|remove> ... (in a Freeflow store)",
     "  working-record.mjs store <init|remote|status|sync> ...",
     "  working-record.mjs session status [--home <folder>] (for a harness layer)",
+    "  working-record.mjs events <append|summary|show> ... (the event log; append is for a harness layer)",
     "",
     ROOT_HELP,
     "In a Freeflow store, a task's ID (such as my-project/task-003, or task-004 in no project) may be given as --record.",
@@ -78,6 +80,18 @@ function usage() {
 }
 
 const COMMAND_HELP = new Map([
+  [
+    "events append",
+    "Usage: events append --input <file|-> [--home <folder>]\nAppends a Freeflow driver's event lines (JSON Lines, schema v1) to each line's session log in <FREEFLOW_HOME>/events/<session>.jsonl, on this machine only: it sets seq under a lock on the file, redacts and cuts a shell command to 200 characters, refuses a line that is not schema v1 and writes the rest, with a freeflow line saying how many it dropped.",
+  ],
+  [
+    "events summary",
+    "Usage: events summary [--session <ID>] [--json] [--home <folder>]\nWhat a session's event log adds up to: model requests and tokens by model and effort, tool calls by tool with failures, compactions, workers, and the share of tool calls that were Freeflow's own; since this session took its task when it holds one. The session is this one unless --session names another; with neither, every log here with its size.",
+  ],
+  [
+    "events show",
+    "Usage: events show [--session <ID>] [--kind <kind>] [--home <folder>]\nPrints a session's event log as stored, one JSON line each, only the lines of one kind with --kind; a line that cannot be read is named on standard error and skipped.",
+  ],
   [
     "slice",
     [
@@ -304,7 +318,7 @@ const COMMAND_HELP = new Map([
 function commandHelp(command, operation) {
   const help = COMMAND_HELP.get([command, operation].filter(Boolean).join(" ")) ?? COMMAND_HELP.get(command);
   if (!help) return `${usage()}\n`;
-  return ["init", "store", "session"].includes(command) ? `${help}\n` : `${help}\n${ROOT_HELP}\n`;
+  return ["init", "store", "session", "events"].includes(command) ? `${help}\n` : `${help}\n${ROOT_HELP}\n`;
 }
 
 class CliError extends Error {
@@ -315,7 +329,8 @@ class CliError extends Error {
   }
 }
 
-function parseOptions(args) {
+/** `--session` is a flag elsewhere (a session that holds no task); the events commands take it with a session ID. */
+function parseOptions(args, { valued = [] } = {}) {
   const options = {};
   const positionals = [];
   for (let index = 0; index < args.length; index += 1) {
@@ -342,7 +357,8 @@ function parseOptions(args) {
         "--rules",
         "--ended",
         "--take-back",
-      ].includes(token)
+      ].includes(token) &&
+      !valued.includes(token)
     ) {
       options[token] = true;
       continue;
@@ -444,6 +460,11 @@ function allowedOptions(command, operation) {
     if (operation === "open") return new Set([...withNextAction, "--title"]);
     if (operation === "update") return new Set([...common, "--text"]);
     if (operation === "close") return new Set([...withNextAction, "--state"]);
+  }
+  if (command === "events") {
+    if (operation === "append") return new Set(["--input", "--home", "--help"]);
+    if (operation === "summary") return new Set(["--session", "--json", "--home", "--help"]);
+    if (operation === "show") return new Set(["--session", "--kind", "--home", "--help"]);
   }
   if (command === "store" && operation === "init")
     return new Set(["--remote", "--home", "--git-name", "--git-email", "--help"]);
@@ -683,7 +704,7 @@ async function runProjects5(command, operation, options, home) {
 }
 
 async function runCore(command, rest) {
-  const { options, positionals } = parseOptions(rest);
+  const { options, positionals } = parseOptions(rest, { valued: command === "events" ? ["--session"] : [] });
   const operation = positionals[0];
   if (options["--help"]) return commandHelp(command, operation);
   // Projects and tasks are the Freeflow store's folders.
@@ -694,6 +715,17 @@ async function runCore(command, rest) {
   }
   validateCommandOptions(command, operation, options);
   if (command === "store") return runStore(operation, options);
+  if (command === "events") {
+    try {
+      return await runEvents(operation, options, {
+        home: storeHome(options["--home"]),
+        identity: sessionIdentity(),
+        input: operation === "append" ? await readInput(requireOption(options, "--input"), cwd()) : "",
+      });
+    } catch (error) {
+      throw new CliError(error.message);
+    }
+  }
   if (command === "session") {
     if (operation !== "status") throw new CliError(`Unknown command: session ${operation ?? ""}`.trim());
     const home = storeHome(options["--home"]);

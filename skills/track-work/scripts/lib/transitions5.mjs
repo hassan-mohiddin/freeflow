@@ -6,7 +6,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
 import { budgetFor, contextWindow, measureTask, measuredLines, sourceFiles, spaceRepositories } from "./budget5.mjs";
 import { storeHome, syncStore } from "./freeflow-store.mjs";
@@ -48,6 +48,9 @@ import {
   transcriptEvents,
 } from "./measure5.mjs";
 import { predictSlice } from "./planner5.mjs";
+import { holdStart, summaryForTask } from "./events5.mjs";
+// projects5 imports this module too; both use the other's functions only when a command runs.
+import { readSessions, sessionIdentity } from "./projects5.mjs";
 import { REPOSITORIES_FILE, freeflowStoreOf, isFreeflowStore, writeAtomically, writeTaskFile } from "./store.mjs";
 
 function fail(code, message) {
@@ -709,6 +712,13 @@ function recoveryReport(measure, before, replaced) {
   ];
 }
 
+/** A store task's ID from its folder: `<project>/task-NNN`, or `task-NNN` for a task in no project. */
+function storeTaskId(home, taskDir) {
+  const parts = relative(home, taskDir).split(sep);
+  const number = /^task-\d{3,}/.exec(parts.at(-1))?.[0] ?? parts.at(-1);
+  return parts[0] === "projects" && parts.length === 4 ? `${parts[1]}/${number}` : number;
+}
+
 async function checkpoint(options, text, loaded) {
   const task = await load(loaded);
   assertNotInterrupted(task);
@@ -788,8 +798,19 @@ async function checkpoint(options, text, loaded) {
       (block) =>
         `Discussion block ${block.id} shaped ${block.shapes.join(", ")}, now closed: drop it (discussion drop --block ${block.id}) once nothing open rests on it.`,
     ),
-    await syncAfter(task, "checkpoint"),
   ];
+  // This session's event summary since it took the task, committed with the checkpoint (P7).
+  if (home) {
+    const events = await summaryForTask({
+      home: storeHome(),
+      taskDir: dirname(loaded.path),
+      taskId: storeTaskId(home, dirname(loaded.path)),
+      identity: sessionIdentity(),
+      since: holdStart(readSessions(dirname(loaded.path)).hold?.from),
+    });
+    if (events) lines.push(events);
+  }
+  lines.push(await syncAfter(task, "checkpoint"));
   return `${lines.join("\n")}\n`;
 }
 

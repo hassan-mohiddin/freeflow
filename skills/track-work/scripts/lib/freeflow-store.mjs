@@ -19,8 +19,11 @@ import { FREEFLOW_STORE_KIND, isFreeflowStore, STORE_MARKER, StoreError } from "
 
 const execFile = promisify(execFileCallback);
 
-/** What Git never syncs: temporary work, raw evidence, this machine's paths and sync state, and live sessions. */
-export const STORE_IGNORE = ["scratch/", "evidence/**/raw/", "local/", "sessions/"];
+/**
+ * What Git never syncs: temporary work, raw evidence, this machine's paths and sync state, live sessions, and the
+ * event log at the store's root (a task folder's events/ holds the summaries a checkpoint commits).
+ */
+export const STORE_IGNORE = ["scratch/", "evidence/**/raw/", "local/", "sessions/", "/events/"];
 /** Files that only append merge by keeping both sides' lines. */
 export const STORE_ATTRIBUTES = ["history.md merge=union", "sessions.md merge=union"];
 const BRANCH = "main";
@@ -49,14 +52,14 @@ export function storeHome(explicit) {
 
 /**
  * What Freeflow keeps in its home before there is a store: live sessions (Messaging's registry) and session
- * summaries. A store ignores it, so a home that holds only this has no store yet.
+ * summaries, and the event log. A store ignores them, so a home that holds only these has no store yet.
  */
-const BEFORE_STORE = "sessions";
+const BEFORE_STORE = ["sessions", "events"];
 
-/** Whether a home holds nothing, or nothing but Freeflow's own `sessions/`. */
+/** Whether a home holds nothing, or nothing but Freeflow's own `sessions/` and `events/`. */
 async function isEmptyHome(path) {
   try {
-    return (await readdir(path)).every((entry) => entry === BEFORE_STORE);
+    return (await readdir(path)).every((entry) => BEFORE_STORE.includes(entry));
   } catch (error) {
     if (error?.code === "ENOENT") return true;
     throw error;
@@ -64,19 +67,26 @@ async function isEmptyHome(path) {
 }
 
 /**
- * Moves a home's `sessions/` beside it while the store is laid out or cloned there, so neither a clone nor a failed
- * init's clean-up touches it; the returned function puts it back, beside anything written there meanwhile.
+ * Moves a home's `sessions/` and `events/` beside it while the store is laid out or cloned there, so neither a clone
+ * nor a failed init's clean-up touches them; the returned function puts them back, beside anything written there
+ * meanwhile.
  */
 async function setSessionsAside(home) {
-  const sessions = join(home, BEFORE_STORE);
-  if (!existsSync(sessions)) return async () => {};
-  const aside = `${home}.${BEFORE_STORE}-${process.pid}`;
-  await rename(sessions, aside);
+  const restores = [];
+  for (const name of BEFORE_STORE) {
+    const folder = join(home, name);
+    if (!existsSync(folder)) continue;
+    const aside = `${home}.${name}-${process.pid}`;
+    await rename(folder, aside);
+    restores.push(async () => {
+      await mkdir(folder, { recursive: true });
+      for (const entry of await readdir(aside))
+        if (!existsSync(join(folder, entry))) await rename(join(aside, entry), join(folder, entry));
+      await rm(aside, { recursive: true, force: true });
+    });
+  }
   return async () => {
-    await mkdir(sessions, { recursive: true });
-    for (const entry of await readdir(aside))
-      if (!existsSync(join(sessions, entry))) await rename(join(aside, entry), join(sessions, entry));
-    await rm(aside, { recursive: true, force: true });
+    for (const restore of restores) await restore();
   };
 }
 
@@ -181,7 +191,7 @@ export async function addStoreRemote({ home: explicit, url }) {
  * Clones `remote` into the store's folder, or with no remote makes a local store there. An empty remote gets the store's
  * layout and first commit, pushed; a remote that already holds a store is joined as it is. A folder that already holds
  * an empty clone of the remote is used as it is (P97). Refuses a folder that holds Pi's former Task Memory or anything
- * else but Freeflow's own sessions/, which it keeps, and a remote that holds a repository that is not a store.
+ * else but Freeflow's own sessions/ and events/, which it keeps, and a remote that holds a repository that is not a store.
  *
  * @param {{ home?: string, remote: string, name?: string, email?: string }} options
  */
