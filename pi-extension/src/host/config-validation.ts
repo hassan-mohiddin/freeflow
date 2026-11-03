@@ -140,6 +140,27 @@ export function reviewStateLine(review: ReviewSettings | undefined): string | nu
   return `Review: \`${review.mode}\`${review.model === undefined ? "" : `, reviewer model \`${review.model}\``}`;
 }
 
+/**
+ * The cost governor (SPEC-014, section 2.3), on Claude Code: `mode` warn (the default) only notifies at a cap, stop
+ * also asks the agent to stop at the next safe point, checkpoint and ask the user; `cap` replaces the governor's own
+ * caps with one number, a percent of the seven-day window on a subscription or dollars of the task's cost elsewhere.
+ */
+export const GOVERNOR_MODES = ["warn", "stop"] as const;
+export const GOVERNOR_KEYS = ["mode", "cap"] as const;
+
+function validateGovernorConfig(value: unknown) {
+  if (!isRecord(value)) return "governor must be an object";
+  const unknown = Object.keys(value).find((key) => !(GOVERNOR_KEYS as readonly string[]).includes(key));
+  if (unknown) return `governor has unsupported key: ${unknown}`;
+  if (value.mode !== undefined && !(GOVERNOR_MODES as readonly unknown[]).includes(value.mode))
+    return `governor.mode must be one of ${GOVERNOR_MODES.join(", ")}`;
+  if (value.cap !== undefined && !positiveNumber(value.cap)) return "governor.cap must be a number above 0";
+  return null;
+}
+
+const positiveNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value > 0;
+
 /** The keys `cognitiveRouting` accepts; the settings test checks each has a /freeflow settings row. */
 export const COGNITIVE_ROUTING_KEYS = ["enabled", "delegation", "projection", "profiles"] as const;
 
@@ -180,19 +201,20 @@ export function validateCognitiveRoutingConfig(value: unknown): string | null {
 
 /** Where a setting can live: the repository's file, the personal file, or the running session. */
 export type SettingScope = "repository" | "personal" | "session";
-export type SettingValue = boolean | string;
+export type SettingValue = boolean | string | number;
 /**
- * One setting Freeflow acts on. `values` is `boolean`, a list of choices, `name` (one line of text, such as a model) or
- * `profile` (a routing profile object, set only on Pi's screen); `default` is `null` when unset means none; `hosts` is
- * `all` when every host acts on it and `pi` when only Pi does; `session` says whether the Session scope holds it as a key
- * (routing's delegation and profiles have their own session controller on Pi).
+ * One setting Freeflow acts on. `values` is `boolean`, a list of choices, `name` (one line of text, such as a model),
+ * `number` (above 0) or `profile` (a routing profile object, set only on Pi's screen); `default` is `null` when unset
+ * means none; `hosts` is `all` when every host acts on it, `pi` when only Pi does and `claude-code` when only Claude
+ * Code's mod does; `session` says whether the Session scope holds it as a key (routing's delegation and profiles have
+ * their own session controller on Pi).
  */
 export type SettingSpec = {
   key: string;
   label: string;
-  values: "boolean" | "name" | "profile" | readonly string[];
+  values: "boolean" | "name" | "number" | "profile" | readonly string[];
   default: SettingValue | null;
-  hosts: "all" | "pi";
+  hosts: "all" | "pi" | "claude-code";
   session: boolean;
 };
 
@@ -230,6 +252,15 @@ export const SETTINGS: readonly SettingSpec[] = [
   { key: "events.enabled", label: "Event log", values: "boolean", default: true, hosts: "all", session: true },
   { key: "review.mode", label: "Review", values: REVIEW_MODES, default: "auto", hosts: "all", session: true },
   { key: "review.model", label: "Reviewer model", values: "name", default: null, hosts: "all", session: true },
+  {
+    key: "governor.mode",
+    label: "Cost governor",
+    values: GOVERNOR_MODES,
+    default: "warn",
+    hosts: "claude-code",
+    session: true,
+  },
+  { key: "governor.cap", label: "Cost cap", values: "number", default: null, hosts: "claude-code", session: true },
   {
     key: "toolExecution.enabled",
     label: "Tool Execution",
@@ -299,6 +330,7 @@ export function settingSpec(key: string): SettingSpec | undefined {
 export function validSettingValue(spec: SettingSpec, value: unknown): value is SettingValue {
   if (spec.values === "boolean") return typeof value === "boolean";
   if (spec.values === "name") return typeof value === "string" && value.trim() !== "" && !/[\p{Cc}`]/u.test(value);
+  if (spec.values === "number") return positiveNumber(value);
   if (spec.values === "profile") return false;
   return spec.values.includes(value as string);
 }
@@ -338,6 +370,7 @@ export const CONFIG_SECTIONS = [
   "review",
   "skills",
   "events",
+  "governor",
 ] as const;
 
 // outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
@@ -395,6 +428,10 @@ export function validateRepositoryConfig(value: unknown): string | null {
     const error = validateEventsConfig(value.events);
     if (error) return error;
   }
+  if (value.governor !== undefined) {
+    const error = validateGovernorConfig(value.governor);
+    if (error) return error;
+  }
   if (value.review !== undefined) return validateReviewConfig(value.review);
 
   return null;
@@ -423,6 +460,7 @@ export function validateLocalConfig(value: unknown): string | null {
     "review",
     "skills",
     "events",
+    "governor",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -458,6 +496,10 @@ export function validateLocalConfig(value: unknown): string | null {
   }
   if (value.events !== undefined) {
     const error = validateEventsConfig(value.events);
+    if (error) return error;
+  }
+  if (value.governor !== undefined) {
+    const error = validateGovernorConfig(value.governor);
     if (error) return error;
   }
   if (value.review !== undefined) return validateReviewConfig(value.review);

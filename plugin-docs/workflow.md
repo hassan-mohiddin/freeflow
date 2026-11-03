@@ -107,9 +107,10 @@ The agent runs these itself; you see their output in its report. They are under 
 | Script | What it answers |
 | --- | --- |
 | Execute Work `touch-map.mjs` | What a change touches: entry points, readers, writers, scheduled code, covering tests and developer docs, each block saying what it did not search. |
-| Verify Work `self-review.mjs` | One report before the work returns to you: status, diff stat, every changed existing test or fixture with its hunk, each new test and whether it fails on the base, whether each requirement's check ran after the last edit, and the feature files covering the change with whether each was driven live since. |
+| Verify Work `self-review.mjs` | One report before the work returns to you: status, diff stat, every changed existing test or fixture with its hunk, each new test and whether it fails on the base, whether each requirement's check ran after the last edit (from the session's event log where there is one), and the feature files covering the change with whether each was driven live since. |
 | Verify Work `test-changes.mjs` | Every test, fixture or test setup file changed since a base commit, with its hunks; `--new` lists added test files. |
 | Discuss Work `choices.mjs` | Checks the decision list and renders the agreement, the Return's unseen choices, and a catch-up after an unattended run. |
+| Discuss Work `drift.mjs` | The hunks of the change against a base that no decision item's `Shows at` covers, those in code a feature file covers first, for the agent and a reviewer to judge. |
 | Review Work `review-packet.mjs`, `check-brief.mjs` | Prefills an independent reviewer's brief, names the review gate's triggers and round budget, and refuses a brief with a missing line or a path that does not exist. |
 | Deliver Work `delivery-state.mjs`, `commit-state.mjs`, `release-preflight.mjs`, `push-route.mjs` | Branch, upstream, uncommitted work, worktrees, tag, version and changelog in one read; your changes apart from pre-existing staged work; local checks of a release or a simple push, without performing either. |
 | Track Work `working-record.mjs view recover` | After context loss, in one call: the record's present state with an index of closed History, each defining artifact and recovery source and whether it resolves, and where live Git state disagrees with the record. |

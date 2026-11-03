@@ -607,6 +607,8 @@ async function turnEnded($, e) {
     await script($, ["store", "sync"]);
     await emit($, "freeflow", { what: "sync" });
   }
+  // The cost governor's task cap follows the held task's plan.
+  await governorTask($, state);
   // Only the agent's own request compacts (P102): checkpoint --compact, after a turn that ended, until the bundle
   // replaces the conversation; one /compact queued at a time.
   const request = state.compact;
@@ -644,6 +646,7 @@ async function resolveEnabled($) {
   if (result.ok && typeof result.data.value === "boolean") enabled = result.data.value;
   const events = await settings($, ["get", "events.enabled"]);
   if (events.ok && typeof events.data.value === "boolean") eventsOn = events.data.value;
+  await resolveGovernor($);
 }
 
 const SCOPE_NAMES = /** @type {Record<string, string>} */ ({
@@ -663,6 +666,8 @@ const SECTION_ROWS = new Set([
   "events.enabled",
   "review.mode",
   "review.model",
+  "governor.mode",
+  "governor.cap",
 ]);
 const COMMAND_USAGE = [
   "Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)",
@@ -694,7 +699,7 @@ function listText(data) {
         `  ${row.label.padEnd(width)}  ${shown(row.value).padEnd(8)}  ${SCOPE_NAMES[row.scope]}${SECTION_ROWS.has(row.key) ? "" : `  (${row.key})`}`,
     ),
     COMMAND_USAGE,
-    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.mode, review.model.",
+    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.mode, review.model, governor.mode, governor.cap.",
     "Pi-only settings (tool execution, compaction, messaging, Cognitive Routing) are changed on Pi or in the files.",
   ].join("\n");
 }
@@ -765,6 +770,7 @@ async function settingsCommand($, args) {
     // The claims follow the switch: off, every request is no; the event log's own off, sensors is only possible.
     await writeCapabilities($, freeflowHome);
   }
+  if (data.key.startsWith("governor.")) await resolveGovernor($);
   if (!wasOn && enabled) {
     // On again: the next turn end does what session start does with a store, and the window is read at the next request.
     awaitingStore = { session: await $.session.id(), cwd: await $.session.cwd() };
@@ -789,6 +795,212 @@ async function settingsCommand($, args) {
       ].join("\n"),
     ],
   };
+}
+
+// The cost governor (SPEC-014, section 2.3): after each model request it reads the plan's usage windows and the
+// session's cost, and tells the agent once a cap is near: a row at 80% of it, and at 100% a notice (`governor.mode`
+// warn, the default) or the ask to stop at the next safe point, checkpoint and ask the user (stop). The caps: on a
+// subscription, the seven-day window's daily pace, what is left of it at the start of this day of the window over the
+// days until it resets, against what this day used; with a held task, its plan's high end (`estimate --plan`) against
+// what the session spent since the plan was read. `governor.cap` replaces the pace with a percent of the seven-day
+// window, or where there is no window (an API key), the task's cap with dollars of the session's cost. Each response
+// comes once for its cap and period, and is written to the event log. It notifies; a gate for it is not built.
+const DAY_MS = 86_400_000;
+const GOVERNOR_ROW_AT = 0.8;
+/** @type {"warn" | "stop"} */
+let governorMode = "warn";
+/** @type {number | null} `governor.cap`: a percent of the seven-day window, or dollars */
+let governorCap = null;
+/** @type {{ task: string, asOf: string | null, usd: number | null, from: number | null } | null} the held task's plan: its high end, and the session's cost when it was read */
+let taskPlan = null;
+/** @type {{ resetsAt: string, dayStart: string, percent: number } | null | undefined} this day of the window's start; undefined until read */
+let dayBase = undefined;
+/** Responses already given, by cap, period and response: each comes once. */
+const governed = new Set();
+
+/**
+ * Reads `governor.mode` and `governor.cap` with one settings run; each stays as it was when the script fails.
+ * @param {any} $
+ */
+async function resolveGovernor($) {
+  const result = await settings($, ["list"]);
+  if (!result.ok) return;
+  const value = (/** @type {string} */ key) =>
+    result.data.settings?.find((/** @type {any} */ row) => row.key === key)?.value;
+  const mode = value("governor.mode");
+  if (mode === "warn" || mode === "stop") governorMode = mode;
+  const cap = value("governor.cap");
+  if (cap === null || (typeof cap === "number" && cap > 0)) governorCap = cap;
+}
+
+/**
+ * The held task's plan, read again when the task or its last checkpoint changes: the high end of what its open Slices
+ * are predicted to cost (null where the planner cannot predict it), and the session's cost then.
+ * @param {any} $
+ * @param {any} state session status
+ */
+async function governorTask($, state) {
+  if (!state.task) {
+    taskPlan = null;
+    return;
+  }
+  if (taskPlan && taskPlan.task === state.task.id && taskPlan.asOf === state.task.stateAsOf) return;
+  const run = await script($, ["estimate", "--plan", "--record", state.task.record, "--json"]);
+  let usd = null;
+  try {
+    const high = run.exitCode === 0 ? JSON.parse(run.stdout).total?.usdHigh : null;
+    usd = typeof high === "number" && high > 0 ? high : null;
+  } catch {
+    // Not the planner's JSON: no task cap.
+  }
+  const spent = (await $.session.usage()).cost?.usd;
+  taskPlan = {
+    task: state.task.id,
+    asOf: state.task.stateAsOf ?? null,
+    usd,
+    from: typeof spent === "number" ? spent : null,
+  };
+}
+
+/**
+ * The day of the seven-day window `now` is in, counted back from its reset: its start, and the days left from it.
+ * @param {string} resetsAt
+ * @param {number} now
+ */
+function windowDay(resetsAt, now) {
+  const reset = Date.parse(resetsAt);
+  if (!Number.isFinite(reset) || reset <= now) return null;
+  const days = Math.floor((reset - now) / DAY_MS) + 1;
+  return { start: new Date(reset - days * DAY_MS).toISOString(), days };
+}
+
+/**
+ * The daily pace: what was left of the window when this day of it began, over the days left from then.
+ * @param {number} basePercent
+ * @param {number} days
+ */
+const dailyPace = (basePercent, days) => Math.max(0, 100 - basePercent) / days;
+
+/**
+ * Where this day of the window began, from the Freeflow home (beside the event log, on this machine only), so every
+ * session of the day counts from the same point; the first reading of a day starts it.
+ * @param {any} $
+ * @param {{ kind: string, percentUsed: number, resetsAt: string }} window
+ * @param {{ start: string }} day
+ */
+async function baseOf($, window, day) {
+  const path = freeflowHome ? `${freeflowHome}/events/governor.json` : null;
+  if (dayBase === undefined) {
+    dayBase = null;
+    if (path)
+      try {
+        dayBase = JSON.parse(await $.fs.read(path));
+      } catch {
+        // None kept yet, or unreadable: this reading starts the day.
+      }
+  }
+  if (dayBase?.resetsAt === window.resetsAt && dayBase.dayStart === day.start) return dayBase;
+  dayBase = { resetsAt: window.resetsAt, dayStart: day.start, percent: window.percentUsed };
+  if (path) await $.fs.write(path, `${JSON.stringify(dayBase)}\n`).catch(() => undefined);
+  return dayBase;
+}
+
+/**
+ * The caps that apply now, each with its use, limit, unit, the period it holds for and how it reads.
+ * @param {any} $
+ * @param {any} usage
+ */
+async function governorCaps($, usage) {
+  const caps = [];
+  const money = (/** @type {number} */ value) => `$${value.toFixed(2)}`;
+  const seven = (usage.rateLimits ?? []).find(
+    (/** @type {any} */ each) => each.kind === "seven_day" && typeof each.percentUsed === "number",
+  );
+  const spent = usage.cost?.usd;
+  if (seven && governorCap !== null)
+    caps.push({
+      cap: "window",
+      unit: "percent",
+      use: seven.percentUsed,
+      limit: governorCap,
+      period: seven.resetsAt ?? "window",
+      what: `the seven-day window is ${seven.percentUsed}% used, of the ${governorCap}% your governor.cap sets`,
+      resets: seven.resetsAt,
+    });
+  else if (seven?.resetsAt) {
+    const day = windowDay(seven.resetsAt, await $.clock.now());
+    if (day) {
+      const base = await baseOf($, seven, day);
+      const limit = dailyPace(base.percent, day.days);
+      const use = Math.max(0, seven.percentUsed - base.percent);
+      caps.push({
+        cap: "pace",
+        unit: "percent",
+        use,
+        limit,
+        period: day.start,
+        what: `this day of the seven-day window used ${round(use)}% of it, against a daily pace of ${round(limit)}% (${round(100 - base.percent)}% left over ${day.days} day(s))`,
+        resets: seven.resetsAt,
+      });
+    }
+  }
+  if (typeof spent === "number" && !seven && governorCap !== null)
+    caps.push({
+      cap: "task",
+      unit: "usd",
+      use: spent,
+      limit: governorCap,
+      period: "session",
+      what: `this session has cost ${money(spent)} at API list price, of the ${money(governorCap)} your governor.cap sets`,
+    });
+  else if (typeof spent === "number" && taskPlan?.usd && taskPlan.from !== null) {
+    const use = Math.max(0, spent - taskPlan.from);
+    caps.push({
+      cap: "task",
+      unit: "usd",
+      use,
+      limit: taskPlan.usd,
+      period: `${taskPlan.task} ${taskPlan.asOf}`,
+      what: `${taskPlan.task} cost ${money(use)} at API list price since its plan was read, of ${money(taskPlan.usd)}, the high end its open Slices are predicted to cost`,
+    });
+  }
+  return caps;
+}
+
+const round = (/** @type {number} */ value) => Math.round(value * 10) / 10;
+
+/**
+ * After each model request: each cap at 80% gets one row, and at 100% one notice or, under stop, the ask.
+ * @param {any} $
+ */
+async function governStep($) {
+  const usage = await $.session.usage();
+  for (const cap of await governorCaps($, usage)) {
+    if (!(cap.limit > 0)) continue;
+    const share = cap.use / cap.limit;
+    const response =
+      share >= 1 ? (governorMode === "stop" ? "ask" : "notice") : share >= GOVERNOR_ROW_AT ? "row" : null;
+    if (!response) continue;
+    const key = `${cap.cap} ${cap.period} ${response === "row" ? "row" : "full"}`;
+    if (governed.has(key)) continue;
+    governed.add(key);
+    if (response !== "row") governed.add(`${cap.cap} ${cap.period} row`);
+    const resets = cap.resets ? `; it resets at ${cap.resets}` : "";
+    const text =
+      response === "row"
+        ? `Freeflow cost governor: ${cap.what}, ${Math.round(share * 100)}% of the cap${resets}.`
+        : response === "notice"
+          ? `Freeflow cost governor: a cap is reached: ${cap.what}${resets}. Say so to the user in your next answer; Freeflow only notifies (governor.mode warn).`
+          : `Freeflow cost governor: a cap is reached: ${cap.what}${resets}. Stop at your next safe point: ${SAFE_POINT}. Checkpoint there (your task's record, or this session's summary), then end your turn asking the user whether to go on (governor.mode stop).`;
+    await appendRow($, text);
+    await emit($, "governor", {
+      cap: cap.cap,
+      unit: cap.unit,
+      limit: Math.round(cap.limit * 100) / 100,
+      use: Math.round(cap.use * 100) / 100,
+      response,
+    });
+  }
 }
 
 /** @param {import("claude-code").On} on */
@@ -895,6 +1107,12 @@ export function register(on) {
       else await noticeWorker($, e, response);
     } catch (error) {
       $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    // The cost governor, after every request of the session's: the plan's windows and the cost are the session's.
+    try {
+      await governStep($);
+    } catch (error) {
+      $.ui.log(`Freeflow cost governor: ${error instanceof Error ? error.message : String(error)}`);
     }
     return response;
   });

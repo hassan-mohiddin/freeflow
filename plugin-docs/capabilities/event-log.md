@@ -10,7 +10,8 @@ One line per event, in `events/<session ID>.jsonl` in the Freeflow home (`FREEFL
 - each model request: the model, its effort, and its tokens (input, cache read and written, output);
 - each tool call: the tool, whether it failed, the exit code where the host gives one (Pi does, Claude Code does not), how long it took, the paths a file tool named, and a shell command's text;
 - compactions, and whether Freeflow or the host ran them; workers started and stopped;
-- Freeflow's own actions: a notice, a context row, the task menu, a compaction it ran, a store sync, its claims.
+- Freeflow's own actions: a notice, a context row, the task menu, a compaction it ran, a store sync, its claims;
+- on Claude Code, each row or notice of the cost governor: the cap, the use against it, and the response (see [Settings](../settings.md), Cost governor); `events summary` lists them.
 
 A line never holds a prompt, an answer, a file's content or a tool's output. In a command, keys and tokens (`sk-…`, `ghp_…`, `github_pat_…`, `xox…-`, `AKIA…`, `Bearer …`, and any `…key=`, `…token=`, `…secret=` or `…password=` value) are replaced with `[redacted]` before it is written, and the command is cut to 200 characters.
 

@@ -118,6 +118,23 @@ export function reviewStateLine(review) {
   if (!review || (review.mode === "auto" && review.model === undefined)) return null;
   return `Review: \`${review.mode}\`${review.model === undefined ? "" : `, reviewer model \`${review.model}\``}`;
 }
+/**
+ * The cost governor (SPEC-014, section 2.3), on Claude Code: `mode` warn (the default) only notifies at a cap, stop
+ * also asks the agent to stop at the next safe point, checkpoint and ask the user; `cap` replaces the governor's own
+ * caps with one number, a percent of the seven-day window on a subscription or dollars of the task's cost elsewhere.
+ */
+export const GOVERNOR_MODES = ["warn", "stop"];
+export const GOVERNOR_KEYS = ["mode", "cap"];
+function validateGovernorConfig(value) {
+  if (!isRecord(value)) return "governor must be an object";
+  const unknown = Object.keys(value).find((key) => !GOVERNOR_KEYS.includes(key));
+  if (unknown) return `governor has unsupported key: ${unknown}`;
+  if (value.mode !== undefined && !GOVERNOR_MODES.includes(value.mode))
+    return `governor.mode must be one of ${GOVERNOR_MODES.join(", ")}`;
+  if (value.cap !== undefined && !positiveNumber(value.cap)) return "governor.cap must be a number above 0";
+  return null;
+}
+const positiveNumber = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
 /** The keys `cognitiveRouting` accepts; the settings test checks each has a /freeflow settings row. */
 export const COGNITIVE_ROUTING_KEYS = ["enabled", "delegation", "projection", "profiles"];
 /**
@@ -181,6 +198,15 @@ export const SETTINGS = [
   { key: "events.enabled", label: "Event log", values: "boolean", default: true, hosts: "all", session: true },
   { key: "review.mode", label: "Review", values: REVIEW_MODES, default: "auto", hosts: "all", session: true },
   { key: "review.model", label: "Reviewer model", values: "name", default: null, hosts: "all", session: true },
+  {
+    key: "governor.mode",
+    label: "Cost governor",
+    values: GOVERNOR_MODES,
+    default: "warn",
+    hosts: "claude-code",
+    session: true,
+  },
+  { key: "governor.cap", label: "Cost cap", values: "number", default: null, hosts: "claude-code", session: true },
   {
     key: "toolExecution.enabled",
     label: "Tool Execution",
@@ -248,6 +274,7 @@ export function settingSpec(key) {
 export function validSettingValue(spec, value) {
   if (spec.values === "boolean") return typeof value === "boolean";
   if (spec.values === "name") return typeof value === "string" && value.trim() !== "" && !/[\p{Cc}`]/u.test(value);
+  if (spec.values === "number") return positiveNumber(value);
   if (spec.values === "profile") return false;
   return spec.values.includes(value);
 }
@@ -281,6 +308,7 @@ export const CONFIG_SECTIONS = [
   "review",
   "skills",
   "events",
+  "governor",
 ];
 // outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
 // ignored so existing configs keep loading, and /freeflow status says Task Memory is gone (P6).
@@ -332,6 +360,10 @@ export function validateRepositoryConfig(value) {
     const error = validateEventsConfig(value.events);
     if (error) return error;
   }
+  if (value.governor !== undefined) {
+    const error = validateGovernorConfig(value.governor);
+    if (error) return error;
+  }
   if (value.review !== undefined) return validateReviewConfig(value.review);
   return null;
 }
@@ -356,6 +388,7 @@ export function validateLocalConfig(value) {
     "review",
     "skills",
     "events",
+    "governor",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -390,6 +423,10 @@ export function validateLocalConfig(value) {
   }
   if (value.events !== undefined) {
     const error = validateEventsConfig(value.events);
+    if (error) return error;
+  }
+  if (value.governor !== undefined) {
+    const error = validateGovernorConfig(value.governor);
     if (error) return error;
   }
   if (value.review !== undefined) return validateReviewConfig(value.review);
