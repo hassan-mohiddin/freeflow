@@ -781,6 +781,9 @@ test("a worker runs: its delegation comes from the spawn's prompt; near its thre
   expect(w.sent.length).toBe(1);
   expect(w.sent[0].to).toBe("agent-7"); // the engine spells { agentId } as the ID
   expect(w.sent[0].text).toContain("At your next safe point, rewrite D-012's progress.md");
+  expect(w.commands().filter((command) => command.startsWith("delegate log"))).toEqual([
+    `delegate log --record ${RECORD} --id D-012 --append --kind inform --body context at 76%: told to rewrite progress.md --agent agent-7`,
+  ]);
   expect(w.session.appended()).toEqual([]);
   // One notice a cycle for a worker too.
   w.response = { input_tokens: 100_000, cache_read_input_tokens: 70_000, cache_creation_input_tokens: 2_000 };
@@ -819,6 +822,10 @@ test("a worker hands back: a return that is not ready sends it back once, saying
     "Freeflow: D-012's return is not ready: no return.md. Write return.md as your brief says, then hand back.",
   );
   expect(w.commands()).toContain(`delegate check-return --record ${RECORD} --id D-012`);
+  // The block is a line in the task's delegation log (SPEC-009 4.2), with the worker's agent ID.
+  expect(w.commands()).toContain(
+    `delegate log --record ${RECORD} --id D-012 --append --kind blocked --body stop blocked: D-012's return is not ready: no return.md. --agent agent-7`,
+  );
   expect((await stop({ stop_hook_active: true })).block).toBeUndefined();
 
   w.answers["delegate check-return"] = { exitCode: 1, stderr: "Error: No folder for D-012 in /store.\n" };

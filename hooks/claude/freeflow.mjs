@@ -452,6 +452,13 @@ async function noticeWorker($, step, response) {
   const size = contextWindow;
   if (!size || tokens < noticePoint(size)) return;
   worker.noticed = true;
+  await logDelegation(
+    $,
+    worker.delegation,
+    "inform",
+    `context at ${Math.round((100 * tokens) / size)}%: told to rewrite progress.md`,
+    step.agentId,
+  );
   await $.session.send({
     to: { agentId: step.agentId },
     text: `Freeflow: your context is at ${Math.round((100 * tokens) / size)}% of its window and compaction is near. At your next safe point, rewrite ${worker.delegation}'s progress.md (Done, Half done, Didn't work, Next), so a compaction loses nothing, then go on.`,
@@ -547,6 +554,39 @@ async function workerSessionCompaction($, e, next, state) {
       ? made.stdout
       : `Freeflow could not make ${id}'s bundle: ${made.stderr.replace(/^Error: /, "").trim()}. Recover with node ${$.plugin.root}/${SCRIPT} view recover --record ${task} --delegation ${id}.`,
   );
+}
+
+/**
+ * One line in the held task's delegation log (SPEC-009 4.2) for what the mod did to a subagent worker: its notice
+ * (inform) or the block of its stop (blocked), through `delegate log --append`; a log that cannot be written is let go.
+ * @param {any} $
+ * @param {string} delegation
+ * @param {"inform" | "blocked"} kind
+ * @param {string} body
+ * @param {string | undefined} agentId
+ * @param {any} [known] session status, when the caller has it
+ */
+async function logDelegation($, delegation, kind, body, agentId, known) {
+  try {
+    const state = known ?? (await status($));
+    if (!state?.task) return;
+    await script($, [
+      "delegate",
+      "log",
+      "--record",
+      state.task.record,
+      "--id",
+      delegation,
+      "--append",
+      "--kind",
+      kind,
+      "--body",
+      body,
+      ...(agentId ? ["--agent", agentId] : []),
+    ]);
+  } catch (error) {
+    $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /**
@@ -1269,8 +1309,10 @@ async function stopChecked($, e, result) {
     worker.delegation,
   ]);
   if (checked.exitCode === 0 || !/return is not ready/.test(checked.stderr)) return result;
+  const reason = checked.stderr.replace(/^Error: /, "").trim();
+  await logDelegation($, worker.delegation, "blocked", `stop blocked: ${reason}`, e.agent_id, state);
   return {
     ...result,
-    block: `Freeflow: ${checked.stderr.replace(/^Error: /, "").trim()} Write return.md as your brief says, then hand back.`,
+    block: `Freeflow: ${reason} Write return.md as your brief says, then hand back.`,
   };
 }
