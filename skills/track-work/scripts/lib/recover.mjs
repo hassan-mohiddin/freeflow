@@ -3,8 +3,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
 
-// Pointers in a record's lines, found and resolved: what each Read on recovery, Read when, Defined by and Carry entry
-// points to and whether it can be read now (the budget and the views), and the pointers on a Slice's update lines for
+// Pointers in a record's lines, found and resolved: what each Recovery entry points to and whether it can be read now
+// (the budget and the views), and the pointers on a Slice's update lines for
 // `validate`: files and commits a later context will rely on. A pointer inside the repository that does not resolve
 // is a problem; one outside it is reported, not checked.
 
@@ -127,6 +127,20 @@ export function sourceEntries(lines, context) {
       classify(lead, (kind, value) => found.push({ kind, value }));
     return { text, trigger, pointers: found.map((pointer) => checkPointer(pointer, context)) };
   });
+}
+
+/**
+ * A Recovery list's entries (P28), each with its line, class, trigger, the line ranges it gives its files, and its
+ * pointers, found in what follows the class.
+ */
+export function recoveryEntries(items, context) {
+  return items.map((item) => ({
+    ...sourceEntries([`- ${item.rest}`], context)[0],
+    text: item.text,
+    kind: item.kind,
+    trigger: item.trigger,
+    ranges: item.ranges,
+  }));
 }
 
 export function contextFor(root, recordPath, repositories = []) {

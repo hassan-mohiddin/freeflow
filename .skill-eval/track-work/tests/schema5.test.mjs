@@ -127,13 +127,17 @@ test("the Schema 5 fixture's record.md, history.md and decisions.md validate, an
         /field Scope comes after the updates/,
       ],
       ["record.md", text.replace("### Space\n", "### Space\n\n- github.com/acme/widget · main\n"), /A Space line is/],
+      // A Recovery line names its class (P28); the headings it replaced, and a Carry line in In flight, are refused.
+      ["record.md", text.replace("- always: record.md — this file.", "- record.md — this file."), /A Recovery line is/],
       [
         "record.md",
-        text.replace(
-          "### Read when\n\n- history.md — closed work; read when the next action depends on it.",
-          "### Read when\n\n- history.md — closed work.",
-        ),
-        /names its trigger/,
+        text.replace("### Recovery\n", "### Defined by\n\n- specs/x.md — the design.\n\n### Recovery\n"),
+        /Current Work holds/,
+      ],
+      [
+        "record.md",
+        text.replace("- Now: the parser", "- Carry: history.md — next\n- Now: the parser"),
+        /An In flight line starts with Now, Observed, Hypothesis, Dropped, Pending and a colon \(what the next cycle reads goes under Recovery\)/,
       ],
       ["record.md", text.replace("- Opened: 2026-10-28\n", ""), /needs one Opened/],
       ["record.md", text.replace("### Delegations\n", "### Notes\n\n### Delegations\n"), /Current Work holds/],
@@ -179,14 +183,14 @@ test("init writes record.md, history.md and decisions.md, and refuses a cue that
     );
     assert.match(
       text,
-      /### Goal\n\n- Try Schema 5.\n\n### Settled\n\n### Open\n\n## Current Work\n\n### Delegations\n\n### Space\n\n### In flight\n\n### Defined by\n\n### Read on recovery\n/,
+      /### Goal\n\n- Try Schema 5.\n\n### Settled\n\n### Open\n\n## Current Work\n\n### Delegations\n\n### Space\n\n### In flight\n\n### Recovery\n\n### Next action\n/,
     );
     // After the record's path, init prints the budget, so the agent writes the record knowing it (P66).
     const second = ok(
       run(
         folder,
         ["init", "--root", folder, "--name", "Second", "--cue", "read when testing", "--input", "-"],
-        "### Goal\n- Two.\n### Defined by\n- specs/two.md — the design.\n### Next action\n- Go.\n",
+        "### Goal\n- Two.\n### Recovery\n- always, not counted: specs/two.md — the design.\n### Next action\n- Go.\n",
       ),
     ).split("\n");
     assert.match(second[0], /task-002-second\/record\.md$/);
@@ -194,7 +198,10 @@ test("init writes record.md, history.md and decisions.md, and refuses a cue that
       second[1],
       "Recovery budget: about 10,000 words (normal mode, a 200,000-token window, assumed: FREEFLOW_CONTEXT_WINDOW is not set).",
     );
-    assert.match(await readFile(second[0], "utf8"), /### Defined by\n\n- specs\/two\.md — the design\.\n/);
+    assert.match(
+      await readFile(second[0], "utf8"),
+      /### Recovery\n\n- always, not counted: specs\/two\.md — the design\.\n/,
+    );
     assert.equal(await readFile(join(dirname(record), "history.md"), "utf8"), "# History: Demo task\n");
     assert.equal(await readFile(join(dirname(record), "decisions.md"), "utf8"), "# Decisions\n");
     assert.ok(existsSync(join(dirname(record), "scratch")));
@@ -563,7 +570,7 @@ test("validate and checkpoint warn on a section over its budget, and checkpoint 
     const out = ok(run(folder, ["checkpoint", "--record", record]));
     assert.match(
       out,
-      /^Checkpoint: task-001-demo-task, State as of \S+\.\nBudget: counted [\d,]+ of about 10,000 words \(normal, 200,000-token window\); largest: Current Context 6\d\d, .+; fixed: Current Context 6\d\d of about 600, OVER, Future Work 0 of about 300; not counted: rules 0, Defined by 0\.\nIn flight: unchanged; pass --input with its lines to rewrite it whole\.\n/,
+      /^Checkpoint: task-001-demo-task, State as of \S+\.\nBudget: counted [\d,]+ of about 10,000 words \(normal, 200,000-token window\); largest: Current Context 6\d\d, .+; fixed: Current Context 6\d\d of about 600, OVER, Future Work 0 of about 300; not counted: rules 0, Recovery's uncounted files 0\.\nIn flight: unchanged; pass --input with its lines to rewrite it whole\.\nRecovery: kept, 0 line\(s\)\.\n/,
     );
     assert.match(out, /Warning: Current Context has 6\d\d words/);
     assert.match(out, /Space: unchanged/);

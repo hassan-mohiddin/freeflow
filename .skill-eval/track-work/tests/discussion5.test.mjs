@@ -208,7 +208,7 @@ test("a block that replaces another drops it; drop removes a block; block number
     );
     assert.match(
       ok(cli(["discussion", "drop", "--record", record, "--block", "B-002"])),
-      /No blocks left: drop sources\/discussion\.md from Read on recovery/,
+      /No blocks left: drop its line from Recovery \(sources\/discussion\.md\)\./,
     );
     save(["--messages", "5", "--title", "After", "--shapes", "A-001"], "5: a heading\n");
     text = await readFile(discussion, "utf8");

@@ -28,7 +28,7 @@ const SUMMARY = [
   "(none)",
   "## In flight",
   "- Now: SUMMARY_IN_FLIGHT_MARKER.",
-  "## Read when",
+  "## Recovery",
   "(none)",
   "## Next action",
   "- Report.",

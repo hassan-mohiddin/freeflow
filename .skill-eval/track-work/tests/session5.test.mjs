@@ -135,7 +135,7 @@ test("session status prints this session's state in the store as JSON: its task,
       cli(["checkpoint", "--session", "--input", "-"], {
         env: other,
         input:
-          "## Goal\n- Answer a question.\n## Settled\n(none)\n## Open\n(none)\n## Agreement\n(none)\n## In flight\n(none)\n## Read when\n(none)\n## Next action\n- Answer it.\n",
+          "## Goal\n- Answer a question.\n## Settled\n(none)\n## Open\n(none)\n## Agreement\n(none)\n## In flight\n(none)\n## Recovery\n(none)\n## Next action\n- Answer it.\n",
       }),
     );
     const summary = status(other);
@@ -231,7 +231,7 @@ test("with no store, a session summary still asks for Freeflow's compaction, and
       "(none)",
       "## In flight",
       "- Now: reading.",
-      "## Read when",
+      "## Recovery",
       "(none)",
       "## Next action",
       "- Answer.",
@@ -247,11 +247,11 @@ test("with no store, a session summary still asks for Freeflow's compaction, and
   });
 });
 
-test("without a task, the session summary's Carry lines name files, which the bundle copies fresh with their lines; any other Carry line is refused", async () => {
+test("without a task, the session summary's Recovery always lines name files, which the bundle copies fresh with their lines (P9); a line with no class, or a Carry line, is refused", async () => {
   await withFolder(async ({ folder, cli }) => {
     await writeFile(join(folder, "notes.txt"), "one\ntwo\nthree\n");
     const env = { CLAUDE_CODE_SESSION_ID: "abcdef12-3456-7890-abcd-ef1234567890" };
-    const summary = (carry) =>
+    const summary = (recovery, flight = []) =>
       [
         "## Goal",
         "- Answer the user's question.",
@@ -263,27 +263,38 @@ test("without a task, the session summary's Carry lines name files, which the bu
         "(none)",
         "## In flight",
         "- Now: reading.",
-        ...carry,
-        "## Read when",
-        "(none)",
+        ...flight,
+        "## Recovery",
+        ...recovery,
         "## Next action",
         "- Report.",
       ].join("\n");
-    for (const line of ["- Carry: the notes", "- Carry: result 3 — the test run"]) {
-      const refused = cli(["checkpoint", "--session", "--input", "-"], { input: summary([line]), env });
-      assert.equal(refused.status, 1, line);
-      assert.match(refused.stderr, /A Carry line is "- Carry: <path> \(lines <a>–<b>\) — <why>", the lines optional: /);
-    }
+    const refused = cli(["checkpoint", "--session", "--input", "-"], {
+      input: summary(["- notes.txt — no class"]),
+      env,
+    });
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /A Recovery line is "- always: <pointer> — <why>"/);
+    const carry = cli(["checkpoint", "--session", "--input", "-"], {
+      input: summary([], ["- Carry: notes.txt — the notes"]),
+      env,
+    });
+    assert.equal(carry.status, 1);
+    assert.match(carry.stderr, /goes under ## Recovery/);
     ok(
       cli(["checkpoint", "--session", "--input", "-"], {
-        input: summary(["- Carry: notes.txt (lines 2–3) — the open lines", "- Carry: gone.txt — a file since removed"]),
+        input: summary([
+          "- always: notes.txt (lines 2–3) — the open lines",
+          "- always: gone.txt — a file since removed",
+          "- when the user asks for timings: bench.txt — the timings",
+        ]),
         env,
       }),
     );
     const bundle = ok(cli(["view", "bundle", "--session"], { env }));
-    const carry = bundle.slice(bundle.indexOf("## Carry\n"));
-    assert.match(carry, /\n- Not carried: gone\.txt does not exist\n/);
-    assert.match(carry, /<file path="notes\.txt lines 2–3">\n2\ttwo\n3\tthree\n<\/file>/);
-    assert.doesNotMatch(bundle, /Recent results|<result /);
+    const recovery = bundle.slice(bundle.indexOf("\n## Recovery files\n"));
+    assert.match(recovery, /\n- Not read: gone\.txt does not exist\n/);
+    assert.match(recovery, /<file path="notes\.txt lines 2–3">\n2\ttwo\n3\tthree\n<\/file>/);
+    assert.doesNotMatch(recovery, /bench\.txt does not exist|<file path="bench/);
   });
 });

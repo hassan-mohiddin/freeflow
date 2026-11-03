@@ -323,7 +323,7 @@ export async function dropBlock({ path: recordPath }, id) {
   const out = trimEnd([...lines.slice(0, block.start), ...lines.slice(block.end)]);
   await writeFile(file, `${out.join("\n")}\n`);
   const left = blocks.length - 1;
-  return `Dropped ${id}; Git keeps it. ${left ? `${left} block(s) left.` : `No blocks left: drop ${DISCUSSION_FILE} from Read on recovery.`}\n`;
+  return `Dropped ${id}; Git keeps it. ${left ? `${left} block(s) left.` : `No blocks left: drop its line from Recovery (${DISCUSSION_FILE}).`}\n`;
 }
 
 /** Blocks whose shaped work is all closed in History: candidates to drop at a checkpoint. */

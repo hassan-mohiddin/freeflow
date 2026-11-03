@@ -109,7 +109,10 @@ test("view recover prints the opening line, rules, record, decisions, History an
     const text = await readFile(record, "utf8");
     await writeFile(
       record,
-      text.replace("- record.md — this file.\n", "- record.md — this file.\n- sources/missing.md — gone.\n"),
+      text.replace(
+        "- always: record.md — this file.\n",
+        "- always: record.md — this file.\n- always: sources/missing.md — gone.\n",
+      ),
     );
     git(home, ["add", "-A"]);
     git(home, ["commit", "--quiet", "-m", "local only"]);
@@ -189,9 +192,9 @@ test("view recover prints the opening line, rules, record, decisions, History an
     assert.equal(realpathSync(folderLine[1]), realpathSync(dirname(record)));
     assert.match(
       checks,
-      /- Budget: counted [\d,]+ of about 10,000 words \(normal, 200,000-token window\); largest: .+; fixed: Current Context \d+ of about 600, Future Work \d+ of about 300; not counted: rules 8, Defined by [\d,]+\./,
+      /- Budget: counted [\d,]+ of about 10,000 words \(normal, 200,000-token window\); largest: .+; fixed: Current Context \d+ of about 600, Future Work \d+ of about 300; not counted: rules 8, Recovery's uncounted files [\d,]+\./,
     );
-    assert.match(checks, /- Read on recovery: sources\/missing.md does not exist/);
+    assert.match(checks, /- Recovery: sources\/missing.md does not exist/);
     assert.match(checks, /- Store: 1 commit\(s\) not pushed, 0 path\(s\) not committed; last sync \S+, created\./);
     assert.match(
       checks,
@@ -203,7 +206,7 @@ test("view recover prints the opening line, rules, record, decisions, History an
       out
         .trimEnd()
         .endsWith(
-          "Now read every Defined by entry, every Read on recovery source and the core skills, then say in one line what you read.",
+          "Now read every file the Recovery lines marked always name, only the lines a line gives where it gives them, and the core skills; read a when line's file once its trigger applies. Then say in one line what you read.",
         ),
     );
   });
@@ -274,12 +277,10 @@ test("recover and the bundle read the files a record names in a Space repository
     const text = await readFile(record, "utf8");
     await writeFile(
       record,
-      text
-        .replace("### Defined by\n\n", "### Defined by\n\n- docs/guide.md (in the repository): the guide.\n")
-        .replace(
-          "### Read on recovery\n\n",
-          "### Read on recovery\n\n- AGENTS.md (in the repository): its rules.\n- The team's wiki page on widgets.\n",
-        ),
+      text.replace(
+        "### Recovery\n\n",
+        "### Recovery\n\n- always, not counted: docs/guide.md (in the repository): the guide.\n- always: AGENTS.md (in the repository): its rules.\n- always: the team's wiki page on widgets.\n",
+      ),
     );
     // The folder the command runs in is in no repository, as a session started outside the work repository is.
     const bundle = ok(run(folder, ["view", "bundle", "--record", record]));
@@ -288,7 +289,7 @@ test("recover and the bundle read the files a record names in a Space repository
     assert.doesNotMatch(bundle, /docs\/guide\.md does not exist|AGENTS\.md does not exist/);
     assert.match(
       bundle,
-      /- Read on recovery: "The team's wiki page on widgets\." names no file, so recovery cannot read it; write its path\n/,
+      /- Recovery: "always: the team's wiki page on widgets\." names no file, so recovery cannot read it; write its path\n/,
     );
     const recover = ok(run(folder, ["view", "recover", "--record", record]));
     assert.match(recover, /docs\/guide\.md/);

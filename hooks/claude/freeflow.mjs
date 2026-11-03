@@ -195,7 +195,7 @@ function noticeText($, context, state, number) {
   const limit = threshold ? `; Claude Code compacts on its own at about ${Math.round(threshold)} tokens` : "";
   const checkpoint = state.task
     ? `At that point, checkpoint ${state.task.id}: rewrite ${state.task.id}'s Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${state.task.id} --compact --input - with In flight's lines.`
-    : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Read when, Next action).`;
+    : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
   return `Freeflow, compaction cycle ${number}: the context is at ${share(context)}${limit}. Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: on that request, Freeflow compacts the session with the record in place of the conversation, and starts the next turn where it can. This is the only notice this compaction cycle; if Claude Code compacts before the checkpoint, the record as of its last checkpoint follows Claude's summary.`;
 }
 

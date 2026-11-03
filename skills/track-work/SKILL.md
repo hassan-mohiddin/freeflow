@@ -11,7 +11,7 @@ A task is a folder, normally in the Freeflow store: one private Git repository a
 
 - `record.md`, the state, in three sections:
   - **Current Context:** Goal, Settled and Open, rewritten whole at each checkpoint and never patched in between.
-  - **Current Work:** the open agreement (`A-NNN`), the current Slice (`S-NNN`), Delegations, Space, In flight, Defined by, Read on recovery, Read when and the Next action; it changes as the work moves.
+  - **Current Work:** the open agreement (`A-NNN`), the current Slice (`S-NNN`), Delegations, Space, In flight, Recovery (what the next compaction cycle reads to recover) and the Next action; it changes as the work moves.
   - **Future Work:** proposed Slices.
 - `history.md`, one entry per closed Slice, agreement or delegation; `decisions.md`, the open agreement's decision list; `sessions.md`, every session that held the task, its last open line the hold.
 - `sources/` (with `sources/discussion.md`, the user's messages that shaped the work), `delegations/`, `evidence/`, `specs/`, `plans/` and `scratch/`.
@@ -85,8 +85,8 @@ Ask: **if context were lost now, what would the next context need that it could 
 | Work with partial state is about to begin | a Slice |
 | Work produces a result, an identity (a commit, a document version, a sent message) or evidence | a one-line update on the Slice: its kind and a pointer |
 | Part of the work goes to another agent | a delegation |
-| A Spec, Plan, issue or brief is accepted for the task, or the work must follow a skill beyond the core ones | Defined by |
-| You learn what the next context must read: a file, a section, a saved message | Read on recovery; Read when, with its trigger |
+| A Spec, Plan, issue or brief is accepted for the task, or the work must follow a skill beyond the core ones | Recovery, as an `always, not counted:` line |
+| You learn what the next context must read: a file, some of its lines, a saved message | Recovery: an `always:` line, or a `when <trigger>:` line when only some situations need it |
 | The repositories the task changes, and where each stands | Space, at the checkpoint |
 | Where the step in progress stands, and what the next step rests on | In flight, at the checkpoint |
 | The next step or the rough route becomes clear | the Next action and Future Work |
@@ -128,7 +128,7 @@ While it runs, add one line per boundary under its fields: a kind and a pointer,
 
 Delegations are not part of a Slice: each has its own line in Delegations and its own lifecycle, and Execute Work's [delegation](../execute-work/references/delegation.md) reference says how to open, check and close one. A Slice that needs a delegation's result names it under `Waits on` and waits for it to close; no Slice stays open only because a worker runs.
 
-An experiment or investigation completes when its question is answered or its limit is reached; a negative answer is a valid result. Record what it showed and what it changes, not how it was built. A study run with [Research Work](../research-work/SKILL.md) keeps its plan, lock, run ledger and deviation log as its own evidence: list the plan under Defined by, record its lock, the user's decision, as an agreement update in their words, and do not copy receipts or deviations into the record.
+An experiment or investigation completes when its question is answered or its limit is reached; a negative answer is a valid result. Record what it showed and what it changes, not how it was built. A study run with [Research Work](../research-work/SKILL.md) keeps its plan, lock, run ledger and deviation log as its own evidence: list the plan in Recovery as an `always, not counted:` line, record its lock, the user's decision, as an agreement update in their words, and do not copy receipts or deviations into the record.
 
 ## Keep A Rolling Route In Future Work
 
@@ -144,11 +144,11 @@ Before starting a proposal, check its dependencies against what actually happene
 
 Goal: what recovery reads of the memory you shaped fits a fresh context, and you know the limit before you write.
 
-The recovery budget counts the memory the agent shapes: `record.md`, the active decisions shown, the History and project indexes, Read on recovery's sources and In flight's Carry files. It does not count the store's and the project's `rules/`, the skills, or Defined by's entries, which recovery reads whole. It grows with the context window, a task's header sets `normal` or `expanded`, and Current Context (about 600 words) and Future Work (about 300) stay fixed.
+The recovery budget counts the memory the agent shapes: `record.md`, the active decisions shown, the History and project indexes, and the files Recovery's `always` lines name. It does not count the store's and the project's `rules/`, the skills, or the files its `always, not counted` lines name, which recovery reads all the same; a `when` line's file counts once its trigger applies and it is read. It grows with the context window, a task's header sets `normal` or `expanded`, and Current Context (about 600 words) and Future Work (about 300) stay fixed.
 
-Run `budget` before you write a record or a checkpoint; `budget --record` shows what each part holds and what is left, and `init` and `checkpoint` print the same lines. The budget only warns. When a part runs over, distill it at the next checkpoint: rewrite Current Context tighter, give a source only some situations need a `Read when` trigger, drop sources the work no longer needs, and close Slices whose result is settled, never one that is not. When a task's memory keeps running over, propose expanded mode to the user; `task set-budget` changes it on their word.
+Run `budget` before you write a record or a checkpoint; `budget --record` shows what each part holds and what is left, and `init` and `checkpoint` print the same lines. The budget only warns. When a part runs over, distill it at the next checkpoint: rewrite Current Context tighter, make a source only some situations need a `when` line, cut a long file to the lines that matter, drop sources the work no longer needs, and close Slices whose result is settled, never one that is not. When a task's memory keeps running over, propose expanded mode to the user; `task set-budget` changes it on their word.
 
-Put a source under Defined by only when it is an accepted definition or a method the work must follow; memory you shaped goes under Read on recovery, so the budget counts what you can distill.
+Mark a Recovery line `always, not counted` only when it names an accepted definition or a method the work must follow; memory you shaped is `always` or `when`, so the budget counts what you can distill.
 
 ## Checkpoint Before A Compaction Or A Transfer
 
@@ -159,18 +159,23 @@ Goal: at a compaction, a switch or a transfer, the task folder holds everything 
 **How:**
 
 1. Rewrite Current Context whole: the Goal; what is Settled and still governs; what is Open. Drop narration and anything another part already holds. Material that exists only in the conversation, such as a pasted image, file or long message, will not survive: save it under `sources/` and point to it.
-2. Adjust the rest of Current Work and Future Work: Defined by, Read on recovery and Read when (drop what the work no longer needs; give a source only some situations need its trigger), one Next action a fresh context can act on, and the route. Close nothing to make room. Do not rush a Slice to completion, claim an unfinished check passed, or guess the outcome of a running operation.
-3. If discussion with the user in this compaction cycle shaped the work, save it as blocks; skip this when none did. `discussion list` numbers the user's messages since the last checkpoint; `discussion save --messages 4-7,11 --title <topic> --shapes <A-NNN or S-NNN> --input -` appends one block with those messages word for word and your line under each saying what it answered, specifically enough that it reads alone. A cycle may add several blocks, one per stretch of discussion, or none. A block is never edited: one that a later discussion changes is replaced (`--replaces B-NNN`), and once the work a block shaped is closed and nothing open rests on it, `discussion drop` removes it; the checkpoint lists those blocks.
-4. `checkpoint --record <ID> --input -` with In flight's lines, and `--compact` when Freeflow should compact, which replace the old ones whole. In flight is the record's part of the compaction: write state, not a story, and keep exact paths, identifiers, commands, error text, numbers, and the user's words where wording matters.
+2. Decide Recovery, what the next compaction cycle reads to recover: the files it would otherwise read again, from the task folder, the store, a repository or elsewhere, each one line with its class and why:
+   - `always: <pointer> — <why>`: read on every recovery and counted against the budget;
+   - `always, not counted: <pointer> — <why>`: an accepted Spec, Plan, issue or brief, or a skill beyond the core ones the work follows;
+   - `when <trigger>: <pointer> — <why>`: read only once its trigger applies.
+
+   Give a file `(lines <a>–<b>)` when only those lines matter. The list stays as it is unless you change it, and it can be empty: drop what the work no longer needs.
+3. Adjust the rest of Current Work and Future Work: one Next action a fresh context can act on, and the route. Close nothing to make room. Do not rush a Slice to completion, claim an unfinished check passed, or guess the outcome of a running operation.
+4. If discussion with the user in this compaction cycle shaped the work, save it as blocks; skip this when none did. `discussion list` numbers the user's messages since the last checkpoint; `discussion save --messages 4-7,11 --title <topic> --shapes <A-NNN or S-NNN> --input -` appends one block with those messages word for word and your line under each saying what it answered, specifically enough that it reads alone. A cycle may add several blocks, one per stretch of discussion, or none. A block is never edited: one that a later discussion changes is replaced (`--replaces B-NNN`), and once the work a block shaped is closed and nothing open rests on it, `discussion drop` removes it; the checkpoint lists those blocks.
+5. `checkpoint --record <ID> --input -` with In flight's lines, which replace the old ones whole, then, when Recovery changes, a line `Recovery:` and the whole new list under it (`Recovery: none` empties it); add `--compact` when Freeflow should compact. In flight is the record's part of the compaction: write state, not a story, and keep exact paths, identifiers, commands, error text, numbers, and the user's words where wording matters.
    - `Now:` the step in progress and exactly how far it got;
    - `Observed:` a result the next step rests on, with its evidence; `Hypothesis:` what is being tested, unverified;
    - `Dropped:` an approach and why it failed, so it is not tried again; `Pending:` what runs or waits, and on what;
-   - `Carry:` a file the next compaction cycle needs fresh, with its lines and why.
 
-   A result that closes a claim goes on the Slice instead, and a narrower instruction from the user in the agreement. The command checks the task folder's structure and the budget, writes Space for the repository you work in, adds to the current Slice's measure, sets the record's "State as of", then commits and pushes the store.
-5. After `--compact`, end the turn. For a switch, `task switch`; for a pause or a transfer, `task release`, and write a [handoff](references/handoff.md) when someone needs a document.
+   A result that closes a claim goes on the Slice instead, and a narrower instruction from the user in the agreement. The command checks the task folder's structure and the budget, writes Space for the repository you work in, adds to the current Slice's measure, sets the record's "State as of", then commits and pushes the store. It prints each Recovery line with the size of what it names and an `always` line's share of the budget, and names an `always, not counted` line the new list dropped: put it back if the work still rests on it.
+6. After `--compact`, end the turn. For a switch, `task switch`; for a pause or a transfer, `task release`, and write a [handoff](references/handoff.md) when someone needs a document.
 
-A session that holds no task writes a session summary instead, `checkpoint --session --input -` with its Goal, Settled, Open, Agreement, In flight, Read when and Next action: it is the next compaction cycle's only memory. A compaction never creates a task.
+A session that holds no task writes a session summary instead, `checkpoint --session --input -` with its Goal, Settled, Open, Agreement, In flight, Recovery and Next action, its Recovery lines as a record's: it is the next compaction cycle's only memory. A compaction never creates a task.
 
 A checkpoint closes nothing and is not a Slice transition: pause a Slice only when safe continuation is actually suspended.
 
@@ -178,16 +183,16 @@ A checkpoint closes nothing and is not a Slice transition: pause a Slice only wh
 
 Context loss means the conversation about the current work is no longer in context: after a compaction, a summary that replaces it, a clear, a transfer to another session, or a branch that continues the work without it. With that conversation still in context (a new message, a pause, a resumed session), read `record.md` or the part you need instead.
 
-- **After Freeflow's compaction** the conversation is the bundle: the opening line, the rules, the record, the active decisions, the History and project indexes, the checks, then every source recovery reads, whole, with their sizes. It was all read when the bundle was made: read none of it again unless something changed it since, but read again before you apply it any skill the bundle did not carry. Check the live state the next step depends on, and go on from In flight and the Next action.
+- **After Freeflow's compaction** the conversation is the bundle: the opening line, the rules, the record, the active decisions, the History and project indexes, the checks, then every file the Recovery `always` lines name, whole or for the lines a line gives, with their sizes. It was all read when the bundle was made: read none of it again unless something changed it since, but read again before you apply it any skill the bundle did not carry. Check the live state the next step depends on, and go on from In flight and the Next action.
 - **After the harness's own compaction,** its summary replaces the conversation, and where Freeflow's harness layer can add to it, the bundle as of the last checkpoint and the user's messages since then, word for word, follow. When the compaction came before a checkpoint, the record is behind: where the summary or those messages differ from it, they win, and the transcript holds what the summary lost. With no bundle after the summary, recover as the next line says.
-- **Otherwise,** when you take a task or no bundle came, recover only the task this session holds or the user's message points to; when that task and the user's current work disagree, report it instead of recovering it. `view recover --record <ID>` prints the opening line, the rules, the record, the active decisions, the indexes and the checks, which name any pointer that does not resolve. Read every Defined by entry, every Read on recovery source and the core skills (Track Work, Discuss Work and Execute Work), whole; a Read when source once its trigger applies; and, with `view entry <ID>`, the History entries the next action depends on: closed work on the same result, an attempt that failed or was abandoned, and any entry the record names. Then say in one line what you read.
+- **Otherwise,** when you take a task or no bundle came, recover only the task this session holds or the user's message points to; when that task and the user's current work disagree, report it instead of recovering it. `view recover --record <ID>` prints the opening line, the rules, the record, the active decisions, the indexes and the checks, which name any pointer that does not resolve. Read the file each `always` Recovery line names, only its lines where the line gives them, and the core skills (Track Work, Discuss Work and Execute Work), whole; a `when` line's file once its trigger applies; and, with `view entry <ID>`, the History entries the next action depends on: closed work on the same result, an attempt that failed or was abandoned, and any entry the record names. Then say in one line what you read.
 - **A worker** recovers with `view recover --record <ID> --delegation <D-NNN>`: its brief is its scope and wins where it and the record disagree.
 
 Then reconcile before acting:
 
 - The user's latest direction supersedes older instructions in the record, including a record written on another conversation branch. Establish the agreement (or, without one, the agreed outcome and return condition) and whether that direction has changed it, the active decisions, the Slice and its state, open delegations, partial effects, and whether the next action's prerequisites hold.
 - Compare the record with the live state the next action depends on: the checks name where each repository in Space stands and the store's unpushed commits. If they disagree, resolve it from sources; do not follow whichever version lets work continue.
-- If the record conflicts with a Spec or Plan under Defined by, the record does not win. Return the conflict to that artifact's owner before dependent work.
+- If the record conflicts with a Spec or Plan its Recovery list names, the record does not win. Return the conflict to that artifact's owner before dependent work.
 - Check an important completion, verification, review, or commit claim, and the identity of what it examined, before repeating it; a run that happened may not apply to the current state. Reuse evidence that still applies instead of repeating the investigation, and reopen a source only when its exact content or freshness changes the next action.
 - A next action a handoff names authorizes nothing by itself. Without a record, as when resuming from a handoff alone, reconstruct from it and the exact sources it names, and report a missing boundary instead of inventing it.
 
@@ -195,7 +200,7 @@ Then reconcile before acting:
 
 [Working Record Format](references/working-record-format.md) owns the exact shape of every file in the task folder and the command contract; read it before editing structure or preparing input for a command. Run `working-record.mjs <group> <operation> --help` before preparing a command's input; read `scripts/lib/` only when diagnosing a defect.
 
-Edit meaning directly: Current Context (at a checkpoint), a Slice's update lines, Defined by, Read on recovery, Read when, the Next action, and the order, wording or removal of Future Work's proposals. After a structural edit, run `validate`. It checks structure and warns about pointers that do not resolve; it cannot tell whether an edit changed history or skipped a lifecycle step, so never make those edits by hand: IDs, states, the agreement's lines, the hold, and anything in `history.md`.
+Edit meaning directly: Current Context (at a checkpoint), a Slice's update lines, Recovery, the Next action, and the order, wording or removal of Future Work's proposals. After a structural edit, run `validate`. It checks structure and warns about pointers that do not resolve; it cannot tell whether an edit changed history or skipped a lifecycle step, so never make those edits by hand: IDs, states, the agreement's lines, the hold, and anything in `history.md`.
 
 If a command exits with code 2, the write may have happened: read `view full` before retrying or editing, and never duplicate an entity to recover from an uncertain result. If a record fails validation, read it through `view full` and stop before edits or transitions; repair needs separate authorization.
 
@@ -206,7 +211,7 @@ Keep temporary files for the task, such as throwaway scripts, saved command outp
 
 Close a Slice as `completed` only when its result is supported by evidence, live state agrees, no material contradiction or authority conflict remains, and no delegation it waits on is open. Close as `blocked` from `paused` when it cannot continue, or as `abandoned` with explicit authority and a reason.
 
-`slice close` writes the Slice's one History entry, its update lines included; Read on recovery and Read when entries do not carry over. Give it a cue that says when the entry matters, not what it holds ("read when the retry policy is in question"), and put every pointer, residual effect and limit that still matters into its Evidence and Task effect. Then remove the sources the record no longer needs.
+`slice close` writes the Slice's one History entry, its update lines included; Recovery's lines do not go into it. Give it a cue that says when the entry matters, not what it holds ("read when the retry policy is in question"), and put every pointer, residual effect and limit that still matters into its Evidence and Task effect. Then remove the sources the record no longer needs.
 
 When the Slice settled how a documented part of the software works or why, such as a design choice, a rejected alternative, or a limit accepted on purpose, record it in that documentation with [Write Docs](../write-docs/SKILL.md) before closing. The record is task memory; it does not outlive the task.
 
