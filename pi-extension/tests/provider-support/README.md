@@ -8,7 +8,6 @@ Tests for [`src/provider-support/`](../../src/provider-support/README.md). No te
 | `cache-anchor-openai.test.js` | The same for OpenAI Responses positions (eligible message endings). |
 | `cache-anchor-native.test.js` | Breakpoint placement in real Pi requests. |
 | `cache-keepalive.test.js` | Keep-alive replays: when a waiting requester's last request is replayed with a small output cap, and how each refresh is reported. |
-| `cache-keepalive-native.test.js` | The Coordinator's cache kept warm while its worker runs, in a real session. |
 | `cache-health.test.js` | Regression detection: healthy requests raise nothing; repeated unexplained misses warn once. |
 | `cache-monitor.test.js` | Cache diagnostics go to `/freeflow status`, never to the footer. |
 | `chatgpt-sign-in.test.js` | Sign in with ChatGPT is recognized and left untouched, while API-key routes keep their support. |

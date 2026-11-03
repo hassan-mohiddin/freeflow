@@ -15,7 +15,7 @@ first whenever the suite, its image or the evaluator changed since the last full
 ## Shape
 
 One arm, `freeflow`: Freeflow's Pi extension built from a commit (`configuration.json`, `freeflow.source.ref`, `main`
-at `1a21211c` by default), Cognitive Routing off and **Tool Execution on** (the default a Pi user has), on Claude Haiku
+at `1a21211c` by default), **Tool Execution on** (the default a Pi user has), on Claude Haiku
 5.5 (`anthropic/claude-haiku-5-5`, thinking `medium`) through `@gotgenes/pi-anthropic-auth` 3.4.3, with Pi's host
 prompt so Freeflow's own prompt and skill listing reach the model. Every group has the agent's whole tool set (`read`,
 `write`, `edit`, `ls`, `find`, `grep`, `bash`, and Freeflow's `bash_background`, `monitor`, `stop_background` and

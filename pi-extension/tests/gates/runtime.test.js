@@ -281,7 +281,6 @@ test(
         },
         true,
         {
-          cognitiveRouting: { enabled: false },
           freeflowConfig: { toolExecution: { enabled: true }, gates: { slice: "warn", agreement: "warn" } },
         },
       );

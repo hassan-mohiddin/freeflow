@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 
 // Real Pi reads of a shipped skill: every read returns the whole text, the Runtime State names the skill from the
 // next prompt on, and a compaction clears that list.
 const SKILL = fileURLToPath(new URL("../../../skills/track-work/SKILL.md", import.meta.url));
 const STATE_LINE = "Freeflow skills read in this context: track-work";
-const toolExecution = { freeflowConfig: { toolExecution: { enabled: true } }, cognitiveRouting: { enabled: false } };
+const toolExecution = { freeflowConfig: { toolExecution: { enabled: true } } };
 
 const readResults = (manager) =>
   manager

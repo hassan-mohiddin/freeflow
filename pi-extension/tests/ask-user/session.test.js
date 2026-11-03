@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 
 // ask_user on a real Pi session with scripted model responses: declared with Freeflow, its guideline in the system
 // prompt, the user's answer back to the model, and each request still starting with the previous one.
@@ -54,7 +54,6 @@ test("the model asks; the user's answer is the tool result; the prompt prefix ho
     },
     true,
     {
-      cognitiveRouting: { enabled: false },
       ui: { select: async (title, options) => (asked.push([title, options]), options[0]) },
     },
   );
@@ -68,6 +67,6 @@ test("with Freeflow disabled the tool is not declared", { timeout: 30000 }, asyn
       assert.ok(!(requests[0].tools ?? []).some((tool) => tool.name === "ask_user"));
     },
     true,
-    { cognitiveRouting: { enabled: false }, freeflowConfig: { enabled: false } },
+    { freeflowConfig: { enabled: false } },
   );
 });

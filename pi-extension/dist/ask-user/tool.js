@@ -18,7 +18,7 @@ const textOf = (result) =>
     .map((part) => part.text ?? "")
     .join("\n");
 /** Registered once, declared only while Freeflow is effective outside subagents. */
-export function registerAskUserTool(pi, host) {
+export function registerAskUserTool(pi) {
   pi.registerTool({
     name: ASK_USER,
     label: "Question",
@@ -99,15 +99,11 @@ export function registerAskUserTool(pi, host) {
       return new Text(paint(theme, "warning", firstLine(textOf(result)) || "Not asked"), 0, 0);
     },
     async execute(_id, params, signal, _update, ctx) {
-      const refused = host.refusal(ctx);
       const checked = validateQuestions(params?.questions);
-      let outcome;
-      if (refused) outcome = { status: "unavailable", reason: refused };
-      else if ("error" in checked)
-        return { content: [{ type: "text", text: checked.error }], details: {}, isError: true };
-      else outcome = await askUser(ctx, checked.questions, signal);
+      if ("error" in checked) return { content: [{ type: "text", text: checked.error }], details: {}, isError: true };
+      const outcome = await askUser(ctx, checked.questions, signal);
       return {
-        content: [{ type: "text", text: refused ? refused : outcomeText(outcome) }],
+        content: [{ type: "text", text: outcomeText(outcome) }],
         details: { outcome },
         ...(outcome.status === "answered" ? {} : { isError: true }),
       };

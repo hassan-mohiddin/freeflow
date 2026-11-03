@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 
-async function observe(skipFreeflow, routing = { enabled: false }) {
+async function observe(skipFreeflow) {
   let turns = 0;
   const timeline = [];
   const promptSection = (pi) =>
@@ -34,7 +34,6 @@ async function observe(skipFreeflow, routing = { enabled: false }) {
     },
     false,
     {
-      ...(routing === null ? {} : { cognitiveRouting: routing }),
       freeflowConfig: {},
       skipFreeflow,
       beforeExtensions: [promptSection],
@@ -103,7 +102,6 @@ test("Freeflow retains a later native tool-loadout patch instead of moving it in
     },
     false,
     {
-      cognitiveRouting: { enabled: false },
       freeflowConfig: {},
       beforeExtensions: [probe],
       extensions: [after],
@@ -142,7 +140,7 @@ test("unchanged Freeflow guidance keeps the provider-facing system head byte-ide
       await session.waitForIdle();
     },
     false,
-    { cognitiveRouting: { enabled: false }, freeflowConfig: {}, maxRequests: 2 },
+    { freeflowConfig: {}, maxRequests: 2 },
   );
   const [first, second] = result.requests.map((request) => request.input.find((message) => message.role === "system"));
   assert.ok(first);
@@ -181,15 +179,6 @@ test("Freeflow request replay respects Pi's native content edit in the provider 
       await session.waitForIdle();
     },
     false,
-    { cognitiveRouting: { enabled: false }, freeflowConfig: {}, maxRequests: 3 },
+    { freeflowConfig: {}, maxRequests: 3 },
   );
-});
-
-test("Cognitive Routing projection retains Pi's structured prompt timeline", async () => {
-  const candidate = await observe(false, null); // fixture's real two-profile Cognitive Routing configuration
-  assert.equal(candidate.timeline[1].systemCount, 2);
-  assert.equal(candidate.timeline[1].alphaAt, 0);
-  assert.ok(candidate.timeline[1].betaAt > 0);
-  assert.deepEqual(candidate.timeline[0].firstSections, candidate.timeline[1].firstSections);
-  assert.ok(candidate.requests[1].input.some((message) => JSON.stringify(message).includes("PROBE_BETA")));
 });

@@ -3,9 +3,8 @@
 //
 // It opens a copy of a session (a generated one by default, or --session <path> for a real one), loads the built
 // extension from pi-extension/dist (or --dist <dir> to compare another build), answers every model request from a
-// scripted offline provider, and times each Freeflow event handler and each prompt end to end, in five scenarios:
-// no Freeflow, Freeflow disabled, Freeflow defaults, Cognitive Routing with projection plus Tool Execution, and task
-// memory with one Working Record attached and in focus.
+// scripted offline provider, and times each Freeflow event handler and each prompt end to end, in four scenarios:
+// no Freeflow, Freeflow disabled, Freeflow defaults, and Tool Execution.
 //
 //   npm run perf:request
 //   npm run perf:request -- --session ~/.pi/agent/sessions/<dir>/<file>.jsonl --prompts 8
@@ -42,7 +41,7 @@ const { values } = parseArgs({
 });
 const PROMPTS = Number(values.prompts);
 const freeflow = (await import(pathToFileURL(join(resolve(values.dist), "index.js")).href)).default;
-const { response } = await import(pathToFileURL(join(root, "pi-extension/tests/fixtures/routing-native.js")).href);
+const { response } = await import(pathToFileURL(join(root, "pi-extension/tests/fixtures/pi-native.js")).href);
 
 /**
  * A deterministic session of `turns` tool-using exchanges (user, assistant with a read call, its result, reply), with
@@ -269,18 +268,11 @@ async function run(label, config, sessionPath) {
 
 const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
 const ms = (x) => `${x.toFixed(1)} ms`;
-const profiles = {
-  coordinator: { provider: "openai", model: "gpt-4o", thinking: "off" },
-  executor: { provider: "openai", model: "gpt-4.1-mini", thinking: "off" },
-};
 const scenarios = [
   ["no Freeflow", undefined],
   ["Freeflow disabled", { enabled: false }],
   ["Freeflow defaults", {}],
-  [
-    "routing + projection + Tool Execution",
-    { toolExecution: { enabled: true }, cognitiveRouting: { enabled: true, projection: true, profiles } },
-  ],
+  ["Tool Execution", { toolExecution: { enabled: true } }],
 ].filter(([label]) => !values.scenario || label.startsWith(values.scenario));
 
 let sessionPath = values.session && resolve(values.session.replace(/^~/, process.env.HOME));

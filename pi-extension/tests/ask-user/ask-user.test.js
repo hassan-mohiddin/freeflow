@@ -163,10 +163,9 @@ test("Freeflow's confirmations keep Pi's confirm outside the terminal", async ()
   assert.equal(await confirmWithUser({ hasUI: false }, "Attach?", "Attach it?"), false);
 });
 
-test("the tool refuses a Cognitive Routing worker, rejects bad questions, and carries a prompt guideline", async () => {
+test("the tool rejects bad questions and carries a prompt guideline", async () => {
   let tool;
-  let refusal;
-  registerAskUserTool({ registerTool: (definition) => (tool = definition) }, { refusal: () => refusal });
+  registerAskUserTool({ registerTool: (definition) => (tool = definition) });
   assert.equal(tool.exposure, "model-only");
   assert.match(tool.promptGuidelines[0], /^Use ask_user for a choice that is the user's to make/);
   const ctx = { hasUI: true, mode: "rpc", ui: { select: async () => "A — about A" } };
@@ -175,10 +174,6 @@ test("the tool refuses a Cognitive Routing worker, rejects bad questions, and ca
   assert.match(answered.content[0].text, /Answer: A/);
   const bad = await tool.execute("id", { questions: [q("One", ["A"])] }, undefined, undefined, ctx);
   assert.equal(bad.isError, true);
-  refusal = "A Cognitive Routing worker does not ask the user.";
-  const refused = await tool.execute("id", { questions: [q("One", ["A", "B"])] }, undefined, undefined, ctx);
-  assert.equal(refused.isError, true);
-  assert.equal(refused.content[0].text, refusal);
 });
 
 test("an aborted call closes the terminal dialog unanswered", async () => {

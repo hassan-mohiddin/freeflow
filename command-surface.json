@@ -44,18 +44,6 @@
       "command": "/freeflow",
       "handler": "freeflow",
       "kind": "settings"
-    },
-    {
-      "command": "/freeflow profile <coordinator|executor|auto>",
-      "handler": "freeflow",
-      "kind": "cognitive-routing-control",
-      "piOnly": true
-    },
-    {
-      "command": "/freeflow resume",
-      "handler": "freeflow",
-      "kind": "cognitive-routing-control",
-      "piOnly": true
     }
   ],
   "developerSkillCalls": [

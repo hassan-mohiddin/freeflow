@@ -8,7 +8,6 @@ How it works and why: [Request history and prompt cache](../../../dev-docs/subsy
 |---|---|
 | [`index.ts`](index.ts) | Registers provider support: cache breakpoints, keep-alive, and OpenAI effort history. |
 | [`routes.ts`](routes.ts) | Recognizes OpenAI's Sign in with ChatGPT route, which is left untouched: live checks showed it rejects explicit breakpoints, output caps and effort-change items. |
-| [`effort.ts`](effort.ts) | Whether changing effort keeps the prompt cache on a route. Used by routing's preset warnings. |
 | [`cache/`](cache/README.md) | Cache breakpoint placement, keep-alive, cache health, and cache diagnostics. |
 | [`openai/`](openai/README.md) | Effort history for qualified OpenAI GPT-6 routes, so an effort change does not start a new cache. |
 
