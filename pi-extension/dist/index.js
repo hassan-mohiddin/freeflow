@@ -366,7 +366,6 @@ export default function freeflow(pi) {
     routingAssignment: () => routing.currentAssignment(),
     background: () => background.running().map(({ id, label, outputPath }) => ({ id, label, outputPath })),
     notice: (text) => freeflowNotice("compaction", text),
-    carryEnabled: () => capability?.compaction?.carry !== false,
     store: {
       current: () => store.current(),
       refresh: () => store.refresh(),

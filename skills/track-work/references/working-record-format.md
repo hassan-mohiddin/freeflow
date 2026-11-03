@@ -207,8 +207,10 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 - Done when: the test sends three 503s and sees three attempts.
 - Stop if: a caller relies on a single attempt.
 - Started from: main at 1a2b3c4d; no retry.
+- Size: 2 files
+- Base: github.com/acme/widget 1a2b3c4d
 - Waits on: D-012
-- Predicted: context 40,000, working 25 min, $1.20; median of 6 Slices of this task
+- Predicted: context 14,000, working 9 min, $0.42; 2 files at the median rate of 6 sized Slices of this task
 - Measured: context 12,000 over 1 compaction cycle(s); working 8 min, wall 15 min; claude-opus-5-5 high: 2 in, 3,000 written, 400,000 read, 9,000 out, $0.28; as of 2026-10-30T10:15:00.000Z at 52,000 tokens
 - Evidence (observed): the retry test passes — scratch/retry-test.txt
 - Result: commit 5e6f7a8b
@@ -224,9 +226,11 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 | Done when | yes | The evidence that shows it is done. |
 | Stop if | yes | |
 | Started from | yes | The state of what this Slice will change; a Slice that continues closed work names it here. |
+| Size | no | `<n> files`: the files the Slice will add or change, from the touch map or a survey; a deleted file does not count. `slice start` takes it from the proposal unless the input gives one. |
+| Base | no | Written by `slice start`: the work repository (`--repo`, else the folder the command runs in, else the first in Space on this machine) and its commit, from which `slice close` counts the files changed. |
 | Waits on | no | The delegations whose result it needs, `D-NNN`, comma-separated. |
 | Dependencies | no | |
-| Predicted | no | Written by `slice start`: the median context, working time and cost of the nearest of this task, its project and the store holding 3 measured Slices, each figure scaled `(×<n>)` by the median of actual over predicted where 3 past predictions have their actual. None when too few are measured. |
+| Predicted | no | Written by `slice start`. With a Size and 3 Slices with Files in the nearest of this task, its project and the store: the size times their median context, working time and cost per file (`<n> files at the median rate of <n> sized Slices of <pool>`); otherwise the median Slice of the nearest holding 3 measured (`median of <n> Slices of <pool>`). Each figure is scaled `(×<n>)` by the correction: the geometric mean of actual over predicted of the Slices predicted the same way, from the first that has its actual, pulled toward 1 as if two more had been on target. A reading that found no requests is not measured. None when too few are measured. |
 | Measured | no | Written by `slice start`, `checkpoint` and `slice close`: the context the Slice added and the compaction cycles it touched (`partly measured` where a reading missed some), working and wall-clock time, then per model and effort its billed tokens (input, cache written, cache read, output) and their cost at API list price, and the last reading. Read from the harness's transcript, or `--used`; none when neither is available. |
 
 After the fields come its update lines, one line each, a kind and then the claim and its pointer; the detail lives in the file the line points to. The kinds: `Evidence (observed)`, `Evidence (reported)`, `Result`, `Review`, `Review gate`, `Contradiction`, `Blocker`, `Correction`, `Paused`, `Resumed`, `Extension`. `slice pause` and `slice resume` write the `Paused` and `Resumed` lines; the rest are direct edits. An Evidence line identifies the state it observed well enough to tell it apart from later versions; append counterevidence as a new line instead of rewriting the earlier one, and label what you did not observe yourself `reported`.
@@ -271,15 +275,9 @@ Rewritten whole by `checkpoint --input`; each line starts with its label:
 - Dropped: retrying inside fetch() — it hides the attempt count from the test
 - Pending: CI on 5e6f7a8b — its result
 - Carry: src/http/client.ts (lines 10–40) — the loop under test
-- Carry: result toolu_01AbC (Bash: npm test) — the two failures the fix answers
 ```
 
-A `Carry` line names a context item and why the next compaction cycle needs it, and what it carries counts toward the budget:
-
-- a file, optionally its lines, which the bundle copies fresh;
-- a tool result, `result <n>` with its number in `carry list`, which `checkpoint` pins to the result's tool-use ID and what its call was for, as above; the bundle copies it whole, as it was, from the session's transcript, and the checks name one the transcript no longer holds.
-
-The bundle then adds this compaction cycle's newest tool results that no line carried, whole, within the carry budget (15% of the window, at most 40,000 tokens), and lists older ones by ID; results under 25 tokens are left out. An input of `none` empties In flight, and a labelled line that says only `none` (`- Carry: none`) is left out.
+A `Carry` line names a file, optionally its lines, and why the next compaction cycle needs it; the bundle copies it fresh, and it counts toward the budget. An input of `none` empties In flight, and a labelled line that says only `none` (`- Carry: none`) is left out.
 
 ### Defined by, Read on recovery, Read when
 
@@ -347,7 +345,7 @@ One entry per closed Slice, agreement or delegation, appended by the command tha
 
 | Entry | States | Fields |
 | --- | --- | --- |
-| Slice | `completed`, `blocked`, `abandoned` | State, Dates, Cue, Under, Result wanted, Result, Evidence, Task effect; Resume when (blocked), Reason (abandoned), Predicted, Measured (`not measured` when no reading was taken), Updates; Recorded (`slice record`) |
+| Slice | `completed`, `blocked`, `abandoned` | State, Dates, Cue, Under, Result wanted, Result, Evidence, Task effect; Resume when (blocked), Reason (abandoned), Size, Files (`<n> changed (<repository> <from>..<to>)`: the files added, changed or renamed from Base to HEAD at `slice close`, or `--files`; `slice size` adds one, dated, to a Slice closed without it), Predicted, Measured (`not measured` when no reading was taken), Updates; Recorded (`slice record`) |
 | Agreement | `completed`, `ended`, `replaced` | State, Dates, Cue, Lines, Result, Task effect; Updates, Decisions |
 | Delegation | `accepted`, `sent back`, `stopped` | State, Dates, Cue, Under, Kind, Agent, Result, Return; From, Tokens, Minutes, Measured (from the worker's own log, or `not measured`), Task effect, Merge commit |
 
@@ -397,7 +395,7 @@ Only `discussion save` and `discussion drop` write it.
 
 ## The Session Summary
 
-A session that holds no task checkpoints into `<store>/sessions/<session ID>/summary.md` with `checkpoint --session --input -`: the headings `## Goal`, `## Settled`, `## Open`, `## Agreement`, `## In flight`, `## Read when` and `## Next action`, in that order, with `(none)` where one has nothing; Goal and Next action must say something; In flight takes the same Carry lines as a record's, files read from the session's folder. Freeflow's compaction installs it after the store's rules, with what it carries and this compaction cycle's newest tool results, and removes it. The store's `sessions/` folder is this machine's only and is never synced.
+A session that holds no task checkpoints into `<store>/sessions/<session ID>/summary.md` with `checkpoint --session --input -`: the headings `## Goal`, `## Settled`, `## Open`, `## Agreement`, `## In flight`, `## Read when` and `## Next action`, in that order, with `(none)` where one has nothing; Goal and Next action must say something; In flight takes the same Carry lines as a record's, files read from the session's folder. Freeflow's compaction installs it after the store's rules, with the files it carries, and removes it. The store's `sessions/` folder is this machine's only and is never synced.
 
 ## Task State
 
@@ -424,13 +422,13 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | `in_progress` ↔ `paused` | `slice pause`, `slice resume` |
 | Close the current Slice | `slice close --state <completed\|blocked\|abandoned>` (blocked from paused) |
 | Record a Slice that finished before it could be recorded | `slice record --state <state>`: History only; Current Work and Future Work unchanged |
+| Give a closed Slice its Files, when it closed without one | `slice size --id <S-NNN> (--files <n> \| --range <from>..<to> [--repo <path>])`: appended to its History entry, dated |
 | Hand work to an agent, and close it | `delegate open`, `amend`, `status`, `check-return`, `close`; with no task, `delegate open --scratch <folder>` and `check-return --scratch <folder>`, which record nothing |
 | Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task; either with `--compact` to have Freeflow's harness layer compact when the turn ends, which it does only on that request |
 | Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
-| A tool result to carry into the next compaction cycle | `carry list` numbers this compaction cycle's results; `carry show --id <ID or n>` prints one whole; both change nothing |
 | The budget | `budget [--record <ID>]`; `task set-budget --mode <normal\|expanded>` on the user's word |
 | The context used, and whether the rest fits in this compaction cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
-| The Slices left, sized from measured ones, across compaction cycles; a project's or the store's measured use | `estimate --plan [--record <ID>] [--input -] [--fan-out <n>] [--json]`, `estimate --project <name>`, `estimate --store`: change nothing |
+| The Slices left, predicted from measured ones (by their Size where they have one), across compaction cycles, with the range and what it rests on first; a project's or the store's measured use | `estimate --plan [--record <ID>] [--input -] [--fan-out <n>] [--json]`, an input line `- <title> · size: <n> · after: <titles>`; `estimate --project <name>`, `estimate --store`: change nothing |
 | Change the task state | `task set-state --state <state>` |
 | Convert a Schema 4 record | `migrate`, on the user's word |
 
@@ -460,7 +458,7 @@ Never edit directly: IDs, `State` fields, `Opened`, `State as of`, `Predicted` a
 Views print and change nothing.
 
 - `view recover [--delegation <D-NNN>]`: the opening line (the record is memory; the user's direction decides the work), the store's and the project's rules, `record.md`, the active decisions within their budget, the History index, the project's other tasks with their cues, and the checks: the task folder's path, the budget, pointers that do not resolve, open delegations, the hold, the store's changes not yet synced, and where each repository in Space stands; then the line saying what to read next. With `--delegation`, a worker's: its rule and its delegation's brief, progress and return first.
-- `view bundle`: the same, then every source recovery reads, whole, In flight's carried files and results, this compaction cycle's newest tool results within the carry budget with the rest listed by ID, the counted and uncounted sizes and the recovery line: what Freeflow's compaction installs. `--fallback` is what Freeflow adds after the harness's own summary when the compaction came before the checkpoint; `--session` is a session summary's bundle.
+- `view bundle`: the same, then every source recovery reads, whole, with the counted and uncounted sizes and the recovery line: what Freeflow's compaction installs. `--fallback` is what Freeflow adds after the harness's own summary when the compaction came before the checkpoint; `--session` is a session summary's bundle.
 - `view entry <ID> [<ID> ...]`: the named History entries as stored, in the order given; an unknown ID prints nothing and fails.
 - `view index`: every History entry, one line each.
 - `view full`: `record.md` as stored, valid or not; use it after an uncertain write or a failed validation.

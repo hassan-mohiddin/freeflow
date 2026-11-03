@@ -8,7 +8,6 @@ import { ToolHandlers } from "./handlers.js";
 import { ModelControl } from "./model-control.js";
 import { RoutingSession } from "./session.js";
 import { RoutingStatus } from "./status.js";
-import { isTaskEvidence } from "./sources.js";
 import { PROFILES, canonical, isWorkerProfile, requireCondition as check, samePair } from "./types.js";
 /**
  * Cognitive Routing as the Pi extension sees it. Binds routing to the current session, follows ancestry and
@@ -355,36 +354,6 @@ export class RoutingRuntime {
   currentAssignment() {
     if (!this.state().effective) return undefined;
     return this.session.stateData().assignmentId ?? undefined;
-  }
-  /**
-   * The assignment in progress, for compaction: the entries of the tool results it produced (task evidence only) and
-   * the refs already selected as its evidence. Undefined when no worker holds an assignment.
-   */
-  assignmentResults() {
-    try {
-      const state = this.session.stateData();
-      const assignmentId = state.assignmentId;
-      if (!this.state().effective || !assignmentId) return undefined;
-      const entryIds = new Set();
-      for (const source of this.session.sources().byRef.values())
-        if (source.assignmentId === assignmentId && isTaskEvidence(source)) entryIds.add(source.entry.id);
-      return { entryIds, selected: new Set(state.selections.get(assignmentId)?.selected ?? []) };
-    } catch {
-      return undefined;
-    }
-  }
-  /** A source ref's tool result, for compaction to carry; only task evidence, the results routing lets be selected. */
-  evidenceSource(ref) {
-    try {
-      const source = this.session.sources().byRef.get(ref);
-      if (!source || !isTaskEvidence(source)) return undefined;
-      const text = (source.message.content ?? [])
-        .map((part) => (part?.type === "text" ? part.text : part?.type === "image" ? "[image]" : ""))
-        .join("");
-      return { tool: source.message.toolName ?? "tool", text };
-    } catch {
-      return undefined;
-    }
   }
   setResultGrantPort(port) {
     return this.tools.setResultGrantPort(port);

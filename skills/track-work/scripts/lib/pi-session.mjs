@@ -56,36 +56,3 @@ export function piUserMessages(text) {
     .map((entry) => ({ at: entry.timestamp ?? null, text: textOf(entry.message.content).replace(/\s+$/, "") }))
     .filter((message) => message.text.trim() && !NOTICE.test(message.text));
 }
-
-/**
- * The active branch's tool results, oldest first, each with its tool call's ID, the call's name and arguments, its
- * text, time and whether it failed; `cycleFrom` is the index of the first result after the branch's last compaction.
- */
-export function piToolResults(text) {
-  const calls = new Map();
-  const results = [];
-  let cycleFrom = null;
-  for (const entry of piBranch(text)) {
-    if (entry.type === "compaction") {
-      cycleFrom = results.length;
-      continue;
-    }
-    if (entry.type !== "message") continue;
-    const message = entry.message ?? {};
-    if (message.role === "assistant" && Array.isArray(message.content))
-      for (const block of message.content)
-        if (block?.type === "toolCall") calls.set(block.id, { name: block.name, input: block.arguments ?? {} });
-    if (message.role === "toolResult") {
-      const call = calls.get(message.toolCallId) ?? { name: message.toolName ?? "a tool call", input: {} };
-      results.push({
-        id: message.toolCallId,
-        name: call.name,
-        input: call.input,
-        text: textOf(message.content),
-        at: entry.timestamp ?? null,
-        error: message.isError === true,
-      });
-    }
-  }
-  return { results, cycleFrom };
-}

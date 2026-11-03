@@ -119,7 +119,7 @@ export class CompactionController {
     if (ABNORMAL_STOPS.has(event?.message?.stopReason)) return undefined;
     const branch = branchOf(ctx);
     if (!this.checkpointDone(state, branch)) return undefined;
-    const made = await this.host.store.bundle({ recent: this.host.carryEnabled() });
+    const made = await this.host.store.bundle({});
     if (made.code !== 0) {
       const [error] = made.stderr
         .replace(/^Error: /, "")
@@ -199,9 +199,8 @@ export class CompactionController {
       const branch = branchOf(ctx);
       const cycle = nextCycle(branch);
       const state = await this.host.store.refresh();
-      const recent = this.host.carryEnabled();
       if (state && (state.task || state.summary) && this.checkpointDone(state, branch)) {
-        const made = await this.host.store.bundle({ recent });
+        const made = await this.host.store.bundle({});
         if (made.code === 0) {
           await this.host.store.answered();
           if (!state.task && state.summary?.path) await rm(state.summary.path, { force: true }).catch(() => {});
@@ -232,7 +231,7 @@ export class CompactionController {
       }
       const result = await this.host.summarize(event.preparation, instructions, event.signal, ctx);
       if (!result?.summary) return undefined;
-      const after = task ? await this.host.store.bundle({ fallback: true, recent }) : undefined;
+      const after = task ? await this.host.store.bundle({ fallback: true }) : undefined;
       const summary = [
         result.summary,
         this.harness(branch, ctx, cycle),

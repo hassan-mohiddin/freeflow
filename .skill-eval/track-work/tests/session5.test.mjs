@@ -242,3 +242,44 @@ test("with no store, a session summary still asks for Freeflow's compaction, and
     assert.equal(status.compact.done, false);
   });
 });
+
+test("without a task, the session summary's Carry lines name files, which the bundle copies fresh with their lines; any other Carry line is refused", async () => {
+  await withFolder(async ({ folder, cli }) => {
+    await writeFile(join(folder, "notes.txt"), "one\ntwo\nthree\n");
+    const env = { CLAUDE_CODE_SESSION_ID: "abcdef12-3456-7890-abcd-ef1234567890" };
+    const summary = (carry) =>
+      [
+        "## Goal",
+        "- Answer the user's question.",
+        "## Settled",
+        "(none)",
+        "## Open",
+        "(none)",
+        "## Agreement",
+        "(none)",
+        "## In flight",
+        "- Now: reading.",
+        ...carry,
+        "## Read when",
+        "(none)",
+        "## Next action",
+        "- Report.",
+      ].join("\n");
+    for (const line of ["- Carry: the notes", "- Carry: result 3 — the test run"]) {
+      const refused = cli(["checkpoint", "--session", "--input", "-"], { input: summary([line]), env });
+      assert.equal(refused.status, 1, line);
+      assert.match(refused.stderr, /A Carry line is "- Carry: <path> \(lines <a>–<b>\) — <why>", the lines optional: /);
+    }
+    ok(
+      cli(["checkpoint", "--session", "--input", "-"], {
+        input: summary(["- Carry: notes.txt (lines 2–3) — the open lines", "- Carry: gone.txt — a file since removed"]),
+        env,
+      }),
+    );
+    const bundle = ok(cli(["view", "bundle", "--session"], { env }));
+    const carry = bundle.slice(bundle.indexOf("## Carry\n"));
+    assert.match(carry, /\n- Not carried: gone\.txt does not exist\n/);
+    assert.match(carry, /<file path="notes\.txt lines 2–3">\n2\ttwo\n3\tthree\n<\/file>/);
+    assert.doesNotMatch(bundle, /Recent results|<result /);
+  });
+});
