@@ -86,6 +86,10 @@ Freeflow settings for /home/you/project (Claude Code)
   Runtime prompts  on        default
   Skills           on        default
   Event log        on        default
+  Agreement gate   warn      default
+  Slice gate       warn      default
+  Delivery gate    warn      default
+  Delegation gate  warn      default
   Review           auto      default
   Reviewer model   none      default
 Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)

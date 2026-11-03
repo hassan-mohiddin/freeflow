@@ -16,6 +16,7 @@ When its host gate is effective, the native entrypoint is designed to provide:
 - with the Freeflow store, the menu at session start, the sync, the held task in the footer and the store line in `/freeflow status` (`src/store/`);
 - with Messaging, `list_sessions` and `send_message` (deferred, loaded through Pi's `tool_search`) and the messaging capability skill.
 - the event log and the session's claims (`src/events/`): each loop event as a schema v1 line, never contents, written by Track Work's `events append` once the session stays idle after a run, before a checkpoint or release command and at shutdown, never on the request path; the claims for request set 1 in `<FREEFLOW_HOME>/sessions/<session>/capabilities.json`, rewritten when the capabilities change; and `/freeflow capabilities`.
+- the gates (`src/gates/`): Track Work's `gates5.mjs` on each `tool_call`, before Freeflow's other checks, from the session's gate state kept in memory; a warning added to the call's result, once per gate per turn, or under `block` a refusal, a delivery step asked through `ctx.ui.confirm` where Pi has a screen. See [Gates](gates.md).
 
 ## Cache reuse boundaries
 
