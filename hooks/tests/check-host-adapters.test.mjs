@@ -33,9 +33,14 @@ const eventFor = (host) => (host === "cursor" ? "sessionStart" : "SessionStart")
 const contextOf = (output) =>
   output?.hookSpecificOutput?.additionalContext ?? output?.additionalContext ?? output?.additional_context;
 
-function runAdapter(relativePath, workspace, input, event = "SessionStart") {
+// The adapters run with no session and an empty Freeflow home, so a test never reads the session that runs it.
+const emptyHome = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-home-"));
+const isolatedEnv = { ...process.env, CLAUDE_CODE_SESSION_ID: "", FREEFLOW_SESSION: "", FREEFLOW_HOME: emptyHome };
+
+function runAdapter(relativePath, workspace, input, event = "SessionStart", env = isolatedEnv) {
   const result = spawnSync(process.execPath, [join(repoRoot, relativePath), event], {
     cwd: repoRoot,
+    env,
     input: `${JSON.stringify(input)}\n`,
     encoding: "utf8",
   });
@@ -204,6 +209,37 @@ test("a hook host's Runtime State names the skills the user turned off, and drop
   assert.equal(contextOf(runAdapter(adapters.codex[0], silent, inputFor("codex", silent))), undefined);
   const all = createWorkspace("{}\n");
   assert.match(contextOf(runAdapter(adapters.codex[0], all, inputFor("codex", all))), /# Freeflow Working Method/);
+});
+
+// A Session value (SPEC-005 4.3) lives in the Freeflow home under the session's ID and wins over both files; the hook
+// reads it again on resume, /clear and compaction, and a new session has none.
+test("a hook host reads the session's own settings over the files, for that session only", () => {
+  const home = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-home-"));
+  mkdirSync(join(home, "sessions", "s-1"), { recursive: true });
+  writeFileSync(
+    join(home, "sessions", "s-1", "settings.json"),
+    `${JSON.stringify({ "review.mode": "always", "skills.write-skill": false })}\n`,
+  );
+  const workspace = createWorkspace('{"review":{"mode":"off"}}\n', '{"skills":{"write-skill":true}}\n');
+  const state = (env, input = inputFor("claude", workspace)) => {
+    const context = contextOf(runAdapter(adapters.claude[0], workspace, input, "SessionStart", env));
+    return context.slice(context.indexOf("# Freeflow Runtime State"));
+  };
+  const env = { ...isolatedEnv, FREEFLOW_HOME: home };
+  assert.equal(
+    state({ ...env, CLAUDE_CODE_SESSION_ID: "s-1" }),
+    "# Freeflow Runtime State\n\nFreeflow: active\nReview: `always`\nSkills off: `write-skill`; do not open or follow them.",
+  );
+  assert.equal(
+    state({ ...env, CLAUDE_CODE_SESSION_ID: "s-2" }),
+    "# Freeflow Runtime State\n\nFreeflow: active\nReview: `off`",
+  );
+  // A host that names its session only in the hook's input.
+  assert.match(state(env, { ...inputFor("codex", workspace), session_id: "s-1" }), /\nReview: `always`/);
+  // A Session enabled: false turns Freeflow off for that session alone.
+  writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ enabled: false })}\n`);
+  assert.equal(readConfig(workspace, { session: "s-1", env }).enabled, false);
+  assert.equal(readConfig(workspace, { session: "s-2", env }).enabled, true);
 });
 
 test("the shared config validator imports nothing but Node and its own files", () => {

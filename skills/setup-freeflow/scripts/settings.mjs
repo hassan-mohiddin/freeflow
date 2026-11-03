@@ -5,7 +5,8 @@
 // Freeflow home. Pi's /freeflow settings screen writes through the same code; on Claude Code the mod's /freeflow settings
 // command runs this script. After a change it prints the Runtime State lines that changed, so whoever ran it knows now.
 
-import { resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import {
   SETTINGS,
   SWITCHABLE_SKILLS,
@@ -33,11 +34,20 @@ const USAGE = `Usage:
   settings.mjs get <key> [--root <folder>] [--json]
   settings.mjs set <key> <value> --scope repository|personal|session [--root <folder>] [--json]
   settings.mjs unset <key> --scope repository|personal|session [--root <folder>] [--json]
+--root names a folder in the repository (default: the current folder); the settings are its repository's.
 The value "inherit" unsets the key in that scope. --host all (the default) lists the settings every host acts on;
 --host pi lists Pi's too. The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
 FREEFLOW_SESSION).`;
 
 class UsageError extends Error {}
+
+/** The repository a folder is in, as the session-start hook finds it: the nearest folder up with .git, else itself. */
+function workspaceRoot(folder) {
+  for (let current = resolve(folder); ; current = dirname(current)) {
+    if (existsSync(join(current, ".git"))) return current;
+    if (dirname(current) === current) return resolve(folder);
+  }
+}
 
 function parse(argv) {
   const options = {};
@@ -91,13 +101,13 @@ function stateLines(resolved) {
 const shown = (value) => (value === null ? "none" : value === true ? "on" : value === false ? "off" : String(value));
 
 function row(item) {
-  return { key: item.spec.key, value: item.value, scope: item.scope, hosts: item.spec.hosts };
+  return { key: item.spec.key, label: item.spec.label, value: item.value, scope: item.scope, hosts: item.spec.hosts };
 }
 
-function list(state, host, json) {
+function list(state, root, host, json) {
   const resolved = resolveAll(state);
   const rows = resolved.filter((item) => host === "pi" || item.spec.hosts === "all");
-  if (json) return `${JSON.stringify({ settings: rows.map(row), state: stateLines(resolved) }, null, 2)}\n`;
+  if (json) return `${JSON.stringify({ root, settings: rows.map(row), state: stateLines(resolved) }, null, 2)}\n`;
   const width = Math.max(...rows.map((item) => item.spec.key.length));
   const lines = rows.map(
     (item) => `  ${item.spec.key.padEnd(width)}  ${shown(item.value).padEnd(8)}  ${SCOPE_NAMES[item.scope]}`,
@@ -181,14 +191,14 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   const { options, words } = parse(argv);
   const [command, key, value] = words;
   if (options["--help"] || options["-h"] || !command) return { out: `${USAGE}\n`, code: command ? 0 : 1 };
-  const root = resolve(options["--root"] ?? process.cwd());
+  const root = workspaceRoot(options["--root"] ?? process.cwd());
   const state = layers(root, env);
   const json = Boolean(options["--json"]);
   if (command === "list") {
     const host = options["--host"] ?? "all";
     if (!["all", "pi"].includes(host)) throw new UsageError("--host must be all or pi");
     if (state.error) throw new Error(state.error);
-    return { out: list(state, host, json), code: 0 };
+    return { out: list(state, root, host, json), code: 0 };
   }
   if (command === "get") {
     const spec = requireSpec(key);

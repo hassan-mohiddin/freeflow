@@ -77,7 +77,13 @@ test("every settable key can be set, read back and unset in each of its scopes",
       const set = f.json("set", spec.key, typed, "--scope", scope);
       assert.equal(set.value, stored, `${spec.key} in ${scope}`);
       assert.equal(set.scope, scope, `${spec.key} in ${scope}`);
-      assert.deepEqual(f.json("get", spec.key), { key: spec.key, value: stored, scope, hosts: spec.hosts });
+      assert.deepEqual(f.json("get", spec.key), {
+        key: spec.key,
+        label: spec.label,
+        value: stored,
+        scope,
+        hosts: spec.hosts,
+      });
       const unset = f.json("unset", spec.key, "--scope", scope);
       assert.equal(unset.scope, "default", `${spec.key} unset from ${scope}`);
       assert.equal(unset.value, spec.default, `${spec.key} unset from ${scope}`);
@@ -105,6 +111,7 @@ test("a repository write drops a value equal to its default; a personal write ke
   assert.deepEqual(await f.file(".freeflow/local.json"), { review: { mode: "auto" } });
   assert.deepEqual(f.json("get", "review.mode"), {
     key: "review.mode",
+    label: "Review",
     value: "auto",
     scope: "personal",
     hosts: "all",
@@ -234,4 +241,28 @@ test("outside a Git repository a personal write still works", async (t) => {
   t.after(f.cleanup);
   f.json("set", "review.mode", "always", "--scope", "personal");
   assert.deepEqual(await f.file(".freeflow/local.json"), { review: { mode: "always" } });
+});
+
+test("a folder inside the repository reads and writes the repository's settings", async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+  await mkdir(join(f.root, "src", "deep"), { recursive: true });
+  const result = spawnSync(
+    process.execPath,
+    [
+      scriptPath,
+      "set",
+      "review.mode",
+      "always",
+      "--scope",
+      "repository",
+      "--root",
+      join(f.root, "src", "deep"),
+      "--json",
+    ],
+    { env: f.env, encoding: "utf8" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(await f.file(".freeflow/config.json"), { review: { mode: "always" } });
+  assert.equal(f.json("list").root, f.root);
 });
