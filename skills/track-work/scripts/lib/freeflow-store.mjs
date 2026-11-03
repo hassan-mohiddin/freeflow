@@ -9,7 +9,7 @@
 
 import { execFile as execFileCallback } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -46,13 +46,37 @@ export function storeHome(explicit) {
   return resolve(explicit || process.env.FREEFLOW_HOME || join(homedir(), ".freeflow"));
 }
 
-async function isEmptyDirectory(path) {
+/**
+ * What Freeflow keeps in its home before there is a store: live sessions (Messaging's registry) and session
+ * summaries. A store ignores it, so a home that holds only this has no store yet.
+ */
+const BEFORE_STORE = "sessions";
+
+/** Whether a home holds nothing, or nothing but Freeflow's own `sessions/`. */
+async function isEmptyHome(path) {
   try {
-    return (await readdir(path)).length === 0;
+    return (await readdir(path)).every((entry) => entry === BEFORE_STORE);
   } catch (error) {
     if (error?.code === "ENOENT") return true;
     throw error;
   }
+}
+
+/**
+ * Moves a home's `sessions/` beside it while the store is laid out or cloned there, so neither a clone nor a failed
+ * init's clean-up touches it; the returned function puts it back, beside anything written there meanwhile.
+ */
+async function setSessionsAside(home) {
+  const sessions = join(home, BEFORE_STORE);
+  if (!existsSync(sessions)) return async () => {};
+  const aside = `${home}.${BEFORE_STORE}-${process.pid}`;
+  await rename(sessions, aside);
+  return async () => {
+    await mkdir(sessions, { recursive: true });
+    for (const entry of await readdir(aside))
+      if (!existsSync(join(sessions, entry))) await rename(join(aside, entry), join(sessions, entry));
+    await rm(aside, { recursive: true, force: true });
+  };
 }
 
 /** Whether path holds only a clone of remote with no commits on either side yet. */
@@ -155,8 +179,8 @@ export async function addStoreRemote({ home: explicit, url }) {
 /**
  * Clones `remote` into the store's folder, or with no remote makes a local store there. An empty remote gets the store's
  * layout and first commit, pushed; a remote that already holds a store is joined as it is. A folder that already holds
- * an empty clone of the remote is used as it is (P97). Refuses a folder that holds Pi's Task Memory or anything else,
- * and a remote that holds a repository that is not a store.
+ * an empty clone of the remote is used as it is (P97). Refuses a folder that holds Pi's Task Memory or anything else
+ * but Freeflow's own sessions/, which it keeps, and a remote that holds a repository that is not a store.
  *
  * @param {{ home?: string, remote: string, name?: string, email?: string }} options
  */
@@ -171,8 +195,17 @@ export async function initStore({ home: explicit, remote, name, email }) {
     fail("already-a-store", `${home} is already a Freeflow store; run store status or store sync`);
   // A clone of the remote with nothing in it yet, as a cloud session gets when the store's repository is new (P97).
   const adopted = remote ? await isEmptyCloneOf(home, remote) : false;
-  if (!adopted && !(await isEmptyDirectory(home)))
+  if (!adopted && !(await isEmptyHome(home)))
     fail("home-not-empty", `${home} is not empty and is not a Freeflow store; choose an empty folder with --home`);
+  const putBack = adopted ? async () => {} : await setSessionsAside(home);
+  try {
+    return await layOutOrJoin({ home, remote, name, email, adopted });
+  } finally {
+    await putBack();
+  }
+}
+
+async function layOutOrJoin({ home, remote, name, email, adopted }) {
   const created = !existsSync(home);
   // A failed init leaves the folder as it found it: gone if it made it, empty if it was empty, an empty clone if it
   // was one.
@@ -304,7 +337,7 @@ export async function missingParts(home, env = process.env) {
         },
       ];
   }
-  if (!(await isEmptyDirectory(home)))
+  if (!(await isEmptyHome(home)))
     return [
       {
         what: `FREEFLOW_HOME is ${home}, which holds something that is not a Freeflow store`,

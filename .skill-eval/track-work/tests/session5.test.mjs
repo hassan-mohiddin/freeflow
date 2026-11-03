@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -83,6 +83,10 @@ test("session status prints this session's state in the store as JSON: its task,
       ],
     });
 
+    // A home that holds only Freeflow's own sessions/ (Messaging's registry, a session summary) has no store yet.
+    await mkdir(join(folder, "store", "sessions"), { recursive: true });
+    await writeFile(join(folder, "store", "sessions", "live.json"), "{}\n");
+    assert.match(status(holder).missing[0].what, /, and the store is not there$/);
     ok(cli(["store", "init", "--git-name", "Test User", "--git-email", "t@example.com"], { env: holder }));
     ok(cli(["project", "new", "--name", "Widget"], { env: holder }));
     assert.deepEqual(status(holder), {
