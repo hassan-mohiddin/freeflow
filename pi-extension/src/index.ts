@@ -477,7 +477,6 @@ export default function freeflow(pi: FreeflowAPI) {
       else {
         const text = await store.start(ctx.cwd, [ctx.cwd, dirname(ctx.cwd), packageRoot]);
         if (generation !== surfaceGeneration) return;
-        if (session) await keepStartLedger(freeflowHome(), session).catch(() => {});
         if (text) events.freeflow("menu");
         if (text)
           await Promise.resolve(
@@ -491,6 +490,8 @@ export default function freeflow(pi: FreeflowAPI) {
               { deliverAs: "nextTurn" },
             ),
           );
+        // The start's steps are done: a reload of this session reads that and gives the menu no second time.
+        if (session) await keepStartLedger(freeflowHome(), session).catch(() => {});
       }
       // The footer names the held task; refreshed only when it changed, since a refresh costs a branch walk.
       if (generation === surfaceGeneration && store.heldTask() !== held) status(ctx);

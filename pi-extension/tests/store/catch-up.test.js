@@ -73,8 +73,16 @@ test("a session that started with Freeflow gets the menu from its start and no c
     true,
     {
       cognitiveRouting: { enabled: false },
-      // The menu reaches the first prompt: session start does not wait for the store (activation-status's Gotchas).
-      beforePrompt: async () => new Promise((done) => setTimeout(done, 1_500)),
+      // Session start does not wait for the store (activation-status's Gotchas): the prompt waits until the start has
+      // recorded its steps, which it does once the menu is made, so the menu reaches the first prompt.
+      beforePrompt: async ({ manager }) => {
+        const ledger = startLedgerPath(home, manager.getSessionId());
+        for (let waited = 0; !(await readFile(ledger, "utf8").catch(() => "")); waited += 50) {
+          assert.ok(waited < 30_000, "the session's start records its steps");
+          await new Promise((done) => setTimeout(done, 50));
+        }
+        await new Promise((done) => setTimeout(done, 50));
+      },
     },
   );
 });
