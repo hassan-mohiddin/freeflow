@@ -1602,6 +1602,8 @@ test("enabled switched on mid-session: the next turn's start does what the sessi
   await $.turn.start({ text: "go", turnId: "turn-1" } as any);
   expect(w.commands()).toEqual([]);
   expect(appended(w)).toEqual([]);
+  // Off, nothing is rendered either.
+  expect(w.sectionRuns).toEqual([]);
 
   w.enabled = true;
   w.settingsAnswers["set enabled on --scope personal "] = changeOf("enabled", true);

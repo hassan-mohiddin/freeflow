@@ -927,6 +927,8 @@ async function pinnedStart($, e, next) {
     guidance = null;
     pinnedAtStart = false;
   }
+  // Off, the hooks deliver nothing either, and the mod does nothing but serve /freeflow.
+  if (!enabled) return result;
   let pinned = false;
   let out = result;
   try {
@@ -941,7 +943,7 @@ async function pinnedStart($, e, next) {
     $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}; the session-start hooks keep it`);
   }
   if (fresh) pinnedAtStart = pinned;
-  else if (enabled) {
+  else {
     const now = new Date(await $.clock.now()).toISOString();
     if (started?.session === e.session_id) {
       started.steps.guidance = now;
