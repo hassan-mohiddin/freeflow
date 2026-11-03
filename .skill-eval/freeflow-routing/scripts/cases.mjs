@@ -18,7 +18,7 @@ export const MERGED = {
   "agree-work": "discuss-work",
   bypass: "discuss-work",
   "commit-work": "deliver-work",
-  "design-for-depth": "execute-work",
+  "design-for-depth": "discuss-work",
   "diagnose-failure": "execute-work",
   discuss: "discuss-work",
   "finish-branch": "deliver-work",
@@ -38,7 +38,8 @@ export const RETIRED = Object.keys(MERGED);
 // map reference: reading the old file on an earlier build counts as using the file that holds its text now.
 export const MOVED_PARTS = {
   "deliver-work/references/push.md": "deliver-work/references/branch-closeout.md",
-  "execute-work/references/design-state-and-failure.md": "execute-work/references/design.md",
+  "execute-work/references/design-state-and-failure.md": "discuss-work/references/design.md",
+  "execute-work/references/design.md": "discuss-work/references/design.md",
   "map-features/SKILL.md": "verify-work/references/feature-map.md",
   "map-features/references/driving-surfaces.md": "verify-work/references/feature-map.md",
   "verify-work/references/driving-surfaces.md": "verify-work/references/feature-map.md",
@@ -218,7 +219,7 @@ export const CASES = [
     hit: "design-for-depth",
     expect: ["design-for-depth"],
     not: ["migration-work"],
-    parts: ["execute-work/references/design.md"],
+    parts: ["discuss-work/references/design.md"],
     prompt:
       "Later I want shelf to be able to keep bookmarks in SQLite as well as the JSON file. How should the storage code be structured so a second backend is easy to add? Work out the design before changing anything.",
   },
@@ -227,7 +228,7 @@ export const CASES = [
     hit: "design-for-depth",
     expect: ["design-for-depth"],
     not: [],
-    parts: ["execute-work/references/design.md"],
+    parts: ["discuss-work/references/design.md"],
     prompt:
       "Export formats are one big switch in src/export.js. Restructure it so a new format can be added without touching the core, and design the interface first.",
   },
@@ -236,7 +237,7 @@ export const CASES = [
     hit: "design-for-depth",
     expect: ["design-for-depth"],
     not: [],
-    parts: ["execute-work/references/design.md"],
+    parts: ["discuss-work/references/design.md"],
     prompt:
       "Errors are handled differently all over this codebase: some functions throw, some print and exit, some return nothing. Design one consistent way to handle errors.",
   },

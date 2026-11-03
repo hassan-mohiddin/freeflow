@@ -104,7 +104,7 @@ A failed reproduction method is not proof that production needs new infrastructu
 
 Before adding a guard that lets the failing state pass, such as a check, default, retry or caught error, ask whether accepted behavior allows that state. If it should never exist, the guard hides the defect; correct what produced it. Once the cause is supported, look for the same fault wherever the same mechanism recurs; correct instances inside the agreed boundary and report the rest.
 
-When the evidence establishes structural pressure, read [design](design.md); it shapes the boundary without re-proving the cause. If design reveals an unsupported causal premise, come back here with that exact uncertainty.
+When the evidence establishes structural pressure, read Discuss Work's [design](../../discuss-work/references/design.md); it shapes the boundary without re-proving the cause. If design reveals an unsupported causal premise, come back here with that exact uncertainty.
 
 ## Contain Harm And Keep Instrumentation Honest
 

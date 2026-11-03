@@ -1,6 +1,6 @@
 ---
 name: discuss-work
-description: "Use whenever what to do, or how, is not settled yet: exploring a problem, comparing options or approaches, questioning assumptions, brainstorming, planning an approach, or revisiting a direction after new evidence. Read it at a task's first request, before your first tool call, to decide with the user what you will do, where you stop and which choices are theirs before anything is built, fixed or changed. Also use mid-work when a choice the user owns comes up (behavior, names, defaults, scope, cost, risk) or sources conflict; when a question needs a quick experiment before building on it; when a discussion or its decisions must outlast the conversation; and when the user asks to skip or lighten optional steps such as a plan, a review or a record."
+description: "Use whenever what to do, or how, is not settled yet: exploring a problem, comparing options or approaches, questioning assumptions, brainstorming, planning an approach, designing or changing modules, interfaces, data models, state, error handling or dependencies, or revisiting a direction after new evidence. Read it at a task's first request, before your first tool call, to decide with the user what you will do, where you stop and which choices are theirs before anything is built, fixed or changed. Also use mid-work when a choice the user owns comes up (behavior, names, defaults, scope, cost, risk) or sources conflict; when a question needs a quick experiment before building on it; when a discussion or its decisions must outlast the conversation; and when the user asks to skip or lighten optional steps such as a plan, a review or a record."
 ---
 
 # Discuss Work
@@ -21,7 +21,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | Writing or checking the decision list, or the agreement, handover or catch-up built from it | Run [choices](scripts/choices.mjs), as Build The Decision List says |
 | A question existing evidence cannot settle but running something could | [learning action](references/learning-action.md) |
 | Discussion state, an emerging route or its return points must outlast the conversation | [discussion continuity](references/discussion-continuity.md) |
-| Representation, interfaces, ownership, state or failure behavior could materially change a technical recommendation | Execute Work's [design](../execute-work/references/design.md) |
+| Representation, interfaces, ownership, state or failure behavior could materially change a technical recommendation | [design](references/design.md) |
 | A reported or recurring failure needs a cause rather than options | Execute Work's [diagnose](../execute-work/references/diagnose.md) |
 | Agreed, concrete work | [Execute Work](../execute-work/SKILL.md) |
 

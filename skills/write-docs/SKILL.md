@@ -27,7 +27,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | Finding a project's developer docs or proposing them; the structure of an overview, subsystem doc, folder README, feature file, live-verification guide or skill design record; a new or rewritten subsystem doc or overview | [documentation shapes](references/documentation-shapes.md) |
 | After writing or revising a Spec, Plan or decision record | Run [artifact-check](scripts/artifact-check.mjs), and [plan-lint](scripts/plan-lint.mjs) for a Plan, as Specs And Plans says |
 | After writing or changing documentation, or to find the docs and feature files covering a changed file | Run the [docs check](scripts/docs-check.mjs), as Check It says |
-| A design whose open representation, identity, ownership, algorithm or failure choices could invalidate dependent work | Execute Work's [design](../execute-work/references/design.md) |
+| A design whose open representation, identity, ownership, algorithm or failure choices could invalidate dependent work | Discuss Work's [design](../discuss-work/references/design.md) |
 | Direction or alternatives still open, a user-owned choice, or conflicting sources | [Discuss Work](../discuss-work/SKILL.md) |
 | Planning a fix whose cause is not supported | Execute Work's [diagnose](../execute-work/references/diagnose.md) |
 
