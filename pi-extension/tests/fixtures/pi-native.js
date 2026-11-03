@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { appendFile, mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   createAgentSession,
   DefaultResourceLoader,
@@ -11,7 +10,6 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import freeflow from "../../dist/index.js";
-import { replay } from "../../dist/cognitive-routing/state.js";
 
 /**
  * With FREEFLOW_CAPTURE_DIR set, every provider request body a fixture run sends is written there, one file per run,
@@ -35,28 +33,6 @@ function capture(root, bodies) {
     appendFile(join(dir, `${basename(process.argv[1] ?? "run")}-${++captureRun}.jsonl`), text + "\n"),
   );
 }
-
-/**
- * The packaged routing skill and its role references, and the reads a scripted profile makes before its first command
- * or edit (`bootstrap.ts`): the skill, then Coordinator's reference or the workers' one.
- */
-export const ROUTING_SKILL = fileURLToPath(
-  new URL("../../../capabilities/cognitive-routing/SKILL.md", import.meta.url),
-);
-export const ROUTING_COORDINATOR = fileURLToPath(
-  new URL("../../../capabilities/cognitive-routing/references/coordinator.md", import.meta.url),
-);
-export const ROUTING_WORKER = fileURLToPath(
-  new URL("../../../capabilities/cognitive-routing/references/worker.md", import.meta.url),
-);
-export const readRoutingSkill = { name: "read", args: { path: ROUTING_SKILL } };
-export const readCoordinatorReference = { name: "read", args: { path: ROUTING_COORDINATOR } };
-export const readWorkerReference = { name: "read", args: { path: ROUTING_WORKER } };
-/** One response's bootstrap reads for each role. */
-export const readRouting = {
-  coordinator: [readRoutingSkill, readCoordinatorReference],
-  worker: [readRoutingSkill, readWorkerReference],
-};
 
 /**
  * Call/result pairing problems in a provider request body. Anthropic Messages requires each tool result in the
@@ -246,26 +222,14 @@ export function anthropicResponse(
   });
 }
 
-export async function fixture(script, projection = true, after, withUI = true, options = {}) {
+/** The second argument is unused; it stays so that existing calls keep their positions. */
+export async function fixture(script, _unused, after, withUI = true, options = {}) {
   const root = await mkdtemp(join(tmpdir(), "freeflow-v2-native-"));
   const cwd = join(root, "cwd"),
     agentDir = join(root, "agent");
   await mkdir(join(cwd, ".freeflow"), { recursive: true });
   await mkdir(agentDir);
-  await writeFile(
-    join(cwd, ".freeflow/config.json"),
-    JSON.stringify({
-      ...(options.freeflowConfig ?? {}),
-      cognitiveRouting: options.cognitiveRouting ?? {
-        enabled: true,
-        projection,
-        profiles: {
-          coordinator: { provider: "openai", model: "gpt-4o", thinking: "off" },
-          executor: { provider: "openai", model: "gpt-4.1-mini", thinking: "off" },
-        },
-      },
-    }),
-  );
+  await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ ...(options.freeflowConfig ?? {}) }));
   await writeFile(join(cwd, "evidence.txt"), "EXACT_EVIDENCE_BODY_81");
   await writeFile(join(cwd, "unselected.txt"), "UNSELECTED_PRIVATE_BODY_93");
   await writeFile(join(cwd, "recovery.txt"), "FRESH_RECOVERY_BODY_57");
@@ -411,7 +375,7 @@ export async function fixture(script, projection = true, after, withUI = true, o
       "error",
       `fixture completes without provider failure: ${session.messages.at(-1)?.errorMessage ?? ""}`,
     );
-    return { requests, state: replay(manager.getBranch()), entries: manager.getEntries(), contexts, toolUpdates };
+    return { requests, entries: manager.getEntries(), contexts, toolUpdates };
   } finally {
     session?.dispose();
     globalThis.fetch = priorFetch;

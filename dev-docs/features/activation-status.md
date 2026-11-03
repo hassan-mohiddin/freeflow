@@ -29,7 +29,7 @@ Preconditions:
 - A fresh run for each state below, since the config is read at launch. Clean up between them.
 
 - **On.** Run `scripts/verify-live.sh launch`. It prints `ready: freeflow: on`.
-- **Status.** Run `scripts/verify-live.sh cmd "/freeflow status"`. The pane shows `Freeflow: enabled; cognitive routing: disabled; tool execution: enabled; compaction: enabled (cycle 1)`, then `store: not ready (FREEFLOW_HOME is` the run's `home` folder: the run names a Freeflow home with no store in it. Then `scripts/verify-live.sh snap act-status`.
+- **Status.** Run `scripts/verify-live.sh cmd "/freeflow status"`. The pane shows `Freeflow: enabled; tool execution: enabled; compaction: enabled (cycle 1)`, then `store: not ready (FREEFLOW_HOME is` the run's `home` folder: the run names a Freeflow home with no store in it. Then `scripts/verify-live.sh snap act-status`.
 - **Config on disk.** Run `scripts/verify-live.sh observe act-on-config -- cat .freeflow/config.json`. Exit code `0`, output `{}`. Then clean up.
 - **Setup needed.** Run `scripts/verify-live.sh launch --no-config`. It prints `ready: freeflow: setup needed`. Run `scripts/verify-live.sh cmd "/freeflow status"`. The pane shows `Freeflow: inactive (repo not set up); run /setup-freeflow`. Then `scripts/verify-live.sh snap act-setup`.
 - **Personal file alone.** In the same run, run `scripts/verify-live.sh observe act-local-only -- bash -c 'mkdir -p .freeflow && printf "{\"enabled\": true}\n" > .freeflow/local.json && ls -A .freeflow'`. Exit code `0`, output `local.json`. Run `scripts/verify-live.sh cmd "/reload"`. The footer still reads `freeflow: setup needed`. Then `scripts/verify-live.sh snap act-local-only` and clean up.

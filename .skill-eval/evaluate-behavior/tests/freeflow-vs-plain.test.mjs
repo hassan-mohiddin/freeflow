@@ -70,12 +70,9 @@ test("the suite decides on hidden-test success and the cost suite on cost, plain
 test("every group differs between its arms only in Freeflow, on one shared model, sealed in a pinned image", async () => {
   const { groups } = await load("suite.json");
   const shared = JSON.parse(await readFile(path.join(suiteDirectory, "configuration.json"), "utf8")).configuration;
-  // Routing off by Hassan's direction; Tool Execution off because its bash_background would run on the host,
-  // outside the sealed container, and its tools could not be declared without unsealing the arm.
-  assert.deepEqual(shared.freeflow.repository, {
-    cognitiveRouting: { enabled: false },
-    toolExecution: { enabled: false },
-  });
+  // Tool Execution off because its bash_background would run on the host, outside the sealed container, and its tools
+  // could not be declared without unsealing the arm.
+  assert.deepEqual(shared.freeflow.repository, { toolExecution: { enabled: false } });
   for (const group of groups) {
     assert.deepEqual(Object.keys(group.variants), ["plain", "freeflow"], group.id);
     assert.equal(group.reference, "plain");

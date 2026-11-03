@@ -11,7 +11,7 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { registerProviderSupport } from "../../dist/provider-support/index.js";
-import { response as openaiResponse } from "../fixtures/routing-native.js";
+import { response as openaiResponse } from "../fixtures/pi-native.js";
 
 function anthropicResponse(n) {
   const events = [

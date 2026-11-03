@@ -901,7 +901,7 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
   expect(listed.text).toContain("  Core prompt      off       Personal  (prompts.core)");
   expect(listed.text).toContain("  Review           always    Repository\n");
   expect(listed.text).not.toContain("write-skill");
-  expect(listed.text).toContain("Pi-only settings (tool execution, compaction, messaging, Cognitive Routing)");
+  expect(listed.text).toContain("Pi-only settings (tool execution, compaction, messaging) are changed");
   expect(listed.context).toBeUndefined();
 
   w.settingsAnswers["set review.mode always --scope personal "] = {

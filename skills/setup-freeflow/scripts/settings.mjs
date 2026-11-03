@@ -123,8 +123,6 @@ function list(state, root, host, json) {
 
 /** A typed value as the setting takes it: on/off and true/false for a switch, the word itself otherwise. */
 function parseValue(spec, text) {
-  if (spec.values === "profile")
-    throw new UsageError(`${spec.key} is a routing profile: set it on Pi's /freeflow settings screen`);
   let value = text;
   if (spec.values === "boolean") {
     if (["on", "true"].includes(text)) value = true;

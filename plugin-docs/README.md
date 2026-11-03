@@ -2,7 +2,7 @@
 
 These docs describe the public plugin behavior.
 
-Start with [Getting Started](getting-started.md) for host-specific installation, repository activation, and first-session verification. Then use [Using Freeflow Effectively](using-freeflow.md) for prompting, skills, the agreement, Track Work, settings, Cognitive Routing modes, and practical operating guidance. This page is a navigation hub for user documentation; developer documentation lives in [`dev-docs/`](../dev-docs/README.md).
+Start with [Getting Started](getting-started.md) for host-specific installation, repository activation, and first-session verification. Then use [Using Freeflow Effectively](using-freeflow.md) for prompting, skills, the agreement, Track Work, settings, and practical operating guidance. This page is a navigation hub for user documentation; developer documentation lives in [`dev-docs/`](../dev-docs/README.md).
 
 ## Integrations
 
@@ -12,7 +12,6 @@ Start with [Getting Started](getting-started.md) for host-specific installation,
 ## Capabilities
 
 - [Capability overview](capabilities/README.md): gates, host support, composition, and evidence limits.
-- [Cognitive Routing](capabilities/cognitive-routing.md): mode-aware Coordinator/Helper/Executor compute placement, worker evidence projection, and host qualification boundaries.
 - [Tool Execution](capabilities/tool-execution.md): Freeflow's layer over Pi's tools: working guidance, file tracking, clearer edit errors, `apply_patch`, background commands, and skill guidance at the tool call that needs it.
 - [Compaction](capabilities/compaction.md): the notice, the agent's checkpoint, the task's bundle in place of the conversation, and Pi's compaction as the fallback.
 - [Event log and capabilities](capabilities/event-log.md): what Freeflow records of each session's loop on Claude Code and Pi (never contents), the summary a checkpoint commits, and `/freeflow capabilities`, what Freeflow can do in the session.

@@ -29,9 +29,6 @@
         "ref": "1cc270083d92133b8c9bfe22a4bdb7638d4b6a59"
       },
       "repository": {
-        "cognitiveRouting": {
-          "enabled": false
-        },
         "toolExecution": {
           "enabled": false
         }

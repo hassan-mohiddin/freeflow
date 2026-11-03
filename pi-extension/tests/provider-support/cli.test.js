@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { response } from "../fixtures/routing-native.js";
+import { response } from "../fixtures/pi-native.js";
 
 test(
   "bundled Pi CLI loads Freeflow adapter and changes effort inside a native tool loop",

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { AgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 import { requestHistoryCounters } from "../../dist/host/request-history.js";
 
 // Request-path work Freeflow may add per prompt, counted rather than timed so the check is deterministic. Timing on a
@@ -79,9 +79,9 @@ async function countPrompt(turns, options) {
 }
 
 for (const [name, options] of [
-  ["Freeflow defaults", { cognitiveRouting: { enabled: false } }],
-  ["Cognitive Routing with projection and Tool Execution", { freeflowConfig: { toolExecution: { enabled: true } } }],
-  ["without Freeflow", { skipFreeflow: true, cognitiveRouting: { enabled: false } }],
+  ["Freeflow defaults", {}],
+  ["Tool Execution", { freeflowConfig: { toolExecution: { enabled: true } } }],
+  ["without Freeflow", { skipFreeflow: true }],
 ])
   test(
     `${name}: request-path work per prompt stays bounded and independent of session length`,
@@ -115,10 +115,7 @@ async function fingerprintsForLaterRequest(turns, options) {
   return at[3] - at[2];
 }
 
-for (const [name, options] of [
-  ["Freeflow defaults", { cognitiveRouting: { enabled: false } }],
-  ["Cognitive Routing with projection", {}],
-])
+for (const [name, options] of [["Freeflow defaults", {}]])
   test(
     `${name}: a later request fingerprints only what is new, however long the history`,
     { timeout: 60000 },
@@ -131,7 +128,7 @@ for (const [name, options] of [
   );
 
 test("Freeflow adds no context-usage estimate when the turn reports its usage", { timeout: 60000 }, async () => {
-  const without = await countPrompt(50, { skipFreeflow: true, cognitiveRouting: { enabled: false } });
-  const withFreeflow = await countPrompt(50, { cognitiveRouting: { enabled: false } });
+  const without = await countPrompt(50, { skipFreeflow: true });
+  const withFreeflow = await countPrompt(50, {});
   assert.equal(withFreeflow.usage, without.usage);
 });

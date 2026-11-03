@@ -69,6 +69,5 @@ Tool Execution v2 (`freeflow_run`, `freeflow_tools`, `freeflow_search`, `freeflo
 - [Pi integration](../integrations/pi.md)
 - [Capabilities](README.md)
 - [Compaction](compaction.md)
-- [Cognitive Routing](cognitive-routing.md)
 - [System prompt architecture](../../dev-docs/subsystems/prompt-assembly.md)
 - [How Tool Execution works](../../dev-docs/subsystems/tool-execution.md) (developer docs)

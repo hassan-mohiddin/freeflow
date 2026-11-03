@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import test from "node:test";
-import { anthropicResponse, fixture } from "../fixtures/routing-native.js";
+import { anthropicResponse, fixture } from "../fixtures/pi-native.js";
 
 // Pi 1.2.0 counts a run as started from before_agent_start on, and fires that event for runs an extension's message
 // starts (messageType "custom"). These native fixtures pin what Pi does there and what Freeflow does on top of it.
@@ -49,7 +51,7 @@ test(
         for (const body of requests.slice(2)) assert.doesNotMatch(systemOf(body), /SECTION_PROMPT_ONLY/);
       },
       true,
-      { skipFreeflow: true, cognitiveRouting: { enabled: false }, extensions: sectionExtensions },
+      { skipFreeflow: true, extensions: sectionExtensions },
     );
   },
 );
@@ -70,7 +72,7 @@ test(
         for (const body of requests.slice(1)) assert.equal(systemOf(body), systemOf(requests[0]));
       },
       true,
-      { cognitiveRouting: { enabled: false }, extensions: sectionExtensions },
+      { extensions: sectionExtensions },
     );
   },
 );
@@ -114,14 +116,14 @@ test(
   "Freeflow's guidance changed before a run a message starts reaches that run, and each request extends the last",
   { timeout: 30000 },
   async () => {
-    const ROUTING_LINE = /For Cognitive Routing, follow the latest control/;
+    const WORKING_METHOD = /## Working Method/;
     await fixture(
       async (n) => (n === 2 ? [read] : []),
       false,
-      async ({ session, requests }) => {
-        assert.match(JSON.stringify(requests[0].system), ROUTING_LINE);
-        // A thinking change outside routing turns routing off for the session, which changes Freeflow's guidance.
-        session.setThinkingLevel("high");
+      async ({ session, requests, cwd }) => {
+        assert.match(JSON.stringify(requests[0].system), WORKING_METHOD);
+        // Turning a runtime prompt off in the repository's settings changes Freeflow's guidance.
+        await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ prompts: { workingMethod: false } }));
         await wait(50);
         await session.sendCustomMessage(wake, { triggerTurn: true });
         await until(() => requests.length >= 3, "the message's run to make two requests");
@@ -132,7 +134,7 @@ test(
         // The message's run carries the new guidance (a patch after the earlier turns), and the next prompt adds none.
         const patches = (body) => JSON.stringify(body.messages).split("freeflow_guidance").length - 1;
         assert.ok(patches(requests[1]) > patches(requests[0]), "the message's run carries the guidance change");
-        assert.doesNotMatch(JSON.stringify(requests[1].messages.slice(-1)), ROUTING_LINE);
+        assert.doesNotMatch(JSON.stringify(requests[1].messages.slice(-1)), WORKING_METHOD);
         assert.equal(patches(requests[3]), patches(requests[1]));
         for (let i = 1; i < requests.length; i++)
           assert.deepEqual(
@@ -146,14 +148,6 @@ test(
         model: ["anthropic", "claude-sonnet-5-5"],
         thinkingLevel: "low",
         modelsStore: { anthropic: { models: [SONNET], checkedAt: Date.now(), lastModified: 4102444800000 } },
-        cognitiveRouting: {
-          enabled: true,
-          projection: false,
-          profiles: {
-            coordinator: { provider: "anthropic", model: "claude-sonnet-5-5", thinking: "low" },
-            executor: { provider: "anthropic", model: "claude-sonnet-5-5", thinking: "medium" },
-          },
-        },
         response: (n, calls, body) => anthropicResponse(n, calls, { model: body.model }),
       },
     );
@@ -178,7 +172,6 @@ test(
       },
       true,
       {
-        cognitiveRouting: { enabled: false },
         onSession: (value) => void (session = value),
         extensions: [
           (pi) =>
