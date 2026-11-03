@@ -920,9 +920,10 @@ export async function handle(event, input, env = process.env) {
 }
 
 export async function main(argv = process.argv.slice(2), env = process.env) {
+  // Read as a stream: a synchronous read of a pipe the host has not written yet fails with EAGAIN.
   let raw = "";
   try {
-    raw = readFileSync(0, "utf8");
+    for await (const chunk of process.stdin) raw += chunk;
   } catch {
     return;
   }

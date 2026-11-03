@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -532,6 +532,25 @@ test("every handler fails open: no session, a home it cannot write, or an unknow
     });
     assert.equal(unknown.status, 0);
     assert.equal(unknown.stdout, "");
+  } finally {
+    done();
+  }
+});
+
+test("the driver waits for input the host writes after starting it", async () => {
+  const { work, folder, home, done } = setUp({ store: false });
+  try {
+    // A host may start the hook before writing its input; a synchronous read of the empty pipe failed with EAGAIN,
+    // and the driver answered nothing.
+    const child = spawn(process.execPath, [DRIVER, "UserPromptSubmit"], { cwd: work, env: envOf(folder) });
+    let stdout = "";
+    child.stdout.on("data", (chunk) => (stdout += chunk));
+    const exited = new Promise((resolve) => child.on("close", resolve));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    child.stdin.end(JSON.stringify(recorded("UserPromptSubmit", { session: SESSION, cwd: work })));
+    assert.equal(await exited, 0);
+    assert.equal(stdout, "");
+    assert.equal(JSON.parse(readFileSync(join(home, "sessions", SESSION, "codex.json"), "utf8")).turn, 1);
   } finally {
     done();
   }
