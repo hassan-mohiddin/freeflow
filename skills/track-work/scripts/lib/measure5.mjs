@@ -6,7 +6,7 @@
 import { closeSync, fstatSync, openSync, readFileSync, readSync } from "node:fs";
 
 /** How much of a log's end is read before reading further back, until the last reading's time is reached. */
-const TAIL_STEPS = [8 * 1024 * 1024, 64 * 1024 * 1024, null];
+export const TAIL_STEPS = [8 * 1024 * 1024, 64 * 1024 * 1024, null];
 /** A gap between two requests longer than this is waiting (on the user, on a run), not working. */
 export const IDLE_MS = 5 * 60 * 1000;
 
@@ -35,7 +35,7 @@ export function priceTable(env = process.env) {
   return env.FREEFLOW_PRICES ? JSON.parse(readFileSync(env.FREEFLOW_PRICES, "utf8")) : PRICES;
 }
 
-function readTail(path, bytes) {
+export function readTail(path, bytes) {
   const descriptor = openSync(path, "r");
   try {
     const size = fstatSync(descriptor).size;
