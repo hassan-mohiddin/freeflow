@@ -10,9 +10,18 @@ import { skeleton5 } from "../../../skills/track-work/scripts/lib/record5.mjs";
 const scriptPath = resolve("skills/track-work/scripts/working-record.mjs");
 const n = (value) => value.toLocaleString("en-US");
 
-/** A Measured line for a Slice that added `context` tokens in `minutes` of work for `usd`. */
-const measured = (context, minutes, usd, partial = false) =>
-  `context ${n(context)} over 1 compaction cycle(s)${partial ? " (partly measured)" : ""}; working ${minutes} min, wall ${minutes + 10} min; claude-opus-5-5 high: 0 in, 0 written, ${n(context * 5)} read, 1,000 out, $${usd.toFixed(2)}; as of 2026-10-01T10:00:00.000Z at ${n(context + 50_000)} tokens`;
+/** A Measured line for a Slice that added `context` tokens in `minutes` of work for `usd`, run on `model`. */
+const measured = (context, minutes, usd, partial = false, model = "claude-opus-5-5 high") =>
+  `context ${n(context)} over 1 compaction cycle(s)${partial ? " (partly measured)" : ""}; working ${minutes} min, wall ${minutes + 10} min; ${model}: 0 in, 0 written, ${n(context * 5)} read, 1,000 out, $${usd.toFixed(2)}; as of 2026-10-01T10:00:00.000Z at ${n(context + 50_000)} tokens`;
+const HAIKU = "claude-haiku-5-5 xhigh";
+/** Five Slices: three on Haiku, two dearer ones on Opus. */
+const MIXED = [
+  ["S-001", { measure: measured(20_000, 10, 0.1, false, HAIKU) }],
+  ["S-002", { measure: measured(40_000, 20, 0.2, false, HAIKU) }],
+  ["S-003", { measure: measured(60_000, 30, 0.3, false, HAIKU) }],
+  ["S-004", { measure: measured(80_000, 40, 3) }],
+  ["S-005", { measure: measured(100_000, 50, 5) }],
+];
 
 function sliceEntry(id, { measure, predicted, files }) {
   return [
@@ -157,17 +166,17 @@ test("a Slice's prediction: the median of the first pool with three measured Sli
     const own = predictSlice(b);
     assert.equal(
       own.line,
-      "context 59,378 (×1.32), working 33 min (×1.32), $1.76 (×1.35); median of 4 Slices of this task, corrected from 3 predictions of this task",
+      "context 59,378 (×1.32), working 33 min (×1.32), $1.76 (×1.35); median of 4 Slices of this task, cost measured mostly on claude-opus-5-5 high, corrected from 3 predictions of this task",
     );
     // A has two complete measurements (the partial and the unmeasured are left out): project demo's six stand.
     assert.equal(
       predictSlice(a).line,
-      "context 59,378 (×1.32), working 33 min (×1.32), $1.76 (×1.35); median of 6 Slices of project demo, corrected from 3 predictions of project demo",
+      "context 59,378 (×1.32), working 33 min (×1.32), $1.76 (×1.35); median of 6 Slices of project demo, cost measured mostly on claude-opus-5-5 high, corrected from 3 predictions of project demo",
     );
     // C, in no project: the store's seven Slices, and the store's three predictions.
     assert.match(
       predictSlice(c).line,
-      /^context 65,975 \(×1\.32\), .*; median of 7 Slices of the store, corrected from 3 predictions of the store$/,
+      /^context 65,975 \(×1\.32\), .*; median of 7 Slices of the store, cost measured mostly on claude-opus-5-5 high, corrected from 3 predictions of the store$/,
     );
     // The line reads back to the figures and, within the factor's two decimals, the uncorrected median.
     const parsed = parsePredicted(own.line);
@@ -231,7 +240,7 @@ test("slice start records the prediction beside the first reading, and slice clo
     assert.equal(started.status, 0, started.stderr);
     assert.match(
       await readFile(record, "utf8"),
-      /\n- Predicted: context 40,000, working 20 min, \$2\.00; median of 3 Slices of this task\n- Measured: context 0 over 1 compaction cycle\(s\); working 0 min, wall 0 min; as of \S+ at 50,000 tokens\n/,
+      /\n- Predicted: context 40,000, working 20 min, \$2\.00; median of 3 Slices of this task, cost measured mostly on claude-opus-5-5 high\n- Measured: context 0 over 1 compaction cycle\(s\); working 0 min, wall 0 min; as of \S+ at 50,000 tokens\n/,
     );
     const closed = run(
       [
@@ -254,7 +263,147 @@ test("slice start records the prediction beside the first reading, and slice clo
     assert.equal(closed.status, 0, closed.stderr);
     assert.match(
       await readFile(history, "utf8"),
-      /\n- Predicted: context 40,000, working 20 min, \$2\.00; median of 3 Slices of this task\n- Measured: context 45,000 over 1 compaction cycle\(s\); working 0 min, wall 0 min; as of \S+ at 95,000 tokens\n/,
+      /\n- Predicted: context 40,000, working 20 min, \$2\.00; median of 3 Slices of this task, cost measured mostly on claude-opus-5-5 high\n- Measured: context 45,000 over 1 compaction cycle\(s\); working 0 min, wall 0 min; as of \S+ at 95,000 tokens\n/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a Slice's cost comes from Slices run on its model and effort once three are measured, else from all, naming the model most of it was measured on; context and time from all (P8 of A-005)", async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "track-work-model5-")));
+  try {
+    const record = await writeTask(join(root, "task-001-mixed"), "Mixed", MIXED);
+    // On Haiku: the three Haiku Slices' median cost; the context and working time of all five.
+    assert.equal(
+      predictSlice(record, null, HAIKU).line,
+      "context 60,000, working 30 min, $0.20; median of 5 Slices of this task, cost from the 3 run on claude-haiku-5-5 xhigh",
+    );
+    // On Opus, with two Opus Slices, or on a model none ran on, or none known: all five, measured mostly on Opus.
+    const all =
+      "context 60,000, working 30 min, $0.30; median of 5 Slices of this task, cost measured mostly on claude-opus-5-5 high";
+    assert.equal(predictSlice(record, null, "claude-opus-5-5 high").line, all);
+    assert.equal(predictSlice(record, null, "claude-sonnet-5-5 high").line, all);
+    assert.equal(predictSlice(record).line, all);
+    assert.equal(parsePredicted(all).costModel, "claude-opus-5-5 high");
+    assert.equal(
+      parsePredicted("context 60,000, working 30 min, $0.30; median of 5 Slices of this task").costModel,
+      null,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a prediction whose cost was measured on another model than its Slice ran on corrects its context and time, not later costs", async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "track-work-model-correction5-")));
+  try {
+    const record = await writeTask(join(root, "task-001-mixed"), "Mixed", [
+      ...MIXED,
+      // A Haiku Slice priced from Opus: actual over predicted 2 for context and time, 0.1 for a cost that cannot compare.
+      [
+        "S-006",
+        {
+          measure: measured(40_000, 20, 0.4, false, HAIKU),
+          predicted:
+            "context 20,000, working 10 min, $4.00; median of 5 Slices of this task, cost measured mostly on claude-opus-5-5 high",
+        },
+      ],
+      // A Haiku Slice priced from Haiku: 1 for context and time, 2 for cost.
+      [
+        "S-007",
+        {
+          measure: measured(40_000, 20, 0.4, false, HAIKU),
+          predicted:
+            "context 40,000, working 20 min, $0.20; median of 6 Slices of this task, cost from the 4 run on claude-haiku-5-5 xhigh",
+        },
+      ],
+    ]);
+    // Context and time: (2 · 1 · 1 · 1)^(1/4) = 1.19 over the median of seven, 40,000 and 20 min; cost: S-007 alone,
+    // (2 · 1 · 1)^(1/3) = 1.26 over the median of the five Haiku Slices, $0.30.
+    assert.equal(
+      predictSlice(record, null, HAIKU).line,
+      "context 47,568 (×1.19), working 24 min (×1.19), $0.38 (×1.26); median of 7 Slices of this task, cost from the 5 run on claude-haiku-5-5 xhigh, corrected from 2 predictions of this task",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("slice start and estimate --plan price by the model and effort of the transcript's newest request", async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "track-work-model-start5-")));
+  try {
+    execFileSync("git", ["init", "--quiet", "--initial-branch=main"], { cwd: root });
+    await writeFile(join(root, ".gitignore"), ".freeflow/\n");
+    const record = await writeTask(join(root, ".freeflow/tasks/task-001-mixed"), "Mixed", MIXED, FUTURE);
+    const now = Date.now();
+    const entry = (minutesAgo, id, model, effort, extra = {}) =>
+      JSON.stringify({
+        type: "assistant",
+        timestamp: new Date(now - minutesAgo * 60_000).toISOString(),
+        effort,
+        message: {
+          id,
+          model,
+          usage: {
+            input_tokens: 2,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 50_000,
+            output_tokens: 10,
+          },
+        },
+        ...extra,
+      });
+    const transcript = join(root, "session.jsonl");
+    // The session moved from Opus to Haiku; a subagent's request and Claude Code's own synthetic entry come after.
+    await writeFile(
+      transcript,
+      `${[
+        entry(30, "m1", "claude-opus-5-5", "high"),
+        entry(20, "m2", "claude-haiku-5-5", "xhigh"),
+        entry(10, "s1", "claude-opus-5-5", "high", { isSidechain: true }),
+        entry(5, "m3", "<synthetic>", null),
+      ].join("\n")}\n`,
+    );
+    const opened = run(
+      ["agreement", "open", "--record", record, "--title", "Mixed", "--input", "-"],
+      {},
+      '- Done when it runs. You: "go" (2026-11-03)\n',
+    );
+    assert.equal(opened.status, 0, opened.stderr);
+    const started = run(
+      [
+        "slice",
+        "start",
+        "--record",
+        record,
+        "--title",
+        "Parser",
+        "--next-action",
+        "Go on.",
+        "--transcript",
+        transcript,
+        "--input",
+        "-",
+      ],
+      {},
+      "- Scope: the parser.\n- Done when: it parses.\n- Stop if: it breaks.\n- Started from: nothing.\n",
+    );
+    assert.equal(started.status, 0, started.stderr);
+    assert.match(
+      await readFile(record, "utf8"),
+      /\n- Predicted: context 60,000, working 30 min, \$0\.20; median of 5 Slices of this task, cost from the 3 run on claude-haiku-5-5 xhigh\n/,
+    );
+    const plan = run(["estimate", "--plan", "--record", record, "--transcript", transcript, "--window", "1000000"]);
+    assert.equal(plan.status, 0, plan.stderr);
+    assert.match(
+      plan.stdout,
+      /\nA Slice with no size, expected: context about 60,000, working about 30 min, about \$0\.20 at list price, cost from the 3 run on claude-haiku-5-5 xhigh: the median of 5 measured Slices of this task \(context 20,000 to 100,000; working 10 to 50 min; \$0\.10 to \$0\.30\), /,
+    );
+    // Given --used, no transcript is read, so no model is known: all five, measured mostly on Opus.
+    assert.match(
+      run(["estimate", "--plan", "--record", record, "--used", "50000", "--window", "1000000"]).stdout,
+      /, about \$0\.30 at list price, cost measured mostly on claude-opus-5-5 high: /,
     );
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -271,7 +420,7 @@ test("estimate --plan lays the Slices left across compaction cycles, with the to
       [
         "Plan: 3 Slices left, from Future Work.",
         "Expected in all: $2.03 to $12.16 at list price, most likely $5.27; context 118,756 to 316,682, most likely 178,134; working about 1 h 39 min. Resting on: from 6 measured Slices of project demo, none sized; 0 of 3 Slices left sized; corrected from 3 predictions of project demo.",
-        "A Slice with no size, expected: context about 59,378, working about 33 min, about $1.76 at list price, mostly claude-opus-5-5 high: the median of 6 measured Slices of project demo (context 30,000 to 80,000; working 10 to 40 min; $0.50 to $3.00), corrected by 1.32, from actual over predicted of 3 predictions of project demo (context 1.00 to 2.00).",
+        "A Slice with no size, expected: context about 59,378, working about 33 min, about $1.76 at list price, cost measured mostly on claude-opus-5-5 high: the median of 6 measured Slices of project demo (context 30,000 to 80,000; working 10 to 40 min; $0.50 to $3.00), corrected by 1.32, from actual over predicted of 3 predictions of project demo (context 1.00 to 2.00).",
         "Context now: about 100,000 of 200,000 tokens; Freeflow's notice at about 150,000. Where a compaction cycle starts is unknown (no transcript read): taken as empty, so each later compaction cycle holds about 150,000.",
         "- Parser: this compaction cycle into the next; context about 59,378, about $1.76",
         "- CLI: the next compaction cycle; context about 59,378, about $1.76",
@@ -511,10 +660,13 @@ test("a sized Slice: its files times the median per-file rate, corrected only by
     // 12 files at 3,000 each, 1.5 min and $0.10, times 1.26.
     assert.equal(
       predictSlice(record, 12).line,
-      "context 45,357 (×1.26), working 23 min (×1.26), $1.51 (×1.26); 12 files at the median rate of 5 sized Slices of this task, corrected from 1 prediction of this task",
+      "context 45,357 (×1.26), working 23 min (×1.26), $1.51 (×1.26); 12 files at the median rate of 5 sized Slices of this task, cost measured mostly on claude-opus-5-5 high, corrected from 1 prediction of this task",
     );
     // With no size, the median of the five measured Slices; no prediction of a Slice with no size has its actual.
-    assert.equal(predictSlice(record).line, "context 60,000, working 30 min, $2.00; median of 5 Slices of this task");
+    assert.equal(
+      predictSlice(record).line,
+      "context 60,000, working 30 min, $2.00; median of 5 Slices of this task, cost measured mostly on claude-opus-5-5 high",
+    );
     const parsed = parsePredicted(predictSlice(record, 12).line);
     assert.equal(parsed.sized, true);
     assert.ok(Math.abs(parsed.base.context - 36_000) < 100, `${parsed.base.context}`);
@@ -532,7 +684,7 @@ test("a sized Slice: its files times the median per-file rate, corrected only by
     assert.ok(
       lines.some((line) =>
         line.startsWith(
-          "A sized Slice, expected: its files times the median per file of 5 sized Slices of this task: context 3,000 (3,000 to 4,000), working 1.5 min, $0.10 ($0.10 to $0.15), corrected by 1.26",
+          "A sized Slice, expected: its files times the median per file of 5 sized Slices of this task: context 3,000 (3,000 to 4,000), working 1.5 min, $0.10 ($0.10 to $0.15), cost measured mostly on claude-opus-5-5 high, corrected by 1.26",
         ),
       ),
     );
@@ -627,7 +779,7 @@ test("slice start writes Size and Base, slice close writes Files from Base to HE
     // 2 files at 2,000 each, 1 min and $0.10.
     assert.match(
       text,
-      /\n- Predicted: context 4,000, working 2 min, \$0\.20; 2 files at the median rate of 3 sized Slices of this task\n/,
+      /\n- Predicted: context 4,000, working 2 min, \$0\.20; 2 files at the median rate of 3 sized Slices of this task, cost measured mostly on claude-opus-5-5 high\n/,
     );
     // Two files added and one changed count; the deleted one does not.
     await writeFile(join(root, "a.txt"), "a\n");
