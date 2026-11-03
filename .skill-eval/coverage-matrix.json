@@ -42,7 +42,7 @@
       "case_concept": "Explore a materially open direction without treating discussion as authority, then refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss-work/SKILL.md",
-      "source_sha256": "8c864b1b7470eeafdfc8db2213aa8bc75ed4f2b326cd05b4fb54d52dd9b94926",
+      "source_sha256": "08b29df6c9813c11d40ab2b3f2cfdcfe5a8ea461dc6805f9244f2ff2682e96bb",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -88,7 +88,7 @@
       "case_concept": "Complete one accepted local correction, then change route when repeated evidence exposes a shared failure unit; discriminate cache-key from invalidation hypotheses before fixing a stale read; keep v1 until a dormant consumer is observed.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "77c4a20434cad4e4e3f0df74f071791b2a5ff5ecc86562d56800ef3a9a9bfd9c",
+      "source_sha256": "e19b82e9f9db685a28a291e813715d17271f39124072baf03dad403bce5d3c7c",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -111,7 +111,7 @@
       "case_concept": "A natural request for an in-depth report or a literature review should read the skill and produce the brief, ledgers, register and checked report; a comparison of options in hand or a single lookup should not; a quick yes-or-no question should run at check rigor, not study.",
       "current_result": "One end-to-end run: a Haiku agent followed the skill to report on the Codex CLI's turn path at a pinned commit; its 93 citations passed cite-check, and a check of five claims against the code found three that dropped a guard condition, which led to revisions of the skill text (the saved report was not corrected). The run used the text at 58b44b72; later changes only say what a passing check and trace cover. The scripts have their own tests (.skill-eval/research-work/tests). Activation cases are written but not run. The study route's gates have their own tests. One study ran end to end (two Haiku agents, the Wald and Wilson coverage question): its numbers match an independent computation, and its workers' notes led to fixes recorded in the design record.",
       "source_path": "skills/research-work/SKILL.md",
-      "source_sha256": "ff8d08c6e756579e48262f2bf7312df79907749b54371fffb0d9a115b55f3fb7",
+      "source_sha256": "972cd577d87998ab2d68824112dd8f4968970e49aafc4cb03e648c2e3ce7c537",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -134,7 +134,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with the body before the 2026-10-22 restructure (the description is not what the suite delivers or measures; the restructure moves and deduplicates that text and has not been rerun), 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "8a700016fac75087a192f06f2c03d4f2ac922742fa7a65618d2e8c7441ae5737",
+      "source_sha256": "10857de6b600bf9e0feaa9b986780dc7a93b68c98da563996b89efef6bc329bf",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -180,7 +180,7 @@
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current Track Work skill, rewritten for Schema 5 in task-004 (Phase 7.1), has not been behaviorally evaluated at this snapshot; Unverified. Earlier, Schema 4's Work Agreement guidance measured on 2026-10-13 (.skill-eval/work-agreement, baseline 5a7db0e6, candidate 522903b7, anthropic/claude-haiku-5-5 medium, 3 trials; aggregates 20261012212234-b38e8191 natural and 20261012212240-5af3ab7e explicit): agreement updated on a change of direction 3/3 vs 0/3; next step proposed at the agreement's edge 3/3 vs 1/3 and scope proposed 3/3 vs 2/3 (advisory Haiku judge); ask-first, unanswered-proposal and no-push/PR checks equal on both arms. Workflow's body was read in no natural run. This entry's own claim is not what that suite measures and stays unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "43ab254aacb4d49e6baec1cbd6e072494749e291a6ed0963e628176c010b9b9a",
+      "source_sha256": "b61b588eebfaf88d98b857b67d49a8f3179274d042ec172fc6bd81a1b0e32abe",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -203,7 +203,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. The test-changes script has its own tests (.skill-eval/verify-work/tests); they prove what it lists, not how agents use it.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "2bcb22385a412b2f7b3e820c7e99fcd7f91a475c2b7ed2090580ab3dec5d06bf",
+      "source_sha256": "ae208bad23a5fbd10551f29018e5b40f2d46de51e11016ff6173adc8cd546da5",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -226,7 +226,7 @@
       "case_concept": "After a behavior change, the stale subsystem doc is corrected in the same change and an intended-but-surprising behavior is recorded rather than 'fixed'; a spec preserves settled invitation behavior but marks unresolved billing semantics blocked.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-docs/SKILL.md",
-      "source_sha256": "f49fce21dc43ed734e26b0b2cee23d68b0877a024e63961c26760739836671bc",
+      "source_sha256": "ea284594294aa57a56d667b3cf12ec0e927883c84a0e1e08f5f5d5f6028ed73d",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

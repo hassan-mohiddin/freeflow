@@ -118,7 +118,7 @@ A Passed check can leave the claim Inconclusive. A no-regression or parity claim
 
 Goal: before you report your own change done, or rely on your own document, you have checked it against what was agreed and found what it does that you did not mean.
 
-This is self-review: the producer's own check of a supported result. It is verification, and independent review is a separate step that [Review Work](../review-work/SKILL.md) selects.
+This is self-review: the producer's own check of a supported result, and the normal required route before reporting or relying on it. It is verification, and independent review is a separate step that [Review Work](../review-work/SKILL.md) selects.
 
 For a change to code or files:
 
