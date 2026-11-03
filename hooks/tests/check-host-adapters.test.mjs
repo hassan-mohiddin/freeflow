@@ -125,8 +125,11 @@ test("the hooks and Pi agree on every config's validity", async () => {
     ['{"prompts":{"workingMethod":"no"}}', undefined],
     ["{}", '{"prompts":{"skills":false}}'],
     ["{}", '{"prompts":[]}'],
-    ['{"review":{"mode":"off","model":"opus"}}', '{"review":{"mode":"auto"}}'],
-    ['{"review":{"mode":"never"}}', undefined],
+    ['{"review":{"unit":"manual","model":"opus","rounds":2}}', '{"review":{"unit":"pr"}}'],
+    ['{"review":{"depth":{"default":"deep","rules":[{"paths":["src/**"],"depth":"quick"}]}}}', undefined],
+    ["{}", '{"review":{"depth":{"default":"deep"}}}'],
+    ['{"review":{"mode":"always"}}', undefined],
+    ['{"review":{"unit":"never"}}', undefined],
     ["{}", '{"review":{"effort":"high"}}'],
     ["{invalid", undefined],
     ["[]", undefined],
@@ -162,20 +165,29 @@ test("a hook host's Runtime State names the user's review choice, and only a cho
     return context.slice(context.indexOf("# Freeflow Runtime State"));
   };
   assert.equal(runtimeState({}), "# Freeflow Runtime State\n\nFreeflow: active");
-  assert.equal(runtimeState({ review: { mode: "auto" } }), "# Freeflow Runtime State\n\nFreeflow: active");
+  assert.equal(runtimeState({ review: { unit: "pr" } }), "# Freeflow Runtime State\n\nFreeflow: active");
   assert.equal(
-    runtimeState({ review: { mode: "off" } }),
-    "# Freeflow Runtime State\n\nFreeflow: active\nReview: `off`",
+    runtimeState({ review: { unit: "manual" } }),
+    "# Freeflow Runtime State\n\nFreeflow: active\nReview: unit `manual`, model `auto`",
   );
   // The personal file overrides the shared one field by field.
   assert.match(
-    runtimeState({ review: { mode: "off", model: "shared-model" } }, { review: { mode: "always" } }),
-    /\nReview: `always`, reviewer model `shared-model`$/,
+    runtimeState({ review: { unit: "push", model: "shared-model" } }, { review: { unit: "manual", rounds: 1 } }),
+    /\nReview: unit `manual`, model `shared-model`, up to Review 1$/,
   );
-  assert.doesNotMatch(runtimeState({ review: { mode: "always" } }, { review: { mode: "auto" } }), /Review:/);
-  const workspace = createWorkspace('{"review":{"mode":"sometimes"}}\n');
+  assert.doesNotMatch(runtimeState({ review: { unit: "manual" } }, { review: { unit: "pr" } }), /Review:/);
+  const workspace = createWorkspace('{"review":{"unit":"sometimes"}}\n');
   const invalid = contextOf(runAdapter(adapters.codex[0], workspace, inputFor("codex", workspace)));
-  assert.match(invalid, /\.freeflow\/config\.json is invalid: review\.mode must be one of auto, off, always/);
+  assert.match(
+    invalid,
+    /\.freeflow\/config\.json is invalid: review\.unit must be one of pr, push, commit, agreement, manual/,
+  );
+  // review.mode is gone: the message names its replacement.
+  const old = createWorkspace('{"review":{"mode":"always"}}\n');
+  assert.match(
+    contextOf(runAdapter(adapters.codex[0], old, inputFor("codex", old))),
+    /\.freeflow\/config\.json is invalid: review\.mode is replaced by review\.unit/,
+  );
   const routing = createWorkspace('{"cognitiveRouting":{"delegation":"everyone"}}\n');
   assert.match(
     contextOf(runAdapter(adapters.codex[0], routing, inputFor("codex", routing))),
@@ -218,9 +230,9 @@ test("a hook host reads the session's own settings over the files, for that sess
   mkdirSync(join(home, "sessions", "s-1"), { recursive: true });
   writeFileSync(
     join(home, "sessions", "s-1", "settings.json"),
-    `${JSON.stringify({ "review.mode": "always", "skills.write-skill": false })}\n`,
+    `${JSON.stringify({ "review.unit": "manual", "skills.write-skill": false })}\n`,
   );
-  const workspace = createWorkspace('{"review":{"mode":"off"}}\n', '{"skills":{"write-skill":true}}\n');
+  const workspace = createWorkspace('{"review":{"unit":"push"}}\n', '{"skills":{"write-skill":true}}\n');
   const state = (env, input = inputFor("claude", workspace)) => {
     const context = contextOf(runAdapter(adapters.claude[0], workspace, input, "SessionStart", env));
     return context.slice(context.indexOf("# Freeflow Runtime State"));
@@ -228,14 +240,14 @@ test("a hook host reads the session's own settings over the files, for that sess
   const env = { ...isolatedEnv, FREEFLOW_HOME: home };
   assert.equal(
     state({ ...env, CLAUDE_CODE_SESSION_ID: "s-1" }),
-    "# Freeflow Runtime State\n\nFreeflow: active\nReview: `always`\nSkills off: `write-skill`; do not open or follow them.",
+    "# Freeflow Runtime State\n\nFreeflow: active\nReview: unit `manual`, model `auto`\nSkills off: `write-skill`; do not open or follow them.",
   );
   assert.equal(
     state({ ...env, CLAUDE_CODE_SESSION_ID: "s-2" }),
-    "# Freeflow Runtime State\n\nFreeflow: active\nReview: `off`",
+    "# Freeflow Runtime State\n\nFreeflow: active\nReview: unit `push`, model `auto`",
   );
   // A host that names its session only in the hook's input.
-  assert.match(state(env, { ...inputFor("codex", workspace), session_id: "s-1" }), /\nReview: `always`/);
+  assert.match(state(env, { ...inputFor("codex", workspace), session_id: "s-1" }), /\nReview: unit `manual`/);
   // A Session enabled: false turns Freeflow off for that session alone.
   writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ enabled: false })}\n`);
   assert.equal(readConfig(workspace, { session: "s-1", env }).enabled, false);

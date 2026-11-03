@@ -30,7 +30,7 @@ import { cachedBranch } from "./branch.js";
  */
 export const SESSION_OVERRIDE_KEYS = SETTINGS.filter((spec) => spec.session).map((spec) => spec.key);
 export type SessionCoreKey = string;
-export type SessionOverrideValue = boolean | string;
+export type SessionOverrideValue = boolean | string | number;
 
 function validSessionValue(key: string, value: unknown): value is SessionOverrideValue {
   const spec = settingSpec(key);
