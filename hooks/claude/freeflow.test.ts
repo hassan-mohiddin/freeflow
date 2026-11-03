@@ -144,6 +144,7 @@ function world(on: any) {
   on("classic.SessionStart", () => ({}));
   on("classic.SubagentStop", () => ({}));
   on("turn.complete", () => ({ text: "" }));
+  on("turn.start", (_: any, e: any) => ({ turnId: e.turnId }));
   on("session.end", (_: any, e: any) => ({ sessionId: e.sessionId }));
   on("agent.spawn", () => ({ model: "haiku", agentId: "agent-7" }));
   on("turn.step", async function* (_: any, e: any) {
@@ -451,6 +452,9 @@ test("a turn ends: sync a changed store; only checkpoint --compact compacts, onc
   await w.clock.advance(1);
   expect(w.logs).toEqual([]);
   expect(w.commandsRun).toEqual(["compact"]);
+  // The prompt waits for input queued meanwhile to start a turn of its own; none did, so it goes (F35).
+  expect(w.submitted).toEqual([]);
+  await w.clock.advance(2_000);
   expect(w.submitted.length).toBe(1);
   expect(w.submitted[0]).toContain("Continue from In flight and the Next action.");
   expect(w.writes).toEqual([]);
@@ -496,6 +500,7 @@ test("a dropped /compact keeps the request: the next turn end tries again, a lin
   await $.turn.complete(turnEnd("answer"));
   await w.clock.advance(1);
   expect(w.commandsRun).toEqual(["compact", "compact"]);
+  await w.clock.advance(2_000);
   expect(w.submitted.length).toBe(1);
   await $.session.compact({ trigger: "manual", messages: CONVERSATION });
   expect(w.writes.filter((write) => write.path === REQUEST)).toEqual([
@@ -532,6 +537,32 @@ test("checkpoint --compact compacts before any notice: the agent decides when (P
   await w.clock.advance(1);
   expect(noticesOf(w)).toEqual([]);
   expect(w.commandsRun).toEqual(["compact"]);
+  await w.clock.advance(2_000);
+  expect(w.submitted.length).toBe(1);
+});
+
+test("after its compaction, a turn that input queued meanwhile starts first gets no prompt behind it (F35)", async ($, on) => {
+  const w = world(on);
+  const REQUEST = `${HOME}/sessions/${SESSION}/compact.json`;
+  w.status = held(at(-30));
+  await start($);
+  w.status = held(at(1), { compact: { path: REQUEST, requestedAt: at(1), done: false } });
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(1);
+  expect(w.commandsRun).toEqual(["compact"]);
+  // A notification queued while the compaction ran starts its turn first, and that turn goes on from the bundle: a
+  // prompt now would wait behind it and arrive after it, out of date.
+  await $.turn.start({ text: "A background task finished.", turnId: "turn-queued" });
+  await w.clock.advance(2_000);
+  expect(w.submitted).toEqual([]);
+
+  // A subagent's turn is not the main loop's: after the next compaction, it does not hold the prompt back.
+  w.status = held(at(2), { compact: { path: REQUEST, requestedAt: at(2), done: false } });
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(1);
+  expect(w.commandsRun).toEqual(["compact", "compact"]);
+  await $.turn.start({ text: "Read the callers.", turnId: "turn-worker", agentId: "agent-7" });
+  await w.clock.advance(2_000);
   expect(w.submitted.length).toBe(1);
 });
 

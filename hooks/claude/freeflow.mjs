@@ -34,6 +34,10 @@ let compactQueued = false;
 const droppedRuns = new Map();
 /** Dropped runs after which the mod stops trying and says so. */
 const MAX_COMPACT_TRIES = 3;
+/** Turns the main loop started this session, so the prompt after a compaction goes only when no other turn did. */
+let mainTurns = 0;
+/** How long after its /compact the mod waits for input queued meanwhile to start a turn, before it prompts (F35). */
+const CONTINUE_AFTER_MS = 2_000;
 
 /**
  * Runs Track Work's script for this session (or the one ending), as its commands run in the session's shell.
@@ -377,7 +381,12 @@ async function compactAndContinue($, request) {
     if (/^Not compacted/.test(text ?? "")) dropped = (text ?? "").split("\n")[0];
     else {
       await newCycle($);
-      await $.prompt.submit({ text: CONTINUE });
+      // Input queued meanwhile, a notification or the person's own prompt, starts its turn first, and that turn goes
+      // on from the bundle; a prompt submitted now would wait behind it and arrive out of date (F35).
+      const turns = mainTurns;
+      $.clock.after(CONTINUE_AFTER_MS, async () => {
+        if (mainTurns === turns) await $.prompt.submit({ text: CONTINUE });
+      });
     }
   } catch (error) {
     dropped = error instanceof Error ? error.message : String(error);
@@ -474,6 +483,11 @@ export function register(on) {
       ...result,
       additionalContext: [...(result.additionalContext ?? []), `Freeflow task memory:\n${text}\n`],
     };
+  });
+
+  on("turn.start", ($, e, next) => {
+    if (e.agentId === undefined) mainTurns += 1;
+    return next(e);
   });
 
   on("turn.step", async function* ($, e, next) {
