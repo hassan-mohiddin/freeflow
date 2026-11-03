@@ -39,12 +39,12 @@ test("the model reads the answers, each deciding only its question", () => {
     status: "answered",
     answers: [
       { header: "Default", question: "On or off?", selected: ["Off"], note: "for now" },
-      { header: "Name", question: "Which name?", selected: [], text: "task_memory" },
+      { header: "Name", question: "Which name?", selected: [], text: "work_record" },
     ],
   });
   assert.match(text, /^The user answered in a dialog:/);
   assert.match(text, /- Default: On or off\?\n  Answer: Off\n  Note: for now/);
-  assert.match(text, /- Name: Which name\?\n  Answer, in their words: task_memory/);
+  assert.match(text, /- Name: Which name\?\n  Answer, in their words: work_record/);
   assert.match(text, /Each answer decides only its question/);
   assert.match(outcomeText({ status: "dismissed" }), /closed the dialog without answering\. Do not act on the choice/);
   assert.match(
@@ -91,14 +91,14 @@ test("the terminal dialog: several questions as tabs, multi-select, own words an
   form.handleInput(KEY.down);
   form.handleInput(KEY.down);
   form.handleInput(KEY.enter);
-  type(form, "task_memory");
+  type(form, "work_record");
   form.handleInput(KEY.enter);
-  assert.match(screen(form), /Your answers[\s\S]*Parts: A, C[\s\S]*note: C only if cheap[\s\S]*Name: "task_memory"/);
+  assert.match(screen(form), /Your answers[\s\S]*Parts: A, C[\s\S]*note: C only if cheap[\s\S]*Name: "work_record"/);
   assert.equal(outcome, undefined, "nothing is sent before Submit");
   form.handleInput(KEY.enter);
   assert.deepEqual(outcome.answers, [
     { header: "Parts", question: "Pick Parts?", selected: ["A", "C"], note: "C only if cheap" },
-    { header: "Name", question: "Pick Name?", selected: [], text: "task_memory" },
+    { header: "Name", question: "Pick Name?", selected: [], text: "work_record" },
   ]);
 });
 

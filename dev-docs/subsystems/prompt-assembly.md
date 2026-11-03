@@ -63,6 +63,8 @@ The `enabled` setting is the only Freeflow core switch. Cognitive Routing, Tool 
 
 ## Host delivery
 
+Every host gets the same skills, from the one `skills/` folder: Claude Code, Codex, Cursor and OpenCode through their manifests' `skills` field, Gemini, Copilot, VS Code, Kiro and Hermes from the folder their own rules fix, and Pi through the names in its catalog (`pi-extension/src/host/catalog.ts`). `scripts/validation/check-hosts.mjs`, in `npm run check`, reads each host's source of skills and fails when one would get a set other than the catalog's; it also fails when live text names a removed feature outside the files it lists as naming it on purpose (migrate, the refusals and notes that send a user there, their tests), so text that describes a removed feature as current cannot ship.
+
 ### Codex and Claude Code
 
 The Codex and Claude adapters load the mandatory core fragments, followed by the Working Method when its file is present, at `SessionStart` for startup, resume, clear, and compact boundaries, and on Claude Code also fork.
@@ -93,7 +95,7 @@ Cursor discovers the portable skill surface from the root Agent Plugins 1.0 mani
 
 ### GitHub Copilot and VS Code
 
-Copilot CLI and VS Code discover portable skills from the root Agent Plugins 1.0 manifest. The `com.github.copilot/hooks/hooks.json` namespace supplies the compatible `SessionStart` hook, whose adapter returns direct `additionalContext` output. VS Code’s hook runtime is a preview surface, and Copilot CLI/cloud lifecycle environments differ; deterministic adapter tests do not establish native dispatch.
+Copilot CLI and VS Code discover portable skills from the root Agent Plugins 1.0 manifest, which cannot name a skills folder: clients find `skills/` at its fixed location (Agent Plugins 1.0, section 6.1), so Copilot declares none. The `com.github.copilot/hooks/hooks.json` namespace supplies the compatible `SessionStart` hook, whose adapter returns direct `additionalContext` output. VS Code’s hook runtime is a preview surface, and Copilot CLI/cloud lifecycle environments differ; deterministic adapter tests do not establish native dispatch.
 
 ### Kiro
 
