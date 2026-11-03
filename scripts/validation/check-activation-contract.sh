@@ -6,7 +6,6 @@ setup_skill="$repo_root/skills/setup-freeflow/SKILL.md"
 core_prompt="$repo_root/runtime/prompts/core.md"
 interaction_contract="$repo_root/runtime/prompts/interaction-contract.md"
 working_method="$repo_root/runtime/prompts/working-method.md"
-cognitive_routing_prompt="$repo_root/runtime/prompts/cognitive-routing.md"
 agents_file="$repo_root/AGENTS.md"
 dev_docs_index="$repo_root/dev-docs/README.md"
 workflow_doc="$repo_root/plugin-docs/workflow.md"
@@ -40,7 +39,6 @@ for file in \
 	"$core_prompt" \
 	"$interaction_contract" \
 	"$working_method" \
-	"$cognitive_routing_prompt" \
 	"$agents_file" \
 	"$dev_docs_index" \
 	"$pi_runtime" \
@@ -70,10 +68,6 @@ require_text "$core_prompt" '**Build, with Execute Work:** read it before your f
 require_text "$core_prompt" '**Verify, with Verify Work:**'
 require_text "$core_prompt" 'None of these skips reading the skills.'
 require_text "$core_prompt" 'Then continue the covered work toward the agreed end.'
-require_text "$cognitive_routing_prompt" 'Before relying on Automatic routing, read the complete cognitive-routing skill if its body is absent, and the reference it names for your profile.'
-require_text "$cognitive_routing_prompt" 'This bootstrap read is the only environment call in that response.'
-require_text "$cognitive_routing_prompt" 'If unavailable, stop and report the missing method.'
-require_text "$cognitive_routing_prompt" 'Reload both after context loss before applying remembered routing rules.'
 require_text "$working_method" '## Keep output small'
 require_text "$working_method" 'a capped result does not show that nothing else matched.'
 require_text "$dev_docs_index" 'runtime/prompts/'
@@ -82,7 +76,6 @@ require_text "$workflow_doc" '## The Cycle'
 
 require_text "$pi_runtime" '../../../runtime/prompts/core.md'
 require_text "$pi_runtime" '../../../runtime/prompts/interaction-contract.md'
-require_text "$pi_runtime" '../../../runtime/prompts/cognitive-routing.md'
 reject_text "$pi_runtime" '../../../runtime/prompts/context-virtualization.md'
 reject_text "$pi_runtime" '../../../runtime/prompts/conversation-history.md'
 require_text "$shared_renderer" 'interactionContract: "interaction-contract.md"'

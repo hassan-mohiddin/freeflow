@@ -42,7 +42,7 @@
       "case_concept": "Explore a materially open direction without treating discussion as authority, then refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss-work/SKILL.md",
-      "source_sha256": "08b29df6c9813c11d40ab2b3f2cfdcfe5a8ea461dc6805f9244f2ff2682e96bb",
+      "source_sha256": "4b79e141a9a4aac3f5c513cdb0fea1b910a2f7a979deef080a4893c189e8c7b1",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -157,7 +157,7 @@
       "case_concept": "Refuse activation with a removed context key in either config layer, tell the user which key/file to delete without rewriting config, and preserve the valid empty-config activation path.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/setup-freeflow/SKILL.md",
-      "source_sha256": "2727dc09be3c5b6970f8e1c712c7f328a47e4cc84a454c16dd07b967700dcff8",
+      "source_sha256": "d9be13048dd4ec85ca2f86f9a3c3b25db891ed354c0b9a6783ae9fedc264a72b",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

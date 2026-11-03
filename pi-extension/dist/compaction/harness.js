@@ -79,7 +79,6 @@ export function harnessPart(facts) {
         ? " It completes the compaction Freeflow's context notice asked for."
         : "";
   const lines = [`## Freeflow state at compaction`, "", `This compaction starts cycle ${facts.cycle}.${requested}`];
-  if (facts.routingProfile) lines.push(`Cognitive Routing profile when compacted: ${facts.routingProfile}.`);
   if (facts.background.length)
     lines.push(
       `Background commands still running: ${facts.background.map((job) => `${job.id} (${job.label}), output ${job.outputPath}`).join("; ")}.`,

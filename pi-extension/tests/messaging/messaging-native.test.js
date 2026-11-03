@@ -4,14 +4,13 @@ import { mkdtemp, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createToolSearchExtension } from "@earendil-works/pi-coding-agent";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 
 process.env.FREEFLOW_HOME = await mkdtemp(join(tmpdir(), "freeflow-home-"));
 const toolNames = (body) => (body.tools ?? []).map((tool) => tool.name);
 const system = (body) => JSON.stringify(body.system ?? "");
 const on = {
   freeflowConfig: { messaging: { enabled: true } },
-  cognitiveRouting: { enabled: false },
   beforeExtensions: [createToolSearchExtension()],
   model: ["anthropic", "claude-opus-5-5"],
 };

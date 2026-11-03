@@ -5,12 +5,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 
 // Freeflow's compaction on a real Pi session with Track Work's real script: the agent checkpoints with --compact and
 // ends its turn; Freeflow writes Pi's compaction entry with the bundle, keeping nothing raw, and the run continues.
 const script = resolve("skills/track-work/scripts/working-record.mjs");
-const noRouting = { cognitiveRouting: { enabled: false }, freeflowConfig: { toolExecution: { enabled: true } } };
+const noRouting = { freeflowConfig: { toolExecution: { enabled: true } } };
 const bash = (command) => ({ name: "bash", args: { command } });
 const text = (item) =>
   typeof item.content === "string"

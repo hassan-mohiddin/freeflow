@@ -10,10 +10,6 @@ export const CONFORMANCE = {
     "messaging/messaging.test.js",
     "a session in the same project receives the message; the notice names the sender and says it is not the user",
   ],
-  forget: [
-    "cognitive-routing/native.test.js",
-    "native projection omits an unselected sibling body but preserves its exchange",
-  ],
   compact: [
     "compaction/bundle.test.js",
     "a task's checkpoint --compact compacts with its bundle; the next request extends the one after compaction",
@@ -21,10 +17,6 @@ export const CONFORMANCE = {
   checkpoint: [
     "compaction/bundle.test.js",
     "a task's checkpoint --compact compacts with its bundle; the next request extends the one after compaction",
-  ],
-  route: [
-    "cognitive-routing/native.test.js",
-    "bundled CLI loads the package entrypoint and completes the real routing loop",
   ],
   send: [
     "messaging/messaging.test.js",

@@ -79,7 +79,6 @@ test("host adapters share rendered mandatory context but emit host-native envelo
     "Pi's order: core, Interaction Contract, Working Method, then the Runtime State",
   );
   assert.match(legacyContext, /Freeflow: active/);
-  assert.doesNotMatch(legacyContext, /Cognitive Routing/);
 });
 
 test("host adapters stay inert for disabled and unsupported lifecycle inputs and report an invalid config", () => {
@@ -101,8 +100,7 @@ test("host adapters stay inert for disabled and unsupported lifecycle inputs and
 // Settings written on Pi, such as Tool Execution or Compaction from /freeflow settings, must not switch Freeflow off on
 // the other hosts. Before October 2026 the hooks kept their own copy of the config check, which rejected both keys.
 test("a config Pi accepts activates Freeflow on every hook host", () => {
-  const capabilities =
-    '{"cognitiveRouting":{"enabled":true},"toolExecution":{"enabled":true},"compaction":{"carry":false}}\n';
+  const capabilities = '{"messaging":{"enabled":true},"toolExecution":{"enabled":true},"compaction":{"carry":false}}\n';
   const workspace = createWorkspace(capabilities, capabilities);
   for (const [host, [relativePath]] of Object.entries(adapters)) {
     const context = contextOf(runAdapter(relativePath, workspace, inputFor(host, workspace), eventFor(host)));
@@ -115,7 +113,7 @@ test("the hooks and Pi agree on every config's validity", async () => {
     ["{}", undefined],
     ['{"enabled":false}', undefined],
     ['{"toolExecution":{"enabled":true,"capture":{"enabled":true}}}', '{"compaction":{"enabled":false}}'],
-    ["{}", '{"cognitiveRouting":{"enabled":true},"toolExecution":{"enabled":true}}'],
+    ["{}", '{"messaging":{"enabled":true},"toolExecution":{"enabled":true}}'],
     ['{"outputRouter":{}}', '{"processing":{}}'],
     ['{"toolExecution":{"bogus":true}}', undefined],
     ["{}", '{"compaction":{"carry":"no"}}'],
@@ -133,16 +131,9 @@ test("the hooks and Pi agree on every config's validity", async () => {
     ["{}", '{"review":{"effort":"high"}}'],
     ["{invalid", undefined],
     ["[]", undefined],
-    // Routing is checked on every host as Pi's routing checks it (SPEC-005 T1).
-    ['{"cognitiveRouting":{"delegation":"both","projection":false}}', undefined],
-    ['{"cognitiveRouting":{"delegation":"everyone"}}', undefined],
-    ["{}", '{"cognitiveRouting":{"enabled":"yes"}}'],
-    ['{"cognitiveRouting":{"legacy":true}}', undefined],
-    [
-      '{"cognitiveRouting":{"profiles":{"helper":{"provider":"anthropic","model":"claude-haiku-5-5","thinking":"high"}}}}',
-      undefined,
-    ],
-    ['{"cognitiveRouting":{"profiles":{"helper":{"provider":"anthropic"}}}}', undefined],
+    // A removed feature's key is refused on every host as on Pi.
+    ['{"cognitiveRouting":{"enabled":false}}', undefined],
+    ["{}", '{"cognitiveRouting":{}}'],
     // An optional version, which a later Freeflow writes (SPEC-005 4.6).
     ['{"v":1,"enabled":true}', '{"v":1}'],
     ['{"v":2}', undefined],
@@ -188,10 +179,10 @@ test("a hook host's Runtime State names the user's review choice, and only a cho
     contextOf(runAdapter(adapters.codex[0], old, inputFor("codex", old))),
     /\.freeflow\/config\.json is invalid: review\.mode is replaced by review\.unit/,
   );
-  const routing = createWorkspace('{"cognitiveRouting":{"delegation":"everyone"}}\n');
+  const removed = createWorkspace('{"cognitiveRouting":{"enabled":true}}\n');
   assert.match(
-    contextOf(runAdapter(adapters.codex[0], routing, inputFor("codex", routing))),
-    /\.freeflow\/config\.json is invalid: .*delegation must be executor, helper, or both\./,
+    contextOf(runAdapter(adapters.codex[0], removed, inputFor("codex", removed))),
+    /\.freeflow\/config\.json is invalid: Cognitive Routing was removed from Freeflow: delete the cognitiveRouting key from \.freeflow\/config\.json\./,
   );
 });
 

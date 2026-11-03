@@ -186,7 +186,7 @@ test("the personal review setting overrides the shared one field by field, and o
       const state = await readCapabilityState(cwd);
       return {
         review: state.review,
-        content: freeflowRuntimeStateMessage(state, undefined, await getRuntimeContext(state)).content,
+        content: freeflowRuntimeStateMessage(state, await getRuntimeContext(state)).content,
       };
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -279,7 +279,6 @@ test("Pi exposes base skills without mode or Skills controls", async () => {
     // Track Work holds its method (P3).
     assert.equal(resources.skillPaths.length, FREEFLOW_MODEL_SKILL_NAMES.length);
     assert.ok(!resources.skillPaths.some((path) => path.includes("/capabilities/compaction/")));
-    assert.ok(!resources.skillPaths.some((path) => /capabilities\/cognitive-routing\//.test(path)));
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/discuss-work/SKILL.md")));
     assert.ok(
       !resources.skillPaths.some(

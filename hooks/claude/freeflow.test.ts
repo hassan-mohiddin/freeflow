@@ -907,7 +907,7 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
   // review.depth has no row: the repository's file holds it, and the plan reads it from the base.
   expect(listed.text).not.toContain("\n  Review depth rules");
   expect(listed.text).toContain("Review depth rules (review.depth) are edited in .freeflow/config.json");
-  expect(listed.text).toContain("Pi-only settings (tool execution, compaction, messaging, Cognitive Routing)");
+  expect(listed.text).toContain("Pi-only settings (tool execution, compaction, messaging) are changed");
   expect(listed.context).toBeUndefined();
 
   w.settingsAnswers["set review.unit manual --scope personal "] = {

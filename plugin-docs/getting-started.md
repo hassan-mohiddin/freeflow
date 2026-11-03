@@ -4,7 +4,7 @@ Freeflow is a feedback-based control system for coding agents: a short always-lo
 
 ## Choose a host
 
-| Host | Use it for | Cognitive Routing |
+| Host | Use it for | Pi capabilities |
 | --- | --- | --- |
 | Codex | Shared Freeflow skills and Codex `SessionStart` hook delivery | Not available |
 | Claude Code | Shared Freeflow skills and Claude Code `SessionStart` hook delivery | Not available |
@@ -14,9 +14,9 @@ Freeflow is a feedback-based control system for coding agents: a short always-lo
 | Kiro | Agent Plugins 1.0 Power and shared skills | Not available; no Kiro-specific runtime adapter |
 | OpenCode v2 | Canonical `skills/` through the documented project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 portable package and canonical skills | Not available; skills-only support |
-| Pi | Shared skills and the native extension: core prompt, Compaction, experimental Tool Execution, and the Freeflow store for tasks | Cognitive Routing, Tool Execution and Compaction are experimental; native fixtures and live Pi 1.0 sessions exercise them, not every model or provider |
+| Pi | Shared skills and the native extension: core prompt, Compaction, experimental Tool Execution, and the Freeflow store for tasks | Tool Execution and Compaction are experimental; native fixtures and live Pi 1.0 sessions exercise them, not every model or provider |
 
-Cognitive Routing is not established merely by configuration or installation. The native Pi source entrypoint is wired, but installed-host dispatch and model behavior require separate evidence. Freeflow's PiFlow integration was removed as a breaking change; use native Pi for the Freeflow extension. Freeflow does not change or uninstall a separate PiFlow installation. See the [Unreleased changelog](../CHANGELOG.md#unreleased).
+A Pi capability is not established merely by configuration or installation. The native Pi source entrypoint is wired, but installed-host dispatch and model behavior require separate evidence. Freeflow's PiFlow integration was removed as a breaking change; use native Pi for the Freeflow extension. Freeflow does not change or uninstall a separate PiFlow installation. See the [Unreleased changelog](../CHANGELOG.md#unreleased).
 
 ## Install Freeflow
 
@@ -116,26 +116,7 @@ Run this in the repository where Freeflow should operate:
 
 Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
 
-Whenever Freeflow is enabled, Pi delivers all of Freeflow's runtime prompts: the core guidance, the separately editable Interaction Contract, and the Working Method. On other hosts each of these is on by default, and you can turn any of them off with the `prompts` setting (see [Runtime prompts on other hosts](using-freeflow.md#runtime-prompts-on-other-hosts)). The 25 base skills are exposed whenever Freeflow is enabled. Cognitive Routing and Messaging are optional and off by default; Tool Execution and Compaction are on by default. The former Freeflow Context tool, Context Virtualization, and Conversation History are removed; before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key makes its config invalid and blocks Freeflow activation until removed.
-
-Cognitive Routing uses this v2 configuration under `.freeflow/config.json` or `.freeflow/local.json`:
-
-```json
-{
-  "cognitiveRouting": {
-    "enabled": true,
-    "delegation": "both",
-    "projection": true,
-    "profiles": {
-      "coordinator": { "provider": "openai", "model": "gpt-4o", "thinking": "off" },
-      "helper": { "provider": "openai", "model": "gpt-4.1-mini", "thinking": "off" },
-      "executor": { "provider": "openai", "model": "gpt-4.1", "thinking": "off" }
-    }
-  }
-}
-```
-
-`delegation` accepts `executor`, `helper`, or `both` and defaults to `executor`; `projection` defaults to `true`. Profiles are `coordinator`, `helper`, and `executor`. Coordinator must differ from each worker enabled by the selected mode; Helper and Executor may share a pair. Repository delegation can be overridden personally or for one Pi session without changing repository or personal files. Older experimental routing names or fields such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported and have no migration; rewrite them manually. Configuration does not establish host availability or model evaluation.
+Whenever Freeflow is enabled, Pi delivers all of Freeflow's runtime prompts: the core guidance, the separately editable Interaction Contract, and the Working Method. On other hosts each of these is on by default, and you can turn any of them off with the `prompts` setting (see [Runtime prompts on other hosts](using-freeflow.md#runtime-prompts-on-other-hosts)). The 25 base skills are exposed whenever Freeflow is enabled. Messaging is optional and off by default; Tool Execution and Compaction are on by default. The former Freeflow Context tool, Context Virtualization, and Conversation History are removed; before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key makes its config invalid and blocks Freeflow activation until removed. Cognitive Routing is removed too: delete `cognitiveRouting` from both files, since it makes a config invalid in the same way.
 
 Tool Execution and Compaction are on unless you turn them off:
 
