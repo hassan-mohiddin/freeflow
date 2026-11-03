@@ -5,16 +5,16 @@ import { resolveCognitiveRoutingState, supportsCognitiveRoutingModelRegistry } f
 import { sessionStage, stagedFor } from "./staging.js";
 import { resolveToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig } from "../compaction/config.js";
-import { INBOUND_POLICIES, resolveMessagingConfig } from "../messaging/config.js";
+import { resolveMessagingConfig } from "../messaging/config.js";
 import {
   type ConfigObject,
-  REVIEW_MODES,
-  RUNTIME_PROMPTS,
-  SWITCHABLE_SKILLS,
   resolveReviewSettings,
+  SETTINGS,
   sectionEnabled,
   selectedRuntimePrompts,
+  settingSpec,
   skillsOff,
+  validSettingValue,
   validateLocalConfig,
   validateRepositoryConfig,
 } from "./config-validation.js";
@@ -26,39 +26,15 @@ import { cachedBranch } from "./branch.js";
 /**
  * Settings a session may override, as dotted config paths: every setting the settings screen shows, so the Session
  * scope has what the file scopes have. "enabled" is Freeflow's master switch; the others are applied as a layer above
- * the personal config. Most are switches; SESSION_CHOICES lists the ones that hold a value.
+ * the personal config. The settings table says which keys and what each accepts.
  */
-export const SESSION_OVERRIDE_KEYS = [
-  "enabled",
-  "cognitiveRouting.enabled",
-  "cognitiveRouting.projection",
-  "toolExecution.enabled",
-  "toolExecution.guidanceNotices",
-  "compaction.enabled",
-  "messaging.enabled",
-  "messaging.inbound",
-  "review.mode",
-  "review.model",
-  "prompts.enabled",
-  ...RUNTIME_PROMPTS.map((prompt) => `prompts.${prompt}`),
-  "skills.enabled",
-  ...SWITCHABLE_SKILLS.map((skill) => `skills.${skill}`),
-];
+export const SESSION_OVERRIDE_KEYS = SETTINGS.filter((spec) => spec.session).map((spec) => spec.key);
 export type SessionCoreKey = string;
 export type SessionOverrideValue = boolean | string;
 
-/** The overrides that hold a value rather than on or off, and the values each accepts (a model is any one-line name). */
-const SESSION_CHOICES: Record<string, readonly string[] | "name"> = {
-  "messaging.inbound": INBOUND_POLICIES,
-  "review.mode": REVIEW_MODES,
-  "review.model": "name",
-};
-
 function validSessionValue(key: string, value: unknown): value is SessionOverrideValue {
-  const choice = SESSION_CHOICES[key];
-  if (!choice) return typeof value === "boolean";
-  if (choice === "name") return typeof value === "string" && value.trim() !== "" && !/[\p{Cc}`]/u.test(value);
-  return choice.includes(value as string);
+  const spec = settingSpec(key);
+  return spec !== undefined && spec.session && validSettingValue(spec, value);
 }
 
 type SessionCoreOverrides = Partial<Record<SessionCoreKey, SessionOverrideValue>>;

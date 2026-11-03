@@ -33,9 +33,14 @@ const eventFor = (host) => (host === "cursor" ? "sessionStart" : "SessionStart")
 const contextOf = (output) =>
   output?.hookSpecificOutput?.additionalContext ?? output?.additionalContext ?? output?.additional_context;
 
-function runAdapter(relativePath, workspace, input, event = "SessionStart") {
+// The adapters run with no session and an empty Freeflow home, so a test never reads the session that runs it.
+const emptyHome = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-home-"));
+const isolatedEnv = { ...process.env, CLAUDE_CODE_SESSION_ID: "", FREEFLOW_SESSION: "", FREEFLOW_HOME: emptyHome };
+
+function runAdapter(relativePath, workspace, input, event = "SessionStart", env = isolatedEnv) {
   const result = spawnSync(process.execPath, [join(repoRoot, relativePath), event], {
     cwd: repoRoot,
+    env,
     input: `${JSON.stringify(input)}\n`,
     encoding: "utf8",
   });
@@ -125,6 +130,19 @@ test("the hooks and Pi agree on every config's validity", async () => {
     ["{}", '{"review":{"effort":"high"}}'],
     ["{invalid", undefined],
     ["[]", undefined],
+    // Routing is checked on every host as Pi's routing checks it (SPEC-005 T1).
+    ['{"cognitiveRouting":{"delegation":"both","projection":false}}', undefined],
+    ['{"cognitiveRouting":{"delegation":"everyone"}}', undefined],
+    ["{}", '{"cognitiveRouting":{"enabled":"yes"}}'],
+    ['{"cognitiveRouting":{"legacy":true}}', undefined],
+    [
+      '{"cognitiveRouting":{"profiles":{"helper":{"provider":"anthropic","model":"claude-haiku-5-5","thinking":"high"}}}}',
+      undefined,
+    ],
+    ['{"cognitiveRouting":{"profiles":{"helper":{"provider":"anthropic"}}}}', undefined],
+    // An optional version, which a later Freeflow writes (SPEC-005 4.6).
+    ['{"v":1,"enabled":true}', '{"v":1}'],
+    ['{"v":2}', undefined],
   ];
   for (const [config, local] of cases) {
     const workspace = createWorkspace(`${config}\n`, local === undefined ? undefined : `${local}\n`);
@@ -158,6 +176,11 @@ test("a hook host's Runtime State names the user's review choice, and only a cho
   const workspace = createWorkspace('{"review":{"mode":"sometimes"}}\n');
   const invalid = contextOf(runAdapter(adapters.codex[0], workspace, inputFor("codex", workspace)));
   assert.match(invalid, /\.freeflow\/config\.json is invalid: review\.mode must be one of auto, off, always/);
+  const routing = createWorkspace('{"cognitiveRouting":{"delegation":"everyone"}}\n');
+  assert.match(
+    contextOf(runAdapter(adapters.codex[0], routing, inputFor("codex", routing))),
+    /\.freeflow\/config\.json is invalid: .*delegation must be executor, helper, or both\./,
+  );
 });
 
 // A host that loads plugin skills itself cannot leave one out; the Runtime State tells the agent which are off.
@@ -173,10 +196,50 @@ test("a hook host's Runtime State names the skills the user turned off, and drop
   assert.doesNotMatch(codex, /# Freeflow Working Method/);
   // The master switches: no prompt at all, and every skill but Setup Freeflow off.
   const none = createWorkspace('{"prompts":{"enabled":false},"skills":{"enabled":false}}\n');
-  // With no prompt selected the hook renders nothing, as before.
-  assert.equal(contextOf(runAdapter(adapters.codex[0], none, inputFor("codex", none))), undefined);
+  // With no prompt selected, no prompt text comes; the Runtime State still names the off skills, since the rest of
+  // Freeflow stays on (SPEC-005 P9).
+  const bare = contextOf(runAdapter(adapters.codex[0], none, inputFor("codex", none)));
+  assert.doesNotMatch(bare, /# Freeflow Working Method|# Freeflow Interaction Contract/);
+  assert.match(
+    bare,
+    /^# Freeflow Runtime State\n\nFreeflow: active\nSkills off: `deliver-work`, .*`write-skill`; do not open or follow them\.$/,
+  );
+  // With nothing turned off as well, the hook renders nothing, as before.
+  const silent = createWorkspace('{"prompts":{"enabled":false}}\n');
+  assert.equal(contextOf(runAdapter(adapters.codex[0], silent, inputFor("codex", silent))), undefined);
   const all = createWorkspace("{}\n");
   assert.match(contextOf(runAdapter(adapters.codex[0], all, inputFor("codex", all))), /# Freeflow Working Method/);
+});
+
+// A Session value (SPEC-005 4.3) lives in the Freeflow home under the session's ID and wins over both files; the hook
+// reads it again on resume, /clear and compaction, and a new session has none.
+test("a hook host reads the session's own settings over the files, for that session only", () => {
+  const home = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-home-"));
+  mkdirSync(join(home, "sessions", "s-1"), { recursive: true });
+  writeFileSync(
+    join(home, "sessions", "s-1", "settings.json"),
+    `${JSON.stringify({ "review.mode": "always", "skills.write-skill": false })}\n`,
+  );
+  const workspace = createWorkspace('{"review":{"mode":"off"}}\n', '{"skills":{"write-skill":true}}\n');
+  const state = (env, input = inputFor("claude", workspace)) => {
+    const context = contextOf(runAdapter(adapters.claude[0], workspace, input, "SessionStart", env));
+    return context.slice(context.indexOf("# Freeflow Runtime State"));
+  };
+  const env = { ...isolatedEnv, FREEFLOW_HOME: home };
+  assert.equal(
+    state({ ...env, CLAUDE_CODE_SESSION_ID: "s-1" }),
+    "# Freeflow Runtime State\n\nFreeflow: active\nReview: `always`\nSkills off: `write-skill`; do not open or follow them.",
+  );
+  assert.equal(
+    state({ ...env, CLAUDE_CODE_SESSION_ID: "s-2" }),
+    "# Freeflow Runtime State\n\nFreeflow: active\nReview: `off`",
+  );
+  // A host that names its session only in the hook's input.
+  assert.match(state(env, { ...inputFor("codex", workspace), session_id: "s-1" }), /\nReview: `always`/);
+  // A Session enabled: false turns Freeflow off for that session alone.
+  writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ enabled: false })}\n`);
+  assert.equal(readConfig(workspace, { session: "s-1", env }).enabled, false);
+  assert.equal(readConfig(workspace, { session: "s-2", env }).enabled, true);
 });
 
 test("the shared config validator imports nothing but Node and its own files", () => {

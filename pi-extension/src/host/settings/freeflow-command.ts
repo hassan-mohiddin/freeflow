@@ -1,7 +1,5 @@
-import { execFile } from "node:child_process";
-import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, resolve } from "node:path";
-import { promisify } from "node:util";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 import {
   readCapabilityState,
@@ -20,6 +18,7 @@ import {
   sectionEnabled,
 } from "../config-validation.js";
 import { freeflowStatusText } from "../status.js";
+import { ensureLocalConfigIgnored, pruneDefaults } from "../config-store.js";
 import {
   PiSettingsComponent,
   type SettingsCommitResult,
@@ -60,7 +59,6 @@ const SOURCE_LABELS: Record<ConfigSource, string> = {
   repository: "repository",
   session: "session",
 };
-const execFileAsync = promisify(execFile);
 
 type ConfigScope = "session" | "local" | "repository";
 type ConfigSource = "session" | "local" | "repository" | "builtin";
@@ -1737,65 +1735,6 @@ function freeflowItems(
   ]);
 }
 
-function pruneKnownDefaults(config: Record<string, unknown>) {
-  const defaultPaths: Array<{ path: string[]; value: unknown }> = [
-    { path: ["enabled"], value: DEFAULT_FREEFLOW_ENABLED },
-    { path: ["cognitiveRouting", "delegation"], value: "executor" },
-    { path: ["toolExecution", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.enabled },
-    { path: ["toolExecution", "guidanceNotices"], value: DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices },
-    { path: ["compaction", "enabled"], value: DEFAULT_COMPACTION_ENABLED },
-    { path: ["messaging", "enabled"], value: DEFAULT_MESSAGING_ENABLED },
-    { path: ["messaging", "inbound"], value: DEFAULT_INBOUND_POLICY },
-    { path: ["prompts", "enabled"], value: true },
-    ...RUNTIME_PROMPTS.map((prompt) => ({ path: ["prompts", prompt], value: true })),
-    { path: ["skills", "enabled"], value: true },
-    ...SWITCHABLE_SKILLS.map((skill) => ({ path: ["skills", skill], value: true })),
-  ];
-
-  for (const item of defaultPaths) {
-    if (valuesEqual(getPath(config, item.path), item.value)) {
-      deletePath(config, item.path);
-    }
-  }
-}
-
-async function ensureLocalConfigIgnored(cwd: string) {
-  let gitPath: string;
-  try {
-    const result = await execFileAsync("git", ["-C", cwd, "rev-parse", "--git-path", "info/exclude"]);
-    gitPath = result.stdout.trim();
-  } catch {
-    return;
-  }
-
-  const tracked = await execFileAsync("git", ["-C", cwd, "ls-files", "--", ".freeflow/local.json"]);
-  if (tracked.stdout.trim()) {
-    throw new Error(
-      ".freeflow/local.json is tracked by git; remove it from the index before writing personal overrides.",
-    );
-  }
-
-  try {
-    await execFileAsync("git", ["-C", cwd, "check-ignore", "-q", "--", ".freeflow/local.json"]);
-    return;
-  } catch {
-    // Add a local exclude when the repository does not already ignore the file.
-  }
-
-  const excludePath = isAbsolute(gitPath) ? gitPath : resolve(cwd, gitPath);
-  let existing = "";
-  try {
-    existing = await readFile(excludePath, "utf8");
-  } catch {
-    // The git metadata path may not exist yet in a minimal repository.
-  }
-  const rule = ".freeflow/local.json";
-  if (existing.split(/\r?\n/).includes(rule)) return;
-  await mkdir(dirname(excludePath), { recursive: true });
-  const prefix = existing && !existing.endsWith("\n") ? "\n" : "";
-  await appendFile(excludePath, `${prefix}${rule}\n`, "utf8");
-}
-
 async function updateConfig(
   cwd: string,
   item: SettingsItem,
@@ -1830,7 +1769,7 @@ async function updateConfig(
   const current = await readFreeflowConfig(cwd);
   const next = cloneJson(current) as Record<string, unknown>;
   setConfigValue(next, item, value);
-  pruneKnownDefaults(next);
+  pruneDefaults(next);
   await mkdir(join(cwd, ".freeflow"), { recursive: true });
   await writeFile(join(cwd, ".freeflow/config.json"), `${JSON.stringify(next, null, 2)}\n`, "utf8");
 }

@@ -610,37 +610,42 @@ test("settings: a section's switch is its own row, sections run everyday to expe
 test("plugin-docs/settings.md documents every row the settings screen shows and every config key", async () => {
   // Task 005: the reference page cannot fall behind the screen or the configuration code.
   const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
-  const { SESSION_OVERRIDE_KEYS } = await import("../../dist/host/config.js");
-  const { REVIEW_MODES, RUNTIME_PROMPTS, validateRepositoryConfig } =
+  const { SETTINGS, validSettingValue, validateRepositoryConfig } =
     await import("../../dist/host/config-validation.js");
-  const { INBOUND_POLICIES } = await import("../../dist/messaging/config.js");
-  const { DELEGATION_MODES } = await import("../../dist/cognitive-routing/types.js");
-  const keys = [
-    ...SESSION_OVERRIDE_KEYS,
-    "messaging.inbound",
-    "cognitiveRouting.delegation",
-    ...["coordinator", "helper", "executor"].map((profile) => `cognitiveRouting.profiles.${profile}`),
-    ...RUNTIME_PROMPTS.map((prompt) => `prompts.${prompt}`),
-    "review.mode",
-    "review.model",
-  ];
-  for (const key of keys) assert.ok(doc.includes(`| \`${key}\` |`), `settings.md lists ${key}`);
-  for (const value of [...INBOUND_POLICIES, ...DELEGATION_MODES, ...REVIEW_MODES])
-    assert.ok(doc.includes(`\`${value}\``), `settings.md names the value ${value}`);
-  // Every key the page lists is one Freeflow accepts.
-  const values = {
-    "messaging.inbound": "accept",
-    "cognitiveRouting.delegation": "executor",
-    "review.mode": "always",
-    "review.model": "a-model",
-  };
+  const { SESSION_OVERRIDE_KEYS } = await import("../../dist/host/config.js");
+  // Pi's Session keys come from the table.
+  assert.deepEqual(
+    [...SESSION_OVERRIDE_KEYS].sort(),
+    SETTINGS.filter((spec) => spec.session)
+      .map((spec) => spec.key)
+      .sort(),
+  );
+  for (const spec of SETTINGS) {
+    assert.ok(doc.includes(`| \`${spec.key}\` |`), `settings.md lists ${spec.key}`);
+    if (Array.isArray(spec.values))
+      for (const value of spec.values) assert.ok(doc.includes(`\`${value}\``), `settings.md names the value ${value}`);
+    if (spec.default !== null)
+      assert.ok(validSettingValue(spec, spec.default), `${spec.key}'s default is a value it takes`);
+  }
+  // Every key the page lists is one Freeflow accepts, with a value from the table.
+  const sample = (spec) =>
+    spec.values === "boolean"
+      ? true
+      : spec.values === "name"
+        ? "a-model"
+        : Array.isArray(spec.values)
+          ? spec.values[0]
+          : null;
   for (const [, key] of doc.matchAll(/^\| [^|]+ \| `([a-zA-Z.-]+)` \|/gm)) {
+    const spec = SETTINGS.find((each) => each.key === key);
+    assert.ok(spec, `the settings table has a row for ${key}, which settings.md lists`);
+    if (spec.values === "profile") continue;
     const config = {};
     let at = config;
     const parts = key.split(".");
     for (const part of parts.slice(0, -1)) at = at[part] = {};
-    at[parts.at(-1)] = values[key] ?? true;
-    if (!key.startsWith("cognitiveRouting.profiles")) assert.equal(validateRepositoryConfig(config), null, key);
+    at[parts.at(-1)] = sample(spec);
+    assert.equal(validateRepositoryConfig(config), null, key);
   }
   // Every row the screen shows, in every tab, is in the page's table.
   const cwd = await configuredRepo({});
@@ -731,6 +736,14 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
+
+  // The table holds exactly the keys the code acts on.
+  const { SETTINGS } = await import("../../dist/host/config-validation.js");
+  assert.deepEqual(
+    SETTINGS.map((spec) => spec.key).sort(),
+    [...keys].sort(),
+    "the settings table has one row per key the code acts on",
+  );
 
   const docRow = new Map([...doc.matchAll(/^\| ([^|]+?) \| `([a-zA-Z.-]+)` \|/gm)].map(([, row, key]) => [key, row]));
   for (const key of keys) {

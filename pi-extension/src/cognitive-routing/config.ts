@@ -1,9 +1,7 @@
+import { COGNITIVE_ROUTING_KEYS, validateCognitiveRoutingConfig } from "../host/config-validation.js";
 import {
-  DELEGATION_MODES,
-  EFFORTS,
   PROFILES,
   canonical,
-  isObject,
   workersForDelegation,
   type DelegationMode,
   type Effort,
@@ -39,35 +37,13 @@ export const pairFromProfile = (profile: CognitiveRoutingProfile): Pair => ({
   modelId: profile.model,
   thinking: profile.thinking,
 });
-/** The keys `cognitiveRouting` accepts; the settings test checks each has a /freeflow settings row. */
-export const COGNITIVE_ROUTING_KEYS = ["enabled", "delegation", "projection", "profiles"] as const;
+export { COGNITIVE_ROUTING_KEYS };
 
+/** A routing layer, checked by the shared validator so Pi and the other hosts agree on what is valid. */
 function parseLayer(raw: any): any {
   if (raw === undefined) return {};
-  if (!isObject(raw) || Object.keys(raw).some((key) => !(COGNITIVE_ROUTING_KEYS as readonly string[]).includes(key)))
-    throw new Error(
-      "Routing requires the enabled/delegation/projection/profiles schema; experimental legacy configuration is not migrated.",
-    );
-  for (const key of ["enabled", "projection"])
-    if (raw[key] !== undefined && typeof raw[key] !== "boolean") throw new Error(`${key} must be boolean.`);
-  if (raw.delegation !== undefined && !DELEGATION_MODES.includes(raw.delegation))
-    throw new Error("delegation must be executor, helper, or both.");
-  if (raw.profiles !== undefined) {
-    if (!isObject(raw.profiles) || Object.keys(raw.profiles).some((key) => !PROFILES.includes(key as Profile)))
-      throw new Error("Profiles must be coordinator, helper, or executor.");
-    for (const profile of Object.values(raw.profiles) as any[]) {
-      if (
-        !isObject(profile) ||
-        Object.keys(profile).some((key) => !["provider", "model", "thinking"].includes(key)) ||
-        typeof profile.provider !== "string" ||
-        !profile.provider.trim() ||
-        typeof profile.model !== "string" ||
-        !profile.model.trim() ||
-        !EFFORTS.includes(profile.thinking)
-      )
-        throw new Error("Each profile requires provider, model, and supported thinking.");
-    }
-  }
+  const error = validateCognitiveRoutingConfig(raw);
+  if (error) throw new Error(error);
   return raw;
 }
 export async function resolveCognitiveRoutingState(

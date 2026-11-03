@@ -21,7 +21,8 @@ Answer setup questions and delivery checks read-only. An explicit action request
 | Repository config invalid, or conflicting with accepted source truth or repository instructions | [Discuss Work](../discuss-work/SKILL.md), before replacing or reinterpreting it |
 | Setting up the Freeflow store for task memory, local only or local + cloud, in a cloud session too; moving a local store to the cloud; moving older records (a repository's `.freeflow/tasks/`, Pi's former Task Memory) into the store | [store setup](references/store-setup.md) |
 | Whether the host delivers Freeflow, or which host action refreshes it | Hosts, below |
-| Cognitive Routing or Tool Execution values | Their explicit settings surface (on Pi, `/freeflow settings`), only when the user requests them |
+| Changing any setting the user asks for, in a file or for this session only | Change A Setting, below |
+| Cognitive Routing or Tool Execution values | Change A Setting, only when the user requests them; a routing profile only on Pi's `/freeflow settings` |
 
 ## Establish Mutation Authority
 
@@ -50,7 +51,7 @@ Resolve each configurable value in this order:
 host session override -> personal override -> repository value -> built-in default
 ```
 
-Host session overrides are host state, not config, and cannot bypass missing or invalid repository activation. Pi may temporarily override Freeflow enablement, and Cognitive Routing has its own host-managed session control. Effective Freeflow requires a valid repository config, a missing or valid local config, session-resolved `enabled: true`, and the prompt files the host delivers (Hosts, below).
+Host session overrides last one session and cannot bypass missing or invalid repository activation. Pi keeps them in the Pi session, and Cognitive Routing has its own host-managed session control there; other hosts keep them in the Freeflow home's `sessions/<session>/settings.json`, which the settings script writes and the session-start hook reads. Effective Freeflow requires a valid repository config, a missing or valid local config, session-resolved `enabled: true`, and the prompt files the host delivers (Hosts, below).
 
 If setup is already valid and no change was requested, preserve it and report the effective sources. Do not rewrite config merely to normalize formatting or materialize defaults.
 
@@ -64,7 +65,7 @@ For a new setup, write the minimal activation boundary:
 
 Missing core keys use the built-in default `enabled: true`. Add `enabled: false` only when the user explicitly requests Freeflow to be disabled. Add optional capability configuration only when the user explicitly requests it. Do not add task state, phase, file inventories, plans, version metadata, activation paths, empty optional sections, host instruction copies, or generated workflow text.
 
-These keys are unsupported in either config file and make it invalid until repaired: `defaultMode`, `interactionContract`, `skills`, `contextVirtualization`, and `conversationHistory`. The user deletes them wherever present; setup never migrates or removes them automatically.
+These keys are unsupported in either config file and make it invalid until repaired: `defaultMode`, `interactionContract`, `contextVirtualization`, and `conversationHistory`. The user deletes them wherever present; setup never migrates or removes them automatically.
 
 Do not create or append Freeflow instructions in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, or another host-owned instruction surface, including to compensate for unavailable or unconfirmed delivery. Existing repo instructions remain live source truth within host precedence. They are not activation markers, but they can conflict with Freeflow behavior: name a conflict and ask through Discuss Work before changing setup or behavior when it would alter the next action, rather than overwriting them to make Freeflow appear active. Do not install repo-local hooks, CLI commands, lint rules, global standards, documentation inventories, or state files during setup.
 
@@ -78,11 +79,15 @@ Use `.freeflow/local.json` for an explicitly selected per-checkout override of `
 }
 ```
 
-Omitted values inherit from repository config and built-in defaults; local precedence is per property, not whole-file replacement. Configure optional Cognitive Routing values only through its explicit settings surface.
+Omitted values inherit from repository config and built-in defaults; local precedence is per property, not whole-file replacement. Configure optional Cognitive Routing values only when the user requests them, through Change A Setting.
 
 Before writing local config in a Git checkout, verify it is untracked and ignored. Do not modify shared ignore policy merely to store a personal preference: prefer the host's safe settings path, `.git/info/exclude`, or an existing ignore rule. Refuse to overwrite a tracked local config.
 
 If local config is invalid, report that it blocks effective runtime. Repair or remove it only with authorization; never discard it and fall back silently.
+
+## Change A Setting
+
+When the user asks to change a setting, run [settings](scripts/settings.mjs) rather than editing a file: `node <setup-freeflow-directory>/scripts/settings.mjs set <key> <value> --scope repository|personal|session`; `unset <key>`, or the value `inherit`, removes it from that scope, and `list` and `get <key>` show each value with the scope that set it (`--json` for data). It refuses a key or value the settings table does not allow, writes with the rules above (a personal file kept out of Git and refused when tracked, an invalid file never overwritten) and drops a repository value equal to its default. Its output names the Runtime State lines that changed: they hold for you from now on, while prompt text already given stays until the next session start or compaction. The Session scope lasts this session only and needs a host that names its session. The user changes the same settings with `/freeflow settings` on Pi and on Claude Code.
 
 ## Set Up The Store
 
@@ -110,7 +115,9 @@ A config written during setup is visible to the adapter on the next agent turn. 
 
 ### Codex And Claude Code
 
-The packaged runtime hook reads the same two layers. At supported `SessionStart` boundaries (startup, resume, clear, and compact) it loads `core.md`, `interaction-contract.md` and `working-method.md`, each unless `prompts` (`core`, `interactionContract`, `workingMethod`; each a boolean, on by default, personal overriding shared per prompt) turns it off, and emits a compact active Runtime State. It does not process submitted prompts, persist session controls, inject skill bodies, or inspect Pi-only capabilities.
+The packaged runtime hook reads the same two layers. At supported `SessionStart` boundaries (startup, resume, clear, and compact) it loads `core.md`, `interaction-contract.md` and `working-method.md`, each unless `prompts` (`core`, `interactionContract`, `workingMethod`; each a boolean, on by default, personal overriding shared per prompt) turns it off, and emits a compact active Runtime State, with the session's own values over both files. It does not process submitted prompts, inject skill bodies, or inspect Pi-only capabilities.
+
+On Claude Code, Freeflow's mod adds `/freeflow settings`: it lists the settings Claude Code acts on, and `/freeflow settings <key> <value> [--session | --personal | --repository]` (Personal by default; `inherit` removes one) changes one through the settings script, its line reaching you at once. With `enabled` off, the mod's task menu, notices, compaction and store sync stop too.
 
 After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session or startup, as available. Name the exact control the current host supports; do not prescribe Pi's `/reload`.
 

@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/cognitive-routing/`, `capabilities/cognitive-routing/`, `runtime/prompts/cognitive-routing.md`
 > **Tests:** `pi-extension/tests/cognitive-routing/`, `pi-extension/tests/cache-reuse/`
-> **Verified at:** `e2a0ad14` (2026-10-30)
+> **Verified at:** `972faa1f` (2026-11-03)
 > **User docs:** `plugin-docs/capabilities/cognitive-routing.md`
 
 For contributors changing Cognitive Routing on Pi: how routing moves work between profiles in one session, how it records and recovers its state, how the Coordinator's projected view is built, and which of its behaviors are deliberate. What routing is for users, how to configure it, and how to choose a mode are in the user guide.
@@ -189,7 +189,7 @@ Freeflow's and Pi's compaction may remove active user or evidence bodies while t
 
 ## Surface
 
-**Configuration** (`cognitiveRouting` in `.freeflow/config.json`, overridden by `.freeflow/local.json`, overridden by session scope; validated in `config.ts`, whose `COGNITIVE_ROUTING_KEYS` the settings test checks for screen rows). Only the profiles the delegation mode needs must resolve to available models; a missing one makes routing unavailable with the reason in status:
+**Configuration** (`cognitiveRouting` in `.freeflow/config.json`, overridden by `.freeflow/local.json`, overridden by session scope; validated by `validateCognitiveRoutingConfig()` in `host/config-validation.ts`, which `config.ts` calls, so every host refuses the same routing values with the same messages; its keys are rows of the settings table, which the settings test checks for screen rows). Only the profiles the delegation mode needs must resolve to available models; a missing one makes routing unavailable with the reason in status:
 
 | Key | Default | Notes |
 | --- | --- | --- |
