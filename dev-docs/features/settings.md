@@ -1,12 +1,14 @@
-# Settings Screen
+# Settings
 
-> **Covers:** `pi-extension/src/host/settings/`, `pi-extension/src/host/config-validation.ts`, `pi-extension/src/tool-execution/config.ts`, `pi-extension/src/compaction/config.ts`, `pi-extension/src/messaging/config.ts`, `pi-extension/src/cognitive-routing/config.ts`
+> **Covers:** `pi-extension/src/host/settings/`, `pi-extension/src/host/config-validation.ts`, `pi-extension/src/host/config-store.ts`, `skills/setup-freeflow/scripts/settings.mjs`, `hooks/claude/freeflow.mjs`, `pi-extension/src/tool-execution/config.ts`, `pi-extension/src/compaction/config.ts`, `pi-extension/src/messaging/config.ts`, `pi-extension/src/cognitive-routing/config.ts`
 > **Verified at:** `6be50300` (2026-11-03)
 > **User docs:** `plugin-docs/settings.md`
 
 `/freeflow settings` opens one screen with three scopes: Session (this Pi session only), Personal (`.freeflow/local.json`) and Repository (`.freeflow/config.json`). Changing a row writes that scope's file at once (Session writes none), and a capability switch reloads the Pi session when the screen closes, so the new skills and tools take effect. Which layer wins and why: the overview's [Cross-Cutting Concerns](../README.md#cross-cutting-concerns); the screen's code: `pi-extension/src/host/settings/README.md`.
 
-A setting a user changes gets a row on this screen, in all three scopes. A key with no row needs the user's agreement and its reason in the settings test's `FILE_ONLY` list (empty today); the test fails on a config key with neither, or with a scope missing. That is why this file covers each capability's `config.ts` and the config validator: a new key flags it.
+Every key is one row of the settings table, `SETTINGS` in `config-validation.ts`: the validators, Pi's Session keys, the screen's writes, the settings script and the settings tests read it. A setting a user changes also gets a row on this screen, in all three scopes. A key with no row needs the user's agreement and its reason in the settings test's `FILE_ONLY` list (empty today); the test fails on a config key with no table row, no screen row, or a scope missing. That is why this file covers each capability's `config.ts` and the config validator: a new key flags it.
+
+Outside Pi the same settings are changed by Setup Freeflow's script, `skills/setup-freeflow/scripts/settings.mjs`, which writes through the screen's own code (`config-store.ts`) and keeps a Session value in `<FREEFLOW_HOME>/sessions/<session ID>/settings.json`, read by the session-start hook. On Claude Code the mod serves `/freeflow settings` by running that script, and does nothing else while `enabled` is off (SPEC-005, in task-001's folder of the store).
 
 ## Sub-features
 
@@ -22,6 +24,8 @@ A setting a user changes gets a row on this screen, in all three scopes. A key w
 - `settings-skills`: Skills is a switch for every skill but Setup Freeflow, and Each skill under it opens one switch per skill; an off skill is not loaded after the reload, and Each skill names it (`all but write skill`).
 - `settings-prompts`: Runtime prompts is a switch for all three prompts, and Each prompt under it opens a switch for Core, the Interaction Contract and the Working Method; with them off, Freeflow stays active.
 - `settings-all-scopes`: every setting has a row in Session, Personal and Repository; the test `every config key Freeflow acts on has a /freeflow settings row, or a stated reason it has none` checks it, nested screens included.
+- `settings-script`: the settings script lists, sets and unsets a key in each scope with the screen's write rules, refuses a value the table does not allow, and prints the Runtime State line a change gave.
+- `settings-claude-code`: on Claude Code, `/freeflow settings` lists the settings Claude Code acts on and changes one, the model reading the changed line in the running session, with no model call for the command itself.
 
 ## How to get to it (user POV)
 
@@ -54,6 +58,18 @@ Preconditions:
 - **Skills, prompts and Review in the Session scope.** In a fresh run, run `scripts/verify-live.sh cmd "/freeflow settings session"`, then `scripts/verify-live.sh keys Down Down Down Down Enter`, nine `Down`s, and `Enter Enter`: `› Write Skill        off` and `off: Disabled for this Pi session only.` Run `scripts/verify-live.sh keys Escape`: the row reads `›   Each skill             all but write skill`. Run `scripts/verify-live.sh keys Up Up Enter Down Down Enter Enter Escape`: `Each prompt            all but working method`. Move to `Review` (it is two rows above `Reset overrides`) and press `Enter` three times: `› Review                   always`, with `Reset overrides        3 active`. Run `scripts/verify-live.sh observe settings-session-all -- cat .freeflow/config.json`: `{}`. Run `scripts/verify-live.sh keys Escape`, wait for `Reloaded …`, and `scripts/verify-live.sh snap settings-all-scopes`: the `[Skills]` list has no `write-skill`. What an off skill's command and the `Skills off:` and `Review:` lines do needs a model call; the tests `Pi leaves out a skill and a runtime prompt the user turned off, and tells the agent` and `Pi applies a session value over the files for a choice, a model name and a nested switch` cover them.
 
 - **Master switches.** In a fresh run, run `scripts/verify-live.sh cmd "/freeflow settings personal"`, then `scripts/verify-live.sh keys Down Down Down Enter Enter`: `› Skills                   off`, with `Each skill             all` under it, greyed. Run `scripts/verify-live.sh observe settings-skills-master -- cat .freeflow/local.json`: `{"skills": {"enabled": false}}`, pretty-printed. Run `scripts/verify-live.sh keys Escape`, wait for `Reloaded …`, and `scripts/verify-live.sh snap settings-skills-master`: the `[Skills]` list is `setup-freeflow`. Clean up.
+
+### The settings script and Claude Code's command
+
+Preconditions: a scratch folder holding a Git repository with `.freeflow/config.json` `{}`, and an empty folder for `FREEFLOW_HOME`. Every command below runs in the repository with `FREEFLOW_HOME` set to that folder; `<plugin>` is this checkout.
+
+- **List.** Run `node <plugin>/skills/setup-freeflow/scripts/settings.mjs list`. The rows run `enabled`, `prompts.enabled`, the three `prompts.` keys, `skills.enabled`, one `skills.` key per skill, `review.mode` and `review.model`, each with its default and `default`; the last line reads `11 Pi-only settings are not listed (--host pi lists them).`
+- **Set a personal value.** Run `node <plugin>/skills/setup-freeflow/scripts/settings.mjs set review.mode always --scope personal`. Output `review.mode: always (Personal, .freeflow/local.json)` and `Runtime State: Review: \`always\``. `cat .freeflow/local.json` shows `{"review": {"mode": "always"}}`, pretty-printed, and `grep local.json .git/info/exclude` prints `.freeflow/local.json`.
+- **Refuse a value.** Run `node <plugin>/skills/setup-freeflow/scripts/settings.mjs set review.mode sometimes --scope personal`. Exit code `1`; the first line reads `review.mode takes auto, off, always, not sometimes`; the file is unchanged.
+- **Session.** Run `FREEFLOW_SESSION=s-1 node <plugin>/skills/setup-freeflow/scripts/settings.mjs set review.mode off --scope session`, then `FREEFLOW_SESSION=s-1 node <plugin>/skills/setup-freeflow/scripts/settings.mjs get review.mode`: `review.mode: off (Session)`; with `FREEFLOW_SESSION=s-2` the same `get` reads `review.mode: always (Personal)`. `cat "$FREEFLOW_HOME/sessions/s-1/settings.json"` shows `{"review.mode": "off"}`, pretty-printed. Then `unset review.mode --scope personal` and the Session one, to clean up.
+- **Claude Code lists.** With `CLAUDE_CODE_PLUGIN_DIRS` unset and `ANTHROPIC_BASE_URL=http://127.0.0.1:9`, so a model call would fail instead of being made, run `claude -p "/freeflow settings" --plugin-dir <plugin>`. Exit code `0`; the output starts `freeflow: Freeflow settings for <the repository> (Claude Code)`, lists Freeflow, Runtime prompts, Skills, Review and Reviewer model, then the Set one, Remove one, Keys and Pi-only lines.
+- **Claude Code changes one.** The same way, run `claude -p "/freeflow settings review.mode always" --plugin-dir <plugin>`. Output `freeflow: Review: always, from .freeflow/local.json (Personal). The agent sees it now.`; the session's transcript, the newest `.jsonl` under `~/.claude/projects/` for the repository, holds `Runtime State now: Review: \`always\``. Run `claude -p "/freeflow settings review.mode sometimes" --plugin-dir <plugin>`: `freeflow: Freeflow settings: review.mode takes auto, off, always, not sometimes`.
+- What a model does with the line, and the mod with `enabled` off across a session's events, need a model call or a live session: the tests in `hooks/claude/freeflow.test.ts` (`claude plugin test .`) cover the command, its context, the refusals and `enabled: false`.
 
 ## Gotchas
 
