@@ -49,6 +49,9 @@
 
 ### Changed
 
+- Self-review is verification: checking your own change or document before you report it done is Verify Work's Check Your Own Result, with the self-review script at `skills/verify-work/scripts/self-review.mjs` (it was Execute Work's) and Review Work's lenses for the kind. Review Work means independent review in another context, and adjudicating its report.
+- The design reference, how to shape modules, interfaces, state and failure, is Discuss Work's, where approaches are chosen; diagnose stays in Execute Work.
+- Freeflow's words follow its design map: a context cycle (formerly compaction cycle) runs from a session's start or a compaction to the next compaction, and the Return (formerly hand-over) is where the agreed work comes back to you to accept. The cycle reads agree, build and verify, review and return. The skills, the scripts' output, the notices on Claude Code and Pi and the docs say so; `choices.mjs return` lists the choices you have not seen, and `choices.mjs handover` still works.
 - Freeflow on Claude Code obeys `enabled`: with it off, its task menu, notices, context rows, compaction, task hold and store sync stop as well as the session-start context, and `/freeflow settings enabled on` brings them back from the next event. Every setting is now one row of one table, which the validators, Pi's screen and the settings script share; the configuration files accept an optional `"v": 1`, which a later Freeflow writes.
 
 - Freeflow's messaging on Pi lists the task each session holds in the Freeflow store, with its project, and the inbound policy `project` delivers messages from sessions that hold a task in the same project.

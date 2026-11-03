@@ -80,9 +80,9 @@ Call a branch ready for its integration boundary only when the agreed outcome is
 
 Unverified or failing work may still be kept, handed off, or shared through an explicitly approved draft route: state the gaps, and do not call it ready to integrate.
 
-## Hand Over For Acceptance
+## Return For Acceptance
 
-Goal: the user can accept or refuse the change from the hand-over alone, without rereading the conversation.
+Goal: the user can accept or refuse the change from the Return report alone, without rereading the conversation.
 
 The pull-request description, or the final report when there is no pull request, carries:
 
@@ -91,7 +91,7 @@ The pull-request description, or the final report when there is no pull request,
 - the evidence: each check run on the final state and its result;
 - the review outcome: self-review only, or each independent review's judgment with every Rejected finding and why.
 
-Build it from the Working Record ([Track Work](../../track-work/SKILL.md)) when one exists, not from memory. When the repository has a pull-request template or convention, fit these into it. Otherwise write a short briefing from which a reviewer who has the diff can accept or reject the change: why it exists; what changed; its scope, including what it deliberately leaves out; what else it could affect and how risky that is; and the hand-over above.
+Build it from the Working Record ([Track Work](../../track-work/SKILL.md)) when one exists, not from memory. When the repository has a pull-request template or convention, fit these into it. Otherwise write a short briefing from which a reviewer who has the diff can accept or reject the change: why it exists; what changed; its scope, including what it deliberately leaves out; what else it could affect and how risky that is; and the Return report above.
 
 ## Execute Only The Chosen Route
 
@@ -110,7 +110,7 @@ Fits when review, CI, collaboration, protected branches or remote integration ow
 
 - Inspect remote and upstream state, then push only the intended commits to the accepted destination, as [Simple Push](#simple-push) checks them.
 - Capture the target branch, commit range, residual risks, migrations, rollout or compatibility notes, and the reviewers or checks repository policy requires.
-- Create or update the pull request by repository convention, with the hand-over as its description; mark incomplete or failing work as draft when that is the approved route.
+- Create or update the pull request by repository convention, with the Return report as its description; mark incomplete or failing work as draft when that is the approved route.
 - Keep the worktree when iteration or feedback may continue.
 
 A pull-request URL proves creation, not readiness or merge.

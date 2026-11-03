@@ -105,6 +105,6 @@ Use observable synchronization, deterministic inputs, bounded eventual assertion
 
 Reconsider the seam when setup becomes more conditional than the behavior, doubles reproduce internal orchestration, private states must be exposed, or integration fails despite isolated tests passing.
 
-A real integration check may be simpler than many mocks. When direct evidence shows caller coordination or unclear ownership, use Execute Work's [design](../../execute-work/references/design.md#pressure-signals) to assess that boundary. Do not redesign production solely to satisfy a test framework or retain machinery that only its tests require.
+A real integration check may be simpler than many mocks. When direct evidence shows caller coordination or unclear ownership, use Discuss Work's [design](../../discuss-work/references/design.md#pressure-signals) to assess that boundary. Do not redesign production solely to satisfy a test framework or retain machinery that only its tests require.
 
 Stop designing checks when the required behavior has an adequate independent observer. More green tests do not justify broader requirements or stronger completion claims.

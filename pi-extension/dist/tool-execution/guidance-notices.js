@@ -10,7 +10,7 @@ import { isFreeflowInstruction } from "./skill-reads.js";
  * - A `git commit` result: Deliver Work's commit essentials, plus Write Skill's loss check when the commit staged
  *   model-facing instruction text (read from Git at that result). Once per run.
  * - The second failure of the same test command: diagnose's two key lines. Once per command until it passes.
- * - A test command that passes after the run changed a file: run Execute Work's self-review before the final report.
+ * - A test command that passes after the run changed a file: run Verify Work's self-review before the final report.
  *   Once per run, and not after self-review ran.
  * - Any tool result while Execute Work's body is not in the model's context (never read, or dropped by a compaction):
  *   read it before more tool calls. Once per run, and not on a read of Freeflow's own instruction files, so reading
@@ -41,7 +41,7 @@ export const executeWorkNotice = (skill) =>
 export const withoutGuidanceNotices = (text) =>
   text.replace(/\n?<freeflow-notice type="guidance">\n[\s\S]*?\n<\/freeflow-notice>/g, "");
 export const selfReviewNotice = (script) =>
-  `Before your final report (Execute Work's step before reporting; read Execute Work if its body is not in your context): run \`node ${script} --base <ref>\` and read its report: changed tests and fixtures with their hunks, new tests and whether they fail on the base, and whether each requirement's check ran after the last edit.`;
+  `Before your final report (Verify Work's Check Your Own Result; read Verify Work if its body is not in your context): run \`node ${script} --base <ref>\` and read its report: changed tests and fixtures with their hunks, new tests and whether they fail on the base, and whether each requirement's check ran after the last edit.`;
 const textOf = (content) => (content ?? []).map((part) => (part?.type === "text" ? part.text : "")).join("");
 /**
  * The paths a commit command dealt with, read once at its result: what the new commit holds when it succeeded, what is
@@ -63,7 +63,7 @@ export class GuidanceNotices {
   selfReview;
   executeWork;
   constructor(packageRoot) {
-    this.selfReview = join(packageRoot, "skills", "execute-work", "scripts", "self-review.mjs");
+    this.selfReview = join(packageRoot, "skills", "verify-work", "scripts", "self-review.mjs");
     this.executeWork = join(packageRoot, "skills", "execute-work", "SKILL.md");
   }
   /** A new agent run: per-run notices may come again. */

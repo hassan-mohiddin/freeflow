@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/execute-work/`
 > **Tests:** `.skill-eval/execute-work/`
-> **Verified at:** `e2a0ad14` (2026-10-30)
+> **Verified at:** `69375be8` (2026-11-03)
 
 For anyone changing Execute Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/execute-work/SKILL.md); this record holds the reasons it does not. It was started with the delegation reference, so it records that reference's reasons in full and the rest of the skill's only in outline (Open Questions).
 
@@ -22,6 +22,7 @@ Execute Work is read before an agent's first tool call on any task. It carries t
 
 ## Design
 
+- **The design reference and self-review left Execute Work** (settled with the owner on 1 Nov, in Freeflow's design map). Approaches are chosen in Discuss Work, so the design reference is Discuss Work's, and Execute Work's routes point to it; diagnose stays, since failing checks are its main trigger. Checking your own change is verification, so Review Your Own Change and `self-review.mjs` are Verify Work's Check Your Own Result, which Execute Work's check step points to.
 - **Delegation is a reference in Execute Work, not a skill of its own** (agreed with the owner on 2026-10-28, in task-003; task-004's design, P52). Handing work out is part of carrying it out, a separate skill's description would match the same requests as Execute Work's, and Write Skill prefers depth to width. Write Skill's trials, Review Work's reviewers and Research Work's workers point to it where each starts an agent, and each keeps what is its own.
 - **Cognitive Routing is untouched** (task-004, P27). Its Coordinator and worker references hold the same method for one Pi session switching profiles, with the tools, projection and recovery requests only it has. The reference says so in its opening paragraph and does not link the capability package.
 - **Rules only for what is wrong in every case:** one writer per file; no two agents writing in one checkout; no user-owned choice handed to a worker; a return is not acceptance; the strongest model only with the user's yes, since cost is the user's. The rest is judgment, including the model table, which a user's own model policy overrides.
@@ -30,7 +31,7 @@ Execute Work is read before an agent's first tool call on any task. It carries t
 - **Delegations apart from Slices** (task-004, P57). A delegation has its own lifecycle and closes on its own; the coordinator's Slices are its own work and never wait open on a worker, so workers run asynchronously. A Slice that needs a result names the delegation it waits on, and accepting a return (the check, the merge, the merge commit) closes the delegation. Schema 4 records, which only `migrate` reads now, had no Delegations section, so the dispatch and outcome lines went on the Current Slice when one was open and otherwise in a Recovery source pointing to the folder, which recovery read. Rejected: delegations as parts of the Slice that opened them, which held that Slice open, and with one Current Slice the coordinator's next work, until every worker returned.
 - **Absolute paths in briefs.** A worktree does not contain the task directory, which Git ignores: in one fan-out, each of 20 worktrees saw only `.freeflow/config.json`.
 - **Nesting to three levels: coordinator, worker, sub-worker** (task-004, P23 and P56). A worker decides whether to hand part of its assignment down, by the same judgment as the coordinator. The coordinator chose its model by the level of the work, so it is usually a worker on the strongest model, doing a share of the coordinator's own work, that hands mechanical checks, gathering or research to sub-workers. A sub-worker always runs on the smallest capable model, since it exists to make its worker's job easier, and a part that needs a stronger one becomes another worker the coordinator starts and manages; so only the coordinator asks the user for a stronger model. A sub-worker's folder sits inside its worker's, the nearest brief wins, and a choice goes up one level at a time. Claude Code lets a subagent start its own, up to three layers below the main conversation by default (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, v2.1.219 and later), so a sub-worker is its worker's own Agent call.
-- **The context checked when the route is set** (task-004, P79). Establish The Execution Basis has a Context line: before the first effect, whether the route fits in what is left of the context before the next compaction, measured with Track Work's `estimate`, and work that will go on past it needs a task. It says this in plain words, since "compaction cycle" is Track Work's term (task-004, P82). It sits there because the route is set there; whether to create a task stays Track Work's, on the user's word.
+- **The context checked when the route is set** (task-004, P79). Establish The Execution Basis has a Context line: before the first effect, whether the route fits in what is left of the context before the next compaction, measured with Track Work's `estimate`, and work that will go on past it needs a task. It says this in plain words, since "context cycle" is Track Work's term (task-004, P82). It sits there because the route is set there; whether to create a task stays Track Work's, on the user's word.
 - **The worker's side in the same reference,** with no separate Track Work reference for workers (task-004, P36). A worker reads Execute Work anyway, and its brief points to the reference's worker section, so the first read does not depend on the worker finding it.
 
 - **Return points instead of selected Checkpoints** (task-004, P71). The Rule against crossing a stop names the work agreement's return point (a Schema 5 record's `Back at` line), since "checkpoint" now means only Track Work's save before a compaction; a Schema 4 record's Checkpoints had their method in Track Work's Schema 4 reference, since removed.
@@ -62,7 +63,7 @@ None recorded before this record was started.
 
 ## Open Questions
 
-- The reasons for the rest of Execute Work (the three layers of a request, `touch-map`, `self-review`, the routed references) are not recorded here yet.
+- The reasons for the rest of Execute Work (the three layers of a request, `touch-map`, the routed references) are not recorded here yet.
 - The reference's first real use is task-004's own build; its friction log is adjudicated before the reference changes.
 - Whether a worker reads the reference's worker section when its brief points to it is not measured.
 - Nesting has not been used yet: whether workers hand work down only where it pays, and whether a sub-worker's choices reach the coordinator one level at a time.

@@ -4,7 +4,7 @@
 
 Freeflow gives the coding agent you already use (Codex, Claude Code, Pi and others) what it needs at the moment it decides. On every host its prompts and skills work as a portable layer; on Pi a native extension adds the runtime parts.
 
-- **A short method, always loaded.** One cycle: agree before building, build and verify, review and hand over. Each step checks what actually happened (a script's output, a test, your answer) before the next one, rather than trusting the plan.
+- **A short method, always loaded.** One cycle: agree before building, build and verify, review and return. Each step checks what actually happened (a script's output, a test, your answer) before the next one, rather than trusting the plan.
 - **Eleven capability skills** that bring scripts and structured artifacts, not just advice: a script that maps what a change touches, a self-review report, a decision list for your choices, a Working Record that survives context loss.
 - **On Pi, a runtime** that pushes the right lines of a skill at the tool call that needs them, and adds compaction, tool handling, task memory and multi-model routing.
 
@@ -20,8 +20,8 @@ Agents often act without opening the skill that describes the step they are taki
 | What goes wrong | What Freeflow does |
 | --- | --- |
 | A question or tentative idea becomes an edit. | The Interaction Contract tells discussion apart from a request to act. |
-| A request leaves choices open that the agent settles silently. | Before building, the agent sends what it will do, where it stops, and your decisions with its defaults, then waits; the hand-over shows any choice you have not seen. |
-| A change misses a caller, a test or a doc. | Execute Work's `touch-map.mjs` lists what a change touches, and `self-review.mjs` reports every changed test and whether each requirement's check ran after the last edit. |
+| A request leaves choices open that the agent settles silently. | Before building, the agent sends what it will do, where it stops, and your decisions with its defaults, then waits; the Return shows any choice you have not seen. |
+| A change misses a caller, a test or a doc. | Execute Work's `touch-map.mjs` lists what a change touches, and Verify Work's `self-review.mjs` reports every changed test and whether each requirement's check ran after the last edit. |
 | A passing command becomes an unsupported completion claim. | Verify Work ties the claim to what the check actually observed. |
 | Context loss erases decisions and partial work. | Track Work recovers the Working Record in one call and reconciles it with live state. |
 | Risky changes ship without a second look. | Review Work's gate calls for an independent review when the change touches security, data, release files or a public interface. |
@@ -33,7 +33,7 @@ Agents often act without opening the skill that describes the step they are taki
 1. Agree             before the first edit on a task that builds or changes behavior:
                      what I'll do, where I stop, your decisions with defaults; wait
 2. Build and verify  within the agreement; check on the path you will use
-3. Review, hand over self-review; independent review when the gate calls for it;
+3. Review and return: self-review; independent review when the gate calls for it;
                      report what done looks like against what was done
 When evidence changes the picture, go back only to the step it affects.
 ```

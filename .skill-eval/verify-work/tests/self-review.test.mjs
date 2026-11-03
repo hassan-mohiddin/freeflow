@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { git, repository, run, write } from "./helpers.mjs";
+import { git, repository, run, write } from "../../execute-work/tests/helpers.mjs";
 
-const script = resolve("skills/execute-work/scripts/self-review.mjs");
+const script = resolve("skills/verify-work/scripts/self-review.mjs");
 
 const base = {
   "src/math.js": "export const add = (a, b) => a + b;\n",

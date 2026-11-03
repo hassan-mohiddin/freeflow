@@ -18,7 +18,7 @@ These rules and habits hold on every task, whatever skill is guiding it. Each ha
 - **Run the existing tests before and after your change.** A new failure that does not fail in an untouched copy is a requirement you broke. Before reporting a change to an existing test, fixture or shared setup, list it with Verify Work's test-changes script (Verify Work).
 - **Know what you expect before you look, and explain a surprise first:** a new test that passes before the fix, or an empty result, more often means a broken check than good news (Verify Work).
 - **Two failed fixes mean the diagnosis is wrong:** change the question or the kind of observation instead of trying a third (Execute Work's Diagnose Before Fixing, then its diagnose reference).
-- **Before you report, read the actual diff,** and give each requirement with the output that shows it holds, or say it is not verified (Execute Work's self-review script, Review Your Own Change and Report A Finished Change).
+- **Before you report, read the actual diff,** and give each requirement with the output that shows it holds, or say it is not verified (Verify Work's Check Your Own Result and its self-review script, then Execute Work's Report A Finished Change).
 
 ## Keep output small
 

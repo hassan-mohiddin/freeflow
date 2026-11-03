@@ -12,7 +12,7 @@ Rule: loading this reference, discussing a migration, or approving a general imp
 
 Take to [Discuss Work](../../discuss-work/SKILL.md) whatever remains unresolved among: maintaining, deprecating or removing the old behavior; advisory versus compulsory migration, deadlines or support windows; compatibility, public API, data conversion, downtime, permissions, billing, security, privacy or data-loss behavior; irreversible cutover, destructive cleanup or rollback limits.
 
-Do not manufacture a migration because code looks old: inspect ownership, supported consumers, runtime use, source truth, incidents, maintenance cost, and current value. When replacement behavior, interfaces, ownership or failure semantics remain unsettled, settle them first: Discuss Work for a user-owned choice, [design](design.md) for a design-bearing boundary, [Write Docs](../../write-docs/SKILL.md) when the accepted migration behavior needs a durable contract.
+Do not manufacture a migration because code looks old: inspect ownership, supported consumers, runtime use, source truth, incidents, maintenance cost, and current value. When replacement behavior, interfaces, ownership or failure semantics remain unsettled, settle them first: Discuss Work for a user-owned choice, Discuss Work's [design](../../discuss-work/references/design.md) for a design-bearing boundary, [Write Docs](../../write-docs/SKILL.md) when the accepted migration behavior needs a durable contract.
 
 ## Define The Migration Contract
 
@@ -66,7 +66,7 @@ Removal evidence:
 Failure behavior:
 ```
 
-If a shim grows harder to remove with each consumer, or starts spreading caller knowledge, public states or exceptions, take the structural evidence to [design](design.md#pressure-signals) rather than building a second permanent system.
+If a shim grows harder to remove with each consumer, or starts spreading caller knowledge, public states or exceptions, take the structural evidence to Discuss Work's [design](../../discuss-work/references/design.md#pressure-signals) rather than building a second permanent system.
 
 Before moving data, settle the authoritative source in each phase; idempotency and restart; duplicate, partial, invalid and late records; read and write ordering and reconciliation; privacy, retention, permissions and audit; rollback versus forward-only recovery; and backup, restore and destructive-cleanup proof. A reversible schema change does not imply reversible data semantics.
 

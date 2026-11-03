@@ -18,7 +18,7 @@ export const MERGED = {
   "agree-work": "discuss-work",
   bypass: "discuss-work",
   "commit-work": "deliver-work",
-  "design-for-depth": "execute-work",
+  "design-for-depth": "discuss-work",
   "diagnose-failure": "execute-work",
   discuss: "discuss-work",
   "finish-branch": "deliver-work",
@@ -34,11 +34,13 @@ export const MERGED = {
 };
 export const RETIRED = Object.keys(MERGED);
 
-// References that became sections of another file, and the Map Features skill whose body became Verify Work's feature
+// References and scripts that moved or became sections of another file, and the Map Features skill whose body became Verify Work's feature
 // map reference: reading the old file on an earlier build counts as using the file that holds its text now.
 export const MOVED_PARTS = {
   "deliver-work/references/push.md": "deliver-work/references/branch-closeout.md",
-  "execute-work/references/design-state-and-failure.md": "execute-work/references/design.md",
+  "execute-work/references/design-state-and-failure.md": "discuss-work/references/design.md",
+  "execute-work/references/design.md": "discuss-work/references/design.md",
+  "execute-work/scripts/self-review.mjs": "verify-work/scripts/self-review.mjs",
   "map-features/SKILL.md": "verify-work/references/feature-map.md",
   "map-features/references/driving-surfaces.md": "verify-work/references/feature-map.md",
   "verify-work/references/driving-surfaces.md": "verify-work/references/feature-map.md",
@@ -218,7 +220,8 @@ export const CASES = [
     hit: "design-for-depth",
     expect: ["design-for-depth"],
     not: ["migration-work"],
-    parts: ["execute-work/references/design.md"],
+    route: ["execute-work"],
+    parts: ["discuss-work/references/design.md"],
     prompt:
       "Later I want shelf to be able to keep bookmarks in SQLite as well as the JSON file. How should the storage code be structured so a second backend is easy to add? Work out the design before changing anything.",
   },
@@ -227,7 +230,7 @@ export const CASES = [
     hit: "design-for-depth",
     expect: ["design-for-depth"],
     not: [],
-    parts: ["execute-work/references/design.md"],
+    parts: ["discuss-work/references/design.md"],
     prompt:
       "Export formats are one big switch in src/export.js. Restructure it so a new format can be added without touching the core, and design the interface first.",
   },
@@ -236,7 +239,7 @@ export const CASES = [
     hit: "design-for-depth",
     expect: ["design-for-depth"],
     not: [],
-    parts: ["execute-work/references/design.md"],
+    parts: ["discuss-work/references/design.md"],
     prompt:
       "Errors are handled differently all over this codebase: some functions throw, some print and exit, some return nothing. Design one consistent way to handle errors.",
   },
@@ -245,7 +248,7 @@ export const CASES = [
     hit: null,
     expect: [],
     not: ["design-for-depth"],
-    route: ["execute-work"],
+    route: ["discuss-work", "execute-work"],
     prompt: "In src/format.js, the variable x in padTitle needs a clearer name. Rename it.",
   },
 
@@ -356,7 +359,7 @@ export const CASES = [
     hit: "execute-work",
     expect: ["execute-work"],
     not: ["write-plan"],
-    parts: ["execute-work/scripts/touch-map.mjs", "execute-work/scripts/self-review.mjs"],
+    parts: ["execute-work/scripts/touch-map.mjs", "verify-work/scripts/self-review.mjs"],
     prompt: "The tags plan in docs/PLAN-tags.md is agreed. Go ahead and implement step 2.",
   },
   {
@@ -364,7 +367,7 @@ export const CASES = [
     hit: "execute-work",
     expect: ["execute-work"],
     not: [],
-    parts: ["execute-work/scripts/touch-map.mjs", "execute-work/scripts/self-review.mjs"],
+    parts: ["execute-work/scripts/touch-map.mjs", "verify-work/scripts/self-review.mjs"],
     prompt:
       "As we agreed yesterday: make `shelf list --json` print one JSON array instead of one object per line, and update the test. Go ahead.",
   },
@@ -373,7 +376,7 @@ export const CASES = [
     hit: "execute-work",
     expect: ["execute-work"],
     not: [],
-    parts: ["execute-work/scripts/touch-map.mjs", "execute-work/scripts/self-review.mjs"],
+    parts: ["execute-work/scripts/touch-map.mjs", "verify-work/scripts/self-review.mjs"],
     prompt:
       "Add a lint script to package.json that runs `node --check` on every file in src/ and bin/, and make sure it passes.",
   },
@@ -753,7 +756,7 @@ export const CASES = [
     not: [],
     parts: [
       "execute-work/scripts/touch-map.mjs",
-      "execute-work/scripts/self-review.mjs",
+      "verify-work/scripts/self-review.mjs",
       "verify-work/references/test-design.md",
     ],
     prompt: "Make the CSV export quote titles that contain commas, and add a test for it.",
@@ -763,7 +766,7 @@ export const CASES = [
     hit: "workflow",
     expect: BUILD,
     not: [],
-    parts: ["execute-work/scripts/touch-map.mjs", "execute-work/scripts/self-review.mjs"],
+    parts: ["execute-work/scripts/touch-map.mjs", "verify-work/scripts/self-review.mjs"],
     prompt:
       "Add an import command that reads a browser's exported bookmarks HTML file into the shelf, then document it in the README.",
   },
@@ -772,7 +775,7 @@ export const CASES = [
     hit: "workflow",
     expect: BUILD,
     not: [],
-    parts: ["execute-work/scripts/touch-map.mjs", "execute-work/scripts/self-review.mjs"],
+    parts: ["execute-work/scripts/touch-map.mjs", "verify-work/scripts/self-review.mjs"],
     prompt: "Rename the data/ folder to fixtures/ and update everything that refers to it.",
   },
   {

@@ -21,7 +21,7 @@ Freeflow never turns Pi's own compaction off: Pi's switch also disables its reco
 
 ## When Freeflow says compaction is near
 
-Freeflow measures the context after each turn. As it grows it shows one row at 50%, 60% and 70% of the window, then one notice a compaction cycle, before Pi's own trigger (the model's window minus Pi's reserve, `compaction.reserveTokens` in Pi's settings, 16,384 by default):
+Freeflow measures the context after each turn. As it grows it shows one row at 50%, 60% and 70% of the window, then one notice a context cycle, before Pi's own trigger (the model's window minus Pi's reserve, `compaction.reserveTokens` in Pi's settings, 16,384 by default):
 
 | Window | Notice | Pi compacts |
 | --- | --- | --- |

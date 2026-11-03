@@ -173,7 +173,7 @@ Use the host-native surface to confirm the installation:
 - **Kiro:** confirm the Power is installed and the shared skills appear in the Agent Steering & Skills surface. Do not infer an always-on prompt adapter from the Power manifest alone.
 - **OpenCode v2:** confirm the configured `skills` array points at the canonical `skills/` directory and inspect the native `skill` catalog. Do not infer runtime prompt delivery.
 - **Hermes Agent:** confirm the portable package is listed/enabled or the checkout is trusted as a skills source, then inspect the skills catalog. Do not infer runtime prompt delivery from portable package installation.
-- **Pi:** use `/freeflow status` to confirm the core prompt, Interaction Contract and base skills, which capabilities are effective, and the compaction cycle; `/freeflow settings` shows each setting and where its value comes from.
+- **Pi:** use `/freeflow status` to confirm the core prompt, Interaction Contract and base skills, which capabilities are effective, and the context cycle; `/freeflow settings` shows each setting and where its value comes from.
 
 Activation is not proof of runtime delivery. Setup reports delivery as `confirmed`, `unavailable`, or `unconfirmed`.
 

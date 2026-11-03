@@ -102,7 +102,7 @@ Coordinator's judgment reaches the work only through the contract. Put the actua
 
 State each requirement as the outcome for a named thing ("each caller listed below still gets X"), without an escape clause such as "unless needed" or "as today": a cheaper model applies an escape clause literally. When behavior elsewhere must be preserved, say where the change belongs and what each named caller must still get: "keep what callers rely on today" alone can steer a worker away from a correct fix in shared code.
 
-When unresolved representation, ownership, or failure choices could invalidate the work, settle them first with Execute Work's [design](../../../skills/execute-work/references/design.md) reference. Your most valuable contribution is framing the problem so the worker finds it straightforward. For a consequential or repeatedly misunderstood property, name the mechanism and why it fits, the plausible wrong approach, and the observation that tells them apart:
+When unresolved representation, ownership, or failure choices could invalidate the work, settle them first with Discuss Work's [design](../../../skills/discuss-work/references/design.md) reference. Your most valuable contribution is framing the problem so the worker finds it straightforward. For a consequential or repeatedly misunderstood property, name the mechanism and why it fits, the plausible wrong approach, and the observation that tells them apart:
 
 ```text
 Weak:   Add caching to the config loader.

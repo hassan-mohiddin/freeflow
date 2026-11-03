@@ -1,6 +1,6 @@
 ---
 name: execute-work
-description: "Use for any task that uses tools: reading or searching a repository, running commands, diagnosing, and any work that changes code, files or settings: implementing a feature, fixing a bug, adding or changing behavior, configuring, prototyping, refactoring, simplifying or cleaning up code, deleting dead code, or maintaining a project. Also use when designing or changing modules, interfaces, data models, state, error handling or dependencies; when something fails, breaks, regresses or slows down and the cause is unknown, or a fix did not hold; when migrating users, data, a schema, a service or traffic to a replacement and removing the old path; when adding edge-case handling or code comments; and when handing work to subagents or parallel workers, or working from another agent's brief. Read it before your first tool call on a task, even a small or read-only one: it reads the request for its asks and implied requirements, finds what the change touches before you edit, and reviews and reports the result."
+description: "Use for any task that uses tools: reading or searching a repository, running commands, diagnosing, and any work that changes code, files or settings: implementing a feature, fixing a bug, adding or changing behavior, configuring, prototyping, refactoring, simplifying or cleaning up code, deleting dead code, or maintaining a project. Also use when something fails, breaks, regresses or slows down and the cause is unknown, or a fix did not hold; when migrating users, data, a schema, a service or traffic to a replacement and removing the old path; when adding edge-case handling or code comments; and when handing work to subagents or parallel workers, or working from another agent's brief. Read it before your first tool call on a task, even a small or read-only one: it reads the request for its asks and implied requirements, finds what the change touches before you edit, and reports the result."
 ---
 
 # Execute Work
@@ -16,13 +16,13 @@ Read a reference only when its situation arises.
 | Situation | Read |
 | --- | --- |
 | Before the first production change: finding the callers, readers, writers, tests and docs a change touches | Run [touch-map](scripts/touch-map.mjs), as Establish The Execution Basis says |
-| Before reporting a change as done | Run [self-review](scripts/self-review.mjs), as Check, Then Continue Or Return says |
-| A change, even one line, to permissions, public behavior, canonical state or failure semantics, or one that spreads a policy across callers | [design: Start With The Required Outcome](references/design.md#start-with-the-required-outcome) |
-| Building on a representation, identity, ownership or algorithm choice that dependent work would redo if wrong | [design: Settle The Choices](references/design.md#settle-the-choices) |
-| A new or changed interface between parts, or choosing which part owns a decision | [design: Interfaces](references/design.md#interfaces) |
-| State that must survive a failure: partial effects, retries, concurrent writers, recovery | [design: State And Failure](references/design.md#state-and-failure) |
-| Module cycles, layering, dependency direction, or extracting shared code | [design: Modules And Dependencies](references/design.md#modules-and-dependencies) |
-| The same change keeps touching many places, or each fix adds another flag, state or caller rule | [design: Pressure Signals](references/design.md#pressure-signals) |
+| Before reporting a change as done | Verify Work's [Check Your Own Result](../verify-work/SKILL.md#check-your-own-result) |
+| A change, even one line, to permissions, public behavior, canonical state or failure semantics, or one that spreads a policy across callers | Discuss Work's [design: Start With The Required Outcome](../discuss-work/references/design.md#start-with-the-required-outcome) |
+| Building on a representation, identity, ownership or algorithm choice that dependent work would redo if wrong | Discuss Work's [design: Settle The Choices](../discuss-work/references/design.md#settle-the-choices) |
+| A new or changed interface between parts, or choosing which part owns a decision | Discuss Work's [design: Interfaces](../discuss-work/references/design.md#interfaces) |
+| State that must survive a failure: partial effects, retries, concurrent writers, recovery | Discuss Work's [design: State And Failure](../discuss-work/references/design.md#state-and-failure) |
+| Module cycles, layering, dependency direction, or extracting shared code | Discuss Work's [design: Modules And Dependencies](../discuss-work/references/design.md#modules-and-dependencies) |
+| The same change keeps touching many places, or each fix adds another flag, state or caller rule | Discuss Work's [design: Pressure Signals](../discuss-work/references/design.md#pressure-signals) |
 | Behavior-preserving cleanup, refactoring or deletion is the agreed result | [simplify](references/simplify.md) |
 | A failure with no known cause, or two fixes that did not hold | [diagnose](references/diagnose.md) |
 | Moving users, data or traffic to a replacement, or removing an old path | [migration](references/migration.md) |
@@ -123,17 +123,13 @@ When your last two actions did not change what you believe, stop repeating them.
 
 Goal: the result is supported where it will be used, and the report says exactly what exists.
 
-Check where the result will be accepted or used, not after every edit. Use Verify Work for what the observations support, then Review Your Own Change, below, with [Review Work](../review-work/SKILL.md) for its lenses. Before you report, run [self-review](scripts/self-review.mjs) (`node <execute-work-directory>/scripts/self-review.mjs --base <ref> [--requirements <file>] [--test-command <command>]`) and read its report: status, diff stat, every changed existing test or fixture with its hunk, each new test and whether it fails on the base, per requirement whether its check ran after the last edit (record each check with its `check --id R<n>` command), and the feature files covering the change with whether each was driven since (drive those through Verify Work). Correct a supported local defect and rerun the affected checks once; route a repeated failure instead of iterating.
+Check where the result will be accepted or used, not after every edit. Use Verify Work for what the observations support, and before you report, its [Check Your Own Result](../verify-work/SKILL.md#check-your-own-result): the self-review script's report, the actual diff read against your list, and Review Work's lenses for work. Correct a supported local defect and rerun the affected checks once; route a repeated failure instead of iterating.
 
 If the result makes existing documentation untrue, correcting it is part of this work: use [Write Docs](../write-docs/SKILL.md). New documentation still needs a request.
 
 Before each continuation, ask whether the next change meets an agreed requirement, repairs a demonstrated defect, or only adds an optional guarantee; an optional improvement is not unfinished work. Continue while the next step serves the same outcome and stays covered, starting a distinct Slice the agreement covers through Track Work without waiting for the user; a passing check is not the endpoint.
 
 Stop at the agreed return condition or an uncovered consequential boundary, and report as Report A Finished Change says, accounting for any edit made after the last check.
-
-### Review Your Own Change
-
-Before you report, read the actual change, not your memory of it: `git status`, `git diff`. Does it do every item on your list and nothing more? Do callers of what you changed still work (rerun the queries)? Did the check behind each requirement run after the last edit that could change its result? Any leftover debug output or scratch files? Fix what you find, recheck what that affects, and stop.
 
 ### Report A Finished Change
 

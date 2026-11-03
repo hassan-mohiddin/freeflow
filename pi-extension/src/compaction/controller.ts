@@ -7,7 +7,7 @@ import type { Ran, StoreState } from "../store/layer.js";
 
 /**
  * Freeflow compaction on Pi, on Track Work's bundle (task-004's Spec, section 9; P1, P5, P63). As the context grows,
- * one row each at 50, 60 and 70% of the window, then one soft notice a compaction cycle: keep working to a safe point,
+ * one row each at 50, 60 and 70% of the window, then one soft notice a context cycle: keep working to a safe point,
  * checkpoint with --compact, end the turn. When a run that asked so ends, and the checkpoint is done (P68), Freeflow
  * writes Pi's compaction entry with the task's bundle (or the session summary's) as its summary, keeping nothing
  * raw, and Pi continues the run. Pi's own compaction stays the fallback, with the bundle after its summary (P16).
@@ -123,7 +123,7 @@ export class CompactionController {
       return {
         level: "row",
         text: this.host.notice(
-          `Compaction cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}; the checkpoint notice comes at about ${thresholds.notice} tokens.`,
+          `Context cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}; the checkpoint notice comes at about ${thresholds.notice} tokens.`,
         ),
       };
     }
@@ -132,7 +132,7 @@ export class CompactionController {
   }
 
   private noticeText(cycle: number, tokens: number, thresholds: Thresholds): string {
-    const head = `Compaction cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}, and Pi compacts on its own at about ${thresholds.trigger} tokens.`;
+    const head = `Context cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}, and Pi compacts on its own at about ${thresholds.trigger} tokens.`;
     if (this.host.coordinatorUnderProjection())
       return `${head} Your view leaves out what workers did, so do not checkpoint yourself: at a safe point (after the current assessment, or before the next assignment), delegate an assignment asking the worker to checkpoint as Track Work says, with --compact, and return with return_work; Freeflow compacts when the run ends.`;
     const command = this.host.store.command();
@@ -140,7 +140,7 @@ export class CompactionController {
     const checkpoint = task
       ? `At that point, checkpoint ${task.id}: rewrite its Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${task.id} --compact --input - with In flight's lines.`
       : `If this session holds a task, checkpoint it as Track Work says, with --compact; if it holds none, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
-    return `${head} Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and the run continues. This is the only notice this compaction cycle; if Pi compacts before the checkpoint, the record as of its last checkpoint follows Pi's summary.`;
+    return `${head} Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and the run continues. This is the only notice this context cycle; if Pi compacts before the checkpoint, the record as of its last checkpoint follows Pi's summary.`;
   }
 
   /**
@@ -208,7 +208,7 @@ export class CompactionController {
           type: "custom_message",
           customType: RECOVERY_TYPE,
           content: this.host.notice(
-            `Freeflow compacted the session after your checkpoint: compaction cycle ${cycle} starts here, and the conversation is now the ${state.task ? `bundle of ${state.task.id}` : "session summary's bundle"}. Continue from In flight and the Next action.`,
+            `Freeflow compacted the session after your checkpoint: context cycle ${cycle} starts here, and the conversation is now the ${state.task ? `bundle of ${state.task.id}` : "session summary's bundle"}. Continue from In flight and the Next action.`,
           ),
           display: true,
         },

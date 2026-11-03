@@ -12,7 +12,7 @@ const n = (value) => value.toLocaleString("en-US");
 
 /** A Measured line for a Slice that added `context` tokens in `minutes` of work for `usd`, run on `model`. */
 const measured = (context, minutes, usd, partial = false, model = "claude-opus-5-5 high") =>
-  `context ${n(context)} over 1 compaction cycle(s)${partial ? " (partly measured)" : ""}; working ${minutes} min, wall ${minutes + 10} min; ${model}: 0 in, 0 written, ${n(context * 5)} read, 1,000 out, $${usd.toFixed(2)}; as of 2026-10-01T10:00:00.000Z at ${n(context + 50_000)} tokens`;
+  `context ${n(context)} over 1 context cycle(s)${partial ? " (partly measured)" : ""}; working ${minutes} min, wall ${minutes + 10} min; ${model}: 0 in, 0 written, ${n(context * 5)} read, 1,000 out, $${usd.toFixed(2)}; as of 2026-10-01T10:00:00.000Z at ${n(context + 50_000)} tokens`;
 const HAIKU = "claude-haiku-5-5 xhigh";
 /** Five Slices: three on Haiku, two dearer ones on Opus. */
 const MIXED = [
@@ -134,7 +134,7 @@ async function storeFixture() {
       "- Under: A-001",
       "- Kind: gather",
       "- Agent: Haiku, xhigh",
-      "- Measured: context 300,000 over 1 compaction cycle(s); working 9 min, wall 9 min; claude-haiku-5-5 xhigh: 80 in, 300,000 written, 6,000,000 read, 100,000 out, $0.70; as of 2026-10-01T10:00:00.000Z at 300,000 tokens",
+      "- Measured: context 300,000 over 1 context cycle(s); working 9 min, wall 9 min; claude-haiku-5-5 xhigh: 80 in, 300,000 written, 6,000,000 read, 100,000 out, $0.70; as of 2026-10-01T10:00:00.000Z at 300,000 tokens",
       "- Result: The callers.",
       "- Task effect: Known.",
       "- Return: delegations/D-001-read-the-callers/return.md",
@@ -240,7 +240,7 @@ test("slice start records the prediction beside the first reading, and slice clo
     assert.equal(started.status, 0, started.stderr);
     assert.match(
       await readFile(record, "utf8"),
-      /\n- Predicted: context 40,000, working 20 min, \$2\.00; median of 3 Slices of this task, cost measured mostly on claude-opus-5-5 high\n- Measured: context 0 over 1 compaction cycle\(s\); working 0 min, wall 0 min; as of \S+ at 50,000 tokens\n/,
+      /\n- Predicted: context 40,000, working 20 min, \$2\.00; median of 3 Slices of this task, cost measured mostly on claude-opus-5-5 high\n- Measured: context 0 over 1 context cycle\(s\); working 0 min, wall 0 min; as of \S+ at 50,000 tokens\n/,
     );
     const closed = run(
       [
@@ -263,7 +263,7 @@ test("slice start records the prediction beside the first reading, and slice clo
     assert.equal(closed.status, 0, closed.stderr);
     assert.match(
       await readFile(history, "utf8"),
-      /\n- Predicted: context 40,000, working 20 min, \$2\.00; median of 3 Slices of this task, cost measured mostly on claude-opus-5-5 high\n- Measured: context 45,000 over 1 compaction cycle\(s\); working 0 min, wall 0 min; as of \S+ at 95,000 tokens\n/,
+      /\n- Predicted: context 40,000, working 20 min, \$2\.00; median of 3 Slices of this task, cost measured mostly on claude-opus-5-5 high\n- Measured: context 45,000 over 1 context cycle\(s\); working 0 min, wall 0 min; as of \S+ at 95,000 tokens\n/,
     );
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -410,7 +410,7 @@ test("slice start and estimate --plan price by the model and effort of the trans
   }
 });
 
-test("estimate --plan lays the Slices left across compaction cycles, with the totals, the oversized and the parallel", async () => {
+test("estimate --plan lays the Slices left across context cycles, with the totals, the oversized and the parallel", async () => {
   const { home, a } = await storeFixture();
   try {
     const plan = run(["estimate", "--plan", "--record", a, "--used", "100000", "--window", "200000"]);
@@ -421,11 +421,11 @@ test("estimate --plan lays the Slices left across compaction cycles, with the to
         "Plan: 3 Slices left, from Future Work.",
         "Expected in all: $2.03 to $12.16 at list price, most likely $5.27; context 118,756 to 316,682, most likely 178,134; working about 1 h 39 min. Resting on: from 6 measured Slices of project demo, none sized; 0 of 3 Slices left sized; corrected from 3 predictions of project demo.",
         "A Slice with no size, expected: context about 59,378, working about 33 min, about $1.76 at list price, cost measured mostly on claude-opus-5-5 high: the median of 6 measured Slices of project demo (context 30,000 to 80,000; working 10 to 40 min; $0.50 to $3.00), corrected by 1.32, from actual over predicted of 3 predictions of project demo (context 1.00 to 2.00).",
-        "Context now: about 100,000 of 200,000 tokens; Freeflow's notice at about 150,000. Where a compaction cycle starts is unknown (no transcript read): taken as empty, so each later compaction cycle holds about 150,000.",
-        "- Parser: this compaction cycle into the next; context about 59,378, about $1.76",
-        "- CLI: the next compaction cycle; context about 59,378, about $1.76",
-        "- Docs: the next compaction cycle; context about 59,378, about $1.76",
-        "In all: about 178,134 tokens of context, reaching the next compaction cycle; working about 1 h 39 min; about $5.27 at list price ($2.03 to $12.16).",
+        "Context now: about 100,000 of 200,000 tokens; Freeflow's notice at about 150,000. Where a context cycle starts is unknown (no transcript read): taken as empty, so each later context cycle holds about 150,000.",
+        "- Parser: this context cycle into the next; context about 59,378, about $1.76",
+        "- CLI: the next context cycle; context about 59,378, about $1.76",
+        "- Docs: the next context cycle; context about 59,378, about $1.76",
+        "In all: about 178,134 tokens of context, reaching the next context cycle; working about 1 h 39 min; about $5.27 at list price ($2.03 to $12.16).",
         "No dependency between them, so they could run in parallel through delegation: Parser, Docs.",
         "Delegations measured (the store), the median of each:",
         "- gather, claude-haiku-5-5 xhigh: 1 delegation, context about 300,000, working 9 min, $0.70 each",
@@ -487,10 +487,10 @@ test("estimate --plan lays the Slices left across compaction cycles, with the to
         parallel: [["One", "Two"]],
       },
     );
-    // A smaller window: each Slice outgrows a compaction cycle.
+    // A smaller window: each Slice outgrows a context cycle.
     assert.match(
       run(["estimate", "--plan", "--record", a, "--used", "10000", "--window", "60000"]).stdout,
-      /\n- Parser: this compaction cycle into the next; context about 59,378, about \$1\.76; bigger than a compaction cycle \(about 45,000\): split it or delegate it\n/,
+      /\n- Parser: this context cycle into the next; context about 59,378, about \$1\.76; bigger than a context cycle \(about 45,000\): split it or delegate it\n/,
     );
     // A list given as input instead of Future Work, one Slice a line, "after" naming what it waits for.
     const given = run(
@@ -506,7 +506,7 @@ test("estimate --plan lays the Slices left across compaction cycles, with the to
   }
 });
 
-test("estimate --plan before three Slices are measured anywhere: this compaction cycle's rate, from --done", async () => {
+test("estimate --plan before three Slices are measured anywhere: this context cycle's rate, from --done", async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "track-work-rate5-")));
   try {
     const record = await writeTask(
@@ -533,9 +533,9 @@ test("estimate --plan before three Slices are measured anywhere: this compaction
     assert.equal(rated.status, 0, rated.stderr);
     assert.match(
       rated.stdout,
-      /\nEach Slice, expected: context at most about 40,000, at this compaction cycle's rate \(80,000 tokens over 2 parts done\), since fewer than 3 Slices are measured \(this task 1\); no cost or time until they are\.\n/,
+      /\nEach Slice, expected: context at most about 40,000, at this context cycle's rate \(80,000 tokens over 2 parts done\), since fewer than 3 Slices are measured \(this task 1\); no cost or time until they are\.\n/,
     );
-    assert.match(rated.stdout, /\nIn all: about 120,000 tokens of context, reaching the next compaction cycle\.\n/);
+    assert.match(rated.stdout, /\nIn all: about 120,000 tokens of context, reaching the next context cycle\.\n/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -545,7 +545,7 @@ test("Slices measured with --used carry context only: the prediction and the pla
   const root = await realpath(await mkdtemp(join(tmpdir(), "track-work-used5-")));
   try {
     const used = (context) =>
-      `context ${n(context)} over 1 compaction cycle(s); working 0 min, wall 3 min; as of 2026-10-01T10:00:00.000Z at ${n(context + 10_000)} tokens`;
+      `context ${n(context)} over 1 context cycle(s); working 0 min, wall 3 min; as of 2026-10-01T10:00:00.000Z at ${n(context + 10_000)} tokens`;
     const record = await writeTask(
       join(root, "task-001-used"),
       "Used",
@@ -568,7 +568,7 @@ test("Slices measured with --used carry context only: the prediction and the pla
       plan.stdout,
       /\nA Slice with no size, expected: context about 40,000, no time or cost \(its Slices were measured from --used\): the median of 3 measured Slices of this task \(context 20,000 to 60,000\), not corrected: /,
     );
-    assert.match(plan.stdout, /\nIn all: about 120,000 tokens of context, reaching the next compaction cycle\.\n/);
+    assert.match(plan.stdout, /\nIn all: about 120,000 tokens of context, reaching the next context cycle\.\n/);
     assert.doesNotMatch(plan.stdout, /\$|Prices:/);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -629,7 +629,7 @@ test("a sized Slice: its files times the median per-file rate, corrected only by
           "S-005",
           {
             measure:
-              "context 0 over 1 compaction cycle(s); working 0 min, wall 0 min; as of 2026-10-01T10:00:00.000Z at 50,000 tokens",
+              "context 0 over 1 context cycle(s); working 0 min, wall 0 min; as of 2026-10-01T10:00:00.000Z at 50,000 tokens",
             files: 3,
           },
         ],
@@ -679,8 +679,8 @@ test("a sized Slice: its files times the median per-file rate, corrected only by
       lines[1],
       /^Expected in all: \$\d+\.\d{2} to \$\d+\.\d{2} at list price, most likely \$3\.51; context [\d,]+ to [\d,]+, most likely 105,357; working about 53 min\. Resting on: from 5 measured Slices of this task, 5 of them sized; 1 of 2 Slices left sized; corrected from 1 prediction of this task\.$/,
     );
-    assert.ok(lines.includes("- Parser (12 files): this compaction cycle; context about 45,357, about $1.51"));
-    assert.ok(lines.includes("- Docs: this compaction cycle; context about 60,000, about $2.00"));
+    assert.ok(lines.includes("- Parser (12 files): this context cycle; context about 45,357, about $1.51"));
+    assert.ok(lines.includes("- Docs: this context cycle; context about 60,000, about $2.00"));
     assert.ok(
       lines.some((line) =>
         line.startsWith(
@@ -695,8 +695,8 @@ test("a sized Slice: its files times the median per-file rate, corrected only by
       "- One · size: 12\n- Two · after: One · size: 4\n",
     );
     assert.equal(given.status, 0, given.stderr);
-    assert.match(given.stdout, /\n- One \(12 files\): this compaction cycle; context about 45,357, about \$1\.51\n/);
-    assert.match(given.stdout, /\n- Two \(4 files\): this compaction cycle; context about 15,119, about \$0\.50\n/);
+    assert.match(given.stdout, /\n- One \(12 files\): this context cycle; context about 45,357, about \$1\.51\n/);
+    assert.match(given.stdout, /\n- Two \(4 files\): this context cycle; context about 15,119, about \$0\.50\n/);
     assert.doesNotMatch(given.stdout, /could run in parallel/);
   } finally {
     await rm(root, { recursive: true, force: true });

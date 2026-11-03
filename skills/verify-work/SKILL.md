@@ -1,6 +1,6 @@
 ---
 name: verify-work
-description: "Use whenever you need to know whether something works or a claim is true: running tests, builds, linters or type checks; reproducing a bug or checking a fix; trying the real path in the running software, a browser or a CLI; measuring performance; and reading what the output actually shows, including failures and conflicting results. Read it before saying a change works, is fixed or is done. Also use when writing, designing or changing a test, fixture or regression check; when a claim depends on an integration, host lifecycle, an installed package, rendered UI or browser behavior, or performance; and when setting up, following or updating a project's saved steps for launching its software and trying each feature as a user would, or rechecking them after the software changed."
+description: "Use whenever you need to know whether something works or a claim is true: running tests, builds, linters or type checks; reproducing a bug or checking a fix; trying the real path in the running software, a browser or a CLI; measuring performance; and reading what the output actually shows, including failures and conflicting results. Read it before saying a change works, is fixed or is done, and to check your own change or document before reporting it done. Also use when writing, designing or changing a test, fixture or regression check; when a claim depends on an integration, host lifecycle, an installed package, rendered UI or browser behavior, or performance; and when setting up, following or updating a project's saved steps for launching its software and trying each feature as a user would, or rechecking them after the software changed."
 ---
 
 # Verify Work
@@ -21,12 +21,13 @@ Read the routed reference before designing or selecting evidence. Loading one do
 | Latency, throughput, memory, CPU, bundle, query, rendering, capacity, or resource-regression claims | [Runtime Evidence: Performance](references/runtime-evidence.md#performance) |
 | A claim about what a user sees or does in the running software, or a change to code a feature file covers | [Runtime Evidence: Project Recipe](references/runtime-evidence.md#project-recipe) |
 | Setting up a saved, tested way to check the project's software live (feature files, a shared guide and a helper that launches it and drives each feature as a user would), or rechecking one after the software changed, a feature was added, or the docs check marks a feature file stale | [Feature Map](references/feature-map.md) |
+| Before reporting your own change or document done, or using it | Check Your Own Result, below, with [self-review](scripts/self-review.mjs) for a change |
 | Contradictions that are unexplained, or failure that repeats | Execute Work's [diagnose](../../skills/execute-work/references/diagnose.md) |
 | Expected behavior that is unsettled, or sources that conflict | [Discuss Work](../../skills/discuss-work/SKILL.md) |
 
 ## Rules
 
-- Verification establishes facts, not review judgment, authority, or permission to continue. A Supported claim permits judgment of the result; it does not establish a review Pass, close a Slice, or authorize delivery.
+- Verification, your own result's check included, establishes facts, not an independent review's judgment, authority, or permission to continue. A Supported claim permits judgment of the result; it does not establish a review Pass, close a Slice, or authorize delivery.
 - Never encode a guess as an expected result. When expected behavior is unsettled or sources conflict, return the issue through Discuss Work. A test that pins a choice the user has not agreed says so.
 - Run an active check (a test, build, reproduction, benchmark, or instrumentation) only when it is covered: a request or agreement covers the checks its work needs, and an independent review covers what its brief's `May run` line names. Otherwise propose the purpose, observer, expected evidence, and stop condition to the user and wait.
 - Never rerun until unfavorable evidence disappears, and never change valid tests, implementation, Specs, policy, or acceptance merely to make a signal green. Preserve failures, contradictions, and partial or reduced-fidelity results.
@@ -57,7 +58,7 @@ Use the smallest direct observation that can disagree with the claim. Before rel
 
 For saved evidence, identify what code or artifact, check, configuration, and environment it examined, using existing outputs and source identities where available. Compare relevant later changes, including new files and generated output; HEAD alone does not identify an uncommitted candidate. Keep two facts separate: the observation occurred, and it applies to the current state. A later edit does not erase an earlier pass, and uncertain applicability does not certify the new candidate. Report missing identity or output rather than building a new evidence store. Reuse results whose applicability remains supported; rerun only affected evidence, and do not repeat checks merely because another activity or context began.
 
-When the project keeps a feature map (feature files in its developer docs that drive the software as a user would, set up and kept through [Feature Map](references/feature-map.md)), find the feature files covering the changed code with Write Docs' docs check, `docs-check.mjs --covering <path> --driven`, or in Execute Work's self-review report. A claim about what a user sees in a feature such a file covers needs its steps driven through the Project Recipe route; tests settle it only where they exercise that same path. A file marked stale was not driven since its code changed.
+When the project keeps a feature map (feature files in its developer docs that drive the software as a user would, set up and kept through [Feature Map](references/feature-map.md)), find the feature files covering the changed code with Write Docs' docs check, `docs-check.mjs --covering <path> --driven`, or in the self-review report (Check Your Own Result, below). A claim about what a user sees in a feature such a file covers needs its steps driven through the Project Recipe route; tests settle it only where they exercise that same path. A file marked stale was not driven since its code changed.
 
 Passing tests do not prove behavior they do not exercise. Source inspection does not prove runtime execution; a helper call does not prove registration, native dispatch, or installed-package behavior; a happy path does not establish failure handling.
 
@@ -112,6 +113,24 @@ A check may Pass by observing an expected rejection or failure.
 - **Unavailable:** required evidence cannot currently be obtained safely or reliably.
 
 A Passed check can leave the claim Inconclusive. A no-regression or parity claim without an observed baseline is Inconclusive. A Failed check can expose a defect, an invalid expectation, an environment problem, or a source conflict; classify only the supported conclusion, and diagnose when contradictions are unexplained or failure repeats.
+
+## Check Your Own Result
+
+Goal: before you report your own change done, or rely on your own document, you have checked it against what was agreed and found what it does that you did not mean.
+
+This is self-review: the producer's own check of a supported result, and the normal required route before reporting or relying on it. It is verification, and independent review is a separate step that [Review Work](../review-work/SKILL.md) selects.
+
+For a change to code or files:
+
+- Run [self-review](scripts/self-review.mjs) (`node <verify-work-directory>/scripts/self-review.mjs --base <ref> [--requirements <file>] [--test-command <command>]`) and read its report: status, diff stat, every changed existing test or fixture with its hunk, each new test and whether it fails on the base, per requirement whether its check ran after the last edit (record each check with its `check --id R<n>` command), and the feature files covering the change with whether each was driven since (drive those through the Project Recipe route).
+- Read the actual change, not your memory of it: `git status`, `git diff`. Does it do every item on your list and nothing more? Do callers of what you changed still work (rerun the queries that found them)? Did the check behind each requirement run after the last edit that could change its result? Any leftover debug output or scratch files?
+- Apply Review Work's [Work Review](../review-work/references/work.md) lenses, with its two checks for your own work: the decision check and the test-integrity check.
+
+For a document or another artifact, apply Review Work's [Artifact Review](../review-work/references/artifact.md) lenses for its kind, after checking its factual claims.
+
+Apply them silently once evidence supports the result or the artifact's load-bearing facts: no formal review items, numbered review cycle, or independent-review judgment. For one clear covered defect (for an artifact, one whose revision basis is settled), return to the producing activity, correct or revise it, reconcile an artifact's affected dependencies within authority, re-verify what it affects, and repeat only the affected checks once (for an artifact, source alignment as well). Do not restart every check or add a reviewer because a local correction occurred. Send anything else to its owner as Review Work's [Route A Problem To Its Owner](../review-work/SKILL.md#route-a-problem-to-its-owner) says.
+
+Stop when the supported state is accepted, the artifact is fit for its agreed use, or a material issue has a clear next route. Optional polish is not permission to continue editing, and checking your own result is not a reason to add independent review.
 
 ## Return Evidence To Its Owner
 

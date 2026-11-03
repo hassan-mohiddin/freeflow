@@ -13,7 +13,7 @@ Work runs in one cycle:
 
 1. **Agree.** Before the first edit on a task that builds or changes behavior, the agent sends what it will do, where it stops, and the choices that are yours, each with its default, then waits.
 2. **Build and verify.** It builds within the agreement and checks the result on the path you will use.
-3. **Review and hand over.** It reviews its own work, gets an independent review when Review Work's gate calls for one, and hands over with what done looks like against what was done.
+3. **Review and return.** It checks its own work, gets an independent review when Review Work's gate calls for one, and returns the work to you with what done looks like against what was done.
 
 When evidence changes the picture, the agent goes back only to the step it affects and keeps the work that still holds. There are no modes and no mandatory phases: a question gets an answer, a one-line exact edit gets made, and a large change gets the whole cycle.
 
@@ -37,7 +37,7 @@ No agreement is needed for a question, a discussion or a review that changes not
 
 You can ask the agent to skip an optional step, such as waiting for the agreement, a plan, a review or a record. It skips only what you named, takes its defaults and reports them, still asks before a hard-to-reverse choice, and changes no authority, no return point you agreed, and no claim: a check you decline leaves its claim unverified.
 
-The choices are kept in one decision list through the work ([Discuss Work](../skills/discuss-work/SKILL.md)). A choice that comes up later is asked about only when the work cannot go on without your answer; otherwise the agent takes its default and adds it to the list. At the end, the hand-over shows only the choices you have not seen: new ones, changed ones, and defaults nobody answered.
+The choices are kept in one decision list through the work ([Discuss Work](../skills/discuss-work/SKILL.md)). A choice that comes up later is asked about only when the work cannot go on without your answer; otherwise the agent takes its default and adds it to the list. At the end, the Return shows only the choices you have not seen: new ones, changed ones, and defaults nobody answered.
 
 ## The Work Agreement
 
@@ -87,7 +87,7 @@ Each skill is one capability. Its first page covers the common case and a table 
 | [Discuss Work](../skills/discuss-work/SKILL.md) | What to do or how is still open; agreeing before building; a choice or conflicting sources mid-work; skipping an optional step | `/discuss-work` |
 | [Execute Work](../skills/execute-work/SKILL.md) | Implementing, fixing, refactoring or simplifying; designing modules or interfaces; finding why something fails; migrating to a replacement | `/execute-work` |
 | [Verify Work](../skills/verify-work/SKILL.md) | Checking whether work or a claim holds: tests, builds, the real path; setting up or rechecking saved live checks of your software | `/verify-work` |
-| [Review Work](../skills/review-work/SKILL.md) | Judging whether work, a spec, plan, skill, eval or report is fit to use; your own before handing over, or another's | `/review-work` |
+| [Review Work](../skills/review-work/SKILL.md) | Judging whether work, a spec, plan, skill, eval or report is fit to use, in an independent review from a context that did not make it, and weighing a review that came back | `/review-work` |
 | [Deliver Work](../skills/deliver-work/SKILL.md) | Committing, pushing, merging or opening a pull request, cleaning up a branch, releasing, deploying | `/deliver-work` |
 | [Track Work](../skills/track-work/SKILL.md) | A task that needs memory beyond the conversation: its Working Record, recovery after context loss, a handoff to another session or person | `/track-work` |
 | [Write Docs](../skills/write-docs/SKILL.md) | A spec, plan, decision record or ADR; user or developer docs; docs a change made wrong | `/write-docs` |
@@ -107,9 +107,9 @@ The agent runs these itself; you see their output in its report. They are under 
 | Script | What it answers |
 | --- | --- |
 | Execute Work `touch-map.mjs` | What a change touches: entry points, readers, writers, scheduled code, covering tests and developer docs, each block saying what it did not search. |
-| Execute Work `self-review.mjs` | One report before handing over: status, diff stat, every changed existing test or fixture with its hunk, each new test and whether it fails on the base, whether each requirement's check ran after the last edit, and the feature files covering the change with whether each was driven live since. |
+| Verify Work `self-review.mjs` | One report before the work returns to you: status, diff stat, every changed existing test or fixture with its hunk, each new test and whether it fails on the base, whether each requirement's check ran after the last edit, and the feature files covering the change with whether each was driven live since. |
 | Verify Work `test-changes.mjs` | Every test, fixture or test setup file changed since a base commit, with its hunks; `--new` lists added test files. |
-| Discuss Work `choices.mjs` | Checks the decision list and renders the agreement, the hand-over's unseen choices, and a catch-up after an unattended run. |
+| Discuss Work `choices.mjs` | Checks the decision list and renders the agreement, the Return's unseen choices, and a catch-up after an unattended run. |
 | Review Work `review-packet.mjs`, `check-brief.mjs` | Prefills an independent reviewer's brief, names the review gate's triggers and round budget, and refuses a brief with a missing line or a path that does not exist. |
 | Deliver Work `delivery-state.mjs`, `commit-state.mjs`, `release-preflight.mjs`, `push-route.mjs` | Branch, upstream, uncommitted work, worktrees, tag, version and changelog in one read; your changes apart from pre-existing staged work; local checks of a release or a simple push, without performing either. |
 | Track Work `working-record.mjs view recover` | After context loss, in one call: the record's present state with an index of closed History, each defining artifact and recovery source and whether it resolves, and where live Git state disagrees with the record. |
@@ -162,7 +162,7 @@ Passive observation may support an inquiry when safe and relevant. Active eviden
 
 Verification is factual work by the agent: a check supports only what it observed, on the path it ran. A real passing result stops applying after relevant edits. A check you decline leaves its claim unverified.
 
-Self-review runs on every finished change, silently, before the hand-over. It covers the decision list and justifies every change to an existing test, fixture or setup. Clear local issues within the agreed outcome may be corrected and re-checked.
+Self-review, Verify Work's check of the agent's own result, runs on every finished change, silently, before the Return. It covers the decision list and justifies every change to an existing test, fixture or setup. Clear local issues within the agreed outcome may be corrected and re-checked.
 
 An independent review is a separately selected reviewer in a separate context. Review Work's gate decides when one runs, by the `review` setting: `auto` (the default) reviews when the change touches security, auth or secrets, data loss or migrations, CI or release files, a public interface, a path your Review Rules mark sensitive, or anything your agreement names; `off` proposes one with its reason and cost and runs it only on your yes; `always` reviews every time. Switching Cognitive Routing profiles is not independent review.
 

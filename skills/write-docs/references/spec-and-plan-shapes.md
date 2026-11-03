@@ -77,7 +77,7 @@ A technical design may contain implementation detail when that detail defines th
 
 #### Implementation Decisions
 
-Include this subsection when consequential engineering choices must survive implementation handoffs or context loss. For selecting those choices, use Execute Work's [design](../../execute-work/references/design.md); this shape preserves their result rather than duplicating the design method.
+Include this subsection when consequential engineering choices must survive implementation handoffs or context loss. For selecting those choices, use Discuss Work's [design](../../discuss-work/references/design.md); this shape preserves their result rather than duplicating the design method.
 
 Capture only what the intended implementation needs:
 
@@ -198,7 +198,7 @@ Use only the slice fields needed to execute and check it; mention files, modules
 
 ### Keep Acceptance And Return Visible
 
-Tie each material outcome and final check to the accepted behavior it serves. Keep the agreed return condition visible: return a proposed strategy, implement one Slice, finish the task, or stop at a specified boundary. Before a new prerequisite becomes a planned obligation, determine whether it serves an accepted requirement or only preserves a particular approach. Internal delegation handbacks and compaction cycles are not return points.
+Tie each material outcome and final check to the accepted behavior it serves. Keep the agreed return condition visible: return a proposed strategy, implement one Slice, finish the task, or stop at a specified boundary. Before a new prerequisite becomes a planned obligation, determine whether it serves an accepted requirement or only preserves a particular approach. Internal delegation handbacks and context cycles are not return points.
 
 ### Select Return Points Without A Schedule Of Ceremonies
 
