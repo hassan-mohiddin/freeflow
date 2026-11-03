@@ -26,6 +26,12 @@ export interface StoreState {
   delegation?: { id: string; task: string; record: string; progressAsOf: string | null } | null;
   /** How many live claims on paths this session holds. */
   claims?: number;
+  /** The current Slice's Waits on that are still open, each with what came back (SPEC-009 4.4). */
+  waits?: {
+    slice: string;
+    channel: string;
+    delegations: { id: string; returned: string | null; at: string | null }[];
+  } | null;
 }
 
 export interface Ran {

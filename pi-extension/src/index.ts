@@ -31,6 +31,7 @@ import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController, RECOVERY_TYPE, USER_REQUEST, type TurnEnd } from "./compaction/controller.js";
 import { strictest } from "./compaction/thresholds.js";
 import { StoreLayer, scriptRunner, sessionEnvironment, touchesStore } from "./store/layer.js";
+import { WAITS_KEY, WAIT_BATCH_MS, WaitWatch } from "./store/waits.js";
 import { EventRecorder, type ClaimInputs } from "./events/recorder.js";
 import { DEFAULT_INBOUND_POLICY } from "./messaging/config.js";
 import { MESSAGE_TYPE, Messaging } from "./messaging/messaging.js";
@@ -367,6 +368,17 @@ export default function freeflow(pi: FreeflowAPI) {
     isIdle: () => liveHost?.isIdle?.(),
     canWake: () => prompted,
   });
+  // The Waits on row (SPEC-009 4.4): a delegation the current Slice waits on came back.
+  const waits = new WaitWatch({
+    refresh: () => store.refresh(),
+    current: () => store.current(),
+    deliver: (text, wake) =>
+      inbound.deliver(
+        { customType: STORE_TYPE, content: freeflowNotice("store", text), details: { waits: true }, wake },
+        { key: WAITS_KEY, windowMs: WAIT_BATCH_MS },
+      ),
+    wakeOnReturn: () => capability?.delegation?.wakeOnReturn !== false,
+  });
   api.registerMessageRenderer?.(NOTICE_TYPE, renderNotice("Background"));
   api.registerMessageRenderer?.(MONITOR_TYPE, renderNotice("Monitor"));
   api.registerMessageRenderer?.(COMPACT_REQUEST_TYPE, renderNotice("Compaction"));
@@ -650,6 +662,7 @@ export default function freeflow(pi: FreeflowAPI) {
     stateSkills = [];
     compaction.reset();
     store.reset();
+    waits.reset();
     // What Track Work's script reads about this session, for the agent's commands and Freeflow's own (T6).
     sessionEnvironment({
       id: ctx.sessionManager?.getSessionId?.(),
@@ -674,6 +687,7 @@ export default function freeflow(pi: FreeflowAPI) {
     // The hold is released as ended and the store pushed, before the next session's layer starts; a reload keeps it.
     await store.shutdown({ reload: (event as any)?.reason === "reload" }).catch(() => {});
     store.reset();
+    waits.reset();
     // Leave the live registry and close the socket, after any start still queued; sessions waiting for this one learn
     // that it ended.
     messagingSync = messagingSync.then(() => messaging.stop()).catch(() => {});
@@ -732,6 +746,7 @@ export default function freeflow(pi: FreeflowAPI) {
       return { message: { customType: "freeflow-files", content: freeflowNotice("files", changed), display: true } };
   });
   pi.on("agent_start", () => {
+    waits.runStarted();
     events.runStarted();
     routing.runStarted();
     guidance.runStarted();
@@ -848,6 +863,8 @@ export default function freeflow(pi: FreeflowAPI) {
     const midRun = ((event.message as any)?.content ?? []).some((block: any) => block?.type === "toolCall");
     if (!midRun) {
       const compacting = await compaction.settle(event, ctx);
+      // After the store was read at the run's end: a delegation the Slice waits on that came back gives its row.
+      if (!compacting && capability?.enabled === true) await waits.runEnded().catch(() => {});
       if (compacting) {
         if (compacting.entries.some((entry: any) => entry?.type === "compaction")) events.compaction("freeflow");
         return compacting;
