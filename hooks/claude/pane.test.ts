@@ -527,6 +527,8 @@ test("no render writes state; a script that fails keeps the last values with an 
   }
   expect(w.stateSets).toBe(sets);
 
+  // A session with no event log yet is not a failure.
+  w.answers["events summary --json"] = { exitCode: 1, stderr: "Error: No event log for session sess-1 (/x)\n" };
   w.answers["project list --json"] = { exitCode: 1, stderr: "Error: the store is busy\n" };
   await $.turn.complete({ turnId: "t1", reason: "answer", answer: "", durationMs: 1, isAborted: false });
   await w.clock.advance(1);

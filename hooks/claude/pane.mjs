@@ -168,7 +168,11 @@ async function readOnce($) {
     // A task with no Slice proposed has nothing to plan: the script says so, which is not a failure.
     const planned = task ? await trackWork($, ["estimate", "--plan", "--record", task, "--json"]) : null;
     plan = planned ? (planned.exitCode === 0 ? JSON.parse(planned.stdout) : { none: firstError(planned) }) : null;
-    events = await read("events", ["events", "summary", "--json"]);
+    // A session whose log has no line yet has nothing to sum: the script says so, which is not a failure.
+    const summed = await trackWork($, ["events", "summary", "--json"]).catch(() => null);
+    if (summed?.exitCode === 0) events = JSON.parse(summed.stdout);
+    else if (summed && /No event log for session/.test(summed.stderr)) events = null;
+    else failed.push("events summary");
   }
   const usage = await $.session.usage().catch(() => null);
   const agents = await $.agent.list().catch(() => []);

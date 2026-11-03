@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/track-work/scripts/working-record.mjs`, `skills/track-work/scripts/lib/freeflow-store.mjs`, `skills/track-work/scripts/lib/store.mjs`, `skills/track-work/scripts/lib/record5.mjs`, `skills/track-work/scripts/lib/transitions5.mjs`, `skills/track-work/scripts/lib/views5.mjs`, `skills/track-work/scripts/lib/projects5.mjs`, `skills/track-work/scripts/lib/delegations5.mjs`, `skills/track-work/scripts/lib/migrate5.mjs`, `skills/track-work/scripts/lib/discussion5.mjs`, `skills/track-work/scripts/lib/pi-session.mjs`, `skills/track-work/scripts/lib/budget5.mjs`, `skills/track-work/scripts/lib/estimate5.mjs`, `skills/track-work/scripts/lib/measure5.mjs`, `skills/track-work/scripts/lib/planner5.mjs`
 > **Tests:** `.skill-eval/track-work/tests/`
-> **Verified at:** `410c20c9` (2026-11-03)
+> **Verified at:** `f6a6be32` (2026-11-03)
 > **User docs:** `plugin-docs/using-freeflow.md`
 
 For anyone changing how Track Work's script keeps task memory: the Freeflow store, the Schema 5 task folder, the commands that change it, the views recovery reads, delegation, and the measurement and planning built on them. The skill that teaches the agent when to use these is [Track Work](../skills/track-work.md); Pi's layer and Claude Code's mod, which call this script at the right moments, are in [Compaction](compaction.md#the-store-layer) and the [overview](../README.md).
@@ -129,7 +129,7 @@ The P and T numbers name choices in the design that built this, task-004's Spec 
 - `skills/track-work/scripts/lib/migrate5.mjs`: Schema 4 to Schema 5.
 - `skills/track-work/scripts/lib/budget5.mjs`: the recovery budget, the active decisions shown, the History and project indexes, the counted sizes.
 - `skills/track-work/scripts/lib/measure5.mjs`: transcript readings, the price table, measures and their one-line form.
-- `skills/track-work/scripts/lib/planner5.mjs`: pools, predictions and the correction, `estimate --plan`, `--project`, `--store`.
+- `skills/track-work/scripts/lib/planner5.mjs`: pools, predictions and the correction, `estimate --plan`, `--project`, `--store`, and `--spent` (one task's History by model and effort, with `--json` for Claude Code's pane; `project list --json` and `delegate status --json` feed the pane too).
 - `skills/track-work/scripts/lib/estimate5.mjs`: `estimate`'s context reading and its modes' wiring.
 
 Schema 4 has no modules of its own: `migrate5.mjs` alone reads a Schema 4 record, with `document.mjs`.
