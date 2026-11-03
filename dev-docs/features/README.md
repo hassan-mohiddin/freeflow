@@ -36,6 +36,7 @@ An H1 title and one paragraph on what the user sees, then four sections in this 
 ## Features
 
 - [Activation and status](activation-status.md): the `.freeflow/config.json` boundary, the footer, and `/freeflow status`.
+- [Capabilities](capabilities.md): `/freeflow capabilities` on Claude Code and Pi, `capabilities.mjs` on a host with no driver, and `checkpoint --compact` refused there.
 - [Settings screen](settings.md): `/freeflow settings` in its three scopes, and the files each one writes.
 - [Tool Execution](tool-execution.md): its status and switch, and the guidance notices on tool results. The notices need a model call; only status and the switch are driven.
 - [Workflow commands](workflow-commands.md): `/verify-work`, `/discuss-work` and the other skill commands. Each run is a model call; only completion is driven.

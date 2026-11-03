@@ -1,7 +1,7 @@
 // Freeflow's Claude Code layer: a hooks module Claude Code runs on its own events (the task-004 Spec's section 11).
 // It decides when Track Work's script runs and delivers what the script prints; what happens to a task's memory is
-// the script's. It acts only where the Freeflow store exists (session status says so): elsewhere every hook passes
-// its event on unchanged.
+// the script's. Its task memory work runs only where the Freeflow store exists (session status says so); its event
+// log and claims (SPEC-006) need none. Elsewhere every hook passes its event on unchanged.
 
 const SCRIPT = "skills/track-work/scripts/working-record.mjs";
 const SETTINGS_SCRIPT = "skills/setup-freeflow/scripts/settings.mjs";

@@ -117,9 +117,13 @@ A config written during setup is visible to the adapter on the next agent turn. 
 
 The packaged runtime hook reads the same two layers. At supported `SessionStart` boundaries (startup, resume, clear, and compact) it loads `core.md`, `interaction-contract.md` and `working-method.md`, each unless `prompts` (`core`, `interactionContract`, `workingMethod`; each a boolean, on by default, personal overriding shared per prompt) turns it off, and emits a compact active Runtime State, with the session's own values over both files. It does not process submitted prompts, inject skill bodies, or inspect Pi-only capabilities.
 
-On Claude Code, Freeflow's mod adds `/freeflow settings`: it lists the settings Claude Code acts on, and `/freeflow settings <key> <value> [--session | --personal | --repository]` (Personal by default; `inherit` removes one) changes one through the settings script, its line reaching you at once. With `enabled` off, the mod's task menu, notices, compaction and store sync stop too.
+On Claude Code, Freeflow's mod adds `/freeflow settings`: it lists the settings Claude Code acts on, and `/freeflow settings <key> <value> [--session | --personal | --repository]` (Personal by default; `inherit` removes one) changes one through the settings script, its line reaching you at once. With `enabled` off, the mod's task menu, notices, compaction, store sync and event log stop too, and its claims read no for every request. `/freeflow capabilities` lists what Freeflow can do in the session, on Claude Code and Pi.
 
 After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session or startup, as available. Name the exact control the current host supports; do not prescribe Pi's `/reload`.
+
+### What Freeflow Can Do Here
+
+Freeflow's driver for the host (Claude Code's mod, Pi's extension) writes, at session start, its claims for each request Freeflow knows: `yes` for what it does here today, `possible` for what the host offers and Freeflow does not use yet, `no` for what the host cannot do. Before relying on one, such as Freeflow compacting the session or keeping its event log, run [capabilities](scripts/capabilities.mjs): `node <setup-freeflow-directory>/scripts/capabilities.mjs check <request>` exits 0 only for `yes` and prints how or why not; `list` gives every request and the event log, `--json` the claims as data. Never assume a request that is not `yes`. A host with no driver (Codex, Cursor, Copilot, Gemini) has no claims: only the session-start guidance arrives there, and you run Freeflow's scripts yourself.
 
 ## Establish Same-Turn Context
 

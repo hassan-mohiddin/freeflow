@@ -50,6 +50,7 @@ Freeflow settings    Session  [Personal]  Repository
       Helper preset          not configured
       Executor preset        not configured
       Context projection     on (inherited)
+    Event log                on (inherited)
     Review                   auto (inherited)
       Reviewer model         not configured
 
@@ -78,11 +79,12 @@ Freeflow settings for /home/you/project (Claude Code)
   Freeflow         on        default
   Runtime prompts  on        default
   Skills           on        default
+  Event log        on        default
   Review           auto      default
   Reviewer model   none      default
 Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)
 Remove one: /freeflow settings <key> inherit [--session | --personal | --repository]
-Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, review.mode, review.model.
+Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.mode, review.model.
 Pi-only settings (tool execution, compaction, messaging, Cognitive Routing) are changed on Pi or in the files.
 ```
 

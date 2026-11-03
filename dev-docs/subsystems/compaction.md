@@ -55,7 +55,7 @@ Worked example, 200k window with Pi's default reserve: trigger 200,000 − 16,38
 
 ### The compaction
 
-The agent's `checkpoint --compact` writes the request into the store's `sessions/<session>/compact.json` (in the Freeflow home, so a session summary needs no store, P4). At the run's last turn, `settle()`:
+The agent's `checkpoint --compact` writes the request into the store's `sessions/<session>/compact.json` (in the Freeflow home, so a session summary needs no store, P4), when the session's driver claims `compact` in its `capabilities.json`; Pi's extension writes its claims at session start (`src/events/`), with `compact` yes while compaction is on, and where no driver claims it the script writes no request and says so (SPEC-006 P11). At the run's last turn, `settle()`:
 
 1. reads the store again (the run touched it), and finds a request not yet done;
 2. skips a turn that errored, was aborted or hit its length limit, and a checkpoint not done;
@@ -121,7 +121,7 @@ Pi's file lists from an earlier Freeflow compaction are added back into Pi's pre
 ## State
 
 - **Session entries:** the `compaction` entry above; a fallback keeps Pi's details and adds `freeflow: { version: 2, cycle, fallback: true }`.
-- **The Freeflow home:** `sessions/<session>/compact.json` and `summary.md`, written by Track Work's script, answered and removed here.
+- **The Freeflow home:** `sessions/<session>/compact.json` and `summary.md`, written by Track Work's script, answered and removed here; the request only where `capabilities.json` claims `compact`.
 - **Memory only:** `CompactionController.sent` (the cycle's highest row and its notice time), `startedAt`, `compacted`; `StoreLayer`'s state and whether this run touched the store. Cleared at session start and shutdown; a reload can show a row again.
 
 ## Invariants

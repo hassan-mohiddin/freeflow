@@ -157,7 +157,7 @@
       "case_concept": "Refuse activation with a removed context key in either config layer, tell the user which key/file to delete without rewriting config, and preserve the valid empty-config activation path.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/setup-freeflow/SKILL.md",
-      "source_sha256": "6471aedcb6dbcef512b8ba721babbf86c50e3652fdb9c909b620447dface19df",
+      "source_sha256": "2727dc09be3c5b6970f8e1c712c7f328a47e4cc84a454c16dd07b967700dcff8",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

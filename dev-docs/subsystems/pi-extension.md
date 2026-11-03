@@ -15,6 +15,7 @@ When its host gate is effective, the native entrypoint is designed to provide:
 - with Compaction, its notices and Freeflow's compaction with the task's bundle, after the agent's `checkpoint --compact`;
 - with the Freeflow store, the menu at session start, the sync, the held task in the footer and the store line in `/freeflow status` (`src/store/`);
 - with Messaging, `list_sessions` and `send_message` (deferred, loaded through Pi's `tool_search`) and the messaging capability skill.
+- the event log and the session's claims (`src/events/`): each loop event as a schema v1 line, never contents, written by Track Work's `events append` once the session stays idle after a run, before a checkpoint or release command and at shutdown, never on the request path; the claims for request set 1 in `<FREEFLOW_HOME>/sessions/<session>/capabilities.json`, rewritten when the capabilities change; and `/freeflow capabilities`.
 
 ## Cache reuse boundaries
 
@@ -43,6 +44,8 @@ The peer range is `>=0.99.1`; development and the native test suites run on Pi 1
 `host/run-start-native.test.js` pins what Pi 1.4.0 does on a run a message starts, with and without Freeflow. Follow-ups not yet done: on API-key GPT-6 routes Pi 1.3.0 keeps the cache across a thinking change itself (`configuration_update`), which may make Freeflow's effort adapter redundant there; retiring it needs a live probe. And Pi 1.2.0 and later build the system prompt for a run a message starts, so the gate that holds notices until a session's first prompt (`canWake()`) could be lifted once the peer range starts at 1.2.0.
 
 ## Persistence and recovery limits
+
+Outside Pi's session file, the extension's files live in the Freeflow home: `events/<session>.jsonl` (the event log, this machine only), `sessions/<session>/capabilities.json` (the claims), and the store's own files (`src/store/`). Event lines still waiting when the process dies are lost; the log is a sensor and fails open.
 
 Routing events are appended through Pi's native session-entry path and read back from the live branch. When existing or uncertain state needs reconciliation, the runtime uses a strict read-only persisted session snapshot with identity, ancestry, encoding, size, and divergence checks. It does not patch host files, claim `fsync`, or promise exactly-once behavior. Failed readback or uncertain effects block routing rather than permitting blind repetition.
 

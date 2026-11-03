@@ -16,7 +16,7 @@ The Freeflow store is one Git repository at `FREEFLOW_HOME` (default `~/.freeflo
 ```text
 <FREEFLOW_HOME>/
   store.json             marks the store
-  .gitignore             scratch/, evidence/**/raw/, local/, sessions/
+  .gitignore             scratch/, evidence/**/raw/, local/, sessions/, /events/
   .gitattributes         history.md and sessions.md merge by keeping both sides' lines
   rules/                 the user's standing rules, read for every task
   projects/<project>/
@@ -24,12 +24,13 @@ The Freeflow store is one Git repository at `FREEFLOW_HOME` (default `~/.freeflo
     tasks/task-NNN-<short-name>/
   tasks/task-NNN-<short-name>/   a task in no project
   local/                 this machine only: where each repository is, sync state, conflicts
-  sessions/              this machine's live sessions: worker maps, session summaries
+  sessions/              this machine's live sessions: worker maps, session summaries, a driver's claims
+  events/                this machine's event log, one <session ID>.jsonl per session
 ```
 
 `rules/` holds the user's always-on context, like `CLAUDE.md` with room to organize: every file in the store's `rules/`, and the project's once the session holds one of its tasks, is read at every recovery and never counted against the budget. Create or edit a rule only when the user asks; the checks show their size, and you never trim them.
 
-**Local or cloud.** The same store either way. A local store, the default, lives on this device only: `store init` makes it, and nothing leaves the machine. A cloud store is the same store with the user's private repository as its remote, kept in step on every device: `store init --remote <url>` clones it into `FREEFLOW_HOME`, laying out an empty repository as a store or joining one that already is, and `store remote --url <url>` moves a local store's whole history into an empty repository. A cloud session needs a cloud store, since its container is thrown away: the store's repository is one of the session's repositories, `FREEFLOW_HOME` points at its clone, and pushing needs the host's access to that repository; Setup Freeflow's [store setup](../../setup-freeflow/references/store-setup.md) says what the user sets, and `session status` lists what is missing. `store init` refuses a folder that holds Pi's former Task Memory (`registry.json`) or anything else but Freeflow's own `sessions/`, which it keeps: ask the user where the store should go. Commits are authored as the user, with no trailers.
+**Local or cloud.** The same store either way. A local store, the default, lives on this device only: `store init` makes it, and nothing leaves the machine. A cloud store is the same store with the user's private repository as its remote, kept in step on every device: `store init --remote <url>` clones it into `FREEFLOW_HOME`, laying out an empty repository as a store or joining one that already is, and `store remote --url <url>` moves a local store's whole history into an empty repository. A cloud session needs a cloud store, since its container is thrown away: the store's repository is one of the session's repositories, `FREEFLOW_HOME` points at its clone, and pushing needs the host's access to that repository; Setup Freeflow's [store setup](../../setup-freeflow/references/store-setup.md) says what the user sets, and `session status` lists what is missing. `store init` refuses a folder that holds Pi's former Task Memory (`registry.json`) or anything else but Freeflow's own `sessions/` and `events/`, which it keeps: ask the user where the store should go. Commits are authored as the user, with no trailers.
 
 ## Sync
 
@@ -102,6 +103,7 @@ task-NNN-<short-name>/
     discussion.md    the user's messages that shaped the work     discussion save and drop
   delegations/       one folder per delegation                    whoever hands the work out, and each worker
   evidence/<slug>/   README.md kept; raw/ ignored                 whoever ran it
+  events/            <session ID>.json, each session's event summary   checkpoint and task release
   specs/  plans/     when the task has them                       Write Docs
   scratch/           temporary, ignored                           anyone
 ```
@@ -415,8 +417,9 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Record a Slice that finished before it could be recorded | `slice record --state <state>`: History only; Current Work and Future Work unchanged |
 | Give a closed Slice its Files, when it closed without one | `slice size --id <S-NNN> (--files <n> \| --range <from>..<to> [--repo <path>])`: appended to its History entry, dated |
 | Hand work to an agent, and close it | `delegate open`, `amend`, `status`, `check-return`, `close`; with no task, `delegate open --scratch <folder>` and `check-return --scratch <folder>`, which record nothing |
-| Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task; either with `--compact` to have Freeflow's harness layer compact when the turn ends, which it does only on that request |
+| Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task; either with `--compact` to have Freeflow's harness layer compact when the turn ends, which it does only on that request, and only where the session's driver claims it can (Setup Freeflow's `capabilities.mjs check compact`); elsewhere the command says so and the harness compacts on its own |
 | Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
+| The session's event log, and its summary since it took the task | `events summary [--session <ID>]`, `events show [--kind <kind>]`: change nothing; `events append` is the harness layer's |
 | The budget | `budget [--record <ID>]`; `task set-budget --mode <normal\|expanded>` on the user's word |
 | The context used, and whether the rest fits in this context cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
 | The Slices left, predicted from measured ones (by their Size where they have one), across context cycles, with the range and what it rests on first; a project's or the store's measured use | `estimate --plan [--record <ID>] [--input -] [--fan-out <n>] [--json]`, an input line `- <title> · size: <n> · after: <titles>`; `estimate --project <name>`, `estimate --store`: change nothing |
