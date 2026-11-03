@@ -1,14 +1,15 @@
 // The recovery budget (the Spec's section 6; P32, P62, P66). One budget covers the memory the agent shapes: the record,
-// the active decisions shown, the History and project indexes, Read on recovery's sources and In flight's Carry files.
+// the active decisions shown, the History and project indexes, and the files Recovery's "always" lines name.
 // It scales with the square root of the context window, expanded mode half as large again; Current Context and Future
 // Work stay fixed inside it, and the decisions shown and the History index scale with it. The rules, the skills and
-// Defined by are read whole and never counted. The budget only warns: recovery still reads everything it lists.
+// files Recovery's "always, not counted" lines name are read and never counted. The budget only warns: recovery still
+// reads everything it lists.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { contextFor, gitRoot, resolvePointer, sourceEntries } from "./recover.mjs";
+import { contextFor, gitRoot, recoveryEntries, resolvePointer } from "./recover.mjs";
 import { FIXED_BUDGETS, budgets5, parseRecord5 } from "./record5.mjs";
 import { REPOSITORIES_FILE, freeflowStoreOf, isFreeflowStore, projectOf } from "./store.mjs";
 
@@ -63,8 +64,8 @@ export function budgetLines(budget, window) {
     `Recovery budget: about ${number(budget.total)} words (${budget.mode} mode, a ${number(budget.window)}-token window, ${from}).`,
     `Fixed: Current Context about ${FIXED_BUDGETS["Current Context"]} words; Future Work about ${FIXED_BUDGETS["Future Work"]}.`,
     `Scaled: the active decisions shown, about ${number(budget.decisions)} words; the History index, the newest ${budget.index} entries.`,
-    "Current Work (In flight included), Read on recovery's sources and In flight's Carry files share the rest.",
-    "Not counted, read whole: the rules, the skills, and Defined by's entries.",
+    "Current Work (In flight included) and the files Recovery's always lines name share the rest; a when line's file counts once its trigger applies and it is read.",
+    "Not counted: the rules, the skills, and the files Recovery's always, not counted lines name.",
   ];
 }
 
@@ -152,8 +153,9 @@ function fileText(path) {
 }
 
 /**
- * The files a list of source entries points to, each once, in order, with its text and words; `skip` holds paths
- * already taken by an earlier list. A directory or a pointer that does not resolve has no text.
+ * The files a list of Recovery entries points to, each once, in order, with its text and words, cut to the lines the
+ * entry gives it (T2); `skip` holds what an earlier list took: a whole file, or one range of it. A directory or a
+ * pointer that does not resolve has no text.
  */
 export function sourceFiles(entries, context, skip = new Set()) {
   const files = [];
@@ -161,27 +163,22 @@ export function sourceFiles(entries, context, skip = new Set()) {
     for (const pointer of entry.pointers) {
       if (pointer.kind !== "path" || pointer.state !== "resolves") continue;
       const { path } = resolvePointer(pointer.value, context);
-      if (skip.has(real(path))) continue;
-      skip.add(real(path));
-      const text = fileText(path);
-      files.push({ pointer: pointer.value, path, text, words: text === null ? 0 : words(text) });
+      const range = entry.ranges?.get(pointer.value) ?? null;
+      const whole = real(path);
+      const key = range ? `${whole}:${range.from}-${range.to}` : whole;
+      if (skip.has(whole) || skip.has(key)) continue;
+      skip.add(key);
+      const full = fileText(path);
+      if (full === null || !range) {
+        files.push({ pointer: pointer.value, path, text: full, words: full === null ? 0 : words(full), ranged: false });
+        continue;
+      }
+      const lines = full.replace(/\n$/, "").split("\n");
+      const to = Math.min(range.to, lines.length);
+      const text = lines.slice(range.from - 1, to).join("\n");
+      files.push({ pointer: pointer.value, path, text, words: words(text), ranged: true, from: range.from, to });
     }
   return files;
-}
-
-/** In flight's Carry files, read now, each cut to its lines when the line names them. */
-export function carriedFiles(carry, context) {
-  return carry.map((item) => {
-    const { path } = resolvePointer(item.path, context);
-    const whole = fileText(path);
-    if (whole === null)
-      return { ...item, resolved: path, text: null, words: 0, problem: `${item.path} does not exist` };
-    const lines = whole.replace(/\n$/, "").split("\n");
-    const from = item.from ?? 1;
-    const to = Math.min(item.to ?? lines.length, lines.length);
-    const text = lines.slice(from - 1, to).join("\n");
-    return { ...item, ranged: item.from !== null, resolved: path, from, to, text, words: words(text) };
-  });
 }
 
 /**
@@ -223,45 +220,44 @@ export function measureTask(task, { root, path, window = contextWindow() }) {
   const project = projectOf(path);
   const context = contextFor(pointerRoot(root), path, spaceRepositories(task.record.work.space, home));
   const { work } = task.record;
-  const recordLines = (items) => items.map((item) => task.record.lines[item.index]);
   const budget = budgetFor({ window: window.tokens, mode: task.record.header.budget });
   const ruleFiles = rules(home, project);
   const decisions = activeDecisions(task.decisionsText, budget.decisions);
   const index = historyIndex(task, budget.index);
   const others = projectIndex(project, path);
-  const definedBy = sourceEntries(recordLines(work.definedBy), context);
-  const readNow = sourceEntries(recordLines(work.readNow), context);
-  const readWhen = sourceEntries(recordLines(work.readWhen), context);
-  // A file Defined by names is a definition, read whole and not counted, even when Read on recovery names it too.
+  const recovery = recoveryEntries(work.recovery, context);
+  const always = recovery.filter((entry) => entry.kind === "always");
+  const uncounted = recovery.filter((entry) => entry.kind === "uncounted");
+  const when = recovery.filter((entry) => entry.kind === "when");
+  // A file an "always, not counted" line names is a definition, read and not counted, even when an "always" line names
+  // it too.
   const taken = new Set();
-  const definedFiles = sourceFiles(definedBy, context, taken);
+  const uncountedFiles = sourceFiles(uncounted, context, taken);
   // A core skill is read whole and never counted, wherever the record names it.
   for (const skill of CORE_SKILLS) taken.add(real(skill));
-  const readNowFiles = sourceFiles(readNow, context, taken);
-  const carry = carriedFiles(work.carry, context);
+  const alwaysFiles = sourceFiles(always, context, taken);
   const sum = (items) => items.reduce((total, item) => total + item.words, 0);
   const counted = [
     ...budgets5(task.record).map((each) => ({ name: each.name, words: each.words, budget: each.budget })),
     { name: "active decisions shown", words: decisions.shown.reduce((total, line) => total + words(line), 0) },
     { name: "History index", words: words(index.lines.join("\n")) },
     { name: "project index", words: words((others ?? []).join("\n")) },
-    { name: "Read on recovery's sources", words: sum(readNowFiles) },
-    { name: "Carry files", words: sum(carry) },
+    { name: "Recovery's always files", words: sum(alwaysFiles) },
   ];
-  const uncounted = [
+  const notCounted = [
     { name: "rules", words: ruleFiles.reduce((total, file) => total + words(file.text), 0) },
-    { name: "Defined by", words: sum(definedFiles) },
+    { name: "Recovery's uncounted files", words: sum(uncountedFiles) },
   ];
   const total = sum(counted);
   return {
     budget,
     window,
     counted,
-    uncounted,
+    uncounted: notCounted,
     total,
     over: total > budget.total,
-    material: { home, project, context, ruleFiles, decisions, index, others, definedBy, readNow, readWhen },
-    files: { definedBy: definedFiles, readNow: readNowFiles, carry },
+    material: { home, project, context, ruleFiles, decisions, index, others, recovery, always, uncounted, when },
+    files: { always: alwaysFiles, uncounted: uncountedFiles },
   };
 }
 

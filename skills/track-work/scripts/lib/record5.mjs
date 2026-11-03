@@ -12,15 +12,7 @@ export const DECISIONS_FILE = "decisions.md";
 
 export const TASK_STATES5 = new Set(["active", "paused", "completed", "abandoned"]);
 export const CONTEXT5_HEADINGS = ["Goal", "Settled", "Open"];
-export const WORK5_HEADINGS = [
-  "Delegations",
-  "Space",
-  "In flight",
-  "Defined by",
-  "Read on recovery",
-  "Read when",
-  "Next action",
-];
+export const WORK5_HEADINGS = ["Delegations", "Space", "In flight", "Recovery", "Next action"];
 export const TOP5_SECTIONS = ["Current Context", "Current Work", "Future Work"];
 
 /**
@@ -32,18 +24,38 @@ export const CUE_WORDS = 25;
 export const BUDGET_MODES = new Set(["normal", "expanded"]);
 
 /** In flight's lines (P59): where the step in progress stands, and what the next step rests on, labelled as on Pi. */
-export const IN_FLIGHT_LABELS = ["Now", "Observed", "Hypothesis", "Dropped", "Pending", "Carry"];
+export const IN_FLIGHT_LABELS = ["Now", "Observed", "Hypothesis", "Dropped", "Pending"];
 const IN_FLIGHT_LINE = new RegExp(`^- (${IN_FLIGHT_LABELS.join("|")}):\\s+\\S`);
-/** A Carry line: `- Carry: <path> (lines 40–118) — why`, the lines optional. */
-const CARRY_LINE = /^- Carry:\s+(\S+)(?:\s+\(lines?\s+(\d+)(?:\s*[–-]\s*(\d+))?\))?\s+—\s+\S/;
-export const CARRY_FORMAT = `"- Carry: <path> (lines <a>–<b>) — <why>", the lines optional`;
 
-/** The file and lines a Carry line names; null for a line that is not one. */
-export function carryItem(line) {
-  const file = CARRY_LINE.exec(line);
-  if (!file) return null;
-  const [, path, from, to] = file;
-  return { path, from: from ? Number(from) : null, to: to ? Number(to) : from ? Number(from) : null };
+/**
+ * A Recovery line (P28): what recovery reads, and its class. "always" is read on every recovery and counted against
+ * the budget; "always, not counted" is read on every recovery and never counted (accepted Specs, Plans, briefs and the
+ * skills the work follows); "when <trigger>" is read once its trigger applies, and counted when read. A file pointer
+ * may take "(lines <a>–<b>)", which cuts what is read to those lines (T2).
+ */
+const RECOVERY_LINE = /^- (always, not counted|always|when (\S.*?)):\s+(\S.*)$/;
+export const RECOVERY_FORMAT = `"- always: <pointer> — <why>", "- always, not counted: <pointer> — <why>" or "- when <trigger>: <pointer> — <why>", a file pointer optionally followed by "(lines <a>–<b>)"`;
+
+/** The line ranges a Recovery line gives its file pointers: each path written just before "(lines a–b)" (T2). */
+export function lineRanges(text) {
+  const ranges = new Map();
+  for (const match of text.matchAll(/`?([^\s`(]+)`?\s+\(lines?\s+(\d+)(?:\s*[–-]\s*(\d+))?\)/g)) {
+    const from = Number(match[2]);
+    ranges.set(match[1], { from, to: match[3] ? Number(match[3]) : from });
+  }
+  return ranges;
+}
+
+/**
+ * A Recovery line's class ("always", "uncounted" or "when"), its trigger, what follows the class, and the line ranges
+ * it gives; null for a line that is not one.
+ */
+export function recoveryItem(line) {
+  const match = RECOVERY_LINE.exec(line);
+  if (!match) return null;
+  const [, label, trigger, rest] = match;
+  const kind = trigger !== undefined ? "when" : label === "always" ? "always" : "uncounted";
+  return { kind, trigger: trigger ?? null, rest, ranges: lineRanges(rest) };
 }
 
 export const SLICE5_ORDER = [
@@ -384,25 +396,18 @@ function parseCurrentWork5(lines, section) {
     if (parts.length !== 4 || !["pushed", "not pushed"].includes(parts[3].trim()))
       fail("invalid-space", `A Space line is "- <remote> · <branch> · <commit> · pushed | not pushed": ${line}`);
   });
-  const when = work.headings.get("Read when");
-  work.readWhen = bulletsOnly(lines, when.start, when.end, "Read when", (line) => {
-    if (!/\bread when\b/i.test(line))
-      fail("invalid-source", `A Read when line names its trigger, "read when …": ${line}`);
-  });
   const flight = work.headings.get("In flight");
   work.inFlight = bulletsOnly(lines, flight.start, flight.end, "In flight", (line) => {
     if (!IN_FLIGHT_LINE.test(line))
-      fail("invalid-in-flight", `An In flight line starts with ${IN_FLIGHT_LABELS.join(", ")} and a colon: ${line}`);
-    if (line.startsWith("- Carry:") && !CARRY_LINE.test(line))
-      fail("invalid-carry", `A Carry line is ${CARRY_FORMAT}: ${line}`);
+      fail(
+        "invalid-in-flight",
+        `An In flight line starts with ${IN_FLIGHT_LABELS.join(", ")} and a colon (what the next cycle reads goes under Recovery): ${line}`,
+      );
   });
-  work.carry = work.inFlight
-    .filter((item) => item.text.startsWith("Carry:"))
-    .map((item) => ({ index: item.index, ...carryItem(`- ${item.text}`) }));
-  const defined = work.headings.get("Defined by");
-  work.definedBy = bulletsOnly(lines, defined.start, defined.end, "Defined by");
-  const now = work.headings.get("Read on recovery");
-  work.readNow = bulletsOnly(lines, now.start, now.end, "Read on recovery");
+  const recovery = work.headings.get("Recovery");
+  work.recovery = bulletsOnly(lines, recovery.start, recovery.end, "Recovery", (line) => {
+    if (!recoveryItem(line)) fail("invalid-recovery", `A Recovery line is ${RECOVERY_FORMAT}: ${line}`);
+  }).map((item) => ({ ...item, ...recoveryItem(`- ${item.text}`) }));
   const next = work.headings.get("Next action");
   if (!lines.slice(next.start, next.end).some((line) => line.replace(/^\s*-\s*/, "").trim()))
     fail("missing-field", "Next action must say what to do next");
@@ -614,12 +619,8 @@ export function skeleton5({ name, cue, stateAsOf, sections = {} }) {
     ...part("Space"),
     "### In flight",
     ...part("In flight"),
-    "### Defined by",
-    ...part("Defined by"),
-    "### Read on recovery",
-    ...part("Read on recovery"),
-    "### Read when",
-    ...part("Read when"),
+    "### Recovery",
+    ...part("Recovery"),
     "### Next action",
     ...part("Next action"),
     "## Future Work",

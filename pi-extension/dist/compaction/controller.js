@@ -92,7 +92,7 @@ export class CompactionController {
     const task = this.host.store.current()?.task;
     const checkpoint = task
       ? `At that point, checkpoint ${task.id}: rewrite its Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${task.id} --compact --input - with In flight's lines.`
-      : `If this session holds a task, checkpoint it as Track Work says, with --compact; if it holds none, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Read when, Next action).`;
+      : `If this session holds a task, checkpoint it as Track Work says, with --compact; if it holds none, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
     return `${head} Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and the run continues. This is the only notice this compaction cycle; if Pi compacts before the checkpoint, the record as of its last checkpoint follows Pi's summary.`;
   }
   /**

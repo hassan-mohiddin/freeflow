@@ -1,7 +1,8 @@
 // migrate: a Schema 4 record to Schema 5 (the Spec's section 14). Current Context maps to Goal, Settled and Open; the
 // Work agreement and Boundaries become the open agreement; What defines this task, and Recovery sources that point to a
-// skill, become Defined by, read whole and not counted; the other Recovery sources become Read on recovery and Read
-// when; closed Slices become history.md entries, with the cues given or marked missing; active
+// skill, become Recovery lines read always and not counted; the other Recovery sources become always lines, or when
+// lines where they say when to read them; closed Slices become history.md entries, with the cues given or marked
+// missing; active
 // Decisions become Settled lines; the decision list goes to decisions.md when an agreement is open. Nothing is lost:
 // the Schema 4 record is kept whole as sources/schema4-record.md, and Notes move to sources/notes.md.
 
@@ -124,23 +125,32 @@ export function convert(text, { cue, cues = {}, taskPrefix = null, today = local
   const sources = document.current.recoverySources
     ? items(document.lines.slice(document.current.recoverySources.start, document.current.recoverySources.end))
     : [];
-  const readWhen = sources
-    .filter((line) => /\bread (?:only )?(?:when|if)\b/i.test(line))
-    .map((line) => `- ${rewrite(line)}`);
-  // A source that points to a skill is method, not memory: Defined by, with the task's defining artifacts (P61).
-  const always = sources.filter((line) => !/\bread (?:only )?(?:when|if)\b/i.test(line));
+  // Each source becomes a Recovery line (P28): one read only in some situations a when line, its trigger taken from its
+  // "read when …"; a definition, or a source that points to a skill (method, not memory), always and not counted; the
+  // rest always.
+  const conditional = /\bread (?:only )?(?:when|if) ([^.;]+)/i;
+  const whenLine = (line) => {
+    const trigger = conditional.exec(line)[1].trim();
+    const rest = line
+      .replace(conditional, "")
+      .replace(/[\s;,.]+$/, "")
+      .trim();
+    return `- when ${trigger}: ${rest}`;
+  };
+  const readWhen = sources.filter((line) => conditional.test(line)).map((line) => whenLine(rewrite(line)));
+  const always = sources.filter((line) => !conditional.test(line));
   const skill = (line) => /(?:^|[\s`(])\S*skills\/[^/\s]+\/(?:SKILL\.md|references\/\S+)/.test(line);
-  const definedBy = [
-    ...items(contextLines(document, "What defines this task")).map((line) => `- ${rewrite(line)}`),
-    ...always.filter(skill).map((line) => `- ${rewrite(line)}`),
+  const uncounted = [
+    ...items(contextLines(document, "What defines this task")).map((line) => `- always, not counted: ${rewrite(line)}`),
+    ...always.filter(skill).map((line) => `- always, not counted: ${rewrite(line)}`),
   ];
-  const readNow = always.filter((line) => !skill(line)).map((line) => `- ${rewrite(line)}`);
+  const readNow = always.filter((line) => !skill(line)).map((line) => `- always: ${rewrite(line)}`);
   const notes = trim(document.lines.slice(document.sections.Notes.start));
   readWhen.push(
-    `- ${ARCHIVE} — the Schema 4 record as it was before migrate, with every Decision, Checkpoint and closed Slice in full; read when an earlier decision, checkpoint or Slice is in question`,
+    `- when an earlier decision, checkpoint or Slice is in question: ${ARCHIVE} — the Schema 4 record as it was before migrate, with every Decision, Checkpoint and closed Slice in full`,
   );
   if (notes.length)
-    readWhen.push("- sources/notes.md — the record's Notes, moved at migrate; read when they bear on the work");
+    readWhen.push("- when the record's Notes bear on the work: sources/notes.md — the Notes, moved at migrate");
   const nextAction = items(document.lines.slice(document.current.nextAction.start, document.current.nextAction.end));
   let record = skeleton5({
     name,
@@ -150,9 +160,7 @@ export function convert(text, { cue, cues = {}, taskPrefix = null, today = local
       Goal: bullets(contextLines(document, "Goal")),
       Settled: settled,
       Open: open,
-      "Defined by": definedBy,
-      "Read on recovery": readNow,
-      "Read when": readWhen,
+      Recovery: [...uncounted, ...readNow, ...readWhen],
       "Next action": nextAction.length
         ? [`- ${nextAction.join(" ")}`]
         : ["- Recover, then agree the next step with the user."],

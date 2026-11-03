@@ -53,19 +53,13 @@ State as of: 2026-10-29T09:00:00.000Z
 ### In flight
 
 - Now: the parser reads record.md; history.md is next.
-- Carry: history.md — the entries the parser reads next
 
-### Defined by
+### Recovery
 
-- decisions.md — the open agreement's decision list.
-
-### Read on recovery
-
-- record.md — this file.
-
-### Read when
-
-- history.md — closed work; read when the next action depends on it.
+- always, not counted: decisions.md — the open agreement's decision list.
+- always: record.md — this file.
+- always: history.md (lines 1–3) — the entries the parser reads next
+- when the next action depends on closed work: history.md — closed work.
 
 ### Next action
 

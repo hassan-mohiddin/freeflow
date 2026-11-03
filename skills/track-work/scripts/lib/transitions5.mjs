@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
-import { budgetFor, contextWindow, measureTask, measuredLines, spaceRepositories } from "./budget5.mjs";
+import { budgetFor, contextWindow, measureTask, measuredLines, sourceFiles, spaceRepositories } from "./budget5.mjs";
 import { storeHome, syncStore } from "./freeflow-store.mjs";
 import {
   CLOSED_STATES,
@@ -22,8 +22,8 @@ import {
   SLICE5_ORDER,
   cueProblem,
   emptyHistory,
-  CARRY_FORMAT,
-  carryItem,
+  RECOVERY_FORMAT,
+  recoveryItem,
   fieldLines5,
   fieldText,
   filesIn,
@@ -615,7 +615,7 @@ export async function rememberRepository(home, state) {
 
 /**
  * In flight's new lines from the checkpoint's input: bullets, each with its label (P59); "none" leaves it empty, and a
- * labelled line that says only "none" ("- Carry: none") is no line (T20).
+ * labelled line that says only "none" ("- Pending: none") is no line (T20).
  */
 function inFlightLines(text) {
   const lines = String(text ?? "")
@@ -634,12 +634,77 @@ function inFlightLines(text) {
   return lines;
 }
 
+/**
+ * The checkpoint's input (P5, T1): In flight's lines, then, after a line "Recovery:", the Recovery list that replaces
+ * the record's whole; "Recovery: none" empties it, and input with no such line keeps it. With only a Recovery block,
+ * In flight is kept.
+ */
+function checkpointInput(text) {
+  const lines = String(text ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n");
+  const at = lines.findIndex((line) => /^Recovery:/.test(line.trim()));
+  const before = at === -1 ? lines : lines.slice(0, at);
+  const flight = at !== -1 && !before.some((line) => line.trim()) ? null : inFlightLines(before.join("\n"));
+  if (at === -1) return { flight, recovery: null };
+  const head = lines[at].trim().slice("Recovery:".length).trim();
+  const listed = lines.slice(at + 1).filter((line) => line.trim());
+  if (/^(none|\(none\))\.?$/i.test(head)) {
+    if (listed.length) fail("invalid-input", `"Recovery: none" empties the list, so no line follows it: ${listed[0]}`);
+    return { flight, recovery: [] };
+  }
+  if (head || !listed.length)
+    fail(
+      "invalid-input",
+      `After "Recovery:" come its lines, one per line below it, or "Recovery: none" to empty the list: ${lines[at].trim()}`,
+    );
+  for (const line of listed)
+    if (!recoveryItem(line.trimEnd())) fail("invalid-recovery", `A Recovery line is ${RECOVERY_FORMAT}: ${line}`);
+  return { flight, recovery: listed.map((line) => line.trimEnd()) };
+}
+
+/**
+ * What the checkpoint prints of the Recovery list (P5): each line with the size of what it names and, for an always
+ * line, its share of the budget; and each always, not counted line the new list dropped, so a definition is not lost
+ * without notice.
+ */
+function recoveryReport(measure, before, replaced) {
+  const { recovery, context } = measure.material;
+  const label = (entry) =>
+    entry.kind === "when" ? `when ${entry.trigger}` : entry.kind === "always" ? "always" : "always, not counted";
+  const counted = (size) => `${size.toLocaleString("en-US")} word${size === 1 ? "" : "s"}`;
+  const lines = recovery.map((entry) => {
+    const size = sourceFiles([entry], context).reduce((sum, file) => sum + file.words, 0);
+    const what = entry.text.slice(label(entry).length + 1).trim();
+    const share =
+      entry.kind === "always"
+        ? `${counted(size)}, ${Math.round((size / measure.budget.total) * 100)}% of the budget`
+        : entry.kind === "when"
+          ? `${counted(size)} once read`
+          : `${counted(size)}, not counted`;
+    return `- ${label(entry)}: ${what.length > 80 ? `${what.slice(0, 80)}…` : what} — ${share}`;
+  });
+  const kept = new Set(recovery.map((entry) => entry.text));
+  const dropped = replaced
+    ? before.filter((item) => item.kind === "uncounted" && !kept.has(item.text)).map((item) => item.text)
+    : [];
+  return [
+    `Recovery: ${replaced ? "replaced" : "kept"}, ${recovery.length} line(s)${recovery.length ? ":" : "."}`,
+    ...lines,
+    ...dropped.map(
+      (text) =>
+        `Dropped: "${text}", an always, not counted line (an accepted definition or a method the work follows): put it back with the next checkpoint if the work still rests on it.`,
+    ),
+  ];
+}
+
 async function checkpoint(options, text, loaded) {
   const task = await load(loaded);
   assertNotInterrupted(task);
   const { record } = task;
-  const rewrite = options["--input"] !== undefined;
-  const flight = rewrite ? inFlightLines(text) : null;
+  const given = options["--input"] !== undefined ? checkpointInput(text) : { flight: null, recovery: null };
+  const flight = given.flight;
+  const rewrite = flight !== null;
   const directory = resolve(options["--repo"] ?? process.cwd());
   const space = repositoryState(directory);
   if (options["--repo"] && !space)
@@ -657,6 +722,14 @@ async function checkpoint(options, text, loaded) {
   if (rewrite) {
     const section = record.work.headings.get("In flight");
     replacements.push({ start: section.start, end: section.end, lines: flight.length ? ["", ...flight, ""] : [""] });
+  }
+  if (given.recovery !== null) {
+    const section = record.work.headings.get("Recovery");
+    replacements.push({
+      start: section.start,
+      end: section.end,
+      lines: given.recovery.length ? ["", ...given.recovery, ""] : [""],
+    });
   }
   if (space) {
     const known = record.work.space.find((item) => item.text.split(" · ")[0] === space.name);
@@ -693,9 +766,12 @@ async function checkpoint(options, text, loaded) {
     rewrite
       ? `In flight: rewritten, ${flight.length} line(s).`
       : "In flight: unchanged; pass --input with its lines to rewrite it whole.",
+    ...recoveryReport(measure, record.work.recovery, given.recovery !== null),
     space ? `Space: ${space.line.slice(2)}` : "Space: unchanged (no work repository at this folder; pass --repo)",
     ...(measured.warning ? [`Warning: ${measured.warning}`] : []),
-    ...measure.files.carry.filter((file) => file.problem).map((file) => `Warning: Carry: ${file.problem}`),
+    ...measure.material.recovery.flatMap((entry) =>
+      entry.pointers.filter((pointer) => pointer.problem).map((pointer) => `Warning: Recovery: ${pointer.problem}`),
+    ),
     ...warnings5(after).map((warning) => `Warning: ${warning}`),
     ...closedBlocks(loaded.path, task.history).map(
       (block) =>
@@ -775,7 +851,7 @@ export const SESSION_SUMMARY_HEADINGS = [
   "Open",
   "Agreement",
   "In flight",
-  "Read when",
+  "Recovery",
   "Next action",
 ];
 
@@ -830,9 +906,13 @@ export async function checkpointSession({ home: explicit, identity, text }) {
   const labelled = new RegExp(`^- (${IN_FLIGHT_LABELS.join("|")}):\\s+\\S`);
   for (const line of body("In flight"))
     if (!/^\(none\)$/i.test(line.trim()) && !labelled.test(line))
-      fail("invalid-input", `An In flight line starts with ${IN_FLIGHT_LABELS.join(", ")} and a colon: ${line}`);
-    else if (line.startsWith("- Carry:") && !/^- Carry:\s*(none|\(none\))\.?$/i.test(line) && !carryItem(line))
-      fail("invalid-carry", `A Carry line is ${CARRY_FORMAT}: ${line}`);
+      fail(
+        "invalid-input",
+        `An In flight line starts with ${IN_FLIGHT_LABELS.join(", ")} and a colon (what the next cycle reads goes under ## Recovery): ${line}`,
+      );
+  for (const line of body("Recovery"))
+    if (!/^\(none\)$/i.test(line.trim()) && !recoveryItem(line.trimEnd()))
+      fail("invalid-recovery", `A Recovery line is ${RECOVERY_FORMAT}: ${line}`);
   const home = storeHome(explicit);
   const path = sessionSummaryPath(home, identity);
   await mkdir(dirname(path), { recursive: true });

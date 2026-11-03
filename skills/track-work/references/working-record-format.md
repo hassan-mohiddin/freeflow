@@ -137,11 +137,7 @@ State as of: <UTC ISO-8601 time>
 
 ### In flight
 
-### Defined by
-
-### Read on recovery
-
-### Read when
+### Recovery
 
 ### Next action
 
@@ -275,36 +271,30 @@ Rewritten whole by `checkpoint --input`; each line starts with its label:
 - Hypothesis: the 503s come from the proxy's health check (unverified)
 - Dropped: retrying inside fetch() — it hides the attempt count from the test
 - Pending: CI on 5e6f7a8b — its result
-- Carry: src/http/client.ts (lines 10–40) — the loop under test
 ```
 
-A `Carry` line names a file, optionally its lines, and why the next compaction cycle needs it; the bundle copies it fresh, and it counts toward the budget. An input of `none` empties In flight, and a labelled line that says only `none` (`- Carry: none`) is left out.
+An input of `none` empties In flight, and a labelled line that says only `none` (`- Pending: none`) is left out. What the next compaction cycle reads goes under Recovery, not here.
 
-### Defined by, Read on recovery, Read when
+### Recovery
 
-One bullet per source, a pointer then what it establishes:
+What recovery reads, one line per source, each starting with its class, then a pointer and why:
 
 ```markdown
-### Defined by
-
-- specs/retry.md — the accepted retry policy.
-
-### Read on recovery
-
-- sources/discussion.md — the user's messages that shaped the retry policy.
-
-### Read when
-
-- docs/benchmarks.md — baseline timings; read when measuring performance.
+- always, not counted: specs/retry.md — the accepted retry policy.
+- always: sources/discussion.md — the user's messages that shaped the retry policy.
+- always: src/http/client.ts (lines 10–40) — the loop under test
+- when measuring performance: docs/benchmarks.md — baseline timings.
 ```
 
-| Section | What goes there | Recovery | Budget |
+| Class | What goes there | Recovery | Budget |
 | --- | --- | --- | --- |
-| Defined by | Accepted Specs, Plans, issues, briefs and other definitions, and the skills the work follows beyond Track Work, Discuss Work and Execute Work | reads each whole | not counted |
-| Read on recovery | Memory the agent shaped that the next context must read | reads each whole | counted |
-| Read when | Sources only some situations need; each line names its trigger, "read when <situation>" | reads each once its trigger applies | counted when read |
+| `always` | Memory the agent shaped that the next context must read, and files it would otherwise read again | reads each, whole or for its lines | counted |
+| `always, not counted` | Accepted Specs, Plans, issues, briefs and other definitions, and the skills the work follows beyond Track Work, Discuss Work and Execute Work | reads each, whole or for its lines | not counted |
+| `when <trigger>` | Sources only some situations need, the trigger naming the situation | reads each once its trigger applies | counted when read |
 
-A pointer is a path (from the task folder, else from the work repository's root, else from each repository in Space at its path on this machine), an absolute path, a `~/` path, a URL, or a commit; start each entry with it. A Defined by or Read on recovery entry that names no pointer is never read for you, and the checks say so. `sources/discussion.md` is a Read on recovery source while it holds blocks.
+A pointer is a path (from the task folder, else from the work repository's root, else from each repository in Space at its path on this machine), an absolute path, a `~/` path, a URL, or a commit; put it first after the class. A file pointer followed by `(lines <a>–<b>)` is read for those lines only, numbered by file line. An `always` or `always, not counted` line that names no pointer is never read for you, and the checks say so. `sources/discussion.md` takes an `always` line while it holds blocks.
+
+The list is decided at each checkpoint and kept unless changed: after In flight's lines, `checkpoint --input` takes a line `Recovery:` and the whole new list under it, or `Recovery: none` to empty it; without that line the list stays, and with only that block In flight stays. The checkpoint prints each line with the size of what it names and an `always` line's share of the budget, and names an `always, not counted` line the new list dropped. Records written with the earlier headings, Defined by, Read on recovery, Read when and a Carry line in In flight, are refused like any unknown heading.
 
 ### Next action
 
@@ -396,7 +386,7 @@ Only `discussion save` and `discussion drop` write it.
 
 ## The Session Summary
 
-A session that holds no task checkpoints into `<store>/sessions/<session ID>/summary.md` with `checkpoint --session --input -`: the headings `## Goal`, `## Settled`, `## Open`, `## Agreement`, `## In flight`, `## Read when` and `## Next action`, in that order, with `(none)` where one has nothing; Goal and Next action must say something; In flight takes the same Carry lines as a record's, files read from the session's folder. Freeflow's compaction installs it after the store's rules, with the files it carries, and removes it. The store's `sessions/` folder is this machine's only and is never synced.
+A session that holds no task checkpoints into `<store>/sessions/<session ID>/summary.md` with `checkpoint --session --input -`: the headings `## Goal`, `## Settled`, `## Open`, `## Agreement`, `## In flight`, `## Recovery` and `## Next action`, in that order, with `(none)` where one has nothing; Goal and Next action must say something; Recovery takes the same lines as a record's, files read from the session's folder. Freeflow's compaction installs it after the store's rules, with the files its `always` lines name, and removes it. The store's `sessions/` folder is this machine's only and is never synced.
 
 ## Task State
 
@@ -447,7 +437,7 @@ Edit directly:
 
 - Current Context's bullets;
 - a Slice's update lines and the wording of its optional fields;
-- Defined by, Read on recovery, Read when and the Next action;
+- Recovery and the Next action;
 - the order, wording or removal of Future Work's proposals;
 - `decisions.md`'s items;
 - a `Correction:` line appended inside a History entry.

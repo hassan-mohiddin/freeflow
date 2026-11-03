@@ -47,11 +47,10 @@ async function task(folder, cli) {
       [
         "### Goal",
         "- Keep memory within its budget.",
-        "### Defined by",
-        "- specs/design.md — the accepted design.",
-        "### Read on recovery",
-        "- sources/notes.md — what the next step rests on.",
-        "- specs/design.md — the design again, read once.",
+        "### Recovery",
+        "- always, not counted: specs/design.md — the accepted design.",
+        "- always: sources/notes.md — what the next step rests on.",
+        "- always: specs/design.md — the design again, read once.",
         "### Next action",
         "- Checkpoint.",
       ].join("\n"),
@@ -98,8 +97,8 @@ test("budget prints the budget before anything is written: from the window the h
         "Recovery budget: about 10,000 words (normal mode, a 200,000-token window, assumed: FREEFLOW_CONTEXT_WINDOW is not set).",
         "Fixed: Current Context about 600 words; Future Work about 300.",
         "Scaled: the active decisions shown, about 600 words; the History index, the newest 30 entries.",
-        "Current Work (In flight included), Read on recovery's sources and In flight's Carry files share the rest.",
-        "Not counted, read whole: the rules, the skills, and Defined by's entries.",
+        "Current Work (In flight included) and the files Recovery's always lines name share the rest; a when line's file counts once its trigger applies and it is read.",
+        "Not counted: the rules, the skills, and the files Recovery's always, not counted lines name.",
         "",
       ].join("\n"),
     );
@@ -116,7 +115,7 @@ test("budget prints the budget before anything is written: from the window the h
   });
 });
 
-test("budget --record shows what each part holds and what is left; Defined by is sized and never counted", async () => {
+test("budget --record shows what each part holds and what is left; an always, not counted line's file is sized and never counted", async () => {
   await withFolder(async ({ folder, cli }) => {
     const record = await task(folder, cli);
     const out = ok(cli(["budget", "--record", record]));
@@ -124,10 +123,10 @@ test("budget --record shows what each part holds and what is left; Defined by is
       out,
       /\nNow, counted:\n- Current Context: \d+ words \(fixed about 600\)\n- Current Work: \d+ words\n- Future Work: 0 words \(fixed about 300\)\n/,
     );
-    // notes.md counts; design.md is a definition, though Read on recovery names it too.
+    // notes.md counts; design.md is a definition, though an always line names it too.
     assert.match(
       out,
-      /\n- Read on recovery's sources: 202 words\n- Carry files: 0 words\n- Total: [\d,]+ of about 10,000 words; [\d,]+ left\.\nNot counted:\n- rules: 0 words\n- Defined by: 3,002 words\n$/,
+      /\n- Recovery's always files: 202 words\n- Total: [\d,]+ of about 10,000 words; [\d,]+ left\.\nNot counted:\n- rules: 0 words\n- Recovery's uncounted files: 3,002 words\n$/,
     );
     // Over the budget: a source the agent shaped grows past it.
     await writeFile(join(dirname(record), "sources", "notes.md"), `${words(10_500, "note")}\n`);
@@ -139,57 +138,79 @@ test("budget --record shows what each part holds and what is left; Defined by is
   });
 });
 
-test("checkpoint --input rewrites In flight whole, warns when the counted memory is over the budget, and refuses a line without its label", async () => {
+test("checkpoint --input rewrites In flight whole and replaces Recovery after a Recovery: line, keeping what it is not given, and refuses a line without its label or class", async () => {
   await withFolder(async ({ folder, cli }) => {
     const record = await task(folder, cli);
-    const flight = (text) => /### In flight\n\n?([\s\S]*?)\n### Defined by/.exec(text)[1].trim();
+    const flight = (text) => /### In flight\n\n?([\s\S]*?)\n### Recovery/.exec(text)[1].trim();
+    const recovery = (text) => /### Recovery\n\n?([\s\S]*?)\n### Next action/.exec(text)[1].trim();
+    const checkpoint = (input) => cli(["checkpoint", "--record", record, "--input", "-"], input);
     const first = ok(
-      cli(
-        ["checkpoint", "--record", record, "--input", "-"],
-        "- Now: half of the parser is written.\n- Dropped: a regular expression — it could not nest.\n- Carry: src.mjs (lines 3–5) — the loop being changed\n",
+      checkpoint(
+        [
+          "- Now: half of the parser is written.",
+          "- Dropped: a regular expression — it could not nest.",
+          "Recovery:",
+          "- always, not counted: specs/design.md — the accepted design.",
+          "- always: sources/notes.md — what the next step rests on.",
+          "- always: src.mjs (lines 3–5) — the loop being changed",
+          "- when the tests fail: test/parser.test.mjs — what they check",
+          "",
+        ].join("\n"),
       ),
     );
-    assert.match(first, /\nIn flight: rewritten, 3 line\(s\)\.\n/);
+    assert.match(first, /\nIn flight: rewritten, 2 line\(s\)\.\n/);
+    // Each line with the size of what it names, and an always line's share of the budget (P5).
     assert.match(
       first,
-      /\nBudget: counted [\d,]+ of about 10,000 words \(normal, 200,000-token window\); .*not counted: rules 0, Defined by 3,002\.\n/,
+      /\nRecovery: replaced, 4 line\(s\):\n- always, not counted: specs\/design\.md — the accepted design\. — 3,002 words, not counted\n- always: sources\/notes\.md — what the next step rests on\. — 202 words, 2% of the budget\n- always: src\.mjs \(lines 3–5\) — the loop being changed — 6 words, 0% of the budget\n- when the tests fail: test\/parser\.test\.mjs — what they check — 0 words once read\n/,
+    );
+    assert.match(
+      first,
+      /\nBudget: counted [\d,]+ of about 10,000 words \(normal, 200,000-token window\); .*not counted: rules 0, Recovery's uncounted files 3,002\.\n/,
     );
     assert.equal(
       flight(await readFile(record, "utf8")),
-      "- Now: half of the parser is written.\n- Dropped: a regular expression — it could not nest.\n- Carry: src.mjs (lines 3–5) — the loop being changed",
+      "- Now: half of the parser is written.\n- Dropped: a regular expression — it could not nest.",
     );
+    // Without a Recovery: line the list is kept; with only one, In flight is kept.
+    ok(checkpoint("- Pending: the test run — CI\n"));
+    assert.equal(flight(await readFile(record, "utf8")), "- Pending: the test run — CI");
+    assert.match(recovery(await readFile(record, "utf8")), /^- always, not counted: specs\/design\.md/);
     assert.match(
-      ok(cli(["checkpoint", "--record", record, "--input", "-"], "- Carry: gone.mjs — a file that is not there\n")),
-      /\nWarning: Carry: gone\.mjs does not exist\n/,
+      ok(
+        checkpoint(
+          "Recovery:\n- always, not counted: specs/design.md — the accepted design.\n- always: gone.mjs — a file that is not there\n",
+        ),
+      ),
+      /\nWarning: Recovery: gone\.mjs does not exist\n/,
     );
-    ok(cli(["checkpoint", "--record", record, "--input", "-"], "- Pending: the test run — CI\n"));
     assert.equal(flight(await readFile(record, "utf8")), "- Pending: the test run — CI");
-    assert.match(ok(cli(["checkpoint", "--record", record])), /\nIn flight: unchanged; pass --input/);
-    assert.equal(flight(await readFile(record, "utf8")), "- Pending: the test run — CI");
+    assert.match(
+      ok(cli(["checkpoint", "--record", record])),
+      /\nIn flight: unchanged; pass --input.*\nRecovery: kept, 2 line\(s\):\n/,
+    );
     const before = await readFile(record, "utf8");
-    assert.match(
-      cli(["checkpoint", "--record", record, "--input", "-"], "- Later: something\n").stderr,
-      /An In flight line starts with Now, Observed/,
-    );
-    assert.match(
-      cli(["checkpoint", "--record", record, "--input", "-"], "- Carry: src.mjs\n").stderr,
-      /A Carry line is/,
-    );
-    assert.match(
-      cli(["checkpoint", "--record", record, "--input", "-"], "just prose\n").stderr,
-      /takes In flight's lines/,
-    );
+    assert.match(checkpoint("- Later: something\n").stderr, /An In flight line starts with Now, Observed/);
+    // Carry is a Recovery line now (P7): an old Carry line is refused.
+    assert.match(checkpoint("- Carry: src.mjs — the loop\n").stderr, /goes under Recovery/);
+    assert.match(checkpoint("Recovery:\n- sources/notes.md — no class\n").stderr, /A Recovery line is/);
+    assert.match(checkpoint("Recovery: sources/notes.md\n").stderr, /After "Recovery:" come its lines/);
+    assert.match(checkpoint("just prose\n").stderr, /takes In flight's lines/);
     assert.equal(await readFile(record, "utf8"), before);
-    ok(cli(["checkpoint", "--record", record, "--input", "-"], "none\n"));
+    // "Recovery: none" empties the list, and names the definition it dropped.
+    const emptied = ok(checkpoint("Recovery: none\n"));
+    assert.match(emptied, /\nRecovery: replaced, 0 line\(s\)\.\n/);
+    assert.match(
+      emptied,
+      /\nDropped: "always, not counted: specs\/design\.md — the accepted design\.", an always, not counted line \(an accepted definition or a method the work follows\): put it back with the next checkpoint if the work still rests on it\.\n/,
+    );
+    assert.equal(recovery(await readFile(record, "utf8")), "");
+    ok(checkpoint("none\n"));
     assert.equal(flight(await readFile(record, "utf8")), "");
     // A labelled line that says only "none" is no line: the rest of In flight stays (T20).
-    ok(
-      cli(
-        ["checkpoint", "--record", record, "--input", "-"],
-        "- Now: the tests pass.\n- Carry: none\n- Pending: (none)\n",
-      ),
-    );
+    ok(checkpoint("- Now: the tests pass.\n- Pending: (none)\n"));
     assert.equal(flight(await readFile(record, "utf8")), "- Now: the tests pass.");
+    ok(checkpoint("Recovery:\n- always: sources/notes.md — what the next step rests on.\n"));
     await writeFile(join(dirname(record), "sources", "notes.md"), `${words(10_500, "note")}\n`);
     assert.match(
       ok(cli(["checkpoint", "--record", record])),
@@ -204,7 +225,15 @@ test("view bundle prints everything recovery reads, in the Spec's order, each so
     ok(
       cli(
         ["checkpoint", "--record", record, "--input", "-"],
-        "- Now: reading.\n- Carry: src.mjs (lines 3–5) — the loop\n",
+        [
+          "- Now: reading.",
+          "Recovery:",
+          "- always, not counted: specs/design.md — the accepted design.",
+          "- always: sources/notes.md — what the next step rests on.",
+          "- always: specs/design.md — the design again, read once.",
+          "- always: src.mjs (lines 3–5) — the loop",
+          "",
+        ].join("\n"),
       ),
     );
     await writeFile(join(dirname(record), "sources", "notes.md"), `${words(10_500, "note")}\n`);
@@ -216,9 +245,8 @@ test("view bundle prints everything recovery reads, in the Spec's order, each so
       "## History index",
       "## Project index",
       "## Checks",
-      "## Read on recovery (counted)",
-      "## Carry (counted)",
-      "## Defined by (not counted)",
+      "## Recovery: always (counted)",
+      "## Recovery: always, not counted",
       "## Core skills (not counted)",
       "## Sizes",
     ];
@@ -239,36 +267,38 @@ test("view bundle prints everything recovery reads, in the Spec's order, each so
       return out.slice(start, next ?? out.length);
     };
     // Over the budget, the source is still there whole; the checks warn.
-    assert.ok(section("## Read on recovery (counted)").includes(words(10_500, "note")));
+    assert.ok(section("## Recovery: always (counted)").includes(words(10_500, "note")));
     assert.match(section("## Checks"), /- Warning: the counted memory is [\d,]+ words, over the budget/);
-    // A file named in both lists is a definition: printed once, under Defined by.
+    // A file an always line and an always, not counted line both name is a definition: printed once, not counted.
     assert.equal(out.split('<file path=".freeflow/tasks/task-001-budgeted/specs/design.md">').length - 1, 1);
     assert.equal(out.split("# Design").length - 1, 1);
-    assert.ok(section("## Defined by (not counted)").includes("# Design"));
+    assert.ok(section("## Recovery: always, not counted").includes("# Design"));
+    // A line range cuts what is read, numbered by file line (T2).
     assert.match(
-      section("## Carry (counted)"),
-      /<file path="src\.mjs lines 3–5">\n3\tline 3\n4\tline 4\n5\tline 5\n<\/file>/,
+      section("## Recovery: always (counted)"),
+      /<file path="\.freeflow\/tasks\/task-001-budgeted\/src\.mjs lines 3–5">\n3\tline 3\n4\tline 4\n5\tline 5\n<\/file>/,
     );
     assert.match(
       section("## Core skills (not counted)"),
       /<file path="[^"]*track-work\/SKILL\.md">\n---\nname: track-work/,
     );
     assert.match(section("## Core skills (not counted)"), /discuss-work\/SKILL\.md/);
-    // A core skill the record names is printed once, under Defined by, and never counted under Read on recovery.
+    // A core skill the record names is printed once, and never counted, whatever the line's class.
     const text = await readFile(record, "utf8");
     await writeFile(
       record,
-      text
-        .replace("### Defined by\n\n", `### Defined by\n\n- ${CORE_SKILLS[0]} — how this record is kept.\n`)
-        .replace("### Read on recovery\n\n", `### Read on recovery\n\n- ${CORE_SKILLS[1]} — discussing.\n`),
+      text.replace(
+        "### Recovery\n\n",
+        `### Recovery\n\n- always, not counted: ${CORE_SKILLS[0]} — how this record is kept.\n- always: ${CORE_SKILLS[1]} — discussing.\n`,
+      ),
     );
     const again = ok(cli(["view", "bundle", "--record", record]));
     assert.equal(again.split("\nname: track-work\n").length - 1, 1);
     assert.equal(again.split("\nname: discuss-work\n").length - 1, 1);
-    assert.match(again, /\n- Read on recovery's sources: 10,500 words, counted\n/);
+    assert.match(again, /\n- Recovery's always files: 10,506 words, counted\n/);
     assert.match(section("## Core skills (not counted)"), /execute-work\/SKILL\.md/);
-    assert.match(section("## Sizes"), /- Read on recovery's sources: 10,500 words, counted\n/);
-    assert.match(section("## Sizes"), /- Defined by: 3,002 words, not counted\n/);
+    assert.match(section("## Sizes"), /- Recovery's always files: 10,506 words, counted\n/);
+    assert.match(section("## Sizes"), /- Recovery's uncounted files: 3,002 words, not counted\n/);
     assert.ok(
       out
         .trimEnd()
@@ -312,7 +342,7 @@ test("without a task, checkpoint --session writes the session summary and view b
       '- Read only: "just look, don\'t change anything" (2026-10-29)',
       "## In flight",
       "- Now: reading src/parser.mjs.",
-      "## Read when",
+      "## Recovery",
       "(none)",
       "## Next action",
       "- Report what the parser does with tables.",
@@ -400,16 +430,19 @@ test("a task in the store resolves its pointers in the work repository the comma
     const text = await readFile(record, "utf8");
     await writeFile(
       record,
-      text.replace("### Defined by\n", "### Defined by\n\n- docs/spec.md (in the repository) — the design.\n"),
+      text.replace(
+        "### Recovery\n",
+        "### Recovery\n\n- always, not counted: docs/spec.md (in the repository) — the design.\n",
+      ),
     );
     ok(
       inWork(
         ["checkpoint", "--record", "widget/task-001", "--repo", ".", "--input", "-"],
-        "- Carry: probe.txt — the file\n",
+        "- Now: probing.\nRecovery:\n- always, not counted: docs/spec.md (in the repository) — the design.\n- always: probe.txt — the file\n",
       ),
     );
     const bundle = ok(inWork(["view", "bundle", "--record", "widget/task-001"]));
-    assert.match(bundle, /<file path="probe\.txt">\n1\tp\n<\/file>/);
+    assert.match(bundle, /<file path="probe\.txt">\np\n<\/file>/);
     assert.match(bundle, /<file path="docs\/spec\.md">\n(spec ?){50}\n<\/file>/);
     assert.doesNotMatch(bundle, /does not exist/);
   });

@@ -90,12 +90,12 @@ test("migrate converts a Schema 4 record in place, keeping the old record whole 
     );
     assert.ok(
       text.includes(
-        "### Defined by\n\n- specs/parser.md — the accepted design.\n- skills/track-work/SKILL.md (in the repository) — how this record is kept.\n\n### Read on recovery\n\n- specs/parser.md — the design; sections 2 and 3 govern the Slice.\n",
+        "### Recovery\n\n- always, not counted: specs/parser.md — the accepted design.\n- always, not counted: skills/track-work/SKILL.md (in the repository) — how this record is kept.\n- always: specs/parser.md — the design; sections 2 and 3 govern the Slice.\n",
       ),
     );
     assert.ok(
       text.includes(
-        "### Read when\n\n- sources/benchmarks.md — timings; read when measuring speed.\n- sources/schema4-record.md — ",
+        "- when measuring speed: sources/benchmarks.md — timings\n- when an earlier decision, checkpoint or Slice is in question: sources/schema4-record.md — ",
       ),
     );
     assert.ok(

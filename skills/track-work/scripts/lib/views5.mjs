@@ -10,7 +10,6 @@ import {
   ANCHOR,
   CORE_SKILLS,
   activeDecisions,
-  carriedFiles,
   contextWindow,
   historyIndex,
   indexLine,
@@ -18,13 +17,15 @@ import {
   measuredLines,
   real,
   rules,
+  sourceFiles,
   words,
 } from "./budget5.mjs";
 import { storeHome, storeStatus } from "./freeflow-store.mjs";
 import { delegationChecks, workerSection } from "./delegations5.mjs";
 import { OPENING_LINE, SESSION_OPENING, claudeCodeLog, userMessages } from "./discussion5.mjs";
 import { readSessions, sessionIdentity } from "./projects5.mjs";
-import { carryItem, loadTask5, warnings5 } from "./record5.mjs";
+import { loadTask5, recoveryItem, warnings5 } from "./record5.mjs";
+import { recoveryEntries } from "./recover.mjs";
 import { REPOSITORIES_FILE, repositoryState, sessionSummaryPath } from "./transitions5.mjs";
 
 export { CORE_SKILLS, activeDecisions, historyIndex };
@@ -77,21 +78,16 @@ async function storeCheck(home) {
 /** Items 1 to 7 of the bundle: the opening line, the rules, the record, the decisions, the indexes and the checks. */
 async function recoveryHead(task, measured, { path, delegation }) {
   const { work } = task.record;
-  const { home, ruleFiles, decisions, index, others, definedBy, readNow, readWhen } = measured.material;
-  const unresolved = [
-    ...definedBy.map((entry) => ["Defined by", entry]),
-    ...readNow.map((entry) => ["Read on recovery", entry]),
-    ...readWhen.map((entry) => ["Read when", entry]),
-  ].flatMap(([where, entry]) => [
-    ...entry.pointers.filter((pointer) => pointer.problem).map((pointer) => `- ${where}: ${pointer.problem}`),
-    // What recovery reads whole must name it: an entry with no pointer is never read for the agent.
-    ...(where !== "Read when" && !entry.pointers.length
+  const { home, ruleFiles, decisions, index, others, recovery } = measured.material;
+  const unresolved = recovery.flatMap((entry) => [
+    ...entry.pointers.filter((pointer) => pointer.problem).map((pointer) => `- Recovery: ${pointer.problem}`),
+    // What recovery reads on every recovery must name it: an always line with no pointer is never read for the agent.
+    ...(entry.kind !== "when" && !entry.pointers.length
       ? [
-          `- ${where}: "${entry.text.slice(0, 60)}${entry.text.length > 60 ? "…" : ""}" names no file, so recovery cannot read it; write its path`,
+          `- Recovery: "${entry.text.slice(0, 60)}${entry.text.length > 60 ? "…" : ""}" names no file, so recovery cannot read it; write its path`,
         ]
       : []),
   ]);
-  const carryProblems = measured.files.carry.filter((file) => file.problem).map((file) => `- Carry: ${file.problem}`);
   const budget = measuredLines(measured);
   const worker = delegation ? workerSection(dirname(path), delegation) : [];
   return [
@@ -138,9 +134,7 @@ async function recoveryHead(task, measured, { path, delegation }) {
     `- Budget: ${budget.summary}.`,
     ...(budget.warning ? [`- Warning: ${budget.warning}`] : []),
     ...warnings5(task).map((warning) => `- Warning: ${warning}`),
-    ...(unresolved.length || carryProblems.length
-      ? [...unresolved, ...carryProblems]
-      : ["- Pointers: every Defined by, Read on recovery, Read when and Carry pointer resolves."]),
+    ...(unresolved.length ? unresolved : ["- Pointers: every Recovery pointer resolves."]),
     ...(delegation ? [] : delegationChecks(dirname(path), task.record)),
     holdCheck(path),
     await storeCheck(home),
@@ -157,7 +151,7 @@ export async function renderRecover5({ root, path, text }, { delegation = null, 
     ...(await recoveryHead(task, measured, { path, delegation })),
     delegation
       ? "Now read the brief's Read sources, and Execute Work with its delegation reference (Work From A Brief); continue from progress.md's Next, then say in one line what you read."
-      : "Now read every Defined by entry, every Read on recovery source and the core skills, then say in one line what you read.",
+      : "Now read every file the Recovery lines marked always name, only the lines a line gives where it gives them, and the core skills; read a when line's file once its trigger applies. Then say in one line what you read.",
   ];
   return `${out.join("\n")}\n`;
 }
@@ -166,13 +160,21 @@ function fileBlock(label, text) {
   return [`<file path="${label}">`, text.replace(/\n$/, ""), "</file>", ""];
 }
 
-/** A carried file's lines, numbered by file line, as Pi's carry numbers them. */
+/** A file read for some of its lines, numbered by file line, as Pi's carry numbers them. */
 function numbered(file) {
   const width = String(file.to).length;
   return file.text
     .split("\n")
     .map((line, offset) => `${String(file.from + offset).padStart(width)}\t${line}`)
     .join("\n");
+}
+
+/** A file a Recovery line names, whole, or for the lines it gives, numbered by file line (T2). */
+function recoveredBlock(file, label) {
+  if (file.text === null) return [];
+  return file.ranged
+    ? fileBlock(`${label(file.path)} lines ${file.from}–${file.to}`, numbered(file))
+    : fileBlock(label(file.path), file.text);
 }
 
 const RECOVERY_LINE =
@@ -217,8 +219,8 @@ export async function renderBundle5({ root, path, text }, { window = contextWind
     const inside = relative(real(repository), real(file));
     return inside.startsWith("..") ? file : inside;
   };
-  // A core skill Defined by already printed is not printed again.
-  const printed = new Set(files.definedBy.map((file) => real(file.path)));
+  // A core skill a Recovery line already printed is not printed again.
+  const printed = new Set(files.uncounted.filter((file) => !file.ranged).map((file) => real(file.path)));
   const skills = CORE_SKILLS.filter((skill) => existsSync(skill) && !printed.has(real(skill))).map((skill) => ({
     path: skill,
     text: readFileSync(skill, "utf8"),
@@ -230,27 +232,14 @@ export async function renderBundle5({ root, path, text }, { window = contextWind
       .map((file) => `- ${file.pointer}: a folder, or not readable; read what the next step needs from it.`);
   const out = [
     ...(await recoveryHead(task, measured, { path, delegation: null })),
-    "## Read on recovery (counted)",
+    "## Recovery: always (counted)",
     "",
-    ...(files.readNow.length
-      ? files.readNow.filter((file) => file.text !== null).flatMap((file) => fileBlock(label(file.path), file.text))
-      : ["None.", ""]),
-    ...unread(files.readNow),
-    "## Carry (counted)",
+    ...(files.always.length ? files.always.flatMap((file) => recoveredBlock(file, label)) : ["None.", ""]),
+    ...unread(files.always),
+    "## Recovery: always, not counted",
     "",
-    ...(files.carry.length
-      ? files.carry
-          .filter((file) => file.text !== null)
-          .flatMap((file) =>
-            fileBlock(`${file.path}${file.ranged ? ` lines ${file.from}–${file.to}` : ""}`, numbered(file)),
-          )
-      : ["None.", ""]),
-    "## Defined by (not counted)",
-    "",
-    ...(files.definedBy.length
-      ? files.definedBy.filter((file) => file.text !== null).flatMap((file) => fileBlock(label(file.path), file.text))
-      : ["None.", ""]),
-    ...unread(files.definedBy),
+    ...(files.uncounted.length ? files.uncounted.flatMap((file) => recoveredBlock(file, label)) : ["None.", ""]),
+    ...unread(files.uncounted),
     "## Core skills (not counted)",
     "",
     ...skills.flatMap((skill) => fileBlock(label(skill.path), skill.text)),
@@ -275,12 +264,19 @@ export function renderSessionBundle({ home: explicit = null, identity = sessionI
   if (!existsSync(summary)) throw new Error(`No session summary at ${summary}: checkpoint --session writes it.`);
   const ruleFiles = rules(home, null);
   const text = readFileSync(summary, "utf8").trimEnd();
-  // The summary's Carry lines, as a task's: files, read now, from the session's folder.
+  // The files the summary's Recovery lines mark always, as a task's: read now, from the session's folder (P9).
   const lines = text.split("\n");
-  const from = lines.findIndex((line) => /^## In flight\s*$/.test(line));
+  const from = lines.findIndex((line) => /^## Recovery\s*$/.test(line));
   const to = lines.findIndex((line, index) => index > from && /^## /.test(line));
-  const carry = (from < 0 ? [] : lines.slice(from + 1, to < 0 ? lines.length : to)).map(carryItem).filter(Boolean);
-  const files = carriedFiles(carry, { root: process.cwd(), taskDir: process.cwd() });
+  const items = (from < 0 ? [] : lines.slice(from + 1, to < 0 ? lines.length : to))
+    .map((line) => ({ text: line.slice(2).trim(), ...recoveryItem(line) }))
+    .filter((item) => item.kind && item.kind !== "when");
+  const context = { root: process.cwd(), taskDir: process.cwd() };
+  const entries = recoveryEntries(items, context);
+  const files = sourceFiles(entries, context);
+  const unreadable = entries.flatMap((entry) =>
+    entry.pointers.filter((pointer) => pointer.problem).map((pointer) => `- Not read: ${pointer.problem}`),
+  );
   const out = [
     SESSION_OPENING,
     "",
@@ -291,16 +287,12 @@ export function renderSessionBundle({ home: explicit = null, identity = sessionI
     "",
     text,
     "",
-    ...(carry.length
+    ...(entries.length
       ? [
-          "## Carry",
+          "## Recovery files",
           "",
-          ...files.filter((file) => file.problem).map((file) => `- Not carried: ${file.problem}`),
-          ...files
-            .filter((file) => file.text !== null)
-            .flatMap((file) =>
-              fileBlock(`${file.path}${file.ranged ? ` lines ${file.from}–${file.to}` : ""}`, numbered(file)),
-            ),
+          ...unreadable,
+          ...files.flatMap((file) => recoveredBlock({ ...file, path: file.pointer }, (path) => path)),
         ]
       : []),
     RECOVERY_LINE.replace("In flight and the Next action", "the summary's In flight and Next action"),
