@@ -8,7 +8,6 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { findResult, sessionTranscript } from "./carry5.mjs";
 import { contextFor, gitRoot, resolvePointer, sourceEntries } from "./recover.mjs";
 import { FIXED_BUDGETS, budgets5, parseRecord5 } from "./record5.mjs";
 import { REPOSITORIES_FILE, freeflowStoreOf, isFreeflowStore, projectOf } from "./store.mjs";
@@ -172,39 +171,16 @@ export function sourceFiles(entries, context, skip = new Set()) {
 
 /** In flight's Carry files, read now, each cut to its lines when the line names them. */
 export function carriedFiles(carry, context) {
-  return carry
-    .filter((item) => !item.result)
-    .map((item) => {
-      const { path } = resolvePointer(item.path, context);
-      const whole = fileText(path);
-      if (whole === null)
-        return { ...item, resolved: path, text: null, words: 0, problem: `${item.path} does not exist` };
-      const lines = whole.replace(/\n$/, "").split("\n");
-      const from = item.from ?? 1;
-      const to = Math.min(item.to ?? lines.length, lines.length);
-      const text = lines.slice(from - 1, to).join("\n");
-      return { ...item, ranged: item.from !== null, resolved: path, from, to, text, words: words(text) };
-    });
-}
-
-/**
- * In flight's carried tool results (P2), read now from the session's transcript by their tool-use IDs; one the
- * transcript does not hold has no text and a problem the checks name.
- */
-export function carriedResults(carry, transcript = null) {
-  const named = carry.filter((item) => item.result);
-  if (!named.length) return [];
-  const path = transcript ?? sessionTranscript();
-  return named.map((item) => {
-    const found = path ? findResult(path, item.result) : null;
-    if (!found)
-      return {
-        ...item,
-        text: null,
-        words: 0,
-        problem: `result ${item.result} is not in ${path ?? "a transcript this harness layer names"}`,
-      };
-    return { ...item, id: found.id, label: found.label, at: found.at, text: found.text, words: words(found.text) };
+  return carry.map((item) => {
+    const { path } = resolvePointer(item.path, context);
+    const whole = fileText(path);
+    if (whole === null)
+      return { ...item, resolved: path, text: null, words: 0, problem: `${item.path} does not exist` };
+    const lines = whole.replace(/\n$/, "").split("\n");
+    const from = item.from ?? 1;
+    const to = Math.min(item.to ?? lines.length, lines.length);
+    const text = lines.slice(from - 1, to).join("\n");
+    return { ...item, ranged: item.from !== null, resolved: path, from, to, text, words: words(text) };
   });
 }
 
@@ -263,7 +239,6 @@ export function measureTask(task, { root, path, window = contextWindow() }) {
   for (const skill of CORE_SKILLS) taken.add(real(skill));
   const readNowFiles = sourceFiles(readNow, context, taken);
   const carry = carriedFiles(work.carry, context);
-  const results = carriedResults(work.carry);
   const sum = (items) => items.reduce((total, item) => total + item.words, 0);
   const counted = [
     ...budgets5(task.record).map((each) => ({ name: each.name, words: each.words, budget: each.budget })),
@@ -272,7 +247,6 @@ export function measureTask(task, { root, path, window = contextWindow() }) {
     { name: "project index", words: words((others ?? []).join("\n")) },
     { name: "Read on recovery's sources", words: sum(readNowFiles) },
     { name: "Carry files", words: sum(carry) },
-    ...(results.length ? [{ name: "Carried results", words: sum(results) }] : []),
   ];
   const uncounted = [
     { name: "rules", words: ruleFiles.reduce((total, file) => total + words(file.text), 0) },
@@ -287,7 +261,7 @@ export function measureTask(task, { root, path, window = contextWindow() }) {
     total,
     over: total > budget.total,
     material: { home, project, context, ruleFiles, decisions, index, others, definedBy, readNow, readWhen },
-    files: { definedBy: definedFiles, readNow: readNowFiles, carry, results },
+    files: { definedBy: definedFiles, readNow: readNowFiles, carry },
   };
 }
 

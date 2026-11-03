@@ -22,7 +22,7 @@ import {
   SLICE5_ORDER,
   cueProblem,
   emptyHistory,
-  CARRY_RESULT,
+  CARRY_FORMAT,
   carryItem,
   fieldLines5,
   fieldText,
@@ -46,7 +46,6 @@ import {
   renderMeasure,
   transcriptEvents,
 } from "./measure5.mjs";
-import { findResult, sessionTranscript } from "./carry5.mjs";
 import { predictSlice } from "./planner5.mjs";
 import { REPOSITORIES_FILE, freeflowStoreOf, isFreeflowStore, writeAtomically, writeTaskFile } from "./store.mjs";
 
@@ -635,35 +634,12 @@ function inFlightLines(text) {
   return lines;
 }
 
-/**
- * In flight's Carry lines that name a tool result by its number in `carry list`, or by an ID with no label, pinned
- * to the result's tool-use ID and what its call was for, so the bundle finds it after the list has moved on (P2).
- */
-function pinResults(lines, options) {
-  if (!lines?.some((line) => CARRY_RESULT.test(line))) return lines;
-  const transcript = sessionTranscript(options["--transcript"] ?? null);
-  return lines.map((line) => {
-    const match = CARRY_RESULT.exec(line);
-    if (!match) return line;
-    const [, key, label] = match;
-    if (!/^\d+$/.test(key) && label) return line;
-    const result = transcript ? findResult(transcript, key) : null;
-    if (!result)
-      fail(
-        "missing-result",
-        `Carry names result ${key}, which ${transcript ? `is not in ${transcript}` : "no transcript holds (pass --transcript or set FREEFLOW_TRANSCRIPT)"}; carry list numbers this compaction cycle's results`,
-      );
-    const why = line.slice(line.indexOf(" — "));
-    return `- Carry: result ${result.id} (${result.label.replace(/[()]/g, "")})${why}`;
-  });
-}
-
 async function checkpoint(options, text, loaded) {
   const task = await load(loaded);
   assertNotInterrupted(task);
   const { record } = task;
   const rewrite = options["--input"] !== undefined;
-  const flight = rewrite ? pinResults(inFlightLines(text), options) : null;
+  const flight = rewrite ? inFlightLines(text) : null;
   const directory = resolve(options["--repo"] ?? process.cwd());
   const space = repositoryState(directory);
   if (options["--repo"] && !space)
@@ -824,7 +800,7 @@ export async function writeCompactionRequest(home, identity) {
  * `checkpoint --session`: without a held task, the session's own summary, which Freeflow's compaction installs and
  * then removes. Every heading is present, in order; Goal and Next action say something; In flight's lines are labelled.
  */
-export async function checkpointSession({ home: explicit, identity, text, transcript = null }) {
+export async function checkpointSession({ home: explicit, identity, text }) {
   if (!identity)
     fail(
       "missing-session",
@@ -856,14 +832,7 @@ export async function checkpointSession({ home: explicit, identity, text, transc
     if (!/^\(none\)$/i.test(line.trim()) && !labelled.test(line))
       fail("invalid-input", `An In flight line starts with ${IN_FLIGHT_LABELS.join(", ")} and a colon: ${line}`);
     else if (line.startsWith("- Carry:") && !/^- Carry:\s*(none|\(none\))\.?$/i.test(line) && !carryItem(line))
-      fail(
-        "invalid-carry",
-        `A Carry line is "- Carry: <path> (lines <a>–<b>) — <why>", the lines optional, or "- Carry: result <n> — <why>": ${line}`,
-      );
-  const flight = found.find((each) => each.title === "In flight");
-  const end = found[found.indexOf(flight) + 1]?.index ?? lines.length;
-  const pinned = pinResults(lines.slice(flight.index + 1, end), { "--transcript": transcript ?? undefined });
-  lines.splice(flight.index + 1, end - flight.index - 1, ...pinned);
+      fail("invalid-carry", `A Carry line is ${CARRY_FORMAT}: ${line}`);
   const home = storeHome(explicit);
   const path = sessionSummaryPath(home, identity);
   await mkdir(dirname(path), { recursive: true });
