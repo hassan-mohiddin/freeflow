@@ -10,11 +10,12 @@ One line per event, in `events/<session ID>.jsonl` in the Freeflow home (`FREEFL
 - each model request: the model, its effort, and its tokens (input, cache read and written, output);
 - each tool call: the tool, whether it failed, the exit code where the host gives one (Pi does, Claude Code and Codex do not), how long it took, the paths a file tool named, and a shell command's text;
 - compactions, and whether Freeflow or the host ran them; workers started and stopped;
-- Freeflow's own actions: a notice, a context row, the task menu, a compaction it ran, a store sync, its claims.
+- Freeflow's own actions: a notice, a context row, the task menu, a compaction it ran, a store sync, its claims;
+- each time a [gate](gates.md) warned, asked or refused (the gate, the tool and the rule), and an agreement recorded with `agree`.
 
 A line never holds a prompt, an answer, a file's content or a tool's output. In a command, keys and tokens (`sk-…`, `ghp_…`, `github_pat_…`, `xox…-`, `AKIA…`, `Bearer …`, and any `…key=`, `…token=`, `…secret=` or `…password=` value) are replaced with `[redacted]` before it is written, and the command is cut to 200 characters.
 
-The log stays on this machine: the store's Git ignores `events/`, and nothing in it is sent anywhere or read by the model. What leaves the machine is a summary: at each checkpoint and when a session releases its task, Freeflow writes `events/<session ID>.json` into the task's folder, which the store commits: model requests and tokens by model and effort, tool calls by tool with failures, compactions, workers, and the share of tool calls that were Freeflow's own.
+The log stays on this machine: the store's Git ignores `events/`, and nothing in it is sent anywhere or read by the model. What leaves the machine is a summary: at each checkpoint and when a session releases its task, Freeflow writes `events/<session ID>.json` into the task's folder, which the store commits: model requests and tokens by model and effort, tool calls by tool with failures, compactions, workers, the share of tool calls that were Freeflow's own, and how often each gate would have fired.
 
 Freeflow keeps the log until you delete it. Ask the agent, or run Track Work's script yourself:
 
@@ -53,6 +54,6 @@ Run `/freeflow capabilities` on Claude Code or Pi; on Codex, ask the agent, whic
 | `block` | refuse a tool call with its reason |
 | `sensors`, `timers` | write the event log; act after a delay |
 
-On Claude Code today: `inject`, `compact`, `checkpoint`, `send`, `wake`, `sensors` and `timers` are yes, and `pin`, `route`, `spawn`, `ask` and `block` possible. A headless run (`claude -p`) has no one at the prompt, so `wake` is no and `compact` happens on the next compaction that comes. On Pi: `pin`, `inject`, `compact`, `checkpoint`, `wake`, `ask`, `block`, `sensors` and `timers` are yes; `forget` and `route` are yes while Cognitive Routing is on, and `send` while Messaging is on. On Codex: `pin`, `inject`, `checkpoint` and `sensors` are yes and `block` possible (Codex's `PreToolUse` hook can refuse a call, though not a hosted tool such as web search); the rest are no. Codex compacts on its own, so `compact` is no: after Codex's compaction, Freeflow adds the task's record after Codex's summary.
+On Claude Code today: `inject`, `compact`, `checkpoint`, `send`, `wake`, `block` (the [gates](gates.md)), `sensors` and `timers` are yes, and `pin`, `route`, `spawn` and `ask` possible. A headless run (`claude -p`) has no one at the prompt, so `wake` is no and `compact` happens on the next compaction that comes. On Pi: `pin`, `inject`, `compact`, `checkpoint`, `wake`, `ask`, `block`, `sensors` and `timers` are yes; `forget` and `route` are yes while Cognitive Routing is on, and `send` while Messaging is on. On Codex: `pin`, `inject`, `checkpoint` and `sensors` are yes and `block` possible (Codex's `PreToolUse` hook can refuse a call, though not a hosted tool such as web search); the rest are no. Codex compacts on its own, so `compact` is no: after Codex's compaction, Freeflow adds the task's record after Codex's summary.
 
 The agent reads the same list with Setup Freeflow's `capabilities.mjs`, and never assumes a request that is not yes. When a request is not available, Freeflow says so instead of doing nothing: `checkpoint --compact` where no driver compacts writes the checkpoint and tells the agent that the host compacts on its own and how to recover after it.

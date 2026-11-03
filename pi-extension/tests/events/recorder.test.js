@@ -204,8 +204,11 @@ test(
           // The menu's line lands when the store's session start finishes, which runs beside the first request by
           // design: once, wherever it lands.
           assert.equal(lines.filter((line) => line.kind === "freeflow" && line.what === "menu").length, 1);
+          // So do the gates' lines (SPEC-008): they follow the gate state that session start writes beside the first
+          // request; Pi's gates are pinned by tests/gates/.
           const normal = lines
-            .filter((line) => !(line.kind === "freeflow" && line.what === "menu"))
+            .filter((line) => !(line.kind === "freeflow" && (line.what === "menu" || line.what === "gates")))
+            .filter((line) => line.kind !== "gate")
             .map((line, index) => ({ ...line, seq: index + 1 }))
             .map((line) => {
               const { ts: _ts, session: _session, ...rest } = line;

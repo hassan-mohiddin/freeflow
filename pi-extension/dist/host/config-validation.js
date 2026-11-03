@@ -85,6 +85,28 @@ function validateEventsConfig(value) {
   return null;
 }
 /**
+ * The gates (SPEC-008 4.5): each of the four is `off`, `warn` (the default: the agent reads a warning, the event log
+ * counts it) or `block` (a refusal, or for delivery a question where someone can answer), on every host with a Freeflow
+ * driver. Track Work's `lib/gates5.mjs` decides; the drivers read these values.
+ */
+export const GATE_KEYS = ["agreement", "slice", "delivery", "delegation"];
+export const GATE_MODES = ["off", "warn", "block"];
+function validateGatesConfig(value) {
+  if (!isRecord(value)) return "gates must be an object";
+  const unknown = Object.keys(value).find((key) => !GATE_KEYS.includes(key));
+  if (unknown) return `gates has unsupported key: ${unknown}`;
+  for (const key of GATE_KEYS)
+    if (value[key] !== undefined && !GATE_MODES.includes(value[key]))
+      return `gates.${key} must be one of ${GATE_MODES.join(", ")}`;
+  return null;
+}
+/** Each gate's mode for two valid config layers: the personal layer overrides the repository's, gate by gate. */
+export function resolveGateSettings(repository, local) {
+  const layer = (config) => (isRecord(config?.gates) ? config.gates : {});
+  const [shared, personal] = [layer(repository), layer(local)];
+  return Object.fromEntries(GATE_KEYS.map((key) => [key, personal[key] ?? shared[key] ?? "warn"]));
+}
+/**
  * How Review Work reviews finished work. Without the key it runs `auto`, its own risk gate; `off` and `always` are the
  * user's choice for every task, and `model` names the model a reviewer runs on. `auto` is accepted so a personal file
  * can return a shared `off` or `always` to the default.
@@ -179,6 +201,18 @@ export const SETTINGS = [
     session: true,
   })),
   { key: "events.enabled", label: "Event log", values: "boolean", default: true, hosts: "all", session: true },
+  // The gates (SPEC-008 4.5).
+  { key: "gates.agreement", label: "Agreement gate", values: GATE_MODES, default: "warn", hosts: "all", session: true },
+  { key: "gates.slice", label: "Slice gate", values: GATE_MODES, default: "warn", hosts: "all", session: true },
+  { key: "gates.delivery", label: "Delivery gate", values: GATE_MODES, default: "warn", hosts: "all", session: true },
+  {
+    key: "gates.delegation",
+    label: "Delegation gate",
+    values: GATE_MODES,
+    default: "warn",
+    hosts: "all",
+    session: true,
+  },
   { key: "review.mode", label: "Review", values: REVIEW_MODES, default: "auto", hosts: "all", session: true },
   { key: "review.model", label: "Reviewer model", values: "name", default: null, hosts: "all", session: true },
   {
@@ -281,6 +315,7 @@ export const CONFIG_SECTIONS = [
   "review",
   "skills",
   "events",
+  "gates",
 ];
 // outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
 // ignored so existing configs keep loading, and /freeflow status says Task Memory is gone (P6).
@@ -332,6 +367,10 @@ export function validateRepositoryConfig(value) {
     const error = validateEventsConfig(value.events);
     if (error) return error;
   }
+  if (value.gates !== undefined) {
+    const error = validateGatesConfig(value.gates);
+    if (error) return error;
+  }
   if (value.review !== undefined) return validateReviewConfig(value.review);
   return null;
 }
@@ -356,6 +395,7 @@ export function validateLocalConfig(value) {
     "review",
     "skills",
     "events",
+    "gates",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -390,6 +430,10 @@ export function validateLocalConfig(value) {
   }
   if (value.events !== undefined) {
     const error = validateEventsConfig(value.events);
+    if (error) return error;
+  }
+  if (value.gates !== undefined) {
+    const error = validateGatesConfig(value.gates);
     if (error) return error;
   }
   if (value.review !== undefined) return validateReviewConfig(value.review);

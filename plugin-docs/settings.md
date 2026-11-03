@@ -13,8 +13,9 @@ With nothing configured, Freeflow on Pi runs with these capabilities; each one's
 | [Tool Execution](capabilities/tool-execution.md) | on | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors, and skill guidance at the tool call that needs it |
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
 | [Cognitive Routing](capabilities/cognitive-routing.md) | off | Coordinator, Helper and Executor profiles on different models |
+| [Gates](capabilities/gates.md) | warn | Four rules checked before each tool call (agreement, Slice, delivery, delegation scope), warning only; also on Claude Code |
 
-On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts`, `skills` and `review` apply, and on Claude Code and Codex `events` too; the capabilities above are Pi only. OpenCode reads no settings.
+On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts`, `skills` and `review` apply, on Claude Code `events` and `gates` too, and on Codex `events`; the capabilities above are Pi only. OpenCode reads no settings.
 
 ## Where a setting lives
 
@@ -51,6 +52,11 @@ Freeflow settings    Session  [Personal]  Repository
       Executor preset        not configured
       Context projection     on (inherited)
     Event log                on (inherited)
+  Gates
+      Agreement gate         warn (inherited)
+      Slice gate             warn (inherited)
+      Delivery gate          warn (inherited)
+      Delegation gate        warn (inherited)
     Review                   auto (inherited)
       Reviewer model         not configured
 
@@ -80,11 +86,15 @@ Freeflow settings for /home/you/project (Claude Code)
   Runtime prompts  on        default
   Skills           on        default
   Event log        on        default
+  Agreement gate   warn      default
+  Slice gate       warn      default
+  Delivery gate    warn      default
+  Delegation gate  warn      default
   Review           auto      default
   Reviewer model   none      default
 Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)
 Remove one: /freeflow settings <key> inherit [--session | --personal | --repository]
-Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.mode, review.model.
+Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.agreement, gates.slice, gates.delivery, gates.delegation, review.mode, review.model.
 Pi-only settings (tool execution, compaction, messaging, Cognitive Routing) are changed on Pi or in the files.
 ```
 
@@ -160,6 +170,10 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Control | none | automatic, or hold Coordinator, Helper or Executor | automatic | Session |
 | Reset overrides | none | clears every session override | — | Session |
 | Event log | `events.enabled` | `true`, `false`: off, Freeflow writes no event log | `true` | Session, Personal, Repository (Claude Code and Pi) |
+| Agreement gate | `gates.agreement` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
+| Slice gate | `gates.slice` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
+| Delivery gate | `gates.delivery` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
+| Delegation gate | `gates.delegation` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
 | Review | `review.mode` | `auto`, `off`, `always` | `auto` | Session, Personal, Repository (every host) |
 | Reviewer model | `review.model` | a model name, such as `claude-opus-4-5` | none | Session, Personal, Repository (every host) |
 
@@ -172,6 +186,7 @@ What some of them mean:
 - **Runtime prompts** is the switch for all of Freeflow's always-present prompts, and **Each prompt** turns them on or off one by one, on every host: Core (how Freeflow works: the cycle, what authorizes work, where it stops), the Interaction Contract (how the agent talks with you) and the Working Method (how it works). With one off, the agent works without that guidance; the rest of Freeflow stays on. The Cognitive Routing and Tool Execution prompts follow their capability's switch.
 - **Skills** is the switch for all of Freeflow's skills but Setup Freeflow, which always stays so you can repair a configuration; **Each skill** turns them off or on one by one. On Pi an off skill is not loaded and its command says it is off. Codex, Claude Code and the other hosts load plugin skills themselves, so there the agent is told, in its Runtime State, not to use an off skill (``Skills off: `write-skill`; do not open or follow them.``); use the host's own setting to remove it completely. The capability skills (Compaction, Cognitive Routing, Messaging) follow their capability's switch.
 - **Event log** (`events.enabled`) is whether Freeflow's driver, Claude Code's mod or the Pi extension, writes what happens in the session's loop to `events/<session>.jsonl` in the Freeflow home: the commands run (with keys and tokens redacted, cut to 200 characters), exit status, the paths file tools named, token counts, compactions and workers, never a prompt, an answer, a file's content or a tool's output. It stays on this machine; a checkpoint commits a short summary of it into the task's folder. Off, nothing is written from the next event, and `/freeflow capabilities` says so.
+- **Gates** (`gates.agreement`, `gates.slice`, `gates.delivery`, `gates.delegation`) set each of Freeflow's four gates, checked before each tool call on Claude Code and Pi: `warn` (the default) lets the call run and the agent reads the rule and the way through, once per gate in a turn, and the event log counts it; `block` refuses the call with the same text, a delivery step becoming a question to you where someone can answer; `off` checks nothing. See [Gates](capabilities/gates.md).
 - **Review** (`review.mode`) and **Reviewer model** (`review.model`) set when the agent has finished work independently reviewed, by a separate reviewer; the agent's own self-review always runs. `auto` lets Review Work's risk check decide; `off` never starts one on its own, and when the change looks risky the agent proposes a review with its reason and cost and runs it only on your yes; `always` reviews every finished task. `auto` in your personal file returns a shared `off` or `always` to the default. Reviewer model names the model a reviewer runs on, where the host lets the agent choose one; Freeflow passes the name on as written and does not check it. The screen offers this Pi's authenticated models; on another host, write the name that host uses into the file. A Session value applies on Pi only, to this session. A setting other than the default shows in the agent's Runtime State, such as ``Review: `always`, reviewer model `claude-opus-4-5` ``.
 
 A configuration file with a key Freeflow does not know is refused with an error naming the file. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting`, `scriptTransform` and `taskMemory` (with `processing` in the personal file). Pi's Task Memory is gone, so a `taskMemory` key does nothing, and `/freeflow status` says so. `contextVirtualization` and `conversationHistory` belong to removed context features: a file that still has either is invalid and keeps Freeflow off until you delete them.

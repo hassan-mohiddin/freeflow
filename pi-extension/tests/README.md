@@ -24,6 +24,7 @@ Rebuild after changing `src/`; a stale `dist/` tests old code.
 | [`provider-support/`](provider-support/README.md) | Cache breakpoints, keep-alive, cache health, OpenAI effort history, Sign in with ChatGPT. |
 | [`compaction/`](compaction/README.md) | Freeflow compaction: the notice and rows, the compaction with the bundle at a run's end, and Pi's own compaction. |
 | [`events/`](events/README.md) | The event log and claims on Pi. |
+| [`gates/`](gates/README.md) | The gates on Pi: warn, ask and block through `tool_call` and the call's result. |
 | [`store/`](store/README.md) | The Freeflow store's layer on Pi. |
 | [`cache-reuse/`](cache-reuse/README.md) | End-to-end prompt-cache reuse: each request extends the previous one, per view and per provider. |
 | [`host/`](host/README.md) | Settings widgets and persisted-session checks. |

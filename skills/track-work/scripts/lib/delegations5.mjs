@@ -6,7 +6,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
 import { slugify } from "./format.mjs";
@@ -257,6 +257,7 @@ export async function openDelegation(loaded, options, text) {
   const from = options["--from"] ?? parent?.id ?? task?.record.work.slice?.id ?? null;
   const slug = basename(directory).toLowerCase();
   let space = "the coordinator's checkout (read only)";
+  let worktree = null;
   if (options["--repo"]) {
     const repo = git(resolve(options["--repo"]), ["rev-parse", "--show-toplevel"]);
     if (!ok(repo)) fail(`--repo ${options["--repo"]} is not a Git repository.`);
@@ -264,11 +265,18 @@ export async function openDelegation(loaded, options, text) {
     const commit = git(repo, ["rev-parse", "--short=8", `${base}^{commit}`]);
     if (!ok(commit)) fail(`--base ${base} is not a commit in ${repo}.`);
     const branch = options["--branch"] ?? slug;
-    const worktree = resolve(options["--worktree"] ?? join(dirname(repo), `${basename(repo)}-${slug}`));
+    worktree = resolve(options["--worktree"] ?? join(dirname(repo), `${basename(repo)}-${slug}`));
     const made = git(repo, ["worktree", "add", "-q", "-b", branch, worktree, commit]);
     if (!ok(made)) fail(`Could not make the worktree: ${made.message}`);
     space = `${repo} worktree ${worktree} at ${commit}, branch ${branch}`;
   }
+  // What the worker may write, for the delegation gate (SPEC-008 T2): relative to its worktree, absolute without one.
+  const writes = [options["--writes"] ?? []].flat().map((glob) => String(glob).trim());
+  if (writes.some((glob) => !glob || /[`,\n]/.test(glob)))
+    fail("--writes takes one glob each, with no comma or backquote, as --writes 'skills/review-work/**'.");
+  const mayWrite = writes.map((glob) => (worktree || isAbsolute(glob) ? glob : resolve(glob)));
+  if (mayWrite.length)
+    sections.Scope = [`May write: ${mayWrite.map((glob) => `\`${glob}\``).join(", ")}`, ...trim(sections.Scope)];
   const briefPath = join(directory, "brief.md");
   const recover = loaded
     ? `node ${SCRIPT} view recover --record ${loaded.path} --delegation ${id}`

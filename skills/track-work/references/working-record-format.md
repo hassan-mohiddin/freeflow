@@ -410,13 +410,14 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Hold a task, give it up, move to another | `task take --id <ID> [--takeover]`, `task release`, `task switch --id <ID>` |
 | Move a task into a project, or out of one | `task move --id <ID> (--project <p> \| --no-project)`, on the user's word |
 | Open, change, close the agreement | `agreement open`, `agreement update`, `agreement close --state <completed\|ended\|replaced>` |
+| Record the agreement of a session that holds no task, for Freeflow's gates | `agree --outcome <text> [--exact-spec "<reason>"]`, `--exact-spec` when the user's request fixes every choice |
 | Propose a Slice | `slice propose` |
 | Start a proposed Slice, or one never proposed | `slice start --title <proposal title>`, `slice start-direct` |
 | `in_progress` ↔ `paused` | `slice pause`, `slice resume` |
 | Close the current Slice | `slice close --state <completed\|blocked\|abandoned>` (blocked from paused) |
 | Record a Slice that finished before it could be recorded | `slice record --state <state>`: History only; Current Work and Future Work unchanged |
 | Give a closed Slice its Files, when it closed without one | `slice size --id <S-NNN> (--files <n> \| --range <from>..<to> [--repo <path>])`: appended to its History entry, dated |
-| Hand work to an agent, and close it | `delegate open`, `amend`, `status`, `check-return`, `close`; with no task, `delegate open --scratch <folder>` and `check-return --scratch <folder>`, which record nothing |
+| Hand work to an agent, and close it | `delegate open [--writes <glob> ...]` (what the worker may write, for the brief's Scope), `amend`, `status`, `check-return`, `close`; with no task, `delegate open --scratch <folder>` and `check-return --scratch <folder>`, which record nothing |
 | Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task; either with `--compact` to have Freeflow's harness layer compact when the turn ends, which it does only on that request, and only where the session's driver claims it can (Setup Freeflow's `capabilities.mjs check compact`); elsewhere the command says so and the harness compacts on its own |
 | Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
 | The session's event log, and its summary since it took the task | `events summary [--session <ID>]`, `events show [--kind <kind>]`: change nothing; `events append` is the harness layer's |

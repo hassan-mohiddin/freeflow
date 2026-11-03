@@ -12,6 +12,7 @@ import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-ro
 import { handleFreeflowCommand } from "./host/settings/freeflow-command.js";
 import { toolExecutionSections, toolExecutionTail } from "./tool-execution/prompt.js";
 import { FileTracking, withLines } from "./tool-execution/file-tracking.js";
+import { GateRuntime } from "./gates/runtime.js";
 import { GuidanceNotices } from "./tool-execution/guidance-notices.js";
 import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
@@ -201,6 +202,8 @@ export default function freeflow(pi) {
   const store = new StoreLayer(runScript);
   // The event log and the claims (SPEC-006): written off the request path, when a run settles and at shutdown.
   const events = new EventRecorder(runScript);
+  // The gates (SPEC-008): Track Work's gates5.mjs on each tool call, from the session's gate state kept in memory.
+  const gates = new GateRuntime(packageRoot);
   const version = (() => {
     try {
       return JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")).version;
@@ -469,6 +472,8 @@ export default function freeflow(pi) {
             ),
           );
       }
+      // Session status and the take-back wrote the gate state; read it now, once.
+      if (generation === surfaceGeneration) await gates.refresh({ settled: true });
       // The footer names the held task; refreshed only when it changed, since a refresh costs a branch walk.
       if (generation === surfaceGeneration && store.heldTask() !== held) status(ctx);
     } catch {
@@ -640,6 +645,9 @@ export default function freeflow(pi) {
       window: ctx.model?.contextWindow,
     });
     events.begin(ctx.sessionManager?.getSessionId?.(), capability?.events?.enabled === true);
+    // The gate state as it stands, read now; storeStart reads it again once session status has written it.
+    gates.begin(ctx.sessionManager?.getSessionId?.());
+    await gates.refresh();
     events.sessionStarted(event?.reason, ctx.hasUI !== false);
     syncClaims();
     if (capability?.enabled === true) void storeStart(ctx, event?.reason, generation);
@@ -764,6 +772,18 @@ export default function freeflow(pi) {
       /working-record\.mjs\s+(checkpoint|task\s+(release|switch))\b/.test(String(event.input?.command ?? ""))
     )
       await events.flush();
+    // The gates (SPEC-008 4.3), before Freeflow's other checks: warn adds a row to the result, block refuses, and a
+    // delivery step under block asks the person where Pi has a screen.
+    if (capability?.gates) {
+      const gated = gates.check(event, ctx.cwd, capability.gates, ctx.hasUI === true);
+      if (gates.missingOnce()) events.freeflow("gates", "no gate state for this session");
+      for (const fired of gated.fired) events.emit("gate", gates.eventFields(fired, event.toolName));
+      if (gated.kind === "block") return { block: true, reason: gated.reason };
+      if (gated.kind === "ask") {
+        const yes = await Promise.resolve(ctx.ui.confirm("Freeflow gate", gated.reason)).catch(() => false);
+        if (!yes) return { block: true, reason: gated.reason };
+      }
+    }
     const gate = routing.preflight(event, ctx);
     if (gate?.block || !toolExecutionEffective()) return gate;
     const refusal = event.toolName === "bash" ? backgroundRefusal(event.input?.command) : undefined;
@@ -782,6 +802,8 @@ export default function freeflow(pi) {
     // After the agent ran Track Work's script, the held task may have changed: read it off the request path, for the
     // footer and the notice.
     if (event.toolName === "bash" && String(event.input?.command ?? "").includes("working-record.mjs")) {
+      // A lifecycle command may have written the gate state: read it again (one small file) before the next call.
+      await gates.refresh();
       const held = store.heldTask();
       void store
         .refresh()
@@ -790,12 +812,18 @@ export default function freeflow(pi) {
         })
         .catch(() => {});
     }
-    if (!toolExecutionEffective()) return undefined;
+    // The gates' warning rows for this call, once per gate per turn (SPEC-008 4.3).
+    const gateRows = gates.takeRows(event.toolCallId);
+    if (!toolExecutionEffective())
+      return gateRows.length ? { content: withLines(event.content ?? [], gateRows) } : undefined;
     const shaped = await files.toolResult(event, ctx);
     // The push retriever's notice joins the result before it is delivered, after anything Tool Execution added.
     const executeWorkUnread = () =>
       !(capability?.skills?.off ?? []).includes("execute-work") && !files.loadedSkills(ctx).includes("execute-work");
-    const lines = guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd, executeWorkUnread) : [];
+    const lines = [
+      ...(guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd, executeWorkUnread) : []),
+      ...gateRows,
+    ];
     return lines.length ? { content: withLines(shaped?.content ?? event.content ?? [], lines) } : shaped;
   });
   pi.on("turn_end", async (event, ctx) => {
@@ -830,6 +858,7 @@ export default function freeflow(pi) {
   // A Freeflow compaction fires no session_compact, so its resets run here, before the new cycle's first request.
   pi.on("turn_start", async (_event, ctx) => {
     events.turnStart();
+    gates.turnStart();
     const compacted = compaction.takeCompacted();
     if (!compacted) return;
     // File state first, so the state restore refreshes lists no skill from before the compaction.
