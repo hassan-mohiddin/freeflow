@@ -41,5 +41,6 @@ An H1 title and one paragraph on what the user sees, then four sections in this 
 - [Settings screen](settings.md): `/freeflow settings` in its three scopes, and the files each one writes.
 - [Tool Execution](tool-execution.md): its status and switch, and the guidance notices on tool results. The notices need a model call; only status and the switch are driven.
 - [Workflow commands](workflow-commands.md): `/verify-work`, `/discuss-work` and the other skill commands. Each run is a model call; only completion is driven.
+- [Delegation across sessions](delegation.md): `delegate open --session`, `delegate join` and a worker session's refusals, `checkpoint --delegation`, `delegate log`, Left open into `decisions.md`, and claims; not yet driven.
 - [Track Work CLI](track-work-cli.md): `working-record.mjs`, the record surface on Claude Code, Codex and other hosts.
 - [Evaluator uncommitted run](evaluator-uncommitted-run.md): `skill-eval run`'s plan, the refusal of uncommitted inputs, `--uncommitted`, and the refused `--dry-run`.
