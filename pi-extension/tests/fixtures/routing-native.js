@@ -255,6 +255,9 @@ export async function fixture(script, projection = true, after, withUI = true, o
   await writeFile(
     join(cwd, ".freeflow/config.json"),
     JSON.stringify({
+      // The gates (SPEC-008) warn on most changes; their rows race with session start's gate state, so a native test
+      // pins them only where it turns them on (tests/gates/).
+      gates: { agreement: "off", slice: "off", delivery: "off", delegation: "off" },
       ...(options.freeflowConfig ?? {}),
       cognitiveRouting: options.cognitiveRouting ?? {
         enabled: true,
