@@ -3,12 +3,12 @@
 import { cwd } from "node:process";
 import { readFileSync } from "node:fs";
 import { delimiter, isAbsolute, join, resolve, sep } from "node:path";
-import { displayPath, readInput, readRecord, resolveRecordPath, storeOf, isFreeflowStore } from "./lib/store.mjs";
+import { displayPath, readInput, readRecord, resolveRecordPath, storeOf, isFreeflowStore, freeflowStoreOf } from "./lib/store.mjs";
 import { checkLinePointers } from "./lib/recover.mjs";
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { checkpointSession, runTransition5, writeCompactionRequest } from "./lib/transitions5.mjs";
 import { budgetLines, budgetFor, contextWindow, measureTask, renderBudget } from "./lib/budget5.mjs";
-import { copyTaskIntoStore, migrateTask, readCues } from "./lib/migrate5.mjs";
+import { copyTaskIntoStore, hasOldRecoveryHeadings, migrateRecoveryHeadings, migrateTask, readCues } from "./lib/migrate5.mjs";
 import { dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
 import { renderBundle5, renderEntries5, renderIndex5, renderRecover5, renderSessionBundle } from "./lib/views5.mjs";
 import {
@@ -143,7 +143,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "migrate",
-    "Usage: migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name> [--home <folder>]]\nConverts a Schema 4 record to Schema 5: Goal, Settled (with the active Decisions) and Open (with Tentative and pending Checkpoints); the Work agreement and Boundaries become the open agreement A-001; What defines this task and the Recovery sources become Recovery lines (a definition or a skill always and not counted, a source with \"read when …\" a when line, the rest always); the Current Slice and its Material updates carry over; proposed Slices stay in Future Work, with Current direction as one more; closed Slices become history.md entries. The Schema 4 record is kept whole in sources/schema4-record.md, Notes move to sources/notes.md, and the decision list moves to decisions.md when an agreement is open. --cue is the task's cue; --cues is a file of \"S-NNN: read when …\" lines for closed Slices, and a Slice without one is marked missing. Without --project the folder converts in place; with it, the folder is copied into that project in the Freeflow store as its next task, converted there and pushed, and the original stays as it was. A Schema 5 record kept without a store, in a repository's .freeflow/tasks/, is brought into the store the same way with --project, unchanged, and needs no --cue. migrate is the only command that reads a Schema 4 record, whether kept in a repository's .freeflow/tasks/ or by Pi's former Task Memory (its projects' records under the folder that holds registry.json).",
+    "Usage: migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name> [--home <folder>]]\nConverts a Schema 4 record to Schema 5: Goal, Settled (with the active Decisions) and Open (with Tentative and pending Checkpoints); the Work agreement and Boundaries become the open agreement A-001; What defines this task and the Recovery sources become Recovery lines (a definition or a skill always and not counted, a source with \"read when …\" a when line, the rest always); the Current Slice and its Material updates carry over; proposed Slices stay in Future Work, with Current direction as one more; closed Slices become history.md entries. The Schema 4 record is kept whole in sources/schema4-record.md, Notes move to sources/notes.md, and the decision list moves to decisions.md when an agreement is open. --cue is the task's cue; --cues is a file of \"S-NNN: read when …\" lines for closed Slices, and a Slice without one is marked missing. Without --project the folder converts in place; with it, the folder is copied into that project in the Freeflow store as its next task, converted there and pushed, and the original stays as it was. A Schema 5 record kept without a store, in a repository's .freeflow/tasks/, is brought into the store the same way with --project, unchanged, and needs no --cue. A Schema 5 record written before the one Recovery list (with Defined by, Read on recovery and Read when, or Carry lines in In flight) is converted in place, needing no --cue: each Defined by entry becomes an always, not counted line, each Read on recovery entry and Carry file an always line, and each Read when entry a when line with its trigger; the record as it was is kept in sources/record-before-recovery.md. migrate is the only command that reads a Schema 4 record, whether kept in a repository's .freeflow/tasks/ or by Pi's former Task Memory (its projects' records under the folder that holds registry.json).",
   ],
   [
     "delegate",
@@ -810,6 +810,12 @@ async function runCore(command, rest) {
   }
   if (command === "migrate") {
     const loaded = await readExisting(options);
+    if (schemaOf(loaded.text) === 5 && (hasOldRecoveryHeadings(loaded.text) || /^- Carry:/m.test(loaded.text)))
+      return migrateRecoveryHeadings({
+        recordPath: loaded.path,
+        text: loaded.text,
+        home: freeflowStoreOf(loaded.path),
+      });
     if (schemaOf(loaded.text) === 5 && options["--project"])
       return copyTaskIntoStore({
         recordPath: loaded.path,
@@ -818,7 +824,7 @@ async function runCore(command, rest) {
       });
     if (schemaOf(loaded.text) !== 4)
       throw new CliError(
-        `migrate converts a Schema 4 record, or with --project brings a Schema 5 one into the store; this one is Schema ${schemaOf(loaded.text) ?? "unknown"}`,
+        `migrate converts a Schema 4 record, a Schema 5 one written before the Recovery list, or with --project brings a Schema 5 one into the store; this one is Schema ${schemaOf(loaded.text) ?? "unknown"}`,
       );
     return migrateTask({
       recordPath: loaded.path,
