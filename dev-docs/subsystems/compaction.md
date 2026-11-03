@@ -28,7 +28,7 @@ It deliberately does not:
 | Notice | The one soft notice a cycle: keep working to a safe point, checkpoint with `--compact`, end the turn. | `Thresholds.notice`, notice level `"notice"` |
 | Row | One line at 50, 60 or 70% of the window, below the notice, once each a cycle. | `ROWS_AT`, notice level `"row"` |
 | Trigger | Where Pi compacts on its own: window minus Pi's reserve. | `Thresholds.trigger` |
-| Checkpoint done | The held task's State as of, or the session summary's time, is later than this cycle's notice, or its start when no notice came (P68). | `checkpointDone()` |
+| Checkpoint done | The held task's State as of, a worker session's `progress.md` time (`checkpoint --delegation`), or the session summary's time, is later than this cycle's notice, or its start when no notice came (P68). | `checkpointDone()` |
 | Bundle | Track Work's `view bundle`: the record and everything recovery reads, whole, with the files In flight carries (P60). | `StoreLayer.bundle()` |
 | Store state | `session status` as last read: the store, the held task, the session summary, a waiting compaction request. | `StoreLayer.current()` |
 | Harness part | The part of the summary Freeflow writes from facts it holds: the cycle, what asked for the compaction, the routing profile, running background commands, the Freeflow skills read in the cycle it ends. | `harnessPart()` in `harness.ts` |
@@ -51,7 +51,7 @@ It deliberately does not:
 Worked example, 200k window with Pi's default reserve: trigger 200,000 − 16,384 = 183,616; the notice at the lower of 75% (150,000) and the trigger less a tenth of the window (163,616), so 150,000. Rows at 100,000, 120,000 and 140,000.
 
 1. **Measure.** `turn_end` calls `compaction.observe(ctx, turn)` after routing's turn end. `measure()` takes the context from the turn's own usage, and for a Coordinator under projection the larger of that and the full history's estimate. Thresholds come from `strictest()`: the lowest notice among every model that may receive the full history.
-2. **Notify.** Below the notice, `observe()` returns a row at the highest of 50, 60 and 70% crossed, each once a cycle; at the notice, the cycle's one notice, then nothing more that cycle. The notice names the held task and the command (`checkpoint --record <ID> --compact`), or `checkpoint --session --compact` with none; under projection it tells the Coordinator to delegate the checkpoint. `index.ts` sends it as a `freeflow-compaction-notice` message: steered into the next request mid-run, held for the next prompt at a run's end.
+2. **Notify.** Below the notice, `observe()` returns a row at the highest of 50, 60 and 70% crossed, each once a cycle; at the notice, the cycle's one notice, then nothing more that cycle. The notice names the held task and the command (`checkpoint --record <ID> --compact`), or `checkpoint --session --compact` with none; in a worker session (one that ran `delegate join`, SPEC-009), `checkpoint --delegation <D-NNN> --compact`, and its compaction installs `view bundle --delegation`, its end running `release --ended` then a sync; under projection it tells the Coordinator to delegate the checkpoint. `index.ts` sends it as a `freeflow-compaction-notice` message: steered into the next request mid-run, held for the next prompt at a run's end.
 
 ### The compaction
 

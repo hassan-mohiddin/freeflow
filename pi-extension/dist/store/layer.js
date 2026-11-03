@@ -134,6 +134,9 @@ export class StoreLayer {
   /** The text Freeflow's compaction installs: the held task's bundle, or the session summary's. */
   async bundle(options) {
     const state = this.state;
+    // A worker session's compaction installs its delegation's bundle (SPEC-009 4.1).
+    if (state?.store && !state.task && state.delegation)
+      return this.run(["view", "bundle", "--record", state.delegation.record, "--delegation", state.delegation.id]);
     return this.run(
       state?.store && state.task
         ? ["view", "bundle", "--record", state.task.record, ...(options.fallback ? ["--fallback"] : [])]
@@ -156,6 +159,10 @@ export class StoreLayer {
     const state = this.state;
     if (!state?.store) return;
     if (state.task && !options.reload) await this.run(["task", "release", "--ended"], { timeoutMs: 10_000 });
-    else if (state.changed || this.touched) await this.run(["store", "sync"], { timeoutMs: 10_000 });
+    // A worker session's end, or one holding claims, releases them and logs that it ended, then pushes (SPEC-009 5).
+    else if (!options.reload && (state.delegation || state.claims)) {
+      await this.run(["release", "--ended"], { timeoutMs: 10_000 });
+      await this.run(["store", "sync"], { timeoutMs: 10_000 });
+    } else if (state.changed || this.touched) await this.run(["store", "sync"], { timeoutMs: 10_000 });
   }
 }
