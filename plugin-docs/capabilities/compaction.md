@@ -8,12 +8,12 @@ Freeflow compaction lets the agent decide what survives. Freeflow tells the agen
 
 - Native Pi 0.99.1 or later, including Pi 1.0.
 - On by default whenever Freeflow is enabled. Turn it off with `compaction.enabled: false` in `.freeflow/config.json` or `.freeflow/local.json`, or with the Compaction switch in `/freeflow settings` (Repository, Personal or Session scope).
-- Context reuse (`compaction.carry`, on by default): the bundle also carries this compaction cycle's newest tool results, within a carry budget. With it off, only the results the agent names in its record are carried.
+- Tool results are not carried across a compaction: the bundle carries the files the agent names in its record's Carry lines, read fresh. `compaction.carry` (the former Context reuse) still loads and does nothing.
 - Tasks need the Freeflow store ([Setup Freeflow](../../skills/setup-freeflow/references/store-setup.md) sets it up). Without a store, compaction still works: the agent writes a session summary instead, and the next cycle starts from it.
 
 ```json
 {
-  "compaction": { "enabled": true, "carry": true }
+  "compaction": { "enabled": true }
 }
 ```
 
@@ -35,7 +35,7 @@ The notice is soft: keep working to a safe point, then checkpoint and end the tu
 
 ## What the next cycle starts from
 
-The bundle, which Track Work's script prints: an opening line saying the record is memory and your direction decides the work, your rules from the store, the record (with its In flight section, where the step in progress stands), the active decisions, the History and project indexes, the checks, every source the record says recovery reads, the files and tool results In flight carries, the newest results of the cycle within the carry budget, and the core skills. Freeflow appends the cycle, the routing profile and running background commands, then a line saying the conversation is now the bundle. Nothing of the old conversation is kept raw.
+The bundle, which Track Work's script prints: an opening line saying the record is memory and your direction decides the work, your rules from the store, the record (with its In flight section, where the step in progress stands), the active decisions, the History and project indexes, the checks, every source the record says recovery reads, the files In flight carries, and the core skills. Freeflow appends the cycle, the routing profile and running background commands, then a line saying the conversation is now the bundle. Nothing of the old conversation is kept raw.
 
 Without a task, the session summary takes the record's place.
 

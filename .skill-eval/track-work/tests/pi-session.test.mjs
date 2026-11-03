@@ -46,29 +46,12 @@ function piSession() {
   return `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`;
 }
 
-test("a Pi session is read along its active branch: carry list, carry show and discussion list", async () => {
+test("a Pi session is read along its active branch: discussion list numbers its user's messages, not a branch /tree left", async () => {
   const folder = await realpath(await mkdtemp(join(tmpdir(), "track-work-pi-session-")));
   try {
     const session = join(folder, "2026-10-30T10-00-00_session-1.jsonl");
     await writeFile(session, piSession());
     const run = (...args) => spawnSync(process.execPath, [scriptPath, ...args], { encoding: "utf8" });
-    const list = run("carry", "list", "--transcript", session);
-    assert.equal(list.status, 0, list.stderr);
-    assert.equal(
-      list.stdout,
-      [
-        "1. 10:04 · read: /work/src/parser.js · 70 tokens · call_read",
-        "2. 10:07 · bash: npm test · 50 tokens · call_test",
-        'Carry one with "- Carry: result <n> — <why>" in In flight; the checkpoint pins it to its ID.',
-        "",
-      ].join("\n"),
-    );
-    assert.match(
-      run("carry", "show", "--id", "call_old", "--transcript", session).stdout,
-      /^bash: ls · 2026-10-30T10:01:00\.000Z · call_old\nbefore before/,
-    );
-    assert.equal(run("carry", "show", "--id", "call_left", "--transcript", session).status, 1);
-
     execFileSync("git", ["init", "--quiet", "--initial-branch=main"], { cwd: folder });
     await writeFile(join(folder, ".gitignore"), ".freeflow/\n*.jsonl\n");
     const init = spawnSync(
@@ -100,41 +83,5 @@ test("a Pi session is read along its active branch: carry list, carry show and d
     );
   } finally {
     await rm(folder, { recursive: true, force: true });
-  }
-});
-
-test("view bundle --no-recent leaves out the newest results, and keeps a result In flight carries", async () => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "track-work-pi-bundle-")));
-  try {
-    const session = join(root, "session.jsonl");
-    await writeFile(session, piSession());
-    execFileSync("git", ["init", "--quiet", "--initial-branch=main"], { cwd: root });
-    await writeFile(join(root, ".gitignore"), ".freeflow/\nsession.jsonl\n");
-    const run = (args, input = "") =>
-      spawnSync(process.execPath, [scriptPath, ...args], {
-        cwd: root,
-        encoding: "utf8",
-        input,
-        env: { ...process.env, FREEFLOW_TRANSCRIPT: session, CLAUDE_CODE_SESSION_ID: "", FREEFLOW_CONTEXT_WINDOW: "" },
-      });
-    const init = run(
-      ["init", "--root", root, "--name", "Pi", "--cue", "read when Pi matters", "--input", "-"],
-      "### Goal\n\n- Read Pi.\n\n### Next action\n\n- Go.\n",
-    );
-    assert.equal(init.status, 0, init.stderr);
-    const record = init.stdout.trim().split("\n")[0];
-    const pinned = run(
-      ["checkpoint", "--record", record, "--input", "-"],
-      "- Now: testing.\n- Carry: result 2 — the run\n",
-    );
-    assert.equal(pinned.status, 0, pinned.stderr);
-    const whole = run(["view", "bundle", "--record", record]).stdout;
-    assert.match(whole, /<result id="call_test" call="bash: npm test"/);
-    assert.match(whole, /## Recent results[^\n]*\n\n<result id="call_read"/);
-    const bare = run(["view", "bundle", "--record", record, "--no-recent"]).stdout;
-    assert.match(bare, /<result id="call_test" call="bash: npm test"/);
-    assert.doesNotMatch(bare, /## Recent results|call_read/);
-  } finally {
-    await rm(root, { recursive: true, force: true });
   }
 });

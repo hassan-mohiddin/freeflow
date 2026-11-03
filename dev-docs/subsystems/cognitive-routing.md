@@ -208,7 +208,7 @@ Routing is unavailable inside subagents and when Pi's model registry lacks the n
 
 **Skill and prompt:** `capabilities/cognitive-routing/SKILL.md` with the role references `references/coordinator.md` (with a section per delegation mode) and `references/worker.md`; the bootstrap cue `runtime/prompts/cognitive-routing.md`.
 
-**Ports to other subsystems:** `suspendedCoordinator()` (keep-alive), `observationScope()` (cache health), `currentAssignment()`, `assignmentResults()` and `evidenceSource()` (compaction).
+**Ports to other subsystems:** `suspendedCoordinator()` (keep-alive), `observationScope()` (cache health) and `currentAssignment()` (compaction).
 
 ## State
 

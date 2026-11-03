@@ -34,27 +34,16 @@ export const BUDGET_MODES = new Set(["normal", "expanded"]);
 /** In flight's lines (P59): where the step in progress stands, and what the next step rests on, labelled as on Pi. */
 export const IN_FLIGHT_LABELS = ["Now", "Observed", "Hypothesis", "Dropped", "Pending", "Carry"];
 const IN_FLIGHT_LINE = new RegExp(`^- (${IN_FLIGHT_LABELS.join("|")}):\\s+\\S`);
-/** A Carry line for a file: `- Carry: <path> (lines 40–118) — why`, the lines optional. */
+/** A Carry line: `- Carry: <path> (lines 40–118) — why`, the lines optional. */
 const CARRY_LINE = /^- Carry:\s+(\S+)(?:\s+\(lines?\s+(\d+)(?:\s*[–-]\s*(\d+))?\))?\s+—\s+\S/;
-/**
- * A Carry line for a tool result (P2): `- Carry: result <ID> (<what the call was for>) — why`; the input to
- * checkpoint may give its number in `carry list` instead of its ID, which the checkpoint pins.
- */
-export const CARRY_RESULT = /^- Carry:\s+result\s+(\S+?)(?:\s+\(([^)]*)\))?\s+—\s+\S/;
+export const CARRY_FORMAT = `"- Carry: <path> (lines <a>–<b>) — <why>", the lines optional`;
 
-/** What a Carry line names: a tool result, or a file and its lines; null for a line that is neither. */
+/** The file and lines a Carry line names; null for a line that is not one. */
 export function carryItem(line) {
-  const result = CARRY_RESULT.exec(line);
-  if (result) return { result: result[1], label: result[2] ?? null, path: null, from: null, to: null };
   const file = CARRY_LINE.exec(line);
   if (!file) return null;
   const [, path, from, to] = file;
-  return {
-    result: null,
-    path,
-    from: from ? Number(from) : null,
-    to: to ? Number(to) : from ? Number(from) : null,
-  };
+  return { path, from: from ? Number(from) : null, to: to ? Number(to) : from ? Number(from) : null };
 }
 
 export const SLICE5_ORDER = [
@@ -66,6 +55,8 @@ export const SLICE5_ORDER = [
   "Done when",
   "Stop if",
   "Started from",
+  "Size",
+  "Base",
   "Waits on",
   "Dependencies",
   "Predicted",
@@ -73,7 +64,7 @@ export const SLICE5_ORDER = [
 ];
 const SLICE5_REQUIRED = ["State", "Opened", "Under", "Result wanted", "Scope", "Done when", "Stop if", "Started from"];
 export const SLICE5_STATES = new Set(["in_progress", "paused"]);
-export const PROPOSED5_ORDER = ["Result wanted", "Done when", "Dependencies"];
+export const PROPOSED5_ORDER = ["Result wanted", "Size", "Done when", "Dependencies"];
 
 /** A Material update is one line: a kind and a pointer (the Spec's section 6). */
 export const UPDATE_KINDS = new Set([
@@ -109,6 +100,8 @@ export const ENTRY_ORDER = {
     "Task effect",
     "Resume when",
     "Reason",
+    "Size",
+    "Files",
     "Predicted",
     "Measured",
     "Updates",
@@ -136,6 +129,15 @@ const ENTRY_REQUIRED = {
   agreement: ["State", "Dates", "Cue", "Lines", "Result", "Task effect"],
   delegation: ["State", "Dates", "Cue", "Under", "Kind", "Agent", "Result", "Return"],
 };
+/**
+ * The number a Size or Files line starts with: the files a Slice will add or change (`Size: 12 files`), or did
+ * (`Files: 11 changed (…)`); null when it starts with none.
+ */
+export function filesIn(text) {
+  const match = /^(\d+) (?:files?|changed)\b/.exec(String(text ?? "").trim());
+  return match ? Number(match[1]) : null;
+}
+
 /** A correction to a closed entry is appended inside it as one more Correction line, never by editing it. */
 const CORRECTION = "Correction";
 
@@ -391,11 +393,8 @@ function parseCurrentWork5(lines, section) {
   work.inFlight = bulletsOnly(lines, flight.start, flight.end, "In flight", (line) => {
     if (!IN_FLIGHT_LINE.test(line))
       fail("invalid-in-flight", `An In flight line starts with ${IN_FLIGHT_LABELS.join(", ")} and a colon: ${line}`);
-    if (line.startsWith("- Carry:") && !CARRY_RESULT.test(line) && !CARRY_LINE.test(line))
-      fail(
-        "invalid-carry",
-        `A Carry line is "- Carry: <path> (lines <a>–<b>) — <why>", the lines optional, or "- Carry: result <ID> — <why>": ${line}`,
-      );
+    if (line.startsWith("- Carry:") && !CARRY_LINE.test(line))
+      fail("invalid-carry", `A Carry line is ${CARRY_FORMAT}: ${line}`);
   });
   work.carry = work.inFlight
     .filter((item) => item.text.startsWith("Carry:"))

@@ -35,7 +35,6 @@ export const SESSION_OVERRIDE_KEYS = [
   "toolExecution.enabled",
   "toolExecution.guidanceNotices",
   "compaction.enabled",
-  "compaction.carry",
   "messaging.enabled",
   "messaging.inbound",
   "review.mode",
@@ -199,7 +198,7 @@ function normalizeSessionOverrides(value: unknown): SessionCoreOverrides {
   return overrides;
 }
 
-/** The setting overrides of this session as a config layer, e.g. { compaction: { carry: false } }. */
+/** The setting overrides of this session as a config layer, e.g. { compaction: { enabled: false } }. */
 function sessionConfigLayer(overrides: SessionCoreOverrides): Record<string, Record<string, unknown>> {
   const layer: Record<string, any> = {};
   for (const [key, value] of Object.entries(overrides)) {

@@ -25,7 +25,6 @@ function setup({ state, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" 
     measure: () => ({ tokens, thresholds: limits }),
     notice,
     coordinatorUnderProjection: () => projection,
-    carryEnabled: () => true,
     summarize: async (preparation, instructions) => {
       calls.summarize.push(instructions);
       return { summary: "PI_SUMMARY", firstKeptEntryId: "kept", tokensBefore: 9, details: { readFiles: [] } };
@@ -127,7 +126,7 @@ test("a run that ends with checkpoint --compact done compacts with the bundle, k
     recovery.content,
     /compaction cycle 2 starts here, and the conversation is now the bundle of freeflow\/task-001/,
   );
-  assert.deepEqual(calls.bundle, [{ recent: true }]);
+  assert.deepEqual(calls.bundle, [{}]);
   assert.equal(calls.answered, 1);
   assert.deepEqual(controller.takeCompacted(), { carriedFiles: [] });
   // A turn that failed compacts nothing.
@@ -187,7 +186,7 @@ test("Pi's own compaction: the bundle once checkpointed, else Pi's summary with 
   assert.match(pi.summary, /^PI_SUMMARY\n\n## Freeflow state at compaction[\s\S]*\n\nFALLBACK_BUNDLE$/);
   assert.equal(pi.firstKeptEntryId, "kept");
   assert.equal(pi.details.freeflow.fallback, true);
-  assert.deepEqual(behind.calls.bundle, [{ fallback: true, recent: true }]);
+  assert.deepEqual(behind.calls.bundle, [{ fallback: true }]);
 
   const none = setup({ state: { home: "/home", store: false, session: "s-1" } });
   const plain = (await none.controller.fallback(event, none.ctx)).compaction;

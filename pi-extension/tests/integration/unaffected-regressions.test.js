@@ -408,14 +408,12 @@ test("a session can switch each capability without changing either config file",
     for (const key of [
       "toolExecution.enabled",
       "compaction.enabled",
-      "compaction.carry",
       "cognitiveRouting.projection",
     ])
       assert.equal((await setSessionCoreOverride(key, false, ctx, pi)).reloadRequired, true);
     const state = await readCapabilityState(cwd);
     assert.equal(state.toolExecution.enabled, false);
     assert.equal(state.compaction.enabled, false);
-    assert.equal(state.compaction.carry, false);
     assert.equal(state.cognitiveRouting.projection, false);
     assert.equal(state.cognitiveRouting.projectionSource, "session");
     assert.equal(state.cognitiveRouting.enabled, true, "an override of one switch leaves the others configured");
@@ -428,7 +426,7 @@ test("a session can switch each capability without changing either config file",
     await resetSessionOverrides(ctx, pi);
     const reset = await readCapabilityState(cwd);
     assert.equal(reset.toolExecution.enabled, true);
-    assert.equal(reset.compaction.carry, true);
+    assert.equal(reset.compaction.enabled, true);
     assert.equal(reset.cognitiveRouting.projection, true);
     assert.equal(reset.messaging.enabled, false);
   } finally {
@@ -474,7 +472,7 @@ test("session settings list every capability switch and change one in place", as
     let rendered;
     settings.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, theme, {}, () => {});
-      choose(component, "Context reuse", "Compaction");
+      choose(component, "Guidance notices", "Tool Execution");
       component.handleInput(KEY.enter);
       await component.waitForWrites();
       rendered = component.render(120).join("\n");
@@ -485,11 +483,12 @@ test("session settings list every capability switch and change one in place", as
     };
     await command.definition.handler("settings session", settings);
     assert.match(rendered, /\[Session\]/);
-    assert.match(rendered, /Tool Execution\s+on \(inherited\)\n/);
-    assert.match(rendered, /Compaction\s+on \(inherited\)\n\s+›\s+Context reuse\s+on\n/);
+    assert.match(rendered, /Tool Execution\s+on \(inherited\)\n\s+›\s+Guidance notices\s+on\n/);
+    assert.match(rendered, /Compaction\s+on \(inherited\)\n/);
+    assert.doesNotMatch(rendered, /Context reuse/);
     assert.match(rendered, /Reset overrides\s+1 active/, "the reset row counts the override just made");
     const { readCapabilityState } = await import("../../dist/host/config.js");
-    assert.equal((await readCapabilityState(cwd)).compaction.carry, true);
+    assert.equal((await readCapabilityState(cwd)).toolExecution.guidanceNotices, true);
     await resetSessionOverrides(settings, {});
   } finally {
     await rm(cwd, { recursive: true, force: true });
