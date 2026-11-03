@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/execute-work/`
 > **Tests:** `.skill-eval/execute-work/`
-> **Verified at:** `e2a0ad14` (2026-10-30)
+> **Verified at:** `69375be8` (2026-11-03)
 
 For anyone changing Execute Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/execute-work/SKILL.md); this record holds the reasons it does not. It was started with the delegation reference, so it records that reference's reasons in full and the rest of the skill's only in outline (Open Questions).
 
@@ -22,6 +22,7 @@ Execute Work is read before an agent's first tool call on any task. It carries t
 
 ## Design
 
+- **The design reference and self-review left Execute Work** (settled with the owner on 1 Nov, in Freeflow's design map). Approaches are chosen in Discuss Work, so the design reference is Discuss Work's, and Execute Work's routes point to it; diagnose stays, since failing checks are its main trigger. Checking your own change is verification, so Review Your Own Change and `self-review.mjs` are Verify Work's Check Your Own Result, which Execute Work's check step points to.
 - **Delegation is a reference in Execute Work, not a skill of its own** (agreed with the owner on 2026-10-28, in task-003; task-004's design, P52). Handing work out is part of carrying it out, a separate skill's description would match the same requests as Execute Work's, and Write Skill prefers depth to width. Write Skill's trials, Review Work's reviewers and Research Work's workers point to it where each starts an agent, and each keeps what is its own.
 - **Cognitive Routing is untouched** (task-004, P27). Its Coordinator and worker references hold the same method for one Pi session switching profiles, with the tools, projection and recovery requests only it has. The reference says so in its opening paragraph and does not link the capability package.
 - **Rules only for what is wrong in every case:** one writer per file; no two agents writing in one checkout; no user-owned choice handed to a worker; a return is not acceptance; the strongest model only with the user's yes, since cost is the user's. The rest is judgment, including the model table, which a user's own model policy overrides.
