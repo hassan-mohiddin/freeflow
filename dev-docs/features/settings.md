@@ -1,7 +1,7 @@
 # Settings
 
 > **Covers:** `pi-extension/src/host/settings/`, `pi-extension/src/host/config-validation.ts`, `pi-extension/src/host/config-store.ts`, `skills/setup-freeflow/scripts/settings.mjs`, `hooks/claude/freeflow.mjs`, `pi-extension/src/tool-execution/config.ts`, `pi-extension/src/compaction/config.ts`, `pi-extension/src/messaging/config.ts`
-> **Verified at:** `dcf316ff` (2026-11-04)
+> **Verified at:** `288745f1` (2026-11-04)
 > **User docs:** `plugin-docs/settings.md`
 
 `/freeflow settings` opens one screen with three scopes: Session (this Pi session only), Personal (`.freeflow/local.json`) and Repository (`.freeflow/config.json`). Changing a row writes that scope's file at once (Session writes none), and a capability switch reloads the Pi session when the screen closes, so the new skills and tools take effect. Which layer wins and why: the overview's [Cross-Cutting Concerns](../README.md#cross-cutting-concerns); the screen's code: `pi-extension/src/host/settings/README.md`.
@@ -39,7 +39,7 @@ Outside Pi the same settings are changed by Setup Freeflow's script, `skills/set
 Preconditions:
 
 - A fresh `scripts/verify-live.sh launch` (config `{}`), and `scripts/verify-live.sh doctor` passes.
-- Rows run, from the top: Freeflow, Runtime prompts, Each prompt, Skills, Each skill, Compaction, Tool Execution, Guidance notices, Messaging, its Ask before delivering row, then the rest, Event log, the Gates heading with its four rows, and Review, Reviewer model and Review rounds last (in the Session scope, before Reset overrides). Eight `Down`s from the top reach Messaging in every scope; fifteen reach Review in the file scopes, past Event log and the four Gates rows (the Gates heading is not a row the cursor stops on). The list scrolls past 18 rows, with `(n/total)` under it.
+- Rows run, from the top: Freeflow, Runtime prompts, Each prompt, Skills, Each skill, Compaction, Tool Execution, Guidance notices, Messaging, its Ask before delivering row, then the rest, Event log, the Gates heading with its four rows, the Delegation heading with Claim hours and Wake on return, and Review, Reviewer model and Review rounds last (in the Session scope, before Reset overrides). Eight `Down`s from the top reach Messaging in every scope; seventeen reach Review in the file scopes, past Event log, the four Gates rows and the two Delegation rows (a heading is not a row the cursor stops on). The list scrolls past 18 rows, with `(n/total)` under it.
 
 - **Open each scope.** Run `scripts/verify-live.sh cmd "/freeflow settings repo"`. The pane shows `Freeflow settings    Session   Personal  [Repository]`, the line `.freeflow/config.json: shared with everyone who uses this repository.`, and the cursor on `› Freeflow                 on (inherited)`. Then `scripts/verify-live.sh snap settings-open`.
 - **Nothing written by opening.** Run `scripts/verify-live.sh observe settings-open-files -- bash -c 'ls -A .freeflow; cat .freeflow/config.json'`. Output `config.json` and `{}`.
