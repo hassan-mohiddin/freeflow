@@ -289,11 +289,26 @@ function trackWorkReads(args) {
   if (args.includes("--help") || ["view", "validate", "budget", "estimate"].includes(command)) return true;
   if (command === "session" || command === "store") return operation === "status";
   if (command === "events") return operation !== "append";
-  if (command === "delegate") return operation === "status" || operation === "check-return";
+  if (command === "delegate")
+    return (
+      operation === "status" || operation === "check-return" || (operation === "log" && !args.includes("--append"))
+    );
+  if (command === "claim") return args.includes("--list");
   if (command === "discussion") return operation === "list";
   if (command === "task") return operation === "here" || operation === "search";
   if (command === "project") return operation === "list" || operation === "show";
   return false;
+}
+
+/**
+ * Track Work's commands a worker runs that write its own files, not the record (SPEC-009 4.1): its progress.md
+ * (checkpoint --delegation), joining its delegation, its claims, and the delegation log.
+ */
+function trackWorkWorkerOwn(args) {
+  const [command, operation] = args.filter((arg) => !arg.startsWith("--"));
+  if (command === "checkpoint") return args.includes("--delegation");
+  if (command === "delegate") return operation === "join" || operation === "log";
+  return command === "claim" || command === "release";
 }
 
 /**
@@ -341,7 +356,7 @@ function classifySegment(words) {
     if (script && /(^|[\\/])scripts[\\/]release\.mjs$/.test(script)) return result(true, "node scripts/release.mjs");
     if (script && basename(script) === "working-record.mjs") {
       const after = args.slice(args.indexOf(script) + 1);
-      return result(false, null, trackWorkReads(after) ? "read" : "write");
+      return result(false, null, trackWorkReads(after) ? "read" : trackWorkWorkerOwn(after) ? "own" : "write");
     }
     if (args.includes("--help") || args[0] === "--test") return result(false);
     return result(true);
@@ -499,9 +514,10 @@ function verdict(mode, gate, call) {
  *
  * `state` is gates.json as the driver read it, or null when it is missing or unreadable (section 5: quiet under warn,
  * closed under block for the gates that need it). `call` is `{ tool, paths?, command?, cwd?, readOnly?, delegation?,
- * canAsk? }`: paths absolute; `readOnly` where the tool says its input only reads; `delegation` the D-NNN of the worker
- * making the call, absent on the main loop; `canAsk` whether a person can answer a question now. `settings` maps each
- * gate to off, warn or block.
+ * canAsk?, now? }`: paths absolute; `readOnly` where the tool says its input only reads; `delegation` the D-NNN of the
+ * worker making the call, absent on the main loop (a worker session's state names its own, `worker`); `canAsk` whether a
+ * person can answer a question now; `now` the time other sessions' claims are read at (default the clock's).
+ * `settings` maps each gate to off, warn or block.
  * @returns {{ gate: string | null, decision: "allow" | "warn" | "ask" | "block", reason: string, way: string, rule: string | null, fired: { gate: string, decision: string, reason: string, way: string, rule: string }[] }}
  */
 export function decide(state, call, settings = DEFAULT_GATE_SETTINGS) {
@@ -531,7 +547,13 @@ export function decide(state, call, settings = DEFAULT_GATE_SETTINGS) {
       fired.push({ gate, decision: "block", reason: STATE_MISSING, way: STATE_MISSING, rule: `${rule}, no state` });
   };
   const what = callText(call, paths);
-  const worker = typeof call.delegation === "string" && call.delegation ? call.delegation : null;
+  // A subagent worker names its delegation; a worker session's state names the one it joined (SPEC-009 4.1).
+  const worker =
+    typeof call.delegation === "string" && call.delegation
+      ? call.delegation
+      : typeof readable?.worker === "string" && readable.worker
+        ? readable.worker
+        : null;
 
   if (worker && (changing || shell?.trackWorkWrites)) {
     const scope = readable?.delegations?.[worker];
@@ -562,6 +584,24 @@ export function decide(state, call, settings = DEFAULT_GATE_SETTINGS) {
           "a worker writes only what its brief's Scope allows, so workers never write the same file.",
           "keep to the brief's May write; if the work needs more, say so in return.md and return.",
         );
+    }
+  }
+
+  // Another session's claim on a path this call writes (SPEC-009 4.5): the first one found, warned once.
+  if (changing && readable && Array.isArray(readable.claims) && paths.length) {
+    const now = typeof call.now === "number" ? call.now : Date.now();
+    for (const claim of readable.claims) {
+      if (!(Date.parse(claim?.until) > now) || !Array.isArray(claim.writes)) continue;
+      const hit = paths.find((path) => claim.writes.some((glob) => matchesGlob(path, glob)));
+      if (!hit) continue;
+      fire(
+        "delegation",
+        "claimed by another session",
+        `${shown(hit, call.cwd)} is claimed by ${claim.task}${claim.delegation ? ` ${claim.delegation}` : ""} (session ${String(claim.session).slice(0, 8)}…, until ${String(claim.until).slice(11, 16)} UTC).`,
+        "two sessions changing the same files conflict when their work merges.",
+        "ask that session through the harness's message tool, or pick other work.",
+      );
+      break;
     }
   }
 

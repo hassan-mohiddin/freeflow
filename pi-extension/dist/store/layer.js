@@ -43,6 +43,14 @@ export function sessionEnvironment(session) {
   set("FREEFLOW_RESUME", session.file ? `pi --session ${session.file}` : undefined);
   set("FREEFLOW_CONTEXT_WINDOW", session.window ? String(session.window) : undefined);
 }
+/**
+ * How long a claim on paths lasts (`delegation.claimHours`, SPEC-009 4.7), for Track Work's script: `claim` and
+ * `delegate open --writes` read it, in Freeflow's own runs and the agent's commands, as Claude Code's mod sets it.
+ */
+export function claimHoursEnvironment(hours) {
+  if (hours) process.env.FREEFLOW_CLAIM_HOURS = hours;
+  else delete process.env.FREEFLOW_CLAIM_HOURS;
+}
 /** Whether a tool call may change the store: Track Work's script in a command, or a file tool on a path inside it. */
 export function touchesStore(toolName, input, cwd, home) {
   if (toolName === "bash") return typeof input?.command === "string" && input.command.includes("working-record.mjs");
@@ -160,6 +168,9 @@ export class StoreLayer {
   /** The text Freeflow's compaction installs: the held task's bundle, or the session summary's. */
   async bundle(options) {
     const state = this.state;
+    // A worker session's compaction installs its delegation's bundle (SPEC-009 4.1).
+    if (state?.store && !state.task && state.delegation)
+      return this.run(["view", "bundle", "--record", state.delegation.record, "--delegation", state.delegation.id]);
     return this.run(
       state?.store && state.task
         ? ["view", "bundle", "--record", state.task.record, ...(options.fallback ? ["--fallback"] : [])]
@@ -182,6 +193,10 @@ export class StoreLayer {
     const state = this.state;
     if (!state?.store) return;
     if (state.task && !options.reload) await this.run(["task", "release", "--ended"], { timeoutMs: 10_000 });
-    else if (state.changed || this.touched) await this.run(["store", "sync"], { timeoutMs: 10_000 });
+    // A worker session's end, or one holding claims, releases them and logs that it ended, then pushes (SPEC-009 5).
+    else if (!options.reload && (state.delegation || state.claims)) {
+      await this.run(["release", "--ended"], { timeoutMs: 10_000 });
+      await this.run(["store", "sync"], { timeoutMs: 10_000 });
+    } else if (state.changed || this.touched) await this.run(["store", "sync"], { timeoutMs: 10_000 });
   }
 }

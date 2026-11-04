@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { cwd } from "node:process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import {
   displayPath,
@@ -27,11 +27,18 @@ import { dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./li
 import { renderBundle5, renderEntries5, renderIndex5, renderRecover5, renderSessionBundle } from "./lib/views5.mjs";
 import {
   amendDelegation,
+  checkpointDelegation,
   checkReturn,
   closeDelegation,
   delegationStatus,
+  joinDelegation,
+  joinedDelegation,
+  joinedPath,
   openDelegation,
+  renderChannel,
 } from "./lib/delegations5.mjs";
+import { appendChannel, CHANNEL_KINDS } from "./lib/channel5.mjs";
+import { addClaims, claimHours, claimsFiles, releaseClaims, renderClaims, renewClaims } from "./lib/claims5.mjs";
 import { addStoreRemote, initStore, missingParts, storeHome, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
 import {
   createProject,
@@ -83,7 +90,9 @@ function usage() {
     "  working-record.mjs estimate [--used <tokens>] [--window <tokens>] [--done <n> --left <m>] [--transcript <path>]",
     "  working-record.mjs estimate --plan --record <ID> [--input -] [--fan-out <n>] [--done <n>] | --spent --record <ID> [--json] | --project <name> | --store",
     "  working-record.mjs view bundle --record <record.md> | --session",
-    "  working-record.mjs delegate <open|amend|status|check-return|close> ...",
+    "  working-record.mjs delegate <open|amend|status|check-return|close|join|log> ...",
+    "  working-record.mjs checkpoint --delegation <D-NNN> --record <record.md> --input <file|-> [--compact] (a worker)",
+    "  working-record.mjs claim --paths <glob> ... [--for <hours>] | claim --list; release [--paths <glob> ...] [--ended]",
     "  working-record.mjs discussion <list|save|drop> --record <record.md> ...",
     "  working-record.mjs carry <list|show> ...",
     "  working-record.mjs migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name>] (Schema 4 to 5)",
@@ -131,7 +140,8 @@ const COMMAND_HELP = new Map([
       "       working-record.mjs checkpoint --session --input <file|-> [--compact] (a session holding no task)",
       'The checkpoint, before a compaction or a transfer, once Current Context is rewritten: with --input, rewrites In flight whole from its lines (each "- Now|Observed|Hypothesis|Dropped|Pending: …"; "none" empties it), and, after a line "Recovery:", replaces the Recovery list whole with the lines below it (each "- always: <pointer> — <why>", "- always, not counted: <pointer> — <why>" or "- when <trigger>: <pointer> — <why>", a file pointer optionally followed by "(lines <a>–<b>)"); "Recovery: none" empties the list, input without that line keeps it, and input with only that block keeps In flight; prints each Recovery line with the size of what it names and an always line\'s share of the budget, and names an always, not counted line the new list dropped; checks the task folder\'s structure and the recovery budget for the session\'s window (FREEFLOW_CONTEXT_WINDOW) and the task\'s mode, warning when the counted memory or a fixed part is over; writes the Space line for the work repository at --repo (default: the current directory, unless it is the Freeflow store), sets State as of, then commits and pushes the Freeflow store holding the task. Refused for a task in the store that this session does not hold: take it first with task take.',
       "With --session, for a session that holds no task: writes the session summary to <store>/sessions/<session ID>/summary.md, which Freeflow's compaction installs and removes. Input: the headings ## Goal, ## Settled, ## Open, ## Agreement, ## In flight, ## Recovery, ## Next action, in order; Goal and Next action must say something; (none) where a heading has nothing; Recovery\'s lines as a record\'s, whose always files view bundle --session copies fresh.",
-      "With --compact, either form also asks Freeflow's harness layer to compact the session at the end of this turn, with the record in place of the conversation: it leaves a request in <store>/sessions/<session ID>/compact.json, which session status reports, where the session's Freeflow driver claims it can compact (its capabilities.json); elsewhere it leaves none and says so. A checkpoint without it never compacts. Where no harness layer runs, nothing more happens.",
+      "With --delegation <D-NNN>, a worker's checkpoint, in the worker's own session or a subagent: rewrites the delegation's progress.md whole from the input's ## Done, ## Half done, ## Didn't work and ## Next (Next required), with the time, and logs it; a worker session's compaction then installs view bundle --delegation. A session that joined a delegation checkpoints only this way.",
+      "With --compact, any form also asks Freeflow's harness layer to compact the session at the end of this turn, with the record in place of the conversation: it leaves a request in <store>/sessions/<session ID>/compact.json, which session status reports, where the session's Freeflow driver claims it can compact (its capabilities.json); elsewhere it leaves none and says so. A checkpoint without it never compacts. Where no harness layer runs, nothing more happens.",
       "Use --input - to read Markdown fragments from stdin.",
     ].join("\n"),
   ],
@@ -169,11 +179,27 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate",
-    "Usage: working-record.mjs delegate <operation> ...\nOperations: delegate open, delegate amend, delegate status, delegate check-return, delegate close. One folder per delegation, delegations/D-NNN-<slug>/ in the task folder, with brief.md (whoever hands the work out), progress.md and return.md (the worker); a sub-worker's folder sits inside its worker's. Only the coordinator's delegations have a line in Current Work's Delegations and an entry in History. How to hand work out: Execute Work's references/delegation.md.",
+    "Usage: working-record.mjs delegate <operation> ...\nOperations: delegate open, delegate amend, delegate status, delegate check-return, delegate close, delegate join, delegate log. One folder per delegation, delegations/D-NNN-<slug>/ in the task folder, with brief.md (whoever hands the work out), progress.md and return.md (the worker); a sub-worker's folder sits inside its worker's. Only the coordinator's delegations have a line in Current Work's Delegations and an entry in History. How to hand work out: Execute Work's references/delegation.md.",
+  ],
+  [
+    "delegate join",
+    "Usage: delegate join --record <record.md> --id <D-NNN>\nRun in the worker's own session, as the prompt delegate open --session printed says: makes this session the worker of a delegation opened with --session. Records the session as the brief's Handle and in <FREEFLOW_HOME>/sessions/<session>/delegation.json, logs that it joined, and prints the worker's recovery (view recover --delegation). From then on this session holds no task: task take, task create, task switch, checkpoint --record or --session, and every command that writes the record are refused (\"this session works for D-NNN\"); it writes its progress.md with checkpoint --delegation and its return.md, and may hand parts to its own subagents (delegate open --parent), never to another session. Refused for a sub-worker, a delegation opened for a subagent, one not open, and a session that holds a task.",
+  ],
+  [
+    "delegate log",
+    "Usage: delegate log --record <record.md> [--id <D-NNN>]\n       delegate log --record <record.md> --id <D-NNN[.n]> --append --kind <inform|blocked> --body <text> [--agent <agent ID>] (for a harness layer)\nPrints the task's delegation log, channel.jsonl in the task folder: one line per delegation event (brief, amend, progress, return, blocked, sent-back, accepted, stopped, inform), with its time, who wrote it (the session, and the agent for a subagent) and a short body; with --id, one delegation's and its sub-workers'. The commands that act write it (delegate open, amend, join, check-return and close, checkpoint --delegation); --append is how a harness layer logs its own notice to a worker or the block of its stop. No message goes through it.",
+  ],
+  [
+    "claim",
+    "Usage: claim --paths <glob> ... [--for <hours>] [--home <folder>]\n       claim --list [--home <folder>]\nClaims files this session is changing, for the task it holds or the delegation it works for, in the Freeflow store's claims.jsonl (the project's, or the store's for a task with no project), so the delegation gate warns another session before it writes them. A path is kept relative to its repository, so every checkout and worktree of it is covered. A claim lasts --for hours (default: delegation.claimHours, which the driver passes as FREEFLOW_CLAIM_HOURS, else 4), is renewed by this session's store sync while it is live, and ends at release, its delegation's close or the session's end. --list prints every live claim in the store.",
+  ],
+  [
+    "release",
+    "Usage: release [--paths <glob> ...] [--ended] [--home <folder>]\nReleases this session's claims, all of them or those naming --paths. With --ended, as a harness layer runs it when the session ends: releases them all and, in a worker session, logs in its delegation's log that the session ended, so the coordinator's delegate status shows it.",
   ],
   [
     "delegate open",
-    "Usage: delegate open --record <record.md> --title <title> --kind <build|review|research|eval|gather> --agent \"<model>, <effort>\" [--repo <path> [--base <ref>] [--branch <name>] [--worktree <path>]] [--from S-NNN] [--under A-NNN] [--continues D-NNN] [--handle <agent ID>] [--parent D-NNN] [--writes <glob> ...] --input <file|->\nAssigns D-NNN (or D-NNN.n with --parent), writes brief.md from the template, and, with --repo, makes the worker's own worktree on a new branch at the base (default HEAD). Without --parent it writes the delegation's line in Current Work's Delegations; --parent opens a sub-worker's delegation inside its worker's folder, and is refused for a sub-worker (no fourth level). --from defaults to the current Slice and --under to the open agreement. --writes, once per glob, names what the worker may write (relative to its worktree; absolute without one) and puts a \"May write:\" line at the top of the brief's Scope, which the delegation gate reads; without it a worker with a worktree may write the worktree, and one without is a reader.\nInput: the brief's sections under \"## <section>\" headings: Result wanted, Scope and Done when required; Settled, Read and Return when optional. Read gains the delegation reference and the worker's recover command.\nWith no task, --scratch <folder> in place of --record keeps the delegation in <folder>/delegations/ with the same brief, and records nothing.",
+    "Usage: delegate open --record <record.md> --title <title> --kind <build|review|research|eval|gather> --agent \"<model>, <effort>\" [--repo <path> [--base <ref>] [--branch <name>] [--worktree <path>]] [--from S-NNN] [--under A-NNN] [--continues D-NNN] [--handle <agent ID>] [--parent D-NNN] [--writes <glob> ...] [--session] --input <file|->\nAssigns D-NNN (or D-NNN.n with --parent), writes brief.md from the template, and, with --repo, makes the worker's own worktree on a new branch at the base (default HEAD). Without --parent it writes the delegation's line in Current Work's Delegations; --parent opens a sub-worker's delegation inside its worker's folder, and is refused for a sub-worker (no fourth level). --from defaults to the current Slice and --under to the open agreement. --writes, once per glob, names what the worker may write (relative to its worktree; absolute without one) and puts a \"May write:\" line at the top of the brief's Scope, which the delegation gate reads; without it a worker with a worktree may write the worktree, and one without is a reader; in a Freeflow store, the same globs are claimed for the delegation (claim), so other sessions are warned. --session hands the work to a separate session rather than a subagent: the brief's Agent line says Process: session, and the output prints the command that starts the worker session on Claude Code and on Pi, whose prompt runs delegate join. Each open logs a brief line in the task's delegation log (delegate log).\nInput: the brief's sections under \"## <section>\" headings: Result wanted, Scope and Done when required; Settled, Read and Return when optional. Read gains the delegation reference and the worker's recover command.\nWith no task, --scratch <folder> in place of --record keeps the delegation in <folder>/delegations/ with the same brief, and records nothing.",
   ],
   [
     "delegate amend",
@@ -185,11 +211,11 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate check-return",
-    "Usage: delegate check-return --record <record.md> --id <D-NNN[.n]>\nRefuses a return that is missing, lacks its State line or a heading (Result, Identities, Checks, Left open, Not done; a reviewer returns Review Work's report instead), or names a commit that is not on the brief's branch. When it passes, the delegation's line says returned. A return that passes is not accepted: read it and the diff, and rerun the check that decides the result. --scratch <folder> in place of --record checks a delegation opened with --scratch.",
+    "Usage: delegate check-return --record <record.md> --id <D-NNN[.n]>\nRefuses a return that is missing, lacks its State line or a heading (Result, Identities, Checks, Left open, Not done; a reviewer returns Review Work's report instead), or names a commit that is not on the brief's branch. When it passes, the delegation's line says returned and the delegation log has its return (or blocked) line; it warns when Left open has text but no choice line (\"- <the choice> -> <what was taken>[, technical]\"). A worker session checks its own return the same way, leaving the record as it is. A return that passes is not accepted: read it and the diff, and rerun the check that decides the result. --scratch <folder> in place of --record checks a delegation opened with --scratch.",
   ],
   [
     "delegate close",
-    "Usage: delegate close --record <record.md> --id <D-NNN> --outcome <accepted|sent back|stopped> [--merge <commit>] [--tokens <n>] [--minutes <n>] [--transcript <path>] --input <file|->\nRecords the outcome in the delegation's one History entry, with the model, effort, tokens and minutes the host reports, what the worker used (its Measured line: context, billed tokens and list-price cost by model and effort, working and wall-clock time, read from its own log beside the coordinator's transcript, --transcript or FREEFLOW_TRANSCRIPT, found by the brief's Handle or Freeflow's map of workers; else not measured), the merge commit and the return's path; removes its line; syncs the store. Accepting needs a return that passes check-return and, when the brief has a branch, the commit that merged it. A sub-worker's delegation is not closed here: its worker reports it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required.",
+    "Usage: delegate close --record <record.md> --id <D-NNN> --outcome <accepted|sent back|stopped> [--merge <commit>] [--tokens <n>] [--minutes <n>] [--transcript <path>] --input <file|->\nRecords the outcome in the delegation's one History entry, with the model, effort, tokens and minutes the host reports, what the worker used (its Measured line: context, billed tokens and list-price cost by model and effort, working and wall-clock time, read from its own log beside the coordinator's transcript, --transcript or FREEFLOW_TRANSCRIPT, found by the brief's Handle or Freeflow's map of workers; else not measured), the merge commit and the return's path; removes its line; logs the outcome in the delegation log; releases the delegation's claims (unless sent back); syncs the store. Accepting adds each of the return's Left open choices to decisions.md with the next free ID, as \"- P<n> [default] <choice> -> <taken> (from D-NNN)\" (a technical one as a T item serving the plain item added last, to relink), and is refused when decisions.md would not validate. Accepting needs a return that passes check-return and, when the brief has a branch, the commit that merged it. A sub-worker's delegation is not closed here: its worker reports it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required.",
   ],
   [
     "agreement",
@@ -217,7 +243,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "view",
-    "Usage: view recover|full|index|bundle --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\n       view bundle --record <record.md> [--fallback]\n       view bundle --session [--home <store>]\nrecover [--delegation <D-NNN[.n]>] prints an opening line (the record is memory; the user's direction decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (the newest within the budget, and any the record names), the project's other tasks with their cues, and the checks: the budget, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. bundle: the same, then the files Recovery's always lines name (counted) and its always, not counted lines name, and the core skills (not counted), each whole or for the lines its line gives, read now, their sizes, and the recovery line: what Freeflow's compaction installs. With --fallback, for a compaction that came before the checkpoint, what Freeflow adds after the harness's own summary: the same bundle as of the record's State as of, then the user's messages since then word for word (as discussion list reads them), and a closing line naming that time and the transcript, to read back what the summary lost. With --session, the bundle of a session that holds no task: the store's rules, the session summary, and the files its Recovery always lines name. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored. With --delegation, recover is a worker's: after the opening line it states the worker's rule (the brief is its scope and wins over the record) and prints the delegation's brief, progress and return. full prints record.md of any schema, a Schema 4 one too; every other view and command but migrate refuses a Schema 4 record.",
+    "Usage: view recover|full|index|bundle --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\n       view bundle --record <record.md> [--fallback]\n       view bundle --record <record.md> --delegation <D-NNN>\n       view bundle --session [--home <store>]\nrecover [--delegation <D-NNN[.n]>] prints an opening line (the record is memory; the user's direction decides the work), then the store's and the project's rules, record.md, the open agreement's decisions within their budget (waiting and answered first), the History index (the newest within the budget, and any the record names), the project's other tasks with their cues, and the checks: the budget, pointers that do not resolve, the store's unpushed commits, and where each repository in Space is. bundle: the same, then the files Recovery's always lines name (counted) and its always, not counted lines name, and the core skills (not counted), each whole or for the lines its line gives, read now, their sizes, and the recovery line: what Freeflow's compaction installs. With --fallback, for a compaction that came before the checkpoint, what Freeflow adds after the harness's own summary: the same bundle as of the record's State as of, then the user's messages since then word for word (as discussion list reads them), and a closing line naming that time and the transcript, to read back what the summary lost. With --session, the bundle of a session that holds no task: the store's rules, the session summary, and the files its Recovery always lines name. entry: the named S-NNN, A-NNN or D-NNN History entries as stored. index: every History entry, one line each. full: record.md as stored. With --delegation, recover is a worker's: after the opening line it states the worker's rule (the brief is its scope and wins over the record) and prints the delegation's brief, progress and return; bundle --delegation is what a worker session's compaction installs: the same, the task's state for context, and the worker's recovery line. full prints record.md of any schema, a Schema 4 one too; every other view and command but migrate refuses a Schema 4 record.",
   ],
   [
     "validate",
@@ -341,7 +367,9 @@ const COMMAND_HELP = new Map([
 function commandHelp(command, operation) {
   const help = COMMAND_HELP.get([command, operation].filter(Boolean).join(" ")) ?? COMMAND_HELP.get(command);
   if (!help) return `${usage()}\n`;
-  return ["init", "store", "session", "events", "agree"].includes(command) ? `${help}\n` : `${help}\n${ROOT_HELP}\n`;
+  return ["init", "store", "session", "events", "agree", "claim", "release"].includes(command)
+    ? `${help}\n`
+    : `${help}\n${ROOT_HELP}\n`;
 }
 
 class CliError extends Error {
@@ -362,7 +390,7 @@ function parseOptions(args, { valued = [] } = {}) {
       positionals.push(token);
       continue;
     }
-    if (token === "--writes") {
+    if (token === "--writes" || token === "--paths") {
       const value = args[index + 1];
       if (value === undefined || value.startsWith("--")) throw new CliError(`Missing value for ${token}`);
       options[token] = [...(options[token] ?? []), value];
@@ -389,6 +417,8 @@ function parseOptions(args, { valued = [] } = {}) {
         "--ended",
         "--no-push",
         "--take-back",
+        "--append",
+        "--list",
       ].includes(token) &&
       !valued.includes(token)
     ) {
@@ -409,6 +439,9 @@ function allowedOptions(command, operation) {
   if (command === "init") return new Set(["--root", "--name", "--input", "--cue", "--help"]);
   if (command === "view")
     return new Set(["--root", "--record", "--view", "--delegation", "--session", "--fallback", "--home", "--help"]);
+  if (command === "claim" && operation === undefined)
+    return new Set(["--paths", "--for", "--list", "--home", "--help"]);
+  if (command === "release" && operation === undefined) return new Set(["--paths", "--ended", "--home", "--help"]);
   if (command === "budget") return new Set(["--root", "--record", "--window", "--mode", "--help"]);
   if (command === "estimate")
     return new Set([
@@ -455,7 +488,10 @@ function allowedOptions(command, operation) {
         "--parent",
         "--scratch",
         "--writes",
+        "--session",
       ]);
+    if (operation === "join") return new Set([...record, "--id", "--home"]);
+    if (operation === "log") return new Set([...record, "--id", "--append", "--kind", "--body", "--agent"]);
     if (operation === "amend") return new Set([...record, "--id", "--text", "--handle", "--input"]);
     if (operation === "status") return new Set([...record, "--json"]);
     if (operation === "check-return") return new Set([...record, "--id", "--scratch"]);
@@ -486,6 +522,7 @@ function allowedOptions(command, operation) {
       "--used",
       "--transcript",
       "--compact",
+      "--delegation",
       "--help",
     ]);
   if (command === "task" && operation === "set-state")
@@ -749,10 +786,49 @@ async function runProjects5(command, operation, options, home) {
   throw new CliError(`Unknown command: ${key}`);
 }
 
+/** The record commands a worker session may not run, as `command operation` (SPEC-009 4.1). */
+const WORKER_REFUSED = new Set([
+  "task take",
+  "task create",
+  "task switch",
+  "task move",
+  "task remove",
+  "task set-state",
+  "task set-budget",
+  "project new",
+  "project remove",
+  "agree ",
+  "migrate ",
+  "discussion save",
+  "discussion drop",
+  "delegate close",
+]);
+
+/**
+ * Why a session that joined a delegation may not run this command, or null (SPEC-009 4.1): a worker session holds no
+ * task, writes only its progress.md, return.md and claimed paths, and opens only subagent workers of its own.
+ */
+function workerRefusal(command, operation, options, joined) {
+  if (!joined) return null;
+  const key = `${command} ${operation ?? ""}`;
+  const refused =
+    WORKER_REFUSED.has(key) ||
+    command === "slice" ||
+    command === "agreement" ||
+    (command === "checkpoint" && !options["--delegation"]) ||
+    (key === "delegate open" && (options["--session"] || !options["--parent"])) ||
+    (key === "delegate amend" && !String(options["--id"] ?? "").includes("."));
+  if (!refused) return null;
+  return `This session works for ${joined.id} of ${joined.task}; it writes its progress.md (checkpoint --delegation ${joined.id}) and return.md, and only the coordinator writes the record${key === "delegate open" ? ". It may hand parts to its own subagents (delegate open --parent), never to another session" : ""}.`;
+}
+
 async function runCore(command, rest) {
   const { options, positionals } = parseOptions(rest, { valued: command === "events" ? ["--session"] : [] });
   const operation = positionals[0];
   if (options["--help"]) return commandHelp(command, operation);
+  const joined = joinedDelegation(storeHome(options["--home"]), sessionIdentity());
+  const refusal = workerRefusal(command, operation, options, joined);
+  if (refusal) throw new CliError(refusal);
   // Projects and tasks are the Freeflow store's folders.
   if (STORE_OPTIONS.has(`${command} ${operation}`)) {
     const home = storeHome(options["--home"]);
@@ -760,7 +836,14 @@ async function runCore(command, rest) {
     throw new CliError(`${command} ${operation} works in a Freeflow store; ${home} is not one (store init makes one)`);
   }
   validateCommandOptions(command, operation, options);
-  if (command === "store") return runStore(operation, options);
+  if (command === "store") {
+    // A sync renews this session's live claims, so a claim lasts while its session works (SPEC-009 4.5).
+    if (operation === "sync" && !options["--pull"]) {
+      const home = storeHome(options["--home"]);
+      await renewClaims({ home, identity: sessionIdentity() }).catch(() => []);
+    }
+    return runStore(operation, options);
+  }
   if (command === "events") {
     try {
       return await runEvents(operation, options, {
@@ -776,13 +859,17 @@ async function runCore(command, rest) {
     if (positionals.length) throw new CliError("agree takes no operation");
     return agree(options);
   }
+  if (command === "claim" || command === "release") {
+    if (positionals.length) throw new CliError(`${command} takes no operation`);
+    return claimCommand(command, options, joined);
+  }
   if (command === "session") {
     if (operation !== "status") throw new CliError(`Unknown command: session ${operation ?? ""}`.trim());
     const home = storeHome(options["--home"]);
     // The drivers run session status at session start: a session whose gate state no command wrote yet gets one, so
     // the gates read what holds now rather than nothing (SPEC-008 section 5).
     const identity = sessionIdentity();
-    if (identity && !existsSync(gatesPath(home, identity.id))) await refreshGates({ home, identity });
+    if (identity && gatesStale(home, gatesPath(home, identity.id))) await refreshGates({ home, identity });
     const status = isFreeflowStore(home)
       ? await sessionStatus(home, sessionIdentity())
       : {
@@ -792,7 +879,7 @@ async function runCore(command, rest) {
           ...sessionFiles(home, sessionIdentity()),
           missing: await missingParts(home),
         };
-    return `${JSON.stringify(status, null, 2)}\n`;
+    return `${JSON.stringify({ ...status, ...(await delegationStatusFields(home, status)) }, null, 2)}\n`;
   }
   // A task's ID stands for its record's path.
   if (
@@ -822,6 +909,18 @@ async function runCore(command, rest) {
     const task = await loadTask5(loaded.path, loaded.text);
     if (options["--mode"]) task.record.header.budget = options["--mode"];
     return renderBudget({ window, measured: measureTask(task, { root: loaded.root, path: loaded.path, window }) });
+  }
+  if (command === "checkpoint" && positionals.length === 0 && options["--delegation"] !== undefined) {
+    if (options["--session"]) throw new CliError("checkpoint --delegation is a worker's: no --session");
+    const loaded = requireSchema5(await readExisting(options));
+    return checkpointDelegation(
+      loaded,
+      options["--delegation"],
+      await readInput(requireOption(options, "--input"), cwd()),
+      {
+        joined,
+      },
+    );
   }
   if (command === "checkpoint" && positionals.length === 0 && options["--session"]) {
     if (options["--record"])
@@ -899,11 +998,23 @@ async function runCore(command, rest) {
       if (operation === "check-return") return checkReturn(null, options);
     }
     const loaded = requireSchema5(await readExisting(options));
+    if (operation === "join") {
+      const home = storeHome(options["--home"]);
+      const identity = sessionIdentity();
+      const joinedNow = await joinDelegation(loaded, options, {
+        home,
+        identity,
+        held: isFreeflowStore(home) ? heldTask(home, identity) : null,
+      });
+      return `${joinedNow}\n${await renderRecover5(loaded, { delegation: options["--id"] })}`;
+    }
+    if (operation === "log") return delegationLog(loaded, options);
     const input = await readInput(options["--input"], cwd());
     if (operation === "open") return openDelegation(loaded, options, input);
     if (operation === "amend") return amendDelegation(loaded, options, input);
     if (operation === "status") return delegationStatus(loaded, { json: options["--json"] === true });
-    if (operation === "check-return") return checkReturn(loaded, options);
+    // A worker checks its own return before it hands back; the record stays the coordinator's.
+    if (operation === "check-return") return checkReturn(loaded, options, { readOnly: Boolean(joined) });
     if (operation === "close") return closeDelegation(loaded, options, input);
   }
   if (command === "init") {
@@ -917,6 +1028,10 @@ async function runCore(command, rest) {
     if (options["--session"] && view !== "bundle") throw new CliError("--session is for view bundle");
     if (options["--fallback"] && (view !== "bundle" || options["--session"]))
       throw new CliError("--fallback is for view bundle --record");
+    if (options["--delegation"] && !["recover", "bundle"].includes(view))
+      throw new CliError("--delegation is for view recover and view bundle");
+    if (options["--delegation"] && options["--fallback"])
+      throw new CliError("view bundle --delegation is a worker's bundle: no --fallback");
     if (view === "bundle" && options["--session"]) {
       if (options["--record"])
         throw new CliError("view bundle --session is for a session that holds no task: no --record");
@@ -933,7 +1048,11 @@ async function runCore(command, rest) {
     if (view === "full") return loaded.text;
     requireSchema5(loaded);
     if (view === "recover") return renderRecover5(loaded, { delegation: options["--delegation"] ?? null });
-    if (view === "bundle") return renderBundle5(loaded, { fallback: options["--fallback"] === true });
+    if (view === "bundle")
+      return renderBundle5(loaded, {
+        fallback: options["--fallback"] === true,
+        delegation: options["--delegation"] ?? null,
+      });
     if (view === "entry") return renderEntries5(loaded, ids);
     return renderIndex5(loaded);
   }
@@ -1021,6 +1140,10 @@ const GATE_COMMANDS = new Set([
   "slice close",
   "delegate open",
   "delegate close",
+  "delegate join",
+  "claim ",
+  "release ",
+  "store sync",
 ]);
 
 /** After a lifecycle command succeeded: this session's gate state, derived again; never fails the command. */
@@ -1047,6 +1170,101 @@ async function gatesAfter(command, rest, output) {
     if (id && brief) extra = { [id]: delegationScope(dirname(brief)) };
   }
   await refreshGates({ home, identity: sessionIdentity(), recordPath, extra });
+}
+
+/**
+ * What session status adds for delegation (SPEC-009), each only where it applies: in a worker session, `delegation`,
+ * the delegation it joined with its progress.md's time, which its compaction and checkpoint notice read; for a held
+ * task whose current Slice waits on open delegations, `waits`, each with what came back and the delegation log's path,
+ * for the coordinator's Waits on row; and `claims`, how many live claims this session holds, which its end releases.
+ */
+async function delegationStatusFields(home, status) {
+  const identity = sessionIdentity();
+  const fields = {};
+  const joined = joinedDelegation(home, identity);
+  if (joined) {
+    const { progressAsOf } = await import("./lib/delegations5.mjs");
+    fields.delegation = { ...joined, progressAsOf: progressAsOf(joined.taskDir, joined.id) };
+  }
+  if (status.task?.record) {
+    try {
+      const { waitsOf } = await import("./lib/delegations5.mjs");
+      const { parseRecord5 } = await import("./lib/record5.mjs");
+      const taskDir = dirname(status.task.record);
+      const waits = waitsOf(taskDir, parseRecord5(readFileSync(status.task.record, "utf8")));
+      if (waits) fields.waits = { ...waits, channel: join(taskDir, "channel.jsonl") };
+    } catch {
+      // A record that cannot be read has no Waits on to report.
+    }
+  }
+  if (isFreeflowStore(home) && identity) {
+    const { storeClaims } = await import("./lib/claims5.mjs");
+    const claims = storeClaims(home).filter((claim) => claim.session === identity.id).length;
+    if (claims) fields.claims = claims;
+  }
+  return fields;
+}
+
+/** `delegate log`: the task's delegation log, or a harness layer's own line appended to it. */
+async function delegationLog(loaded, options) {
+  const taskDir = dirname(loaded.path);
+  if (!options["--append"]) return renderChannel(taskDir, options["--id"] ?? null);
+  const kind = requireOption(options, "--kind");
+  if (!["inform", "blocked"].includes(kind))
+    throw new CliError(
+      `delegate log --append logs a harness layer's inform or blocked line; ${CHANNEL_KINDS.filter((each) => !["inform", "blocked"].includes(each)).join(", ")} come from the commands that act`,
+    );
+  const line = await appendChannel(
+    taskDir,
+    { delegation: requireOption(options, "--id"), kind, body: requireOption(options, "--body") },
+    { identity: sessionIdentity(), agent: options["--agent"] ?? null },
+  );
+  return `Logged ${line.delegation} ${line.kind}.\n`;
+}
+
+/** `claim` and `release` (SPEC-009 4.5): this session's claims on paths, in the store. */
+async function claimCommand(command, options, joined) {
+  const home = storeHome(options["--home"]);
+  if (!isFreeflowStore(home)) throw new CliError(`${command} works in a Freeflow store; ${home} is not one`);
+  const identity = sessionIdentity();
+  if (!identity)
+    throw new CliError("No session ID: Claude Code sets CLAUDE_CODE_SESSION_ID; other harnesses set FREEFLOW_SESSION.");
+  const paths = [options["--paths"] ?? []].flat();
+  try {
+    if (command === "claim") {
+      if (options["--list"]) return renderClaims(home, identity);
+      const held = heldTask(home, identity);
+      const taskDir = held?.dir ?? joined?.taskDir;
+      if (!taskDir)
+        throw new CliError(
+          "A claim belongs to a task: take the task (task take), or join the delegation you work for.",
+        );
+      const lines = await addClaims({
+        taskDir,
+        task: held?.id ?? joined.task,
+        delegation: held ? null : joined.id,
+        identity,
+        globs: paths,
+        cwd: cwd(),
+        hours: claimHours(options["--for"]),
+      });
+      return `${lines.map((line) => `Claimed ${line.repo ? `${line.repo}: ` : ""}${line.paths.join(", ")} for ${line.task}${line.delegation ? ` ${line.delegation}` : ""} until ${line.until.slice(0, 16).replace("T", " ")} UTC (${line.id}).`).join("\n")}\nThe gates warn other sessions before they write these; release them when done (release).\n`;
+    }
+    const released = await releaseClaims({ home, identity, globs: paths, cwd: cwd() });
+    let ended = "";
+    if (options["--ended"] && joined) {
+      await appendChannel(
+        joined.taskDir,
+        { delegation: joined.id, kind: "inform", body: `session ${identity.id} ended` },
+        { identity },
+      ).catch(() => {});
+      ended = ` Logged that this session, ${joined.id}'s worker, ended.`;
+    }
+    return `Released ${released.length} claim(s).${ended}\n`;
+  } catch (error) {
+    if (error instanceof CliError) throw error;
+    throw new CliError(error.message);
+  }
 }
 
 /** Leaves this session's request for Freeflow's compaction in the store (P102); says where it went, or why none did. */
@@ -1100,4 +1318,15 @@ try {
 } catch (error) {
   process.stderr.write(`Error: ${error.message}\n`);
   process.exitCode = error.exitCode ?? 1;
+}
+
+/**
+ * Whether a session's gate state must be written again: there is none yet, or a claims file in the store changed after
+ * it was written, so a claim another session made since reaches this session's gate at its next session status
+ * (SPEC-009 4.5). A stat per claims file; the gate state is rewritten only when one is newer.
+ */
+function gatesStale(home, path) {
+  if (!existsSync(path)) return true;
+  const written = statSync(path).mtimeMs;
+  return claimsFiles(home).some((file) => statSync(file).mtimeMs > written);
 }

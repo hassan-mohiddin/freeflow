@@ -209,8 +209,26 @@ function sinceCheckpoint(stateAsOf) {
   ];
 }
 
+const WORKER_RECOVERY_LINE =
+  "A new cycle starts here, for the worker of this delegation. Everything above was read when this bundle was made: read none of it again unless something changed it since. Read the brief's Read sources again where the next step needs them, check the live state it depends on (your worktree, its branch and what is committed), then continue from progress.md's Next.";
+
+/**
+ * A worker's bundle (SPEC-009 4.1): what a worker session's compaction installs, its recovery (its rule, brief,
+ * progress and return first, then the task's state for context) and the worker's recovery line; the coordinator's
+ * Recovery files and the core skills are the coordinator's, not printed here.
+ */
+async function renderWorkerBundle({ root, path, text }, { window, delegation }) {
+  const task = await loadTask5(path, text);
+  const measured = measureTask(task, { root, path, window });
+  return `${[...(await recoveryHead(task, measured, { path, delegation })), WORKER_RECOVERY_LINE].join("\n")}\n`;
+}
+
 /** The bundle (P60): everything recovery reads, in the Spec's section 9 order, with its sizes. */
-export async function renderBundle5({ root, path, text }, { window = contextWindow(), fallback = false } = {}) {
+export async function renderBundle5(
+  { root, path, text },
+  { window = contextWindow(), fallback = false, delegation = null } = {},
+) {
+  if (delegation) return renderWorkerBundle({ root, path, text }, { window, delegation });
   const task = await loadTask5(path, text);
   const measured = measureTask(task, { root, path, window });
   const { files } = measured;
