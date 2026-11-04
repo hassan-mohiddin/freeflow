@@ -11,6 +11,7 @@ import {
   type SessionCoreKey,
 } from "../config.js";
 import {
+  CLAIM_HOURS,
   GATE_KEYS,
   GATE_MODES,
   REVIEW_DEFAULTS,
@@ -18,6 +19,7 @@ import {
   REVIEW_UNITS,
   RUNTIME_PROMPTS,
   SWITCHABLE_SKILLS,
+  resolveDelegationSettings,
   resolveGateSettings,
   resolveReviewSettings,
   sectionEnabled,
@@ -440,6 +442,14 @@ const GATE_LABELS: Record<(typeof GATE_KEYS)[number], [string, string]> = {
   delegation: ["Delegation gate", "A worker's write outside its brief's scope, or to the task's record"],
 };
 const GATE_VALUE_LABELS = { off: "off", warn: "warn", block: "block" };
+// Delegation across sessions (SPEC-009 4.7).
+const CLAIM_HOURS_LABELS = { "1": "1 hour", "2": "2 hours", "4": "4 hours", "8": "8 hours", "24": "24 hours" };
+const CLAIM_HOURS_DESCRIPTIONS = Object.fromEntries(
+  CLAIM_HOURS.map((hours) => [
+    hours,
+    `A claim on paths lasts ${CLAIM_HOURS_LABELS[hours]}, renewed while its session syncs.`,
+  ]),
+);
 const GATE_DESCRIPTIONS = {
   off: "No check.",
   warn: "The agent reads a warning with the rule and the way through, and the event log counts it.",
@@ -558,6 +568,7 @@ const SECTION_ORDER = [
   "freeflow.messaging",
   "freeflow.events",
   "freeflow.gates",
+  "freeflow.delegation",
   "freeflow.review",
   "freeflow.session",
 ];
@@ -679,6 +690,33 @@ function sessionFreeflowItems(
     item.inactive = freeflowInactive;
     return item;
   });
+  // Delegation across sessions, on every host with a Freeflow driver (SPEC-009 4.7).
+  const claimInherited = configuredSetting(rawConfig, localConfig, ["delegation", "claimHours"], "4");
+  const claimItem = createSessionChoiceItem({
+    id: "freeflow.delegation.claimHours",
+    label: "Claim hours",
+    description: "How long a claim on paths lasts, in this session.",
+    key: "delegation.claimHours",
+    values: CLAIM_HOURS,
+    valueLabels: CLAIM_HOURS_LABELS,
+    valueDescriptions: CLAIM_HOURS_DESCRIPTIONS,
+    inheritedValue: claimInherited.value,
+    inheritedSource: claimInherited.source,
+    effectiveValue: state.delegation?.claimHours ?? "4",
+    sessionOverrides,
+  });
+  claimItem.inactive = freeflowInactive;
+  const wakeInherited = configuredSetting(rawConfig, localConfig, ["delegation", "wakeOnReturn"], true);
+  const wakeItem = sessionSwitch(
+    "freeflow.delegation.wakeOnReturn",
+    "Wake on return",
+    "Wake this session when a delegation its Slice waits on comes back.",
+    "delegation.wakeOnReturn",
+    typeof sessionOverrides["delegation.wakeOnReturn"] === "boolean"
+      ? sessionOverrides["delegation.wakeOnReturn"]
+      : wakeInherited.value,
+    true,
+  );
   const inboundInherited = configuredSetting(rawConfig, localConfig, ["messaging", "inbound"], DEFAULT_INBOUND_POLICY);
   const inboundItem = createSessionChoiceItem({
     id: "freeflow.messaging.inbound",
@@ -819,6 +857,10 @@ function sessionFreeflowItems(
       eventsItem,
     ]),
     sectionItem("freeflow.gates", "Gates", "Freeflow's gates for this session.", "", gateItems),
+    sectionItem("freeflow.delegation", "Delegation", "Delegation across sessions for this session.", "", [
+      claimItem,
+      wakeItem,
+    ]),
     sectionItem("freeflow.review", "Review", "Review Work for this session.", "", [
       reviewUnitItem,
       reviewModelItem,
@@ -1254,6 +1296,48 @@ function freeflowItems(
     }),
   };
 
+  // Delegation across sessions, on every host with a Freeflow driver (SPEC-009 4.7).
+  const delegation = resolveDelegationSettings(rawConfig, localConfig);
+  const claimHoursItem = createScopedChoiceItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.delegation.claimHours",
+    label: "Claim hours",
+    description: "How long a claim on paths lasts, renewed while its session syncs.",
+    path: ["delegation", "claimHours"],
+    values: CLAIM_HOURS,
+    valueLabels: CLAIM_HOURS_LABELS,
+    valueDescriptions: CLAIM_HOURS_DESCRIPTIONS,
+    defaultValue: "4",
+    effectiveValue: delegation.claimHours,
+    effectiveSource: toolSource(["delegation", "claimHours"]),
+  });
+  claimHoursItem.inactive = freeflowInactive;
+  const wakeOnReturnItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.delegation.wakeOnReturn",
+    label: "Wake on return",
+    description: "Wake the idle session when a delegation its Slice waits on comes back.",
+    path: ["delegation", "wakeOnReturn"],
+    effectiveValue: delegation.wakeOnReturn,
+    effectiveSource: toolSource(["delegation", "wakeOnReturn"]),
+    defaultValue: true,
+  });
+  wakeOnReturnItem.inactive = freeflowInactive;
+  const delegationGroup: SettingsItem = {
+    id: "freeflow.delegation",
+    label: "Delegation",
+    description: "Configure delegation across sessions: how long claims last, and whether a return wakes the session.",
+    kind: "group",
+    value: true,
+    inactive: freeflowInactive,
+    displaySuffix: "",
+    children: [claimHoursItem, wakeOnReturnItem],
+  };
+
   // Review Work's choice on every host (config-validation.ts).
   const review = resolveReviewSettings(rawConfig, localConfig);
   const reviewUnitItem = createScopedChoiceItem({
@@ -1318,6 +1402,7 @@ function freeflowItems(
     messagingGroup,
     eventsGroup,
     gatesGroup,
+    delegationGroup,
     reviewGroup,
     promptsGroup,
     skillsGroup,

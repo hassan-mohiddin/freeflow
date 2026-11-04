@@ -91,7 +91,7 @@ Freeflow settings for /home/you/project (Claude Code)
   Cost cap         none      default
 Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)
 Remove one: /freeflow settings <key> inherit [--session | --personal | --repository]
-Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.agreement, gates.slice, gates.delivery, gates.delegation, review.unit, review.model, review.rounds, governor.mode, governor.cap.
+Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.agreement, gates.slice, gates.delivery, gates.delegation, delegation.claimHours, delegation.wakeOnReturn, review.unit, review.model, review.rounds, governor.mode, governor.cap.
 Review depth rules (review.depth) are edited in .freeflow/config.json; review-plan reads them from the base commit.
 Pi-only settings (tool execution, compaction, messaging) are changed on Pi or in the files.
 ```
@@ -161,6 +161,8 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Slice gate | `gates.slice` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
 | Delivery gate | `gates.delivery` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
 | Delegation gate | `gates.delegation` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
+| Claim hours | `delegation.claimHours` | `1`, `2`, `4`, `8`, `24`: how long a claim on paths lasts, renewed while its session syncs | `4` | Session, Personal, Repository (Claude Code and Pi) |
+| Wake on return | `delegation.wakeOnReturn` | `true`, `false`: a delegation the current Slice waits on wakes the idle session when it comes back | `true` | Session, Personal, Repository (Claude Code and Pi) |
 | Review | `review.unit` | `pr`, `push`, `commit`, `agreement`, `manual` | `pr` | Session, Personal, Repository (every host) |
 | Reviewer model | `review.model` | `auto`, or a model name such as `claude-opus-4-5` | `auto` | Session, Personal, Repository (every host) |
 | Review rounds | `review.rounds` | `1`, `2`, `3` | `3` | Session, Personal, Repository (every host) |
@@ -172,6 +174,7 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 
 What some of them mean:
 
+- **Claim hours** (`delegation.claimHours`) is how long a claim on files lasts, 4 hours by default; a claim is renewed while its session keeps syncing and ends when the session releases it, its delegation closes or the session ends. **Wake on return** (`delegation.wakeOnReturn`) is whether a worker's return wakes the session waiting on it when that session is idle; off, the return shows at its next turn instead. See [Workers in separate sessions](capabilities/delegation-sessions.md#claims-on-files).
 - **Ask before delivering** decides whether a message from another session waits for you; `project` delivers messages from sessions holding a task in the same Freeflow store project and asks about the rest. See [Messaging](capabilities/messaging.md#ask-before-delivering).
 - **Guidance notices** turns off the few lines of skill guidance Tool Execution adds to a tool result that needs them, such as the commit essentials on a `git commit`. See [Tool Execution](capabilities/tool-execution.md#guidance-notices).
 - **Runtime prompts** is the switch for all of Freeflow's always-present prompts, and **Each prompt** turns them on or off one by one, on every host: Core (how Freeflow works: the cycle, what authorizes work, where it stops), the Interaction Contract (how the agent talks with you) and the Working Method (how it works). With one off, the agent works without that guidance; the rest of Freeflow stays on. The Tool Execution prompt follows its capability's switch.

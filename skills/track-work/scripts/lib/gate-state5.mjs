@@ -2,7 +2,8 @@
 // (the held task, its open agreement and Slice, an exact-spec declaration, the open delegations' write scopes), so a
 // driver reads one small file instead of a record. Only Track Work's commands write it: those that change what it
 // holds (task take, release, switch, create and here's take-back; agreement open and close; slice start, start-direct,
-// pause, resume and close; delegate open and close; agree), each write whole, through a temporary file and a rename.
+// pause, resume and close; delegate open, close and join; agree; claim, release and store sync, which bring other
+// sessions' claims), each write whole, through a temporary file and a rename.
 // Each write is derived again from the record, so a lifecycle change made by hand is set right by the next command.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -13,6 +14,7 @@ import { GATE_STATE_VERSION, normalPath, resolvePath, validGateState } from "./g
 import { fieldText, parseRecord5 } from "./record5.mjs";
 import { heldTask } from "./projects5.mjs";
 import { isFreeflowStore, storeOf } from "./store.mjs";
+import { claimsForGates, repositoryOf } from "./claims5.mjs";
 
 export const GATES_FILE = "gates.json";
 
@@ -116,11 +118,23 @@ function taskIdOf(taskDir) {
  * exact-spec declaration lasts the session.
  * @param {{ home: string, identity: { id: string, short: string }, recordPath?: string | null, agreed?: object | null }} options
  */
-export function gateState({ home, identity, recordPath = null, agreed = null }) {
+/** The delegation a worker session joined (delegate join), read from the Freeflow home, or null (SPEC-009 4.1). */
+function joinedOf(home, identity) {
+  try {
+    const joined = JSON.parse(readFileSync(join(home, "sessions", identity.id, "delegation.json"), "utf8"));
+    return typeof joined?.id === "string" && typeof joined.taskDir === "string" ? joined : null;
+  } catch {
+    return null;
+  }
+}
+
+export function gateState({ home, identity, recordPath = null, agreed = null, cwd = process.cwd() }) {
   const previous = readGateState(home, identity.id);
   const held = isFreeflowStore(home) ? heldTask(home, identity) : null;
-  const named = recordPath && !held && !storeOf(recordPath) ? resolve(recordPath) : null;
-  const taskDir = held?.dir ?? (named ? dirname(named) : null);
+  // A worker session holds no task: its state is its delegation's task, its scope and the coordinator's agreement.
+  const joined = held ? null : joinedOf(home, identity);
+  const named = recordPath && !held && !joined && !storeOf(recordPath) ? resolve(recordPath) : null;
+  const taskDir = held?.dir ?? joined?.taskDir ?? (named ? dirname(named) : null);
   let record = null;
   if (taskDir) {
     try {
@@ -134,10 +148,18 @@ export function gateState({ home, identity, recordPath = null, agreed = null }) 
     : !previous?.task
       ? (previous?.session ?? null)
       : null;
-  const slice = record?.work.slice;
+  const slice = joined ? null : record?.work.slice;
+  // Other sessions' live claims (SPEC-009 4.5), with the folders this machine has their repositories in.
+  let claims = [];
+  try {
+    const here = repositoryOf(cwd);
+    claims = claimsForGates({ home, identity, joined, extraCheckouts: here ? [here] : [] });
+  } catch {
+    claims = [];
+  }
   return {
     v: GATE_STATE_VERSION,
-    task: taskDir ? (held?.id ?? taskIdOf(taskDir)) : null,
+    task: taskDir ? (held?.id ?? joined?.task ?? taskIdOf(taskDir)) : null,
     taskDir: taskDir ? normalPath(taskDir) : null,
     store: isFreeflowStore(home) ? normalPath(resolve(home)) : null,
     agreement: taskDir ? (record?.work.agreement?.id ?? null) : session ? "session" : null,
@@ -146,6 +168,8 @@ export function gateState({ home, identity, recordPath = null, agreed = null }) 
     slice: slice ? { id: slice.id, state: fieldText(slice, "State") } : null,
     delegations:
       taskDir && record ? openDelegations(taskDir, record) : previous?.task ? {} : (previous?.delegations ?? {}),
+    worker: joined?.id ?? null,
+    claims,
     updated: new Date().toISOString(),
   };
 }

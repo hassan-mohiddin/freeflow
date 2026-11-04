@@ -88,9 +88,12 @@ export class CompactionController {
     const head = `Context cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}, and Pi compacts on its own at about ${thresholds.trigger} tokens.`;
     const command = this.host.store.command();
     const task = this.host.store.current()?.task;
-    const checkpoint = task
-      ? `At that point, checkpoint ${task.id}: rewrite its Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${task.id} --compact --input - with In flight's lines.`
-      : `If this session holds a task, checkpoint it as Track Work says, with --compact; if it holds none, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
+    const worker = this.host.store.current()?.delegation;
+    const checkpoint = worker
+      ? `This session is the worker for ${worker.id} of ${worker.task}: at that point, rewrite its progress.md with ${command} checkpoint --delegation ${worker.id} --record ${worker.task} --compact --input - (## Done, ## Half done, ## Didn't work, ## Next).`
+      : task
+        ? `At that point, checkpoint ${task.id}: rewrite its Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${task.id} --compact --input - with In flight's lines.`
+        : `If this session holds a task, checkpoint it as Track Work says, with --compact; if it holds none, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
     return `${head} Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and the run continues. This is the only notice this context cycle; if Pi compacts before the checkpoint, the record as of its last checkpoint follows Pi's summary.`;
   }
   /**
@@ -98,7 +101,12 @@ export class CompactionController {
    * than the cycle's notice, or than its start when no notice came (T12, P68).
    */
   checkpointDone(state, branch) {
-    const asOf = state.store && state.task ? state.task.stateAsOf : state.summary?.asOf;
+    const asOf =
+      state.store && state.task
+        ? state.task.stateAsOf
+        : state.store && state.delegation
+          ? state.delegation.progressAsOf
+          : state.summary?.asOf;
     if (!asOf) return false;
     const latest = [...branch].reverse().find((entry) => entry?.type === "compaction");
     const cycleStart = latest?.timestamp ? Date.parse(latest.timestamp) : this.startedAt;
@@ -139,7 +147,8 @@ export class CompactionController {
     }
     const cycle = nextCycle(branch);
     await this.host.store.answered();
-    if (!state.task && state.summary?.path) await rm(state.summary.path, { force: true }).catch(() => {});
+    if (!state.task && !state.delegation && state.summary?.path)
+      await rm(state.summary.path, { force: true }).catch(() => {});
     this.compacted = { carriedFiles: [] };
     return {
       entries: [
@@ -194,11 +203,12 @@ export class CompactionController {
       const branch = branchOf(ctx);
       const cycle = nextCycle(branch);
       const state = await this.host.store.refresh();
-      if (state && (state.task || state.summary) && this.checkpointDone(state, branch)) {
+      if (state && (state.task || state.summary || state.delegation) && this.checkpointDone(state, branch)) {
         const made = await this.host.store.bundle({});
         if (made.code === 0) {
           await this.host.store.answered();
-          if (!state.task && state.summary?.path) await rm(state.summary.path, { force: true }).catch(() => {});
+          if (!state.task && !state.delegation && state.summary?.path)
+            await rm(state.summary.path, { force: true }).catch(() => {});
           return {
             compaction: {
               summary: `${made.stdout.trimEnd()}\n\n${this.harness(branch, ctx, cycle)}`,

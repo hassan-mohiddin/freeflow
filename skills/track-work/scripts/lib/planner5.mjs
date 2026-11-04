@@ -111,7 +111,14 @@ function taskFigures(dir) {
       })),
     delegations: entries
       .filter((entry) => entry.kind === "delegation")
-      .map((entry) => ({ kind: fieldText(entry, "Kind"), measure: measureOf(entry) })),
+      .map((entry) => ({
+        kind: fieldText(entry, "Kind"),
+        check: fieldText(entry, "Check") || null,
+        model: (fieldText(entry, "Agent") ?? "").replace(/,\s*/, " ").trim() || null,
+        state: entry.state,
+        reason: fieldText(entry, "Reason") || null,
+        measure: measureOf(entry),
+      })),
   };
 }
 
@@ -394,6 +401,49 @@ function delegationRows(pools, fanOut) {
 }
 
 /**
+ * Closed delegations grouped by kind, check and model (SPEC-010 4.2), each with its sent-back rate and the reasons:
+ * the data that tells a bad brief from a weak model. A delegation closed before its brief had a Check counts as
+ * "check not recorded", and one sent back with no Reason as "reason not recorded".
+ */
+export function outcomeRows(delegations, heading) {
+  if (!delegations.length) return [];
+  const groups = new Map();
+  for (const item of delegations) {
+    const name = `${item.kind ?? "kind not recorded"}, ${item.check ?? "check not recorded"}, ${item.model ?? "model not recorded"}`;
+    const group = groups.get(name) ?? { closed: 0, sentBack: 0, reasons: new Map() };
+    group.closed += 1;
+    if (item.state === "sent back") {
+      group.sentBack += 1;
+      const reason = item.reason ?? "reason not recorded";
+      group.reasons.set(reason, (group.reasons.get(reason) ?? 0) + 1);
+    }
+    groups.set(name, group);
+  }
+  return [
+    heading,
+    ...[...groups].map(([name, group]) => {
+      const rate = group.sentBack
+        ? `${group.sentBack} sent back (${Math.round((100 * group.sentBack) / group.closed)}%): ${[...group.reasons]
+            .map(([reason, n]) => `${reason} ${n}`)
+            .join(", ")}`
+        : "none sent back";
+      return `- ${name}: ${group.closed} closed, ${rate}`;
+    }),
+  ];
+}
+
+/** The nearest pool's closed delegations by kind, check and model, for `estimate --plan`. */
+function planOutcomeRows(pools) {
+  const pool = pools.find((each) => each.delegations.length);
+  return pool
+    ? outcomeRows(
+        pool.delegations,
+        `Delegations closed (${pool.name}), by kind, check and model, with how many were sent back:`,
+      )
+    : [];
+}
+
+/**
  * `estimate --plan` (P84): each Slice left with its expected size, the context cycle it lands in counting from
  * what is left of this one, any Slice bigger than a context cycle, the totals, the Slices with no dependency
  * between them, and delegated work's measured cost; with `json`, the same as data, which Discuss Work's
@@ -560,6 +610,7 @@ export function planView({
       `No dependency between them, so they could run in parallel through delegation: ${parallel.map((wave) => wave.join(", ")).join("; then ")}.`,
     );
   lines.push(...delegationRows(pools, fanOut));
+  lines.push(...planOutcomeRows(pools));
   if (money || pools.some((pool) => pool.delegations.some((item) => item.measure))) lines.push(priceLine(table));
   if (!json) return `${lines.join("\n")}\n`;
   const perSlice = median ?? null;
@@ -824,6 +875,12 @@ export function storeView(home) {
       "Delegations by kind, model and effort:",
       ...[...delegations].map(([name, row]) => billedRow(name, row, "delegation")),
     );
+  lines.push(
+    ...outcomeRows(
+      groups.flatMap((group) => group.dirs.map(taskFigures).filter(Boolean)).flatMap((task) => task.delegations),
+      "Delegations closed, by kind, check and model, with how many were sent back:",
+    ),
+  );
   if (byProject.length) lines.push("By project:", ...byProject);
   if (gated) {
     const { blocked = 0, ...each } = gates;

@@ -119,6 +119,32 @@ export function resolveGateSettings(repository, local) {
   return Object.fromEntries(GATE_KEYS.map((key) => [key, personal[key] ?? shared[key] ?? "warn"]));
 }
 /**
+ * Delegation across sessions (SPEC-009 4.7): how long a claim on paths lasts, in hours (`claimHours`, one of a few
+ * choices, default 4), and whether a delegation the coordinator waits on wakes its idle session when it comes back
+ * (`wakeOnReturn`, on by default). Every driver reads them; Track Work's claim takes the hours from the driver.
+ */
+export const DELEGATION_KEYS = ["claimHours", "wakeOnReturn"];
+export const CLAIM_HOURS = ["1", "2", "4", "8", "24"];
+function validateDelegationConfig(value) {
+  if (!isRecord(value)) return "delegation must be an object";
+  const unknown = Object.keys(value).find((key) => !DELEGATION_KEYS.includes(key));
+  if (unknown) return `delegation has unsupported key: ${unknown}`;
+  if (value.claimHours !== undefined && !CLAIM_HOURS.includes(value.claimHours))
+    return `delegation.claimHours must be one of ${CLAIM_HOURS.join(", ")}`;
+  if (value.wakeOnReturn !== undefined && typeof value.wakeOnReturn !== "boolean")
+    return "delegation.wakeOnReturn must be a boolean";
+  return null;
+}
+/** Delegation's settings for two valid config layers: the personal layer overrides the repository's, key by key. */
+export function resolveDelegationSettings(repository, local) {
+  const layer = (config) => (isRecord(config?.delegation) ? config.delegation : {});
+  const [shared, personal] = [layer(repository), layer(local)];
+  return {
+    claimHours: personal.claimHours ?? shared.claimHours ?? "4",
+    wakeOnReturn: personal.wakeOnReturn ?? shared.wakeOnReturn ?? true,
+  };
+}
+/**
  * How Review Work reviews finished work (SPEC-007). `unit` says when a review runs: at every pull request by default,
  * at a push, a commit or an agreement's Return, or `manual` (proposed with its plan and cost, run after a yes). `model`
  * is the reviewer's model, `auto` choosing the cheapest capable one; `rounds` caps Review 1, 2, 3. `depth` holds the
@@ -291,6 +317,23 @@ export const SETTINGS = [
     hosts: "all",
     session: true,
   },
+  // Delegation across sessions (SPEC-009 4.7).
+  {
+    key: "delegation.claimHours",
+    label: "Claim hours",
+    values: CLAIM_HOURS,
+    default: "4",
+    hosts: "all",
+    session: true,
+  },
+  {
+    key: "delegation.wakeOnReturn",
+    label: "Wake on return",
+    values: "boolean",
+    default: true,
+    hosts: "all",
+    session: true,
+  },
   { key: "review.unit", label: "Review unit", values: REVIEW_UNITS, default: "pr", hosts: "all", session: true },
   { key: "review.model", label: "Reviewer model", values: "name", default: "auto", hosts: "all", session: true },
   { key: "review.rounds", label: "Review rounds", values: REVIEW_ROUNDS, default: 3, hosts: "all", session: true },
@@ -388,6 +431,7 @@ export const CONFIG_SECTIONS = [
   "skills",
   "events",
   "gates",
+  "delegation",
   "governor",
   "pane",
 ];
@@ -441,6 +485,10 @@ export function validateRepositoryConfig(value) {
     const error = validateGatesConfig(value.gates);
     if (error) return error;
   }
+  if (value.delegation !== undefined) {
+    const error = validateDelegationConfig(value.delegation);
+    if (error) return error;
+  }
   if (value.pane !== undefined) {
     const error = validatePaneConfig(value.pane);
     if (error) return error;
@@ -473,6 +521,7 @@ export function validateLocalConfig(value) {
     "skills",
     "events",
     "gates",
+    "delegation",
     "governor",
     "pane",
   ]);
@@ -509,6 +558,10 @@ export function validateLocalConfig(value) {
   }
   if (value.gates !== undefined) {
     const error = validateGatesConfig(value.gates);
+    if (error) return error;
+  }
+  if (value.delegation !== undefined) {
+    const error = validateDelegationConfig(value.delegation);
     if (error) return error;
   }
   if (value.pane !== undefined) {

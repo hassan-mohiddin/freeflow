@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/compaction/`, `pi-extension/src/store/`
 > **Tests:** `pi-extension/tests/compaction/`, `pi-extension/tests/store/`, `pi-extension/tests/integration/request-path-budget.test.js`
-> **Verified at:** `410c20c9` (2026-11-03)
+> **Verified at:** `288745f1` (2026-11-04)
 > **User docs:** `plugin-docs/capabilities/compaction.md`
 
 For contributors changing Freeflow compaction on Pi and Pi's layer for the Freeflow store: when Freeflow tells the agent compaction is near, what it writes into the session, how Pi's own compaction works with it, and which behaviors are deliberate.
@@ -27,7 +27,7 @@ It deliberately does not:
 | Notice | The one soft notice a cycle: keep working to a safe point, checkpoint with `--compact`, end the turn. | `Thresholds.notice`, notice level `"notice"` |
 | Row | One line at 50, 60 or 70% of the window, below the notice, once each a cycle. | `ROWS_AT`, notice level `"row"` |
 | Trigger | Where Pi compacts on its own: window minus Pi's reserve. | `Thresholds.trigger` |
-| Checkpoint done | The held task's State as of, or the session summary's time, is later than this cycle's notice, or its start when no notice came (P68). | `checkpointDone()` |
+| Checkpoint done | The held task's State as of, a worker session's `progress.md` time (`checkpoint --delegation`), or the session summary's time, is later than this cycle's notice, or its start when no notice came (P68). | `checkpointDone()` |
 | Bundle | Track Work's `view bundle`: the record and everything recovery reads, whole, with the files In flight carries (P60). | `StoreLayer.bundle()` |
 | Store state | `session status` as last read: the store, the held task, the session summary, a waiting compaction request. | `StoreLayer.current()` |
 | Harness part | The part of the summary Freeflow writes from facts it holds: the cycle, what asked for the compaction, running background commands, the Freeflow skills read in the cycle it ends. | `harnessPart()` in `harness.ts` |
@@ -50,7 +50,7 @@ It deliberately does not:
 Worked example, 200k window with Pi's default reserve: trigger 200,000 − 16,384 = 183,616; the notice at the lower of 75% (150,000) and the trigger less a tenth of the window (163,616), so 150,000. Rows at 100,000, 120,000 and 140,000.
 
 1. **Measure.** `turn_end` calls `compaction.observe(ctx, turn)`. `measure()` takes the context from the turn's own usage, or Pi's estimate when the turn reports none. Thresholds come from `strictest()` over the active model.
-2. **Notify.** Below the notice, `observe()` returns a row at the highest of 50, 60 and 70% crossed, each once a cycle; at the notice, the cycle's one notice, then nothing more that cycle. The notice names the held task and the command (`checkpoint --record <ID> --compact`), or `checkpoint --session --compact` with none. `index.ts` sends it as a `freeflow-compaction-notice` message: steered into the next request mid-run, held for the next prompt at a run's end.
+2. **Notify.** Below the notice, `observe()` returns a row at the highest of 50, 60 and 70% crossed, each once a cycle; at the notice, the cycle's one notice, then nothing more that cycle. The notice names the held task and the command (`checkpoint --record <ID> --compact`), or `checkpoint --session --compact` with none; in a worker session (one that ran `delegate join`, SPEC-009), `checkpoint --delegation <D-NNN> --compact`, and its compaction installs `view bundle --delegation`, its end running `release --ended` then a sync; and, for a coordinator whose current Slice waits on a delegation, `WaitWatch` (`store/waits.ts`) gives one row when it comes back (`D-NNN returned (done). S-NNN waits on it: check it and close it.`), through the inbound channel batched over 60 seconds, waking the idle session where `delegation.wakeOnReturn` is on; it reads session status again at a run's end and once a minute while idle, only while something it waits on has not come back; under projection it tells the Coordinator to delegate the checkpoint. `index.ts` sends it as a `freeflow-compaction-notice` message: steered into the next request mid-run, held for the next prompt at a run's end.
 
 ### The compaction
 

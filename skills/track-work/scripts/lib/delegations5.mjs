@@ -5,13 +5,18 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
 import { slugify } from "./format.mjs";
 import { syncStore } from "./freeflow-store.mjs";
+import { appendChannel, latestReturn, readChannel } from "./channel5.mjs";
+import { addClaims, claimHours, claimGroups, releaseClaims } from "./claims5.mjs";
+import { parseChoices } from "../../../discuss-work/scripts/lib/choices.mjs";
 import {
+  DECISIONS_FILE,
+  EMPTY_DECISIONS,
   ENTRY_ORDER,
   HISTORY_FILE,
   cueProblem,
@@ -21,17 +26,34 @@ import {
   parseRecord5,
   renderFields5,
 } from "./record5.mjs";
-import { priceTable, renderMeasure, workerMeasure } from "./measure5.mjs";
-import { freeflowStoreOf, projectOf, writeAtomically, writeTaskFile } from "./store.mjs";
+import { modelNow, priceTable, renderMeasure, workerMeasure } from "./measure5.mjs";
+import { freeflowStoreOf, isFreeflowStore, projectOf, writeAtomically, writeTaskFile } from "./store.mjs";
+import { sessionIdentity } from "./projects5.mjs";
+import { storeHome } from "./freeflow-store.mjs";
+import { CHECKS, ROUTING_FILE, SETTLED, routeFrom, routingFiles } from "./routing5.mjs";
 
 export const KINDS = new Set(["build", "review", "research", "eval", "gather"]);
 export const OUTCOMES = new Set(["accepted", "sent back", "stopped"]);
+/** Why a return was sent back (SPEC-010 4.2, P4): the brief left out what the work needed, the model could not do it, or the work was not what the brief said. */
+export const REASONS = new Set(["brief", "capability", "scope"]);
 const RETURN_STATES = new Set(["done", "blocked", "stopped"]);
 const BRIEF_SECTIONS = ["Result wanted", "Scope", "Settled", "Read", "Done when", "Return when", "Changes"];
+/** What decides a return, by the brief's Check (SPEC-010 4.2): what check-return tells the coordinator to do next. */
+const CHECK_NEXT = {
+  scripted: "rerun the script that decides the result",
+  tests: "rerun the tests that decide the result",
+  judgement: "judge it against the brief's Result wanted and Done when, or have it judged, since no script decides it",
+};
 const RETURN_SECTIONS = ["Result", "Identities", "Checks", "Left open", "Not done"];
 const ID = /^D-(\d{3,})(?:\.(\d+))?$/;
 const REFERENCE = resolve(dirname(fileURLToPath(import.meta.url)), "../../../execute-work/references/delegation.md");
 const SCRIPT = resolve(dirname(fileURLToPath(import.meta.url)), "../working-record.mjs");
+/** A worker's progress.md, which checkpoint --delegation writes (SPEC-009 4.1). */
+const PROGRESS_SECTIONS = ["Done", "Half done", "Didn't work", "Next"];
+/** A return's Left open choice the coordinator's close adds to decisions.md (SPEC-009 4.3). */
+const LEFT_OPEN = /^\s*[-*]\s+(.+?)\s+->\s+(.+?)(,\s*technical)?\s*$/;
+/** The file in a session's folder of the Freeflow home that says it works for a delegation (SPEC-009 4.1). */
+export const JOINED_FILE = "delegation.json";
 
 class DelegationError extends Error {
   constructor(message) {
@@ -223,6 +245,106 @@ function taskName(recordPath) {
 }
 
 /**
+ * Appends a line to the task's delegation log (SPEC-009 4.2); a log that cannot be written never fails the command
+ * that acted, and says so.
+ */
+async function logged(taskDir, event, who = {}) {
+  try {
+    await appendChannel(taskDir, event, { identity: who.identity ?? sessionIdentity(), agent: who.agent ?? null });
+    return "";
+  } catch (error) {
+    return `\nNot in the delegation log: ${error.message}`;
+  }
+}
+
+/** The task a record belongs to, as its ID in the store, or its folder's name outside one. */
+export function taskIdOf(recordPath) {
+  return taskName(recordPath);
+}
+
+/** The commands that start a separate session as the worker, for each harness that can (SPEC-009 4.1). */
+/** A path as one shell word: unchanged when it is plain, else single-quoted (a space in a folder name, for one). */
+export function shellWord(path) {
+  return /^[\w@%+=:,./-]+$/.test(path) ? path : `'${path.replace(/'/g, "'\\''")}'`;
+}
+
+function startCommands(id, task, recordArg, worktree) {
+  const prompt = `You are the worker for ${id} of ${task}. Run: node ${SCRIPT} delegate join --record ${recordArg} --id ${id}`;
+  const quoted = `"${prompt.replace(/(["\\$`])/g, "\\$1")}"`;
+  const at = worktree ? `cd ${shellWord(worktree)} && ` : "";
+  return [
+    "Start the worker session in its own process, on the harness's own terms:",
+    `  Claude Code: ${at}claude --name ${id} ${quoted}`,
+    `  Pi: ${at}pi --session-name ${id} ${quoted}`,
+    "  Or a background or cloud session by the harness's own means, with the same prompt.",
+  ].join("\n");
+}
+
+/** The work as the routing table reads it: its kind, the review tier it is for, and --settled and --check. */
+function routeWork(kind, options) {
+  const settled = oneLine(options["--settled"]) || null;
+  if (settled && !SETTLED.has(settled))
+    fail("--settled is yes or no: whether the brief has settled the work's decisions.");
+  const check = oneLine(options["--check"]) || null;
+  if (check && !CHECKS.has(check))
+    fail(
+      `--check is ${[...CHECKS].join(", ")}: how the return is checked (a script decides, tests, or a person or model judges).`,
+    );
+  const tier = oneLine(options["--tier"]).toLowerCase() || null;
+  if (tier && !/^[a-z][a-z-]*$/.test(tier)) fail("--tier names one tier of the routing table, as --tier security.");
+  return { kind, tier, settled, check };
+}
+
+/** The coordinator's model, for the frontier tier: the newest request's in the transcript FREEFLOW_TRANSCRIPT names, else null. */
+function coordinatorModel(env = process.env) {
+  // Only the transcript the harness layer names (P83): a lookup of a log would read a test's or another session's.
+  const transcript = env.FREEFLOW_TRANSCRIPT;
+  if (!transcript || !existsSync(transcript)) return null;
+  try {
+    return modelNow(transcript)?.split(" ")[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The route delegate open takes from the routing table (SPEC-010 4.1, section 5): with --agent, the agent given and
+ * only a warning when a table does not parse; without it, the first matching row's model and effort, refused with
+ * the reason when there is no table, a table does not parse, no row matches, or the row asks the user first.
+ */
+function routeOf(loaded, taskDir, work, given) {
+  const home = freeflowStoreOf(taskDir) ?? (loaded ? null : isFreeflowStore(storeHome()) ? storeHome() : null);
+  const project = loaded ? projectOf(loaded.path) : null;
+  const files = routingFiles(home, project ? basename(project) : null);
+  const where = home ? join(home, ROUTING_FILE) : `the Freeflow store's ${ROUTING_FILE}`;
+  const routed = routeFrom(files, work, given ? null : coordinatorModel());
+  const instead = `give --agent "<model>, <effort>"`;
+  if (given)
+    return routed.state === "malformed"
+      ? {
+          warning: `Warning: ${routed.error.message}; the brief's Agent is the one given (only the user edits the table).`,
+        }
+      : {};
+  if (routed.state === "none")
+    fail(
+      `delegate open requires --agent "<model>, <effort>": there is no routing table${home ? "" : ", since this task is not in a Freeflow store"}. The table goes in ${where}, and only the user writes it.`,
+    );
+  if (routed.state === "malformed")
+    fail(
+      `delegate open: ${routed.error.message}. Ask the user to mend it (only the user edits the table), or ${instead}.`,
+    );
+  if (routed.state === "unmatched")
+    fail(
+      `delegate open: no row of ${routed.labels.join(" or ")} matches ${routed.inputs}${work.settled && work.check ? "" : " (give --settled and --check where the table asks)"}; ${instead}.`,
+    );
+  if (routed.askFirst)
+    fail(
+      `${routed.line}. Ask the user; on their yes, open it again with --agent "${routed.resolved ? routed.model : routed.row.tier === "frontier" ? "<the coordinator's model>" : `<the ${routed.model} tier's model>`}, ${routed.effort}".`,
+    );
+  return routed;
+}
+
+/**
  * Opens a delegation: assigns its ID, writes brief.md from the template, makes a writing worker's worktree on its
  * own branch at the base, and, for the coordinator's delegations, writes its line in record.md's Delegations. With no
  * record (`loaded` null), the delegation lives in the scratch folder `--scratch` names and nothing is recorded.
@@ -233,10 +355,17 @@ export async function openDelegation(loaded, options, text) {
   const title = oneLine(options["--title"]) || fail("delegate open requires --title.");
   const kind = oneLine(options["--kind"]);
   if (!KINDS.has(kind)) fail(`--kind is one of ${[...KINDS].join(", ")}.`);
-  const agent = oneLine(options["--agent"]);
-  if (!/^[^,]+, ?\S+$/.test(agent)) fail('--agent names the model and effort, as "Haiku, xhigh".');
+  const given = oneLine(options["--agent"]);
+  if (given && !/^[^,]+, ?\S+$/.test(given)) fail('--agent names the model and effort, as "Haiku, xhigh".');
+  const work = routeWork(kind, options);
+  const routed = routeOf(loaded, taskDir, work, given);
+  const agent = given || routed.agent;
   const sections = briefInput(text);
   const parent = options["--parent"] ? parseId(options["--parent"]) : null;
+  const session = options["--session"] === true;
+  if (session && parent)
+    fail("A sub-worker is a subagent of its worker: --session is for the coordinator's own delegations.");
+  if (session && !loaded) fail("A session worker joins a task's delegation: --session needs --record, not --scratch.");
   if (parent?.sub)
     fail(`${parent.id} is a sub-worker, the third and last level: a sub-worker starts no agents of its own.`);
   let id;
@@ -297,7 +426,17 @@ export async function openDelegation(loaded, options, text) {
     ]
       .filter(Boolean)
       .join(" · "),
-    `Agent: ${agent} · Kind: ${kind} · Handle: ${oneLine(options["--handle"]) || "not started"}`,
+    [
+      `Agent: ${agent}`,
+      `Kind: ${kind}`,
+      work.settled && `Settled: ${work.settled}`,
+      work.check && `Check: ${work.check}`,
+      `Route: ${given ? "given" : routed.route}`,
+      session && "Process: session",
+      `Handle: ${oneLine(options["--handle"]) || "not started"}`,
+    ]
+      .filter(Boolean)
+      .join(" · "),
     `Space: ${space}`,
   ];
   const body = BRIEF_SECTIONS.flatMap((name) => {
@@ -311,11 +450,31 @@ export async function openDelegation(loaded, options, text) {
           : trim(sections[name]);
     return [`## ${name}`, ...content, ""];
   });
+  const routeLine = given ? `Route: given (${agent})${routed.warning ? `\n${routed.warning}` : ""}` : routed.line;
   await mkdir(directory, { recursive: true });
   await writeFile(briefPath, `${[...header, ...body].join("\n").trimEnd()}\n`);
   if (!loaded)
-    return `Opened ${id} — ${title}\n${briefPath}\nSpace: ${space}\nStart the worker with a prompt that names ${id} and the brief's path; nothing is recorded. Check its return with:\n  node ${SCRIPT} delegate check-return --scratch ${taskDir} --id ${id}\n`;
+    return `Opened ${id} — ${title}\n${briefPath}\nSpace: ${space}\n${routeLine}\nStart the worker with a prompt that names ${id} and the brief's path; nothing is recorded. Check its return with:\n  node ${SCRIPT} delegate check-return --scratch ${taskDir} --id ${id}\n`;
   const path = relative(taskDir, briefPath);
+  const note = await logged(taskDir, { delegation: id, kind: "brief", ref: path, body: title });
+  // What the worker may write is claimed for it in the store, so other sessions are warned (SPEC-009 4.5).
+  let claimed = "";
+  if (mayWrite.length && freeflowStoreOf(taskDir)) {
+    try {
+      const lines = await addClaims({
+        taskDir,
+        task: taskName(loaded.path),
+        delegation: id,
+        identity: sessionIdentity(),
+        globs: mayWrite,
+        cwd: worktree ?? process.cwd(),
+        hours: claimHours(undefined),
+      });
+      claimed = `\nClaimed: ${lines.flatMap((line) => line.paths).join(", ")} for ${taskName(loaded.path)} ${id}`;
+    } catch (error) {
+      claimed = `\nNot claimed: ${error.message}`;
+    }
+  }
   if (!parent) {
     const [model, effort] = agent.split(/,\s*/);
     const line = [
@@ -335,7 +494,9 @@ export async function openDelegation(loaded, options, text) {
       edit(task.record, [{ start: at, end: at, lines: [...(first ? [""] : []), line] }]),
     );
   }
-  return `Opened ${id} — ${title}\n${path}\nSpace: ${space}\nStart the worker with a prompt that names ${id} and the brief's path; it recovers with:\n  ${recover}\n`;
+  if (session)
+    return `Opened ${id} — ${title} (a separate session)\n${path}\nSpace: ${space}\n${routeLine}${claimed}${note}\n${startCommands(id, taskName(loaded.path), freeflowStoreOf(taskDir) ? taskName(loaded.path) : loaded.path, worktree)}\nThe worker joins with delegate join, which prints its recovery; it recovers with:\n  ${recover}\n`;
+  return `Opened ${id} — ${title}\n${path}\nSpace: ${space}\n${routeLine}${claimed}${note}\nStart the worker with a prompt that names ${id} and the brief's path; it recovers with:\n  ${recover}\n`;
 }
 
 export async function amendDelegation(loaded, options, text) {
@@ -349,7 +510,12 @@ export async function amendDelegation(loaded, options, text) {
   if (handle) brief = brief.replace(/^(Agent: .*· Handle: ).*$/m, (_, lead) => `${lead}${handle}`);
   if (change) brief = `${brief.trimEnd()}\n- ${localDate()}: ${change}\n`;
   await writeFile(path, brief);
-  let note = "";
+  let note = await logged(taskDir, {
+    delegation: id,
+    kind: "amend",
+    ref: relative(taskDir, path),
+    body: change || `handle: ${handle}`,
+  });
   if (change && !sub) {
     // Another round for the same result keeps the folder: a returned delegation runs again.
     const task = await loadTask5(loaded.path, loaded.text);
@@ -357,7 +523,7 @@ export async function amendDelegation(loaded, options, text) {
     const running = item && withState(task.record, item, "running");
     if (running && task.record.lines[item.index] !== running.lines[0]) {
       await writeAtomically(loaded.root, loaded.path, loaded.text, edit(task.record, [running]));
-      note = ` ${id} is running again.`;
+      note = ` ${id} is running again.${note}`;
     }
   }
   return `Amended ${id}${change ? ": the change is appended to its brief, dated; tell the worker too." : ""}${handle ? ` Handle: ${handle}.` : ""}${note}\n`;
@@ -370,6 +536,20 @@ function returnState(directory) {
 }
 
 /**
+ * Where a session worker stands, from the delegation log: not joined yet, its session working, or its session ended
+ * (the worker's driver logs that at the session's end), so the coordinator knows to reassign (SPEC-009 section 5).
+ */
+function sessionText(channel, id, brief, returned) {
+  const own = channel.filter((line) => line.delegation === id && line.kind === "inform");
+  const joined = own.filter((line) => /^session \S+ joined/.test(line.body ?? "")).at(-1);
+  if (!joined) return "a separate session, not joined yet";
+  const session = /^session (\S+)/.exec(joined.body)[1];
+  const ended = own.find((line) => line.ts >= joined.ts && line.body === `session ${session} ended`);
+  const reassign = returned ? "" : ": reassign it with a new session that joins it";
+  return `session ${session}${ended ? `, ended ${ended.ts.slice(0, 16).replace("T", " ")} UTC${reassign}` : ", joined"}${brief.Handle && !brief.Handle.includes(session) ? ` (Handle ${brief.Handle})` : ""}`;
+}
+
+/**
  * The coordinator's open delegations, and each one's sub-workers, from the record and the folders; with `json`, the
  * same as data for a harness layer such as Freeflow's Claude Code pane (SPEC-015): each one's ID, title, kind, agent,
  * opened date, handle, branch and worktree, its return's State or null, its folder, and its sub-workers.
@@ -379,6 +559,7 @@ export async function delegationStatus(loaded, { json = false } = {}) {
   const taskDir = dirname(loaded.path);
   if (!task.record.work.delegations.length)
     return json ? `${JSON.stringify({ delegations: [] }, null, 2)}\n` : "No open delegations.\n";
+  const channel = readChannel(taskDir).lines;
   const lines = [];
   const items = [];
   const data = (brief, directory) => ({
@@ -386,6 +567,9 @@ export async function delegationStatus(loaded, { json = false } = {}) {
     title: brief.title,
     kind: brief.Kind ?? null,
     agent: brief.Agent ?? null,
+    settled: brief.Settled ?? null,
+    check: brief.Check ?? null,
+    route: brief.Route ?? null,
     opened: brief.Opened ?? null,
     handle: brief.Handle ?? null,
     branch: brief.branch,
@@ -406,7 +590,7 @@ export async function delegationStatus(loaded, { json = false } = {}) {
     const brief = parseBrief(readFileSync(join(directory, "brief.md"), "utf8"));
     const state = returnState(directory);
     lines.push(
-      `- ${id} — ${brief.title} · ${brief.Kind}, ${brief.Agent.replace(/,\s*/, " ")} · opened ${brief.Opened} · ${brief.branch ? `branch ${brief.branch}` : "no branch"} · ${state ? `returned: ${state}` : "no return yet"} · ${relative(taskDir, join(directory, "brief.md"))}`,
+      `- ${id} — ${brief.title} · ${brief.Kind}, ${brief.Agent.replace(/,\s*/, " ")}${brief.Process === "session" ? ` · ${sessionText(channel, id, brief, state)}` : ""} · opened ${brief.Opened} · ${brief.branch ? `branch ${brief.branch}` : "no branch"} · ${state ? `returned: ${state}` : "no return yet"} · ${relative(taskDir, join(directory, "brief.md"))}`,
     );
     const entry = { ...data(brief, directory), sub: [] };
     items.push(entry);
@@ -424,11 +608,43 @@ export async function delegationStatus(loaded, { json = false } = {}) {
   return json ? `${JSON.stringify({ delegations: items }, null, 2)}\n` : `${lines.join("\n")}\n`;
 }
 
-/** Problems with a delegation's return: its State and headings, and every commit it names on the brief's branch. */
-export function returnProblems(directory) {
+/**
+ * The commits a return's Identities name, each a hex word of 7 to 40 characters with a digit, as before. Three things
+ * that hold such words are not commits: an email address, whose domain ends in a label of letters and whose name is
+ * not itself such a word (the GitHub ID in a noreply email); a UUID; and a folder name between two slashes of a path,
+ * except a URL's git ref, right after `blob/`, `tree/`, `commit/`, `raw/` or `blame/`. No other form is set aside:
+ * the text cannot tell another repository's commit from this one's, so the coordinator names those with --elsewhere.
+ */
+export function identityCommits(text) {
+  const plain = text
+    .replace(/(?<![\w.+-])(?![0-9a-f]{7,40}@)[\w.+-]+@(?:[\w-]+\.)+[A-Za-z]{2,}\b/g, " ")
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, " ")
+    .replace(/(?<!\/(?:blob|tree|commit|raw|blame))\/[0-9a-f]{7,40}(?=\/)/g, "/ ");
+  const commits = new Set();
+  for (const [commit] of plain.matchAll(/\b[0-9a-f]{7,40}\b/g))
+    // A hash can be all digits; a word of hex letters alone is not taken for one.
+    if (/\d/.test(commit)) commits.add(commit);
+  return [...commits];
+}
+
+/** The --elsewhere values: each `<hash>=<owner/name>`, a commit the coordinator read as another repository's. */
+export function parseElsewhere(values = []) {
+  return values.map((value) => {
+    const match = /^([0-9a-f]{7,40})=([A-Za-z0-9][\w.-]*\/[\w.-]+)$/.exec(value);
+    if (!match) fail(`--elsewhere is <hash>=<owner/name>, such as 079e17a4=openai/codex; not ${value}.`);
+    return { hash: match[1], repository: match[2] };
+  });
+}
+
+/**
+ * Problems with a delegation's return: its State and headings, and every commit it names on the brief's branch.
+ * A commit that is not in the repository is a problem unless `elsewhere` names it (either is a prefix of the
+ * other); each `elsewhere` entry must name a commit the return does and that is not in the repository.
+ */
+export function returnProblems(directory, elsewhere = []) {
   const brief = parseBrief(readFileSync(join(directory, "brief.md"), "utf8"));
   const path = join(directory, "return.md");
-  if (!existsSync(path)) return { brief, problems: ["no return.md yet"], commits: [] };
+  if (!existsSync(path)) return { brief, problems: ["no return.md yet"], commits: [], unchecked: [] };
   const text = readFileSync(path, "utf8");
   const problems = [];
   if (!new RegExp(`^# ${brief.id.replace(".", "\\.")} return\\b`).test(text))
@@ -439,38 +655,96 @@ export function returnProblems(directory) {
   const sections = sectionsOf(text.split(/\r?\n/));
   if (brief.Kind !== "review")
     for (const name of RETURN_SECTIONS) if (!(name in sections)) problems.push(`the heading "## ${name}" is missing`);
-  const commits = [...new Set((sections.Identities ?? []).join(" ").match(/\b[0-9a-f]{7,40}\b/g) ?? [])].filter(
-    // A hash can be all digits; a word of hex letters alone is not taken for one.
-    (token) => /\d/.test(token),
-  );
   const repo = brief.worktree && existsSync(brief.worktree) ? brief.worktree : brief.repo;
+  const commits = [];
+  const used = new Set();
   // A delegation without a branch only read: commits it names are what it read, not what it made.
-  for (const commit of repo ? commits : []) {
-    if (!ok(git(repo, ["rev-parse", "--verify", "--quiet", `${commit}^{commit}`])))
-      problems.push(`commit ${commit} does not exist`);
-    else if (!ok(git(repo, ["merge-base", "--is-ancestor", commit, brief.branch])))
+  for (const commit of repo ? identityCommits((sections.Identities ?? []).join("\n")) : []) {
+    if (!ok(git(repo, ["rev-parse", "--verify", "--quiet", `${commit}^{commit}`]))) {
+      const named = elsewhere.find(({ hash }) => hash.startsWith(commit) || commit.startsWith(hash));
+      if (named) used.add(named);
+      else problems.push(`commit ${commit} does not exist`);
+      continue;
+    }
+    commits.push(commit);
+    if (!ok(git(repo, ["merge-base", "--is-ancestor", commit, brief.branch])))
       problems.push(`commit ${commit} is not on branch ${brief.branch}`);
   }
-  return { brief, problems, commits: repo ? commits : [], state };
+  for (const entry of elsewhere)
+    if (!used.has(entry))
+      problems.push(`--elsewhere ${entry.hash}=${entry.repository} names no commit of the return that is missing here`);
+  return { brief, problems, commits, unchecked: elsewhere.filter((entry) => used.has(entry)), state };
 }
 
-export async function checkReturn(loaded, options) {
+/** How check-return and close name the commits --elsewhere set aside. */
+const elsewhereText = (unchecked) =>
+  unchecked.map(({ hash, repository }) => `${hash.slice(0, 8)} (${repository})`).join(", ");
+
+/** A return's Left open choices, one per "- <choice> -> <what was taken>[, technical]" line, and whether it has other text. */
+export function leftOpen(returnText) {
+  const lines = trim(sectionsOf(String(returnText ?? "").split(/\r?\n/))["Left open"] ?? []);
+  const choices = [];
+  let other = false;
+  for (const line of lines) {
+    const match = LEFT_OPEN.exec(line);
+    if (match) choices.push({ choice: oneLine(match[1]), taken: oneLine(match[2]), technical: Boolean(match[3]) });
+    else if (line.trim() && !/^[-*]?\s*\(?none\.?\)?\.?$/i.test(line.trim())) other = true;
+  }
+  return { choices, other };
+}
+
+/**
+ * Checks a return; when it passes, the coordinator's line says returned and the log has its return or blocked line.
+ * `readOnly`, for a worker checking its own return, leaves the record as it is.
+ */
+export async function checkReturn(loaded, options, { readOnly = false } = {}) {
   const { id, sub } = parseId(options["--id"]);
-  const directory = delegationDir(loaded ? dirname(loaded.path) : resolve(options["--scratch"]), id);
-  const { brief, problems, commits, state } = returnProblems(directory);
+  const taskDir = loaded ? dirname(loaded.path) : resolve(options["--scratch"]);
+  const directory = delegationDir(taskDir, id);
+  const { brief, problems, commits, unchecked, state } = returnProblems(
+    directory,
+    parseElsewhere(options["--elsewhere"]),
+  );
   if (problems.length) fail(`${id}'s return is not ready: ${problems.join("; ")}.`);
-  let note = "";
-  if (loaded && !sub) {
+  const named = unchecked.length ? `; not checked here, named another repository's: ${elsewhereText(unchecked)}` : "";
+  const open = leftOpen(readFileSync(join(directory, "return.md"), "utf8"));
+  const warning =
+    open.other && !open.choices.length
+      ? `\nWarning: Left open has text but no choice line; write each choice you took as "- <the choice> -> <what you took>[, technical]", so the coordinator's close adds it to decisions.md.`
+      : "";
+  let note = loaded
+    ? await logged(taskDir, {
+        delegation: id,
+        kind: state === "blocked" ? "blocked" : "return",
+        ref: relative(taskDir, join(directory, "return.md")),
+        body: `State: ${state}`,
+      })
+    : "";
+  if (loaded && !sub && !readOnly) {
     const task = await loadTask5(loaded.path, loaded.text);
     const item = lineOf(task.record, id);
     const returned = item && withState(task.record, item, "returned");
     if (returned && task.record.lines[item.index] !== returned.lines[0]) {
       await writeAtomically(loaded.root, loaded.path, loaded.text, edit(task.record, [returned]));
-      note = ` Its line now says returned.`;
+      note = ` Its line now says returned.${note}`;
     }
   }
   const shape = brief.Kind === "review" ? "a reviewer's return" : "every heading is there";
-  return `${id}'s return: State ${state}; ${shape}; ${commits.length ? `its ${commits.length} commit(s) are on branch ${brief.branch}` : "it names no commit"}.${note} Now read it and the diff, and rerun the check that decides the result.\n`;
+  const next = readOnly
+    ? "Now tell your coordinator, through the harness's message tool where there is one, that it is there."
+    : `Now read it and the diff, and ${CHECK_NEXT[brief.Check] ?? "rerun the check that decides the result"}.`;
+  // The route as the brief records it, for work opened with --settled or --check (SPEC-010 4.2).
+  const routed =
+    brief.Settled || brief.Check
+      ? [
+          brief.Settled && `settled ${brief.Settled}`,
+          brief.Check && `check ${brief.Check}`,
+          brief.Route && `route ${brief.Route}`,
+        ]
+          .filter(Boolean)
+          .join(", ")
+      : "";
+  return `${id}'s return: State ${state}${routed ? ` (${brief.Kind}, ${routed})` : ""}; ${shape}; ${commits.length ? `its ${commits.length} commit(s) are on branch ${brief.branch}` : "it names no commit"}${named}${open.choices.length ? `; ${open.choices.length} Left open choice(s)` : ""}.${note}${warning} ${next}\n`;
 }
 
 /**
@@ -510,13 +784,21 @@ export async function closeDelegation(loaded, options, text) {
     );
   const outcome = oneLine(options["--outcome"]);
   if (!OUTCOMES.has(outcome)) fail(`--outcome is accepted, sent back or stopped.`);
+  const reason = oneLine(options["--reason"]) || null;
+  if (outcome === "sent back" && !reason)
+    fail(
+      "A return sent back says why: --reason brief (the brief left out what the work needed), capability (the model could not do it) or scope (the work was not what the brief said).",
+    );
+  if (reason && !REASONS.has(reason)) fail(`--reason is ${[...REASONS].join(", ")}.`);
+  if (reason && outcome !== "sent back")
+    fail('--reason says why a return was sent back: it goes with --outcome "sent back".');
   const task = await loadTask5(loaded.path, loaded.text);
   const taskDir = dirname(loaded.path);
   const item = lineOf(task.record, id);
   if (!item)
     fail(`${id} has no line in Current Work's Delegations: it is closed, or was never opened with delegate open.`);
   const directory = delegationDir(taskDir, id);
-  const { brief, problems } = returnProblems(directory);
+  const { brief, problems, unchecked } = returnProblems(directory, parseElsewhere(options["--elsewhere"]));
   const finishing = task.history.entries.some((entry) => entry.id === id);
   let history = task.historyText;
   if (!finishing) {
@@ -547,12 +829,17 @@ export async function closeDelegation(loaded, options, text) {
       From: brief.From ?? null,
       Kind: brief.Kind,
       Agent: brief.Agent,
+      Settled: brief.Settled ?? null,
+      Check: brief.Check ?? null,
+      Route: brief.Route ?? null,
+      Reason: reason,
       Tokens: number("--tokens"),
       Minutes: number("--minutes"),
       Measured: workerMeasured(taskDir, id, brief, options),
       Result: fields.require("Result"),
       "Task effect": fields.require("Task effect"),
       "Merge commit": merge || null,
+      Elsewhere: unchecked.length ? `not checked here, named another repository's: ${elsewhereText(unchecked)}` : null,
       Return: relative(taskDir, join(directory, "return.md")),
     };
     const heading = `## ${id} — ${brief.title}`;
@@ -560,14 +847,87 @@ export async function closeDelegation(loaded, options, text) {
     history = `${(task.historyText ?? emptyHistory(task.record.header.name)).trimEnd()}\n\n${[entry[0], "", ...entry.slice(1)].join("\n")}\n`;
     parseHistory5(history);
   }
+  // An accepted return's Left open choices join the decision list (SPEC-009 4.3); an invalid list refuses the close.
+  const added =
+    !finishing && outcome === "accepted" && existsSync(join(directory, "return.md"))
+      ? decisionsWithLeftOpen(
+          task.decisionsText,
+          leftOpen(readFileSync(join(directory, "return.md"), "utf8")).choices,
+          id,
+        )
+      : null;
   // The last line goes with the blank line before it, so the section stays as init wrote it.
   const alone = !task.record.lines[item.index - 1]?.trim() && !task.record.lines[item.index + 1]?.trim();
   const record = edit(task.record, [{ start: item.index - (alone ? 1 : 0), end: item.index + 1, lines: [] }]);
   parseRecord5(record);
   if (history !== task.historyText)
     await writeTaskFile(loaded.root, loaded.path, HISTORY_FILE, task.historyText, history);
+  if (added?.items.length)
+    await writeTaskFile(loaded.root, loaded.path, DECISIONS_FILE, task.decisionsText, added.text);
   await writeAtomically(loaded.root, loaded.path, loaded.text, record);
-  return `Closed ${id} — ${outcome}\n${await sync(taskDir, `close ${id}`)}\n`;
+  const kind = outcome === "sent back" ? "sent-back" : outcome;
+  const note = await logged(taskDir, {
+    delegation: id,
+    kind,
+    ref: relative(taskDir, join(directory, "return.md")),
+    body: (finishing ? "" : oneLine(closeInput(text).text("Result"))) || outcome,
+  });
+  // Its claims end with it (SPEC-009 4.5); a sent-back delegation runs again and keeps them.
+  let released = "";
+  const home = freeflowStoreOf(taskDir);
+  if (home && outcome !== "sent back") {
+    const ended = await releaseClaims({ home, task: taskName(loaded.path), delegation: id }).catch(() => []);
+    if (ended.length) released = `\nReleased ${ended.length} claim(s) of ${id}.`;
+  }
+  const decided = added?.items.length
+    ? `\nAdded to decisions.md from ${id}'s Left open: ${added.items.join(", ")}${added.linked.length ? ` (${added.linked.join("; ")})` : ""}.`
+    : "";
+  return `Closed ${id} — ${outcome}${reason ? ` (${reason})` : ""}${decided}${released}${note}\n${await sync(taskDir, `close ${id}`)}\n`;
+}
+
+/**
+ * decisions.md with a return's Left open choices added, each with the next free ID (SPEC-009 4.3): a plain choice as
+ * `- P<n> [default] <choice> -> <taken> (from D-NNN)`; a technical one as `- T<n> [default] <choice>: <taken> (from
+ * D-NNN) -> serves P<m>`, linked to the plain item this return added last, else the list's last plain item, for the
+ * coordinator to relink, and as a plain item where the list has none. Refused when the list then does not validate.
+ */
+export function decisionsWithLeftOpen(decisionsText, choices, id) {
+  const text = decisionsText ?? EMPTY_DECISIONS;
+  if (!choices.length) return { text, items: [], linked: [] };
+  const parsed = parseChoices(text);
+  const highest = (letter) =>
+    Math.max(0, ...parsed.items.filter((item) => item.id[0] === letter).map((item) => Number(item.id.slice(1))));
+  let p = highest("P");
+  let t = highest("T");
+  let lastPlain = [...parsed.items].reverse().find((item) => item.kind === "plain" && item.state !== "dropped")?.id;
+  const lines = [];
+  const items = [];
+  const linked = [];
+  for (const choice of choices.filter((each) => !each.technical)) {
+    p += 1;
+    lastPlain = `P${p}`;
+    lines.push(`- P${p} [default] ${choice.choice} -> ${choice.taken} (from ${id})`);
+    items.push(`P${p}`);
+  }
+  for (const choice of choices.filter((each) => each.technical)) {
+    if (lastPlain) {
+      t += 1;
+      lines.push(`- T${t} [default] ${choice.choice}: ${choice.taken} (from ${id}) -> serves ${lastPlain}`);
+      items.push(`T${t}`);
+      linked.push(`T${t} serves ${lastPlain} until you relink it`);
+    } else {
+      p += 1;
+      lines.push(`- P${p} [default] ${choice.choice} -> ${choice.taken} (technical, from ${id})`);
+      items.push(`P${p}`);
+    }
+  }
+  const candidate = `${text.trimEnd()}\n${lines.join("\n")}\n`;
+  const checked = parseChoices(candidate);
+  if (checked.errors.length)
+    fail(
+      `${id} cannot be closed: decisions.md would not validate with its Left open choices: ${checked.errors.join("; ")}. Mend decisions.md, then close again.`,
+    );
+  return { text: candidate, items, linked };
 }
 
 function closeInput(text) {
@@ -632,3 +992,164 @@ export function delegationChecks(taskDir, record) {
     }
   });
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// A worker in a separate session (SPEC-009 4.1): it joins its delegation, keeps its progress.md with checkpoint
+// --delegation, and holds no task; only the coordinator writes the record.
+
+/** Where the Freeflow home says this session works for a delegation. */
+export function joinedPath(home, identity) {
+  return join(home, "sessions", identity.id, JOINED_FILE);
+}
+
+/** The delegation this session joined, `{ id, task, record, taskDir, joinedAt }`, or null. */
+export function joinedDelegation(home, identity) {
+  if (!identity) return null;
+  try {
+    const joined = JSON.parse(readFileSync(joinedPath(home, identity), "utf8"));
+    return typeof joined?.id === "string" && typeof joined.record === "string" ? joined : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `delegate join`: this session becomes the worker of a delegation opened with --session. Records the session as the
+ * brief's Handle and in the Freeflow home's sessions/<session>/delegation.json, and logs that it joined. The caller
+ * prints the worker's recovery.
+ */
+export async function joinDelegation(loaded, options, { home, identity, held }) {
+  if (!identity) fail("No session ID: Claude Code sets CLAUDE_CODE_SESSION_ID; other harnesses set FREEFLOW_SESSION.");
+  const { id, sub } = parseId(options["--id"]);
+  if (sub) fail(`${id} is a sub-worker's delegation: a sub-worker is a subagent of its worker, not a session.`);
+  if (held)
+    fail(
+      `This session holds ${held.id}: a worker session holds no task. Release it first, or join from another session.`,
+    );
+  const taskDir = dirname(loaded.path);
+  const directory = delegationDir(taskDir, id);
+  const briefPath = join(directory, "brief.md");
+  let text = readFileSync(briefPath, "utf8");
+  const brief = parseBrief(text);
+  if (brief.Process !== "session")
+    fail(
+      `${id} was opened for a subagent: only a delegation opened with delegate open --session takes a session worker.`,
+    );
+  const task = await loadTask5(loaded.path, loaded.text);
+  if (!lineOf(task.record, id)) fail(`${id} is not open in ${taskName(loaded.path)}: it was closed, or never opened.`);
+  const previous = joinedDelegation(home, identity);
+  if (previous && (previous.id !== id || previous.record !== loaded.path))
+    fail(`This session works for ${previous.id} already: a session works for one delegation.`);
+  const handle = `session ${identity.id}`;
+  text = text.replace(/^(Agent: .*· Handle: ).*$/m, (_, lead) => `${lead}${handle}`);
+  await writeFile(briefPath, text);
+  const path = joinedPath(home, identity);
+  await mkdir(dirname(path), { recursive: true });
+  const temporary = `${path}.${process.pid}.tmp`;
+  await writeFile(
+    temporary,
+    `${JSON.stringify({ id, task: taskName(loaded.path), record: loaded.path, taskDir, joinedAt: new Date().toISOString() }, null, 2)}\n`,
+  );
+  await rename(temporary, path);
+  const note = await logged(taskDir, { delegation: id, kind: "inform", body: `session ${identity.id} joined` });
+  return `This session is the worker for ${id} of ${taskName(loaded.path)} (Handle: ${handle}). It holds no task: write progress.md (checkpoint --delegation ${id}) and return.md; only the coordinator writes the record.${note}\n`;
+}
+
+/** progress.md's sections from checkpoint --delegation's input: `## Done`, `## Half done`, `## Didn't work`, `## Next`. */
+function progressInput(text) {
+  const raw = String(text ?? "").replace(/\r\n?/g, "\n");
+  const before = raw.split(/^## /m)[0].trim();
+  if (before)
+    fail(
+      `checkpoint --delegation takes progress.md's sections under "## <section>" headings; text before them: ${before.split("\n")[0]}`,
+    );
+  const sections = sectionsOf(raw.split("\n"));
+  for (const name of Object.keys(sections))
+    if (!PROGRESS_SECTIONS.includes(name))
+      fail(`Unknown progress section ${name}; progress.md has ${PROGRESS_SECTIONS.join(", ")}.`);
+  if (!trim(sections.Next).length) fail("checkpoint --delegation requires Next: where the work goes on from.");
+  return sections;
+}
+
+/**
+ * `checkpoint --delegation`: a worker's checkpoint, which rewrites its progress.md whole (Done, Half done, Didn't
+ * work, Next) with the time, and logs it. A worker session's compaction then installs `view bundle --delegation`.
+ */
+export async function checkpointDelegation(loaded, id, text, { joined = null } = {}) {
+  parseId(id);
+  if (joined && joined.id !== id)
+    fail(`This session works for ${joined.id}: its checkpoint is checkpoint --delegation ${joined.id}.`);
+  const taskDir = dirname(loaded.path);
+  const directory = delegationDir(taskDir, id);
+  const sections = progressInput(text);
+  const asOf = new Date().toISOString();
+  const body = PROGRESS_SECTIONS.flatMap((name) => [
+    `## ${name}`,
+    ...(trim(sections[name]).length ? trim(sections[name]) : ["None."]),
+    "",
+  ]);
+  const path = join(directory, "progress.md");
+  const temporary = `${path}.${process.pid}.tmp`;
+  await writeFile(temporary, `${[`# ${id} progress`, `As of: ${asOf}`, "", ...body].join("\n").trimEnd()}\n`);
+  await rename(temporary, path);
+  const note = await logged(taskDir, {
+    delegation: id,
+    kind: "progress",
+    ref: relative(taskDir, path),
+    body: `Next: ${trim(sections.Next)
+      .map((line) => line.replace(/^\s*[-*]\s+/, ""))
+      .join(" ")}`,
+  });
+  return `Wrote ${relative(taskDir, path)} as of ${asOf}.${note}\n`;
+}
+
+/** progress.md's time, as checkpoint --delegation wrote it, or null. */
+export function progressAsOf(taskDir, id) {
+  try {
+    const text = readFileSync(join(delegationDir(taskDir, id), "progress.md"), "utf8");
+    return /^As of: (\S+)$/m.exec(text)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The current Slice's Waits on that are still open, each with what came back (SPEC-009 4.4): the latest return or
+ * blocked line in the log, else a return.md with its State, else nothing yet.
+ */
+export function waitsOf(taskDir, record) {
+  const slice = record.work.slice;
+  const named = slice
+    ? (slice.values.get("Waits on")?.lines.join(" ") ?? "")
+        .split(",")
+        .map((each) => each.trim())
+        .filter((each) => /^D-\d{3,}$/.test(each))
+    : [];
+  const open = new Set(record.work.delegations.map((item) => item.text.split(" ")[0]));
+  const waiting = named.filter((id) => open.has(id));
+  if (!waiting.length) return null;
+  const channel = readChannel(taskDir).lines;
+  return {
+    slice: slice.id,
+    delegations: waiting.map((id) => {
+      const line = latestReturn(channel, id);
+      let state = line
+        ? (/^State: (\w+)/.exec(line.body ?? "")?.[1] ?? (line.kind === "blocked" ? "blocked" : "done"))
+        : null;
+      let at = line?.ts ?? null;
+      if (!state) {
+        try {
+          const found = returnState(delegationDir(taskDir, id));
+          if (found && RETURN_STATES.has(found)) state = found;
+        } catch {
+          state = null;
+        }
+      }
+      return { id, returned: state, at };
+    }),
+  };
+}
+
+/** The delegation log, as `delegate log` prints it. */
+export { renderChannel } from "./channel5.mjs";
+export { claimGroups };

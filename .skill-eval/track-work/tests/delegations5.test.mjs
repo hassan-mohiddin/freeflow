@@ -109,7 +109,7 @@ test("delegate open writes the brief, makes the worker's worktree on its own bra
     const brief = await readFile(join(taskDir, "delegations", "D-001-build-the-thing", "brief.md"), "utf8");
     assert.match(
       brief,
-      /^# D-001 — Build the thing\nTask: task-001-delegating · From: S-001 · Opened: \d{4}-\d{2}-\d{2}\nAgent: Haiku, xhigh · Kind: build · Handle: not started\n/,
+      /^# D-001 — Build the thing\nTask: task-001-delegating · From: S-001 · Opened: \d{4}-\d{2}-\d{2}\nAgent: Haiku, xhigh · Kind: build · Route: given · Handle: not started\n/,
     );
     assert.ok(
       brief.includes(
@@ -238,6 +238,126 @@ test("delegate check-return refuses a missing return, a missing heading and a co
   });
 });
 
+test("delegate check-return takes no email ID, UUID or path folder for a commit, and refuses every other commit that is not there, a URL's ref included", async () => {
+  await withTask(async ({ record, repo, taskDir, cli }) => {
+    openBuild(cli, record, repo);
+    const folder = join(taskDir, "delegations", "D-001-build-the-thing");
+    const worktree = join(dirname(repo), "repo-d-001-build-the-thing");
+    const base = git(worktree, ["rev-parse", "--short=8", "HEAD"]);
+    await writeFile(join(worktree, "thing.txt"), "t\n");
+    git(worktree, ["add", "thing.txt"]);
+    git(worktree, ["commit", "--quiet", "-m", "thing"]);
+    const onBranch = git(worktree, ["rev-parse", "--short=8", "HEAD"]);
+    const identities = [
+      `- Commits ${base}..${onBranch}, author Hassan Mohiddin <63719517+hassan-mohiddin@users.noreply.github.com>:`,
+      `  - ${onBranch} thing.`,
+      "- Evidence: /tmp/claude-0/-home-user/d5d6ba82-6849-5796-ad46-8163c07640ac/scratchpad/self-review.md",
+      "- Checked under /tmp/runs/a1b2c3d4e5/out/",
+    ].join("\n");
+    const withIdentities = (lines) => RETURN("D-001", onBranch).replace(`branch, commit ${onBranch}\n`, `${lines}\n`);
+    await writeFile(join(folder, "return.md"), withIdentities(identities));
+    assert.match(
+      ok(cli(["delegate", "check-return", "--record", record, "--id", "D-001"])),
+      /^D-001's return: State done; every heading is there; its 2 commit\(s\) are on branch d-001-build-the-thing\./,
+    );
+    const full = "7e57ab1e7e57ab1e7e57ab1e7e57ab1e7e57ab1e";
+    for (const missing of [
+      "- Fix: 7e57ab1e",
+      "- Shipped in skills/track-work/scripts/lib/delegations5.mjs 7e57ab1e.",
+      "- Base: origin/main 7e57ab1e",
+      "- Checked and/or 7e57ab1e",
+      "- Pushed origin/7e57ab1e",
+      "- Branch fix-7e57ab1e",
+      "- Head 7e57ab1e-dirty",
+      `- Shipped in lib/delegations5.mjs ${full}.`,
+      `- Checked and/or ${full}`,
+      `- Branch d-001/build ${full}`,
+      `- Schemas at openai/codex ${full}`,
+      `- See https://github.com/o/r/blob/${full}/skills/x.md`,
+      `- See https://github.com/o/r/tree/${full}/skills`,
+      `- Fix ${full}@v1.2`,
+      `- Fix ${full}@x.yz`,
+      `- See https://github.com/o/r/commit/${full}`,
+    ]) {
+      await writeFile(join(folder, "return.md"), withIdentities(`${identities}\n${missing}`));
+      assert.match(
+        cli(["delegate", "check-return", "--record", record, "--id", "D-001"]).stderr,
+        /D-001's return is not ready: commit 7e57ab1e\w* does not exist\.$/m,
+        missing,
+      );
+    }
+    git(repo, ["commit", "--quiet", "--allow-empty", "-m", "elsewhere"]);
+    const offBranch = git(repo, ["rev-parse", "HEAD"]);
+    await writeFile(
+      join(folder, "return.md"),
+      withIdentities(`${identities}\n- See https://github.com/o/r/blob/${offBranch}/x.md`),
+    );
+    assert.match(
+      cli(["delegate", "check-return", "--record", record, "--id", "D-001"]).stderr,
+      new RegExp(`commit ${offBranch} is not on branch d-001-build-the-thing`),
+    );
+  });
+});
+
+test("delegate check-return and close take another repository's commit only as --elsewhere names it, and History records it", async () => {
+  await withTask(async ({ record, repo, taskDir, cli }) => {
+    openBuild(cli, record, repo);
+    const folder = join(taskDir, "delegations", "D-001-build-the-thing");
+    const worktree = join(dirname(repo), "repo-d-001-build-the-thing");
+    await writeFile(join(worktree, "thing.txt"), "t\n");
+    git(worktree, ["add", "thing.txt"]);
+    git(worktree, ["commit", "--quiet", "-m", "thing"]);
+    const onBranch = git(worktree, ["rev-parse", "--short=8", "HEAD"]);
+    const upstream = "079e17a422347e49d02501304f79fade7e569362";
+    const lines = `branch, commit ${onBranch}\n- Schemas at openai/codex ${upstream} (main at 079e17a4)\n`;
+    await writeFile(
+      join(folder, "return.md"),
+      RETURN("D-001", onBranch).replace(`branch, commit ${onBranch}\n`, lines),
+    );
+    const check = (...extra) => cli(["delegate", "check-return", "--record", record, "--id", "D-001", ...extra]);
+    assert.match(
+      check().stderr,
+      /commit 079e17a422347e49d02501304f79fade7e569362 does not exist; commit 079e17a4 does not exist\./,
+    );
+    assert.match(check("--elsewhere", "079e17a4").stderr, /--elsewhere is <hash>=<owner\/name>/);
+    assert.match(
+      check("--elsewhere", "1234567=acme/other", "--elsewhere", `${upstream}=openai/codex`).stderr,
+      /--elsewhere 1234567=acme\/other names no commit of the return that is missing here/,
+    );
+    assert.match(
+      ok(check("--elsewhere", `${upstream}=openai/codex`)),
+      /its 1 commit\(s\) are on branch d-001-build-the-thing; not checked here, named another repository's: 079e17a4 \(openai\/codex\)\./,
+    );
+    git(repo, ["merge", "--quiet", "--no-ff", "-m", "Merge D-001", "d-001-build-the-thing"]);
+    const merge = git(repo, ["rev-parse", "--short=8", "HEAD"]);
+    const close = (...extra) =>
+      cli(
+        [
+          "delegate",
+          "close",
+          "--record",
+          record,
+          "--id",
+          "D-001",
+          "--outcome",
+          "accepted",
+          "--merge",
+          merge,
+          ...extra,
+          "--input",
+          "-",
+        ],
+        "- Cue: read when the thing matters\n- Result: thing.txt\n- Task effect: built\n",
+      );
+    assert.match(close().stderr, /D-001 cannot be accepted: its return is not ready: commit 079e17a4/);
+    ok(close("--elsewhere", "079e17a4=openai/codex"));
+    assert.match(
+      await readFile(join(taskDir, "history.md"), "utf8"),
+      /\n- Elsewhere: not checked here, named another repository's: 079e17a4 \(openai\/codex\)\n/,
+    );
+  });
+});
+
 test("open --parent nests a sub-worker's folder in its worker's and refuses a fourth level; recovery shows each its own brief, progress and return", async () => {
   await withTask(async ({ record, repo, taskDir, cli }) => {
     openBuild(cli, record, repo);
@@ -336,6 +456,9 @@ test("open --parent nests a sub-worker's folder in its worker's and refuses a fo
         title: "Build the thing",
         kind: "build",
         agent: "Haiku, xhigh",
+        settled: null,
+        check: null,
+        route: "given",
         opened: undefined,
         handle: top.handle,
         branch: "d-001-build-the-thing",
@@ -414,7 +537,7 @@ test("a Slice closes while its delegation runs; closing the delegation later app
     );
     assert.ok(
       history.endsWith(
-        `- Cue: read when the thing matters\n- Under: the user's request\n- From: S-001\n- Kind: build\n- Agent: Haiku, xhigh\n- Tokens: 41000\n- Minutes: 6\n- Measured: not measured\n- Result: thing.txt exists.\n- Task effect: Built.\n- Merge commit: ${merge}\n- Return: delegations/D-001-build-the-thing/return.md\n`,
+        `- Cue: read when the thing matters\n- Under: the user's request\n- From: S-001\n- Kind: build\n- Agent: Haiku, xhigh\n- Route: given\n- Tokens: 41000\n- Minutes: 6\n- Measured: not measured\n- Result: thing.txt exists.\n- Task effect: Built.\n- Merge commit: ${merge}\n- Return: delegations/D-001-build-the-thing/return.md\n`,
       ),
     );
     assert.match(await readFile(record, "utf8"), /### Delegations\n\n### Space/);
@@ -576,4 +699,11 @@ test("delegate open and check-return --scratch keep a delegation in a folder wit
   } finally {
     await rm(folder, { recursive: true, force: true });
   }
+});
+
+test("the start command quotes a worktree path only when the shell would split it", async () => {
+  const { shellWord } = await import("../../../skills/track-work/scripts/lib/delegations5.mjs");
+  assert.equal(shellWord("/home/u/widget-d-001-build"), "/home/u/widget-d-001-build");
+  assert.equal(shellWord("/home/u/my widget-d-001"), "'/home/u/my widget-d-001'");
+  assert.equal(shellWord("/tmp/it's"), "'/tmp/it'\\''s'");
 });

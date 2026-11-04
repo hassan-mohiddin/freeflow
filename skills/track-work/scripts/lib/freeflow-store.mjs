@@ -16,6 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { FREEFLOW_STORE_KIND, isFreeflowStore, STORE_MARKER, StoreError } from "./store.mjs";
+import { DEFAULT_TABLE, ROUTING_FILE } from "./routing5.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -25,7 +26,13 @@ const execFile = promisify(execFileCallback);
  */
 export const STORE_IGNORE = ["scratch/", "evidence/**/raw/", "local/", "sessions/", "/events/"];
 /** Files that only append merge by keeping both sides' lines. */
-export const STORE_ATTRIBUTES = ["history.md merge=union", "sessions.md merge=union"];
+export const STORE_ATTRIBUTES = [
+  "history.md merge=union",
+  "sessions.md merge=union",
+  // The delegation log and the claims (SPEC-009 T2): appended lines, kept from both sides.
+  "channel.jsonl merge=union",
+  "claims.jsonl merge=union",
+];
 const BRANCH = "main";
 /** Folders a new store starts with; Git keeps an empty one only through a placeholder file. */
 const FOLDERS = ["rules", "projects"];
@@ -134,6 +141,19 @@ async function push(home) {
   return pushed.ok ? { pushed: true } : { pushed: false, reason: pushed.stderr.split("\n").at(-1) || "push failed" };
 }
 
+/**
+ * Adds the union-merge lines a store laid out before they existed lacks to its .gitattributes, so the next commit
+ * carries them; a store that has them is left as it is.
+ */
+export async function ensureUnionMerge(home) {
+  const path = join(home, ".gitattributes");
+  const text = await readFile(path, "utf8").catch(() => "");
+  const have = new Set(text.split(/\r?\n/).map((line) => line.trim()));
+  const missing = STORE_ATTRIBUTES.filter((line) => !have.has(line));
+  if (!missing.length) return;
+  await writeFile(path, `${text.replace(/\s*$/, "")}${text.trim() ? "\n" : ""}${missing.join("\n")}\n`);
+}
+
 /** Writes the store's layout in a repository with no commit yet, on main, and commits it. */
 async function layOut(home) {
   await git(home, ["symbolic-ref", "HEAD", `refs/heads/${BRANCH}`]);
@@ -144,6 +164,8 @@ async function layOut(home) {
     await mkdir(join(home, folder), { recursive: true });
     await writeFile(join(home, folder, ".gitkeep"), "");
   }
+  // The default routing table (SPEC-010 T2): the user's from here on, and only the user edits it.
+  await writeFile(join(home, ROUTING_FILE), DEFAULT_TABLE);
   await git(home, ["add", "--all"]);
   await git(home, ["commit", "--quiet", "--no-verify", "-m", "Create the Freeflow store"]);
 }
