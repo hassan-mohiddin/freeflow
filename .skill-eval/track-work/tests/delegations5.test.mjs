@@ -238,7 +238,7 @@ test("delegate check-return refuses a missing return, a missing heading and a co
   });
 });
 
-test("delegate check-return takes no email ID, path or UUID part, or other repository's commit for one of the branch's, and still refuses a commit that is not there", async () => {
+test("delegate check-return takes no email ID, UUID or path folder for a commit, and refuses every other commit that is not there", async () => {
   await withTask(async ({ record, repo, taskDir, cli }) => {
     openBuild(cli, record, repo);
     const folder = join(taskDir, "delegations", "D-001-build-the-thing");
@@ -252,14 +252,15 @@ test("delegate check-return takes no email ID, path or UUID part, or other repos
       `- Commits ${base}..${onBranch}, author Hassan Mohiddin <63719517+hassan-mohiddin@users.noreply.github.com>:`,
       `  - ${onBranch} thing.`,
       "- Evidence: /tmp/claude-0/-home-user/d5d6ba82-6849-5796-ad46-8163c07640ac/scratchpad/self-review.md",
-      "- Schemas copied at openai/codex 079e17a422347e49d02501304f79fade7e569362, a sparse clone (main at 079e17a4)",
+      "- Checked under /tmp/runs/a1b2c3d4e5/out/",
     ].join("\n");
     const withIdentities = (lines) => RETURN("D-001", onBranch).replace(`branch, commit ${onBranch}\n`, `${lines}\n`);
     await writeFile(join(folder, "return.md"), withIdentities(identities));
     assert.match(
       ok(cli(["delegate", "check-return", "--record", record, "--id", "D-001"])),
-      /^D-001's return: State done; every heading is there; its 2 commit\(s\) are on branch d-001-build-the-thing; not checked here, as another repository's: 079e17a4 \(openai\/codex\)\./,
+      /^D-001's return: State done; every heading is there; its 2 commit\(s\) are on branch d-001-build-the-thing\./,
     );
+    const full = "7e57ab1e7e57ab1e7e57ab1e7e57ab1e7e57ab1e";
     for (const missing of [
       "- Fix: 7e57ab1e",
       "- Shipped in skills/track-work/scripts/lib/delegations5.mjs 7e57ab1e.",
@@ -268,18 +269,22 @@ test("delegate check-return takes no email ID, path or UUID part, or other repos
       "- Pushed origin/7e57ab1e",
       "- Branch fix-7e57ab1e",
       "- Head 7e57ab1e-dirty",
+      `- Shipped in lib/delegations5.mjs ${full}.`,
+      `- Checked and/or ${full}`,
+      `- Branch d-001/build ${full}`,
+      `- Schemas at openai/codex ${full}`,
     ]) {
       await writeFile(join(folder, "return.md"), withIdentities(`${identities}\n${missing}`));
       assert.match(
         cli(["delegate", "check-return", "--record", record, "--id", "D-001"]).stderr,
-        /D-001's return is not ready: commit 7e57ab1e does not exist\.$/m,
+        /D-001's return is not ready: commit 7e57ab1e\w* does not exist\.$/m,
         missing,
       );
     }
   });
 });
 
-test("delegate check-return names another repository's commit it did not check", async () => {
+test("delegate check-return and close take another repository's commit only as --elsewhere names it, and History records it", async () => {
   await withTask(async ({ record, repo, taskDir, cli }) => {
     openBuild(cli, record, repo);
     const folder = join(taskDir, "delegations", "D-001-build-the-thing");
@@ -294,9 +299,46 @@ test("delegate check-return names another repository's commit it did not check",
       join(folder, "return.md"),
       RETURN("D-001", onBranch).replace(`branch, commit ${onBranch}\n`, lines),
     );
+    const check = (...extra) => cli(["delegate", "check-return", "--record", record, "--id", "D-001", ...extra]);
     assert.match(
-      ok(cli(["delegate", "check-return", "--record", record, "--id", "D-001"])),
-      /its 1 commit\(s\) are on branch d-001-build-the-thing; not checked here, as another repository's: 079e17a4 \(openai\/codex\)\./,
+      check().stderr,
+      /commit 079e17a422347e49d02501304f79fade7e569362 does not exist; commit 079e17a4 does not exist\./,
+    );
+    assert.match(check("--elsewhere", "079e17a4").stderr, /--elsewhere is <hash>=<owner\/name>/);
+    assert.match(
+      check("--elsewhere", "1234567=acme/other", "--elsewhere", `${upstream}=openai/codex`).stderr,
+      /--elsewhere 1234567=acme\/other names no commit of the return that is missing here/,
+    );
+    assert.match(
+      ok(check("--elsewhere", `${upstream}=openai/codex`)),
+      /its 1 commit\(s\) are on branch d-001-build-the-thing; not checked here, named another repository's: 079e17a4 \(openai\/codex\)\./,
+    );
+    git(repo, ["merge", "--quiet", "--no-ff", "-m", "Merge D-001", "d-001-build-the-thing"]);
+    const merge = git(repo, ["rev-parse", "--short=8", "HEAD"]);
+    const close = (...extra) =>
+      cli(
+        [
+          "delegate",
+          "close",
+          "--record",
+          record,
+          "--id",
+          "D-001",
+          "--outcome",
+          "accepted",
+          "--merge",
+          merge,
+          ...extra,
+          "--input",
+          "-",
+        ],
+        "- Cue: read when the thing matters\n- Result: thing.txt\n- Task effect: built\n",
+      );
+    assert.match(close().stderr, /D-001 cannot be accepted: its return is not ready: commit 079e17a4/);
+    ok(close("--elsewhere", "079e17a4=openai/codex"));
+    assert.match(
+      await readFile(join(taskDir, "history.md"), "utf8"),
+      /\n- Elsewhere: not checked here, named another repository's: 079e17a4 \(openai\/codex\)\n/,
     );
   });
 });

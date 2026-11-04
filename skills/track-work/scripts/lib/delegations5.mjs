@@ -427,40 +427,39 @@ export async function delegationStatus(loaded, { json = false } = {}) {
 /**
  * The commits a return's Identities name, each a hex word of 7 to 40 characters with a digit. Three things that
  * hold such words are not commits: an email address (the GitHub ID in a noreply email), a UUID, and a whole
- * segment between two slashes of a path. A full 40-character hash right after a bare `owner/name` that is not
- * one of `remotes` or `refs` here (`openai/codex 079e17a4…` or `openai/codex@079e17a4…`) is that repository's
- * (`elsewhere`, with `repository`), and so are its short forms; the caller still checks one that resolves here.
+ * folder name between two slashes of a path. No other form is set aside: the text cannot tell another
+ * repository's commit from this one's, so the coordinator names those with --elsewhere.
  */
-export function identityCommits(text, { remotes = [], refs = () => false } = {}) {
-  const other = new Map();
-  for (const [, repository, full] of text.matchAll(
-    /(?<![^\s(])([A-Za-z0-9][\w.-]*\/[\w.-]+)[ @]([0-9a-f]{40})(?![0-9a-z])/g,
-  )) {
-    const owner = repository.split("/")[0];
-    if (!remotes.includes(owner) && !refs(repository)) other.set(full, repository);
-  }
+export function identityCommits(text) {
   const plain = text
     .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, " ")
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, " ")
     .replace(/\/[0-9a-f]{7,40}(?=\/)/g, "/ ");
-  const commits = new Map();
-  for (const [commit] of plain.matchAll(/\b[0-9a-f]{7,40}\b/g)) {
+  const commits = new Set();
+  for (const [commit] of plain.matchAll(/\b[0-9a-f]{7,40}\b/g))
     // A hash can be all digits; a word of hex letters alone is not taken for one.
-    if (!/\d/.test(commit) || commits.has(commit)) continue;
-    const named = [...other].find(([full]) => full.startsWith(commit));
-    commits.set(
-      commit,
-      named ? { commit, elsewhere: true, full: named[0], repository: named[1] } : { commit, elsewhere: false },
-    );
-  }
-  return [...commits.values()];
+    if (/\d/.test(commit)) commits.add(commit);
+  return [...commits];
 }
 
-/** Problems with a delegation's return: its State and headings, and every commit it names on the brief's branch. */
-export function returnProblems(directory) {
+/** The --elsewhere values: each `<hash>=<owner/name>`, a commit the coordinator read as another repository's. */
+export function parseElsewhere(values = []) {
+  return values.map((value) => {
+    const match = /^([0-9a-f]{7,40})=([A-Za-z0-9][\w.-]*\/[\w.-]+)$/.exec(value);
+    if (!match) fail(`--elsewhere is <hash>=<owner/name>, such as 079e17a4=openai/codex; not ${value}.`);
+    return { hash: match[1], repository: match[2] };
+  });
+}
+
+/**
+ * Problems with a delegation's return: its State and headings, and every commit it names on the brief's branch.
+ * A commit that is not in the repository is a problem unless `elsewhere` names it (either is a prefix of the
+ * other); each `elsewhere` entry must name a commit the return does and that is not in the repository.
+ */
+export function returnProblems(directory, elsewhere = []) {
   const brief = parseBrief(readFileSync(join(directory, "brief.md"), "utf8"));
   const path = join(directory, "return.md");
-  if (!existsSync(path)) return { brief, problems: ["no return.md yet"], commits: [], elsewhere: [] };
+  if (!existsSync(path)) return { brief, problems: ["no return.md yet"], commits: [], unchecked: [] };
   const text = readFileSync(path, "utf8");
   const problems = [];
   if (!new RegExp(`^# ${brief.id.replace(".", "\\.")} return\\b`).test(text))
@@ -473,37 +472,38 @@ export function returnProblems(directory) {
     for (const name of RETURN_SECTIONS) if (!(name in sections)) problems.push(`the heading "## ${name}" is missing`);
   const repo = brief.worktree && existsSync(brief.worktree) ? brief.worktree : brief.repo;
   const commits = [];
-  const elsewhere = [];
-  const named = repo
-    ? identityCommits((sections.Identities ?? []).join("\n"), {
-        remotes: [git(repo, ["remote"])].filter(ok).flatMap((names) => names.split(/\s+/).filter(Boolean)),
-        refs: (name) => ok(git(repo, ["rev-parse", "--verify", "--quiet", name])),
-      })
-    : [];
+  const used = new Set();
   // A delegation without a branch only read: commits it names are what it read, not what it made.
-  for (const item of named) {
-    const { commit } = item;
+  for (const commit of repo ? identityCommits((sections.Identities ?? []).join("\n")) : []) {
     if (!ok(git(repo, ["rev-parse", "--verify", "--quiet", `${commit}^{commit}`]))) {
-      if (item.elsewhere) {
-        if (!elsewhere.some((seen) => seen.full === item.full)) elsewhere.push(item);
-      } else problems.push(`commit ${commit} does not exist`);
+      const named = elsewhere.find(({ hash }) => hash.startsWith(commit) || commit.startsWith(hash));
+      if (named) used.add(named);
+      else problems.push(`commit ${commit} does not exist`);
       continue;
     }
     commits.push(commit);
     if (!ok(git(repo, ["merge-base", "--is-ancestor", commit, brief.branch])))
       problems.push(`commit ${commit} is not on branch ${brief.branch}`);
   }
-  return { brief, problems, commits, elsewhere, state };
+  for (const entry of elsewhere)
+    if (!used.has(entry))
+      problems.push(`--elsewhere ${entry.hash}=${entry.repository} names no commit of the return that is missing here`);
+  return { brief, problems, commits, unchecked: elsewhere.filter((entry) => used.has(entry)), state };
 }
+
+/** How check-return and close name the commits --elsewhere set aside. */
+const elsewhereText = (unchecked) =>
+  unchecked.map(({ hash, repository }) => `${hash.slice(0, 8)} (${repository})`).join(", ");
 
 export async function checkReturn(loaded, options) {
   const { id, sub } = parseId(options["--id"]);
   const directory = delegationDir(loaded ? dirname(loaded.path) : resolve(options["--scratch"]), id);
-  const { brief, problems, commits, elsewhere, state } = returnProblems(directory);
+  const { brief, problems, commits, unchecked, state } = returnProblems(
+    directory,
+    parseElsewhere(options["--elsewhere"]),
+  );
   if (problems.length) fail(`${id}'s return is not ready: ${problems.join("; ")}.`);
-  const unchecked = elsewhere.length
-    ? `; not checked here, as another repository's: ${elsewhere.map((item) => `${item.full.slice(0, 8)} (${item.repository})`).join(", ")}`
-    : "";
+  const named = unchecked.length ? `; not checked here, named another repository's: ${elsewhereText(unchecked)}` : "";
   let note = "";
   if (loaded && !sub) {
     const task = await loadTask5(loaded.path, loaded.text);
@@ -515,7 +515,7 @@ export async function checkReturn(loaded, options) {
     }
   }
   const shape = brief.Kind === "review" ? "a reviewer's return" : "every heading is there";
-  return `${id}'s return: State ${state}; ${shape}; ${commits.length ? `its ${commits.length} commit(s) are on branch ${brief.branch}` : "it names no commit"}${unchecked}.${note} Now read it and the diff, and rerun the check that decides the result.\n`;
+  return `${id}'s return: State ${state}; ${shape}; ${commits.length ? `its ${commits.length} commit(s) are on branch ${brief.branch}` : "it names no commit"}${named}.${note} Now read it and the diff, and rerun the check that decides the result.\n`;
 }
 
 /**
@@ -561,7 +561,7 @@ export async function closeDelegation(loaded, options, text) {
   if (!item)
     fail(`${id} has no line in Current Work's Delegations: it is closed, or was never opened with delegate open.`);
   const directory = delegationDir(taskDir, id);
-  const { brief, problems } = returnProblems(directory);
+  const { brief, problems, unchecked } = returnProblems(directory, parseElsewhere(options["--elsewhere"]));
   const finishing = task.history.entries.some((entry) => entry.id === id);
   let history = task.historyText;
   if (!finishing) {
@@ -598,6 +598,7 @@ export async function closeDelegation(loaded, options, text) {
       Result: fields.require("Result"),
       "Task effect": fields.require("Task effect"),
       "Merge commit": merge || null,
+      Elsewhere: unchecked.length ? `not checked here, named another repository's: ${elsewhereText(unchecked)}` : null,
       Return: relative(taskDir, join(directory, "return.md")),
     };
     const heading = `## ${id} — ${brief.title}`;

@@ -185,11 +185,11 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate check-return",
-    "Usage: delegate check-return --record <record.md> --id <D-NNN[.n]>\nRefuses a return that is missing, lacks its State line or a heading (Result, Identities, Checks, Left open, Not done; a reviewer returns Review Work's report instead), or names a commit that is not on the brief's branch. When it passes, the delegation's line says returned. A return that passes is not accepted: read it and the diff, and rerun the check that decides the result. --scratch <folder> in place of --record checks a delegation opened with --scratch.",
+    "Usage: delegate check-return --record <record.md> --id <D-NNN[.n]> [--elsewhere <hash>=<owner/name> ...]\nRefuses a return that is missing, lacks its State line or a heading (Result, Identities, Checks, Left open, Not done; a reviewer returns Review Work's report instead), or names a commit that is not in the repository or not on the brief's branch. A hex word inside an email address, a UUID or a folder name between two slashes is not taken for a commit. --elsewhere, once per commit, names a commit the return names that belongs to another repository, such as a host's source the worker pinned: it is not looked for here, and the output names it; it is refused when the return names no such commit missing here. When it passes, the delegation's line says returned. A return that passes is not accepted: read it and the diff, and rerun the check that decides the result. --scratch <folder> in place of --record checks a delegation opened with --scratch.",
   ],
   [
     "delegate close",
-    "Usage: delegate close --record <record.md> --id <D-NNN> --outcome <accepted|sent back|stopped> [--merge <commit>] [--tokens <n>] [--minutes <n>] [--transcript <path>] --input <file|->\nRecords the outcome in the delegation's one History entry, with the model, effort, tokens and minutes the host reports, what the worker used (its Measured line: context, billed tokens and list-price cost by model and effort, working and wall-clock time, read from its own log beside the coordinator's transcript, --transcript or FREEFLOW_TRANSCRIPT, found by the brief's Handle or Freeflow's map of workers; else not measured), the merge commit and the return's path; removes its line; syncs the store. Accepting needs a return that passes check-return and, when the brief has a branch, the commit that merged it. A sub-worker's delegation is not closed here: its worker reports it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required.",
+    "Usage: delegate close --record <record.md> --id <D-NNN> --outcome <accepted|sent back|stopped> [--merge <commit>] [--tokens <n>] [--minutes <n>] [--transcript <path>] [--elsewhere <hash>=<owner/name> ...] --input <file|->\nRecords the outcome in the delegation's one History entry, with the model, effort, tokens and minutes the host reports, what the worker used (its Measured line: context, billed tokens and list-price cost by model and effort, working and wall-clock time, read from its own log beside the coordinator's transcript, --transcript or FREEFLOW_TRANSCRIPT, found by the brief's Handle or Freeflow's map of workers; else not measured), the merge commit and the return's path; removes its line; syncs the store. Accepting needs a return that passes check-return, with the same --elsewhere values, which the entry's Elsewhere line records, and, when the brief has a branch, the commit that merged it. A sub-worker's delegation is not closed here: its worker reports it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required.",
   ],
   [
     "agreement",
@@ -362,7 +362,7 @@ function parseOptions(args, { valued = [] } = {}) {
       positionals.push(token);
       continue;
     }
-    if (token === "--writes") {
+    if (token === "--writes" || token === "--elsewhere") {
       const value = args[index + 1];
       if (value === undefined || value.startsWith("--")) throw new CliError(`Missing value for ${token}`);
       options[token] = [...(options[token] ?? []), value];
@@ -458,9 +458,19 @@ function allowedOptions(command, operation) {
       ]);
     if (operation === "amend") return new Set([...record, "--id", "--text", "--handle", "--input"]);
     if (operation === "status") return new Set([...record, "--json"]);
-    if (operation === "check-return") return new Set([...record, "--id", "--scratch"]);
+    if (operation === "check-return") return new Set([...record, "--id", "--scratch", "--elsewhere"]);
     if (operation === "close")
-      return new Set([...record, "--id", "--outcome", "--merge", "--tokens", "--minutes", "--transcript", "--input"]);
+      return new Set([
+        ...record,
+        "--id",
+        "--outcome",
+        "--merge",
+        "--tokens",
+        "--minutes",
+        "--transcript",
+        "--elsewhere",
+        "--input",
+      ]);
   }
   if (command === "validate") return new Set(["--root", "--record", "--strict", "--help"]);
   if (command === "agree" && operation === undefined) return new Set(["--outcome", "--exact-spec", "--home", "--help"]);

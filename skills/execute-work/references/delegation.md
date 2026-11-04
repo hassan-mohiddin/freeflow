@@ -153,7 +153,7 @@ Goal: a worker can hand part of its assignment to sub-workers, and the coordinat
 
 Goal: accept only what the evidence supports, and choose the next step from the gap.
 
-1. Check its shape: the return's headings are there, and every commit it names exists on the branch it names. With a Working Record, `delegate check-return --id D-012` checks both.
+1. Check its shape: the return's headings are there, and every commit it names exists on the branch it names. With a Working Record, `delegate check-return --id D-012` checks both; a commit the return names from another repository, such as a host's source the worker pinned, you name with `--elsewhere <hash>=<owner/name>`, here and at close.
 2. Read the return, then the diff against the base; a summary is not the work.
 3. Rerun the check that decides the result, and recompute any number the result rests on.
 4. Judge it against the brief's Result wanted and Done when. A plausible but different name, location or behavior shows a decision the brief left implicit: improve the next brief from it.

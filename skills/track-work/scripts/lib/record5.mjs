@@ -133,6 +133,7 @@ export const ENTRY_ORDER = {
     "Result",
     "Task effect",
     "Merge commit",
+    "Elsewhere",
     "Return",
   ],
 };

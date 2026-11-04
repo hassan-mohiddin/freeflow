@@ -340,7 +340,7 @@ One entry per closed Slice, agreement or delegation, appended by the command tha
 | --- | --- | --- |
 | Slice | `completed`, `blocked`, `abandoned` | State, Dates, Cue, Under, Result wanted, Result, Evidence, Task effect; Resume when (blocked), Reason (abandoned), Size, Files (`<n> changed (<repository> <from>..<to>)`: the files added, changed or renamed from Base to HEAD at `slice close`, or `--files`; `slice size` adds one, dated, to a Slice closed without it), Predicted, Measured (`not measured` when no reading was taken), Updates; Recorded (`slice record`) |
 | Agreement | `completed`, `ended`, `replaced` | State, Dates, Cue, Lines, Result, Task effect; Updates, Decisions |
-| Delegation | `accepted`, `sent back`, `stopped` | State, Dates, Cue, Under, Kind, Agent, Result, Return; From, Tokens, Minutes, Measured (from the worker's own log, or `not measured`), Task effect, Merge commit |
+| Delegation | `accepted`, `sent back`, `stopped` | State, Dates, Cue, Under, Kind, Agent, Result, Return; From, Tokens, Minutes, Measured (from the worker's own log, or `not measured`), Task effect, Merge commit, Elsewhere (the commits `--elsewhere` named another repository's) |
 
 A clerical fix is appended inside its entry as one more `Correction:` line (the field, before, after, reason); it never changes an entry's state, ID or meaning. `view index` lists every entry in one line; recovery shows the newest within the budget and any the record names.
 
