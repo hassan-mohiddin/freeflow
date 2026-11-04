@@ -38,7 +38,10 @@
           "method": "bootstrap mean"
         }
       },
-      "variants": ["V1", "V2"],
+      "variants": [
+        "V1",
+        "V2"
+      ],
       "runs": [
         {
           "unit": "20 tasks",
@@ -58,6 +61,70 @@
       "git": {
         "commit": "807961b597b14bdc5a62fbe57a67fb4efddff0c0",
         "path": ".skill-eval/top-line/plan/study-plan.md"
+      }
+    },
+    {
+      "kind": "amendment",
+      "sha256": "d73357d59f8d52ef85d32b83e1f4915f8c04cae5a8206f02af79408fa23ad394",
+      "by": "the coordinator of freeflow/task-001, before any run",
+      "at": "2026-11-04T08:29:09.180Z",
+      "reason": "The Freeflow arm is built from ff2b4d9b, the suite's branch with main 0c6da0e3 merged in (#159 delegation across sessions, #160 check-return, #161 routing), instead of 83000618, which predates them, so the eval measures Freeflow as it is on main. No hypothesis, rule, metric, task or arm changed; no run had been made.",
+      "hypotheses": {
+        "C1": {
+          "kind": "confirmatory",
+          "metric": "hidden-tests pass^3 per task",
+          "rule": "exact McNemar, alpha 0.05, at least 6 discordant tasks, freeflow ahead",
+          "method": "paired mcnemar"
+        },
+        "C2": {
+          "kind": "exploratory",
+          "metric": "listCost",
+          "rule": "paired bootstrap 95% interval of the mean difference, lower is better, at least 10 tasks",
+          "method": "bootstrap mean"
+        },
+        "C3": {
+          "kind": "exploratory",
+          "metric": "durationMs",
+          "rule": "paired bootstrap 95% interval, lower is better, at least 10 tasks",
+          "method": "bootstrap mean"
+        },
+        "C4": {
+          "kind": "exploratory",
+          "metric": "score.hidden-tests",
+          "rule": "paired bootstrap 95% interval, higher is better, at least 10 tasks",
+          "method": "bootstrap mean"
+        },
+        "C5": {
+          "kind": "exploratory",
+          "metric": "interruptions",
+          "rule": "paired bootstrap 95% interval, lower is better, at least 10 tasks",
+          "method": "bootstrap mean"
+        }
+      },
+      "variants": [
+        "V1",
+        "V2"
+      ],
+      "runs": [
+        {
+          "unit": "20 tasks",
+          "arm": "plain",
+          "trials": 3,
+          "split": null,
+          "budget": "Claude Code headless, Haiku 5.5 xhigh, read, write, edit, find, grep and bash in the container, the simulated user up to 8 turns, no tuning"
+        },
+        {
+          "unit": "20 tasks",
+          "arm": "freeflow",
+          "trials": 3,
+          "split": null,
+          "budget": "Claude Code headless, Haiku 5.5 xhigh, read, write, edit, find, grep and bash in the container, the simulated user up to 8 turns, no tuning"
+        }
+      ],
+      "after_runs": 0,
+      "changed_after_runs": [],
+      "git": {
+        "reason": "the plan has changes not committed; commit it before locking to anchor the lock"
       }
     }
   ]

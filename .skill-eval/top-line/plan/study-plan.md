@@ -19,7 +19,7 @@ The primary metric is success per task: whether every trial's held-back tests al
 
 ## 4. Compared to what
 
-Today: plain Claude Code, headless (`claude -p`), with Haiku 5.5 at effort xhigh and no plugin, in a clean configuration (`--setting-sources ""`). That is the `plain` arm, the reference. The `freeflow` arm is the same command, model, effort, tools, container, simulated user and turn cap, plus the Freeflow package built from commit 83000618 as the session's plugin and a fresh Freeflow store: Freeflow is the component compared, not extra compute. Neither arm is tuned on these tasks. The trivial baseline is the starting commit itself: check-tasks shows every task's tests fail there and pass at its merge.
+Today: plain Claude Code, headless (`claude -p`), with Haiku 5.5 at effort xhigh and no plugin, in a clean configuration (`--setting-sources ""`). That is the `plain` arm, the reference. The `freeflow` arm is the same command, model, effort, tools, container, simulated user and turn cap, plus the Freeflow package built from commit ff2b4d9b (main 0c6da0e3 merged into this suite's branch) as the session's plugin and a fresh Freeflow store: Freeflow is the component compared, not extra compute. Neither arm is tuned on these tasks. The trivial baseline is the starting commit itself: check-tasks shows every task's tests fail there and pass at its merge.
 
 ## 5. The unit and the count
 
@@ -96,4 +96,4 @@ Freeflow's own repository, Claude Code 2.1.318 headless, Haiku 5.5 at xhigh, tas
 
 ## Amendments
 
-none
+- 2026-11-04, by the coordinator of freeflow/task-001, before any run: The Freeflow arm is built from ff2b4d9b, the suite's branch with main 0c6da0e3 merged in (#159 delegation across sessions, #160 check-return, #161 routing), instead of 83000618, which predates them, so the eval measures Freeflow as it is on main. No hypothesis, rule, metric, task or arm changed; no run had been made. (plan d73357d59f8d)

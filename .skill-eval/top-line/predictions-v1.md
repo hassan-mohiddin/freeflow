@@ -2,7 +2,7 @@
 
 Written 2026-11-04, before any run of the suite (SPEC-011 4.4), from the map's starting predictions (its Evals section): no success difference on one-Slice tasks and a slightly higher cost for Freeflow; on long tasks, higher success and a lower cost. Committed with the suite; the study plan (`plan/study-plan.md`) is locked after this file, and neither changes after a run except by an amendment that says what the run showed.
 
-Arms: `plain` (Claude Code headless, Haiku 5.5 at xhigh, no plugin) against `freeflow` (the same, with Freeflow at 83000618 and a fresh store). 20 tasks, 3 trials per arm.
+Arms: `plain` (Claude Code headless, Haiku 5.5 at xhigh, no plugin) against `freeflow` (the same, with Freeflow at ff2b4d9b and a fresh store). 20 tasks, 3 trials per arm.
 
 | Measure | Fixes (6) | Features (10) | Long tasks (4) | Suite (20), the decision's verdict |
 | --- | --- | --- | --- | --- |

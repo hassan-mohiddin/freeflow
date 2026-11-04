@@ -15,7 +15,7 @@
       "network": "none"
     },
     "freeflow": {
-      "source": { "kind": "git", "ref": "83000618edc072e5f120894559e78a10f2d72858" },
+      "source": { "kind": "git", "ref": "ff2b4d9b617a287ac7211181ae6cfdc742691355" },
       "repository": { "review": { "unit": "pr", "depth": { "default": "standard" } } },
       "personal": {}
     }
