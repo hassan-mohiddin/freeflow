@@ -299,6 +299,55 @@ test("delegate check-return takes no email ID, UUID or path folder for a commit,
   });
 });
 
+test("delegate check-return takes no hex run after or before a dot for a commit, and takes one in uppercase or joined to a word by _", async () => {
+  await withTask(async ({ record, repo, taskDir, cli }) => {
+    openBuild(cli, record, repo);
+    const folder = join(taskDir, "delegations", "D-001-build-the-thing");
+    const worktree = join(dirname(repo), "repo-d-001-build-the-thing");
+    await writeFile(join(worktree, "thing.txt"), "t\n");
+    git(worktree, ["add", "thing.txt"]);
+    git(worktree, ["commit", "--quiet", "-m", "thing"]);
+    const onBranch = git(worktree, ["rev-parse", "--short=8", "HEAD"]);
+    const check = () => cli(["delegate", "check-return", "--record", record, "--id", "D-001"]);
+    const write = (text) => writeFile(join(folder, "return.md"), text);
+    // A decimal, a file name, a version and a dotted run are not commits, so the one real commit is all that is named.
+    await write(
+      RETURN("D-001", onBranch).replace(
+        `branch, commit ${onBranch}\n`,
+        `branch, commit ${onBranch}\n- Scores 0.0123456 and 9.9999999; file abc1234.txt; version 1.2.3abcdef; 0.a1b2c3d4e5.\n`,
+      ),
+    );
+    assert.match(
+      ok(check()),
+      /^D-001's return: State done; every heading is there; its 1 commit\(s\) are on branch d-001-build-the-thing\./,
+    );
+    // A commit in uppercase, and one joined to "commit" by _, is checked like any other.
+    const upper = onBranch.toUpperCase();
+    await write(RETURN("D-001", upper));
+    assert.match(
+      ok(check()),
+      /^D-001's return: State done; every heading is there; its 1 commit\(s\) are on branch d-001-build-the-thing\./,
+    );
+    await write(RETURN("D-001", onBranch).replace(`commit ${onBranch}`, `commit_${onBranch}`));
+    assert.match(
+      ok(check()),
+      /^D-001's return: State done; every heading is there; its 1 commit\(s\) are on branch d-001-build-the-thing\./,
+    );
+    // Either form that names no commit of the repository is still refused.
+    for (const [text, hash] of [
+      [RETURN("D-001", "ABCDEF12"), "ABCDEF12"],
+      [RETURN("D-001", "abcdef12").replace("commit abcdef12", "commit_abcdef12"), "abcdef12"],
+    ]) {
+      await write(text);
+      assert.match(
+        check().stderr,
+        new RegExp(`D-001's return is not ready: commit ${hash} does not exist\\.$`, "m"),
+        text,
+      );
+    }
+  });
+});
+
 test("delegate check-return and close take another repository's commit only as --elsewhere names it, and History records it", async () => {
   await withTask(async ({ record, repo, taskDir, cli }) => {
     openBuild(cli, record, repo);
