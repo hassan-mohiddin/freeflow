@@ -161,7 +161,7 @@ test("delegate open --session writes the brief, worktree and claims, and prints 
     assert.ok(out.includes(`  Claude Code: cd ${worktree} && claude --name D-001 ${prompt}\n`), out);
     assert.ok(out.includes(`  Pi: cd ${worktree} && pi --session-name D-001 ${prompt}\n`), out);
     const brief = await readFile(join(taskDir, "delegations", "D-001-build-the-gates", "brief.md"), "utf8");
-    assert.match(brief, /^Agent: Opus, high · Kind: build · Process: session · Handle: not started$/m);
+    assert.match(brief, /^Agent: Opus, high · Kind: build · Route: given · Process: session · Handle: not started$/m);
     assert.match(brief, /^May write: `src\/\*\*`$/m);
     assert.equal(git(worktree, ["branch", "--show-current"]), "d-001-build-the-gates");
     const claims = liveClaims(readClaimLines(join(taskDir, "..", "..", "claims.jsonl")));
@@ -445,7 +445,20 @@ test("every delegation command appends its line to channel.jsonl; the lines vali
     );
     ok(
       cli(
-        ["delegate", "close", "--record", "widget/task-001", "--id", "D-001", "--outcome", "sent back", "--input", "-"],
+        [
+          "delegate",
+          "close",
+          "--record",
+          "widget/task-001",
+          "--id",
+          "D-001",
+          "--outcome",
+          "sent back",
+          "--reason",
+          "brief",
+          "--input",
+          "-",
+        ],
         { input: "- Cue: read when gates\n- Result: the tests are missing\n- Task effect: none\n" },
       ),
     );

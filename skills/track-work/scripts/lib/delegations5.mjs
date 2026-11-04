@@ -26,14 +26,24 @@ import {
   parseRecord5,
   renderFields5,
 } from "./record5.mjs";
-import { priceTable, renderMeasure, workerMeasure } from "./measure5.mjs";
-import { freeflowStoreOf, projectOf, writeAtomically, writeTaskFile } from "./store.mjs";
+import { modelNow, priceTable, renderMeasure, workerMeasure } from "./measure5.mjs";
+import { freeflowStoreOf, isFreeflowStore, projectOf, writeAtomically, writeTaskFile } from "./store.mjs";
 import { sessionIdentity } from "./projects5.mjs";
+import { storeHome } from "./freeflow-store.mjs";
+import { CHECKS, ROUTING_FILE, SETTLED, routeFrom, routingFiles } from "./routing5.mjs";
 
 export const KINDS = new Set(["build", "review", "research", "eval", "gather"]);
 export const OUTCOMES = new Set(["accepted", "sent back", "stopped"]);
+/** Why a return was sent back (SPEC-010 4.2, P4): the brief left out what the work needed, the model could not do it, or the work was not what the brief said. */
+export const REASONS = new Set(["brief", "capability", "scope"]);
 const RETURN_STATES = new Set(["done", "blocked", "stopped"]);
 const BRIEF_SECTIONS = ["Result wanted", "Scope", "Settled", "Read", "Done when", "Return when", "Changes"];
+/** What decides a return, by the brief's Check (SPEC-010 4.2): what check-return tells the coordinator to do next. */
+const CHECK_NEXT = {
+  scripted: "rerun the script that decides the result",
+  tests: "rerun the tests that decide the result",
+  judgement: "judge it against the brief's Result wanted and Done when, or have it judged, since no script decides it",
+};
 const RETURN_SECTIONS = ["Result", "Identities", "Checks", "Left open", "Not done"];
 const ID = /^D-(\d{3,})(?:\.(\d+))?$/;
 const REFERENCE = resolve(dirname(fileURLToPath(import.meta.url)), "../../../execute-work/references/delegation.md");
@@ -270,6 +280,70 @@ function startCommands(id, task, recordArg, worktree) {
   ].join("\n");
 }
 
+/** The work as the routing table reads it: its kind, the review tier it is for, and --settled and --check. */
+function routeWork(kind, options) {
+  const settled = oneLine(options["--settled"]) || null;
+  if (settled && !SETTLED.has(settled))
+    fail("--settled is yes or no: whether the brief has settled the work's decisions.");
+  const check = oneLine(options["--check"]) || null;
+  if (check && !CHECKS.has(check))
+    fail(
+      `--check is ${[...CHECKS].join(", ")}: how the return is checked (a script decides, tests, or a person or model judges).`,
+    );
+  const tier = oneLine(options["--tier"]).toLowerCase() || null;
+  if (tier && !/^[a-z][a-z-]*$/.test(tier)) fail("--tier names one tier of the routing table, as --tier security.");
+  return { kind, tier, settled, check };
+}
+
+/** The coordinator's model, for the frontier tier: the newest request's in the transcript FREEFLOW_TRANSCRIPT names, else null. */
+function coordinatorModel(env = process.env) {
+  // Only the transcript the harness layer names (P83): a lookup of a log would read a test's or another session's.
+  const transcript = env.FREEFLOW_TRANSCRIPT;
+  if (!transcript || !existsSync(transcript)) return null;
+  try {
+    return modelNow(transcript)?.split(" ")[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The route delegate open takes from the routing table (SPEC-010 4.1, section 5): with --agent, the agent given and
+ * only a warning when a table does not parse; without it, the first matching row's model and effort, refused with
+ * the reason when there is no table, a table does not parse, no row matches, or the row asks the user first.
+ */
+function routeOf(loaded, taskDir, work, given) {
+  const home = freeflowStoreOf(taskDir) ?? (loaded ? null : isFreeflowStore(storeHome()) ? storeHome() : null);
+  const project = loaded ? projectOf(loaded.path) : null;
+  const files = routingFiles(home, project ? basename(project) : null);
+  const where = home ? join(home, ROUTING_FILE) : `the Freeflow store's ${ROUTING_FILE}`;
+  const routed = routeFrom(files, work, given ? null : coordinatorModel());
+  const instead = `give --agent "<model>, <effort>"`;
+  if (given)
+    return routed.state === "malformed"
+      ? {
+          warning: `Warning: ${routed.error.message}; the brief's Agent is the one given (only the user edits the table).`,
+        }
+      : {};
+  if (routed.state === "none")
+    fail(
+      `delegate open requires --agent "<model>, <effort>": there is no routing table${home ? "" : ", since this task is not in a Freeflow store"}. The table goes in ${where}, and only the user writes it.`,
+    );
+  if (routed.state === "malformed")
+    fail(
+      `delegate open: ${routed.error.message}. Ask the user to mend it (only the user edits the table), or ${instead}.`,
+    );
+  if (routed.state === "unmatched")
+    fail(
+      `delegate open: no row of ${routed.labels.join(" or ")} matches ${routed.inputs}${work.settled && work.check ? "" : " (give --settled and --check where the table asks)"}; ${instead}.`,
+    );
+  if (routed.askFirst)
+    fail(
+      `${routed.line}. Ask the user; on their yes, open it again with --agent "${routed.resolved ? routed.model : routed.row.tier === "frontier" ? "<the coordinator's model>" : `<the ${routed.model} tier's model>`}, ${routed.effort}".`,
+    );
+  return routed;
+}
+
 /**
  * Opens a delegation: assigns its ID, writes brief.md from the template, makes a writing worker's worktree on its
  * own branch at the base, and, for the coordinator's delegations, writes its line in record.md's Delegations. With no
@@ -281,8 +355,11 @@ export async function openDelegation(loaded, options, text) {
   const title = oneLine(options["--title"]) || fail("delegate open requires --title.");
   const kind = oneLine(options["--kind"]);
   if (!KINDS.has(kind)) fail(`--kind is one of ${[...KINDS].join(", ")}.`);
-  const agent = oneLine(options["--agent"]);
-  if (!/^[^,]+, ?\S+$/.test(agent)) fail('--agent names the model and effort, as "Haiku, xhigh".');
+  const given = oneLine(options["--agent"]);
+  if (given && !/^[^,]+, ?\S+$/.test(given)) fail('--agent names the model and effort, as "Haiku, xhigh".');
+  const work = routeWork(kind, options);
+  const routed = routeOf(loaded, taskDir, work, given);
+  const agent = given || routed.agent;
   const sections = briefInput(text);
   const parent = options["--parent"] ? parseId(options["--parent"]) : null;
   const session = options["--session"] === true;
@@ -349,7 +426,17 @@ export async function openDelegation(loaded, options, text) {
     ]
       .filter(Boolean)
       .join(" · "),
-    `Agent: ${agent} · Kind: ${kind}${session ? " · Process: session" : ""} · Handle: ${oneLine(options["--handle"]) || "not started"}`,
+    [
+      `Agent: ${agent}`,
+      `Kind: ${kind}`,
+      work.settled && `Settled: ${work.settled}`,
+      work.check && `Check: ${work.check}`,
+      `Route: ${given ? "given" : routed.route}`,
+      session && "Process: session",
+      `Handle: ${oneLine(options["--handle"]) || "not started"}`,
+    ]
+      .filter(Boolean)
+      .join(" · "),
     `Space: ${space}`,
   ];
   const body = BRIEF_SECTIONS.flatMap((name) => {
@@ -363,10 +450,11 @@ export async function openDelegation(loaded, options, text) {
           : trim(sections[name]);
     return [`## ${name}`, ...content, ""];
   });
+  const routeLine = given ? `Route: given (${agent})${routed.warning ? `\n${routed.warning}` : ""}` : routed.line;
   await mkdir(directory, { recursive: true });
   await writeFile(briefPath, `${[...header, ...body].join("\n").trimEnd()}\n`);
   if (!loaded)
-    return `Opened ${id} — ${title}\n${briefPath}\nSpace: ${space}\nStart the worker with a prompt that names ${id} and the brief's path; nothing is recorded. Check its return with:\n  node ${SCRIPT} delegate check-return --scratch ${taskDir} --id ${id}\n`;
+    return `Opened ${id} — ${title}\n${briefPath}\nSpace: ${space}\n${routeLine}\nStart the worker with a prompt that names ${id} and the brief's path; nothing is recorded. Check its return with:\n  node ${SCRIPT} delegate check-return --scratch ${taskDir} --id ${id}\n`;
   const path = relative(taskDir, briefPath);
   const note = await logged(taskDir, { delegation: id, kind: "brief", ref: path, body: title });
   // What the worker may write is claimed for it in the store, so other sessions are warned (SPEC-009 4.5).
@@ -407,8 +495,8 @@ export async function openDelegation(loaded, options, text) {
     );
   }
   if (session)
-    return `Opened ${id} — ${title} (a separate session)\n${path}\nSpace: ${space}${claimed}${note}\n${startCommands(id, taskName(loaded.path), freeflowStoreOf(taskDir) ? taskName(loaded.path) : loaded.path, worktree)}\nThe worker joins with delegate join, which prints its recovery; it recovers with:\n  ${recover}\n`;
-  return `Opened ${id} — ${title}\n${path}\nSpace: ${space}${claimed}${note}\nStart the worker with a prompt that names ${id} and the brief's path; it recovers with:\n  ${recover}\n`;
+    return `Opened ${id} — ${title} (a separate session)\n${path}\nSpace: ${space}\n${routeLine}${claimed}${note}\n${startCommands(id, taskName(loaded.path), freeflowStoreOf(taskDir) ? taskName(loaded.path) : loaded.path, worktree)}\nThe worker joins with delegate join, which prints its recovery; it recovers with:\n  ${recover}\n`;
+  return `Opened ${id} — ${title}\n${path}\nSpace: ${space}\n${routeLine}${claimed}${note}\nStart the worker with a prompt that names ${id} and the brief's path; it recovers with:\n  ${recover}\n`;
 }
 
 export async function amendDelegation(loaded, options, text) {
@@ -479,6 +567,9 @@ export async function delegationStatus(loaded, { json = false } = {}) {
     title: brief.title,
     kind: brief.Kind ?? null,
     agent: brief.Agent ?? null,
+    settled: brief.Settled ?? null,
+    check: brief.Check ?? null,
+    route: brief.Route ?? null,
     opened: brief.Opened ?? null,
     handle: brief.Handle ?? null,
     branch: brief.branch,
@@ -641,8 +732,19 @@ export async function checkReturn(loaded, options, { readOnly = false } = {}) {
   const shape = brief.Kind === "review" ? "a reviewer's return" : "every heading is there";
   const next = readOnly
     ? "Now tell your coordinator, through the harness's message tool where there is one, that it is there."
-    : "Now read it and the diff, and rerun the check that decides the result.";
-  return `${id}'s return: State ${state}; ${shape}; ${commits.length ? `its ${commits.length} commit(s) are on branch ${brief.branch}` : "it names no commit"}${named}${open.choices.length ? `; ${open.choices.length} Left open choice(s)` : ""}.${note}${warning} ${next}\n`;
+    : `Now read it and the diff, and ${CHECK_NEXT[brief.Check] ?? "rerun the check that decides the result"}.`;
+  // The route as the brief records it, for work opened with --settled or --check (SPEC-010 4.2).
+  const routed =
+    brief.Settled || brief.Check
+      ? [
+          brief.Settled && `settled ${brief.Settled}`,
+          brief.Check && `check ${brief.Check}`,
+          brief.Route && `route ${brief.Route}`,
+        ]
+          .filter(Boolean)
+          .join(", ")
+      : "";
+  return `${id}'s return: State ${state}${routed ? ` (${brief.Kind}, ${routed})` : ""}; ${shape}; ${commits.length ? `its ${commits.length} commit(s) are on branch ${brief.branch}` : "it names no commit"}${named}${open.choices.length ? `; ${open.choices.length} Left open choice(s)` : ""}.${note}${warning} ${next}\n`;
 }
 
 /**
@@ -682,6 +784,14 @@ export async function closeDelegation(loaded, options, text) {
     );
   const outcome = oneLine(options["--outcome"]);
   if (!OUTCOMES.has(outcome)) fail(`--outcome is accepted, sent back or stopped.`);
+  const reason = oneLine(options["--reason"]) || null;
+  if (outcome === "sent back" && !reason)
+    fail(
+      "A return sent back says why: --reason brief (the brief left out what the work needed), capability (the model could not do it) or scope (the work was not what the brief said).",
+    );
+  if (reason && !REASONS.has(reason)) fail(`--reason is ${[...REASONS].join(", ")}.`);
+  if (reason && outcome !== "sent back")
+    fail('--reason says why a return was sent back: it goes with --outcome "sent back".');
   const task = await loadTask5(loaded.path, loaded.text);
   const taskDir = dirname(loaded.path);
   const item = lineOf(task.record, id);
@@ -719,6 +829,10 @@ export async function closeDelegation(loaded, options, text) {
       From: brief.From ?? null,
       Kind: brief.Kind,
       Agent: brief.Agent,
+      Settled: brief.Settled ?? null,
+      Check: brief.Check ?? null,
+      Route: brief.Route ?? null,
+      Reason: reason,
       Tokens: number("--tokens"),
       Minutes: number("--minutes"),
       Measured: workerMeasured(taskDir, id, brief, options),
@@ -768,7 +882,7 @@ export async function closeDelegation(loaded, options, text) {
   const decided = added?.items.length
     ? `\nAdded to decisions.md from ${id}'s Left open: ${added.items.join(", ")}${added.linked.length ? ` (${added.linked.join("; ")})` : ""}.`
     : "";
-  return `Closed ${id} — ${outcome}${decided}${released}${note}\n${await sync(taskDir, `close ${id}`)}\n`;
+  return `Closed ${id} — ${outcome}${reason ? ` (${reason})` : ""}${decided}${released}${note}\n${await sync(taskDir, `close ${id}`)}\n`;
 }
 
 /**

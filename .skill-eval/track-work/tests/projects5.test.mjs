@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import test from "node:test";
 import { sessionIdentity } from "../../../skills/track-work/scripts/lib/projects5.mjs";
+import { DEFAULT_TABLE } from "../../../skills/track-work/scripts/lib/routing5.mjs";
 
 const scriptPath = resolve("skills/track-work/scripts/working-record.mjs");
 
@@ -525,7 +526,8 @@ test("task here --rules adds the store's rules and the folder's and held task's 
     assert.ok(ruled.startsWith(plain), "the menu comes first, unchanged");
     assert.equal(
       ruled.slice(plain.length),
-      "\n## Rules\n\n### rules/style.md\n\nPlain words, short sentences.\n\n### projects/widget/rules/review.md\n\nEvery change gets a review.\n",
+      // store init wrote the default routing table into the store's rules/ (SPEC-010 T2); it sorts first.
+      `\n## Rules\n\n### rules/routing.md\n\n${DEFAULT_TABLE.trim()}\n\n### rules/style.md\n\nPlain words, short sentences.\n\n### projects/widget/rules/review.md\n\nEvery change gets a review.\n`,
     );
     // Outside the repository, the held task's project still brings its rules.
     assert.match(ok(cli("aaaaaaaa-1", ["task", "here", "--rules"], folder)), /### projects\/widget\/rules\/review\.md/);

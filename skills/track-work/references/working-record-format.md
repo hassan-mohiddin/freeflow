@@ -18,7 +18,7 @@ The Freeflow store is one Git repository at `FREEFLOW_HOME` (default `~/.freeflo
   store.json             marks the store
   .gitignore             scratch/, evidence/**/raw/, local/, sessions/, /events/
   .gitattributes         history.md and sessions.md merge by keeping both sides' lines
-  rules/                 the user's standing rules, read for every task
+  rules/                 the user's standing rules, read for every task; routing.md, the routing table delegate open reads
   projects/<project>/
     rules/               read for this project's tasks
     tasks/task-NNN-<short-name>/
@@ -28,7 +28,7 @@ The Freeflow store is one Git repository at `FREEFLOW_HOME` (default `~/.freeflo
   events/                this machine's event log, one <session ID>.jsonl per session
 ```
 
-`rules/` holds the user's always-on context, like `CLAUDE.md` with room to organize: every file in the store's `rules/`, and the project's once the session holds one of its tasks, is read at every recovery and never counted against the budget. Create or edit a rule only when the user asks; the checks show their size, and you never trim them.
+`rules/` holds the user's always-on context, like `CLAUDE.md` with room to organize: every file in the store's `rules/`, and the project's once the session holds one of its tasks, is read at every recovery and never counted against the budget. Create or edit a rule only when the user asks; the checks show their size, and you never trim them. `rules/routing.md`, which `store init` writes with the default table, is the routing table `delegate open` takes a worker's model and effort from; a project's own `projects/<project>/rules/routing.md` is read before it.
 
 **Local or cloud.** The same store either way. A local store, the default, lives on this device only: `store init` makes it, and nothing leaves the machine. A cloud store is the same store with the user's private repository as its remote, kept in step on every device: `store init --remote <url>` clones it into `FREEFLOW_HOME`, laying out an empty repository as a store or joining one that already is, and `store remote --url <url>` moves a local store's whole history into an empty repository. A cloud session needs a cloud store, since its container is thrown away: the store's repository is one of the session's repositories, `FREEFLOW_HOME` points at its clone, and pushing needs the host's access to that repository; Setup Freeflow's [store setup](../../setup-freeflow/references/store-setup.md) says what the user sets, and `session status` lists what is missing. `store init` refuses a folder that holds Pi's former Task Memory (`registry.json`) or anything else but Freeflow's own `sessions/` and `events/`, which it keeps: ask the user where the store should go. Commits are authored as the user, with no trailers.
 
@@ -340,7 +340,7 @@ One entry per closed Slice, agreement or delegation, appended by the command tha
 | --- | --- | --- |
 | Slice | `completed`, `blocked`, `abandoned` | State, Dates, Cue, Under, Result wanted, Result, Evidence, Task effect; Resume when (blocked), Reason (abandoned), Size, Files (`<n> changed (<repository> <from>..<to>)`: the files added, changed or renamed from Base to HEAD at `slice close`, or `--files`; `slice size` adds one, dated, to a Slice closed without it), Predicted, Measured (`not measured` when no reading was taken), Updates; Recorded (`slice record`) |
 | Agreement | `completed`, `ended`, `replaced` | State, Dates, Cue, Lines, Result, Task effect; Updates, Decisions |
-| Delegation | `accepted`, `sent back`, `stopped` | State, Dates, Cue, Under, Kind, Agent, Result, Return; From, Tokens, Minutes, Measured (from the worker's own log, or `not measured`), Task effect, Merge commit, Elsewhere (the commits `--elsewhere` named another repository's) |
+| Delegation | `accepted`, `sent back`, `stopped` | State, Dates, Cue, Under, Kind, Agent, Result, Return; From, Settled, Check, Route (from the brief), Reason (`brief`, `capability` or `scope`, required when sent back), Tokens, Minutes, Measured (from the worker's own log, or `not measured`), Task effect, Merge commit, Elsewhere (the commits `--elsewhere` named another repository's) |
 
 A clerical fix is appended inside its entry as one more `Correction:` line (the field, before, after, reason); it never changes an entry's state, ID or meaning. `view index` lists every entry in one line; recovery shows the newest within the budget and any the record names.
 
@@ -417,7 +417,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Close the current Slice | `slice close --state <completed\|blocked\|abandoned>` (blocked from paused) |
 | Record a Slice that finished before it could be recorded | `slice record --state <state>`: History only; Current Work and Future Work unchanged |
 | Give a closed Slice its Files, when it closed without one | `slice size --id <S-NNN> (--files <n> \| --range <from>..<to> [--repo <path>])`: appended to its History entry, dated |
-| Hand work to an agent, and close it | `delegate open [--writes <glob> ...]` (what the worker may write, for the brief's Scope), `amend`, `status`, `check-return`, `close`; with no task, `delegate open --scratch <folder>` and `check-return --scratch <folder>`, which record nothing |
+| Hand work to an agent, and close it | `delegate open [--settled <yes\|no>] [--check <scripted\|tests\|judgement>] [--writes <glob> ...]` (the model and effort from the user's routing table, `rules/routing.md`, unless `--agent` names them; what the worker may write, for the brief's Scope), `amend`, `status`, `check-return`, `close` (`--reason` when sent back); with no task, `delegate open --scratch <folder>` and `check-return --scratch <folder>`, which record nothing |
 | Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task; either with `--compact` to have Freeflow's harness layer compact when the turn ends, which it does only on that request, and only where the session's driver claims it can (Setup Freeflow's `capabilities.mjs check compact`); elsewhere the command says so and the harness compacts on its own |
 | Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
 | The session's event log, and its summary since it took the task | `events summary [--session <ID>]`, `events show [--kind <kind>]`: change nothing; `events append` is the harness layer's |

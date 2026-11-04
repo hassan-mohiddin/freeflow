@@ -20,7 +20,7 @@ The store lives at `FREEFLOW_HOME`, `~/.freeflow` when it is unset. If that fold
 
 ## Local Only
 
-`store init`. Commits are authored as the user, with no trailers: pass `--git-name` and `--git-email` when Git has no identity. Later, `store remote --url <url>` moves the whole store into an empty private repository and makes it local + cloud.
+`store init`. Commits are authored as the user, with no trailers: pass `--git-name` and `--git-email` when Git has no identity. A store it lays out gets the default routing table in `rules/routing.md`, which `delegate open` takes each worker's model and effort from: the cheap tier (on Claude, Haiku) at `xhigh` for gathering, research, evals, reviews and settled builds, and the coordinator's own model at `high`, asked first, for the rest. It is the user's from then on, and only the user edits it; a project can have its own in `projects/<project>/rules/routing.md`. Later, `store remote --url <url>` moves the whole store into an empty private repository and makes it local + cloud.
 
 ## Local + Cloud
 
@@ -28,7 +28,7 @@ What the user does, in words you can relay:
 
 > Create an empty private repository on your own GitHub account, for example `freeflow-store`, and send me its URL. Nothing else goes in it: Freeflow lays it out and keeps it in sync.
 
-What you do: `store init --remote <url>`. An empty repository is laid out as the store and its first commit pushed; a repository that is already a store is joined as it is; an empty clone of the repository already at `FREEFLOW_HOME` is used as it is. A repository that holds anything else is refused: ask the user for an empty one.
+What you do: `store init --remote <url>`. An empty repository is laid out as the store, with the default routing table, and its first commit pushed; a repository that is already a store is joined as it is; an empty clone of the repository already at `FREEFLOW_HOME` is used as it is. A repository that holds anything else is refused: ask the user for an empty one.
 
 On each other device, the same `store init --remote <url>` joins it.
 
@@ -58,4 +58,4 @@ The original stays where it was, and no Freeflow command but `migrate` reads it 
 
 ## Check And Report
 
-Run `session status` and read its `missing` list: each item says what keeps the session from a working store and whether the user or you fix it. Setup is done when the list is empty. Then report from `store status` where the store is, whether it is local only or local + cloud, and which records were moved in and which originals are left.
+Run `session status` and read its `missing` list: each item says what keeps the session from a working store and whether the user or you fix it. Setup is done when the list is empty. Then report from `store status` where the store is, whether it is local only or local + cloud, that a new store's `rules/routing.md` holds the default routing table for the user to change, and which records were moved in and which originals are left.
