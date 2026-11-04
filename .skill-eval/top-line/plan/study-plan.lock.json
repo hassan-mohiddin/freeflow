@@ -182,6 +182,68 @@
         "commit": "9b82723dc385b3d981b2065a374aacf7bcad9a8c",
         "path": ".skill-eval/top-line/plan/study-plan.md"
       }
+    },
+    {
+      "kind": "amendment",
+      "sha256": "834f93845a61ba3602ce4916a23fa5761811588c117a46e8d6254efe0f117e35",
+      "by": "the worker of D-043 (freeflow/task-001), before any counted run",
+      "at": "2026-11-04T09:36:26.545Z",
+      "reason": "Hassan, 2026-11-04, \"Five non-store tasks (Recommended)\": the smoke subset is review-packet-root, compare-reworded, docs-check-stamp, plan-novelty-check (fixes) and pass-k-interval (feature), tasks whose request and graders never touch Freeflow's store or Track Work's store commands, in place of migrate-recovery-list, review-packet-root, rules-at-session-start, resume-takes-back and settings-everywhere; no long task qualifies. The suite's 20 tasks, hypotheses, rules and arms are unchanged.",
+      "hypotheses": {
+        "C1": {
+          "kind": "confirmatory",
+          "metric": "hidden-tests pass^3 per task",
+          "rule": "exact McNemar, alpha 0.05, at least 6 discordant tasks, freeflow ahead",
+          "method": "paired mcnemar"
+        },
+        "C2": {
+          "kind": "exploratory",
+          "metric": "listCost",
+          "rule": "paired bootstrap 95% interval of the mean difference, lower is better, at least 10 tasks",
+          "method": "bootstrap mean"
+        },
+        "C3": {
+          "kind": "exploratory",
+          "metric": "durationMs",
+          "rule": "paired bootstrap 95% interval, lower is better, at least 10 tasks",
+          "method": "bootstrap mean"
+        },
+        "C4": {
+          "kind": "exploratory",
+          "metric": "score.hidden-tests",
+          "rule": "paired bootstrap 95% interval, higher is better, at least 10 tasks",
+          "method": "bootstrap mean"
+        },
+        "C5": {
+          "kind": "exploratory",
+          "metric": "interruptions",
+          "rule": "paired bootstrap 95% interval, lower is better, at least 10 tasks",
+          "method": "bootstrap mean"
+        }
+      },
+      "variants": ["V1", "V2"],
+      "runs": [
+        {
+          "unit": "20 tasks",
+          "arm": "plain",
+          "trials": 3,
+          "split": null,
+          "budget": "Claude Code headless, Haiku 5.5 xhigh, read, write, edit, find, grep and bash in the container, the simulated user up to 8 turns, no tuning"
+        },
+        {
+          "unit": "20 tasks",
+          "arm": "freeflow",
+          "trials": 3,
+          "split": null,
+          "budget": "Claude Code headless, Haiku 5.5 xhigh, read, write, edit, find, grep and bash in the container, the simulated user up to 8 turns, no tuning"
+        }
+      ],
+      "after_runs": 0,
+      "changed_after_runs": [],
+      "git": {
+        "commit": "1ca75d990d219cdc581ca87bedbc27380be59cac",
+        "path": ".skill-eval/top-line/plan/study-plan.md"
+      }
     }
   ]
 }
