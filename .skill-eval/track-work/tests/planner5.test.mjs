@@ -611,6 +611,37 @@ test("estimate --project and --store add up what was measured, and size a task w
   }
 });
 
+test("estimate --spent adds up one task's History by model and effort, as text and as JSON for the pane (SPEC-015)", async () => {
+  const { home } = await storeFixture();
+  try {
+    const text = run(["estimate", "--spent", "--record", "task-001"], { FREEFLOW_HOME: home });
+    assert.equal(text.status, 0, text.stderr);
+    assert.equal(
+      text.stdout,
+      [
+        "Spent: 1 Slice measured, 1 delegation measured, $5.70 at API list price.",
+        "- claude-opus-5-5 high: 1 Slice, $5.00",
+        "- claude-haiku-5-5 xhigh: 1 delegation, $0.70",
+        "",
+      ].join("\n"),
+    );
+    const json = run(["estimate", "--spent", "--record", "demo/task-001", "--json"], { FREEFLOW_HOME: home });
+    assert.equal(json.status, 0, json.stderr);
+    assert.deepEqual(JSON.parse(json.stdout), {
+      slices: 3,
+      partial: 1,
+      delegations: 0,
+      usd: 7,
+      byModel: [{ name: "claude-opus-5-5 high", slices: 3, delegations: 0, usd: 7 }],
+    });
+    const none = run(["estimate", "--spent"], { FREEFLOW_HOME: home });
+    assert.equal(none.status, 1);
+    assert.match(none.stderr, /estimate --spent adds up a task's History: pass --record <ID>\./);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("a sized Slice: its files times the median per-file rate, corrected only by sized predictions, and a zero reading is not measured (P13 to P18)", async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "track-work-sized5-")));
   try {

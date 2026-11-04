@@ -946,7 +946,7 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
 
   w.settingsAnswers["list "] = { stdout: JSON.stringify(LISTED) };
   const listed = await freeflow($, "settings");
-  expect(w.settingsRuns.at(-1)!.args.join(" ")).toBe("list --root /work/widget --json");
+  expect(w.settingsRuns.at(-1)!.args.join(" ")).toBe("list --host claude-code --root /work/widget --json");
   // Each section's switch and the review always; another key only when a scope sets it.
   expect(listed.text).toStartWith("Freeflow settings for /work/widget (Claude Code)\n  Freeflow ");
   expect(listed.text).toContain("  Core prompt      off       Personal  (prompts.core)");
@@ -1009,7 +1009,7 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
     "Freeflow settings: unknown option --global.",
   );
   expect((await freeflow($, "status")).text).toBe(
-    "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session.",
+    "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session; /freeflow pane opens or closes Freeflow's pane.",
   );
   expect(w.commands()).toEqual([]);
 });

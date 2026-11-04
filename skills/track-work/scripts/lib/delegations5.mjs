@@ -369,12 +369,30 @@ function returnState(directory) {
   return /^State: (.+)$/m.exec(readFileSync(path, "utf8"))?.[1]?.trim() ?? "no State line";
 }
 
-/** The coordinator's open delegations, and each one's sub-workers, from the record and the folders. */
-export async function delegationStatus(loaded) {
+/**
+ * The coordinator's open delegations, and each one's sub-workers, from the record and the folders; with `json`, the
+ * same as data for a harness layer such as Freeflow's Claude Code pane (SPEC-015): each one's ID, title, kind, agent,
+ * opened date, handle, branch and worktree, its return's State or null, its folder, and its sub-workers.
+ */
+export async function delegationStatus(loaded, { json = false } = {}) {
   const task = await loadTask5(loaded.path, loaded.text);
   const taskDir = dirname(loaded.path);
-  if (!task.record.work.delegations.length) return "No open delegations.\n";
+  if (!task.record.work.delegations.length)
+    return json ? `${JSON.stringify({ delegations: [] }, null, 2)}\n` : "No open delegations.\n";
   const lines = [];
+  const items = [];
+  const data = (brief, directory) => ({
+    id: brief.id,
+    title: brief.title,
+    kind: brief.Kind ?? null,
+    agent: brief.Agent ?? null,
+    opened: brief.Opened ?? null,
+    handle: brief.Handle ?? null,
+    branch: brief.branch,
+    worktree: brief.worktree,
+    returned: returnState(directory),
+    folder: directory,
+  });
   for (const item of task.record.work.delegations) {
     const id = item.text.split(" ")[0];
     let directory;
@@ -382,6 +400,7 @@ export async function delegationStatus(loaded) {
       directory = delegationDir(taskDir, id);
     } catch (error) {
       lines.push(`- ${id}: ${error.message}`);
+      items.push({ id, problem: error.message, sub: [] });
       continue;
     }
     const brief = parseBrief(readFileSync(join(directory, "brief.md"), "utf8"));
@@ -389,6 +408,8 @@ export async function delegationStatus(loaded) {
     lines.push(
       `- ${id} — ${brief.title} · ${brief.Kind}, ${brief.Agent.replace(/,\s*/, " ")} · opened ${brief.Opened} · ${brief.branch ? `branch ${brief.branch}` : "no branch"} · ${state ? `returned: ${state}` : "no return yet"} · ${relative(taskDir, join(directory, "brief.md"))}`,
     );
+    const entry = { ...data(brief, directory), sub: [] };
+    items.push(entry);
     for (const name of readdirSync(directory)
       .filter((each) => new RegExp(`^${id}\\.\\d+-`).test(each))
       .sort()) {
@@ -397,9 +418,10 @@ export async function delegationStatus(loaded) {
       lines.push(
         `  - ${subBrief.id} — ${subBrief.title} · ${subBrief.Kind}, ${subBrief.Agent.replace(/,\s*/, " ")} · ${subState ? `returned: ${subState}` : "no return yet"}`,
       );
+      entry.sub.push(data(subBrief, join(directory, name)));
     }
   }
-  return `${lines.join("\n")}\n`;
+  return json ? `${JSON.stringify({ delegations: items }, null, 2)}\n` : `${lines.join("\n")}\n`;
 }
 
 /** Problems with a delegation's return: its State and headings, and every commit it names on the brief's branch. */

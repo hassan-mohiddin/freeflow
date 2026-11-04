@@ -84,6 +84,19 @@ function validateEventsConfig(value) {
   return null;
 }
 /**
+ * Freeflow's pane and status line on Claude Code (SPEC-015): whether the mod keeps them, each on unless a config turns
+ * it off. Only Claude Code's mod acts on them; Pi's footer already shows the held task.
+ */
+export const PANE_KEYS = ["enabled", "statusLine"];
+function validatePaneConfig(value) {
+  if (!isRecord(value)) return "pane must be an object";
+  const unknown = Object.keys(value).find((key) => !PANE_KEYS.includes(key));
+  if (unknown) return `pane has unsupported key: ${unknown}`;
+  for (const key of PANE_KEYS)
+    if (value[key] !== undefined && typeof value[key] !== "boolean") return `pane.${key} must be a boolean`;
+  return null;
+}
+/**
  * The gates (SPEC-008 4.5): each of the four is `off`, `warn` (the default: the agent reads a warning, the event log
  * counts it) or `block` (a refusal, or for delivery a question where someone can answer), on every host with a Freeflow
  * driver. Track Work's `lib/gates5.mjs` decides; the drivers read these values.
@@ -291,6 +304,15 @@ export const SETTINGS = [
     session: true,
   },
   { key: "governor.cap", label: "Cost cap", values: "number", default: null, hosts: "claude-code", session: true },
+  { key: "pane.enabled", label: "Pane", values: "boolean", default: true, hosts: "claude-code", session: true },
+  {
+    key: "pane.statusLine",
+    label: "Status line",
+    values: "boolean",
+    default: true,
+    hosts: "claude-code",
+    session: true,
+  },
   {
     key: "toolExecution.enabled",
     label: "Tool Execution",
@@ -367,6 +389,7 @@ export const CONFIG_SECTIONS = [
   "events",
   "gates",
   "governor",
+  "pane",
 ];
 // outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
 // ignored so existing configs keep loading, and /freeflow status says Task Memory is gone (P6).
@@ -418,6 +441,10 @@ export function validateRepositoryConfig(value) {
     const error = validateGatesConfig(value.gates);
     if (error) return error;
   }
+  if (value.pane !== undefined) {
+    const error = validatePaneConfig(value.pane);
+    if (error) return error;
+  }
   if (value.governor !== undefined) {
     const error = validateGovernorConfig(value.governor);
     if (error) return error;
@@ -447,6 +474,7 @@ export function validateLocalConfig(value) {
     "events",
     "gates",
     "governor",
+    "pane",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -481,6 +509,10 @@ export function validateLocalConfig(value) {
   }
   if (value.gates !== undefined) {
     const error = validateGatesConfig(value.gates);
+    if (error) return error;
+  }
+  if (value.pane !== undefined) {
+    const error = validatePaneConfig(value.pane);
     if (error) return error;
   }
   if (value.governor !== undefined) {

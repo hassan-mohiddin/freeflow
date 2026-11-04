@@ -9,7 +9,7 @@ import { contextWindow } from "./budget5.mjs";
 import { claudeCodeLog } from "./discussion5.mjs";
 import { storeHome } from "./freeflow-store.mjs";
 import { cycleStart, modelNow, priceTable } from "./measure5.mjs";
-import { futureItems, listItems, planView, projectView, storeView } from "./planner5.mjs";
+import { futureItems, listItems, planView, projectView, spentView, storeView } from "./planner5.mjs";
 
 /** Where Freeflow's notice comes, as a share of the window (the mod's own point, before Claude's threshold). */
 const NOTICE_AT = 0.75;
@@ -106,6 +106,10 @@ function contextNow(options, env) {
 export function estimate(options, env = process.env, input = "") {
   if (options["--store"]) return storeView(storeHome(env.FREEFLOW_HOME));
   if (options["--project"] !== undefined) return projectView(storeHome(env.FREEFLOW_HOME), options["--project"]);
+  if (options["--spent"]) {
+    if (!options["--record"]) throw new EstimateError("estimate --spent adds up a task's History: pass --record <ID>.");
+    return spentView(options["--record"], { json: Boolean(options["--json"]) });
+  }
   const { used, source, window, transcript } = contextNow(options, env);
   if (options["--plan"]) {
     if (options["--left"] !== undefined)

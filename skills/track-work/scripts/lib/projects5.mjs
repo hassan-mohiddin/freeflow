@@ -21,7 +21,7 @@ import {
   skeleton5,
 } from "./record5.mjs";
 import { holdStart, summaryForTask } from "./events5.mjs";
-import { rules } from "./budget5.mjs";
+import { decisionItem, orderedDecisions, rules } from "./budget5.mjs";
 import { searchRecords } from "./search.mjs";
 import {
   LAST_TASK_NUMBER,
@@ -179,11 +179,14 @@ export function projectTasks(home, slug) {
       const id = slug ? `${slug}/${number}` : number;
       let header = null;
       let space = [];
+      let work = null;
       let problem = null;
       try {
         const record = parseRecord5(readFileSync(join(dir, "record.md"), "utf8"));
         header = record.header;
         space = record.work.space.map((item) => item.text.split(" · ")[0]);
+        const open = (item) => (item ? { id: item.id, title: item.title } : null);
+        work = { agreement: open(record.work.agreement), slice: open(record.work.slice) };
       } catch (error) {
         problem = error.message;
       }
@@ -193,6 +196,7 @@ export function projectTasks(home, slug) {
         dir,
         header,
         space,
+        work,
         problem,
         hold: readSessions(dir).hold,
         lastSync: synced ? minute(new Date(synced)) : null,
@@ -301,7 +305,51 @@ export async function removeProject(home, name) {
   return `Removed project ${slug} and its ${tasks.length} task(s). Git history keeps them: git -C ${home} checkout ${commit}~1 -- projects/${slug} brings them back.\n${synced}\n`;
 }
 
-export function listProjects(home) {
+/**
+ * `project list --json`, for a harness layer such as Freeflow's Claude Code pane (SPEC-015): every project, and the
+ * store's tasks with no project as the project null, each task with its title, state and cue, who holds it (and
+ * whether that is this session), its last sync, its open agreement and Slice, and the open agreement's decision items
+ * in the order they are shown (waiting and answered first).
+ */
+function projectsJson(home, identity) {
+  const task = (each) => {
+    const decisions = existsSync(join(each.dir, DECISIONS_FILE))
+      ? orderedDecisions(readFileSync(join(each.dir, DECISIONS_FILE), "utf8")).map(decisionItem)
+      : [];
+    return {
+      id: each.id,
+      title: each.header?.name ?? null,
+      state: each.header?.state ?? null,
+      cue: each.header?.cue ?? null,
+      hold: each.hold
+        ? { session: each.hold.short, harness: each.hold.harness, where: each.hold.where, since: each.hold.from }
+        : null,
+      thisSession: Boolean(each.hold && identity && each.hold.short === identity.short),
+      lastSync: each.lastSync,
+      agreement: each.work?.agreement ?? null,
+      slice: each.work?.slice ?? null,
+      decisions,
+      problem: each.problem,
+    };
+  };
+  const newestFirst = (tasks) =>
+    [...tasks].sort((left, right) => right.id.localeCompare(left.id, undefined, { numeric: true }));
+  const loose = projectTasks(home, null);
+  return `${JSON.stringify(
+    {
+      session: identity?.short ?? null,
+      projects: [
+        ...projectNames(home).map((name) => ({ name, tasks: newestFirst(projectTasks(home, name)).map(task) })),
+        ...(loose.length ? [{ name: null, tasks: newestFirst(loose).map(task) }] : []),
+      ],
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+export function listProjects(home, { json = false, identity = null } = {}) {
+  if (json) return projectsJson(home, identity);
   const names = projectNames(home);
   const loose = projectTasks(home, null);
   if (!names.length && !loose.length) return "No projects.\n";

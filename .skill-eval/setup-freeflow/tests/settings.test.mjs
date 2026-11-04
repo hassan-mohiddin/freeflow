@@ -66,8 +66,14 @@ test("list with nothing set shows every setting all hosts and Claude Code act on
   assert.match(text.stdout, /Pi-only settings are not listed \(--host pi lists them\)/);
   assert.deepEqual(
     f.json("list", "--host", "pi").settings.map((row) => row.key),
-    SETTINGS.map((spec) => spec.key),
+    SETTINGS.filter((spec) => spec.hosts !== "claude-code").map((spec) => spec.key),
   );
+  // Claude Code's mod lists its own pane and status line beside what every host acts on (SPEC-015).
+  assert.deepEqual(
+    f.json("list", "--host", "claude-code").settings.map((row) => row.key),
+    SETTINGS.filter((spec) => spec.hosts !== "pi").map((spec) => spec.key),
+  );
+  assert.ok(SETTINGS.some((spec) => spec.key === "pane.enabled" && spec.hosts === "claude-code"));
 });
 
 test("every settable key can be set, read back and unset in each of its scopes", async (t) => {
