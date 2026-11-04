@@ -482,10 +482,35 @@ async function remoteBranch(home) {
   return (await git(home, ["rev-parse", "--verify", "--quiet", `origin/${BRANCH}`], { allowFailure: true })).ok;
 }
 
+/**
+ * The folders inside the store, as paths relative to it, that hold a repository of their own (a `.git` file or
+ * folder). A store has none; one someone planted is left out of every commit, since `git add` looks into a repository
+ * it records (running its configuration, such as core.fsmonitor, whatever submodule options it is given). Links are
+ * not followed.
+ *
+ * @param {string} home
+ */
+async function nestedRepositories(home) {
+  const found = [];
+  const walk = async (folder, inside) => {
+    for (const entry of await readdir(folder, { withFileTypes: true })) {
+      if (entry.name === ".git") {
+        if (inside) found.push(inside);
+      } else if (entry.isDirectory())
+        await walk(join(folder, entry.name), inside ? `${inside}/${entry.name}` : entry.name);
+    }
+  };
+  await walk(home, "");
+  return found;
+}
+
 async function commitChanges(home, message) {
   const changed = (await git(home, ["status", "--porcelain"])).stdout.split("\n").filter(Boolean);
   if (changed.length === 0) return 0;
-  await git(home, ["add", "--all"]);
+  const nested = await nestedRepositories(home);
+  await git(home, ["add", "--all", "--", ".", ...nested.map((folder) => `:(exclude,literal)${folder}`)]);
+  // What changed may be only a planted repository, which is left out: then there is nothing to commit.
+  if ((await git(home, ["diff", "--cached", "--name-only"])).stdout === "") return 0;
   await git(home, [
     "commit",
     "--quiet",

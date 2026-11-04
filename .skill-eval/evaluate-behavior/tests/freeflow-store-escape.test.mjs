@@ -218,8 +218,19 @@ test(
         const synced = host(["store", "sync"]);
         assert.equal(synced.status, 0, synced.stderr);
         assert.match(synced.stdout, /committed \d+ path\(s\)/);
+        // A second turn: the planted repository changed beside a file of the store's own, so the host's sync runs
+        // `git add` next to it again.
+        assert.equal(
+          inContainer(`echo y > "$FREEFLOW_HOME/rules/planted/f" && echo z > "$FREEFLOW_HOME/rules/z.md"`).status,
+          0,
+        );
         host(["session", "status"]);
-        host(["store", "sync"]);
+        assert.match(host(["store", "sync"]).stdout, /committed \d+ path\(s\)/);
+        assert.doesNotMatch(
+          spawnSync("git", ["-C", store, "ls-files", "--stage"], { encoding: "utf8" }).stdout,
+          /^160000 /m,
+          "the planted repository was recorded",
+        );
         const line = {
           v: 1,
           ts: "2026-11-04T10:00:00.000Z",

@@ -555,7 +555,7 @@ test("with FREEFLOW_HOST_COMMITS=1, store sync commits nothing and says the host
   });
 });
 
-test("a repository planted inside the store's files is never looked into: its core.fsmonitor never runs at status or sync", async () => {
+test("a repository planted inside the store's files is never committed or looked into: its core.fsmonitor never runs at status or sync", async () => {
   await withFolder(async (folder) => {
     await writeFile(join(folder, "gitconfig"), "");
     const home = join(folder, "home");
@@ -570,14 +570,24 @@ test("a repository planted inside the store's files is never looked into: its co
     git(planted, ["add", "f"]);
     git(planted, ["-c", "user.name=s", "-c", "user.email=s@x", "commit", "--quiet", "-m", "planted"]);
     git(planted, ["config", "core.fsmonitor", `touch ${JSON.stringify(mark)}; false #`]);
+    // Each sync also has a file of the store's own to commit, so `git add` runs beside the planted repository: the
+    // first while it is untracked, the next after it changed.
+    await writeFile(join(home, "rules", "one.md"), "one\n");
     const first = store(folder, ["sync", "--home", home]);
     assert.equal(first.status, 0, first.stderr);
     await writeFile(join(planted, "f"), "changed\n");
+    await writeFile(join(home, "rules", "two.md"), "two\n");
     for (const args of [
       ["status", "--home", home],
       ["sync", "--home", home],
     ])
       assert.equal(store(folder, args).status, 0);
+    // It is never recorded: no gitlink in the store's index, and the store's own files are committed.
+    assert.doesNotMatch(git(home, ["ls-files", "--stage"]), /^160000 /m);
+    assert.match(git(home, ["ls-files"]), /^rules\/two\.md$/m);
+    // Where the planted repository is the only change, there is nothing to commit.
+    await writeFile(join(planted, "f"), "again\n");
+    assert.match(store(folder, ["sync", "--home", home]).stdout, /nothing to commit/);
     const status = spawnSync(process.execPath, [scriptPath, "session", "status"], {
       cwd: folder,
       encoding: "utf8",
@@ -590,8 +600,15 @@ test("a repository planted inside the store's files is never looked into: its co
     });
     assert.equal(status.status, 0, status.stderr);
     assert.equal(existsSync(mark), false, "the planted repository's core.fsmonitor ran");
-    // The control: Git without the store's options runs it, so the test would see it.
-    execFileSync("git", ["-C", home, "status", "--porcelain"], { env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1" } });
+    // The control: once plain Git records the planted repository, a later `git add --all` beside another change runs
+    // its core.fsmonitor, so the test would see it.
+    const plain = (args) =>
+      execFileSync("git", ["-C", home, ...args], { env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1" } });
+    plain(["add", "--all"]);
+    plain(["-c", "user.name=c", "-c", "user.email=c@x", "commit", "--quiet", "--no-verify", "-m", "control"]);
+    await writeFile(join(planted, "f"), "once more\n");
+    await writeFile(join(home, "rules", "three.md"), "three\n");
+    plain(["add", "--all"]);
     assert.equal(existsSync(mark), true, "the control did not run the planted core.fsmonitor");
   });
 });
