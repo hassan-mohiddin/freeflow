@@ -425,16 +425,15 @@ export async function delegationStatus(loaded, { json = false } = {}) {
 }
 
 /**
- * The commits a return's Identities name, each a hex word of 7 to 40 characters with a digit. Three things that
- * hold such words are not commits: an email address (the GitHub ID in a noreply email), a UUID, and a whole
- * folder name between two slashes of a path. No other form is set aside: the text cannot tell another
+ * The commits a return's Identities name, each a hex word of 7 to 40 characters with a digit, as before. Two things
+ * that hold such words are not commits: an email address, whose domain ends in a label of letters (the GitHub ID in
+ * a noreply email), and a UUID. No other form is set aside, a URL's path included: the text cannot tell another
  * repository's commit from this one's, so the coordinator names those with --elsewhere.
  */
 export function identityCommits(text) {
   const plain = text
-    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, " ")
-    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, " ")
-    .replace(/\/[0-9a-f]{7,40}(?=\/)/g, "/ ");
+    .replace(/[\w.+-]+@(?:[\w-]+\.)+[A-Za-z]{2,}\b/g, " ")
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, " ");
   const commits = new Set();
   for (const [commit] of plain.matchAll(/\b[0-9a-f]{7,40}\b/g))
     // A hash can be all digits; a word of hex letters alone is not taken for one.
