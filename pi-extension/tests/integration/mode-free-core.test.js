@@ -110,21 +110,72 @@ test("removed context settings invalidate repository and local configuration wit
   }
 });
 
-test("review accepts a mode and a model in either file and refuses anything else", () => {
-  for (const review of [{}, { mode: "auto" }, { mode: "off" }, { mode: "always", model: "anthropic/claude-opus" }])
+test("review accepts a unit, a model and rounds in either file, depth only in the repository's, and refuses anything else", () => {
+  for (const review of [
+    {},
+    { unit: "pr" },
+    { unit: "manual", rounds: 1 },
+    { unit: "agreement", model: "anthropic/claude-opus", rounds: 3 },
+    { model: "auto" },
+  ])
     for (const validate of [validateRepositoryConfig, validateLocalConfig])
       assert.equal(validate({ review }), null, JSON.stringify(review));
+  const depth = {
+    default: "standard",
+    rules: [
+      { paths: ["src/payments/**"], depth: "deep", tier: "security", humans: 1 },
+      { linesOver: 1000, depth: "standard" },
+      { trigger: "data", depth: "deep" },
+    ],
+    builtins: { data: "standard", "public interface": "off" },
+  };
+  assert.equal(validateRepositoryConfig({ review: { depth } }), null);
+  assert.match(validateLocalConfig({ review: { depth } }), /^review\.depth is Repository scope only/);
   for (const [review, error] of [
     [true, "review must be an object"],
-    [{ mode: "sometimes" }, "review.mode must be one of auto, off, always"],
-    [{ mode: false }, "review.mode must be one of auto, off, always"],
-    [{ model: "" }, "review.model must be a non-empty model name on one line"],
-    [{ model: 5 }, "review.model must be a non-empty model name on one line"],
-    [{ model: "opus\nReview: off" }, "review.model must be a non-empty model name on one line"],
+    [
+      { mode: "always" },
+      'review.mode is replaced by review.unit (pr, push, commit, agreement, manual): a review runs at every unit, and "manual" proposes it and waits for a yes',
+    ],
+    [{ unit: "sometimes" }, "review.unit must be one of pr, push, commit, agreement, manual"],
+    [{ rounds: 4 }, "review.rounds must be one of 1, 2, 3"],
+    [{ rounds: "2" }, "review.rounds must be one of 1, 2, 3"],
+    [{ model: "" }, "review.model must be auto or a non-empty model name on one line"],
+    [{ model: 5 }, "review.model must be auto or a non-empty model name on one line"],
+    [{ model: "opus\nReview: off" }, "review.model must be auto or a non-empty model name on one line"],
     [{ effort: "high" }, "review has unsupported key: effort"],
   ])
     for (const validate of [validateRepositoryConfig, validateLocalConfig])
       assert.equal(validate({ review }), error, JSON.stringify(review));
+  for (const [value, error] of [
+    [[], "review.depth must be an object"],
+    [{ default: "full" }, "review.depth.default must be one of quick, standard, deep"],
+    [{ rules: {} }, "review.depth.rules must be a list"],
+    [{ rules: [{ depth: "deep" }] }, "review.depth.rules[0] must match by exactly one of paths, linesOver or trigger"],
+    [
+      { rules: [{ paths: ["a"], linesOver: 3, depth: "deep" }] },
+      "review.depth.rules[0] must match by exactly one of paths, linesOver or trigger",
+    ],
+    [{ rules: [{ paths: [], depth: "deep" }] }, "review.depth.rules[0].paths must be a non-empty list of path globs"],
+    [{ rules: [{ paths: ["a"] }] }, "review.depth.rules[0].depth must be one of quick, standard, deep"],
+    [
+      { rules: [{ paths: ["a"], depth: "deep", tier: "high" }] },
+      "review.depth.rules[0].tier must be one of standard, security",
+    ],
+    [{ rules: [{ paths: ["a"], depth: "deep", humans: -1 }] }, "review.depth.rules[0].humans must be a whole number"],
+    [
+      { rules: [{ trigger: "docs", depth: "deep" }] },
+      "review.depth.rules[0].trigger must be one of security, data, ci, public interface",
+    ],
+    [{ rules: [{ paths: ["a"], depth: "deep", when: 1 }] }, "review.depth.rules[0] has unsupported key: when"],
+    [
+      { builtins: { docs: "quick" } },
+      "review.depth.builtins has unknown trigger: docs; the built-ins are security, data, ci, public interface",
+    ],
+    [{ builtins: { ci: "light" } }, "review.depth.builtins.ci must be one of quick, standard, deep, off"],
+    [{ tiers: {} }, "review.depth has unsupported key: tiers"],
+  ])
+    assert.equal(validateRepositoryConfig({ review: { depth: value } }), error, JSON.stringify(value));
 });
 
 test("the personal review setting overrides the shared one field by field, and only a choice shows in the Runtime State", async () => {
@@ -142,29 +193,31 @@ test("the personal review setting overrides the shared one field by field, and o
     }
   };
   const plain = await runtimeState({});
-  assert.deepEqual(plain.review, { mode: "auto" });
+  assert.deepEqual(plain.review, { unit: "pr", model: "auto", rounds: 3 });
   assert.match(plain.content, /Freeflow: active\n\nCapabilities:/);
   assert.doesNotMatch(plain.content, /Review:/);
 
-  const off = await runtimeState({ review: { mode: "off" } });
-  assert.match(off.content, /Freeflow: active\nReview: `off`\n\nCapabilities:/);
+  const manual = await runtimeState({ review: { unit: "manual" } });
+  assert.match(manual.content, /Freeflow: active\nReview: unit `manual`, model `auto`\n\nCapabilities:/);
 
   const layered = await runtimeState(
-    { review: { mode: "always", model: "shared-model" } },
+    { review: { unit: "push", model: "shared-model", rounds: 2 } },
     { review: { model: "my-model" } },
   );
-  assert.deepEqual(layered.review, { mode: "always", model: "my-model" });
-  assert.match(layered.content, /^Review: `always`, reviewer model `my-model`$/m);
+  assert.deepEqual(layered.review, { unit: "push", model: "my-model", rounds: 2 });
+  assert.match(layered.content, /^Review: unit `push`, model `my-model`, up to Review 2$/m);
 
-  // `auto` in the personal file returns a shared choice to the default; a model alone still shows.
+  // `pr` in the personal file returns a shared choice to the default; a model alone still shows.
   assert.doesNotMatch(
-    (await runtimeState({ review: { mode: "off" } }, { review: { mode: "auto" } })).content,
+    (await runtimeState({ review: { unit: "manual" } }, { review: { unit: "pr" } })).content,
     /Review:/,
   );
-  assert.match((await runtimeState({ review: { model: "m" } })).content, /^Review: `auto`, reviewer model `m`$/m);
+  assert.match((await runtimeState({ review: { model: "m" } })).content, /^Review: unit `pr`, model `m`$/m);
+  // The repository's depth rules are the plan's, not the Runtime State's.
+  assert.doesNotMatch((await runtimeState({ review: { depth: { default: "deep" } } })).content, /Review:/);
 
   // An invalid file leaves Freeflow off, and no review line with it.
-  const invalid = await runtimeState({ review: { mode: "always" } }, { review: { mode: "never" } });
+  const invalid = await runtimeState({ review: { unit: "manual" } }, { review: { unit: "never" } });
   assert.match(invalid.content, /Freeflow: config error/);
   assert.doesNotMatch(invalid.content, /Review:/);
   assert.equal(reviewStateLine(undefined), null);

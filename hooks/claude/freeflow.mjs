@@ -661,8 +661,9 @@ const SECTION_ROWS = new Set([
   "prompts.enabled",
   "skills.enabled",
   "events.enabled",
-  "review.mode",
+  "review.unit",
   "review.model",
+  "review.rounds",
 ]);
 const COMMAND_USAGE = [
   "Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)",
@@ -694,7 +695,8 @@ function listText(data) {
         `  ${row.label.padEnd(width)}  ${shown(row.value).padEnd(8)}  ${SCOPE_NAMES[row.scope]}${SECTION_ROWS.has(row.key) ? "" : `  (${row.key})`}`,
     ),
     COMMAND_USAGE,
-    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.mode, review.model.",
+    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.unit, review.model, review.rounds.",
+    "Review depth rules (review.depth) are edited in .freeflow/config.json; review-plan reads them from the base commit.",
     "Pi-only settings (tool execution, compaction, messaging) are changed on Pi or in the files.",
   ].join("\n");
 }

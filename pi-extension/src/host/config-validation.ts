@@ -101,26 +101,107 @@ function validateEventsConfig(value: unknown) {
 }
 
 /**
- * How Review Work reviews finished work. Without the key it runs `auto`, its own risk gate; `off` and `always` are the
- * user's choice for every task, and `model` names the model a reviewer runs on. `auto` is accepted so a personal file
- * can return a shared `off` or `always` to the default.
+ * How Review Work reviews finished work (SPEC-007). `unit` says when a review runs: at every pull request by default,
+ * at a push, a commit or an agreement's Return, or `manual` (proposed with its plan and cost, run after a yes). `model`
+ * is the reviewer's model, `auto` choosing the cheapest capable one; `rounds` caps Review 1, 2, 3. `depth` holds the
+ * project's rules for how deep a review goes; it is Repository scope only, read from the base commit by
+ * `review-plan.mjs`, so a change never supplies the policy that reviews it.
  */
-export const REVIEW_MODES = ["auto", "off", "always"] as const;
-export type ReviewSettings = { mode: (typeof REVIEW_MODES)[number]; model?: string };
-export const REVIEW_KEYS = ["mode", "model"] as const;
+export const REVIEW_UNITS = ["pr", "push", "commit", "agreement", "manual"] as const;
+export const REVIEW_ROUNDS = [1, 2, 3] as const;
+export const REVIEW_DEPTHS = ["quick", "standard", "deep"] as const;
+export const REVIEW_TIERS = ["standard", "security"] as const;
+/** The built-in triggers `review-plan.mjs` evaluates (skills/review-work/scripts/lib/triggers.mjs). */
+export const REVIEW_BUILTINS = ["security", "data", "ci", "public interface"] as const;
+export type ReviewSettings = {
+  unit: (typeof REVIEW_UNITS)[number];
+  model: string;
+  rounds: (typeof REVIEW_ROUNDS)[number];
+};
+export const REVIEW_KEYS = ["unit", "model", "rounds", "depth"] as const;
+export const REVIEW_DEFAULTS: ReviewSettings = { unit: "pr", model: "auto", rounds: 3 };
 
-function validateReviewConfig(value: unknown) {
+const DEPTH_KEYS = ["default", "rules", "builtins"];
+const RULE_KEYS = ["paths", "linesOver", "trigger", "depth", "tier", "humans"];
+const oneOf = (values: readonly unknown[]) => values.map(String).join(", ");
+
+function validateReviewRule(rule: unknown, at: string) {
+  if (!isRecord(rule)) return `${at} must be an object`;
+  const unknown = Object.keys(rule).find((key) => !RULE_KEYS.includes(key));
+  if (unknown) return `${at} has unsupported key: ${unknown}`;
+  const matchers = ["paths", "linesOver", "trigger"].filter((key) => rule[key] !== undefined);
+  if (matchers.length !== 1) return `${at} must match by exactly one of paths, linesOver or trigger`;
+  if (
+    rule.paths !== undefined &&
+    (!Array.isArray(rule.paths) ||
+      rule.paths.length === 0 ||
+      rule.paths.some((path) => typeof path !== "string" || !path.trim()))
+  )
+    return `${at}.paths must be a non-empty list of path globs`;
+  if (rule.linesOver !== undefined && !(Number.isInteger(rule.linesOver) && (rule.linesOver as number) >= 0))
+    return `${at}.linesOver must be a whole number of changed lines`;
+  if (rule.trigger !== undefined && !(REVIEW_BUILTINS as readonly unknown[]).includes(rule.trigger))
+    return `${at}.trigger must be one of ${oneOf(REVIEW_BUILTINS)}`;
+  if (!(REVIEW_DEPTHS as readonly unknown[]).includes(rule.depth))
+    return `${at}.depth must be one of ${oneOf(REVIEW_DEPTHS)}`;
+  if (rule.tier !== undefined && !(REVIEW_TIERS as readonly unknown[]).includes(rule.tier))
+    return `${at}.tier must be one of ${oneOf(REVIEW_TIERS)}`;
+  if (rule.humans !== undefined && !(Number.isInteger(rule.humans) && (rule.humans as number) >= 0))
+    return `${at}.humans must be a whole number`;
+  return null;
+}
+
+/** The repository's depth rules, `review.depth`; null when valid, else the key and the reason. */
+export function validateReviewDepth(value: unknown) {
+  if (!isRecord(value)) return "review.depth must be an object";
+  const unknown = Object.keys(value).find((key) => !DEPTH_KEYS.includes(key));
+  if (unknown) return `review.depth has unsupported key: ${unknown}`;
+  if (value.default !== undefined && !(REVIEW_DEPTHS as readonly unknown[]).includes(value.default))
+    return `review.depth.default must be one of ${oneOf(REVIEW_DEPTHS)}`;
+  if (value.rules !== undefined) {
+    if (!Array.isArray(value.rules)) return "review.depth.rules must be a list";
+    for (const [index, rule] of value.rules.entries()) {
+      const error = validateReviewRule(rule, `review.depth.rules[${index}]`);
+      if (error) return error;
+    }
+  }
+  if (value.builtins !== undefined) {
+    if (!isRecord(value.builtins)) return "review.depth.builtins must be an object";
+    for (const [name, depth] of Object.entries(value.builtins)) {
+      if (!(REVIEW_BUILTINS as readonly string[]).includes(name))
+        return `review.depth.builtins has unknown trigger: ${name}; the built-ins are ${oneOf(REVIEW_BUILTINS)}`;
+      if (![...REVIEW_DEPTHS, "off"].includes(depth as string))
+        return `review.depth.builtins.${name} must be one of ${oneOf([...REVIEW_DEPTHS, "off"])}`;
+    }
+  }
+  return null;
+}
+
+/**
+ * The `review` block in one scope. `depth` is accepted only in the repository's file; `review.mode`, replaced by
+ * `review.unit` with no migration (nothing using it was released), is refused with a message naming its replacement.
+ */
+export function validateReviewConfig(value: unknown, scope: "repository" | "personal" = "repository") {
   if (!isRecord(value)) return "review must be an object";
+  if (value.mode !== undefined)
+    return `review.mode is replaced by review.unit (${oneOf(REVIEW_UNITS)}): a review runs at every unit, and "manual" proposes it and waits for a yes`;
   const unknown = Object.keys(value).find((key) => !(REVIEW_KEYS as readonly string[]).includes(key));
   if (unknown) return `review has unsupported key: ${unknown}`;
-  if (value.mode !== undefined && !(REVIEW_MODES as readonly unknown[]).includes(value.mode))
-    return `review.mode must be one of ${REVIEW_MODES.join(", ")}`;
+  if (value.unit !== undefined && !(REVIEW_UNITS as readonly unknown[]).includes(value.unit))
+    return `review.unit must be one of ${oneOf(REVIEW_UNITS)}`;
   // The model is shown to the agent in the Runtime State, so it must fit on one line in a code span.
   if (
     value.model !== undefined &&
     (typeof value.model !== "string" || !value.model.trim() || /[\p{Cc}`]/u.test(value.model))
   )
-    return "review.model must be a non-empty model name on one line";
+    return "review.model must be auto or a non-empty model name on one line";
+  if (value.rounds !== undefined && !(REVIEW_ROUNDS as readonly unknown[]).includes(value.rounds))
+    return `review.rounds must be one of ${oneOf(REVIEW_ROUNDS)}`;
+  if (value.depth !== undefined) {
+    if (scope !== "repository")
+      return "review.depth is Repository scope only: review-plan reads it from .freeflow/config.json at the base commit, so a change never supplies the policy that reviews it";
+    return validateReviewDepth(value.depth);
+  }
   return null;
 }
 
@@ -128,20 +209,26 @@ function validateReviewConfig(value: unknown) {
 export function resolveReviewSettings(repository: unknown, local: unknown): ReviewSettings {
   const layer = (config: any) => (isRecord(config?.review) ? config.review : {});
   const [shared, personal] = [layer(repository), layer(local)];
-  const mode = personal.mode ?? shared.mode ?? "auto";
-  const model = personal.model ?? shared.model;
-  return model === undefined ? { mode } : { mode, model };
+  return {
+    unit: personal.unit ?? shared.unit ?? REVIEW_DEFAULTS.unit,
+    model: personal.model ?? shared.model ?? REVIEW_DEFAULTS.model,
+    rounds: personal.rounds ?? shared.rounds ?? REVIEW_DEFAULTS.rounds,
+  };
 }
 
-/** The Runtime State line for the user's review choice; none for the default, `auto` with no model. */
-export function reviewStateLine(review: ReviewSettings | undefined): string | null {
-  if (!review || (review.mode === "auto" && review.model === undefined)) return null;
-  return `Review: \`${review.mode}\`${review.model === undefined ? "" : `, reviewer model \`${review.model}\``}`;
+/** The Runtime State line for the user's review choice; none for the defaults (unit `pr`, model `auto`, 3 rounds). */
+export function reviewStateLine(review: Partial<ReviewSettings> | undefined): string | null {
+  const unit = review?.unit ?? REVIEW_DEFAULTS.unit;
+  const model = review?.model ?? REVIEW_DEFAULTS.model;
+  const rounds = review?.rounds ?? REVIEW_DEFAULTS.rounds;
+  if (unit === REVIEW_DEFAULTS.unit && model === REVIEW_DEFAULTS.model && rounds === REVIEW_DEFAULTS.rounds)
+    return null;
+  return `Review: unit \`${unit}\`, model \`${model}\`${rounds === REVIEW_DEFAULTS.rounds ? "" : `, up to Review ${rounds}`}`;
 }
 
 /** Where a setting can live: the repository's file, the personal file, or the running session. */
 export type SettingScope = "repository" | "personal" | "session";
-export type SettingValue = boolean | string;
+export type SettingValue = boolean | string | number;
 /**
  * One setting Freeflow acts on. `values` is `boolean`, a list of choices, or `name` (one line of text, such as a
  * model); `default` is `null` when unset means none; `hosts` is `all` when every host acts on it and `pi` when only Pi
@@ -150,7 +237,8 @@ export type SettingValue = boolean | string;
 export type SettingSpec = {
   key: string;
   label: string;
-  values: "boolean" | "name" | readonly string[];
+  /** `policy` is an object edited in the file (review.depth), with no row on a screen or in the settings script. */
+  values: "boolean" | "name" | "policy" | readonly string[] | readonly number[];
   default: SettingValue | null;
   hosts: "all" | "pi";
   session: boolean;
@@ -188,8 +276,10 @@ export const SETTINGS: readonly SettingSpec[] = [
     session: true,
   })),
   { key: "events.enabled", label: "Event log", values: "boolean", default: true, hosts: "all", session: true },
-  { key: "review.mode", label: "Review", values: REVIEW_MODES, default: "auto", hosts: "all", session: true },
-  { key: "review.model", label: "Reviewer model", values: "name", default: null, hosts: "all", session: true },
+  { key: "review.unit", label: "Review unit", values: REVIEW_UNITS, default: "pr", hosts: "all", session: true },
+  { key: "review.model", label: "Reviewer model", values: "name", default: "auto", hosts: "all", session: true },
+  { key: "review.rounds", label: "Review rounds", values: REVIEW_ROUNDS, default: 3, hosts: "all", session: true },
+  { key: "review.depth", label: "Review depth rules", values: "policy", default: null, hosts: "all", session: false },
   {
     key: "toolExecution.enabled",
     label: "Tool Execution",
@@ -227,7 +317,8 @@ export function settingSpec(key: string): SettingSpec | undefined {
 export function validSettingValue(spec: SettingSpec, value: unknown): value is SettingValue {
   if (spec.values === "boolean") return typeof value === "boolean";
   if (spec.values === "name") return typeof value === "string" && value.trim() !== "" && !/[\p{Cc}`]/u.test(value);
-  return spec.values.includes(value as string);
+  if (spec.values === "policy") return false;
+  return (spec.values as readonly unknown[]).includes(value);
 }
 
 /** The schema version a file may name as `"v"`; nothing writes it yet, so an older Freeflow still reads the file. */
@@ -325,7 +416,7 @@ export function validateRepositoryConfig(value: unknown): string | null {
     const error = validateEventsConfig(value.events);
     if (error) return error;
   }
-  if (value.review !== undefined) return validateReviewConfig(value.review);
+  if (value.review !== undefined) return validateReviewConfig(value.review, "repository");
 
   return null;
 }
@@ -385,6 +476,6 @@ export function validateLocalConfig(value: unknown): string | null {
     const error = validateEventsConfig(value.events);
     if (error) return error;
   }
-  if (value.review !== undefined) return validateReviewConfig(value.review);
+  if (value.review !== undefined) return validateReviewConfig(value.review, "personal");
   return null;
 }

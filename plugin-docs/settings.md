@@ -44,8 +44,9 @@ Freeflow settings    Session  [Personal]  Repository
     Messaging                off (inherited)
       Ask before delivering  never (inherited)
     Event log                on (inherited)
-    Review                   auto (inherited)
-      Reviewer model         not configured
+    Review                   pull request (inherited)
+      Reviewer model         auto (inherited)
+      Review rounds          up to Review 3 (inherited)
 
   Master switch for Freeflow's core guidance, skills, and optional capabilities in this checkout.
   Inherited: not set in any file, so Freeflow's default applies.
@@ -73,15 +74,17 @@ Freeflow settings for /home/you/project (Claude Code)
   Runtime prompts  on        default
   Skills           on        default
   Event log        on        default
-  Review           auto      default
-  Reviewer model   none      default
+  Review unit      pr        default
+  Reviewer model   auto      default
+  Review rounds    3         default
 Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)
 Remove one: /freeflow settings <key> inherit [--session | --personal | --repository]
-Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.mode, review.model.
+Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.unit, review.model, review.rounds.
+Review depth rules (review.depth) are edited in .freeflow/config.json; review-plan reads them from the base commit.
 Pi-only settings (tool execution, compaction, messaging) are changed on Pi or in the files.
 ```
 
-A setting another scope sets is listed too, with its key. `/freeflow settings review.mode always` answers `Review: always, from .freeflow/local.json (Personal). The agent sees it now.`, and the agent works under the Runtime State line it changed from its next step. Prompt text the agent already has stays until the next session start or compaction, so the cached prompt is never rewritten; the command says so when you change a prompt. `/freeflow settings enabled off` also stops the mod's task menu, notices, context rows, compaction, hold and store sync in this session; turning it on again brings them back from the next event. A file you edit by hand counts from the next session start. The command runs without a model call, and shows in a cloud session too.
+A setting another scope sets is listed too, with its key. `/freeflow settings review.unit manual` answers `Review unit: manual, from .freeflow/local.json (Personal). The agent sees it now.`, and the agent works under the Runtime State line it changed from its next step. Prompt text the agent already has stays until the next session start or compaction, so the cached prompt is never rewritten; the command says so when you change a prompt. `/freeflow settings enabled off` also stops the mod's task menu, notices, context rows, compaction, hold and store sync in this session; turning it on again brings them back from the next event. A file you edit by hand counts from the next session start. The command runs without a model call, and shows in a cloud session too.
 
 ## The settings script
 
@@ -142,8 +145,10 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Ask before delivering | `messaging.inbound` | `accept` (never), `project` (outside the project), `hold` (every message), `refuse` (refuse all) | `accept` | Session, Personal, Repository |
 | Reset overrides | none | clears every session override | — | Session |
 | Event log | `events.enabled` | `true`, `false`: off, Freeflow writes no event log | `true` | Session, Personal, Repository (Claude Code and Pi) |
-| Review | `review.mode` | `auto`, `off`, `always` | `auto` | Session, Personal, Repository (every host) |
-| Reviewer model | `review.model` | a model name, such as `claude-opus-4-5` | none | Session, Personal, Repository (every host) |
+| Review | `review.unit` | `pr`, `push`, `commit`, `agreement`, `manual` | `pr` | Session, Personal, Repository (every host) |
+| Reviewer model | `review.model` | `auto`, or a model name such as `claude-opus-4-5` | `auto` | Session, Personal, Repository (every host) |
+| Review rounds | `review.rounds` | `1`, `2`, `3` | `3` | Session, Personal, Repository (every host) |
+| — | `review.depth` | `{ "default", "rules", "builtins" }`, below | none: every change gets a Standard review, deeper where a built-in trigger fires | Repository only, read from the base commit |
 
 What some of them mean:
 
@@ -152,7 +157,8 @@ What some of them mean:
 - **Runtime prompts** is the switch for all of Freeflow's always-present prompts, and **Each prompt** turns them on or off one by one, on every host: Core (how Freeflow works: the cycle, what authorizes work, where it stops), the Interaction Contract (how the agent talks with you) and the Working Method (how it works). With one off, the agent works without that guidance; the rest of Freeflow stays on. The Tool Execution prompt follows its capability's switch.
 - **Skills** is the switch for all of Freeflow's skills but Setup Freeflow, which always stays so you can repair a configuration; **Each skill** turns them off or on one by one. On Pi an off skill is not loaded and its command says it is off. Codex, Claude Code and the other hosts load plugin skills themselves, so there the agent is told, in its Runtime State, not to use an off skill (``Skills off: `write-skill`; do not open or follow them.``); use the host's own setting to remove it completely. The capability skill (Messaging) follows its capability's switch.
 - **Event log** (`events.enabled`) is whether Freeflow's driver, Claude Code's mod or the Pi extension, writes what happens in the session's loop to `events/<session>.jsonl` in the Freeflow home: the commands run (with keys and tokens redacted, cut to 200 characters), exit status, the paths file tools named, token counts, compactions and workers, never a prompt, an answer, a file's content or a tool's output. It stays on this machine; a checkpoint commits a short summary of it into the task's folder. Off, nothing is written from the next event, and `/freeflow capabilities` says so.
-- **Review** (`review.mode`) and **Reviewer model** (`review.model`) set when the agent has finished work independently reviewed, by a separate reviewer; the agent's own self-review always runs. `auto` lets Review Work's risk check decide; `off` never starts one on its own, and when the change looks risky the agent proposes a review with its reason and cost and runs it only on your yes; `always` reviews every finished task. `auto` in your personal file returns a shared `off` or `always` to the default. Reviewer model names the model a reviewer runs on, where the host lets the agent choose one; Freeflow passes the name on as written and does not check it. The screen offers this Pi's authenticated models; on another host, write the name that host uses into the file. A Session value applies on Pi only, to this session. A setting other than the default shows in the agent's Runtime State, such as ``Review: `always`, reviewer model `claude-opus-4-5` ``.
+- **Review** (`review.unit`), **Reviewer model** (`review.model`) and **Review rounds** (`review.rounds`) set when finished work gets its independent review, by a separate reviewer; the agent's own self-review always runs. A review runs at every unit: before each pull request opens (`pr`), before each push or commit, or at an agreement's Return (`agreement`); `manual` has the agent propose each review with its plan and estimated cost and run it only on your yes. `pr` in your personal file returns a shared choice to the default. How deep the review goes is the plan's, below. Reviewer model names the model a reviewer runs on, where the host lets the agent choose one; `auto` takes the cheapest capable model, and a stronger one for a security review. Freeflow passes a name on as written and does not check it. The screen offers this Pi's authenticated models; on another host, write the name that host uses into the file. Review rounds caps the follow-up reviews of one change (Review 1, 2, 3); a depth's own limit still applies. A Session value applies to this session only. A setting other than the default shows in the agent's Runtime State, such as ``Review: unit `manual`, model `claude-opus-4-5` ``. `review.mode` is gone: a file that still has it is refused with a message naming `review.unit`.
+- **Review depth rules** (`review.depth`) live only in the repository's `.freeflow/config.json`, and Review Work's `review-plan.mjs` reads them from the base commit of the change, so a branch never supplies the rules that review it; a personal file with `depth` is refused. `default` is the depth of a file no rule matches (`quick`, `standard` or `deep`; `standard` when unset). Each rule matches by `paths` (globs), `linesOver` (added plus removed lines) or `trigger` (a built-in's name), and sets a `depth`, optionally a `tier` (`standard` or `security`) and `humans` (how many people should approve; named in the plan and the pull request, not enforced). `builtins` sets a built-in trigger's depth or turns it `off`; the built-ins (`security`, `data`, `ci`, `public interface`) are otherwise Deep. The deepest match wins, and nothing lowers a built-in but `builtins`. Quick is one reviewer on the cheapest model; Standard one reviewer on the cheapest capable model, up to Review 2; Deep three reviewers in parallel, sealed until all report, up to Review 3. See [Review Work in the workflow](workflow.md).
 
 A configuration file with a key Freeflow does not know is refused with an error naming the file. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting`, `scriptTransform` and `taskMemory` (with `processing` in the personal file). Pi's Task Memory is gone, so a `taskMemory` key does nothing, and `/freeflow status` says so. `contextVirtualization` and `conversationHistory` belong to removed context features, and `cognitiveRouting` to Pi's removed profile routing: a file that still has one is invalid and keeps Freeflow off until you delete it, and the error names the key and the file.
 

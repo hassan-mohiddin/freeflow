@@ -1,7 +1,7 @@
 # Capabilities
 
 > **Covers:** `skills/setup-freeflow/scripts/capabilities.mjs`, `hooks/claude/freeflow.mjs`, `pi-extension/src/events/`
-> **Verified at:** `5187e586` (2026-11-03)
+> **Verified at:** `1e1866bd` (2026-11-03)
 > **User docs:** `plugin-docs/capabilities/event-log.md`
 
 What Freeflow can do in a session, for the requests of request set 1 (pin, inject, forget, compact, checkpoint, rewind, route, spawn, send, wake, ask, block, sensors, timers). Each driver, Claude Code's mod and Pi's extension, writes its claims at session start to `<FREEFLOW_HOME>/sessions/<session ID>/capabilities.json`: `yes` for what it carries out today, with a conformance test, `possible` for what the host offers and Freeflow does not use yet, `no` for what the host cannot do, each with how or why not. A user lists them with `/freeflow capabilities`; the agent with Setup Freeflow's `capabilities.mjs`, whose `check <request>` exits 0 only for `yes`. A host with no driver (Codex, Cursor, Copilot, Gemini) writes no file, and the script says that only the session-start guidance arrives there. Track Work's `checkpoint --compact` reads the same file and leaves a compaction request only where a driver claims `compact`. The last line of the listing names the session's event log.

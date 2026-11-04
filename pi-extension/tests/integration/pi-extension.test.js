@@ -456,7 +456,9 @@ test("plugin-docs/settings.md documents every row the settings screen shows and 
         ? "a-model"
         : Array.isArray(spec.values)
           ? spec.values[0]
-          : null;
+          : spec.values === "policy"
+            ? {}
+            : null;
   for (const [, key] of doc.matchAll(/^\| [^|]+ \| `([a-zA-Z.-]+)` \|/gm)) {
     const spec = SETTINGS.find((each) => each.key === key);
     assert.ok(spec, `the settings table has a row for ${key}, which settings.md lists`);
@@ -502,7 +504,10 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
   // A setting the user changes is changed on the screen (dev-docs/features/settings.md). A key with no row is listed
   // here with its reason, with the user's agreement, and its row in plugin-docs/settings.md names no screen row.
   // Every setting has a row in all three scopes: Session, Personal and Repository.
-  const FILE_ONLY = {};
+  const FILE_ONLY = {
+    // SPEC-007: a policy object of rules, read by review-plan.mjs from the base commit's .freeflow/config.json only.
+    "review.depth": "review-plan reads the depth rules from the repository's file at the base commit",
+  };
   const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
   const { CONFIG_SECTIONS, REVIEW_KEYS, PROMPTS_KEYS, SKILLS_KEYS, EVENTS_KEYS } =
     await import("../../dist/host/config-validation.js");
@@ -806,25 +811,26 @@ test("Pi leaves out a skill and a runtime prompt the user turned off, and tells 
 });
 
 test("Pi applies a session value over the files for a choice, a model name and a nested switch", async () => {
-  const cwd = await configuredRepo({ review: { mode: "off" }, skills: { "deliver-work": false } });
+  const cwd = await configuredRepo({ review: { unit: "manual" }, skills: { "deliver-work": false } });
   try {
     const { setSessionCoreOverride, resetSessionOverrides } = await import("../../dist/host/config.js");
     const ctx = context(cwd);
     const pi = { appendEntry() {} };
-    await setSessionCoreOverride("review.mode", "always", ctx, pi);
+    await setSessionCoreOverride("review.unit", "push", ctx, pi);
     await setSessionCoreOverride("review.model", "test/model-b", ctx, pi);
+    await setSessionCoreOverride("review.rounds", 2, ctx, pi);
     await setSessionCoreOverride("skills.write-docs", false, ctx, pi);
     const state = await readCapabilityState(cwd, ctx);
-    assert.deepEqual(state.review, { mode: "always", model: "test/model-b" });
+    assert.deepEqual(state.review, { unit: "push", model: "test/model-b", rounds: 2 });
     // The file's other switches stay.
     assert.deepEqual(state.skills.off, ["deliver-work", "write-docs"]);
     await assert.rejects(
-      setSessionCoreOverride("review.mode", "sometimes", ctx, pi),
+      setSessionCoreOverride("review.unit", "sometimes", ctx, pi),
       /Invalid Freeflow session override value/,
     );
     await resetSessionOverrides(ctx, pi);
     const after = await readCapabilityState(cwd, ctx);
-    assert.deepEqual(after.review, { mode: "off" });
+    assert.deepEqual(after.review, { unit: "manual", model: "auto", rounds: 3 });
     assert.deepEqual(after.skills.off, ["deliver-work"]);
     // The master switch turns every skill but Setup Freeflow off.
     await setSessionCoreOverride("skills.enabled", false, ctx, pi);
@@ -1228,7 +1234,7 @@ test("Pi personal settings refuse to write a tracked local override", async () =
   }
 });
 
-test("Pi settings set Review Work's review mode and reviewer model in the files", async () => {
+test("Pi settings set Review Work's review unit, reviewer model and rounds in the files", async () => {
   const cwd = await configuredRepo({ review: { model: "claude-opus-4-5" } });
   try {
     const { commands } = loadExtension(freeflowExtension, {
@@ -1249,15 +1255,18 @@ test("Pi settings set Review Work's review mode and reviewer model in the files"
       });
       choose(component, "Review");
       const text = renderText(component, 200);
-      assert.match(text, /Review\s+auto \(inherited\)\n/);
-      // The mode is the section's row: auto, off, always.
+      assert.match(text, /Review\s+pull request \(inherited\)\n/);
+      assert.match(text, /Review rounds\s+up to Review 3 \(inherited\)/);
+      // The unit is the section's row: pr, push, commit, agreement, manual.
       await press(component, "Review");
       await press(component, "Review");
+      // Rounds are stored as numbers: from the default 3 the next choice is 1.
+      await press(component, "Review rounds", "Review");
       // A name set in the file stays offered beside this host's models; the picker starts on it.
       choose(component, "Reviewer model", "Review");
       component.handleInput(KEY.enter);
       const picker = renderText(component, 200);
-      assert.match(picker, /None\s+Review Work chooses/);
+      assert.match(picker, /auto\s+The cheapest capable model/);
       assert.match(picker, /→ claude-opus-4-5\s+Set in the file; not an authenticated model here\./);
       assert.match(picker, /test\/model-a[\s\S]*test\/model-b/);
       component.handleInput(KEY.down);
@@ -1268,7 +1277,7 @@ test("Pi settings set Review Work's review mode and reviewer model in the files"
     };
     await freeflowCommand.definition.handler("settings repo", settingsCtx);
     const saved = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
-    assert.deepEqual(saved.review, { mode: "always", model: "test/model-b" });
+    assert.deepEqual(saved.review, { unit: "commit", model: "test/model-b", rounds: 1 });
     assert.equal(settingsCtx.reloads.length, 1);
   } finally {
     await rm(cwd, { recursive: true, force: true });

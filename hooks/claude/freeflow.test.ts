@@ -876,10 +876,12 @@ const LISTED = {
     { key: "prompts.core", label: "Core prompt", value: false, scope: "personal", hosts: "all" },
     { key: "skills.enabled", label: "Skills", value: true, scope: "default", hosts: "all" },
     { key: "skills.write-skill", label: "Skill write-skill", value: true, scope: "default", hosts: "all" },
-    { key: "review.mode", label: "Review", value: "always", scope: "repository", hosts: "all" },
-    { key: "review.model", label: "Reviewer model", value: null, scope: "default", hosts: "all" },
+    { key: "review.unit", label: "Review unit", value: "manual", scope: "repository", hosts: "all" },
+    { key: "review.model", label: "Reviewer model", value: "auto", scope: "default", hosts: "all" },
+    { key: "review.rounds", label: "Review rounds", value: 3, scope: "default", hosts: "all" },
+    { key: "review.depth", label: "Review depth rules", value: null, scope: "default", hosts: "all" },
   ],
-  state: ["Review: `always`"],
+  state: ["Review: unit `manual`, model `auto`"],
 };
 
 test("/freeflow settings: declared at session start, lists what Claude Code acts on, and changes one with the line the model reads now (SPEC-005 4.4)", async ($, on) => {
@@ -899,56 +901,62 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
   // Each section's switch and the review always; another key only when a scope sets it.
   expect(listed.text).toStartWith("Freeflow settings for /work/widget (Claude Code)\n  Freeflow ");
   expect(listed.text).toContain("  Core prompt      off       Personal  (prompts.core)");
-  expect(listed.text).toContain("  Review           always    Repository\n");
+  expect(listed.text).toContain("  Review unit      manual    Repository\n");
+  expect(listed.text).toContain("  Review rounds    3         default\n");
   expect(listed.text).not.toContain("write-skill");
+  // review.depth has no row: the repository's file holds it, and the plan reads it from the base.
+  expect(listed.text).not.toContain("\n  Review depth rules");
+  expect(listed.text).toContain("Review depth rules (review.depth) are edited in .freeflow/config.json");
   expect(listed.text).toContain("Pi-only settings (tool execution, compaction, messaging) are changed");
   expect(listed.context).toBeUndefined();
 
-  w.settingsAnswers["set review.mode always --scope personal "] = {
+  w.settingsAnswers["set review.unit manual --scope personal "] = {
     stdout: JSON.stringify({
-      key: "review.mode",
-      label: "Review",
-      value: "always",
+      key: "review.unit",
+      label: "Review unit",
+      value: "manual",
       scope: "personal",
       hosts: "all",
-      state: ["Review: `always`"],
-      changed: ["Review: `always`"],
+      state: ["Review: unit `manual`, model `auto`"],
+      changed: ["Review: unit `manual`, model `auto`"],
       cleared: [],
       notes: [],
     }),
   };
-  const changed = await freeflow($, "settings review.mode always");
-  expect(changed.text).toBe("Review: always, from .freeflow/local.json (Personal). The agent sees it now.");
+  const changed = await freeflow($, "settings review.unit manual");
+  expect(changed.text).toBe("Review unit: manual, from .freeflow/local.json (Personal). The agent sees it now.");
   expect(changed.context).toEqual([
-    "The user changed a Freeflow setting with /freeflow settings: review.mode is now always, from .freeflow/local.json (Personal).\nRuntime State now: Review: `always`",
+    "The user changed a Freeflow setting with /freeflow settings: review.unit is now manual, from .freeflow/local.json (Personal).\nRuntime State now: Review: unit `manual`, model `auto`",
   ]);
 
   // A scope flag and inherit reach the script as its scope and unset.
-  w.settingsAnswers["unset review.mode --scope session "] = {
+  w.settingsAnswers["unset review.unit --scope session "] = {
     stdout: JSON.stringify({
-      key: "review.mode",
-      label: "Review",
-      value: "auto",
+      key: "review.unit",
+      label: "Review unit",
+      value: "pr",
       scope: "default",
       hosts: "all",
       state: [],
       changed: [],
-      cleared: ["Review: `always`"],
+      cleared: ["Review: unit `manual`, model `auto`"],
       notes: [],
     }),
   };
-  const inherited = await freeflow($, "settings review.mode inherit --session");
-  expect(inherited.text).toBe("Review: auto, from the default. The agent sees it now.");
-  expect(inherited.context![0]).toEndWith("\nRuntime State no longer: Review: `always`");
+  const inherited = await freeflow($, "settings review.unit inherit --session");
+  expect(inherited.text).toBe("Review unit: pr, from the default. The agent sees it now.");
+  expect(inherited.context![0]).toEndWith("\nRuntime State no longer: Review: unit `manual`, model `auto`");
 
   // A refusal is the script's first line, and the model is told nothing.
-  w.settingsAnswers["set review.mode sometimes "] = {
+  w.settingsAnswers["set review.unit sometimes "] = {
     exitCode: 1,
-    stderr: "review.mode takes auto, off, always, not sometimes\nUsage: ...",
+    stderr: "review.unit takes pr, push, commit, agreement, manual, not sometimes\nUsage: ...",
   };
-  const refused = await freeflow($, "settings review.mode sometimes");
-  expect(refused).toEqual({ text: "Freeflow settings: review.mode takes auto, off, always, not sometimes" });
-  expect((await freeflow($, "settings review.mode always --global")).text).toStartWith(
+  const refused = await freeflow($, "settings review.unit sometimes");
+  expect(refused).toEqual({
+    text: "Freeflow settings: review.unit takes pr, push, commit, agreement, manual, not sometimes",
+  });
+  expect((await freeflow($, "settings review.unit manual --global")).text).toStartWith(
     "Freeflow settings: unknown option --global.",
   );
   expect((await freeflow($, "status")).text).toBe(

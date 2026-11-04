@@ -89,8 +89,11 @@ function resolveAll(state) {
 /** The Runtime State lines the resolved settings give: the review line and the off-skills line, when set. */
 function stateLines(resolved) {
   const value = (key) => resolved.find((item) => item.spec.key === key)?.value;
-  const model = value("review.model");
-  const review = reviewStateLine({ mode: value("review.mode"), ...(model == null ? {} : { model }) });
+  const review = reviewStateLine({
+    unit: value("review.unit"),
+    model: value("review.model"),
+    rounds: value("review.rounds"),
+  });
   const off =
     value("skills.enabled") === false
       ? [...SWITCHABLE_SKILLS]
@@ -98,7 +101,16 @@ function stateLines(resolved) {
   return [review, skillsStateLine(off)].filter(Boolean);
 }
 
-const shown = (value) => (value === null ? "none" : value === true ? "on" : value === false ? "off" : String(value));
+const shown = (value) =>
+  value === null
+    ? "none"
+    : value === true
+      ? "on"
+      : value === false
+        ? "off"
+        : typeof value === "object"
+          ? "set"
+          : String(value);
 
 function row(item) {
   return { key: item.spec.key, label: item.spec.label, value: item.value, scope: item.scope, hosts: item.spec.hosts };
@@ -127,7 +139,8 @@ function parseValue(spec, text) {
   if (spec.values === "boolean") {
     if (["on", "true"].includes(text)) value = true;
     else if (["off", "false"].includes(text)) value = false;
-  }
+  } else if (Array.isArray(spec.values) && typeof spec.values[0] === "number" && /^\d+$/.test(text))
+    value = Number(text);
   if (!validSettingValue(spec, value)) {
     const takes =
       spec.values === "boolean" ? "on or off" : spec.values === "name" ? "a name on one line" : spec.values.join(", ");
@@ -152,6 +165,10 @@ function notes(spec) {
 
 async function change(state, root, env, key, text, scopeName, json) {
   const spec = requireSpec(key);
+  if (spec.values === "policy")
+    throw new UsageError(
+      `${spec.key} is a policy object, Repository scope only: edit it in .freeflow/config.json (review-plan reads it from the base commit)`,
+    );
   if (!SCOPES.includes(scopeName)) throw new UsageError("--scope must be repository, personal or session");
   if (scopeName === "session" && !spec.session)
     throw new UsageError(`${spec.key} has no Session scope here; set it on Pi's screen`);

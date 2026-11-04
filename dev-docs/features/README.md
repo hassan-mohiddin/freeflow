@@ -38,6 +38,7 @@ An H1 title and one paragraph on what the user sees, then four sections in this 
 - [Activation and status](activation-status.md): the `.freeflow/config.json` boundary, the footer, and `/freeflow status`.
 - [Capabilities](capabilities.md): `/freeflow capabilities` on Claude Code and Pi, `capabilities.mjs` on a host with no driver, and `checkpoint --compact` refused there.
 - [Settings screen](settings.md): `/freeflow settings` in its three scopes, and the files each one writes.
+- [Review plan and review status](review-plan.md): `review-plan.mjs`'s plan from the diff and the base's policy, the review record `check-adjudication.mjs --record` writes, and `review-status.mjs` and `delivery-state.mjs` reading it. No model call.
 - [Tool Execution](tool-execution.md): its status and switch, and the guidance notices on tool results. The notices need a model call; only status and the switch are driven.
 - [Workflow commands](workflow-commands.md): `/verify-work`, `/discuss-work` and the other skill commands. Each run is a model call; only completion is driven.
 - [Track Work CLI](track-work-cli.md): `working-record.mjs`, the record surface on Claude Code, Codex and other hosts.

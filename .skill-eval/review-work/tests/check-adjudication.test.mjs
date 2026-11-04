@@ -230,3 +230,29 @@ Adjudicated judgment: Blocking
   assert.equal(status, 0, JSON.stringify(report?.problems));
   assert.equal(report.reviewLine, "judgment: Blocking; Accepted: 3; Rejected: 1; Open: 0");
 });
+
+test("refuses a judgment the dispositions contradict: an Accepted Blocking item with Pass or Non-blocking", async () => {
+  const dispositions = `## Adjudication
+
+- B1: Accepted. Reran the command; it prints 2 rows.
+- N1: Rejected, the flag is right.
+- N2: Rejected, the message is clear.
+- Q1: Rejected, out of scope.
+- I1: Rejected, not needed.
+`;
+  for (const judgment of ["Pass", "Non-blocking"]) {
+    const { status, report } = await check(`${REPORT}\n${dispositions}\nAdjudicated judgment: ${judgment}\n`);
+    assert.equal(status, 1, judgment);
+    assert.deepEqual(
+      report.problems.filter((each) => each.item === "judgment").map((each) => each.problem),
+      [`is ${judgment}, but B1 is an Accepted Blocking Issue: the judgment is Blocking`],
+    );
+  }
+  const blocking = await check(`${REPORT}\n${dispositions}\nAdjudicated judgment: Blocking\n`);
+  assert.equal(blocking.status, 0, JSON.stringify(blocking.report?.problems));
+  // A Rejected Blocking item leaves Pass open.
+  const rejected = await check(
+    `${REPORT}\n${dispositions.replace("B1: Accepted.", "B1: Rejected.")}\nAdjudicated judgment: Pass\n`,
+  );
+  assert.equal(rejected.status, 0, JSON.stringify(rejected.report?.problems));
+});
