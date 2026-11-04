@@ -96,6 +96,10 @@ const warnedGates = new Map();
 const seenReturns = new Set();
 let wakeOnReturn = true;
 const WAIT_BATCH_MS = 60_000;
+/** How often an idle session whose Slice waits on a delegation looks for its return (Pi's WaitWatch, once a minute). */
+const WAIT_POLL_MS = 60_000;
+/** The idle watch now running; a later turn end or watch replaces it. */
+let idleWatch = 0;
 
 /**
  * Keeps one event line for the next flush, while Freeflow and its event log are on.
@@ -622,6 +626,26 @@ async function waitsReturned($, state, { wake }) {
   } else await appendRow($, `Freeflow: ${row}`);
 }
 
+/**
+ * While the session sits idle and its Slice waits on a delegation that has not come back, it looks once a minute, so a
+ * return logged with no turn ending still wakes it (SPEC-009 4.4). It stops at a turn's start, when nothing is left to
+ * wait on, or where the session cannot be woken.
+ * @param {any} $
+ * @param {any} state session status
+ */
+function watchWaits($, state) {
+  const watch = ++idleWatch;
+  const pending = (state?.waits?.delegations ?? []).some((/** @type {any} */ each) => !each.returned);
+  if (!pending || !interactive || !wakeOnReturn) return;
+  const turns = mainTurns;
+  $.clock.after(WAIT_POLL_MS, async () => {
+    if (watch !== idleWatch || mainTurns !== turns) return;
+    const now = await status($);
+    await waitsReturned($, now, { wake: true });
+    if (watch === idleWatch && mainTurns === turns) watchWaits($, now);
+  });
+}
+
 /** A compaction before the checkpoint (P16): Claude's, told what the record holds, then the bundle as of the last
  * checkpoint with the user's messages since and the transcript's path, as one message after its summary (T14). */
 async function fallbackCompaction($, e, next, state) {
@@ -737,6 +761,7 @@ async function turnEnded($, e) {
     await emit($, "freeflow", { what: "sync" });
   }
   await waitsReturned($, state, { wake: e.reason === "answer" });
+  if (e.reason === "answer") watchWaits($, state);
   // The cost governor's task cap follows the held task's plan.
   await governorTask($, state);
   // Only the agent's own request compacts (P102): checkpoint --compact, after a turn that ended, until the bundle

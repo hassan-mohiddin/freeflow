@@ -931,6 +931,30 @@ test("a delegation the Slice waits on comes back (SPEC-009 4.4): one row, and th
   expect(w.submitted.length).toBe(1);
 });
 
+test("a return logged while the session sits idle wakes it within two minutes, with no turn ending (SPEC-009 4.4)", async ($, on) => {
+  const w = world(on);
+  const waiting = (returned: string | null) =>
+    held(at(-30), {
+      waits: {
+        slice: "S-057",
+        channel: "/t/channel.jsonl",
+        delegations: [{ id: "D-031", returned, at: returned && at(1) }],
+      },
+    });
+  w.status = waiting(null);
+  await start($);
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(5 * 60_000);
+  expect(w.submitted).toEqual([]);
+  // The worker returns while nothing happens in this session: the next minute's look finds it, then the batch window.
+  w.status = waiting("done");
+  await w.clock.advance(2 * 60_000 + 1_000);
+  expect(w.submitted).toEqual(["Freeflow: D-031 returned (done). S-057 waits on it: check it and close it."]);
+  // Nothing is left to wait on, so it stops looking: no second prompt.
+  await w.clock.advance(10 * 60_000);
+  expect(w.submitted.length).toBe(1);
+});
+
 test("the store is the agent's to keep: file tools inside it are allowed where the mode would ask, and nothing else changes", async ($, on) => {
   const w = world(on);
   const check = (tool: string, input: object) => $.tool.check({ tool, input } as any);
