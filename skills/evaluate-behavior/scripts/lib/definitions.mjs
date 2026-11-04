@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { ARM_NAME, armNames, DEFAULT_REFERENCE } from "./arms.mjs";
 import { decisionProblem, validateDecision, validateDecisions } from "./decision.mjs";
+import { isGitFixture, validateGitFixture } from "./git-fixture.mjs";
 import { isSourceExtension, sourceExtensionInputs, validateSourceExtension } from "./build-source.mjs";
 import { validateCommandExpectations } from "./grade-command.mjs";
 import { expectationProblems } from "./grade.mjs";
@@ -719,7 +720,10 @@ async function validateGroup(value, definitionPath, root) {
     fail("invalid-definition", "group.type must be description or body", definitionPath);
   }
   validateInput(group.input, definitionPath);
-  if (group.fixture !== null) requireSafeRelativePath(group.fixture, "group.fixture", definitionPath);
+  // A fixture is a folder in the definition root, or a commit of its repository (git-fixture.mjs, SPEC-011 4.4).
+  if (isGitFixture(group.fixture)) {
+    group.fixture = validateGitFixture(group.fixture, (message) => fail("invalid-definition", message, definitionPath));
+  } else if (group.fixture !== null) requireSafeRelativePath(group.fixture, "group.fixture", definitionPath);
   requireStringArray(group.tools, "group.tools", definitionPath, { unique: true });
   validateCommands(group, definitionPath);
   const { resolved, names, reference, component, extendsFile } = await resolveArms(group, definitionPath, root);
@@ -754,7 +758,8 @@ async function validateGroup(value, definitionPath, root) {
   const referenceProblem = validateReferenceSolution(group.reference_solution, {
     root,
     arms: names,
-    fixture: group.fixture === null ? null : path.resolve(root, group.fixture),
+    fixture: typeof group.fixture === "string" ? path.resolve(root, group.fixture) : null,
+    gitFixture: isGitFixture(group.fixture),
   });
   if (referenceProblem !== null) fail(referenceProblem.code, referenceProblem.message, definitionPath);
   const graderFiles = validateCommandExpectations(group, {
