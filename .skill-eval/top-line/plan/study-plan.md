@@ -11,7 +11,7 @@ Freeflow's own claim (the map's Evals section): on real coding tasks, Claude Cod
 
 ## 2. Who uses it
 
-Hassan, deciding what Freeflow's next work should be and whether its overhead pays for itself; later, Freeflow's users reading its README's claim. The smoke subset (5 of the tasks) is the regression check Freeflow's contributors run when a skill, hook, prompt or driver changes.
+Hassan, deciding what Freeflow's next work should be and whether its overhead pays for itself; later, Freeflow's users reading its README's claim. The smoke subset (5 of the tasks: four fixes and one feature that never touch Freeflow's store or Track Work's store commands, so the Freeflow arm's store holds only what Freeflow itself writes) is the regression check Freeflow's contributors run when a skill, hook, prompt or driver changes.
 
 ## 3. The prediction
 

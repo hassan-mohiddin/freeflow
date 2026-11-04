@@ -3,11 +3,11 @@
   "kind": "suite",
   "id": "top-line-smoke",
   "groups": [
-    "groups/migrate-recovery-list.json",
     "groups/review-packet-root.json",
-    "groups/rules-at-session-start.json",
-    "groups/resume-takes-back.json",
-    "groups/settings-everywhere.json"
+    "groups/pass-k-interval.json",
+    "groups/compare-reworded.json",
+    "groups/docs-check-stamp.json",
+    "groups/plan-novelty-check.json"
   ],
   "decisions": [
     {

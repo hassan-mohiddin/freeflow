@@ -6,7 +6,7 @@
       "pr": 150,
       "merge": "16667d2bc0509a445d5c9e7d22f38442f604e2f4",
       "size": "fix",
-      "smoke": true,
+      "smoke": false,
       "tests": [".skill-eval/track-work/tests/migrate5.test.mjs"],
       "prompt": "Task records written before we switched to the one Recovery list can't be recovered anymore: every Track Work command refuses them because they still have Defined by, Read on recovery, Read when and Carry lines. Can you make migrate convert those records?",
       "preferences": [
@@ -73,7 +73,7 @@
       "pr": 96,
       "merge": "a11edb36fbc766628e77092bd88bd9843320daf6",
       "size": "fix",
-      "smoke": false,
+      "smoke": true,
       "tests": [".skill-eval/write-skill/tests/compare.test.mjs"],
       "prompt": "skill-author compare --all-units only lists reworded units when they are rule-like, but Write Skill asks us to read every reworded unit after a big revision. Can you make --all-units list the other reworded units too?",
       "preferences": [
@@ -104,7 +104,7 @@
       "pr": 119,
       "merge": "114ddf70cdac166208d47f6bc923e504212ae0ea",
       "size": "fix",
-      "smoke": false,
+      "smoke": true,
       "tests": [
         ".skill-eval/write-docs/tests/docs-check.test.mjs",
         "scripts/validation/check-release-workflow.test.mjs"
@@ -139,7 +139,7 @@
       "pr": 108,
       "merge": "8ac80eb487f24b53f6369da783eaeaf92037b101",
       "size": "fix",
-      "smoke": false,
+      "smoke": true,
       "tests": [".skill-eval/research-work/tests/fields.test.mjs"],
       "prompt": "Research Work's guidance asks for three things its checks don't actually check: a claim that something is new should cite the search behind it, every analysis variant a study plan lists should get reported, and a plan should declare the models in its method with exact snapshots. Can you add those checks?",
       "preferences": [
@@ -164,7 +164,7 @@
       "pr": 107,
       "merge": "7c7b70ac85267160a4a4601af96f0d12e2581b14",
       "size": "feature",
-      "smoke": false,
+      "smoke": true,
       "tests": [".skill-eval/research-work/tests/aggregates.test.mjs"],
       "prompt": "Research Work can't aggregate results over several seeds and tasks yet. Can you add aggregates: the interquartile mean, mean, median and optimality gap with stratified bootstrap intervals, the probability that one method beats another, and an interval for pass^k for one task or a whole suite?",
       "preferences": [
@@ -262,7 +262,7 @@
       "pr": 136,
       "merge": "051e9395355d83486871a6a508232a70a75ccde8",
       "size": "feature",
-      "smoke": true,
+      "smoke": false,
       "tests": [".skill-eval/track-work/tests/projects5.test.mjs", ".skill-eval/track-work/tests/views5.test.mjs"],
       "prompt": "Two problems since task records moved into the store. A session started outside a repository (like a cloud session in its home folder) can't find the repository files a record points to, like a skill or AGENTS.md, so the bundle leaves them out and the checks call them missing. And a session only sees my rules once it takes a task and recovers it, not at its start. Can you fix both?",
       "preferences": [
@@ -391,7 +391,7 @@
       "pr": 144,
       "merge": "d86edbf6528df936392033134586ca7fe1da16aa",
       "size": "feature",
-      "smoke": true,
+      "smoke": false,
       "tests": [".skill-eval/track-work/tests/projects5.test.mjs", ".skill-eval/track-work/tests/session5.test.mjs"],
       "prompt": "When a cloud session's container is reclaimed and I resume the session, it comes back holding nothing, because the session's end released its task. Can a resumed session take back the task it held when it ended?",
       "preferences": [
@@ -454,7 +454,7 @@
       "pr": 147,
       "merge": "9807212c2045097b4126871653119b34a7766eed",
       "size": "long",
-      "smoke": true,
+      "smoke": false,
       "tests": [".skill-eval/setup-freeflow/tests/settings.test.mjs", "hooks/tests/check-host-adapters.test.mjs"],
       "prompt": "Freeflow's settings can only be changed from Pi's settings screen. I want them changeable the same way on every host: one table of settings, a settings script the agent can run in any scope, and /freeflow settings on Claude Code. Can you build that?",
       "preferences": [

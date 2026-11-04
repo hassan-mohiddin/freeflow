@@ -38,10 +38,7 @@
           "method": "bootstrap mean"
         }
       },
-      "variants": [
-        "V1",
-        "V2"
-      ],
+      "variants": ["V1", "V2"],
       "runs": [
         {
           "unit": "20 tasks",
@@ -101,10 +98,7 @@
           "method": "bootstrap mean"
         }
       },
-      "variants": [
-        "V1",
-        "V2"
-      ],
+      "variants": ["V1", "V2"],
       "runs": [
         {
           "unit": "20 tasks",
@@ -165,10 +159,7 @@
           "method": "bootstrap mean"
         }
       },
-      "variants": [
-        "V1",
-        "V2"
-      ],
+      "variants": ["V1", "V2"],
       "runs": [
         {
           "unit": "20 tasks",

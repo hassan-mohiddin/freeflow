@@ -16,7 +16,7 @@ Nothing here has run. Every run calls a model and is Hassan's yes, with its coun
 | `groups/<task>.json` | One task: its workspace is the merge's first parent's tree (a commit fixture, less `.deprecated`, the review suite's fixtures, this folder and `.freeflow`); arms `plain` (no Freeflow, the reference) and `freeflow`; a simulated user with the task's card; the held-back tests as a command check on each arm; the merge as the reference solution. |
 | `groups-ablation/<task>.json` | The same task with the ablation ladder: `freeflow` against `freeflow-no-track` (Track Work off), `freeflow-no-gates` (the four gates off) and `freeflow-no-review` (Review Work off), each a settings change. |
 | `suite-v1.json` | All 20 tasks, 3 trials, five decisions (below). |
-| `suite-smoke.json` | The smoke subset: `migrate-recovery-list` and `review-packet-root` (fixes), `rules-at-session-start` and `resume-takes-back` (features), `settings-everywhere` (long), with the same decisions at `min_cases` 5. |
+| `suite-smoke.json` | The smoke subset: `review-packet-root`, `compare-reworded`, `docs-check-stamp` and `plan-novelty-check` (fixes), `pass-k-interval` (feature), with the same decisions at `min_cases` 5. Its tasks never touch Freeflow's store or Track Work's store commands, so the Freeflow arm's store holds only what Freeflow itself writes; no long task qualifies, since each of the four touches the store or Track Work. |
 | `suite-ablation.json` | The ladder over all 20 tasks, with no decision: counts per arm against `freeflow`. Run only after the top line is known. |
 | `predictions-v1.md` | What we expect, written before any run. |
 | `plan/study-plan.md` | Research Work's study plan, locked with `study.mjs lock` (`plan/study-plan.lock.json`). |
