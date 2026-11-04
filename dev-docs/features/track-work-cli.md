@@ -61,7 +61,7 @@ On Claude Code, Codex and other hosts, Working Records are created and read thro
 - `tw5-pi`: `discussion list` reads a Pi session file along its active branch, leaving out a branch `/tree` left, and with no store `session status` still names the session (Pi's compaction through a session summary needs no store).
 - `tw5-governor`: `events append` takes the cost governor's `governor` line and refuses one whose cap it does not know; `events summary` lists each response.
 - `tw5-drift`: Discuss Work's `drift.mjs` lists the hunks of a change that no decision item's `Shows at` covers, and `choices.mjs return --base` prints their count.
-- `tw5-route`: a new store's `rules/routing.md` holds the default routing table; `delegate open` without `--agent` takes the model and effort from its first matching row, prints the Route line and writes Settled, Check and Route in the brief, refuses an Ask-first row and no match; `delegate close --outcome "sent back"` needs `--reason`, which History keeps; `estimate --plan` prints the sent-back rate by kind, check and model.
+- `tw5-route`: a new store's `rules/routing.md` holds the default routing table; `delegate open` without `--agent` takes the model and effort from its first matching row, prints the Route line and writes Route in the brief, with Settled and Check when given, refuses an Ask-first row and no match; `delegate close --outcome "sent back"` needs `--reason`, which History keeps; `estimate --plan` prints the sent-back rate by kind, check and model.
 
 ## How to get to it (user POV)
 
