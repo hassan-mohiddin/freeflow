@@ -204,6 +204,26 @@ function lastRuntimeState(messages) {
   return messages.findLast((message) => message.customType === "freeflow-runtime-state");
 }
 
+test("Pi passes delegation.claimHours to Track Work's script and the agent's commands as FREEFLOW_CLAIM_HOURS", async () => {
+  const saved = process.env.FREEFLOW_CLAIM_HOURS;
+  const cwd = await configuredRepo({ delegation: { claimHours: "8" } });
+  const plain = await configuredRepo();
+  try {
+    const { handlers } = loadExtension();
+    await handlers.get("session_start")({ type: "session_start", reason: "startup" }, context(cwd));
+    assert.equal(process.env.FREEFLOW_CLAIM_HOURS, "8");
+    // With the setting at its default, the script's own default (4 hours) applies: the variable says so.
+    const other = loadExtension();
+    await other.handlers.get("session_start")({ type: "session_start", reason: "startup" }, context(plain));
+    assert.equal(process.env.FREEFLOW_CLAIM_HOURS, "4");
+  } finally {
+    if (saved === undefined) delete process.env.FREEFLOW_CLAIM_HOURS;
+    else process.env.FREEFLOW_CLAIM_HOURS = saved;
+    await rm(cwd, { recursive: true, force: true });
+    await rm(plain, { recursive: true, force: true });
+  }
+});
+
 test("keeps Runtime State at a fixed prefix position across refreshes and new turns", async () => {
   const cwd = await configuredRepo();
   try {

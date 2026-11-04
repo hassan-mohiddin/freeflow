@@ -247,13 +247,14 @@ export async function renewClaims({ home, identity, now = new Date() }) {
   for (const path of claimsFiles(home)) {
     const due = liveClaims(readClaimLines(path), now.getTime()).filter((claim) => {
       if (claim.session !== identity.id) return false;
-      const length = Date.parse(claim.until) - Date.parse(claim.first);
+      // Its length is its latest line's own: a renewal must not add the time since the claim was first made.
+      const length = Date.parse(claim.until) - Date.parse(claim.ts);
       return Date.parse(claim.until) - now.getTime() < length / 2;
     });
     if (!due.length) continue;
-    const lines = due.map(({ first, path: _path, ...claim }) => ({
+    const lines = due.map(({ first: _first, path: _path, ...claim }) => ({
       ...claim,
-      until: new Date(now.getTime() + (Date.parse(claim.until) - Date.parse(first))).toISOString(),
+      until: new Date(now.getTime() + (Date.parse(claim.until) - Date.parse(claim.ts))).toISOString(),
       ts: now.toISOString(),
     }));
     await append({ home, path }, lines);
