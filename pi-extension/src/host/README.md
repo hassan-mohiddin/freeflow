@@ -9,7 +9,7 @@ Everything Freeflow needs on Pi that is not one capability: reading configuratio
 | [`catalog.ts`](catalog.ts) | The fixed command and skill surface: the commands Freeflow registers, the skills it lists to the model, and where their files live. |
 | [`prompts.ts`](prompts.ts) | Freeflow's prompt files and the fixed system section built from them. The section never changes with feature state, so it stays cached. |
 | [`runtime-state.ts`](runtime-state.ts) | The Runtime State message: what is active for this request. Unchanged state keeps its position; changed state is placed before the latest user message so earlier input is never rewritten. |
-| [`request-history.ts`](request-history.ts) | Keeps Freeflow-generated messages (Runtime State, notices, routing communication) at their original positions across requests, so each request starts with the previous one. Pi owns native content. |
+| [`request-history.ts`](request-history.ts) | Keeps Freeflow-generated messages (the Runtime State, and what older versions generated) at their original positions across requests, so each request starts with the previous one. Pi owns native content. |
 | [`projection-tags.ts`](projection-tags.ts) | Tags each request message with the native session entry behind it, so unchanged history is not re-hashed. |
 | [`read-only-session.ts`](read-only-session.ts) | Bounded, read-only parsing of Pi session files, and checks that the persisted branch still matches what Pi holds in memory. |
 | [`staging.ts`](staging.ts) | Control changes made between prompts are staged and only their net effect is written when the next prompt starts. |

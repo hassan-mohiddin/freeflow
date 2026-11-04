@@ -33,17 +33,11 @@ export interface CompactionStore {
 
 export interface CompactionHost {
   effective(): boolean;
-  /** The routing profile running now, when Cognitive Routing is active. */
-  routingProfile(): string | undefined;
-  /** The routing assignment in progress, when Cognitive Routing is active and a worker holds one. */
-  routingAssignment(): string | undefined;
   background(): readonly { id: string; label: string; outputPath: string }[];
   /** Context size that the next request receiving the full history would carry, and the thresholds to judge it. */
   measure(ctx: any, turn?: TurnEnd): { tokens: number; thresholds: Thresholds } | undefined;
   /** Freeflow's notice tag around a notice's text (freeflowNotice in host/inbound.ts). */
   notice(text: string): string;
-  /** The Coordinator is running under projection: its view leaves out what workers did, so it delegates the checkpoint. */
-  coordinatorUnderProjection(): boolean;
   /** Pi's own summarizer over Pi's preparation, with extra instructions; throws on failure. */
   summarize(preparation: any, instructions: string, signal: AbortSignal | undefined, ctx: any): Promise<any>;
   store: CompactionStore;
@@ -133,8 +127,6 @@ export class CompactionController {
 
   private noticeText(cycle: number, tokens: number, thresholds: Thresholds): string {
     const head = `Context cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}, and Pi compacts on its own at about ${thresholds.trigger} tokens.`;
-    if (this.host.coordinatorUnderProjection())
-      return `${head} Your view leaves out what workers did, so do not checkpoint yourself: at a safe point (after the current assessment, or before the next assignment), delegate an assignment asking the worker to checkpoint as Track Work says, with --compact, and return with return_work; Freeflow compacts when the run ends.`;
     const command = this.host.store.command();
     const task = this.host.store.current()?.task;
     const checkpoint = task
@@ -222,8 +214,6 @@ export class CompactionController {
       version: 2,
       cycle,
       ...extra,
-      ...(this.host.routingProfile() ? { profile: this.host.routingProfile() } : {}),
-      ...(this.host.routingAssignment() ? { assignment: this.host.routingAssignment() } : {}),
     };
   }
 
@@ -231,7 +221,6 @@ export class CompactionController {
     return harnessPart({
       cycle,
       ...(requestedBy ? { requestedBy } : {}),
-      routingProfile: this.host.routingProfile(),
       background: this.host.background(),
       skills: skillsRead(currentCycle(branch), ctx.cwd),
       files: { readFiles: [], modifiedFiles: [] },

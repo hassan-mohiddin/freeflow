@@ -79,7 +79,6 @@ test("host adapters share rendered mandatory context but emit host-native envelo
     "Pi's order: core, Interaction Contract, Working Method, then the Runtime State",
   );
   assert.match(legacyContext, /Freeflow: active/);
-  assert.doesNotMatch(legacyContext, /Cognitive Routing/);
 });
 
 test("host adapters stay inert for disabled and unsupported lifecycle inputs and report an invalid config", () => {
@@ -101,8 +100,7 @@ test("host adapters stay inert for disabled and unsupported lifecycle inputs and
 // Settings written on Pi, such as Tool Execution or Compaction from /freeflow settings, must not switch Freeflow off on
 // the other hosts. Before October 2026 the hooks kept their own copy of the config check, which rejected both keys.
 test("a config Pi accepts activates Freeflow on every hook host", () => {
-  const capabilities =
-    '{"cognitiveRouting":{"enabled":true},"toolExecution":{"enabled":true},"compaction":{"carry":false}}\n';
+  const capabilities = '{"messaging":{"enabled":true},"toolExecution":{"enabled":true},"compaction":{"carry":false}}\n';
   const workspace = createWorkspace(capabilities, capabilities);
   for (const [host, [relativePath]] of Object.entries(adapters)) {
     const context = contextOf(runAdapter(relativePath, workspace, inputFor(host, workspace), eventFor(host)));
@@ -115,7 +113,7 @@ test("the hooks and Pi agree on every config's validity", async () => {
     ["{}", undefined],
     ['{"enabled":false}', undefined],
     ['{"toolExecution":{"enabled":true,"capture":{"enabled":true}}}', '{"compaction":{"enabled":false}}'],
-    ["{}", '{"cognitiveRouting":{"enabled":true},"toolExecution":{"enabled":true}}'],
+    ["{}", '{"messaging":{"enabled":true},"toolExecution":{"enabled":true}}'],
     ['{"outputRouter":{}}', '{"processing":{}}'],
     ['{"toolExecution":{"bogus":true}}', undefined],
     ["{}", '{"compaction":{"carry":"no"}}'],
@@ -125,21 +123,17 @@ test("the hooks and Pi agree on every config's validity", async () => {
     ['{"prompts":{"workingMethod":"no"}}', undefined],
     ["{}", '{"prompts":{"skills":false}}'],
     ["{}", '{"prompts":[]}'],
-    ['{"review":{"mode":"off","model":"opus"}}', '{"review":{"mode":"auto"}}'],
-    ['{"review":{"mode":"never"}}', undefined],
+    ['{"review":{"unit":"manual","model":"opus","rounds":2}}', '{"review":{"unit":"pr"}}'],
+    ['{"review":{"depth":{"default":"deep","rules":[{"paths":["src/**"],"depth":"quick"}]}}}', undefined],
+    ["{}", '{"review":{"depth":{"default":"deep"}}}'],
+    ['{"review":{"mode":"always"}}', undefined],
+    ['{"review":{"unit":"never"}}', undefined],
     ["{}", '{"review":{"effort":"high"}}'],
     ["{invalid", undefined],
     ["[]", undefined],
-    // Routing is checked on every host as Pi's routing checks it (SPEC-005 T1).
-    ['{"cognitiveRouting":{"delegation":"both","projection":false}}', undefined],
-    ['{"cognitiveRouting":{"delegation":"everyone"}}', undefined],
-    ["{}", '{"cognitiveRouting":{"enabled":"yes"}}'],
-    ['{"cognitiveRouting":{"legacy":true}}', undefined],
-    [
-      '{"cognitiveRouting":{"profiles":{"helper":{"provider":"anthropic","model":"claude-haiku-5-5","thinking":"high"}}}}',
-      undefined,
-    ],
-    ['{"cognitiveRouting":{"profiles":{"helper":{"provider":"anthropic"}}}}', undefined],
+    // A removed feature's key is refused on every host as on Pi.
+    ['{"cognitiveRouting":{"enabled":false}}', undefined],
+    ["{}", '{"cognitiveRouting":{}}'],
     // An optional version, which a later Freeflow writes (SPEC-005 4.6).
     ['{"v":1,"enabled":true}', '{"v":1}'],
     ['{"v":2}', undefined],
@@ -162,24 +156,33 @@ test("a hook host's Runtime State names the user's review choice, and only a cho
     return context.slice(context.indexOf("# Freeflow Runtime State"));
   };
   assert.equal(runtimeState({}), "# Freeflow Runtime State\n\nFreeflow: active");
-  assert.equal(runtimeState({ review: { mode: "auto" } }), "# Freeflow Runtime State\n\nFreeflow: active");
+  assert.equal(runtimeState({ review: { unit: "pr" } }), "# Freeflow Runtime State\n\nFreeflow: active");
   assert.equal(
-    runtimeState({ review: { mode: "off" } }),
-    "# Freeflow Runtime State\n\nFreeflow: active\nReview: `off`",
+    runtimeState({ review: { unit: "manual" } }),
+    "# Freeflow Runtime State\n\nFreeflow: active\nReview: unit `manual`, model `auto`",
   );
   // The personal file overrides the shared one field by field.
   assert.match(
-    runtimeState({ review: { mode: "off", model: "shared-model" } }, { review: { mode: "always" } }),
-    /\nReview: `always`, reviewer model `shared-model`$/,
+    runtimeState({ review: { unit: "push", model: "shared-model" } }, { review: { unit: "manual", rounds: 1 } }),
+    /\nReview: unit `manual`, model `shared-model`, up to Review 1$/,
   );
-  assert.doesNotMatch(runtimeState({ review: { mode: "always" } }, { review: { mode: "auto" } }), /Review:/);
-  const workspace = createWorkspace('{"review":{"mode":"sometimes"}}\n');
+  assert.doesNotMatch(runtimeState({ review: { unit: "manual" } }, { review: { unit: "pr" } }), /Review:/);
+  const workspace = createWorkspace('{"review":{"unit":"sometimes"}}\n');
   const invalid = contextOf(runAdapter(adapters.codex[0], workspace, inputFor("codex", workspace)));
-  assert.match(invalid, /\.freeflow\/config\.json is invalid: review\.mode must be one of auto, off, always/);
-  const routing = createWorkspace('{"cognitiveRouting":{"delegation":"everyone"}}\n');
   assert.match(
-    contextOf(runAdapter(adapters.codex[0], routing, inputFor("codex", routing))),
-    /\.freeflow\/config\.json is invalid: .*delegation must be executor, helper, or both\./,
+    invalid,
+    /\.freeflow\/config\.json is invalid: review\.unit must be one of pr, push, commit, agreement, manual/,
+  );
+  // review.mode is gone: the message names its replacement.
+  const old = createWorkspace('{"review":{"mode":"always"}}\n');
+  assert.match(
+    contextOf(runAdapter(adapters.codex[0], old, inputFor("codex", old))),
+    /\.freeflow\/config\.json is invalid: review\.mode is replaced by review\.unit/,
+  );
+  const removed = createWorkspace('{"cognitiveRouting":{"enabled":true}}\n');
+  assert.match(
+    contextOf(runAdapter(adapters.codex[0], removed, inputFor("codex", removed))),
+    /\.freeflow\/config\.json is invalid: Cognitive Routing was removed from Freeflow: delete the cognitiveRouting key from \.freeflow\/config\.json\./,
   );
 });
 
@@ -218,9 +221,9 @@ test("a hook host reads the session's own settings over the files, for that sess
   mkdirSync(join(home, "sessions", "s-1"), { recursive: true });
   writeFileSync(
     join(home, "sessions", "s-1", "settings.json"),
-    `${JSON.stringify({ "review.mode": "always", "skills.write-skill": false })}\n`,
+    `${JSON.stringify({ "review.unit": "manual", "skills.write-skill": false })}\n`,
   );
-  const workspace = createWorkspace('{"review":{"mode":"off"}}\n', '{"skills":{"write-skill":true}}\n');
+  const workspace = createWorkspace('{"review":{"unit":"push"}}\n', '{"skills":{"write-skill":true}}\n');
   const state = (env, input = inputFor("claude", workspace)) => {
     const context = contextOf(runAdapter(adapters.claude[0], workspace, input, "SessionStart", env));
     return context.slice(context.indexOf("# Freeflow Runtime State"));
@@ -228,14 +231,14 @@ test("a hook host reads the session's own settings over the files, for that sess
   const env = { ...isolatedEnv, FREEFLOW_HOME: home };
   assert.equal(
     state({ ...env, CLAUDE_CODE_SESSION_ID: "s-1" }),
-    "# Freeflow Runtime State\n\nFreeflow: active\nReview: `always`\nSkills off: `write-skill`; do not open or follow them.",
+    "# Freeflow Runtime State\n\nFreeflow: active\nReview: unit `manual`, model `auto`\nSkills off: `write-skill`; do not open or follow them.",
   );
   assert.equal(
     state({ ...env, CLAUDE_CODE_SESSION_ID: "s-2" }),
-    "# Freeflow Runtime State\n\nFreeflow: active\nReview: `off`",
+    "# Freeflow Runtime State\n\nFreeflow: active\nReview: unit `push`, model `auto`",
   );
   // A host that names its session only in the hook's input.
-  assert.match(state(env, { ...inputFor("codex", workspace), session_id: "s-1" }), /\nReview: `always`/);
+  assert.match(state(env, { ...inputFor("codex", workspace), session_id: "s-1" }), /\nReview: unit `manual`/);
   // A Session enabled: false turns Freeflow off for that session alone.
   writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ enabled: false })}\n`);
   assert.equal(readConfig(workspace, { session: "s-1", env }).enabled, false);
@@ -301,12 +304,12 @@ const CLAUDE_HOOK_CHARACTER_CAP = 10_000;
 // Room under the cap for future edits; a part over it needs trimming or another split.
 const PROMPT_PART_BUDGET = 9_500;
 
-function runManifestHooks(manifestPath, rootVariable, workspace) {
+function runManifestHooks(manifestPath, rootVariable, workspace, env = process.env) {
   const manifest = JSON.parse(readFileSync(join(repoRoot, manifestPath), "utf8"));
   return manifest.hooks.SessionStart[0].hooks.map((handler) => {
     const result = spawnSync("/bin/sh", ["-c", handler.command], {
       cwd: repoRoot,
-      env: { ...process.env, [rootVariable]: repoRoot },
+      env: { ...env, [rootVariable]: repoRoot },
       input: `${JSON.stringify({ hook_event_name: "SessionStart", source: "startup", cwd: workspace })}\n`,
       encoding: "utf8",
     });
@@ -340,6 +343,51 @@ test("each Claude Code hook stays under Claude Code's context cap and together t
     invalid.map(({ context }) => /# Freeflow Configuration Error/.test(context ?? "")),
     [true, false, false],
   );
+});
+
+// Claude Code's mod pins what these hooks deliver as one system prompt section, rendered by `runtime-context.mjs section`,
+// and leaves the hooks' copies out by their text (SPEC-013): each part must be exactly what its hook prints.
+test("the mod's section is the Claude Code hooks' texts, in their order, for each configuration and session", () => {
+  const home = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-home-"));
+  mkdirSync(join(home, "sessions", "s-1"), { recursive: true });
+  writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ "review.unit": "manual" })}\n`);
+  const section = (workspace, env) => {
+    const result = spawnSync(
+      process.execPath,
+      [join(repoRoot, "hooks/shared/runtime-context.mjs"), "section", "--cwd", workspace],
+      { cwd: repoRoot, env, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    return JSON.parse(result.stdout);
+  };
+  for (const [config, session] of [
+    ["{}\n", ""],
+    ["{}\n", "s-1"],
+    ['{"prompts":{"workingMethod":false}}\n', ""],
+    ['{"prompts":{"enabled":false}}\n', ""],
+    ['{"enabled":false}\n', ""],
+    ['{"enabled":1}\n', ""],
+  ]) {
+    const workspace = createWorkspace(config);
+    const env = { ...isolatedEnv, FREEFLOW_HOME: home, CLAUDE_CODE_SESSION_ID: session };
+    const hooks = runManifestHooks("hooks/claude/hooks.json", "CLAUDE_PLUGIN_ROOT", workspace, env).map(
+      ({ context }) => context ?? "",
+    );
+    const rendered = section(workspace, env);
+    assert.deepEqual(rendered.parts, hooks, `${config.trim()} in session "${session}"`);
+    assert.equal(rendered.home, home);
+  }
+  // The session's own settings reach the section as they reach the hooks.
+  const workspace = createWorkspace();
+  const env = { ...isolatedEnv, FREEFLOW_HOME: home };
+  assert.match(
+    section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-1" }).parts[0],
+    /\nReview: unit `manual`, model `auto`/,
+  );
+  assert.doesNotMatch(section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-2" }).parts[0], /Review:/);
+  // With the runtime context switched off, as the hooks are, the section is empty.
+  assert.deepEqual(section(workspace, { ...env, FREEFLOW_DISABLE_RUNTIME_CONTEXT: "1" }).parts, ["", "", ""]);
 });
 
 test("Codex's hook limit holds the whole context", () => {

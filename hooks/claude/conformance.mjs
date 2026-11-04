@@ -2,11 +2,14 @@
 // freeflow.test.ts that shows it, a precondition, the request and its effect observed from outside. freeflow.test.ts
 // checks that every yes claim is here; hooks/tests/golden-events.test.mjs that every test named here exists.
 export default {
+  pin: "the guidance pinned: one section of the system prompt, the hooks' own text, their copies left out while it is there, still there after a compaction, and rendered again once at a settings change (SPEC-013)",
   inject:
     "a request ends: one notice a cycle, at the lower of 75% and a tenth before Claude's threshold, asking for a checkpoint at a safe point",
   compact:
     "a compaction: after a checkpoint, the bundle alone; before it, Claude's with the bundle after its summary; without a task, the summary",
   checkpoint: "checkpoint --compact compacts before any notice: the agent decides when (P102)",
+  block:
+    "the gates under block: refused with the gate's text, a delivery step put to the person where someone can answer, a deny beneath standing (SPEC-008 4.2)",
   send: "a worker runs: its delegation comes from the spawn's prompt; near its threshold it is told to keep progress.md; its compaction says how it recovers",
   wake: "a turn ends: sync a changed store; only checkpoint --compact compacts, once, between turns, then starts the next (P102)",
   sensors:

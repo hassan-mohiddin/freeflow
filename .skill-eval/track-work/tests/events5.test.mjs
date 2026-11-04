@@ -10,6 +10,7 @@ import {
   KINDS,
   lineProblem,
   redact,
+  renderSummary,
   summarize,
 } from "../../../skills/track-work/scripts/lib/events5.mjs";
 
@@ -80,7 +81,9 @@ test("schema v1: each kind's required fields, its values, and no field it does n
     "ts must be an ISO 8601 UTC time with milliseconds",
   );
   assert.match(lineProblem({ ...base("../escape"), kind: "turn.start" }), /^session must be a session ID/);
-  assert.match(lineProblem({ ...base(), harness: "codex", kind: "turn.start" }), /^harness must be one of/);
+  // Codex's driver writes "codex" (SPEC-012); a harness with no driver is still refused.
+  assert.equal(lineProblem({ ...base(), harness: "codex", kind: "turn.start" }), null);
+  assert.match(lineProblem({ ...base(), harness: "cursor", kind: "turn.start" }), /^harness must be one of/);
   assert.match(lineProblem({ ...base(), kind: "prompt" }), /^kind must be one of/);
   // Never contents (P4): a tool's output, a prompt, an answer, a file's text have no field to go in.
   assert.equal(
@@ -112,8 +115,46 @@ test("schema v1: each kind's required fields, its values, and no field it does n
     "compaction",
     "agent.spawn",
     "agent.stop",
+    "gate",
+    "agreement",
     "freeflow",
+    "governor",
   ]);
+});
+
+test("a governor line names its cap, unit, limit, use and response, and the summary prints each one", () => {
+  const governor = (fields) => ({ ...base(), kind: "governor", ...fields });
+  const row = { cap: "pace", unit: "percent", limit: 14.3, use: 11.6, response: "row" };
+  assert.equal(lineProblem(governor(row)), null);
+  assert.equal(lineProblem(governor({ ...row, cap: "five_hour" })), "governor's cap is not a value it takes");
+  assert.equal(lineProblem(governor({ ...row, use: -1 })), "governor's use is not a value it takes");
+  assert.equal(lineProblem(governor({ ...row, response: "stop" })), "governor's response is not a value it takes");
+  assert.equal(lineProblem(governor({ cap: "task", unit: "usd", limit: 4, use: 4.2 })), "governor requires response");
+  const lines = [
+    { ...base("s", "2026-11-03T10:00:00.000Z"), kind: "governor", ...row },
+    {
+      ...base("s", "2026-11-03T11:00:00.000Z"),
+      kind: "governor",
+      cap: "task",
+      unit: "usd",
+      limit: 4,
+      use: 4.25,
+      response: "ask",
+    },
+  ];
+  const summary = summarize(lines, { session: "s" });
+  assert.deepEqual(
+    summary.governor.map((each) => [each.cap, each.response]),
+    [
+      ["pace", "row"],
+      ["task", "ask"],
+    ],
+  );
+  assert.equal(summarize([], { session: "s" }).governor, undefined);
+  const text = renderSummary(summary);
+  assert.match(text, /^Governor: 2 response\(s\)$/m);
+  assert.match(text, /^ {2}2026-11-03T10:00:00\.000Z: the daily pace at 11\.6% of 14\.3%, a row$/m);
+  assert.match(text, /^ {2}2026-11-03T11:00:00\.000Z: the task's cost at \$4\.25 of \$4\.00, the ask to stop$/m);
 });
 
 test("redaction replaces keys and tokens in a command before it is written", () => {
@@ -374,7 +415,9 @@ test("checkpoint and release commit the session's event summary since it took th
     assert.match(printed, /^Events for session aaaaaaaa-1111, widget\/task-001: 9 line\(s\) from /);
     assert.match(printed, /\n  claude-opus-5-5 high: 2 request\(s\), 5 in, 50 written, 1,900 read, 150 out\n/);
     assert.match(printed, /\nTool calls: 3, 1 of them Freeflow's own \(33%\)\n  Bash: 2, 1 failed\n  Edit: 1\n/);
-    assert.match(printed, /\nWorkers: 1 started, 1 stopped, 1 sent back\n$/);
+    assert.match(printed, /\nWorkers: 1 started, 1 stopped, 1 sent back\n/);
+    // Gate lines (SPEC-008) are counted on their own line; this log has none.
+    assert.match(printed, /\nGates: agreement 0, slice 0, delivery 0, delegation 0 would-fire\n$/);
     // Another session's view of this log is the whole log: it holds no task.
     assert.match(ok(cli(["events", "summary", "--session", "aaaaaaaa-1111"])), /: 10 line\(s\) from 2020-01-01/);
     assert.match(ok(cli(["events", "summary"])), /^- aaaaaaaa-1111: \d[\d,]* bytes, last written /);

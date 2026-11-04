@@ -29,6 +29,7 @@ const REQUIRED = [
   { label: "Report", kind: "report" },
 ];
 const OPTIONAL = [
+  { label: "Plan", kind: "text" },
   { label: "Previous report", kind: "paths" },
   { label: "Lenses", kind: "text" },
   { label: "Notes", kind: "text" },

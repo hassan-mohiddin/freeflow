@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -322,6 +322,99 @@ test("with a Schema 5 record, the list is decisions.md beside it and the catch-u
       catchUp.stdout,
       /What ran \(S-001 — Build the queue, updates: 2\):\n- Evidence \(observed\): the queue drains — scratch\/run\.txt\n- Result: commit abc1234\n/,
     );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+const driftPath = resolve("skills/discuss-work/scripts/drift.mjs");
+const drift = (cwd, args, input = "", env = {}) => {
+  const result = spawnSync(process.execPath, [driftPath, ...args], {
+    cwd,
+    env: { ...gitEnv, ...env },
+    encoding: "utf8",
+    input,
+  });
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+};
+
+test("drift lists the hunks no decision item shows at, those a feature file covers first, and the return counts them", async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "discuss-work-drift-")));
+  const lines = (count, word) => Array.from({ length: count }, (_, index) => `${word} ${index + 1}`).join("\n") + "\n";
+  const put = async (files) => {
+    for (const [path, text] of Object.entries(files)) {
+      await mkdir(dirname(join(root, path)), { recursive: true });
+      await writeFile(join(root, path), text);
+    }
+  };
+  try {
+    git(root, "init", "--quiet", "--initial-branch=main");
+    await put({
+      "src/queue.ts": lines(60, "queue"),
+      "src/util.ts": lines(10, "util"),
+      "README.md": lines(5, "readme"),
+      "dev-docs/README.md": "# Docs\n",
+      "dev-docs/features/queue.md":
+        "# Queue\n\n> **Covers:** `src/queue.ts`\n> **Verified at:** `0000000` (2026-11-03)\n\n## Driving it\n\n- Run it.\n",
+    });
+    git(root, "add", "--all");
+    git(root, "commit", "--quiet", "-m", "base");
+    const change = lines(60, "queue")
+      .replace("queue 12\n", "oldest first\n")
+      .replace("queue 30\n", "Queue full, try later\n")
+      .replace("queue 50\n", "retry forever\n");
+    await put({
+      "src/queue.ts": change,
+      "src/util.ts": lines(10, "util").replace("util 3\n", "util three\n"),
+      "README.md": lines(5, "readme").replace("readme 2\n", "the queue\n"),
+      "src/lanes.ts": "export const lanes = 2;\n",
+    });
+    const list = [
+      '- P1 [agreed] Which job runs first? -> oldest first. You: "go" (2026-10-20). Shows at: src/queue.ts:12',
+      '- P2 [new] Text when the queue is full -> "Queue full, try later". Shows at: src/queue.ts:28-31, README.md',
+      "- P3 [dropped] Retry count -> 3. Shows at: src/queue.ts:50",
+      "- T1 [default] Helper rename -> serves P1. Shows at: src/util.ts:9",
+      "",
+    ].join("\n");
+    const result = drift(root, ["--base", "HEAD", "--list", "-", "--json"], list);
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.hunks, 6);
+    assert.equal(report.covered, 3);
+    assert.deepEqual(
+      report.uncovered.map((each) => [each.file, each.start, each.end, each.userVisible, each.first]),
+      [
+        // A dropped item covers nothing; a feature file covers src/queue.ts, so it comes first.
+        ["src/queue.ts", 50, 50, true, "retry forever"],
+        ["src/lanes.ts", 1, 1, false, "export const lanes = 2;"],
+        // T1 shows at line 9, not line 3.
+        ["src/util.ts", 3, 3, false, "util three"],
+      ],
+    );
+    const text = drift(root, ["--base", "HEAD", "--list", "-"], list);
+    assert.match(text.stdout, /^Drift against HEAD: 3 of 6 hunk\(s\) shown at by no decision item/);
+    assert.match(text.stdout, /^- src\/queue\.ts:50 \(a feature file covers it\): retry forever$/m);
+
+    // The return counts them; the record's decisions.md is the list, by path or by the task's ID in the store.
+    const home = join(root, ".store");
+    const taskDir = join(home, "projects", "widget", "tasks", "task-001-queue");
+    await mkdir(taskDir, { recursive: true });
+    await writeFile(join(taskDir, "record.md"), "# Queue\n\nSchema: 5\n");
+    await writeFile(join(taskDir, "decisions.md"), list);
+    await writeFile(join(root, ".git", "info", "exclude"), ".store/\n");
+    const byId = drift(root, ["--base", "HEAD", "--record", "widget/task-001", "--json"], "", { FREEFLOW_HOME: home });
+    assert.equal(byId.status, 0, byId.stderr);
+    assert.equal(JSON.parse(byId.stdout).uncovered.length, 3);
+    const counted = choices(root, ["return", "--record", join(taskDir, "record.md"), "--base", "HEAD"]);
+    assert.equal(counted.status, 0, counted.stderr);
+    assert.match(
+      counted.stdout,
+      /^Drift: 3 of 6 hunk\(s\) against HEAD shown at by no decision item; drift\.mjs --base HEAD lists them\.$/m,
+    );
+    const json = JSON.parse(choices(root, ["handover", "--list", "-", "--base", "HEAD", "--json"], list).stdout);
+    assert.deepEqual(json.drift, { base: "HEAD", uncovered: 3, hunks: 6 });
+    assert.equal(choices(root, ["validate", "--list", "-", "--base", "HEAD"], list).status, 2);
+    assert.equal(drift(root, ["--base", "nope", "--list", "-"], list).status, 2);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

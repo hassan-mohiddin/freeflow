@@ -1,7 +1,9 @@
 // Freeflow's Claude Code layer: a hooks module Claude Code runs on its own events (the task-004 Spec's section 11).
 // It decides when Track Work's script runs and delivers what the script prints; what happens to a task's memory is
 // the script's. Its task memory work runs only where the Freeflow store exists (session status says so); its event
-// log and claims (SPEC-006) need none. Elsewhere every hook passes its event on unchanged.
+// log and claims (SPEC-006) need none, nor do its gates (SPEC-008). Elsewhere every hook passes its event on unchanged.
+
+import { decide, gateEvent, gateText, validGateState } from "../../skills/track-work/scripts/lib/gates5.mjs";
 
 import { paneCommand, paneRead, registerPane, resolvePane } from "./pane.mjs";
 
@@ -73,6 +75,21 @@ let sessionId = null;
 /** @type {Map<string, number>} each worker's turns, and the main loop's under "main" */
 const turnsOf = new Map();
 
+// The gates (SPEC-008): before each tool call, Track Work's gates5.mjs decides it from the session's gate state, which
+// Track Work's lifecycle commands write to `<home>/sessions/<session>/gates.json`. The state is read once a turn and
+// again after a Track Work command; each gate's mode (`gates.*`) is read with `enabled`. Under warn the call runs and
+// the agent reads one row per gate per turn; under block the call is refused with the same text, and a delivery step
+// is put to the person where someone can answer.
+const GATE_KEYS = ["agreement", "slice", "delivery", "delegation"];
+/** @type {Record<string, string>} each gate's mode: off, warn or block */
+let gateModes = { agreement: "warn", slice: "warn", delivery: "warn", delegation: "warn" };
+/** @type {any} the session's gate state as last read; undefined until read this turn, null where there is none */
+let gateState = undefined;
+/** Whether the event log has its one line saying the gate state is missing. */
+let gateMissingSaid = false;
+/** @type {Map<string, Set<string>>} the gates that warned in each loop's current turn, by agent ID or "main" */
+const warnedGates = new Map();
+
 /**
  * Keeps one event line for the next flush, while Freeflow and its event log are on.
  * @param {any} $
@@ -142,7 +159,7 @@ function toolPaths(input, cwd) {
 function claims() {
   const claim = (/** @type {string} */ value, /** @type {string} */ how) => ({ claim: value, how });
   return {
-    pin: claim("possible", "prompt.section exists; Freeflow does not use it yet"),
+    pin: claim("yes", "its guidance is a section of the system prompt (prompt.compose)"),
     inject: claim("yes", "appends rows the agent reads ($.session.append)"),
     forget: claim("no", "nothing removes a stored row"),
     compact: interactive
@@ -157,7 +174,10 @@ function claims() {
       ? claim("yes", "a prompt after its compaction ($.prompt.submit)")
       : claim("no", "nothing runs between turns in a headless run"),
     ask: claim("possible", "$.ui.ask exists; Freeflow does not ask through it yet"),
-    block: claim("possible", "tool.check can deny; Freeflow only allows store files today"),
+    block: claim(
+      "yes",
+      "tool.check refuses a gate's call under block, or asks the person for a delivery step (gates.*)",
+    ),
     sensors: eventsOn
       ? claim("yes", "turns, model requests, tool calls, compactions, workers, written to the event log")
       : claim("possible", "the event log is off (events.enabled)"),
@@ -609,6 +629,8 @@ async function turnEnded($, e) {
     await script($, ["store", "sync"]);
     await emit($, "freeflow", { what: "sync" });
   }
+  // The cost governor's task cap follows the held task's plan.
+  await governorTask($, state);
   // Only the agent's own request compacts (P102): checkpoint --compact, after a turn that ended, until the bundle
   // replaces the conversation; one /compact queued at a time.
   const request = state.compact;
@@ -646,6 +668,88 @@ async function resolveEnabled($) {
   if (result.ok && typeof result.data.value === "boolean") enabled = result.data.value;
   const events = await settings($, ["get", "events.enabled"]);
   if (events.ok && typeof events.data.value === "boolean") eventsOn = events.data.value;
+  const listed = await settings($, ["list"]);
+  await resolveGovernor($, listed);
+  if (listed.ok)
+    for (const row of listed.data.settings ?? []) {
+      const gate = /^gates\.(\w+)$/.exec(row.key)?.[1];
+      if (gate && GATE_KEYS.includes(gate) && ["off", "warn", "block"].includes(row.value))
+        gateModes = { ...gateModes, [gate]: row.value };
+    }
+}
+
+/**
+ * The session's gate state, read at most once a turn and after a Track Work command (SPEC-008 4.3); null where there
+ * is none, said once in the event log.
+ * @param {any} $
+ */
+async function readGates($) {
+  if (gateState !== undefined) return gateState;
+  if (!freeflowHome) return null;
+  sessionId ??= await $.session.id();
+  let parsed = null;
+  try {
+    parsed = JSON.parse(await $.fs.read(`${freeflowHome}/sessions/${sessionId}/gates.json`));
+  } catch {
+    // No state, or one that cannot be read: the gates that need it are quiet under warn and closed under block.
+  }
+  gateState = validGateState(parsed) ? parsed : null;
+  if (gateState === null && !gateMissingSaid) {
+    gateMissingSaid = true;
+    await emit($, "freeflow", { what: "gates", detail: "no gate state for this session" });
+  }
+  return gateState;
+}
+
+/**
+ * The gates on one tool call (SPEC-008 4.2, 4.3): the verdict as it stands under warn, with one row per gate per turn
+ * the agent reads (a worker's as a message to it); under block, a deny with the gate's text, or an ask for a delivery
+ * step where someone can answer. A deny beneath stands.
+ * @param {any} $
+ * @param {any} e
+ * @param {{ decision: string, reason?: string }} verdict
+ */
+async function gated($, e, verdict) {
+  if (verdict.decision === "deny") return verdict;
+  const input = /** @type {Record<string, unknown>} */ (e.input ?? {});
+  const delegation = e.agentId === undefined ? undefined : (await workerMap($, null)).get(e.agentId)?.delegation;
+  const result = decide(
+    await readGates($),
+    {
+      tool: e.tool,
+      paths: FILE_TOOLS.has(e.tool)
+        ? [input.file_path, input.notebook_path, input.path].filter((path) => typeof path === "string" && path)
+        : [],
+      command: COMMAND_TOOLS.has(e.tool) && typeof input.command === "string" ? input.command : undefined,
+      cwd: await $.session.cwd(),
+      readOnly: e.isReadOnly === true,
+      delegation,
+      canAsk: e.approver !== undefined,
+    },
+    gateModes,
+  );
+  if (result.decision === "allow") return verdict;
+  const agent = e.agentId ?? "main";
+  for (const fired of result.fired) await emit($, "gate", gateEvent(fired, e.tool), agent);
+  if (result.decision === "warn") {
+    const warned = warnedGates.get(agent) ?? new Set();
+    warnedGates.set(agent, warned);
+    const rows = result.fired
+      .filter((/** @type {any} */ fired) => !warned.has(fired.gate))
+      .map((/** @type {any} */ fired) => {
+        warned.add(fired.gate);
+        return gateText(fired);
+      });
+    for (const row of rows)
+      if (e.agentId !== undefined) await $.session.send({ to: { agentId: e.agentId }, text: row });
+      else await appendRow($, row);
+    return verdict;
+  }
+  const reason = result.fired
+    .filter((/** @type {any} */ fired) => fired.decision !== "warn")
+    .map((/** @type {any} */ fired) => gateText(fired))
+    .join("\n\n");
+  return { decision: /** @type {const} */ (result.decision === "ask" ? "ask" : "deny"), reason };
 }
 
 const SCOPE_NAMES = /** @type {Record<string, string>} */ ({
@@ -663,8 +767,15 @@ const SECTION_ROWS = new Set([
   "prompts.enabled",
   "skills.enabled",
   "events.enabled",
-  "review.mode",
+  "gates.agreement",
+  "gates.slice",
+  "gates.delivery",
+  "gates.delegation",
+  "review.unit",
   "review.model",
+  "review.rounds",
+  "governor.mode",
+  "governor.cap",
   "pane.enabled",
   "pane.statusLine",
 ]);
@@ -698,8 +809,9 @@ function listText(data) {
         `  ${row.label.padEnd(width)}  ${shown(row.value).padEnd(8)}  ${SCOPE_NAMES[row.scope]}${SECTION_ROWS.has(row.key) ? "" : `  (${row.key})`}`,
     ),
     COMMAND_USAGE,
-    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.mode, review.model, pane.enabled, pane.statusLine.",
-    "Pi-only settings (tool execution, compaction, messaging, Cognitive Routing) are changed on Pi or in the files.",
+    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.agreement, gates.slice, gates.delivery, gates.delegation, review.unit, review.model, review.rounds, governor.mode, governor.cap, pane.enabled, pane.statusLine.",
+    "Review depth rules (review.depth) are edited in .freeflow/config.json; review-plan reads them from the base commit.",
+    "Pi-only settings (tool execution, compaction, messaging) are changed on Pi or in the files.",
   ].join("\n");
 }
 
@@ -763,6 +875,7 @@ async function settingsCommand($, args) {
   );
   if (!result.ok) return { text: `Freeflow settings: ${result.error}` };
   const data = result.data;
+  await guidanceChanged($);
   const wasOn = enabled;
   if (data.key === "enabled" || data.key === "events.enabled") {
     await resolveEnabled($);
@@ -774,6 +887,7 @@ async function settingsCommand($, args) {
     await resolvePane($);
     paneRead($);
   }
+  if (data.key.startsWith("governor.")) await resolveGovernor($);
   if (!wasOn && enabled) {
     // On again: the next turn end does what session start does with a store, and the window is read at the next request.
     awaitingStore = { session: await $.session.id(), cwd: await $.session.cwd() };
@@ -798,6 +912,529 @@ async function settingsCommand($, args) {
       ].join("\n"),
     ],
   };
+}
+
+// The cost governor (SPEC-014, section 2.3): after each model request it reads the plan's usage windows and the
+// session's cost, and tells the agent once a cap is near: a row at 80% of it, and at 100% a notice (`governor.mode`
+// warn, the default) or the ask to stop at the next safe point, checkpoint and ask the user (stop). The caps: on a
+// subscription, the seven-day window's daily pace, what is left of it at the start of this day of the window over the
+// days until it resets, against what this day used; with a held task, its plan's high end (`estimate --plan`) against
+// what the session spent since the plan was read. `governor.cap` replaces the pace with a percent of the seven-day
+// window, or where there is no window (an API key), the task's cap with dollars of the session's cost. Each response
+// comes once for its cap and period, and is written to the event log. It notifies; a gate for it is not built.
+const DAY_MS = 86_400_000;
+const GOVERNOR_ROW_AT = 0.8;
+/** @type {"warn" | "stop"} */
+let governorMode = "warn";
+/** @type {number | null} `governor.cap`: a percent of the seven-day window, or dollars */
+let governorCap = null;
+/** @type {{ task: string, asOf: string | null, usd: number | null, from: number | null } | null} the held task's plan: its high end, and the session's cost when it was read */
+let taskPlan = null;
+/** @type {{ resetsAt: string, dayStart: string, percent: number } | null | undefined} this day of the window's start; undefined until read */
+let dayBase = undefined;
+/** Responses already given, by cap, period and response: each comes once. */
+const governed = new Set();
+
+/**
+ * Reads `governor.mode` and `governor.cap` with one settings run, or from the listing the caller already read; each
+ * stays as it was when the script fails.
+ * @param {any} $
+ * @param {any} [listed] a settings `list` result read for the same resolve
+ */
+async function resolveGovernor($, listed = undefined) {
+  const result = listed ?? (await settings($, ["list"]));
+  if (!result.ok) return;
+  const value = (/** @type {string} */ key) =>
+    result.data.settings?.find((/** @type {any} */ row) => row.key === key)?.value;
+  const mode = value("governor.mode");
+  if (mode === "warn" || mode === "stop") governorMode = mode;
+  const cap = value("governor.cap");
+  if (cap === null || (typeof cap === "number" && cap > 0)) governorCap = cap;
+}
+
+/**
+ * The held task's plan, read again when the task or its last checkpoint changes: the high end of what its open Slices
+ * are predicted to cost (null where the planner cannot predict it), and the session's cost then.
+ * @param {any} $
+ * @param {any} state session status
+ */
+async function governorTask($, state) {
+  if (!state.task) {
+    taskPlan = null;
+    return;
+  }
+  if (taskPlan && taskPlan.task === state.task.id && taskPlan.asOf === state.task.stateAsOf) return;
+  const run = await script($, ["estimate", "--plan", "--record", state.task.record, "--json"]);
+  let usd = null;
+  try {
+    const high = run.exitCode === 0 ? JSON.parse(run.stdout).total?.usdHigh : null;
+    usd = typeof high === "number" && high > 0 ? high : null;
+  } catch {
+    // Not the planner's JSON: no task cap.
+  }
+  const spent = (await $.session.usage()).cost?.usd;
+  taskPlan = {
+    task: state.task.id,
+    asOf: state.task.stateAsOf ?? null,
+    usd,
+    from: typeof spent === "number" ? spent : null,
+  };
+}
+
+/**
+ * The day of the seven-day window `now` is in, counted back from its reset: its start, and the days left from it.
+ * @param {string} resetsAt
+ * @param {number} now
+ */
+function windowDay(resetsAt, now) {
+  const reset = Date.parse(resetsAt);
+  if (!Number.isFinite(reset) || reset <= now) return null;
+  const days = Math.floor((reset - now) / DAY_MS) + 1;
+  return { start: new Date(reset - days * DAY_MS).toISOString(), days };
+}
+
+/**
+ * The daily pace: what was left of the window when this day of it began, over the days left from then.
+ * @param {number} basePercent
+ * @param {number} days
+ */
+const dailyPace = (basePercent, days) => Math.max(0, 100 - basePercent) / days;
+
+/**
+ * Where this day of the window began, from the Freeflow home (beside the event log, on this machine only), so every
+ * session of the day counts from the same point; the first reading of a day starts it.
+ * @param {any} $
+ * @param {{ kind: string, percentUsed: number, resetsAt: string }} window
+ * @param {{ start: string }} day
+ */
+async function baseOf($, window, day) {
+  const path = freeflowHome ? `${freeflowHome}/events/governor.json` : null;
+  if (dayBase === undefined) {
+    dayBase = null;
+    if (path)
+      try {
+        dayBase = JSON.parse(await $.fs.read(path));
+      } catch {
+        // None kept yet, or unreadable: this reading starts the day.
+      }
+  }
+  if (dayBase?.resetsAt === window.resetsAt && dayBase.dayStart === day.start) return dayBase;
+  dayBase = { resetsAt: window.resetsAt, dayStart: day.start, percent: window.percentUsed };
+  if (path) await $.fs.write(path, `${JSON.stringify(dayBase)}\n`).catch(() => undefined);
+  return dayBase;
+}
+
+/**
+ * The caps that apply now, each with its use, limit, unit, the period it holds for and how it reads.
+ * @param {any} $
+ * @param {any} usage
+ */
+async function governorCaps($, usage) {
+  const caps = [];
+  const money = (/** @type {number} */ value) => `$${value.toFixed(2)}`;
+  const seven = (usage.rateLimits ?? []).find(
+    (/** @type {any} */ each) => each.kind === "seven_day" && typeof each.percentUsed === "number",
+  );
+  const spent = usage.cost?.usd;
+  if (seven && governorCap !== null)
+    caps.push({
+      cap: "window",
+      unit: "percent",
+      use: seven.percentUsed,
+      limit: governorCap,
+      period: seven.resetsAt ?? "window",
+      what: `the seven-day window is ${seven.percentUsed}% used, of the ${governorCap}% your governor.cap sets`,
+      resets: seven.resetsAt,
+    });
+  else if (seven?.resetsAt) {
+    const day = windowDay(seven.resetsAt, await $.clock.now());
+    if (day) {
+      const base = await baseOf($, seven, day);
+      const limit = dailyPace(base.percent, day.days);
+      const use = Math.max(0, seven.percentUsed - base.percent);
+      caps.push({
+        cap: "pace",
+        unit: "percent",
+        use,
+        limit,
+        period: day.start,
+        what: `this day of the seven-day window used ${round(use)}% of it, against a daily pace of ${round(limit)}% (${round(100 - base.percent)}% left over ${day.days} day(s))`,
+        resets: seven.resetsAt,
+      });
+    }
+  }
+  if (typeof spent === "number" && !seven && governorCap !== null)
+    caps.push({
+      cap: "task",
+      unit: "usd",
+      use: spent,
+      limit: governorCap,
+      period: "session",
+      what: `this session has cost ${money(spent)} at API list price, of the ${money(governorCap)} your governor.cap sets`,
+    });
+  else if (typeof spent === "number" && taskPlan?.usd && taskPlan.from !== null) {
+    const use = Math.max(0, spent - taskPlan.from);
+    caps.push({
+      cap: "task",
+      unit: "usd",
+      use,
+      limit: taskPlan.usd,
+      period: `${taskPlan.task} ${taskPlan.asOf}`,
+      what: `${taskPlan.task} cost ${money(use)} at API list price since its plan was read, of ${money(taskPlan.usd)}, the high end its open Slices are predicted to cost`,
+    });
+  }
+  return caps;
+}
+
+const round = (/** @type {number} */ value) => Math.round(value * 10) / 10;
+
+/**
+ * After each model request: each cap at 80% gets one row, and at 100% one notice or, under stop, the ask.
+ * @param {any} $
+ */
+async function governStep($) {
+  const usage = await $.session.usage();
+  for (const cap of await governorCaps($, usage)) {
+    if (!(cap.limit > 0)) continue;
+    const share = cap.use / cap.limit;
+    const response =
+      share >= 1 ? (governorMode === "stop" ? "ask" : "notice") : share >= GOVERNOR_ROW_AT ? "row" : null;
+    if (!response) continue;
+    const key = `${cap.cap} ${cap.period} ${response === "row" ? "row" : "full"}`;
+    if (governed.has(key)) continue;
+    governed.add(key);
+    if (response !== "row") governed.add(`${cap.cap} ${cap.period} row`);
+    const resets = cap.resets ? `; it resets at ${cap.resets}` : "";
+    const text =
+      response === "row"
+        ? `Freeflow cost governor: ${cap.what}, ${Math.round(share * 100)}% of the cap${resets}.`
+        : response === "notice"
+          ? `Freeflow cost governor: a cap is reached: ${cap.what}${resets}. Say so to the user in your next answer; Freeflow only notifies (governor.mode warn).`
+          : `Freeflow cost governor: a cap is reached: ${cap.what}${resets}. Stop at your next safe point: ${SAFE_POINT}. Checkpoint there (your task's record, or this session's summary), then end your turn asking the user whether to go on (governor.mode stop).`;
+    await appendRow($, text);
+    await emit($, "governor", {
+      cap: cap.cap,
+      unit: cap.unit,
+      limit: Math.round(cap.limit * 100) / 100,
+      use: Math.round(cap.use * 100) / 100,
+      response,
+    });
+  }
+}
+
+// Freeflow arriving mid-session, and its guidance pinned (SPEC-013). What session start does, it does once per session,
+// and a ledger in the Freeflow home (`sessions/<session>/start.json`) says which of its steps ran: a session whose start
+// did not run them (the plugin enabled or updated mid-session, `enabled` switched on, a harness that skips the hook)
+// gets each missing one at its next turn's start, the guidance and the menu as one row. Where this Claude Code composes
+// the system prompt through mods (`prompt.compose`), the session-start hooks' text is one section of it, so it is in
+// every request and survives every compaction, and the hooks' copies are left out while it is there.
+const SECTION_SCRIPT = "hooks/shared/runtime-context.mjs";
+/** The guidance's section in the system prompt; a plugin's own is `<plugin>:<name>`. */
+const SECTION_ID = "freeflow:guidance";
+/** Session start's steps, in the order a catch-up runs them. */
+const START_STEPS = ["window", "cycle", "capabilities", "sync", "menu", "guidance"];
+/** Tries a failed step gets, at most one a turn: the first, then one more at the next turn (section 4). */
+const STEP_TRIES = 2;
+const MID_SESSION =
+  "Freeflow started mid-session: its session start did not run in this session, so what it gives a session at its start follows now.";
+/** @type {{ session: string, steps: Record<string, string>, pinned: boolean } | null} the ledger, null until known */
+let started = null;
+/** Whether the ledger kept in the store was read into `started` for this session yet. */
+let ledgerRead = false;
+/** @type {Map<string, number>} each step's failed tries this session */
+const stepFailures = new Map();
+/** Whether a catch-up is running, so two turn starts never run one twice. */
+let catching = false;
+/** @type {{ parts: string[], text: string, home?: string } | null} the hooks' texts, their section; null until rendered */
+let guidance = null;
+/** Whether this session start's thread carries the section, for the ledger. */
+let pinnedAtStart = false;
+
+/** @param {string} home @param {string} session */
+const ledgerPath = (home, session) => `${home}/sessions/${session}/start.json`;
+
+/**
+ * The session-start hooks' texts for the session's folder and settings, rendered by the hooks' own renderer, the
+ * section they make joined in their order, and the Freeflow home the renderer reads; kept until settings change or a
+ * session start renders them again.
+ * @param {any} $
+ * @param {{ cwd?: string, session?: string }} [where] a session start's folder and session, else the session's own
+ */
+async function renderGuidance($, where = {}) {
+  if (guidance) return guidance;
+  const run = await $.process.run(
+    ["node", `${$.plugin.root}/${SECTION_SCRIPT}`, "section", "--cwd", where.cwd || (await $.session.cwd())],
+    { env: { CLAUDE_CODE_SESSION_ID: where.session || (await $.session.id()) }, timeoutMs: SETTINGS_TIMEOUT_MS },
+  );
+  let rendered;
+  try {
+    rendered = JSON.parse(run.stdout);
+  } catch {
+    rendered = undefined;
+  }
+  const parts = rendered?.parts;
+  if (run.exitCode !== 0 || !Array.isArray(parts) || !parts.every((part) => typeof part === "string"))
+    throw new Error(
+      `the guidance could not be rendered: ${(run.stderr.split("\n")[0] || `exit code ${run.exitCode}`).trim()}`,
+    );
+  guidance = {
+    parts,
+    text: parts.filter((part) => part.trim()).join("\n\n"),
+    home: typeof rendered.home === "string" ? rendered.home : undefined,
+  };
+  return guidance;
+}
+
+/**
+ * A settings change: the section is rendered again, once, so the next prompt the engine composes carries the change
+ * (one cache write, at the new thread or compaction where the engine sends a changed section).
+ * @param {any} $
+ */
+async function guidanceChanged($) {
+  guidance = null;
+  await renderGuidance($).catch((/** @type {unknown} */ error) =>
+    $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`),
+  );
+}
+
+/**
+ * A session start's result without the hooks' copies of the guidance, where the section carries it.
+ * @param {any} result
+ * @param {string[]} parts
+ */
+function withoutHookGuidance(result, parts) {
+  const ours = new Set(parts.map((part) => part.trim()).filter(Boolean));
+  if (!Array.isArray(result.additionalContext)) return result;
+  const rest = result.additionalContext.filter((/** @type {string} */ text) => !ours.has(String(text).trim()));
+  if (rest.length === result.additionalContext.length) return result;
+  const { additionalContext: _dropped, ...others } = result;
+  return rest.length ? { ...others, additionalContext: rest } : others;
+}
+
+/** @param {any} $ */
+async function keepLedger($) {
+  if (!freeflowHome || !started) return;
+  const file = { v: 1, steps: started.steps, pinned: started.pinned };
+  await $.fs
+    .write(ledgerPath(freeflowHome, started.session), `${JSON.stringify(file, null, 2)}\n`)
+    .catch((/** @type {unknown} */ error) =>
+      $.ui.log(`Freeflow: the session-start ledger: ${error instanceof Error ? error.message : String(error)}`),
+    );
+}
+
+/**
+ * The ledger a session keeps in the Freeflow home, or null where there is none.
+ * @param {any} $
+ * @param {string} home
+ * @param {string} session
+ */
+async function readLedger($, home, session) {
+  try {
+    const kept = JSON.parse(await $.fs.read(ledgerPath(home, session)));
+    return { steps: typeof kept.steps === "object" && kept.steps ? kept.steps : {}, pinned: kept.pinned === true };
+  } catch {
+    return null;
+  }
+}
+
+/** Whether every step ran or has had its tries. */
+const settled = () =>
+  started !== null && START_STEPS.every((step) => started?.steps[step] || (stepFailures.get(step) ?? 0) >= STEP_TRIES);
+
+/**
+ * The classic SessionStart's chain beneath the mod, with the hooks' copies of the guidance left out where the section
+ * carries it: a new thread and a compaction start their prompt over with it, and a resumed or forked thread keeps the
+ * prompt it recorded, so there only a ledger saying that prompt had it does. A compaction delivers the guidance again,
+ * through the section or the hooks, which the ledger keeps.
+ * @param {any} $
+ * @param {any} e
+ * @param {any} next
+ */
+async function pinnedStart($, e, next) {
+  const result = await next(e);
+  const fresh = e.source !== "compact";
+  if (fresh) {
+    guidance = null;
+    pinnedAtStart = false;
+  }
+  // Off, the hooks deliver nothing either, and the mod does nothing but serve /freeflow.
+  if (!enabled) return result;
+  let pinned = false;
+  let out = result;
+  try {
+    const rendered = await renderGuidance($, { cwd: e.cwd, session: e.session_id });
+    const home = freeflowHome ?? rendered.home;
+    const recorded = !["resume", "fork"].includes(e.source)
+      ? true
+      : Boolean(home) && (await readLedger($, String(home), e.session_id))?.pinned === true;
+    pinned = Boolean(rendered.text) && recorded;
+    if (pinned) out = withoutHookGuidance(result, rendered.parts);
+  } catch (error) {
+    $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}; the session-start hooks keep it`);
+  }
+  if (fresh) pinnedAtStart = pinned;
+  else {
+    const now = new Date(await $.clock.now()).toISOString();
+    if (started?.session === e.session_id) {
+      started.steps.guidance = now;
+      started.pinned = pinned;
+      await keepLedger($);
+    } else {
+      // Not known in this process: the next catch-up reads what the store keeps and adds this to it.
+      started = { session: e.session_id, steps: { guidance: now }, pinned };
+      ledgerRead = false;
+    }
+  }
+  return out;
+}
+
+/**
+ * A session start Freeflow ran with Freeflow on: every step is in the ledger, done by this start.
+ * @param {any} $
+ * @param {any} e
+ */
+async function startRan($, e) {
+  const now = new Date(await $.clock.now()).toISOString();
+  started = {
+    session: e.session_id,
+    steps: Object.fromEntries(START_STEPS.map((step) => [step, now])),
+    pinned: pinnedAtStart,
+  };
+  ledgerRead = true;
+  stepFailures.clear();
+  await keepLedger($);
+}
+
+/**
+ * At a main turn's start, with Freeflow on: each step session start would have done and has not, once, and the
+ * guidance and the menu as one row. A step that fails is logged and tried again at the next turn, once.
+ * @param {any} $
+ */
+async function caughtUp($) {
+  if (!enabled || catching || settled()) return;
+  catching = true;
+  try {
+    await catchUp($);
+  } catch (error) {
+    $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    catching = false;
+  }
+}
+
+/** @param {any} $ */
+async function catchUp($) {
+  const session = await $.session.id();
+  if (started && started.session !== session) {
+    started = null;
+    ledgerRead = false;
+    stepFailures.clear();
+  }
+  const found = await sessionStatus($, { session });
+  if (found?.home) freeflowHome = found.home;
+  if (!ledgerRead && freeflowHome) {
+    ledgerRead = true;
+    const kept = await readLedger($, freeflowHome, session);
+    if (kept)
+      started = { session, steps: { ...kept.steps, ...started?.steps }, pinned: started?.pinned ?? kept.pinned };
+  }
+  started ??= { session, steps: {}, pinned: false };
+  const ledger = started;
+  const due = START_STEPS.filter((step) => !ledger.steps[step] && (stepFailures.get(step) ?? 0) < STEP_TRIES);
+  if (!due.length) return;
+  const cwd = await $.session.cwd();
+  const now = new Date(await $.clock.now()).toISOString();
+  /** @type {string[]} */
+  const done = [];
+  /** @type {{ guidance?: string, menu?: string }} */
+  const shown = {};
+  /** @param {string} step @param {unknown} error */
+  const failed = async (step, error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    stepFailures.set(step, (stepFailures.get(step) ?? 0) + 1);
+    $.ui.log(`Freeflow: session start's ${step} step failed mid-session: ${message}`);
+    await emit($, "freeflow", { what: "menu", detail: `mid-session, ${step} failed: ${message}` });
+  };
+  const unread = new Error("session status could not be read");
+  for (const step of due.filter((each) => each !== "sync" && each !== "menu")) {
+    try {
+      if (step === "window") await readWindow($);
+      else if (step === "cycle") {
+        await newCycle($, null);
+        workers = null;
+      } else if (step === "capabilities") {
+        if (!found?.home) throw unread;
+        await writeCapabilities($, freeflowHome);
+      } else if (step === "guidance") shown.guidance = (await renderGuidance($)).text;
+      ledger.steps[step] = now;
+      done.push(step);
+    } catch (error) {
+      await failed(step, error);
+    }
+  }
+  const store = due.filter((each) => each === "sync" || each === "menu");
+  if (store.length) {
+    const missing = missingText(found);
+    if (!found) for (const step of store) await failed(step, unread);
+    else if (!found.store) {
+      // No store yet: the turn that ends with one takes it up, as after a session start without one.
+      awaitingStore = { session, cwd };
+      if (store.includes("menu") && missing.length) shown.menu = `the store is not ready.\n${missing.join("\n")}`;
+      for (const step of store) ledger.steps[step] = now;
+      done.push(...store);
+    } else
+      try {
+        await storeRootOf($, found);
+        const menu = await storeArrived($, found, session, cwd);
+        awaitingStore = null;
+        ledger.steps.sync ??= now;
+        if (store.includes("sync")) done.push("sync");
+        if (menu.exitCode !== 0)
+          throw new Error((menu.stderr.split("\n")[0] || `exit code ${menu.exitCode}`).replace(/^Error: /, ""));
+        if (store.includes("menu")) {
+          shown.menu = [menu.stdout.trimEnd(), ...missing].join("\n");
+          ledger.steps.menu = now;
+          done.push("menu");
+        }
+      } catch (error) {
+        await failed(store.includes("menu") ? "menu" : "sync", error);
+      }
+  }
+  if (shown.guidance || shown.menu)
+    await appendRow(
+      $,
+      [
+        MID_SESSION,
+        ...(shown.guidance ? [shown.guidance] : []),
+        ...(shown.menu ? [`Freeflow task memory:\n${shown.menu}`] : []),
+      ].join("\n\n"),
+    );
+  if (done.length) await emit($, "freeflow", { what: "menu", detail: `mid-session: ${done.join(", ")}` });
+  await keepLedger($);
+}
+
+/**
+ * The system prompt as the engine composed it, with the guidance as one section after the engine's own: the engine
+ * sends a changed answer only in a new thread or after a compaction, so it stands for the whole thread.
+ * @param {any} $
+ * @param {any} e
+ * @param {any} composed
+ */
+async function withGuidance($, e, composed) {
+  if (!enabled || e.traits?.includes("bare")) return composed;
+  try {
+    const { text } = await renderGuidance($);
+    if (!text) return composed;
+    return {
+      sections: [
+        ...composed.sections.filter((/** @type {{ id: string }} */ section) => section.id !== SECTION_ID),
+        { id: SECTION_ID, text, scope: /** @type {const} */ ("session") },
+      ],
+    };
+  } catch (error) {
+    $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
+    return composed;
+  }
 }
 
 /** @param {import("claude-code").On} on */
@@ -832,7 +1469,7 @@ export function register(on) {
   // Session start, /clear and resume: pull the store, give the scripts the window, and give the agent the menu, which
   // says which task this session holds, taken back when a resume finds the task its end released (Spec section 4, F36).
   on("classic.SessionStart", async ($, e, next) => {
-    const result = await next(e);
+    const result = await pinnedStart($, e, next);
     if (e.source === "compact") {
       await emit($, "session.start", { source: "compact", interactive });
       return result;
@@ -845,6 +1482,7 @@ export function register(on) {
     await readWindow($);
     const found = await sessionStatus($, { session: e.session_id });
     freeflowHome = found?.home;
+    await startRan($, e);
     await writeCapabilities($, freeflowHome);
     // The pane and the status line read the script after this hook returns (SPEC-015).
     paneRead($);
@@ -875,10 +1513,17 @@ export function register(on) {
   on("turn.start", async ($, e, next) => {
     if (e.agentId === undefined) mainTurns += 1;
     const agent = e.agentId ?? "main";
+    // Each turn reads the gate state again, and each gate may warn once in it.
+    if (e.agentId === undefined) gateState = undefined;
+    warnedGates.delete(agent);
     turnsOf.set(agent, (turnsOf.get(agent) ?? 0) + 1);
     await emit($, "turn.start", { turn: turnsOf.get(agent) }, agent);
+    if (e.agentId === undefined) await caughtUp($);
     return next(e);
   });
+
+  // The guidance pinned as a section of the system prompt (SPEC-013).
+  on("prompt.compose", async ($, e, next) => withGuidance($, e, await next(e)));
 
   on("turn.step", async function* ($, e, next) {
     const response = yield* next(e);
@@ -912,6 +1557,12 @@ export function register(on) {
       else await noticeWorker($, e, response);
     } catch (error) {
       $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    // The cost governor, after every request of the session's: the plan's windows and the cost are the session's.
+    try {
+      await governStep($);
+    } catch (error) {
+      $.ui.log(`Freeflow cost governor: ${error instanceof Error ? error.message : String(error)}`);
     }
     return response;
   });
@@ -954,6 +1605,8 @@ export function register(on) {
     const started = await $.clock.now();
     const result = await next(e);
     const ended = await $.clock.now();
+    // A Track Work command may have changed the gate state: the next check reads it again.
+    if (command !== undefined && command.includes("working-record.mjs")) gateState = undefined;
     const paths = FILE_TOOLS.has(e.tool) ? toolPaths(input, await $.session.cwd()) : [];
     const root = storeRoot ?? null;
     const ours =
@@ -977,16 +1630,17 @@ export function register(on) {
 
   // The store holds the task memory the agent keeps, so a file tool on a path that really lands inside it runs where
   // the mode would ask, as in a working directory with edits allowed; any deny, a rule's or a hook's, still stands.
+  // Then the gates decide (SPEC-008): a warning leaves the verdict as it is; a gate under block refuses, or asks.
   on("tool.check", async ($, e, next) => {
     const verdict = await next(e);
-    if (!enabled || verdict.decision !== "ask" || !FILE_TOOLS.has(e.tool)) return verdict;
-    const input = /** @type {Record<string, unknown>} */ (e.input ?? {});
-    const root = await storeRootOf($);
-    if (!root) return verdict;
-    const real = await placed($, input.file_path ?? input.notebook_path ?? input.path);
-    const inside = real !== undefined && (real === root || real.startsWith(root + separatorOf(root)));
-    return inside ? { decision: /** @type {const} */ ("allow"), reason: STORE_REASON } : verdict;
-  });
+    if (!enabled) return verdict;
+    return gated($, e, await storeAllowed($, e, verdict));
+  }).catch(async ($, e, next) =>
+    // A gate that fails is open under warn, as its sensor is, and closed under block (section 5).
+    Object.values(gateModes).includes("block")
+      ? { decision: /** @type {const} */ ("deny"), reason: "Freeflow's gates could not decide this call; try again." }
+      : next(e),
+  );
 
   on("session.compact", async ($, e, next) => {
     if (e.trigger === "precompute" || !enabled) return next(e);
@@ -1066,6 +1720,22 @@ export function register(on) {
     }
     return next(e);
   });
+}
+
+/**
+ * The store's allow: a file tool's ask on a path that really lands inside the store becomes an allow.
+ * @param {any} $
+ * @param {any} e
+ * @param {{ decision: string, reason?: string }} verdict
+ */
+async function storeAllowed($, e, verdict) {
+  if (verdict.decision !== "ask" || !FILE_TOOLS.has(e.tool)) return verdict;
+  const input = /** @type {Record<string, unknown>} */ (e.input ?? {});
+  const root = await storeRootOf($);
+  if (!root) return verdict;
+  const real = await placed($, input.file_path ?? input.notebook_path ?? input.path);
+  const inside = real !== undefined && (real === root || real.startsWith(root + separatorOf(root)));
+  return inside ? { decision: /** @type {const} */ ("allow"), reason: STORE_REASON } : verdict;
 }
 
 /**

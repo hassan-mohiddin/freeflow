@@ -8,11 +8,10 @@ import { RequestHistory } from "./host/request-history.js";
 import { registerProviderSupport } from "./provider-support/index.js";
 import { CacheHealth } from "./provider-support/cache/health.js";
 import { CacheMonitor } from "./provider-support/cache/monitor.js";
-import { RoutingRuntime } from "./cognitive-routing/runtime.js";
-import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing/tools.js";
 import { handleFreeflowCommand } from "./host/settings/freeflow-command.js";
 import { toolExecutionSections, toolExecutionTail } from "./tool-execution/prompt.js";
 import { FileTracking, withLines } from "./tool-execution/file-tracking.js";
+import { GateRuntime } from "./gates/runtime.js";
 import { GuidanceNotices } from "./tool-execution/guidance-notices.js";
 import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
@@ -29,7 +28,14 @@ import { currentSections, headSections, keepSections } from "./host/section-keep
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController, RECOVERY_TYPE, USER_REQUEST, type TurnEnd } from "./compaction/controller.js";
 import { strictest } from "./compaction/thresholds.js";
-import { StoreLayer, scriptRunner, sessionEnvironment, touchesStore } from "./store/layer.js";
+import {
+  StoreLayer,
+  keepStartLedger,
+  readStartLedger,
+  scriptRunner,
+  sessionEnvironment,
+  touchesStore,
+} from "./store/layer.js";
 import { EventRecorder, type ClaimInputs } from "./events/recorder.js";
 import { DEFAULT_INBOUND_POLICY } from "./messaging/config.js";
 import { MESSAGE_TYPE, Messaging } from "./messaging/messaging.js";
@@ -49,16 +55,10 @@ import {
   STABLE_FREEFLOW_SURFACE,
   skillPrompt,
 } from "./host/catalog.js";
-import {
-  readCapabilityState,
-  restoreSessionOverrides,
-  setSessionCoreOverride,
-  writeStagedSessionOverrides,
-} from "./host/config.js";
+import { readCapabilityState, restoreSessionOverrides, writeStagedSessionOverrides } from "./host/config.js";
 import {
   getRuntimeContext,
   hasUsableMandatoryPrompts,
-  isPromptAvailable,
   refreshRuntimeContext,
   stableRuntimeContext,
 } from "./host/prompts.js";
@@ -71,8 +71,9 @@ const COMPACTION_NOTICE_TYPE = "freeflow-compaction-notice";
 const COMPACT_REQUEST_TYPE = "freeflow-compaction-request";
 // The Freeflow store's menu and rules at session start, or what keeps the session from a store.
 const STORE_TYPE = "freeflow-store";
+const MID_SESSION =
+  "Freeflow started mid-session: its session start did not run in this session, so what it gives a session at its start follows now.";
 
-/** Estimated size of the full native history plus the system prompt: what a request without projection carries. */
 /**
  * The context a turn ended with, as Pi estimates it: the turn's own usage plus the tool results after it. Pi's
  * getContextUsage rebuilds the session projection to find the same numbers. Undefined when the turn has no usable usage
@@ -88,47 +89,8 @@ function turnContextTokens(turn: TurnEnd | undefined): number | undefined {
   );
 }
 
-/** Entry types that add no message to Pi's session projection. */
 /** The sections Freeflow sets: its own, and Pi's rules and docs, which Tool Execution changes. */
 const OWN_SECTION_NAMES = ["freeflow_guidance", "environment", "tool_execution", "rules", "docs"];
-const NO_MESSAGE = new Set(["custom", "label", "session_info", "model_change", "thinking_level_change"]);
-const historyEstimate = new WeakMap<object, { branch: readonly any[]; tokens: number }>();
-
-/**
- * The full history's size, as every message's estimate plus the system prompt. Kept per session and extended by the
- * messages appended since, because the branch only grows between compactions; a compaction, summary or custom
- * message (which Pi's projection may place or replace) recomputes it from Pi's projection.
- */
-function fullHistoryTokens(ctx: any): number {
-  const manager = ctx.sessionManager;
-  const system = Math.ceil((ctx.getSystemPrompt?.() ?? "").length / 4);
-  if (!manager?.buildSessionProjection) return system;
-  const branch = cachedBranch(manager);
-  const previous = historyEstimate.get(manager);
-  let tokens: number | undefined;
-  if (previous && branch === previous.branch) tokens = previous.tokens;
-  else if (
-    previous &&
-    previous.branch.length > 0 &&
-    branch.length >= previous.branch.length &&
-    branch[previous.branch.length - 1] === previous.branch.at(-1)
-  ) {
-    const added = branch.slice(previous.branch.length);
-    if (added.every((entry) => entry.type === "message" || NO_MESSAGE.has(entry.type)))
-      tokens = added.reduce(
-        (sum: number, entry: any) => sum + (entry.type === "message" ? estimateTokens(entry.message) : 0),
-        previous.tokens,
-      );
-  }
-  const counted =
-    tokens ??
-    (manager.buildSessionProjection()?.messages ?? []).reduce(
-      (sum: number, message: any) => sum + estimateTokens(message),
-      0,
-    );
-  historyEstimate.set(manager, { branch, tokens: counted });
-  return counted + system;
-}
 /**
  * Send a skill command's prompt as the user's message. A command can run while Pi is busy, which from Pi 1.2.0 includes
  * the start of a run (before_agent_start); Pi then refuses a user message without `deliverAs`, so it is queued to
@@ -159,7 +121,7 @@ async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, s
   sendSkillPrompt(pi, skill, args);
 }
 
-function freeflowCompletions(prefix: string | undefined, routingAvailable: boolean) {
+function freeflowCompletions(prefix: string | undefined) {
   const query = prefix ?? "";
   const choices = query.startsWith("settings ")
     ? [
@@ -167,28 +129,14 @@ function freeflowCompletions(prefix: string | undefined, routingAvailable: boole
         ["settings local", "local", "Edit personal overrides for this repository"],
         ["settings repo", "repo", "Edit shared repository settings"],
       ]
-    : query.startsWith("profile ") && routingAvailable
-      ? [
-          ["profile coordinator", "coordinator", "Hold Coordinator manually"],
-          ["profile helper", "helper", "Hold Helper manually when enabled"],
-          ["profile executor", "executor", "Hold Executor manually when enabled"],
-          ["profile auto", "auto", "Return to automatic Coordinator reconciliation"],
-          ["profile history", "history", "Read routing observations"],
-        ]
-      : [
-          ["settings", "settings", "Open settings; Tab switches Session, Personal and Repository"],
-          ["status", "status", "Show effective Freeflow state"],
-          ["capabilities", "capabilities", "What Freeflow can do in this session, and the event log"],
-          ["compact", "compact", "Prepare, compact and recover now"],
-          ...(routingAvailable
-            ? [
-                ["profile", "profile", "Hold or release Cognitive Routing profile control"],
-                ["resume", "resume", "Resume the current saved routing responsibility"],
-              ]
-            : []),
-          ["enable", "enable", "Enable Freeflow for this repository"],
-          ["disable", "disable", "Disable Freeflow for this repository"],
-        ];
+    : [
+        ["settings", "settings", "Open settings; Tab switches Session, Personal and Repository"],
+        ["status", "status", "Show effective Freeflow state"],
+        ["capabilities", "capabilities", "What Freeflow can do in this session, and the event log"],
+        ["compact", "compact", "Prepare, compact and recover now"],
+        ["enable", "enable", "Enable Freeflow for this repository"],
+        ["disable", "disable", "Disable Freeflow for this repository"],
+      ];
   return choices
     .filter(([value]) => value.startsWith(query))
     .map(([value, label, description]) => ({ value, label, description }));
@@ -198,19 +146,16 @@ export default function freeflow(pi: FreeflowAPI) {
   // Cache diagnostics are reported to /freeflow status; the footer only shows current settings.
   const cacheMonitor = new CacheMonitor();
   // Only an explicit master-switch disable turns provider support off; unconfigured repositories keep it.
-  const providerSupport = registerProviderSupport(
-    pi,
-    () => !(capability?.configured === true && capability.enabled === false),
-    cacheMonitor,
-  );
+  registerProviderSupport(pi, () => !(capability?.configured === true && capability.enabled === false), cacheMonitor);
   const api = pi as any;
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-  const routing = new RoutingRuntime(api, [packageRoot]);
   // The Freeflow store's layer: Track Work's script on Pi's events, as the Claude Code mod is on Claude Code's.
   const runScript = scriptRunner(packageRoot);
   const store = new StoreLayer(runScript);
   // The event log and the claims (SPEC-006): written off the request path, when a run settles and at shutdown.
   const events = new EventRecorder(runScript);
+  // The gates (SPEC-008): Track Work's gates5.mjs on each tool call, from the session's gate state kept in memory.
+  const gates = new GateRuntime(packageRoot);
   const version = (() => {
     try {
       return JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")).version as string | undefined;
@@ -222,7 +167,6 @@ export default function freeflow(pi: FreeflowAPI) {
     enabled: capability?.enabled === true,
     events: capability?.events?.enabled === true,
     compaction: capability?.compaction?.effective === true,
-    routing: capability?.cognitiveRouting?.effective === true,
     messaging: capability?.messaging?.effective === true,
     askUser: capability?.askUser?.effective === true,
   });
@@ -232,10 +176,6 @@ export default function freeflow(pi: FreeflowAPI) {
     void events.writeClaims(claimInputs(), version);
   };
   const trackWork = `node ${resolve(packageRoot, "skills/track-work/scripts/working-record.mjs")}`;
-  // A Coordinator waiting on its worker will resume, so its prompt cache is worth keeping warm.
-  providerSupport.keepAlive.setHoldSource(() => routing.suspendedCoordinator());
-  // A worker may share the Coordinator's model; each profile keeps its own warmed request.
-  providerSupport.keepAlive.setRequesterSource(() => routing.observationScope().profile);
   const requestHistory = new RequestHistory(api, cacheMonitor);
   // Where the Freeflow Runtime State was last placed on paths that bypass request history.
   const runtimeStateAnchor: RuntimeStateAnchor = {};
@@ -257,6 +197,10 @@ export default function freeflow(pi: FreeflowAPI) {
   // Whether the session has had a prompt. Pi before 1.2.0 builds the system prompt only for prompts, so until then a
   // turn Freeflow started for a notice would reach the model with none: notices wait for the user's first prompt.
   let prompted = false;
+  // Whether before_agent_start prepared the run about to start, and whether a run started that nothing prepared and
+  // whose first message has not been seen yet (an extension's message on Pi before 1.2.0).
+  let runPrepared = false;
+  let runUnprepared = false;
   const files = new FileTracking();
   const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
   const guidance = new GuidanceNotices(packageRoot);
@@ -271,17 +215,8 @@ export default function freeflow(pi: FreeflowAPI) {
   // Skills already read, as the Runtime State lists them: taken only where the state refreshes anyway (run
   // boundaries, settings changes, compaction, navigation), so a skill read mid-run adds no state message.
   let stateSkills: string[] = [];
-  // Pi's event contexts read the host model and effort live. Its interactive shortcut contexts copy them at the
-  // key press, so after a switch they still name the previous model; routing must never judge a switch by them.
+  // The context of the latest session start: Pi's UI and idle state for work that runs outside an event.
   let liveHost: any;
-  const withLiveModel = (ctx: any) =>
-    Object.defineProperties(
-      { ...ctx },
-      {
-        model: { enumerable: true, get: () => liveHost?.model ?? ctx.model },
-        thinkingLevel: { enumerable: true, get: () => api.getThinkingLevel?.() ?? ctx.thinkingLevel },
-      },
-    );
   let surfaceGeneration = 0;
 
   const unavailable = (state: any, message: string) => ({
@@ -295,63 +230,32 @@ export default function freeflow(pi: FreeflowAPI) {
     const loaded = await getRuntimeContext(STABLE_FREEFLOW_SURFACE);
     if (generation !== surfaceGeneration) throw new Error("Discarded surface preparation for a replaced session.");
     if (!hasUsableMandatoryPrompts(loaded)) {
-      for (const key of ["cognitiveRouting", "toolExecution"] as const)
-        next[key] = unavailable(next[key], "Mandatory Freeflow prompts are unavailable.");
+      next.toolExecution = unavailable(next.toolExecution, "Mandatory Freeflow prompts are unavailable.");
     }
-    if (next.cognitiveRouting.effective && !isPromptAvailable(loaded.cognitiveRoutingPrompt))
-      next.cognitiveRouting = unavailable(next.cognitiveRouting, "Routing bootstrap cue is unavailable.");
     capability = next;
     prompts = loaded;
     syncClaims();
     return next;
   }
   function status(ctx: any) {
-    applyRoutingToolVisibility(api, routing, capability?.cognitiveRouting?.effective === true);
     applyToolExecutionTools(api, toolExecutionEffective());
     applyAskUserTool(api, askUserEffective());
     applyMessagingTools(api, messagingEffective());
     syncMessaging(ctx);
-    setFreeflowStatus(ctx, capability, routing.state(), prompts, { task: store.heldTask() });
+    setFreeflowStatus(ctx, capability, prompts, { task: store.heldTask() });
   }
-  // Control and setting changes made between prompts are staged; their net effect is written as a prompt starts.
-  function writeStagedControl(ctx: any) {
-    const staged = takeStage(ctx.sessionManager);
-    routing.writeStaged(staged.events);
-    writeStagedSessionOverrides(staged.overrides, api, ctx.sessionManager);
+  // Setting changes made between prompts are staged; their net effect is written as a prompt starts.
+  function writeStagedSettings(ctx: any) {
+    writeStagedSessionOverrides(takeStage(ctx.sessionManager).overrides, api, ctx.sessionManager);
   }
   async function update(ctx: any) {
-    const next = await loadSurface(ctx);
-    await routing.refresh(ctx, next.cognitiveRouting);
+    await loadSurface(ctx);
     status(ctx);
     refreshState = true;
-    // The Coordinator's projected view may lack reads the full history holds, and every profile shares the state.
-    stateSkills = toolExecutionEffective() && !routing.projectionEnabled ? files.loadedSkills(ctx) : [];
-  }
-  /**
-   * Turn Cognitive Routing on for this session when it is off: clear a session "off" (such as the one an outside model
-   * change sets), and switch it on for the session if configuration leaves it off. Re-enabling hands control to the
-   * automatic Coordinator. Configuration that still blocks routing (no profiles, invalid presets) is reported by the
-   * control that follows.
-   */
-  async function turnRoutingOn(ctx: any) {
-    if (capability?.cognitiveRouting?.effective === true || ctx.isIdle?.() === false) return;
-    if (capability?.cognitiveRouting?.enabledSource === "session")
-      await setSessionCoreOverride("cognitiveRouting.enabled", null, ctx, api);
-    if ((await readCapabilityState(ctx.cwd, ctx)).cognitiveRouting?.enabled !== true)
-      await setSessionCoreOverride("cognitiveRouting.enabled", true, ctx, api);
-    await update(ctx);
+    stateSkills = toolExecutionEffective() ? files.loadedSkills(ctx) : [];
   }
 
-  registerRoutingTools(api, routing);
-  registerAskUserTool(api, {
-    // Under automatic routing only the Coordinator talks to the user; a worker returns the choice in its report.
-    refusal: () => {
-      const scope = routing.observationScope();
-      return scope.control === "automatic" && (scope.profile === "helper" || scope.profile === "executor")
-        ? "A Cognitive Routing worker does not ask the user. Put the choice, its options and your recommendation in your report (return_work); the Coordinator asks."
-        : undefined;
-    },
-  });
+  registerAskUserTool(api);
   registerApplyPatch(api, {
     effective: toolExecutionEffective,
     files: (ctx) => files.forPatch(ctx),
@@ -399,11 +303,6 @@ export default function freeflow(pi: FreeflowAPI) {
   registerBackgroundTools(api, background, backgroundHost);
   const compaction = new CompactionController({
     effective: compactionEffective,
-    routingProfile: () => {
-      const state = routing.state();
-      return state.effective ? state.activeProfile : undefined;
-    },
-    routingAssignment: () => routing.currentAssignment(),
     background: () => background.running().map(({ id, label, outputPath }) => ({ id, label, outputPath })),
     notice: (text: string) => freeflowNotice("compaction", text),
     store: {
@@ -414,11 +313,6 @@ export default function freeflow(pi: FreeflowAPI) {
       answered: () => store.answered(),
       command: () => trackWork,
     },
-    coordinatorUnderProjection: () =>
-      capability?.cognitiveRouting?.effective === true &&
-      capability.cognitiveRouting.projection === true &&
-      routing.state().effective === true &&
-      routing.state().activeProfile === "coordinator",
     summarize: async (preparation: any, instructions: string, signal: AbortSignal | undefined, ctx: any) => {
       const auth = await ctx.modelRegistry?.getApiKeyAndHeaders?.(ctx.model);
       if (!ctx.model || !auth?.ok) throw new Error("No request auth for the summarizer");
@@ -436,23 +330,9 @@ export default function freeflow(pi: FreeflowAPI) {
       );
     },
     measure: (ctx: any, turn?: TurnEnd) => {
-      // Every model that may receive the full history: the active one and, under routing, each profile's.
-      const routingCapability = capability?.cognitiveRouting;
-      const models = [ctx.model];
-      if (routingCapability?.effective)
-        for (const profile of Object.values(routingCapability.profiles ?? {}) as any[])
-          models.push(ctx.modelRegistry?.find?.(profile.provider, profile.model));
-      const limits = strictest(models, api.getSettings?.());
+      const limits = strictest([ctx.model], api.getSettings?.());
       if (!limits) return undefined;
-      let tokens = turnContextTokens(turn) ?? ctx.getContextUsage?.()?.tokens ?? 0;
-      // A Coordinator under projection sends a reduced view; the next worker request carries the whole history.
-      if (
-        routingCapability?.effective &&
-        routingCapability.projection &&
-        routing.state().activeProfile === "coordinator"
-      )
-        tokens = Math.max(tokens, fullHistoryTokens(ctx));
-      return { tokens, thresholds: limits };
+      return { tokens: turnContextTokens(turn) ?? ctx.getContextUsage?.()?.tokens ?? 0, thresholds: limits };
     },
   });
   /**
@@ -462,6 +342,7 @@ export default function freeflow(pi: FreeflowAPI) {
    */
   const storeStart = async (ctx: any, reason: string | undefined, generation: number) => {
     const held = store.heldTask();
+    const session = ctx.sessionManager?.getSessionId?.();
     try {
       if (reason === "reload") await store.refresh();
       else {
@@ -480,11 +361,47 @@ export default function freeflow(pi: FreeflowAPI) {
               { deliverAs: "nextTurn" },
             ),
           );
+        // The start's steps are done: a reload of this session reads that and gives the menu no second time.
+        if (session) await keepStartLedger(freeflowHome(), session).catch(() => {});
       }
+      // Session status and the take-back wrote the gate state; read it now, once.
+      if (generation === surfaceGeneration) await gates.refresh({ settled: true });
       // The footer names the held task; refreshed only when it changed, since a refresh costs a branch walk.
       if (generation === surfaceGeneration && store.heldTask() !== held) status(ctx);
     } catch {
       // The store is optional: without one, compaction works through the session summary (P4).
+    }
+  };
+  /**
+   * Freeflow arriving mid-session (SPEC-013): a session whose start ran without Freeflow (a reload that brings it in,
+   * `enabled` switched on later) has not had the store's pull and menu, which its session-start ledger says. The next
+   * run's start catches up, once, with the menu as the run's message; a try that fails is logged and made once more.
+   */
+  let startState: "done" | "due" | "running" = "due";
+  let startFailures = 0;
+  const catchUp = async (ctx: any): Promise<string | undefined> => {
+    if (startState !== "due" || capability?.enabled !== true) return undefined;
+    startState = "running";
+    const session = ctx.sessionManager?.getSessionId?.();
+    const held = store.heldTask();
+    try {
+      const home = freeflowHome();
+      if (session && (await readStartLedger(home, session))?.steps.menu) {
+        startState = "done";
+        return undefined;
+      }
+      const text = await store.start(ctx.cwd, [ctx.cwd, dirname(ctx.cwd), packageRoot]);
+      if (!store.current()) throw new Error("session status could not be read");
+      if (session) await keepStartLedger(home, session).catch(() => {});
+      events.freeflow("menu", "mid-session: sync, menu");
+      startState = "done";
+      if (store.heldTask() !== held) status(ctx);
+      return text ? `${MID_SESSION}\n\nFreeflow task memory:\n${text}` : undefined;
+    } catch (error) {
+      startFailures += 1;
+      events.freeflow("menu", `mid-session, menu failed: ${error instanceof Error ? error.message : String(error)}`);
+      startState = startFailures < 2 ? "due" : "done";
+      return undefined;
     }
   };
   /** `/freeflow capabilities`: Setup Freeflow's capabilities.mjs, the listing the agent reads too (section 4.6). */
@@ -632,7 +549,6 @@ export default function freeflow(pi: FreeflowAPI) {
     resetHistory();
     // Where Pi has just parsed this session file, later checks read only the bytes appended since.
     trustStartedSession((event as any)?.reason, ctx.sessionManager);
-    routing.unbind();
     capability = undefined;
     prompts = undefined;
     refreshState = true;
@@ -652,10 +568,15 @@ export default function freeflow(pi: FreeflowAPI) {
       window: ctx.model?.contextWindow,
     });
     events.begin(ctx.sessionManager?.getSessionId?.(), capability?.events?.enabled === true);
+    // The gate state as it stands, read now; storeStart reads it again once session status has written it.
+    gates.begin(ctx.sessionManager?.getSessionId?.());
+    await gates.refresh();
     events.sessionStarted((event as any)?.reason, ctx.hasUI !== false);
     syncClaims();
+    // A reload keeps the session, whose ledger says whether its start had the store's menu (SPEC-013).
+    startState = capability?.enabled === true && (event as any)?.reason !== "reload" ? "done" : "due";
+    startFailures = 0;
     if (capability?.enabled === true) void storeStart(ctx, (event as any)?.reason, generation);
-    await routing.bind(ctx, capability.cognitiveRouting, (event as any)?.reason !== "reload");
     status(ctx);
   });
   pi.on("session_shutdown", async (event) => {
@@ -677,47 +598,45 @@ export default function freeflow(pi: FreeflowAPI) {
     stateSkills = [];
     compaction.reset();
     resetHistory();
-    routing.unbind();
     capability = undefined;
     prompts = undefined;
   });
   pi.on("before_agent_start", async (event, ctx) => {
     // Pi 1.2.0 and later fire this for a run an extension's message starts too (messageType "custom").
     const fromMessage = (event as any).messageType === "custom";
+    runPrepared = true;
     await update(ctx);
-    try {
-      await routing.beforeRun(ctx, fromMessage ? "message" : "prompt");
-    } finally {
-      // Pi reports a handler error and still sends the prompt, so the fixed guidance section and the staged
-      // control must never be skipped: a missing section would change the cached prompt head.
-      // After the run's own reconciliation, so everything staged lands ahead of the prompt in one pass.
-      writeStagedControl(ctx);
-      status(ctx);
-      // Pi 0.87 records changed sections at their native transcript position.
-      // Returning systemPrompt would force one replacement head for every request.
-      const sections = event.systemPromptOptions.sections;
-      const toolExecution = capability?.toolExecution?.effective === true;
-      // Pi's own sections are replaced in place. Freeflow's are re-inserted at the end in a fixed order: its guidance,
-      // then Tool Execution's environment facts and guidance.
-      if (toolExecution)
-        Object.assign(sections, toolExecutionSections(event.systemPrompt, api.getSettings?.()?.shellPath));
-      for (const name of ["freeflow_guidance", "environment", "tool_execution"]) delete sections[name];
-      // Nothing of Freeflow while it is disabled or unconfigured (Task 003 D-002).
-      if (capability?.enabled === true && hasUsableMandatoryPrompts(prompts))
-        sections.freeflow_guidance = stableRuntimeContext(prompts, {
-          routing: capability?.cognitiveRouting?.effective === true,
-          prompts: capability?.prompts,
-        });
-      if (toolExecution)
-        Object.assign(sections, toolExecutionTail(api.getSettings?.()?.shellPath, prompts?.toolExecutionPrompt));
-      // What Freeflow set, so requests of runs an extension's message starts keep it (host/section-keeper.ts).
-      ownNames = OWN_SECTION_NAMES.filter(
-        (name) => (toolExecution || (name !== "rules" && name !== "docs")) && typeof sections[name] === "string",
-      );
-      promptRun = !fromMessage;
-      messageRun = fromMessage;
-      prompted = true;
-    }
+    // The fixed guidance section and the staged settings: a missing section would change the cached prompt head.
+    writeStagedSettings(ctx);
+    status(ctx);
+    // Pi 0.87 records changed sections at their native transcript position.
+    // Returning systemPrompt would force one replacement head for every request.
+    const sections = event.systemPromptOptions.sections;
+    const toolExecution = capability?.toolExecution?.effective === true;
+    // Pi's own sections are replaced in place. Freeflow's are re-inserted at the end in a fixed order: its guidance,
+    // then Tool Execution's environment facts and guidance.
+    if (toolExecution)
+      Object.assign(sections, toolExecutionSections(event.systemPrompt, api.getSettings?.()?.shellPath));
+    for (const name of ["freeflow_guidance", "environment", "tool_execution"]) delete sections[name];
+    // Nothing of Freeflow while it is disabled or unconfigured (Task 003 D-002).
+    if (capability?.enabled === true && hasUsableMandatoryPrompts(prompts))
+      sections.freeflow_guidance = stableRuntimeContext(prompts, { prompts: capability?.prompts });
+    if (toolExecution)
+      Object.assign(sections, toolExecutionTail(api.getSettings?.()?.shellPath, prompts?.toolExecutionPrompt));
+    // What Freeflow set, so requests of runs an extension's message starts keep it (host/section-keeper.ts).
+    ownNames = OWN_SECTION_NAMES.filter(
+      (name) => (toolExecution || (name !== "rules" && name !== "docs")) && typeof sections[name] === "string",
+    );
+    promptRun = !fromMessage;
+    messageRun = fromMessage;
+    prompted = true;
+    // Freeflow arrived after this session's start: what its start would have given, as this run's message; a files
+    // notice waits for the next run.
+    const caught = startState === "due" ? await catchUp(ctx) : undefined;
+    if (caught)
+      return {
+        message: { customType: STORE_TYPE, content: freeflowNotice("store", caught), display: true, details: {} },
+      };
     // Like Claude Code's next-turn reminder: files the model read that changed while it was not running a tool.
     const changed = toolExecutionEffective() ? await files.changedNotice(ctx, false) : undefined;
     if (changed)
@@ -725,7 +644,8 @@ export default function freeflow(pi: FreeflowAPI) {
   });
   pi.on("agent_start", () => {
     events.runStarted();
-    routing.runStarted();
+    runUnprepared = !runPrepared;
+    runPrepared = false;
     guidance.runStarted();
     agentRunning = true;
     if (messaging.running()) void messaging.setBusy(true).catch(() => {});
@@ -739,7 +659,6 @@ export default function freeflow(pi: FreeflowAPI) {
       message.usage &&
       message.stopReason !== "error"
     ) {
-      const scope = routing.observationScope();
       const lifetime = ctx.model?.promptCache?.[process.env.PI_CACHE_RETENTION === "long" ? "long" : "short"];
       const warning = cacheHealth.observe({
         provider: message.provider,
@@ -749,20 +668,18 @@ export default function freeflow(pi: FreeflowAPI) {
         input: message.usage.input ?? 0,
         cacheRead: message.usage.cacheRead ?? 0,
         cacheWrite: message.usage.cacheWrite ?? 0,
-        ...(scope.control === "automatic" && scope.profile !== "solo" ? { lane: scope.profile } : {}),
         ...(typeof lifetime === "number" ? { ttlMs: lifetime * 1000 } : {}),
       });
       if (warning) ctx.ui?.notify?.(warning, "warning");
     }
-    routing.messageEnd((event as any).message);
     // A run started by an extension's message (a background notice, for one) gets the same preparation as a prompt.
     // Pi 1.2.0 and later prepare it through before_agent_start; this covers earlier Pi, which skips that event there.
-    if (routing.startedByMessage((event as any).message)) {
-      await update(ctx);
-      try {
-        await routing.beforeRun(ctx, "late");
-      } finally {
-        writeStagedControl(ctx);
+    // A retry's run starts with no message and is left as is.
+    if (runUnprepared) {
+      runUnprepared = false;
+      if (message?.role === "custom") {
+        await update(ctx);
+        writeStagedSettings(ctx);
         status(ctx);
       }
     }
@@ -776,11 +693,22 @@ export default function freeflow(pi: FreeflowAPI) {
       /working-record\.mjs\s+(checkpoint|task\s+(release|switch))\b/.test(String((event.input as any)?.command ?? ""))
     )
       await events.flush();
-    const gate = routing.preflight(event, ctx);
-    if ((gate as any)?.block || !toolExecutionEffective()) return gate;
+    // The gates (SPEC-008 4.3), before Freeflow's other checks: warn adds a row to the result, block refuses, and a
+    // delivery step under block asks the person where Pi has a screen.
+    if (capability?.gates) {
+      const gated = gates.check(event as any, ctx.cwd, capability.gates, ctx.hasUI === true);
+      if (gates.missingOnce()) events.freeflow("gates", "no gate state for this session");
+      for (const fired of gated.fired) events.emit("gate", gates.eventFields(fired, event.toolName));
+      if (gated.kind === "block") return { block: true, reason: gated.reason };
+      if (gated.kind === "ask") {
+        const yes = await Promise.resolve(ctx.ui.confirm("Freeflow gate", gated.reason)).catch(() => false);
+        if (!yes) return { block: true, reason: gated.reason };
+      }
+    }
+    if (!toolExecutionEffective()) return undefined;
     const refusal = event.toolName === "bash" ? backgroundRefusal((event.input as any)?.command) : undefined;
     if (refusal) return { block: true, reason: refusal };
-    return (await files.toolCall(event, ctx)) ?? gate;
+    return files.toolCall(event, ctx);
   });
   pi.on("tool_result", async (event, ctx) => {
     // Freeflow's own: a command that runs a script from Freeflow's package, or a file tool in the store (Part 8).
@@ -794,6 +722,8 @@ export default function freeflow(pi: FreeflowAPI) {
     // After the agent ran Track Work's script, the held task may have changed: read it off the request path, for the
     // footer and the notice.
     if (event.toolName === "bash" && String((event.input as any)?.command ?? "").includes("working-record.mjs")) {
+      // A lifecycle command may have written the gate state: read it again (one small file) before the next call.
+      await gates.refresh();
       const held = store.heldTask();
       void store
         .refresh()
@@ -802,17 +732,22 @@ export default function freeflow(pi: FreeflowAPI) {
         })
         .catch(() => {});
     }
-    if (!toolExecutionEffective()) return undefined;
+    // The gates' warning rows for this call, once per gate per turn (SPEC-008 4.3).
+    const gateRows = gates.takeRows((event as any).toolCallId);
+    if (!toolExecutionEffective())
+      return gateRows.length ? { content: withLines(event.content ?? [], gateRows) } : undefined;
     const shaped = await files.toolResult(event, ctx);
     // The push retriever's notice joins the result before it is delivered, after anything Tool Execution added.
     const executeWorkUnread = () =>
       !(capability?.skills?.off ?? []).includes("execute-work") && !files.loadedSkills(ctx).includes("execute-work");
-    const lines = guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd, executeWorkUnread) : [];
+    const lines = [
+      ...(guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd, executeWorkUnread) : []),
+      ...gateRows,
+    ];
     return lines.length ? { content: withLines(shaped?.content ?? event.content ?? [], lines) } : shaped;
   });
   pi.on("turn_end", async (event, ctx) => {
     events.turnEnd((event.message as any)?.stopReason);
-    await routing.turnEnd(event, ctx);
     files.clearPending();
     status(ctx);
     // The run's last turn, one with no tool calls: after a run that touched the store, the store is read again and
@@ -842,6 +777,7 @@ export default function freeflow(pi: FreeflowAPI) {
   // A Freeflow compaction fires no session_compact, so its resets run here, before the new cycle's first request.
   pi.on("turn_start", async (_event, ctx) => {
     events.turnStart();
+    gates.turnStart();
     const compacted = compaction.takeCompacted();
     if (!compacted) return;
     // File state first, so the state restore refreshes lists no skill from before the compaction.
@@ -855,17 +791,11 @@ export default function freeflow(pi: FreeflowAPI) {
     messageRun = false;
     agentRunning = false;
     if (messaging.running()) await messaging.setBusy(false).catch(() => {});
-    await routing.settled(ctx);
     await update(ctx);
   });
-  // A model or effort picked in Pi itself (/model, Shift+Tab) ends automatic routing. Routing then turns off for this
-  // session through its Session switch, so settings and the footer show it off, and any routing control turns it on.
+  // A model or effort picked in Pi itself (/model, Shift+Tab) starts a new back-to-back run for cache health.
   const externalChange = async (ctx: any) => {
     cacheHealth.noteSwitch();
-    if (await routing.nativeChange(ctx)) {
-      await setSessionCoreOverride("cognitiveRouting.enabled", false, ctx, api);
-      await update(ctx);
-    }
     status(ctx);
   };
   pi.on("model_select", async (_event, ctx) => {
@@ -874,7 +804,7 @@ export default function freeflow(pi: FreeflowAPI) {
   });
   pi.on("thinking_level_select", async (_event, ctx) => externalChange(ctx));
   pi.on("context_with_system", async (event, ctx) => {
-    writeStagedControl(ctx);
+    writeStagedSettings(ctx);
     if (!capability) await loadSurface(ctx);
     // Entry identity lets attribution and request history skip hashing unchanged native history.
     tagProjectedMessages(
@@ -929,28 +859,13 @@ export default function freeflow(pi: FreeflowAPI) {
     let messages = keepSections(event.messages, ownSections, ownSectionsVersion, ownHead)
       .map(filterBootstrapMessage)
       .filter(Boolean);
-    messages = withFreeflowRuntimeState(messages, capability, routing.state(), prompts, {
+    messages = withFreeflowRuntimeState(messages, capability, prompts, {
       force: refreshState,
       anchor: runtimeStateAnchor,
-      projectionFailure: routing.state().projectionFailure,
       skills: stateSkills,
     });
     refreshState = false;
-    // Disabled Freeflow pays no per-request provenance work; re-enabling rebuilds it from session history.
-    const projected = capability?.enabled === true ? await routing.context(ctx, messages) : messages;
-    const state = routing.state();
-    if (projected.some((message) => message.details?.routingRequestBlocked === true)) {
-      // Routing must not expose hidden worker history on failure, but Pi's full-
-      // transcript hook still requires the leading system prompt/tool state.
-      const head = event.messages[0]?.role === "system" ? [event.messages[0]] : [];
-      return { messages: [...head, ...projected] };
-    }
-    const view = routing.projectionEnabled && state.activeProfile === "coordinator" ? "coordinator" : "ordinary";
-    return {
-      messages: await requestHistory.assemble(projected, view, ctx, (assembled) =>
-        routing.budgetNotice(assembled, ctx),
-      ),
-    };
+    return { messages: await requestHistory.assemble(messages, ctx) };
   });
   const restore = async (ctx: any, navigation = true) => {
     cacheHealth.noteBreak();
@@ -959,7 +874,6 @@ export default function freeflow(pi: FreeflowAPI) {
     if (navigation) files.invalidate();
     restoreSessionOverrides(ctx);
     refreshState = true;
-    await routing.ancestryChanged(ctx, navigation);
     await update(ctx);
   };
   pi.on("session_tree", async (_event, ctx) => {
@@ -980,39 +894,6 @@ export default function freeflow(pi: FreeflowAPI) {
     status(ctx);
   });
 
-  if (
-    typeof pi.registerShortcut === "function" &&
-    typeof api.appendEntry === "function" &&
-    typeof api.setModel === "function" &&
-    typeof api.setThinkingLevel === "function"
-  ) {
-    pi.registerShortcut("ctrl+shift+r", {
-      description: "Cycle enabled Cognitive Routing manual holds",
-      handler: async (shortcutCtx) => {
-        const ctx = withLiveModel(shortcutCtx);
-        if (!ctx.isIdle()) {
-          ctx.ui.notify("Wait for Pi to become idle before changing control.", "warning");
-          return;
-        }
-        await turnRoutingOn(ctx);
-        ctx.ui.notify(JSON.stringify(await routing.cycleManualProfile()), "info");
-        await update(ctx);
-      },
-    });
-    pi.registerShortcut("ctrl+shift+a", {
-      description: "Turn Cognitive Routing on, or release a manual hold, to the automatic Coordinator",
-      handler: async (shortcutCtx) => {
-        const ctx = withLiveModel(shortcutCtx);
-        if (!ctx.isIdle()) {
-          ctx.ui.notify("Wait for Pi to become idle before changing control.", "warning");
-          return;
-        }
-        await turnRoutingOn(ctx);
-        ctx.ui.notify(JSON.stringify(await routing.setAutomaticControl()), "info");
-        await update(ctx);
-      },
-    });
-  }
   for (const { command, skill } of WORKFLOW_COMMANDS)
     pi.registerCommand(command, {
       description: command === skill ? `Run Freeflow ${skill}` : `Run Freeflow ${skill} via ${command}`,
@@ -1024,14 +905,8 @@ export default function freeflow(pi: FreeflowAPI) {
       handler: (args, ctx) => sendSkillCommand(pi, ctx, skill, args),
     });
   pi.registerCommand("freeflow", {
-    description: "Freeflow settings, status, profile control, and saved-operation resume",
-    getArgumentCompletions: (prefix) =>
-      freeflowCompletions(
-        prefix,
-        typeof api.appendEntry === "function" &&
-          typeof api.setModel === "function" &&
-          typeof api.setThinkingLevel === "function",
-      ),
+    description: "Freeflow settings, status, capabilities and compaction",
+    getArgumentCompletions: (prefix) => freeflowCompletions(prefix),
     handler: async (args, ctx) => {
       if ((args ?? "").trim().toLowerCase() === "capabilities") {
         ctx.ui.notify(await capabilitiesText(), "info");
@@ -1041,13 +916,7 @@ export default function freeflow(pi: FreeflowAPI) {
         await compactNow(ctx);
         return;
       }
-      // A routing control (a hold or `auto`) turns routing on first when it is off.
-      if (/^profile\s+(?!history\b)\S/i.test((args ?? "").trim())) await turnRoutingOn(ctx);
-      if (await routing.command(args ?? "", ctx)) {
-        await update(ctx);
-        return;
-      }
-      await handleFreeflowCommand(args, ctx, async () => update(ctx), pi, routing, {
+      await handleFreeflowCommand(args, ctx, async () => update(ctx), pi, {
         status: () => ({
           cacheHealth: [...cacheHealth.status(), ...cacheMonitor.lines()],
           backgroundRunning: background.running().length,

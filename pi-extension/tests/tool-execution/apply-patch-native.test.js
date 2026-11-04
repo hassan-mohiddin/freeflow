@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 import { withoutGuidanceNotices } from "../../dist/tool-execution/guidance-notices.js";
 import { APPLY_PATCH_LARK_GRAMMAR } from "../../dist/tool-execution/apply-patch/grammar.js";
 
-const on = { freeflowConfig: { toolExecution: { enabled: true } }, cognitiveRouting: { enabled: false } };
+const on = { freeflowConfig: { toolExecution: { enabled: true } } };
 const toolNamed = (body, name) => (body.tools ?? []).find((tool) => tool.name === name);
 
 test("apply_patch is declared only while Tool Execution is on, identically in every request", async () => {
@@ -29,7 +29,7 @@ test("apply_patch is declared only while Tool Execution is on, identically in ev
     false,
     async ({ requests }) => assert.equal(toolNamed(requests[0], "apply_patch"), undefined),
     true,
-    { freeflowConfig: { toolExecution: { enabled: false } }, cognitiveRouting: { enabled: false } },
+    { freeflowConfig: { toolExecution: { enabled: false } } },
   );
 });
 

@@ -4,16 +4,18 @@ import { persistedBranchMatches } from "./read-only-session.js";
 import { occurrenceIdentity } from "./projection-tags.js";
 import { cachedBranch as activeBranch } from "./branch.js";
 const ENTRY = "freeflow-request-history-v1";
+// The generated state Freeflow places in requests now, and the kinds older versions placed, which frames already
+// written in sessions may still carry and replay.
 const TRANSIENT = new Set([
   "freeflow-runtime-state",
-  "freeflow-cognitive-routing-runtime-state",
   "freeflow-routing-v2-state",
   "freeflow-routing-attention",
   "freeflow-routing-budget",
   "freeflow-routing-communication",
 ]);
-// Situational notices describe a condition, not standing state; once absent, the next occurrence is new.
-const SITUATIONAL = new Set(["freeflow-routing-attention"]);
+const LEGACY_RUNTIME_STATE = /^freeflow-[a-z0-9-]+-runtime-state$/;
+const transient = (type: unknown) =>
+  typeof type === "string" && (TRANSIENT.has(type) || LEGACY_RUNTIME_STATE.test(type));
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 /** Whole-message fingerprints computed so far; the request-path budget test counts them per request. */
 export const requestHistoryCounters = { fingerprints: 0 };
@@ -40,7 +42,7 @@ interface Frame {
   additions: Injection[];
 }
 function owned(message: any): boolean {
-  return message?.role === "custom" && TRANSIENT.has(message.customType);
+  return message?.role === "custom" && transient(message.customType);
 }
 function parse(value: any): Frame {
   if (
@@ -58,7 +60,7 @@ function parse(value: any): Frame {
     typeof value.states !== "object" ||
     Array.isArray(value.states) ||
     !Object.entries(value.states).every(
-      ([key, val]) => TRANSIENT.has(key) && typeof val === "string" && /^[a-f0-9]{64}$/.test(val),
+      ([key, val]) => transient(key) && typeof val === "string" && /^[a-f0-9]{64}$/.test(val),
     ) ||
     !Array.isArray(value.retained) ||
     !value.retained.every((x: any) => typeof x === "string") ||
@@ -138,28 +140,22 @@ export class RequestHistory {
     this.identity = undefined;
     this.fault = false;
   }
-  async assemble(messages: any[], view: string, ctx: any, notice?: (messages: any[]) => any): Promise<any[]> {
+  async assemble(messages: any[], ctx: any): Promise<any[]> {
     const revision = this.revision;
     const operation = this.serial.then(async () => {
       if (revision !== this.revision) return messages;
       try {
-        return await this.prepare(messages, view, ctx, revision, notice);
+        return await this.prepare(messages, ctx, revision);
       } catch {
         this.monitor?.set("context-replay", "Freeflow context replay unavailable · current view retained");
-        // Keep the already-qualified projected view on failure, never raw hidden history.
+        // Keep the request as Pi and Freeflow built it, without replayed generated state.
         return messages;
       }
     });
     this.serial = operation.catch(() => {});
     return operation;
   }
-  private async prepare(
-    messages: any[],
-    view: string,
-    ctx: any,
-    revision: number,
-    notice?: (messages: any[]) => any,
-  ): Promise<any[]> {
+  private async prepare(messages: any[], ctx: any, revision: number): Promise<any[]> {
     const reader = ctx.sessionManager;
     if (!reader?.getBranch || !reader.getLeafId || !reader.getSessionId || !this.pi.appendEntry) return messages;
     const identity = `${reader.getSessionId()}:${reader.getSessionFile?.() ?? "memory"}`;
@@ -249,9 +245,7 @@ export class RequestHistory {
       byId,
     };
     const base = messages.filter((m) => !owned(m));
-    const current = messages
-      .filter(owned)
-      .filter((message) => !notice || message.customType !== "freeflow-routing-budget");
+    const current = messages.filter(owned);
     const hashes = this.prefixes(base);
     const candidates = frames.filter((f) => f.generation === generation && hashes[f.length] === f.prefix);
     const prior = candidates.reduce<Frame | undefined>(
@@ -260,23 +254,13 @@ export class RequestHistory {
     );
     const states = { ...prior?.states },
       additions: Injection[] = [];
-    const seenRetained = new Set(prior?.retained ?? []);
     for (const message of current) {
       const signature = fingerprint(message),
         kind = message.customType;
-      if (kind === "freeflow-routing-communication" ? seenRetained.has(signature) : states[kind] === signature)
-        continue;
+      if (states[kind] === signature) continue;
       additions.push({ at: base.length, message: structuredClone(message) });
-      if (kind === "freeflow-routing-communication") seenRetained.add(signature);
-      else states[kind] = signature;
+      states[kind] = signature;
     }
-    const present = new Set(current.map((message) => message.customType));
-    let cleared = false;
-    for (const kind of SITUATIONAL)
-      if (states[kind] && !present.has(kind)) {
-        delete states[kind];
-        cleared = true;
-      }
     const injections: Injection[] = [];
     const chain: Frame[] = [];
     for (let cursor = prior; cursor; cursor = cursor.parent ? byId.get(cursor.parent) : undefined)
@@ -290,38 +274,21 @@ export class RequestHistory {
       if (i < base.length) result.push(base[i]);
     }
     if (next !== injections.length) throw new Error("Context anchor ordering differs");
-    if (notice) {
-      const warning = notice(result);
-      if (warning || states["freeflow-routing-budget"]) {
-        const message = warning ?? {
-          role: "custom",
-          customType: "freeflow-routing-budget",
-          display: false,
-          content: "Routing budget warning cleared for the current request.",
-          timestamp: 0,
-        };
-        const signature = fingerprint(message);
-        if (states[message.customType] !== signature) {
-          states[message.customType] = signature;
-          additions.push({ at: base.length, message });
-          result.push(message);
-        }
-      }
-    }
     // A frame that only advances the length adds no injection its parent lacks and matches no
     // branch its parent does not, so frames are written only when generated state changes.
-    if (!prior || additions.length || cleared) {
+    if (!prior || additions.length) {
       const frame: Frame = {
         version: 1,
         id: randomUUID(),
         basis: leaf,
-        view,
+        // One view since the Coordinator's projected view went; frames keep the field.
+        view: "ordinary",
         generation,
         length: base.length,
         prefix: hashes.at(-1)!,
         parent: prior?.id ?? null,
         states,
-        retained: [...seenRetained],
+        retained: prior?.retained ?? [],
         additions,
       };
       try {

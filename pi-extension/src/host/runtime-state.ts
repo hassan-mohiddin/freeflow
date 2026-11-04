@@ -8,73 +8,35 @@ import { hasUsableMandatoryPrompts } from "./prompts.js";
  */
 const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
 
-const COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-cognitive-routing-runtime-state";
+// Runtime State and bootstrap messages that older Freeflow versions sent or saved in sessions, under a feature's own
+// type (`freeflow-<feature>-runtime-state`, `freeflow-<feature>-bootstrap`) or as one `freeflow-bootstrap` naming its
+// components; they are never sent again.
+const LEGACY_RUNTIME_STATE = /^freeflow-[a-z0-9-]+-runtime-state$/;
+const LEGACY_BOOTSTRAP = /^freeflow-[a-z0-9-]+-bootstrap$/;
+const BOOTSTRAP_MARKER = /<!-- freeflow-bootstrap:[a-z0-9-]+ -->/;
 
-const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
-
-const COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE = "freeflow-cognitive-routing-bootstrap";
-
-const FREEFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-bootstrap";
-
-const BOOTSTRAP_COMPONENTS = Object.freeze({
-  workflow: "workflow",
-  cognitiveRouting: "cognitive-routing",
-});
-
-function bootstrapEntryComponents(entry: any) {
+function isLegacyBootstrap(entry: any) {
   const isCustomMessage = entry?.role === "custom" || entry?.type === "custom_message" || entry?.type === "custom";
-  if (!isCustomMessage) return [];
-  if (entry.customType === FREEFLOW_BOOTSTRAP_MESSAGE_TYPE) {
-    if (Array.isArray(entry.details?.components)) return entry.details.components;
-    return [
-      ...(entry.content?.includes("<!-- freeflow-bootstrap:workflow -->") ? [BOOTSTRAP_COMPONENTS.workflow] : []),
-      ...(entry.content?.includes("<!-- freeflow-bootstrap:cognitive-routing -->")
-        ? [BOOTSTRAP_COMPONENTS.cognitiveRouting]
-        : []),
-    ];
-  }
-  if (entry.customType === WORKFLOW_BOOTSTRAP_MESSAGE_TYPE) {
-    return [BOOTSTRAP_COMPONENTS.workflow];
-  }
-  if (entry.customType === COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE) {
-    return [BOOTSTRAP_COMPONENTS.cognitiveRouting];
-  }
-  return [];
+  if (!isCustomMessage || typeof entry.customType !== "string") return false;
+  if (entry.customType === "freeflow-bootstrap")
+    return Array.isArray(entry.details?.components)
+      ? entry.details.components.length > 0
+      : typeof entry.content === "string" && BOOTSTRAP_MARKER.test(entry.content);
+  return LEGACY_BOOTSTRAP.test(entry.customType);
 }
 
 export function filterBootstrapMessage(message: any) {
-  return bootstrapEntryComponents(message).length === 0 ? message : undefined;
+  return isLegacyBootstrap(message) ? undefined : message;
 }
 
-type CognitiveRoutingRuntimeSnapshot = {
-  effective?: boolean;
-  runtimeStatus?: "active" | "inactive" | "blocked";
-  runtimeReason?: unknown;
-  activeProfile?: unknown;
-  pendingPair?: unknown;
-  delegation?: unknown;
-  controlMode?: unknown;
-};
-
-type CognitiveRoutingProjectionMode = "disabled" | "enabled" | "manual-bypass" | "blocked" | "unavailable" | "pending";
+const isRuntimeState = (message: any) =>
+  message?.customType === FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE ||
+  (typeof message?.customType === "string" && LEGACY_RUNTIME_STATE.test(message.customType));
 
 type FreeflowContextMessage = {
   customType?: unknown;
   [key: string]: unknown;
 };
-
-function publicCognitiveRoutingControl(controlMode: unknown) {
-  if (controlMode === "automatic") return "automatic";
-  if (["manual-helper", "manual-executor", "manual-coordinator"].includes(String(controlMode))) return "manual";
-  return "unavailable";
-}
-
-function publicCognitiveRoutingProfile(activeProfile: unknown, effective: unknown) {
-  if (effective !== true) return "unavailable";
-  return typeof activeProfile === "string" && ["helper", "executor", "coordinator"].includes(activeProfile)
-    ? activeProfile
-    : "unavailable";
-}
 
 function publicCapabilityStatus(capability: any) {
   if (capability?.effective === true) return "active";
@@ -84,47 +46,14 @@ function publicCapabilityStatus(capability: any) {
   return "inactive";
 }
 
-function publicCognitiveRoutingStatus(capability: any, runtime: CognitiveRoutingRuntimeSnapshot | undefined) {
-  if (runtime?.runtimeStatus === "inactive") return "inactive";
-  return publicCapabilityStatus(capability);
-}
-
-function publicCognitiveRoutingProjectionMode(
-  capability: any,
-  runtime: CognitiveRoutingRuntimeSnapshot | undefined,
-  projectionFailure?: string,
-): CognitiveRoutingProjectionMode {
-  if (capability?.projection !== true) return "disabled";
-  if (capability?.effective !== true) return "unavailable";
-  if (String(runtime?.controlMode).startsWith("manual-")) return "manual-bypass";
-  if (projectionFailure) return "blocked";
-  if (runtime?.runtimeStatus === "inactive" || runtime?.runtimeStatus === "blocked") return "unavailable";
-  if (runtime?.effective === true && runtime.controlMode === "automatic") return "enabled";
-  return "pending";
-}
-
 export function freeflowRuntimeStateMessage(
   capabilityState: any,
-  cognitiveRoutingRuntime: CognitiveRoutingRuntimeSnapshot | undefined = undefined,
   freeflowContext: any = undefined,
   options: {
-    projectionFailure?: string;
     /** Freeflow skills already read in this context, by name. */
     skills?: readonly string[];
   } = {},
 ) {
-  const cognitiveRoutingEffective = capabilityState?.cognitiveRouting?.effective === true;
-  const profile = publicCognitiveRoutingProfile(
-    cognitiveRoutingRuntime?.activeProfile,
-    cognitiveRoutingEffective && cognitiveRoutingRuntime?.effective === true,
-  );
-  const control =
-    profile === "unavailable" ? "unavailable" : publicCognitiveRoutingControl(cognitiveRoutingRuntime?.controlMode);
-  const projectionMode = publicCognitiveRoutingProjectionMode(
-    capabilityState?.cognitiveRouting,
-    cognitiveRoutingRuntime,
-    options.projectionFailure,
-  );
   const mandatoryPromptAvailable = capabilityState?.enabled !== true || hasUsableMandatoryPrompts(freeflowContext);
   const freeflowStatus = capabilityState?.configured
     ? capabilityState.enabled
@@ -152,18 +81,10 @@ export function freeflowRuntimeStateMessage(
       ...(skillsOff ? [skillsOff] : []),
       "",
       "Capabilities:",
-      `- Cognitive Routing: ${publicCognitiveRoutingStatus(capabilityState?.cognitiveRouting, cognitiveRoutingRuntime)}`,
       `- Tool Execution: ${publicCapabilityStatus(capabilityState?.toolExecution)}`,
       ...(capabilityState?.messaging?.enabled
         ? [`- Messaging: ${publicCapabilityStatus(capabilityState.messaging)}`]
         : []),
-      "",
-      "Cognitive Routing:",
-      `- Control: \`${control}\``,
-      // Under Automatic control the routing Runtime State owns the active profile, so switches do not churn this state.
-      ...(control === "automatic" ? [] : [`- Profile: \`${profile}\``]),
-      `- Delegation: \`${cognitiveRoutingRuntime?.delegation ?? capabilityState?.cognitiveRouting?.delegation ?? "executor"}\``,
-      `- Projection: \`${projectionMode}\``,
       ...(options.skills?.length ? ["", `Freeflow skills read in this context: ${options.skills.join(", ")}`] : []),
     ].join("\n"),
     display: false,
@@ -172,11 +93,7 @@ export function freeflowRuntimeStateMessage(
 }
 
 function withoutFreeflowRuntimeState(messages: readonly FreeflowContextMessage[] | undefined) {
-  return (Array.isArray(messages) ? messages : []).filter(
-    (message) =>
-      message?.customType !== FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE &&
-      message?.customType !== COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
-  );
+  return (Array.isArray(messages) ? messages : []).filter((message) => !isRuntimeState(message));
 }
 
 function firstUserMessageIndex(messages: readonly FreeflowContextMessage[]): number {
@@ -198,25 +115,16 @@ function insertRuntimeStateBeforeFirstUser(
 export function withFreeflowRuntimeState(
   messages: readonly FreeflowContextMessage[] | undefined,
   capabilityState: any,
-  cognitiveRoutingRuntime: CognitiveRoutingRuntimeSnapshot | undefined = undefined,
   freeflowContext: any = undefined,
   options: {
     force?: boolean;
-    projectionFailure?: string;
     anchor?: RuntimeStateAnchor;
     skills?: readonly string[];
   } = {},
 ) {
   const source = Array.isArray(messages) ? messages : [];
-  const runtimeState = freeflowRuntimeStateMessage(capabilityState, cognitiveRoutingRuntime, freeflowContext, {
-    projectionFailure: options.projectionFailure,
-    skills: options.skills,
-  });
-  const runtimeStateMessages = source.filter(
-    (message) =>
-      message?.customType === FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE ||
-      message?.customType === COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
-  );
+  const runtimeState = freeflowRuntimeStateMessage(capabilityState, freeflowContext, { skills: options.skills });
+  const runtimeStateMessages = source.filter(isRuntimeState);
   const withoutRuntimeState = withoutFreeflowRuntimeState(source);
   const expectedRuntimeStateIndex = firstUserMessageIndex(withoutRuntimeState);
   const runtimeStateIndex = source.findIndex((message) => message?.customType === FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE);

@@ -25,10 +25,7 @@ test("every task is one Freeflow arm with Tool Execution on, sealed in the pinne
     ["dev-server-health", "template-watch", "slow-suite", "move-helper", "one-line-fix"],
   );
   const shared = JSON.parse(readFileSync(path.join(suiteDirectory, "configuration.json"), "utf8")).configuration;
-  assert.deepEqual(shared.freeflow.repository, {
-    cognitiveRouting: { enabled: false },
-    toolExecution: { enabled: true },
-  });
+  assert.deepEqual(shared.freeflow.repository, { toolExecution: { enabled: true } });
   const image = JSON.parse(readFileSync(path.join(suiteDirectory, "image/digests.json"), "utf8")).tools;
   const right = Object.fromEntries(groups.map((group) => [group.id, []]));
   for (const group of groups) {

@@ -35,8 +35,8 @@ const USAGE = `Usage:
   settings.mjs set <key> <value> --scope repository|personal|session [--root <folder>] [--json]
   settings.mjs unset <key> --scope repository|personal|session [--root <folder>] [--json]
 --root names a folder in the repository (default: the current folder); the settings are its repository's.
-The value "inherit" unsets the key in that scope. --host all (the default) lists the settings every host acts on;
---host pi lists Pi's too, and --host claude-code Claude Code's (its pane and status line). The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
+The value "inherit" unsets the key in that scope. --host all (the default) lists the settings every host acts on and
+Claude Code's own (its cost governor, pane and status line), as does --host claude-code; --host pi lists Pi's too. The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
 FREEFLOW_SESSION).`;
 
 class UsageError extends Error {}
@@ -89,8 +89,11 @@ function resolveAll(state) {
 /** The Runtime State lines the resolved settings give: the review line and the off-skills line, when set. */
 function stateLines(resolved) {
   const value = (key) => resolved.find((item) => item.spec.key === key)?.value;
-  const model = value("review.model");
-  const review = reviewStateLine({ mode: value("review.mode"), ...(model == null ? {} : { model }) });
+  const review = reviewStateLine({
+    unit: value("review.unit"),
+    model: value("review.model"),
+    rounds: value("review.rounds"),
+  });
   const off =
     value("skills.enabled") === false
       ? [...SWITCHABLE_SKILLS]
@@ -98,7 +101,16 @@ function stateLines(resolved) {
   return [review, skillsStateLine(off)].filter(Boolean);
 }
 
-const shown = (value) => (value === null ? "none" : value === true ? "on" : value === false ? "off" : String(value));
+const shown = (value) =>
+  value === null
+    ? "none"
+    : value === true
+      ? "on"
+      : value === false
+        ? "off"
+        : typeof value === "object"
+          ? "set"
+          : String(value);
 
 function row(item) {
   return { key: item.spec.key, label: item.spec.label, value: item.value, scope: item.scope, hosts: item.spec.hosts };
@@ -106,7 +118,7 @@ function row(item) {
 
 function list(state, root, host, json) {
   const resolved = resolveAll(state);
-  const rows = resolved.filter((item) => item.spec.hosts === "all" || item.spec.hosts === host);
+  const rows = resolved.filter((item) => host === "pi" || item.spec.hosts !== "pi");
   if (json) return `${JSON.stringify({ root, settings: rows.map(row), state: stateLines(resolved) }, null, 2)}\n`;
   const width = Math.max(...rows.map((item) => item.spec.key.length));
   const lines = rows.map(
@@ -121,18 +133,24 @@ function list(state, root, host, json) {
   ].join("\n");
 }
 
-/** A typed value as the setting takes it: on/off and true/false for a switch, the word itself otherwise. */
+/** A typed value as the setting takes it: on/off and true/false for a switch, a number for a number, the word itself otherwise. */
 function parseValue(spec, text) {
-  if (spec.values === "profile")
-    throw new UsageError(`${spec.key} is a routing profile: set it on Pi's /freeflow settings screen`);
   let value = text;
   if (spec.values === "boolean") {
     if (["on", "true"].includes(text)) value = true;
     else if (["off", "false"].includes(text)) value = false;
-  }
+  } else if (Array.isArray(spec.values) && typeof spec.values[0] === "number" && /^\d+$/.test(text))
+    value = Number(text);
+  if (spec.values === "number" && /^\d+(\.\d+)?$/.test(text)) value = Number(text);
   if (!validSettingValue(spec, value)) {
     const takes =
-      spec.values === "boolean" ? "on or off" : spec.values === "name" ? "a name on one line" : spec.values.join(", ");
+      spec.values === "boolean"
+        ? "on or off"
+        : spec.values === "name"
+          ? "a name on one line"
+          : spec.values === "number"
+            ? "a number above 0"
+            : spec.values.join(", ");
     throw new UsageError(`${spec.key} takes ${takes}, not ${text}`);
   }
   return value;
@@ -147,7 +165,7 @@ function requireSpec(key) {
 /** What else the person should know after a change, beyond the lines. */
 function notes(spec) {
   if (spec.hosts === "pi") return ["Only Pi acts on this setting."];
-  if (spec.hosts === "claude-code") return ["Only Claude Code's Freeflow mod acts on this setting."];
+  if (spec.hosts === "claude-code") return ["Only Claude Code's mod acts on this setting."];
   if (spec.key.startsWith("prompts."))
     return ["Prompt text already given in this session stays until the next session start or compaction."];
   return [];
@@ -155,6 +173,10 @@ function notes(spec) {
 
 async function change(state, root, env, key, text, scopeName, json) {
   const spec = requireSpec(key);
+  if (spec.values === "policy")
+    throw new UsageError(
+      `${spec.key} is a policy object, Repository scope only: edit it in .freeflow/config.json (review-plan reads it from the base commit)`,
+    );
   if (!SCOPES.includes(scopeName)) throw new UsageError("--scope must be repository, personal or session");
   if (scopeName === "session" && !spec.session)
     throw new UsageError(`${spec.key} has no Session scope here; set it on Pi's screen`);

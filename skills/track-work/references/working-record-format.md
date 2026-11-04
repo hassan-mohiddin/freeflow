@@ -191,7 +191,7 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 - Update: Narrowed to diagnosis: "just find the cause first" (2026-10-30)
 ```
 
-`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`) and quotes the user where it rests on their reply. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
+`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`, `Review:`) and quotes the user where it rests on their reply. A `Review:` line names paths, or `all`, the user wants reviewed and optionally the depth (`- Review: src/billing/** deep`); Review Work's plan reads it and can only be raised by it. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
 
 ### The Slice
 
@@ -237,8 +237,8 @@ After the fields come its update lines, one line each, a kind and then the claim
 Two kinds have a fixed shape, so outcomes and rounds can be counted later. [Review Work](../../review-work/SKILL.md) says when each is written:
 
 ```markdown
-- Review gate: mode: auto | off | always; tier: standard | security | none; because: <trigger> | no trigger; result: dispatched | proposed | skipped
-- Review: round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: <adjudicated judgment>; Accepted: <n>; Rejected: <n>; Open: <n>; reviewed: <commit or version>; report: <path>; effect: <the next route>
+- Review gate: plan: quick | standard | deep, standard | security, because <triggers and rules> | nothing matched; unit: pr | push | commit | agreement | manual; result: dispatched | proposed | on record
+- Review: round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: <adjudicated judgment>; Accepted: <n>; Rejected: <n>; Open: <n>; head: <the commit reviewed>; report: <path>; effect: <the next route>
 ```
 
 `in_progress` means the Slice's result is being pursued. `paused` means it is still current but safe continuation is suspended; an ordinary turn, feedback, or a context boundary is not a pause.
@@ -296,7 +296,7 @@ What recovery reads, one line per source, each starting with its class, then a p
 
 A pointer is a path (from the task folder, else from the work repository's root, else from each repository in Space at its path on this machine), an absolute path, a `~/` path, a URL, or a commit; put it first after the class. A file pointer followed by `(lines <a>–<b>)` is read for those lines only, numbered by file line. An `always` or `always, not counted` line that names no pointer is never read for you, and the checks say so. `sources/discussion.md` takes an `always` line while it holds blocks.
 
-The list is decided at each checkpoint and kept unless changed: after In flight's lines, `checkpoint --input` takes a line `Recovery:` and the whole new list under it, or `Recovery: none` to empty it; without that line the list stays, and with only that block In flight stays. The checkpoint prints each line with the size of what it names and an `always` line's share of the budget, and names an `always, not counted` line the new list dropped. Records written with the earlier headings, Defined by, Read on recovery, Read when and a Carry line in In flight, are refused like any unknown heading.
+The list is decided at each checkpoint and kept unless changed: after In flight's lines, `checkpoint --input` takes a line `Recovery:` and the whole new list under it, or `Recovery: none` to empty it; without that line the list stays, and with only that block In flight stays. The checkpoint prints each line with the size of what it names and an `always` line's share of the budget, and names an `always, not counted` line the new list dropped. Records written with the earlier headings, Defined by, Read on recovery, Read when and a Carry line in In flight, are refused like any unknown heading until `migrate --record <ID>` converts them: each Defined by entry becomes an `always, not counted` line, each Read on recovery entry and Carry file an `always` line, each Read when entry a `when` line with its trigger, and the record as it was is kept in `sources/record-before-recovery.md`.
 
 ### Next action
 
@@ -410,13 +410,14 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Hold a task, give it up, move to another | `task take --id <ID> [--takeover]`, `task release`, `task switch --id <ID>` |
 | Move a task into a project, or out of one | `task move --id <ID> (--project <p> \| --no-project)`, on the user's word |
 | Open, change, close the agreement | `agreement open`, `agreement update`, `agreement close --state <completed\|ended\|replaced>` |
+| Record the agreement of a session that holds no task, for Freeflow's gates | `agree --outcome <text> [--exact-spec "<reason>"]`, `--exact-spec` when the user's request fixes every choice |
 | Propose a Slice | `slice propose` |
 | Start a proposed Slice, or one never proposed | `slice start --title <proposal title>`, `slice start-direct` |
 | `in_progress` ↔ `paused` | `slice pause`, `slice resume` |
 | Close the current Slice | `slice close --state <completed\|blocked\|abandoned>` (blocked from paused) |
 | Record a Slice that finished before it could be recorded | `slice record --state <state>`: History only; Current Work and Future Work unchanged |
 | Give a closed Slice its Files, when it closed without one | `slice size --id <S-NNN> (--files <n> \| --range <from>..<to> [--repo <path>])`: appended to its History entry, dated |
-| Hand work to an agent, and close it | `delegate open`, `amend`, `status`, `check-return`, `close`; with no task, `delegate open --scratch <folder>` and `check-return --scratch <folder>`, which record nothing |
+| Hand work to an agent, and close it | `delegate open [--writes <glob> ...]` (what the worker may write, for the brief's Scope), `amend`, `status`, `check-return`, `close`; with no task, `delegate open --scratch <folder>` and `check-return --scratch <folder>`, which record nothing |
 | Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task; either with `--compact` to have Freeflow's harness layer compact when the turn ends, which it does only on that request, and only where the session's driver claims it can (Setup Freeflow's `capabilities.mjs check compact`); elsewhere the command says so and the harness compacts on its own |
 | Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
 | The session's event log, and its summary since it took the task | `events summary [--session <ID>]`, `events show [--kind <kind>]`: change nothing; `events append` is the harness layer's |
