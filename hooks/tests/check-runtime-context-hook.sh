@@ -43,10 +43,11 @@ node --check "$HOOK_PATH"
 node -e '
 const fs = require("fs");
 const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};
-if (!Array.isArray(hooks.SessionStart) || hooks.SessionStart.length !== 1) process.exit(1);
-if (hooks.SessionStart[0]?.matcher !== "startup|resume|clear|compact") process.exit(1);
-if (hooks.UserPromptSubmit || hooks.SessionEnd) process.exit(1);
-' "$CODEX_HOOKS_JSON" || fail "Codex hooks manifest does not expose only SessionStart"
+const starts = hooks.SessionStart || [];
+if (!starts.some((group) => group.matcher === "startup|resume|clear|fork")) process.exit(1);
+if (!starts.some((group) => group.matcher === "compact")) process.exit(1);
+if (!Object.values(hooks).flat().every((group) => group.hooks.every((handler) => handler.command.includes("/hooks/codex/driver.mjs")))) process.exit(1);
+' "$CODEX_HOOKS_JSON" || fail "Codex hooks manifest does not run the driver at every session start, fork and compact included"
 node -e '
 const fs = require("fs");
 const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};

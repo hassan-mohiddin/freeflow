@@ -101,7 +101,7 @@ Settings changes require an idle host. These commands do not prove installed-hos
 
 | Host | Freeflow support | Pi capabilities |
 | --- | --- | --- |
-| Codex | Shared skills and Codex `SessionStart` hook | Not available |
+| Codex | Shared skills and Freeflow's Codex driver (guidance, task menu, notices, bundle after compaction, event log) | Not available |
 | Claude Code | Shared skills and Claude Code `SessionStart` hook | Not available |
 | Gemini CLI | Gemini extension, shared skills, and Gemini `SessionStart` hook | Not available |
 | Cursor | Agent Plugins 1.0 skills plus Cursor-specific hook delivery | Not available |
@@ -135,7 +135,7 @@ codex plugin marketplace upgrade freeflow
 codex plugin add freeflow@freeflow
 ```
 
-Trust the Freeflow hook from `/hooks`, then start a new session.
+Trust Freeflow's hooks from `/hooks`, then start a new session.
 
 ### Claude Code
 

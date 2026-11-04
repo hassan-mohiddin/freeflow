@@ -547,6 +547,35 @@ test("a resumed session takes back the task its end released (F36), never one re
   });
 });
 
+test("task release --ended --no-push commits the ended hold here only, and the next sync pushes it (SPEC-012 P3)", async () => {
+  await withStore(async ({ home, remote, work, cli }) => {
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
+    ok(
+      cli(
+        "aaaaaaaa-1",
+        ["task", "create", "--title", "One", "--goal", "g", "--cue", "read when one matters", "--project", "widget"],
+        work,
+      ),
+    );
+    const before = pushedLog(remote);
+    // Codex gives a session's end a second or so: the hold closes as ended, committed on this machine only.
+    assert.equal(
+      ok(cli("aaaaaaaa-1", ["task", "release", "--ended", "--no-push"])),
+      "Released widget/task-001 as ended: a resume of this session takes it back.\nStore: committed, not pushed (not pushed now: --no-push); the next store sync pushes it.\n",
+    );
+    assert.match(
+      await readFile(join(home, "projects", "widget", "tasks", "task-001-one", "sessions.md"), "utf8"),
+      /· ended · resume aaaaaaaa-1\n$/,
+    );
+    assert.equal(pushedLog(remote), before);
+    assert.equal(JSON.parse(ok(cli("aaaaaaaa-1", ["session", "status"]))).changed, true);
+    // The next session start's sync pushes it, and a resume still takes the task back.
+    ok(cli("aaaaaaaa-1", ["store", "sync"]));
+    assert.match(pushedLog(remote), /^Release widget\/task-001 \(aaaaaaaa, ended\)\n/);
+    assert.match(ok(cli("aaaaaaaa-1", ["task", "here", "--take-back"], work)), /^Took widget\/task-001 back/);
+  });
+});
+
 test("checkpoint refuses a store task this session does not hold, naming task take (F36)", async () => {
   await withStore(async ({ work, cli }) => {
     ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));

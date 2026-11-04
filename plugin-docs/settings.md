@@ -14,7 +14,7 @@ With nothing configured, Freeflow on Pi runs with these capabilities; each one's
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
 | [Gates](capabilities/gates.md) | warn | Four rules checked before each tool call (agreement, Slice, delivery, delegation scope), warning only; also on Claude Code |
 
-On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts`, `skills` and `review` apply, and on Claude Code `events` and `gates` too; the capabilities above are Pi only. OpenCode reads no settings.
+On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts`, `skills` and `review` apply, on Claude Code `events` and `gates` too, and on Codex `events`; the capabilities above are Pi only. OpenCode reads no settings.
 
 ## Where a setting lives
 

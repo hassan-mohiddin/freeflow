@@ -281,7 +281,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task release",
-    "Usage: task release [--id <task ID>] [--ended]\nCloses this session's hold on the task it holds (or --id) as released, commits and pushes. With --ended, as a harness layer closes it when the session ends: the hold is closed as ended, and when this session is resumed, task here --take-back takes the task back.",
+    "Usage: task release [--id <task ID>] [--ended] [--no-push]\nCloses this session's hold on the task it holds (or --id) as released, commits and pushes. With --ended, as a harness layer closes it when the session ends: the hold is closed as ended, and when this session is resumed, task here --take-back takes the task back. With --no-push it commits on this machine only, as Codex's driver does in the second or so Codex gives a session's end; the next store sync pushes it.",
   ],
   [
     "task switch",
@@ -386,6 +386,7 @@ function parseOptions(args, { valued = [] } = {}) {
         "--compact",
         "--rules",
         "--ended",
+        "--no-push",
         "--take-back",
       ].includes(token) &&
       !valued.includes(token)
@@ -682,7 +683,7 @@ const STORE_OPTIONS = new Map([
   ["task create", ["--title", "--goal", "--cue", "--project", "--no-project", "--cwd", "--next-action"]],
   ["task move", ["--id", "--project", "--no-project"]],
   ["task take", ["--id", "--takeover"]],
-  ["task release", ["--id", "--ended"]],
+  ["task release", ["--id", "--ended", "--no-push"]],
   ["task switch", ["--id", "--takeover"]],
   ["task here", ["--cwd", "--scan", "--rules", "--take-back"]],
   ["task search", ["--query", "--project"]],
@@ -721,7 +722,10 @@ async function runProjects5(command, operation, options, home) {
   if (key === "task take")
     return takeTask(home, requireOption(options, "--id"), identity, { takeover: options["--takeover"] === true });
   if (key === "task release")
-    return releaseTask(home, identity, options["--id"] ?? null, { ended: options["--ended"] === true });
+    return releaseTask(home, identity, options["--id"] ?? null, {
+      ended: options["--ended"] === true,
+      push: options["--no-push"] !== true,
+    });
   if (key === "task switch")
     return switchTask(home, requireOption(options, "--id"), identity, { takeover: options["--takeover"] === true });
   if (key === "task here") {
