@@ -613,12 +613,10 @@ export async function delegationStatus(loaded, { json = false } = {}) {
  * letter or digit touches (so `commit_abc1234d` is one, and `ABC1234D`). Three things that hold such words are not
  * commits: an email address, whose domain ends in a label of letters and whose name is not itself such a word (the
  * GitHub ID in a noreply email); a UUID; and a folder name between two slashes of a path, except a URL's git ref,
- * right after `blob/`, `tree/`, `commit/`, `raw/` or `blame/`. Two dotted forms are set aside too: a word right after
- * a digit and a dot, as in a decimal (`0.0123456`) or a version (`1.2.3abcdef`), and a word right before a dot and a
- * short lowercase file extension (`abc1234.txt`), but not `.patch` or `.diff`, which follow a commit in a URL. Any
- * other dot leaves the word checked (`main.abc1234d`, `abc1234d.Next`, `commit/abc1234d.patch`), since a missed commit
- * is the worse error. No other form is set aside: the text cannot tell another repository's commit from this
- * one's, so the coordinator names those with --elsewhere.
+ * right after `blob/`, `tree/`, `commit/`, `raw/` or `blame/`. A word next to a dot stays a commit: `0.0123456` or
+ * `abc1234.txt` is refused when missing, a safe error, since a missed commit is the worse one. No other form is set
+ * aside: the text cannot tell another repository's commit from this one's, so the coordinator names those with
+ * --elsewhere.
  */
 export function identityCommits(text) {
   const plain = text
@@ -626,11 +624,8 @@ export function identityCommits(text) {
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, " ")
     .replace(/(?<!\/(?:blob|tree|commit|raw|blame))\/[0-9a-fA-F]{7,40}(?=\/)/g, "/ ");
   const commits = new Set();
-  // Bounded by what is not a letter or digit, so "_" joins a hash to a word without hiding it; after a digit and a
-  // dot it is a decimal or a version, and before a short lowercase extension other than .patch or .diff a file name.
-  for (const [commit] of plain.matchAll(
-    /(?<![0-9A-Za-z])(?<!\d\.)[0-9A-Fa-f]{7,40}(?![0-9A-Za-z])(?!\.(?!(?:patch|diff)\b)[a-z0-9]{1,5}\b)/g,
-  ))
+  // Bounded by what is not a letter or digit, so "_" joins a hash to a word without hiding it.
+  for (const [commit] of plain.matchAll(/(?<![0-9A-Za-z])[0-9A-Fa-f]{7,40}(?![0-9A-Za-z])/g))
     // A hash can be all digits; a word of hex letters alone is not taken for one.
     if (/\d/.test(commit)) commits.add(commit);
   return [...commits];

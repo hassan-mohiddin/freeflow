@@ -299,7 +299,7 @@ test("delegate check-return takes no email ID, UUID or path folder for a commit,
   });
 });
 
-test("delegate check-return takes no hex run after or before a dot for a commit, and takes one in uppercase or joined to a word by _", async () => {
+test("delegate check-return takes a commit in uppercase or joined to a word by _", async () => {
   await withTask(async ({ record, repo, taskDir, cli }) => {
     openBuild(cli, record, repo);
     const folder = join(taskDir, "delegations", "D-001-build-the-thing");
@@ -310,17 +310,6 @@ test("delegate check-return takes no hex run after or before a dot for a commit,
     const onBranch = git(worktree, ["rev-parse", "--short=8", "HEAD"]);
     const check = () => cli(["delegate", "check-return", "--record", record, "--id", "D-001"]);
     const write = (text) => writeFile(join(folder, "return.md"), text);
-    // A decimal, a file name, a version and a dotted run are not commits, so the one real commit is all that is named.
-    await write(
-      RETURN("D-001", onBranch).replace(
-        `branch, commit ${onBranch}\n`,
-        `branch, commit ${onBranch}\n- Scores 0.0123456 and 9.9999999; file abc1234.txt; version 1.2.3abcdef; 0.a1b2c3d4e5.\n`,
-      ),
-    );
-    assert.match(
-      ok(check()),
-      /^D-001's return: State done; every heading is there; its 1 commit\(s\) are on branch d-001-build-the-thing\./,
-    );
     // A commit in uppercase, and one joined to "commit" by _, is checked like any other.
     const upper = onBranch.toUpperCase();
     await write(RETURN("D-001", upper));
@@ -774,6 +763,8 @@ test("delegate check-return checks a commit a dot joins to a URL suffix or a wor
       `https://github.com/o/r/compare/${"a".repeat(7)}0000...${hash}.diff`,
       `commit ${hash}.Next step`,
       `main.${hash}`,
+      `Missing commit ${hash}.then`,
+      `file ${hash}.txt`,
     ];
     // A missing commit, full and short, in each form is refused; so is one that is only on main.
     for (const hash of [missing, missing.slice(0, 8)])
