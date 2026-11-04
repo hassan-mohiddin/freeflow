@@ -10,6 +10,7 @@ import {
   KINDS,
   lineProblem,
   redact,
+  renderSummary,
   summarize,
 } from "../../../skills/track-work/scripts/lib/events5.mjs";
 
@@ -117,7 +118,43 @@ test("schema v1: each kind's required fields, its values, and no field it does n
     "gate",
     "agreement",
     "freeflow",
+    "governor",
   ]);
+});
+
+test("a governor line names its cap, unit, limit, use and response, and the summary prints each one", () => {
+  const governor = (fields) => ({ ...base(), kind: "governor", ...fields });
+  const row = { cap: "pace", unit: "percent", limit: 14.3, use: 11.6, response: "row" };
+  assert.equal(lineProblem(governor(row)), null);
+  assert.equal(lineProblem(governor({ ...row, cap: "five_hour" })), "governor's cap is not a value it takes");
+  assert.equal(lineProblem(governor({ ...row, use: -1 })), "governor's use is not a value it takes");
+  assert.equal(lineProblem(governor({ ...row, response: "stop" })), "governor's response is not a value it takes");
+  assert.equal(lineProblem(governor({ cap: "task", unit: "usd", limit: 4, use: 4.2 })), "governor requires response");
+  const lines = [
+    { ...base("s", "2026-11-03T10:00:00.000Z"), kind: "governor", ...row },
+    {
+      ...base("s", "2026-11-03T11:00:00.000Z"),
+      kind: "governor",
+      cap: "task",
+      unit: "usd",
+      limit: 4,
+      use: 4.25,
+      response: "ask",
+    },
+  ];
+  const summary = summarize(lines, { session: "s" });
+  assert.deepEqual(
+    summary.governor.map((each) => [each.cap, each.response]),
+    [
+      ["pace", "row"],
+      ["task", "ask"],
+    ],
+  );
+  assert.equal(summarize([], { session: "s" }).governor, undefined);
+  const text = renderSummary(summary);
+  assert.match(text, /^Governor: 2 response\(s\)$/m);
+  assert.match(text, /^ {2}2026-11-03T10:00:00\.000Z: the daily pace at 11\.6% of 14\.3%, a row$/m);
+  assert.match(text, /^ {2}2026-11-03T11:00:00\.000Z: the task's cost at \$4\.25 of \$4\.00, the ask to stop$/m);
 });
 
 test("redaction replaces keys and tokens in a command before it is written", () => {

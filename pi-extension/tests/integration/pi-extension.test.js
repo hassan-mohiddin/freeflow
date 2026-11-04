@@ -454,11 +454,13 @@ test("plugin-docs/settings.md documents every row the settings screen shows and 
       ? true
       : spec.values === "name"
         ? "a-model"
-        : Array.isArray(spec.values)
-          ? spec.values[0]
-          : spec.values === "policy"
-            ? {}
-            : null;
+        : spec.values === "number"
+          ? 5
+          : Array.isArray(spec.values)
+            ? spec.values[0]
+            : spec.values === "policy"
+              ? {}
+              : null;
   for (const [, key] of doc.matchAll(/^\| [^|]+ \| `([a-zA-Z.-]+)` \|/gm)) {
     const spec = SETTINGS.find((each) => each.key === key);
     assert.ok(spec, `the settings table has a row for ${key}, which settings.md lists`);
@@ -509,7 +511,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     "review.depth": "review-plan reads the depth rules from the repository's file at the base commit",
   };
   const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
-  const { CONFIG_SECTIONS, REVIEW_KEYS, PROMPTS_KEYS, SKILLS_KEYS, EVENTS_KEYS, GATE_KEYS } =
+  const { CONFIG_SECTIONS, REVIEW_KEYS, PROMPTS_KEYS, SKILLS_KEYS, EVENTS_KEYS, GATE_KEYS, GOVERNOR_KEYS } =
     await import("../../dist/host/config-validation.js");
   const { TOOL_EXECUTION_KEYS } = await import("../../dist/tool-execution/config.js");
   const { COMPACTION_KEYS } = await import("../../dist/compaction/config.js");
@@ -523,6 +525,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     skills: SKILLS_KEYS,
     events: EVENTS_KEYS,
     gates: GATE_KEYS,
+    governor: GOVERNOR_KEYS,
   };
   const nested = {};
   const keys = ["enabled"];
@@ -574,6 +577,11 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     assert.ok(row, `plugin-docs/settings.md lists ${key}`);
     if (FILE_ONLY[key]) {
       assert.equal(row, "—", `${key} is file-only: ${FILE_ONLY[key]}`);
+      continue;
+    }
+    // Only Claude Code's mod acts on it: /freeflow settings there is its row, and Pi's screen has none.
+    if (SETTINGS.find((spec) => spec.key === key)?.hosts === "claude-code") {
+      assert.equal(row, "—", `${key} is Claude Code's: Pi's screen shows no row for it`);
       continue;
     }
     assert.notEqual(row, "—", `${key} has a /freeflow settings row, or a reason in FILE_ONLY`);

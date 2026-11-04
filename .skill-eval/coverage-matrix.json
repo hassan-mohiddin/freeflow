@@ -42,7 +42,7 @@
       "case_concept": "Explore a materially open direction without treating discussion as authority, then refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss-work/SKILL.md",
-      "source_sha256": "4b79e141a9a4aac3f5c513cdb0fea1b910a2f7a979deef080a4893c189e8c7b1",
+      "source_sha256": "666e9171956220c178eff5c32b656f943079c4b46e15ca8639e2973e6e4f1049",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -203,7 +203,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. The test-changes script has its own tests (.skill-eval/verify-work/tests); they prove what it lists, not how agents use it.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "ae208bad23a5fbd10551f29018e5b40f2d46de51e11016ff6173adc8cd546da5",
+      "source_sha256": "63439b9cdba8031e3bfaeb663635b73e0a786db387e7368e7a9b76b80c1524fd",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

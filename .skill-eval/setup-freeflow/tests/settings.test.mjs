@@ -41,19 +41,20 @@ async function fixture({ git = true, session = "s-1" } = {}) {
 function otherValue(spec) {
   if (spec.values === "boolean") return spec.default === false ? ["on", true] : ["off", false];
   if (spec.values === "name") return ["claude-haiku-5-5", "claude-haiku-5-5"];
+  if (spec.values === "number") return ["12.5", 12.5];
   const value = spec.values.find((each) => each !== spec.default);
   return [String(value), value];
 }
 
 const settable = SETTINGS.filter((spec) => spec.values !== "policy");
 
-test("list with nothing set shows every setting all hosts act on at its default, and names the Pi-only ones", async (t) => {
+test("list with nothing set shows every setting all hosts and Claude Code act on at its default, and names the Pi-only ones", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
   const listed = f.json("list");
   assert.deepEqual(
     listed.settings.map((row) => row.key),
-    SETTINGS.filter((spec) => spec.hosts === "all").map((spec) => spec.key),
+    SETTINGS.filter((spec) => spec.hosts !== "pi").map((spec) => spec.key),
   );
   for (const row of listed.settings) assert.equal(row.scope, "default", row.key);
   assert.deepEqual(listed.state, []);
@@ -175,6 +176,8 @@ test("a change prints the Runtime State lines it changed, and the prompt note fo
   assert.match(prompt.stdout, /Prompt text already given in this session stays/);
   const pi = f.run("set", "compaction.enabled", "off", "--scope", "personal");
   assert.match(pi.stdout, /Only Pi acts on this setting\./);
+  const governor = f.run("set", "governor.mode", "stop", "--scope", "personal");
+  assert.match(governor.stdout, /Only Claude Code's mod acts on this setting\./);
 });
 
 test("refusals name what is wrong and write nothing", async (t) => {
@@ -196,6 +199,8 @@ test("refusals name what is wrong and write nothing", async (t) => {
     [["set", "review.unit", "manual"], /set needs --scope/],
     [["set", "review.unit", "manual", "--scope", "global"], /--scope must be repository, personal or session/],
     [["set", "review.model", "two\nlines", "--scope", "personal"], /review\.model takes a name on one line/],
+    [["set", "governor.cap", "0", "--scope", "personal"], /governor\.cap takes a number above 0, not 0/],
+    [["set", "governor.cap", "lots", "--scope", "personal"], /governor\.cap takes a number above 0, not lots/],
   ];
   for (const [args, message] of cases) {
     const result = f.run(...args);

@@ -33,6 +33,14 @@ const text = (value) => typeof value === "string" && value.trim() !== "" && valu
 const oneOf = (values) => (value) => values.includes(value);
 const boolean = (value) => typeof value === "boolean";
 const nullable = (check) => (value) => value === null || check(value);
+const amount = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
+/**
+ * The cost governor's caps (SPEC-014, section 2.3): the seven-day window's daily pace, the seven-day window at the
+ * `governor.cap` percent, and the task's cost (its plan's high end, or `governor.cap` dollars). Its responses: a row at
+ * 80% of a cap; at 100% a notice under `governor.mode` warn, the ask to stop under stop.
+ */
+export const GOVERNOR_CAPS = ["pace", "window", "task"];
+export const GOVERNOR_RESPONSES = ["row", "notice", "ask"];
 
 /**
  * Schema v1's kinds and the fields each takes beyond the common ones (section 4.1): `true` marks a required field.
@@ -80,6 +88,14 @@ export const KINDS = {
     what: [oneOf(["notice", "row", "menu", "compact", "sync", "capabilities", "dropped", "error", "gates"]), true],
     detail: [(value) => typeof value === "string"],
     dropped: [count],
+  },
+  // The cost governor: a cap, the use measured against it (both in percent of a window or in dollars), and its response.
+  governor: {
+    cap: [oneOf(GOVERNOR_CAPS), true],
+    unit: [oneOf(["percent", "usd"]), true],
+    limit: [amount, true],
+    use: [amount, true],
+    response: [oneOf(GOVERNOR_RESPONSES), true],
   },
 };
 
@@ -347,6 +363,7 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
   let toolCalls = 0;
   let freeflowCalls = 0;
   let dropped = 0;
+  const governor = [];
   let harness = null;
   const gates = Object.fromEntries(GATES.map((gate) => [gate, 0]));
   let gatesBlocked = 0;
@@ -382,7 +399,10 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       workers.stopped += 1;
       if (line.blocked) workers.blocked += 1;
     } else if (line.kind === "freeflow" && line.what === "dropped") dropped += line.dropped ?? 0;
-    else if (line.kind === "gate" && line.gate in gates) {
+    else if (line.kind === "governor") {
+      const { ts, cap, unit, limit, use, response } = line;
+      governor.push({ ts, cap, unit, limit, use, response });
+    } else if (line.kind === "gate" && line.gate in gates) {
       gates[line.gate] += 1;
       if (line.decision !== "warn") gatesBlocked += 1;
     } else if (line.kind === "agreement") agreements += 1;
@@ -409,9 +429,19 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       share: toolCalls ? Math.round((freeflowCalls / toolCalls) * 1000) / 1000 : 0,
     },
     dropped,
+    ...(governor.length ? { governor } : {}),
     gates: { ...gates, blocked: gatesBlocked },
     agreements,
   };
+}
+
+const CAP_NAMES = { pace: "the daily pace", window: "the seven-day window", task: "the task's cost" };
+const RESPONSE_NAMES = { row: "a row", notice: "a notice", ask: "the ask to stop" };
+
+/** One governor line as `events summary` prints it. */
+function governorLine(each) {
+  const figure = (value) => (each.unit === "usd" ? `$${value.toFixed(2)}` : `${Math.round(value * 10) / 10}%`);
+  return `  ${each.ts}: ${CAP_NAMES[each.cap] ?? each.cap} at ${figure(each.use)} of ${figure(each.limit)}, ${RESPONSE_NAMES[each.response] ?? each.response}`;
 }
 
 /** A summary as the few lines `events summary` prints. */
@@ -437,6 +467,9 @@ export function renderSummary(summary) {
       : []),
     ...(summary.agreements ? [`Agreements recorded with agree: ${summary.agreements}`] : []),
     ...(summary.dropped ? [`Dropped: ${summary.dropped} line(s) were not written`] : []),
+    ...(summary.governor?.length
+      ? [`Governor: ${summary.governor.length} response(s)`, ...summary.governor.map(governorLine)]
+      : []),
   ];
   return `${lines.join("\n")}\n`;
 }

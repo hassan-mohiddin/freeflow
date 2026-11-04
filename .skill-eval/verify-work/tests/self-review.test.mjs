@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -93,6 +94,112 @@ test("a recorded check counts as after the last edit only while the state it ran
     assert.equal(failing.status, 3);
     [r1] = report();
     assert.equal(r1.state, "failed on the current state (exit 3)");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("freshness comes from the session's event log first, as check records would give it, and from check --id without one", async () => {
+  const root = await repository("self-review-events-", base);
+  const scratch = join(root, ".scratch-out");
+  const home = join(root, ".scratch-out", "home");
+  const session = "sess-fresh";
+  const env = (id) => ({ ...process.env, FREEFLOW_HOME: home, FREEFLOW_SESSION: id, CLAUDE_CODE_SESSION_ID: "" });
+  const logLines = [];
+  const call = (fields) => {
+    logLines.push({
+      v: 1,
+      ts: `2026-11-03T12:00:${String(logLines.length).padStart(2, "0")}.000Z`,
+      seq: logLines.length + 1,
+      session,
+      harness: "claude-code",
+      agent: "main",
+      kind: "tool.call",
+      ...fields,
+    });
+  };
+  const saveLog = () =>
+    write(home, { [`events/${session}.jsonl`]: `${logLines.map((line) => JSON.stringify(line)).join("\n")}\n` });
+  const report = (id = session) => {
+    const result = spawnSync(
+      process.execPath,
+      [script, "--base", "HEAD", "--scratch", scratch, "--requirements", "requirements.md", "--json"],
+      { cwd: root, env: env(id), encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  const checkRecord = (id) =>
+    assert.equal(
+      run(script, root, ["check", "--id", id, "--scratch", scratch, "--", "node", "test/math.test.mjs"]).status,
+      0,
+    );
+  try {
+    await write(root, {
+      ".gitignore": ".scratch-out/\n",
+      "requirements.md": [
+        "- R1 `src/math.js` adds :: node test/math.test.mjs",
+        "- R2 the whole change still passes — check: node test/math.test.mjs",
+        "- R3 users load from test/fixtures/users.json :: node test/math.test.mjs",
+        "- R4 nothing ran for it :: npm run nothing",
+        "",
+      ].join("\n"),
+    });
+    // The agent runs the check, and the same check is recorded by hand.
+    call({ tool: "Bash", ok: true, command: "node test/math.test.mjs", source: "agent" });
+    await saveLog();
+    checkRecord("R1");
+    checkRecord("R2");
+    let fromLog = report();
+    assert.deepEqual(fromLog.freshness, { eventLog: true, reason: null });
+    let [r1, r2, r3, r4] = fromLog.requirements;
+    assert.deepEqual(r1.paths, ["src/math.js"]);
+    assert.deepEqual(r3.paths, ["test/fixtures/users.json"]);
+    for (const each of [r1, r2, r3]) {
+      assert.equal(each.source, "event log", each.id);
+      assert.equal(each.afterLastEdit, true, each.id);
+      assert.equal(each.state, "passed on the current state", each.id);
+    }
+    assert.equal(r4.source, null);
+    assert.equal(r4.state, "no check recorded");
+    // Without a log, the records give the same answer.
+    let fromRecords = report("sess-no-log");
+    assert.equal(fromRecords.freshness.eventLog, false);
+    assert.match(fromRecords.freshness.reason, /No event log for session sess-no-log/);
+    assert.deepEqual(
+      fromRecords.requirements.slice(0, 2).map((each) => [each.source, each.afterLastEdit]),
+      [
+        ["check --id", true],
+        ["check --id", true],
+      ],
+    );
+    assert.match(await readFile(fromRecords.reportPath, "utf8"), /Freshness from `check --id` records: no event log/);
+
+    // Freeflow's own write to a file is not the agent's edit; the agent's edit of src/math.js is.
+    call({ tool: "Write", ok: true, paths: ["src/math.js"], source: "freeflow" });
+    await saveLog();
+    assert.equal(report().requirements[0].afterLastEdit, true);
+    await write(root, { "src/math.js": "export const add = (a, b) => b + a;\n" });
+    call({ tool: "Edit", ok: true, paths: [join(root, "src/math.js")], source: "agent" });
+    await saveLog();
+    fromLog = report();
+    [r1, r2, r3] = fromLog.requirements;
+    fromRecords = report("sess-no-log");
+    // R1 names the edited file and R2 names none: stale from either source.
+    for (const [index, each] of [r1, r2].entries()) {
+      assert.equal(each.afterLastEdit, false, each.id);
+      assert.equal(fromRecords.requirements[index].afterLastEdit, false, each.id);
+    }
+    assert.match(r1.state, /^stale: Edit edited .*src\/math\.js after it; rerun it$/);
+    // R3 names another file, which no edit touched.
+    assert.equal(r3.afterLastEdit, true);
+
+    // A failing run of the check after the edit: fresh, and failed.
+    call({ tool: "Bash", ok: false, exit: 1, command: "node test/math.test.mjs", source: "agent" });
+    await saveLog();
+    [r1] = report().requirements;
+    assert.equal(r1.state, "failed on the current state (exit 1)");
+    assert.match(await readFile(report().reportPath, "utf8"), /R1 .* \(from event log\)/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

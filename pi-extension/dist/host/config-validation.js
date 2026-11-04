@@ -209,6 +209,23 @@ export function resolveReviewSettings(repository, local) {
     rounds: personal.rounds ?? shared.rounds ?? REVIEW_DEFAULTS.rounds,
   };
 }
+/**
+ * The cost governor (SPEC-014, section 2.3), on Claude Code: `mode` warn (the default) only notifies at a cap, stop
+ * also asks the agent to stop at the next safe point, checkpoint and ask the user; `cap` replaces the governor's own
+ * caps with one number, a percent of the seven-day window on a subscription or dollars of the task's cost elsewhere.
+ */
+export const GOVERNOR_MODES = ["warn", "stop"];
+export const GOVERNOR_KEYS = ["mode", "cap"];
+function validateGovernorConfig(value) {
+  if (!isRecord(value)) return "governor must be an object";
+  const unknown = Object.keys(value).find((key) => !GOVERNOR_KEYS.includes(key));
+  if (unknown) return `governor has unsupported key: ${unknown}`;
+  if (value.mode !== undefined && !GOVERNOR_MODES.includes(value.mode))
+    return `governor.mode must be one of ${GOVERNOR_MODES.join(", ")}`;
+  if (value.cap !== undefined && !positiveNumber(value.cap)) return "governor.cap must be a number above 0";
+  return null;
+}
+const positiveNumber = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
 /** The Runtime State line for the user's review choice; none for the defaults (unit `pr`, model `auto`, 3 rounds). */
 export function reviewStateLine(review) {
   const unit = review?.unit ?? REVIEW_DEFAULTS.unit;
@@ -266,6 +283,15 @@ export const SETTINGS = [
   { key: "review.rounds", label: "Review rounds", values: REVIEW_ROUNDS, default: 3, hosts: "all", session: true },
   { key: "review.depth", label: "Review depth rules", values: "policy", default: null, hosts: "all", session: false },
   {
+    key: "governor.mode",
+    label: "Cost governor",
+    values: GOVERNOR_MODES,
+    default: "warn",
+    hosts: "claude-code",
+    session: true,
+  },
+  { key: "governor.cap", label: "Cost cap", values: "number", default: null, hosts: "claude-code", session: true },
+  {
     key: "toolExecution.enabled",
     label: "Tool Execution",
     values: "boolean",
@@ -300,6 +326,7 @@ export function settingSpec(key) {
 export function validSettingValue(spec, value) {
   if (spec.values === "boolean") return typeof value === "boolean";
   if (spec.values === "name") return typeof value === "string" && value.trim() !== "" && !/[\p{Cc}`]/u.test(value);
+  if (spec.values === "number") return positiveNumber(value);
   if (spec.values === "policy") return false;
   return spec.values.includes(value);
 }
@@ -339,6 +366,7 @@ export const CONFIG_SECTIONS = [
   "skills",
   "events",
   "gates",
+  "governor",
 ];
 // outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
 // ignored so existing configs keep loading, and /freeflow status says Task Memory is gone (P6).
@@ -390,6 +418,10 @@ export function validateRepositoryConfig(value) {
     const error = validateGatesConfig(value.gates);
     if (error) return error;
   }
+  if (value.governor !== undefined) {
+    const error = validateGovernorConfig(value.governor);
+    if (error) return error;
+  }
   if (value.review !== undefined) return validateReviewConfig(value.review, "repository");
   return null;
 }
@@ -414,6 +446,7 @@ export function validateLocalConfig(value) {
     "skills",
     "events",
     "gates",
+    "governor",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -448,6 +481,10 @@ export function validateLocalConfig(value) {
   }
   if (value.gates !== undefined) {
     const error = validateGatesConfig(value.gates);
+    if (error) return error;
+  }
+  if (value.governor !== undefined) {
+    const error = validateGovernorConfig(value.governor);
     if (error) return error;
   }
   if (value.review !== undefined) return validateReviewConfig(value.review, "personal");

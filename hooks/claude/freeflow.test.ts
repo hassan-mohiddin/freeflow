@@ -49,6 +49,9 @@ function world(on: any) {
     status: null as object | null,
     answers: {} as Record<string, Answer>,
     tokens: undefined as number | undefined,
+    // The plan's usage windows and the session's cost, as $.session.usage() gives them (SPEC-014 2.3).
+    rateLimits: [] as { kind: string; percentUsed: number; resetsAt?: string }[],
+    cost: undefined as number | undefined,
     threshold: 167_000 as number | undefined,
     compactionWindow: undefined as number | undefined,
     response: { input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
@@ -193,7 +196,8 @@ function world(on: any) {
   on("session.usage", (_: any, e: any) => ({
     value: {
       startedAt: T0,
-      rateLimits: [],
+      rateLimits: w.rateLimits,
+      ...(w.cost === undefined ? {} : { cost: { usd: w.cost } }),
       context: {
         window: 200_000,
         ...(w.tokens === undefined ? {} : { tokens: w.tokens, percent: Math.round(w.tokens / 2000) }),
@@ -578,7 +582,8 @@ test("a turn ends: sync a changed store; only checkpoint --compact compacts, onc
   w.runs.length = 0;
   await $.turn.complete(turnEnd("answer"));
   await w.clock.advance(1);
-  expect(w.commands()).toEqual(["session status", "store sync"]);
+  // The checkpoint moved the record: the cost governor reads its plan again (SPEC-014 2.3).
+  expect(w.commands()).toEqual(["session status", "store sync", `estimate --plan --record ${RECORD} --json`]);
   expect(w.commandsRun).toEqual([]);
 
   // checkpoint --compact, but the turn was interrupted: nothing compacts.
@@ -930,7 +935,7 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
   const w = world(on);
   await ready($);
   expect(w.registered.map((command) => command.name)).toEqual(["freeflow"]);
-  // enabled, and the event log's own switch (SPEC-006 P5).
+  // enabled, the event log's own switch (SPEC-006 P5), and the cost governor's settings in one list (SPEC-014).
   expect(w.settingsRuns.map((run) => run.args.join(" "))).toEqual([
     "get enabled --root /work/widget --json",
     "get events.enabled --root /work/widget --json",
@@ -1447,6 +1452,165 @@ test("the golden event log: a scripted session through the mod matches golden-ev
   if (JSON.stringify(lines) !== JSON.stringify(GOLDEN))
     console.log(`golden-events.mjs would be:\n${JSON.stringify(lines, null, 2)}`);
   expect(lines).toEqual(GOLDEN);
+});
+
+// The cost governor (SPEC-014 2.3): the plan's seven-day window at a daily pace, the task's plan, governor.cap.
+const RESETS = new Date(T0 + 4.5 * 86_400_000).toISOString();
+const governorRows = (w: any) => appended(w).filter((text) => text.startsWith("Freeflow cost governor:"));
+const governorLines = (w: any) => w.events().filter((line: any) => line.kind === "governor");
+const governorSettings = (mode: string, cap: number | null = null) => ({
+  stdout: JSON.stringify({
+    root: "/work/widget",
+    settings: [
+      { key: "governor.mode", label: "Cost governor", value: mode, scope: "personal", hosts: "claude-code" },
+      {
+        key: "governor.cap",
+        label: "Cost cap",
+        value: cap,
+        scope: cap === null ? "default" : "personal",
+        hosts: "claude-code",
+      },
+    ],
+    state: [],
+  }),
+});
+
+test("the cost governor on a subscription: the daily pace, no row below 80%, one row at 80%, one notice at 100% under warn", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  await start($);
+  // 4.5 days to the reset: this day of the window began 12 hours ago, and 5 days are left from it.
+  const seven = (percentUsed: number) => [
+    { kind: "five_hour", percentUsed: 99, resetsAt: at(60) },
+    { kind: "seven_day", percentUsed, resetsAt: RESETS },
+  ];
+  w.rateLimits = seven(50);
+  await step($, w, 1_000);
+  // The first reading starts the day, kept beside the event log for every session of the day: 50% left over 5 days.
+  expect(JSON.parse(w.stored.get(`${HOME}/events/governor.json`))).toEqual({
+    resetsAt: RESETS,
+    dayStart: "2026-10-29T00:00:00.000Z",
+    percent: 50,
+  });
+  w.rateLimits = seven(57.9);
+  await step($, w, 1_000);
+  expect(governorRows(w)).toEqual([]);
+  // 8% used today, of a 10% pace: one row, and not again.
+  w.rateLimits = seven(58);
+  await step($, w, 1_000);
+  w.rateLimits = seven(59);
+  await step($, w, 1_000);
+  expect(governorRows(w)).toEqual([
+    `Freeflow cost governor: this day of the seven-day window used 8% of it, against a daily pace of 10% (50% left over 5 day(s)), 80% of the cap; it resets at ${RESETS}.`,
+  ]);
+  // The pace reached: one notice, under warn only a notice.
+  w.rateLimits = seven(60);
+  await step($, w, 1_000);
+  w.rateLimits = seven(63);
+  await step($, w, 1_000);
+  expect(governorRows(w).length).toBe(2);
+  expect(governorRows(w)[1]).toStartWith(
+    "Freeflow cost governor: a cap is reached: this day of the seven-day window used 10% of it, against a daily pace of 10%",
+  );
+  expect(governorRows(w)[1]).toEndWith(
+    "Say so to the user in your next answer; Freeflow only notifies (governor.mode warn).",
+  );
+  await $.turn.complete(turnEnd("answer"));
+  expect(
+    governorLines(w).map(({ cap, unit, limit, use, response }: any) => ({ cap, unit, limit, use, response })),
+  ).toEqual([
+    { cap: "pace", unit: "percent", limit: 10, use: 8, response: "row" },
+    { cap: "pace", unit: "percent", limit: 10, use: 10, response: "notice" },
+  ]);
+
+  // The next day of the window starts from where this one ended: 37% left over 4 days.
+  await w.clock.advance(13 * 3_600_000);
+  w.rateLimits = seven(63);
+  await step($, w, 1_000);
+  expect(JSON.parse(w.stored.get(`${HOME}/events/governor.json`))).toMatchObject({
+    dayStart: "2026-10-30T00:00:00.000Z",
+    percent: 63,
+  });
+  w.rateLimits = seven(70.4);
+  await step($, w, 1_000);
+  expect(governorRows(w).at(-1)).toStartWith(
+    "Freeflow cost governor: this day of the seven-day window used 7.4% of it, against a daily pace of 9.3% (37% left over 4 day(s))",
+  );
+});
+
+test("the cost governor under stop: the ask to stop at 100%; a held task's plan in dollars; governor.cap over either", async ($, on) => {
+  const w = world(on);
+  w.settingsAnswers["list "] = governorSettings("stop");
+  w.status = held(at(-30));
+  w.answers["estimate --plan"] = { stdout: JSON.stringify({ total: { usd: 3, usdLow: 2, usdHigh: 4 } }) };
+  await start($);
+  // An API-key session: no window, the cost in dollars. The plan is read at the turn's end, with the cost then.
+  w.cost = 1;
+  await $.turn.complete(turnEnd("answer"));
+  expect(w.commands()).toContain(`estimate --plan --record ${RECORD} --json`);
+  w.cost = 4.1;
+  await step($, w, 1_000);
+  expect(governorRows(w)).toEqual([]);
+  w.cost = 4.2;
+  await step($, w, 1_000);
+  expect(governorRows(w)).toEqual([
+    "Freeflow cost governor: widget/task-001 cost $3.20 at API list price since its plan was read, of $4.00, the high end its open Slices are predicted to cost, 80% of the cap.",
+  ]);
+  // Straight past 100%: the ask, under stop.
+  w.cost = 5.5;
+  await step($, w, 1_000);
+  expect(governorRows(w)[1]).toStartWith(
+    "Freeflow cost governor: a cap is reached: widget/task-001 cost $4.50 at API list price since its plan was read, of $4.00",
+  );
+  expect(governorRows(w)[1]).toContain("Stop at your next safe point:");
+  expect(governorRows(w)[1]).toEndWith(
+    "Checkpoint there (your task's record, or this session's summary), then end your turn asking the user whether to go on (governor.mode stop).",
+  );
+  await $.turn.complete(turnEnd("answer"));
+  expect(governorLines(w).map(({ cap, unit, response }: any) => [cap, unit, response])).toEqual([
+    ["task", "usd", "row"],
+    ["task", "usd", "ask"],
+  ]);
+  // The plan is read once while the record stands.
+  expect(w.commands().filter((command: string) => command.startsWith("estimate")).length).toBe(1);
+
+  // governor.cap in dollars replaces the plan's cap where there is no window.
+  w.settingsAnswers["list "] = governorSettings("stop", 6);
+  w.settingsAnswers["set governor.cap"] = {
+    stdout: JSON.stringify({
+      key: "governor.cap",
+      label: "Cost cap",
+      value: 6,
+      scope: "personal",
+      notes: [],
+      changed: [],
+      cleared: [],
+    }),
+  };
+  await freeflow($, "settings governor.cap 6");
+  await step($, w, 1_000);
+  expect(governorRows(w).at(-1)).toBe(
+    "Freeflow cost governor: this session has cost $5.50 at API list price, of the $6.00 your governor.cap sets, 92% of the cap.",
+  );
+  // On a subscription it is a percent of the seven-day window, in place of the pace.
+  w.rateLimits = [{ kind: "seven_day", percentUsed: 5.5, resetsAt: RESETS }];
+  w.cost = 5.6;
+  await step($, w, 1_000);
+  expect(governorRows(w).at(-1)).toBe(
+    `Freeflow cost governor: the seven-day window is 5.5% used, of the 6% your governor.cap sets, 92% of the cap; it resets at ${RESETS}.`,
+  );
+});
+
+test("the cost governor stays quiet with no window and no cost, and with Freeflow off", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  await start($);
+  await step($, w, 1_000);
+  w.rateLimits = [{ kind: "seven_day", percentUsed: 100, resetsAt: RESETS }];
+  w.enabled = false;
+  await ready($);
+  await step($, w, 1_000);
+  expect(governorRows(w)).toEqual([]);
 });
 
 // Freeflow arriving mid-session, and its guidance pinned (SPEC-013).

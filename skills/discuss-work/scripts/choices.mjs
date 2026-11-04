@@ -5,24 +5,28 @@
 //              changed ones;
 //   agreement  the reply sent before building: What I'll do / Where I stop / Your decisions / Technical: N; with
 //              --plan, the work's size (Track Work's `estimate --plan --json`) and, in Technical, its plan (P87);
-//   return     the items the Return shows: new, changed and default (`handover`, its former name, still works);
+//   return     the items the Return shows: new, changed and default (`handover`, its former name, still works); with
+//              --base <ref>, also how many hunks of the change against it no item shows at (drift.mjs, beside it);
 //   catch-up   after an unattended run: defaults taken, choices waiting, changes, and what ran, from the Working
 //              Record's current Slice: its update lines, read from record.md.
 // Usage: choices.mjs <validate|agreement|return|catch-up> (--list <file|-> | --record <record.md>)
-//                    [--do <outcome> --stop <where you stop>] [--plan <file>] [--show-technical] [--json]
+//                    [--do <outcome> --stop <where you stop>] [--plan <file>] [--base <ref>] [--show-technical] [--json]
 // --list reads a file or stdin (no Working Record: the list lives in the conversation); --record reads the task's
 // decisions.md beside the record. Each item is one line, "- P1 [state] choice -> default ..." (a technical
 // item "-> serves P1"); other lines are ignored. Every view validates first. Exit code 0 when the list is valid
 // (warnings do not fail it), 1 when it has errors, 2 on a usage error.
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { parseChoices, renderChoices } from "./lib/choices.mjs";
 
 const USAGE = [
   "Usage: choices.mjs <validate|agreement|return|catch-up> (--list <file|-> | --record <record.md>)",
-  "                   [--do <outcome> --stop <where you stop>] [--plan <file>] [--show-technical] [--json]",
+  "                   [--do <outcome> --stop <where you stop>] [--plan <file>] [--base <ref>] [--show-technical] [--json]",
 ].join("\n");
+const DRIFT = resolve(dirname(fileURLToPath(import.meta.url)), "drift.mjs");
 const VIEWS = new Set(["validate", "agreement", "return", "handover", "catch-up"]);
 
 function fail(message) {
@@ -40,6 +44,7 @@ try {
       do: { type: "string" },
       stop: { type: "string" },
       plan: { type: "string" },
+      base: { type: "string" },
       "show-technical": { type: "boolean", default: false },
       json: { type: "boolean", default: false },
     },
@@ -52,6 +57,7 @@ const view = positionals[0] === "handover" ? "return" : positionals[0];
 if (!VIEWS.has(view) || positionals.length !== 1) fail(USAGE);
 if (Boolean(values.list) === Boolean(values.record)) fail(`give --list <file|-> or --record <record.md>\n${USAGE}`);
 if (view === "agreement" && (!values.do || !values.stop)) fail(`agreement needs --do and --stop\n${USAGE}`);
+if (values.base && view !== "return") fail(`--base is for the return\n${USAGE}`);
 let plan = null;
 if (values.plan) {
   if (view !== "agreement") fail(`--plan is for the agreement\n${USAGE}`);
@@ -95,6 +101,18 @@ const rendered = renderChoices(view, list, {
   recordText: recordView,
   plan,
 });
+// The drift audit's count (SPEC-014, section 2.2): hunks of the change no decision item shows at.
+if (values.base) {
+  const drift = spawnSync(process.execPath, [DRIFT, "--base", values.base, "--list", "-", "--json"], {
+    input: listText,
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  if (drift.status !== 0) fail(`drift.mjs: ${(drift.stderr || drift.stdout).trim()}`);
+  const { uncovered, hunks } = JSON.parse(drift.stdout);
+  rendered.data.drift = { base: values.base, uncovered: uncovered.length, hunks };
+  rendered.text += `\nDrift: ${uncovered.length} of ${hunks} hunk(s) against ${values.base} shown at by no decision item${uncovered.length ? `; drift.mjs --base ${values.base} lists them` : ""}.`;
+}
 if (values.json)
   console.log(
     JSON.stringify(

@@ -7,15 +7,20 @@
 // live since that code last changed (Write Docs' docs-check --covering --driven). It lists; judging each item is the
 // agent's and the user's.
 //
-// A check is recorded with `check`, which runs it and stamps it with the state it ran on: HEAD plus a hash of every
-// uncommitted change, untracked files included. A requirement's check "ran after the last edit" when its stamp equals
-// the current state's.
+// A requirement's freshness comes from the session's event log first (SPEC-014, P1): its check is the last tool call
+// whose command contains the check the requirements file gives, and it ran after the last edit when no file tool of
+// the agent's edited a path the requirement names (any path, when it names none) after it. Where the session has no
+// event log (`events show` finds none), or the log has no call of the check, it comes from `check`, which runs the check
+// and stamps it with the state it ran on: HEAD plus a hash of every uncommitted change, untracked files included; there
+// the check ran after the last edit when its stamp equals the current state's. The report names each one's source.
 //
 // Usage: self-review.mjs --base <ref> [--root <repository>] [--requirements <file>] [--test-command <command>]
 //                        [--scratch <dir>] [--json]
 //        self-review.mjs check --id <R1> [--root <repository>] [--scratch <dir>] (--command <shell command> | -- <argv>)
 // --requirements: a file whose lines start with a requirement ID (R1, - R2, ...), optionally ending in
-// "check: <command>". --test-command runs each new test on the base in a temporary worktree; "{file}" in it is replaced
+// ":: <command pattern>" or "check: <command>"; paths in its text that exist in the repository are the paths it names.
+// The session is the one Track Work's script reads (CLAUDE_CODE_SESSION_ID or FREEFLOW_SESSION, in FREEFLOW_HOME).
+// --test-command runs each new test on the base in a temporary worktree; "{file}" in it is replaced
 // by the test's path, otherwise the path is appended. --scratch defaults to a folder under the system temporary
 // directory; pass the task's scratch/ when it has a Working Record. Exit code 0 when the report is written, 2 on a
 // usage or Git error; `check` exits with the command's exit code.
@@ -33,6 +38,9 @@ const USAGE = [
 ].join("\n");
 const TEST_CHANGES = resolve(dirname(fileURLToPath(import.meta.url)), "test-changes.mjs");
 const DOCS_CHECK = resolve(dirname(fileURLToPath(import.meta.url)), "../../write-docs/scripts/docs-check.mjs");
+const WORKING_RECORD = resolve(dirname(fileURLToPath(import.meta.url)), "../../track-work/scripts/working-record.mjs");
+/** The file tools whose calls change the paths they name: Claude Code's and Pi's. */
+const EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit", "edit", "write", "apply_patch"]);
 const CAP = 40;
 const LEFTOVER =
   /\b(console\.(log|debug|trace)|debugger|print\(|println!|dbg!|fmt\.Print|var_dump|binding\.pry|breakpoint\(\)|pdb\.set_trace)|\b(TODO|FIXME|XXX)\b/;
@@ -266,9 +274,10 @@ if (testCommand && newTests.some((each) => each.kind === "test")) {
   if (existsSync(where)) newTests.push({ status: "note", path: where, kind: "leftover worktree: remove it" });
 }
 
-// Requirements and their last recorded checks.
+// Requirements and their last checks: from the session's event log first, from `check` records second (P1).
 const current = stamp();
 const log = readLog();
+const events = values.requirements ? sessionToolCalls() : null;
 let requirements = [];
 if (values.requirements) {
   const file = resolve(values.requirements);
@@ -278,15 +287,18 @@ if (values.requirements) {
     .flatMap((line) => {
       const match = /^\s*(?:[-*]\s+)?\**(R\d+)\**[:.)\]]?\s+(.*)$/.exec(line);
       if (!match) return [];
-      const check = /\bcheck:\s*`?([^`]+?)`?\s*$/i.exec(match[2]);
+      const check = /\s::\s*`?([^`]+?)`?\s*$/.exec(match[2]) ?? /\bcheck:\s*`?([^`]+?)`?\s*$/i.exec(match[2]);
       const text = (check ? match[2].slice(0, check.index) : match[2]).replace(/[\s—–-]+$/, "").trim();
-      return [{ id: match[1], text, check: check?.[1] ?? null }];
+      return [{ id: match[1], text, check: check?.[1].trim() ?? null, paths: namedPaths(text) }];
     })
     .map((requirement) => {
+      const fromLog = events?.lines ? logFreshness(requirement, events.lines) : null;
+      if (fromLog) return { ...requirement, source: "event log", ...fromLog };
       const last = log.filter((entry) => entry.id === requirement.id).at(-1) ?? null;
       const afterLastEdit = last ? last.stamp === current && !last.changedState : false;
       return {
         ...requirement,
+        source: last ? "check --id" : null,
         lastCheck: last && { command: last.command, exit: last.exit, at: last.at, head: last.head },
         afterLastEdit,
         state: !last
@@ -298,6 +310,84 @@ if (values.requirements) {
             : "stale: the change differs from the state it checked; rerun it",
       };
     });
+}
+
+/**
+ * This session's tool calls, in the order its log wrote them, from Track Work's `events show`; `lines` is null with
+ * the reason where the session has no event log.
+ */
+function sessionToolCalls() {
+  const run = spawnSync(process.execPath, [WORKING_RECORD, "events", "show", "--kind", "tool.call"], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  if (run.status !== 0)
+    return {
+      lines: null,
+      reason: (run.stderr || run.stdout)
+        .replace(/^Error: /, "")
+        .trim()
+        .split("\n")[0],
+    };
+  const lines = run.stdout
+    .split("\n")
+    .filter(Boolean)
+    .flatMap((raw) => {
+      try {
+        return [JSON.parse(raw)];
+      } catch {
+        return [];
+      }
+    })
+    .sort((x, y) => (x.seq ?? 0) - (y.seq ?? 0));
+  return { lines, reason: null };
+}
+
+/** The paths a requirement's text names: words (backticks and trailing punctuation off) that exist in the repository. */
+function namedPaths(text) {
+  const words = text.split(/\s+/).map((word) => word.replace(/^[`'"(]+|[`'"),.;:]+$/g, ""));
+  const paths = words.filter((word) => /[/.]/.test(word) && !/^\.+$/.test(word) && existsSync(join(root, word)));
+  return [...new Set(paths.map((path) => path.replace(/^\.\//, "").replace(/\/$/, "")))];
+}
+
+/** Whether a path a tool call names (relative to the session's folder, or absolute) is a named path or under it. */
+function touches(path, named) {
+  const own = path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
+  return named.some((each) => own === each || own.startsWith(`${each}/`) || own.endsWith(`/${each}`));
+}
+
+/**
+ * A requirement's freshness from the event log: its check is the last tool call whose command contains the check's
+ * text, and it ran after the last edit when no file tool of the agent's edited a path it names (any path, when it names
+ * none) after that call. Null when the requirement gives no check or the log has no call of it.
+ */
+function logFreshness(requirement, lines) {
+  if (!requirement.check) return null;
+  const pattern = requirement.check.replace(/\s+/g, " ");
+  const index = lines.findLastIndex((line) => typeof line.command === "string" && line.command.includes(pattern));
+  if (index === -1) return null;
+  const call = lines[index];
+  const edit = lines
+    .slice(index + 1)
+    .find(
+      (line) =>
+        line.source === "agent" &&
+        EDIT_TOOLS.has(line.tool) &&
+        (line.paths ?? []).length > 0 &&
+        (!requirement.paths.length || line.paths.some((path) => touches(path, requirement.paths))),
+    );
+  const exit = Number.isInteger(call.exit) ? call.exit : call.ok ? 0 : null;
+  return {
+    lastCheck: { command: call.command, exit, at: call.ts, head: null },
+    afterLastEdit: !edit,
+    ...(edit ? { editedAfter: { tool: edit.tool, paths: edit.paths, at: edit.ts } } : {}),
+    state: edit
+      ? `stale: ${edit.tool} edited ${edit.paths.join(", ")} after it; rerun it`
+      : call.ok
+        ? "passed on the current state"
+        : `failed on the current state${exit === null ? "" : ` (exit ${exit})`}`,
+  };
 }
 
 // Added lines that look like leftover debug output or notes, in tracked files and untracked ones.
@@ -348,6 +438,7 @@ const report = {
   changedTests,
   newTests,
   requirements,
+  ...(events ? { freshness: { eventLog: Boolean(events.lines), reason: events.reason } } : {}),
   featureFiles,
   leftovers: leftovers.slice(0, 20),
   leftoversCut: Math.max(0, leftovers.length - 20),
@@ -383,11 +474,20 @@ for (const each of newTests)
   );
 md.push("", `## Requirements (${requirements.length})`, "");
 if (!values.requirements) md.push("No requirements file given.");
+else
+  md.push(
+    events.lines
+      ? "Freshness from this session's event log, and from `check --id` records for a check the log has no call of."
+      : `Freshness from \`check --id\` records: no event log (${events.reason}).`,
+    "",
+  );
 for (const requirement of requirements) {
-  md.push(`- ${requirement.id} ${requirement.text} — ${requirement.state}`);
+  md.push(
+    `- ${requirement.id} ${requirement.text} — ${requirement.state}${requirement.source ? ` (from ${requirement.source})` : ""}`,
+  );
   if (requirement.lastCheck)
     md.push(
-      `  - last check: \`${requirement.lastCheck.command}\` exit ${requirement.lastCheck.exit} at ${requirement.lastCheck.at}`,
+      `  - last check: \`${requirement.lastCheck.command}\` exit ${requirement.lastCheck.exit ?? "unknown"} at ${requirement.lastCheck.at}`,
     );
   else if (requirement.check)
     md.push(`  - record one: self-review.mjs check --id ${requirement.id} --command "${requirement.check}"`);

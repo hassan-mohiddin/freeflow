@@ -242,6 +242,27 @@ export function resolveReviewSettings(repository: unknown, local: unknown): Revi
   };
 }
 
+/**
+ * The cost governor (SPEC-014, section 2.3), on Claude Code: `mode` warn (the default) only notifies at a cap, stop
+ * also asks the agent to stop at the next safe point, checkpoint and ask the user; `cap` replaces the governor's own
+ * caps with one number, a percent of the seven-day window on a subscription or dollars of the task's cost elsewhere.
+ */
+export const GOVERNOR_MODES = ["warn", "stop"] as const;
+export const GOVERNOR_KEYS = ["mode", "cap"] as const;
+
+function validateGovernorConfig(value: unknown) {
+  if (!isRecord(value)) return "governor must be an object";
+  const unknown = Object.keys(value).find((key) => !(GOVERNOR_KEYS as readonly string[]).includes(key));
+  if (unknown) return `governor has unsupported key: ${unknown}`;
+  if (value.mode !== undefined && !(GOVERNOR_MODES as readonly unknown[]).includes(value.mode))
+    return `governor.mode must be one of ${GOVERNOR_MODES.join(", ")}`;
+  if (value.cap !== undefined && !positiveNumber(value.cap)) return "governor.cap must be a number above 0";
+  return null;
+}
+
+const positiveNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value > 0;
+
 /** The Runtime State line for the user's review choice; none for the defaults (unit `pr`, model `auto`, 3 rounds). */
 export function reviewStateLine(review: Partial<ReviewSettings> | undefined): string | null {
   const unit = review?.unit ?? REVIEW_DEFAULTS.unit;
@@ -256,17 +277,18 @@ export function reviewStateLine(review: Partial<ReviewSettings> | undefined): st
 export type SettingScope = "repository" | "personal" | "session";
 export type SettingValue = boolean | string | number;
 /**
- * One setting Freeflow acts on. `values` is `boolean`, a list of choices, or `name` (one line of text, such as a
- * model); `default` is `null` when unset means none; `hosts` is `all` when every host acts on it and `pi` when only Pi
- * does; `session` says whether the Session scope holds it as a key.
+ * One setting Freeflow acts on. `values` is `boolean`, a list of choices, `name` (one line of text, such as a model),
+ * `number` (above 0) or `policy` (an object edited in the file, review.depth, with no row on a screen or in the
+ * settings script); `default` is `null` when unset means none; `hosts` is `all` when every host acts on it, `pi` when
+ * only Pi does and `claude-code` when only Claude Code's mod does; `session` says whether the Session scope holds it as
+ * a key.
  */
 export type SettingSpec = {
   key: string;
   label: string;
-  /** `policy` is an object edited in the file (review.depth), with no row on a screen or in the settings script. */
-  values: "boolean" | "name" | "policy" | readonly string[] | readonly number[];
+  values: "boolean" | "name" | "number" | "policy" | readonly string[] | readonly number[];
   default: SettingValue | null;
-  hosts: "all" | "pi";
+  hosts: "all" | "pi" | "claude-code";
   session: boolean;
 };
 
@@ -319,6 +341,15 @@ export const SETTINGS: readonly SettingSpec[] = [
   { key: "review.rounds", label: "Review rounds", values: REVIEW_ROUNDS, default: 3, hosts: "all", session: true },
   { key: "review.depth", label: "Review depth rules", values: "policy", default: null, hosts: "all", session: false },
   {
+    key: "governor.mode",
+    label: "Cost governor",
+    values: GOVERNOR_MODES,
+    default: "warn",
+    hosts: "claude-code",
+    session: true,
+  },
+  { key: "governor.cap", label: "Cost cap", values: "number", default: null, hosts: "claude-code", session: true },
+  {
     key: "toolExecution.enabled",
     label: "Tool Execution",
     values: "boolean",
@@ -355,6 +386,7 @@ export function settingSpec(key: string): SettingSpec | undefined {
 export function validSettingValue(spec: SettingSpec, value: unknown): value is SettingValue {
   if (spec.values === "boolean") return typeof value === "boolean";
   if (spec.values === "name") return typeof value === "string" && value.trim() !== "" && !/[\p{Cc}`]/u.test(value);
+  if (spec.values === "number") return positiveNumber(value);
   if (spec.values === "policy") return false;
   return (spec.values as readonly unknown[]).includes(value);
 }
@@ -402,6 +434,7 @@ export const CONFIG_SECTIONS = [
   "skills",
   "events",
   "gates",
+  "governor",
 ] as const;
 
 // outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
@@ -459,6 +492,10 @@ export function validateRepositoryConfig(value: unknown): string | null {
     const error = validateGatesConfig(value.gates);
     if (error) return error;
   }
+  if (value.governor !== undefined) {
+    const error = validateGovernorConfig(value.governor);
+    if (error) return error;
+  }
   if (value.review !== undefined) return validateReviewConfig(value.review, "repository");
 
   return null;
@@ -487,6 +524,7 @@ export function validateLocalConfig(value: unknown): string | null {
     "skills",
     "events",
     "gates",
+    "governor",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -522,6 +560,10 @@ export function validateLocalConfig(value: unknown): string | null {
   }
   if (value.gates !== undefined) {
     const error = validateGatesConfig(value.gates);
+    if (error) return error;
+  }
+  if (value.governor !== undefined) {
+    const error = validateGovernorConfig(value.governor);
     if (error) return error;
   }
   if (value.review !== undefined) return validateReviewConfig(value.review, "personal");

@@ -12,6 +12,7 @@ One line per event, in `events/<session ID>.jsonl` in the Freeflow home (`FREEFL
 - compactions, and whether Freeflow or the host ran them; workers started and stopped;
 - Freeflow's own actions: a notice, a context row, the task menu, a compaction it ran, a store sync, its claims;
 - each time a [gate](gates.md) warned, asked or refused (the gate, the tool and the rule), and an agreement recorded with `agree`.
+- on Claude Code, each row or notice of the cost governor: the cap, the use against it, and the response (see [Settings](../settings.md), Cost governor); `events summary` lists them.
 
 A line never holds a prompt, an answer, a file's content or a tool's output. In a command, keys and tokens (`sk-…`, `ghp_…`, `github_pat_…`, `xox…-`, `AKIA…`, `Bearer …`, and any `…key=`, `…token=`, `…secret=` or `…password=` value) are replaced with `[redacted]` before it is written, and the command is cut to 200 characters.
 

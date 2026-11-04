@@ -35,8 +35,8 @@ const USAGE = `Usage:
   settings.mjs set <key> <value> --scope repository|personal|session [--root <folder>] [--json]
   settings.mjs unset <key> --scope repository|personal|session [--root <folder>] [--json]
 --root names a folder in the repository (default: the current folder); the settings are its repository's.
-The value "inherit" unsets the key in that scope. --host all (the default) lists the settings every host acts on;
---host pi lists Pi's too. The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
+The value "inherit" unsets the key in that scope. --host all (the default) lists the settings every host acts on and
+Claude Code's own; --host pi lists Pi's too. The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
 FREEFLOW_SESSION).`;
 
 class UsageError extends Error {}
@@ -118,7 +118,7 @@ function row(item) {
 
 function list(state, root, host, json) {
   const resolved = resolveAll(state);
-  const rows = resolved.filter((item) => host === "pi" || item.spec.hosts === "all");
+  const rows = resolved.filter((item) => host === "pi" || item.spec.hosts !== "pi");
   if (json) return `${JSON.stringify({ root, settings: rows.map(row), state: stateLines(resolved) }, null, 2)}\n`;
   const width = Math.max(...rows.map((item) => item.spec.key.length));
   const lines = rows.map(
@@ -133,7 +133,7 @@ function list(state, root, host, json) {
   ].join("\n");
 }
 
-/** A typed value as the setting takes it: on/off and true/false for a switch, the word itself otherwise. */
+/** A typed value as the setting takes it: on/off and true/false for a switch, a number for a number, the word itself otherwise. */
 function parseValue(spec, text) {
   let value = text;
   if (spec.values === "boolean") {
@@ -141,9 +141,16 @@ function parseValue(spec, text) {
     else if (["off", "false"].includes(text)) value = false;
   } else if (Array.isArray(spec.values) && typeof spec.values[0] === "number" && /^\d+$/.test(text))
     value = Number(text);
+  if (spec.values === "number" && /^\d+(\.\d+)?$/.test(text)) value = Number(text);
   if (!validSettingValue(spec, value)) {
     const takes =
-      spec.values === "boolean" ? "on or off" : spec.values === "name" ? "a name on one line" : spec.values.join(", ");
+      spec.values === "boolean"
+        ? "on or off"
+        : spec.values === "name"
+          ? "a name on one line"
+          : spec.values === "number"
+            ? "a number above 0"
+            : spec.values.join(", ");
     throw new UsageError(`${spec.key} takes ${takes}, not ${text}`);
   }
   return value;
@@ -158,6 +165,7 @@ function requireSpec(key) {
 /** What else the person should know after a change, beyond the lines. */
 function notes(spec) {
   if (spec.hosts === "pi") return ["Only Pi acts on this setting."];
+  if (spec.hosts === "claude-code") return ["Only Claude Code's mod acts on this setting."];
   if (spec.key.startsWith("prompts."))
     return ["Prompt text already given in this session stays until the next session start or compaction."];
   return [];
