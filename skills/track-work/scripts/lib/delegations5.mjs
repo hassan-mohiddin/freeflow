@@ -10,7 +10,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from "node:pat
 import { fileURLToPath } from "node:url";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
 import { slugify } from "./format.mjs";
-import { syncStore } from "./freeflow-store.mjs";
+import { HOST_COMMITS_TEXT, syncStore } from "./freeflow-store.mjs";
 import { appendChannel, latestReturn, readChannel } from "./channel5.mjs";
 import { addClaims, claimHours, claimGroups, releaseClaims } from "./claims5.mjs";
 import { parseChoices } from "../../../discuss-work/scripts/lib/choices.mjs";
@@ -229,6 +229,7 @@ async function sync(taskDir, message) {
   if (!home) return "Not in a Freeflow store: nothing to commit.";
   try {
     const synced = await syncStore({ home, message });
+    if (synced.hostCommits) return HOST_COMMITS_TEXT;
     if (synced.local) return "Store: committed; a local store, nothing to push.";
     return synced.pushed
       ? "Store: committed and pushed."

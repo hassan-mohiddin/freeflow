@@ -41,9 +41,31 @@ function fail(code, message, exitCode = 1) {
   throw new StoreError(code, message, {}, exitCode);
 }
 
+/**
+ * Options every Git command in the store runs with: a repository someone planted inside the store's files (a folder
+ * with its own .git) is never looked into, so its configuration, such as core.fsmonitor, never runs. A store holds no
+ * submodules of its own.
+ */
+const STORE_GIT = [
+  "-c",
+  "diff.ignoreSubmodules=all",
+  "-c",
+  "submodule.recurse=false",
+  "-c",
+  "fetch.recurseSubmodules=false",
+];
+
+/**
+ * The variable that leaves the store's commits to the host: set (to 1) where Track Work runs beside a host that
+ * commits the store itself, such as inside an evaluation's container whose store's .git is read-only, store sync
+ * commits and syncs nothing and says the host commits.
+ */
+export const HOST_COMMITS = "FREEFLOW_HOST_COMMITS";
+export const HOST_COMMITS_TEXT = `Store: not committed here; the host commits it (${HOST_COMMITS} is set).`;
+
 async function git(cwd, args, { allowFailure = false } = {}) {
   try {
-    const { stdout } = await execFile("git", ["-C", cwd, ...args], { maxBuffer: 16 * 1024 * 1024 });
+    const { stdout } = await execFile("git", ["-C", cwd, ...STORE_GIT, ...args], { maxBuffer: 16 * 1024 * 1024 });
     return { ok: true, stdout: stdout.trim() };
   } catch (error) {
     if (!allowFailure)
@@ -448,7 +470,7 @@ const lastLine = (text, fallback) => {
 
 /** Git's output exactly as printed, for file contents and patches. */
 async function gitRaw(cwd, args) {
-  const { stdout } = await execFile("git", ["-C", cwd, ...args], { maxBuffer: 64 * 1024 * 1024 });
+  const { stdout } = await execFile("git", ["-C", cwd, ...STORE_GIT, ...args], { maxBuffer: 64 * 1024 * 1024 });
   return stdout;
 }
 
@@ -555,13 +577,15 @@ async function rebaseOntoRemote(home, { resolved = false } = {}) {
  * Commits what changed, takes the remote's commits under the local ones, and pushes, after the secret scan. A push
  * refused because the remote moved takes its commits and tries again; no network or no access leaves the commits
  * here and says so, without failing: work never waits on the network. With `pull`, nothing is pushed. A conflict
- * stops until `resolved`.
+ * stops until `resolved`. With FREEFLOW_HOST_COMMITS=1 it does nothing and says the host commits.
  *
  * @param {{ home?: string, message?: string, pull?: boolean, resolved?: boolean }} options
  */
 export async function syncStore({ home: explicit, message, pull = false, resolved = false, push = true }) {
   const home = storeHome(explicit);
   requireStore(home);
+  if (process.env[HOST_COMMITS] === "1")
+    return { home, committed: 0, pulled: false, pushed: false, hostCommits: true, reason: HOST_COMMITS_TEXT };
   const conflict = await pendingConflict(home);
   if (conflict && !resolved)
     fail(

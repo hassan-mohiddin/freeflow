@@ -170,14 +170,16 @@ export async function prepareClaudeLaunch({
   else if (appended !== "") args.push("--append-system-prompt-file", promptFile);
   if (freeflowRoot === null) return { args, environment: { ...CLAUDE_CODE_ENVIRONMENT } };
   // The Freeflow arm: the package as the session's plugin (its hooks.json and mod with it), and FREEFLOW_HOME at a
-  // fresh store in the run's folder, which the subject's bash sees at the same path and may write.
+  // fresh store in the run's folder, which the subject's bash sees at the same path and may write, all but its .git,
+  // which the container mounts read-only. Track Work in the container therefore leaves the store's commits to the
+  // host (FREEFLOW_HOST_COMMITS), whose mod commits the store at each turn end.
   const home = await prepareFreeflowStore(freeflowRoot, path.join(variantDirectory ?? isolation.root, "freeflow-home"));
   args.push("--plugin-dir", freeflowRoot);
   return {
     args,
     environment: { ...CLAUDE_CODE_ENVIRONMENT, FREEFLOW_HOME: home },
     writableRoots: [home],
-    containerEnvironment: { FREEFLOW_HOME: home },
+    containerEnvironment: { FREEFLOW_HOME: home, FREEFLOW_HOST_COMMITS: "1" },
     freeflowHome: home,
   };
 }

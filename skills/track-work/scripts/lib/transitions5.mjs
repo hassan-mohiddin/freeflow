@@ -9,7 +9,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
 import { budgetFor, contextWindow, measureTask, measuredLines, sourceFiles, spaceRepositories } from "./budget5.mjs";
-import { storeHome, syncStore } from "./freeflow-store.mjs";
+import { HOST_COMMITS_TEXT, storeHome, syncStore } from "./freeflow-store.mjs";
 import {
   CLOSED_STATES,
   DECISIONS_FILE,
@@ -185,6 +185,7 @@ async function syncAfter(task, what) {
   const taskName = basename(dirname(task.loaded.path));
   try {
     const synced = await syncStore({ home, message: `${taskName}: ${what}` });
+    if (synced.hostCommits) return HOST_COMMITS_TEXT;
     const committed = synced.committed ? `committed ${synced.committed} path(s)` : "nothing to commit";
     if (synced.local) return `Store: ${committed}; a local store, nothing to push.`;
     return synced.pushed

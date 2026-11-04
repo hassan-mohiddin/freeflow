@@ -11,7 +11,7 @@ import { basename, dirname, join, relative } from "node:path";
 import { releaseClaims } from "./claims5.mjs";
 import { slugify } from "./format.mjs";
 import { claudeCodeLog } from "./discussion5.mjs";
-import { missingParts, storeStatus, syncStore } from "./freeflow-store.mjs";
+import { HOST_COMMITS_TEXT, missingParts, storeStatus, syncStore } from "./freeflow-store.mjs";
 import {
   DECISIONS_FILE,
   EMPTY_DECISIONS,
@@ -135,6 +135,7 @@ function git(home, args) {
 async function sync(home, message, { push = true } = {}) {
   try {
     const synced = await syncStore({ home, message, push });
+    if (synced.hostCommits) return HOST_COMMITS_TEXT;
     if (synced.local) return "Store: committed; a local store, nothing to push.";
     return synced.pushed
       ? "Store: committed and pushed."

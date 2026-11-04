@@ -536,3 +536,62 @@ test("a home that holds only Freeflow's own sessions/ has no store yet: store in
     );
   });
 });
+
+test("with FREEFLOW_HOST_COMMITS=1, store sync commits nothing and says the host commits; without it, the same sync commits", async () => {
+  await withFolder(async (folder) => {
+    await writeFile(join(folder, "gitconfig"), "");
+    const home = join(folder, "home");
+    assert.equal(store(folder, ["init", "--home", home, ...IDENTITY]).status, 0);
+    await writeFile(join(home, "rules", "style.md"), "Plain words.\n");
+    const before = await readFile(join(home, "local", "sync.json"), "utf8");
+    const left = store(folder, ["sync", "--home", home], { FREEFLOW_HOST_COMMITS: "1" });
+    assert.equal(left.status, 0, left.stderr);
+    assert.equal(left.stdout, "Store: not committed here; the host commits it (FREEFLOW_HOST_COMMITS is set).\n");
+    assert.equal(git(home, ["rev-list", "--count", "HEAD"]), "1");
+    assert.equal(await readFile(join(home, "local", "sync.json"), "utf8"), before, "no sync recorded");
+    const synced = store(folder, ["sync", "--home", home], { FREEFLOW_HOST_COMMITS: "0" });
+    assert.match(synced.stdout, /committed 1 path\(s\), nothing to push\.$/m);
+    assert.equal(git(home, ["rev-list", "--count", "HEAD"]), "2");
+  });
+});
+
+test("a repository planted inside the store's files is never looked into: its core.fsmonitor never runs at status or sync", async () => {
+  await withFolder(async (folder) => {
+    await writeFile(join(folder, "gitconfig"), "");
+    const home = join(folder, "home");
+    assert.equal(store(folder, ["init", "--home", home, ...IDENTITY]).status, 0);
+    // As a subject that may write the store's files (not its .git) would plant it: a repository with one commit and a
+    // core.fsmonitor that leaves a mark, which a plain `git status` in the store runs once the store tracks it.
+    const planted = join(home, "rules", "planted");
+    const mark = join(folder, "fsmonitor-ran");
+    await mkdir(planted, { recursive: true });
+    git(planted, ["init", "--quiet"]);
+    await writeFile(join(planted, "f"), "x\n");
+    git(planted, ["add", "f"]);
+    git(planted, ["-c", "user.name=s", "-c", "user.email=s@x", "commit", "--quiet", "-m", "planted"]);
+    git(planted, ["config", "core.fsmonitor", `touch ${JSON.stringify(mark)}; false #`]);
+    const first = store(folder, ["sync", "--home", home]);
+    assert.equal(first.status, 0, first.stderr);
+    await writeFile(join(planted, "f"), "changed\n");
+    for (const args of [
+      ["status", "--home", home],
+      ["sync", "--home", home],
+    ])
+      assert.equal(store(folder, args).status, 0);
+    const status = spawnSync(process.execPath, [scriptPath, "session", "status"], {
+      cwd: folder,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GIT_CONFIG_GLOBAL: join(folder, "gitconfig"),
+        GIT_CONFIG_NOSYSTEM: "1",
+        FREEFLOW_HOME: home,
+      },
+    });
+    assert.equal(status.status, 0, status.stderr);
+    assert.equal(existsSync(mark), false, "the planted repository's core.fsmonitor ran");
+    // The control: Git without the store's options runs it, so the test would see it.
+    execFileSync("git", ["-C", home, "status", "--porcelain"], { env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1" } });
+    assert.equal(existsSync(mark), true, "the control did not run the planted core.fsmonitor");
+  });
+});

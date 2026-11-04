@@ -6,6 +6,7 @@
 
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -284,8 +285,14 @@ export function containerName(purpose) {
 function runOptions(container, { workspace, at, resources = [], writable = [], environment = {} }) {
   const mounts = [
     ...resources.flatMap((resource) => ["--volume", `${resource}:${resource}:ro`]),
-    // A folder beside the workspace the subject may write, such as a Freeflow arm's store, at its own path.
-    ...writable.flatMap((folder) => ["--volume", `${folder}:${folder}`]),
+    // A folder beside the workspace the subject may write, such as a Freeflow arm's store, at its own path. Its .git,
+    // when it has one, is mounted read-only over it: the host runs Git in that folder (the Freeflow arm's mod commits
+    // the store at each turn end), so the subject must not plant configuration, hooks or commondir there.
+    ...writable.flatMap((folder) => [
+      "--volume",
+      `${folder}:${folder}`,
+      ...(existsSync(path.join(folder, ".git")) ? ["--volume", `${folder}/.git:${folder}/.git:ro`] : []),
+    ]),
     ...Object.entries(environment).flatMap(([name, value]) => ["--env", `${name}=${value}`]),
   ];
   return [

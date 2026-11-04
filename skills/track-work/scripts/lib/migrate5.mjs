@@ -11,7 +11,7 @@ import { cp, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import { fieldLines, fieldValue, parseDocument } from "./document.mjs";
 import { slugify } from "./format.mjs";
-import { syncStore } from "./freeflow-store.mjs";
+import { HOST_COMMITS_TEXT, syncStore } from "./freeflow-store.mjs";
 import {
   DECISIONS_FILE,
   EMPTY_DECISIONS,
@@ -302,11 +302,13 @@ async function copyIntoProject(home, project, taskDir) {
 export async function copyTaskIntoStore({ recordPath, home, project }) {
   const taskDir = await copyIntoProject(home, project, dirname(recordPath));
   const outcome = await syncStore({ home, message: `Bring ${basename(taskDir)} into the store` });
-  const synced = outcome.local
-    ? "Store: committed; a local store."
-    : outcome.pushed
-      ? "Store: committed and pushed."
-      : `Store: committed, not pushed (${outcome.reason}).`;
+  const synced = outcome.hostCommits
+    ? HOST_COMMITS_TEXT
+    : outcome.local
+      ? "Store: committed; a local store."
+      : outcome.pushed
+        ? "Store: committed and pushed."
+        : `Store: committed, not pushed (${outcome.reason}).`;
   const id = `${slugify(project)}/${/^task-\d{3,}/.exec(basename(taskDir))[0]}`;
   return `Brought into the store as ${id}: ${join(taskDir, "record.md")}\nThe original folder is unchanged: ${dirname(recordPath)}.\n${synced}\n`;
 }
@@ -352,11 +354,13 @@ export async function migrateTask({ recordPath, text, root, cue, cues, home, pro
   if (project) {
     try {
       const outcome = await syncStore({ home, message: `Migrate ${basename(taskDir)} to Schema 5` });
-      synced = outcome.local
-        ? "Store: committed; a local store."
-        : outcome.pushed
-          ? "Store: committed and pushed."
-          : `Store: committed, not pushed (${outcome.reason}).`;
+      synced = outcome.hostCommits
+        ? HOST_COMMITS_TEXT
+        : outcome.local
+          ? "Store: committed; a local store."
+          : outcome.pushed
+            ? "Store: committed and pushed."
+            : `Store: committed, not pushed (${outcome.reason}).`;
     } catch (error) {
       synced = `Store not synced: ${error.message}`;
     }
@@ -453,11 +457,13 @@ export async function migrateRecoveryHeadings({ recordPath, text, home }) {
   if (home) {
     try {
       const outcome = await syncStore({ home, message: `Migrate ${basename(taskDir)} to the Recovery list` });
-      synced = outcome.local
-        ? "Store: committed; a local store."
-        : outcome.pushed
-          ? "Store: committed and pushed."
-          : `Store: committed, not pushed (${outcome.reason}).`;
+      synced = outcome.hostCommits
+        ? HOST_COMMITS_TEXT
+        : outcome.local
+          ? "Store: committed; a local store."
+          : outcome.pushed
+            ? "Store: committed and pushed."
+            : `Store: committed, not pushed (${outcome.reason}).`;
     } catch (error) {
       synced = `Store not synced: ${error.message}`;
     }
