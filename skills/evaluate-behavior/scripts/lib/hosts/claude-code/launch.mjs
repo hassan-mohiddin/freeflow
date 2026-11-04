@@ -177,7 +177,13 @@ export async function prepareClaudeLaunch({
   args.push("--plugin-dir", freeflowRoot);
   return {
     args,
-    environment: { ...CLAUDE_CODE_ENVIRONMENT, FREEFLOW_HOME: home },
+    // On the host, Track Work runs no Git in a folder the subject writes, but for the store itself, whose .git the
+    // container sees read-only (a repository the subject made could carry a core.fsmonitor or a filter).
+    environment: {
+      ...CLAUDE_CODE_ENVIRONMENT,
+      FREEFLOW_HOME: home,
+      FREEFLOW_UNTRUSTED_ROOTS: JSON.stringify([workspace, home]),
+    },
     writableRoots: [home],
     containerEnvironment: { FREEFLOW_HOME: home, FREEFLOW_HOST_COMMITS: "1" },
     freeflowHome: home,

@@ -32,6 +32,7 @@ import { sessionIdentity } from "./projects5.mjs";
 import { storeHome } from "./freeflow-store.mjs";
 import { CHECKS, ROUTING_FILE, SETTLED, routeFrom, routingFiles } from "./routing5.mjs";
 import { writeNoFollow } from "./no-follow.mjs";
+import { gitRefused } from "./untrusted.mjs";
 
 export const KINDS = new Set(["build", "review", "research", "eval", "gather"]);
 export const OUTCOMES = new Set(["accepted", "sent back", "stopped"]);
@@ -78,6 +79,11 @@ const oneLine = (text) =>
     .trim();
 
 function git(directory, args) {
+  if (gitRefused(directory))
+    return {
+      failed: true,
+      message: `Track Work runs no Git in ${directory}: it is in a folder FREEFLOW_UNTRUSTED_ROOTS names`,
+    };
   try {
     return execFileSync("git", ["-C", directory, ...args], {
       encoding: "utf8",

@@ -150,6 +150,7 @@ test("the Freeflow arm runs claude -p with the package as its plugin and a fresh
       assert.equal(plain.args.includes("--plugin-dir"), false);
       assert.equal(plain.env.FREEFLOW_HOME, null);
       assert.equal(plain.env.SKILL_EVAL_WRITABLE_ROOTS, null);
+      assert.equal(plain.env.FREEFLOW_UNTRUSTED_ROOTS, null);
 
       // The Freeflow arm: the built package as the plugin, and FREEFLOW_HOME at a store Track Work made in its folder.
       const plugin = freeflow.args[freeflow.args.indexOf("--plugin-dir") + 1];
@@ -158,6 +159,8 @@ test("the Freeflow arm runs claude -p with the package as its plugin and a fresh
       const home = path.join(directory, "freeflow", "freeflow-home");
       assert.equal(freeflow.env.FREEFLOW_HOME, home);
       assert.deepEqual(JSON.parse(freeflow.env.SKILL_EVAL_WRITABLE_ROOTS), [home]);
+      // Track Work on the host runs no Git in the workspace or the store's files, which the subject writes.
+      assert.deepEqual(JSON.parse(freeflow.env.FREEFLOW_UNTRUSTED_ROOTS), [freeflow.cwd, home]);
       assert.equal(JSON.parse(await readFile(path.join(home, "store.json"), "utf8")).kind, "freeflow-store");
       // Both arms still run with the evaluator's guard and settings, and no settings from anywhere else.
       for (const start of [plain, freeflow]) {

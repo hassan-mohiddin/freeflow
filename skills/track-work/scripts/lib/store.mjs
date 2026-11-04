@@ -5,6 +5,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { refuseLinkedFolders } from "./no-follow.mjs";
+import { gitRefused } from "./untrusted.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -23,6 +24,13 @@ function fail(code, message, details = {}, exitCode = 1) {
 }
 
 async function gitCommand(root, args) {
+  if (gitRefused(root))
+    return {
+      ok: false,
+      code: "untrusted",
+      stdout: "",
+      stderr: `Track Work runs no Git in ${root}: it is in a folder FREEFLOW_UNTRUSTED_ROOTS names`,
+    };
   try {
     const result = await execFile("git", ["-C", root, ...args], { maxBuffer: 1024 * 1024 });
     return { ok: true, stdout: result.stdout, stderr: result.stderr };

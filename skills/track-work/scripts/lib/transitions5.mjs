@@ -53,6 +53,7 @@ import { holdStart, summaryForTask } from "./events5.mjs";
 import { readSessions, sessionIdentity } from "./projects5.mjs";
 import { REPOSITORIES_FILE, freeflowStoreOf, isFreeflowStore, writeAtomically, writeTaskFile } from "./store.mjs";
 import { writeNoFollow } from "./no-follow.mjs";
+import { gitRefused } from "./untrusted.mjs";
 
 function fail(code, message) {
   const error = new Error(message);
@@ -580,6 +581,7 @@ async function closeAgreement(options, text, loaded) {
 }
 
 function git(directory, args) {
+  if (gitRefused(directory)) return null;
   try {
     return execFileSync("git", ["-C", directory, ...args], {
       encoding: "utf8",

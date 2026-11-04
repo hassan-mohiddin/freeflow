@@ -40,6 +40,7 @@ import {
   sessionSummaryPath,
 } from "./transitions5.mjs";
 import { writeNoFollow } from "./no-follow.mjs";
+import { gitRefused } from "./untrusted.mjs";
 
 export const SESSIONS_FILE = "sessions.md";
 export const MENU_TASKS = 15;
@@ -126,6 +127,7 @@ function openHold(sessions, identity) {
 }
 
 function git(home, args) {
+  if (gitRefused(home)) return "";
   try {
     return execFileSync("git", ["-C", home, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
   } catch {

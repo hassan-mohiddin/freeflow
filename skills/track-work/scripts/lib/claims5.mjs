@@ -17,6 +17,7 @@ import { normalPath, resolvePath } from "./gates5.mjs";
 import { ensureUnionMerge, storeHome } from "./freeflow-store.mjs";
 import { REPOSITORIES_FILE, isFreeflowStore } from "./store.mjs";
 import { appendNoFollow } from "./no-follow.mjs";
+import { gitRefused } from "./untrusted.mjs";
 
 export const CLAIMS_FILE = "claims.jsonl";
 export const CLAIM_VERSION = 1;
@@ -35,6 +36,7 @@ const fail = (message) => {
 };
 
 function git(directory, args) {
+  if (gitRefused(directory)) return null;
   try {
     return execFileSync("git", ["-C", directory, ...args], {
       encoding: "utf8",

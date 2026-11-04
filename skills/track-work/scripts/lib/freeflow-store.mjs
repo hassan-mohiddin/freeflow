@@ -18,6 +18,7 @@ import { promisify } from "node:util";
 import { FREEFLOW_STORE_KIND, isFreeflowStore, STORE_MARKER, StoreError } from "./store.mjs";
 import { DEFAULT_TABLE, ROUTING_FILE } from "./routing5.mjs";
 import { writeNoFollow } from "./no-follow.mjs";
+import { gitRefused } from "./untrusted.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -65,6 +66,11 @@ export const HOST_COMMITS = "FREEFLOW_HOST_COMMITS";
 export const HOST_COMMITS_TEXT = `Store: not committed here; the host commits it (${HOST_COMMITS} is set).`;
 
 async function git(cwd, args, { allowFailure = false } = {}) {
+  if (gitRefused(cwd)) {
+    const why = `Track Work runs no Git in ${cwd}: it is in a folder FREEFLOW_UNTRUSTED_ROOTS names`;
+    if (!allowFailure) fail("git-refused", why);
+    return { ok: false, stdout: "", stderr: why };
+  }
   try {
     const { stdout } = await execFile("git", ["-C", cwd, ...STORE_GIT, ...args], { maxBuffer: 16 * 1024 * 1024 });
     return { ok: true, stdout: stdout.trim() };
@@ -474,6 +480,8 @@ const lastLine = (text, fallback) => {
 
 /** Git's output exactly as printed, for file contents and patches. */
 async function gitRaw(cwd, args) {
+  if (gitRefused(cwd))
+    fail("git-refused", `Track Work runs no Git in ${cwd}: it is in a folder FREEFLOW_UNTRUSTED_ROOTS names`);
   const { stdout } = await execFile("git", ["-C", cwd, ...STORE_GIT, ...args], { maxBuffer: 64 * 1024 * 1024 });
   return stdout;
 }

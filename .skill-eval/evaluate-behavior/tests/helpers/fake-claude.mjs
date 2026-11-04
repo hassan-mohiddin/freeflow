@@ -28,7 +28,7 @@ if (args[0] === "--version") {
   process.exit(0);
 }
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const LOGGED = ["HOME", "CLAUDE_CONFIG_DIR", "FREEFLOW_HOME", "SKILL_EVAL_WRITABLE_ROOTS", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "DISABLE_AUTO_COMPACT", "CONFINEMENT_PROBE", "SKILL_EVAL_ALLOWED_TOOLS", "PARENT_ONLY"];
+const LOGGED = ["HOME", "CLAUDE_CONFIG_DIR", "FREEFLOW_HOME", "FREEFLOW_UNTRUSTED_ROOTS", "SKILL_EVAL_WRITABLE_ROOTS", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "DISABLE_AUTO_COMPACT", "CONFINEMENT_PROBE", "SKILL_EVAL_ALLOWED_TOOLS", "PARENT_ONLY"];
 appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, cwd: process.cwd(), env: Object.fromEntries(LOGGED.map((key) => [key, process.env[key] ?? null])) }) + "\\n");
 const tools = (flag("--tools") ?? "").split(",").filter(Boolean);
 const model = flag("--model");
