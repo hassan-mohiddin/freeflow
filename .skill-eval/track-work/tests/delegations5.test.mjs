@@ -258,12 +258,45 @@ test("delegate check-return takes no email ID, path or UUID part, or other repos
     await writeFile(join(folder, "return.md"), withIdentities(identities));
     assert.match(
       ok(cli(["delegate", "check-return", "--record", record, "--id", "D-001"])),
-      /^D-001's return: State done; every heading is there; its 2 commit\(s\) are on branch d-001-build-the-thing\./,
+      /^D-001's return: State done; every heading is there; its 2 commit\(s\) are on branch d-001-build-the-thing; not checked here, as another repository's: 079e17a4 \(openai\/codex\)\./,
     );
-    await writeFile(join(folder, "return.md"), withIdentities(`${identities}\n- Fix: 7e57ab1e`));
+    for (const missing of [
+      "- Fix: 7e57ab1e",
+      "- Shipped in skills/track-work/scripts/lib/delegations5.mjs 7e57ab1e.",
+      "- Base: origin/main 7e57ab1e",
+      "- Checked and/or 7e57ab1e",
+      "- Pushed origin/7e57ab1e",
+      "- Branch fix-7e57ab1e",
+      "- Head 7e57ab1e-dirty",
+    ]) {
+      await writeFile(join(folder, "return.md"), withIdentities(`${identities}\n${missing}`));
+      assert.match(
+        cli(["delegate", "check-return", "--record", record, "--id", "D-001"]).stderr,
+        /D-001's return is not ready: commit 7e57ab1e does not exist\.$/m,
+        missing,
+      );
+    }
+  });
+});
+
+test("delegate check-return names another repository's commit it did not check", async () => {
+  await withTask(async ({ record, repo, taskDir, cli }) => {
+    openBuild(cli, record, repo);
+    const folder = join(taskDir, "delegations", "D-001-build-the-thing");
+    const worktree = join(dirname(repo), "repo-d-001-build-the-thing");
+    await writeFile(join(worktree, "thing.txt"), "t\n");
+    git(worktree, ["add", "thing.txt"]);
+    git(worktree, ["commit", "--quiet", "-m", "thing"]);
+    const onBranch = git(worktree, ["rev-parse", "--short=8", "HEAD"]);
+    const upstream = "079e17a422347e49d02501304f79fade7e569362";
+    const lines = `branch, commit ${onBranch}\n- Schemas at openai/codex ${upstream} (main at 079e17a4)\n`;
+    await writeFile(
+      join(folder, "return.md"),
+      RETURN("D-001", onBranch).replace(`branch, commit ${onBranch}\n`, lines),
+    );
     assert.match(
-      cli(["delegate", "check-return", "--record", record, "--id", "D-001"]).stderr,
-      /D-001's return is not ready: commit 7e57ab1e does not exist\.$/m,
+      ok(cli(["delegate", "check-return", "--record", record, "--id", "D-001"])),
+      /its 1 commit\(s\) are on branch d-001-build-the-thing; not checked here, as another repository's: 079e17a4 \(openai\/codex\)\./,
     );
   });
 });
