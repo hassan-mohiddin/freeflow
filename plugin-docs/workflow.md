@@ -98,7 +98,7 @@ Each skill is one capability. Its first page covers the common case and a table 
 
 The commands are Pi's; Claude Code calls the same skills as `/freeflow:<skill>`, and Codex by mentioning the skill. Natural language works as well: the agent opens the skill whose description matches. A skill is a method, never permission; naming one does not authorize what it describes.
 
-On Pi, Freeflow's optional capabilities add skills of their own while they are on: Cognitive Routing, Compaction and Messaging.
+On Pi, Messaging adds a skill of its own while it is on.
 
 ### Scripts the skills run
 
@@ -136,7 +136,7 @@ Freeflow 0.9.0 has ten skills instead of twenty-five. The removed names have no 
 
 ## Activation And Configuration
 
-Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal overrides and cannot activate Freeflow by itself. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Cognitive Routing, Tool Execution, Compaction and Messaging are optional capabilities. The former context settings `contextVirtualization` and `conversationHistory` are unsupported and make either config layer invalid until removed.
+Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal overrides and cannot activate Freeflow by itself. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Tool Execution, Compaction and Messaging are optional capabilities. The former context settings `contextVirtualization` and `conversationHistory` are unsupported and make either config layer invalid until removed.
 
 ```text
 host session enablement -> personal override -> repository value -> built-in default
@@ -144,7 +144,7 @@ host session enablement -> personal override -> repository value -> built-in def
 
 Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid. An invalid existing local config fails closed instead of silently inheriting shared settings. Session state cannot bypass missing or invalid repository activation.
 
-Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` edits temporary enablement and optional-context overrides; `/freeflow settings repo` edits shared configuration. On a qualified native Pi host, session settings also expose complete overrides for Cognitive Routing profiles enabled in that session that do not mutate either config file, take precedence over personal and repository profiles, and can inherit or reset independently. [Settings](settings.md) lists every key.
+Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` edits temporary enablement and optional-context overrides; `/freeflow settings repo` edits shared configuration. [Settings](settings.md) lists every key.
 
 ## Authority And Effects
 
@@ -164,7 +164,7 @@ Verification is factual work by the agent: a check supports only what it observe
 
 Self-review, Verify Work's check of the agent's own result, runs on every finished change, silently, before the Return. It covers the decision list and justifies every change to an existing test, fixture or setup. Clear local issues within the agreed outcome may be corrected and re-checked.
 
-An independent review is a separately selected reviewer in a separate context. Review Work's gate decides when one runs, by the `review` setting: `auto` (the default) reviews when the change touches security, auth or secrets, data loss or migrations, CI or release files, a public interface, a path your Review Rules mark sensitive, or anything your agreement names; `off` proposes one with its reason and cost and runs it only on your yes; `always` reviews every time. Switching Cognitive Routing profiles is not independent review.
+An independent review is a separately selected reviewer in a separate context. Review Work's gate decides when one runs, by the `review` setting: `auto` (the default) reviews when the change touches security, auth or secrets, data loss or migrations, CI or release files, a public interface, a path your Review Rules mark sensitive, or anything your agreement names; `off` proposes one with its reason and cost and runs it only on your yes; `always` reviews every time.
 
 Review findings are evidence, not commands. An accepted correction that your agreement covers goes back to Execute Work; otherwise the agent asks once. Review budgets cap rounds; they do not authorize another review.
 
@@ -188,9 +188,5 @@ A recovered record restores memory, not authority or proof that its evidence is 
 Independent review, a commit, a decision of yours and a transfer to another session are return points only when the work agreement names them; a Slice ending alone does not require one. Commit, branch integration, migration, release, launch and destructive cleanup stay separately controlled.
 
 The agent may end by answering, waiting, pausing, handing off, deferring, stopping at a controlled boundary, or completing. Completion needs fresh verification, self-review, resolved selected reviews, accurate task memory, the docs the change made wrong corrected, and no hidden choice of yours or source conflict.
-
-## Cognitive Routing
-
-On native Pi with Cognitive Routing on, the cycle runs in the Coordinator, the profile you talk to. It delegates bounded assignments to a Helper or Executor and assesses what they return; a worker's report does not complete a Slice, task, commit, release or launch. Routing changes where computation runs, not who decides or what is authorized. See [Cognitive Routing](capabilities/cognitive-routing.md).
 
 See [Skill routing](../dev-docs/subsystems/skill-routing.md) for how the skills, references and scripts depend on each other.

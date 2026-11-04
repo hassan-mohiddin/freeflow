@@ -82,7 +82,7 @@
 
 ### Fixed
 
-- With every runtime prompt off, the hook hosts still deliver the review and skills lines, as the settings page says; they used to drop them. Codex, Claude Code and the other hook hosts now refuse an invalid `cognitiveRouting` section as Pi does, instead of accepting it. Setup Freeflow no longer calls `skills` an unsupported key, and the settings page names OpenCode as reading no settings.
+- With every runtime prompt off, the hook hosts still deliver the review and skills lines, as the settings page says; they used to drop them. Setup Freeflow no longer calls `skills` an unsupported key, and the settings page names OpenCode as reading no settings.
 
 - Freeflow on Claude Code no longer sends its "continue" prompt late. After its own compaction it prompts the agent to go on only when nothing else started the next turn: a notification or message queued during the compaction starts a turn that goes on from the record itself, and the prompt used to wait behind that turn and arrive after it, sometimes long after.
 - Freeflow on Claude Code no longer loses a compaction the agent asked for with `checkpoint --compact` when queued input, such as a notification or a message typed during the turn, starts the next turn first: the request stays until the record replaces the conversation, the next turn end tries again, and a line in the conversation says when a compaction did not run.
@@ -105,6 +105,7 @@
 
 - Pi's `compact_context` tool, its result index (`r12`), the carried copies of your latest messages, and the compaction capability skill with its summary format: on Pi the agent checkpoints with Track Work instead, and `/freeflow compact` asks it to checkpoint with `--compact`.
 - Pi's context reuse: tool results are no longer carried across a compaction; the bundle carries the files the agent names in its record's Recovery list. The Context reuse switch goes from `/freeflow settings`, and `compaction.carry` in a config still loads and does nothing.
+- Cognitive Routing, Pi's Coordinator, Helper and Executor profiles: their context projection, the `delegate_work`, `return_work`, `routing_unit` and `select_evidence` tools, `/freeflow profile`, `/freeflow resume`, the `Ctrl+Shift+R` and `Ctrl+Shift+A` shortcuts, the settings rows and footer states, the routing prompt and its capability skill. A config that still sets `cognitiveRouting` is refused, saying the feature was removed and the key to delete, on Pi and the hook hosts. Pi now claims `forget` and `route` as possible. Routing entries already in a Pi session stay and nothing reads them. Handing work to other agents stays with Execute Work's delegation reference.
 
 ## 0.9.0 - 2026-10-24
 

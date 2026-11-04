@@ -17,8 +17,7 @@ It deliberately does not:
 
 - turn off, cancel, or change Pi's own compaction, which stays as the fallback;
 - write a summary of its own: the record's In flight is the agent's part (P59), and the bundle is made by Track Work's script;
-- read the store or the session file on the way to a request (performance rule R-1);
-- let a Coordinator under projection checkpoint (it delegates to a worker).
+- read the store or the session file on the way to a request (performance rule R-1).
 
 ## Vocabulary
 
@@ -31,7 +30,7 @@ It deliberately does not:
 | Checkpoint done | The held task's State as of, or the session summary's time, is later than this cycle's notice, or its start when no notice came (P68). | `checkpointDone()` |
 | Bundle | Track Work's `view bundle`: the record and everything recovery reads, whole, with the files In flight carries (P60). | `StoreLayer.bundle()` |
 | Store state | `session status` as last read: the store, the held task, the session summary, a waiting compaction request. | `StoreLayer.current()` |
-| Harness part | The part of the summary Freeflow writes from facts it holds: the cycle, what asked for the compaction, the routing profile, running background commands, the Freeflow skills read in the cycle it ends. | `harnessPart()` in `harness.ts` |
+| Harness part | The part of the summary Freeflow writes from facts it holds: the cycle, what asked for the compaction, running background commands, the Freeflow skills read in the cycle it ends. | `harnessPart()` in `harness.ts` |
 | Fallback | Pi's own compaction, with the bundle after its summary when a task is held. | `CompactionController.fallback()` |
 
 ## How It Works
@@ -50,8 +49,8 @@ It deliberately does not:
 
 Worked example, 200k window with Pi's default reserve: trigger 200,000 − 16,384 = 183,616; the notice at the lower of 75% (150,000) and the trigger less a tenth of the window (163,616), so 150,000. Rows at 100,000, 120,000 and 140,000.
 
-1. **Measure.** `turn_end` calls `compaction.observe(ctx, turn)` after routing's turn end. `measure()` takes the context from the turn's own usage, and for a Coordinator under projection the larger of that and the full history's estimate. Thresholds come from `strictest()`: the lowest notice among every model that may receive the full history.
-2. **Notify.** Below the notice, `observe()` returns a row at the highest of 50, 60 and 70% crossed, each once a cycle; at the notice, the cycle's one notice, then nothing more that cycle. The notice names the held task and the command (`checkpoint --record <ID> --compact`), or `checkpoint --session --compact` with none; under projection it tells the Coordinator to delegate the checkpoint. `index.ts` sends it as a `freeflow-compaction-notice` message: steered into the next request mid-run, held for the next prompt at a run's end.
+1. **Measure.** `turn_end` calls `compaction.observe(ctx, turn)`. `measure()` takes the context from the turn's own usage, or Pi's estimate when the turn reports none. Thresholds come from `strictest()` over the active model.
+2. **Notify.** Below the notice, `observe()` returns a row at the highest of 50, 60 and 70% crossed, each once a cycle; at the notice, the cycle's one notice, then nothing more that cycle. The notice names the held task and the command (`checkpoint --record <ID> --compact`), or `checkpoint --session --compact` with none. `index.ts` sends it as a `freeflow-compaction-notice` message: steered into the next request mid-run, held for the next prompt at a run's end.
 
 ### The compaction
 
@@ -76,11 +75,6 @@ When Pi compacts (its trigger, an overflowing request, or `/compact`), `session_
 - **No task:** Pi's summarizer with Freeflow's general instructions (`FALLBACK_INSTRUCTIONS`), then the harness part.
 
 Pi's file lists from an earlier Freeflow compaction are added back into Pi's preparation. If anything throws, `fallback()` returns `undefined` and Pi compacts as it would alone.
-
-### With Cognitive Routing
-
-- The compaction records the routing profile and the assignment in progress; routing reads them back (`workerCompaction()`, `compactedInAssignment()` in `assembler.ts`).
-- A Coordinator under projection is told to delegate the checkpoint; Cognitive Routing's skill holds the rule (P3).
 
 ## Decisions
 
@@ -161,5 +155,4 @@ Pi's file lists from an earlier Freeflow compaction are added back into Pi's pre
 ## Limits
 
 - The live compaction on a real model has not been driven on Pi (P9's check needs a model key).
-- Under Cognitive Routing, a worker's checkpoint is followed by the compaction only when the whole run ends; no test drives a routed worker's checkpoint.
 - Slice measurement on Pi uses `--used`: Track Work has no reader for Pi's usage records.

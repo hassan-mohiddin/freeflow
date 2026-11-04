@@ -85,7 +85,6 @@ export const NAMED_ON_PURPOSE = {
   "dev-docs/features/track-work-cli.md": 6,
   "dev-docs/skills/execute-work.md": 3,
   "dev-docs/skills/track-work.md": 10,
-  "dev-docs/subsystems/cognitive-routing.md": 1,
   "dev-docs/subsystems/freeflow-store.md": 9,
   "dev-docs/subsystems/messaging.md": 1,
   "dev-docs/subsystems/skill-routing.md": 1,

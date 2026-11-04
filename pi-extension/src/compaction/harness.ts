@@ -2,7 +2,7 @@ import { touchedPaths } from "../tool-execution/file-state.js";
 
 /**
  * The part of a compaction summary Freeflow writes itself, from facts it holds rather than the model's memory: the
- * cycle, what asked for the compaction, the routing profile, running background commands, the Freeflow skills read in
+ * cycle, what asked for the compaction, running background commands, the Freeflow skills read in
  * the cycle it ends, and the files the session read and changed. It never names a Working Record: Freeflow cannot tell which record belongs to this work, so the
  * agent's own summary names it.
  */
@@ -17,7 +17,6 @@ export interface HarnessFacts {
   recovery?: string;
   /** Results of the work in progress listed by ref, for compactions with no carried-context message. */
   listed?: string;
-  routingProfile?: string;
   background: readonly { id: string; label: string; outputPath: string }[];
   /** Freeflow skills read in the cycle this compaction ends, by name. */
   skills?: readonly string[];
@@ -113,7 +112,6 @@ export function harnessPart(facts: HarnessFacts): string {
         ? " It completes the compaction Freeflow's context notice asked for."
         : "";
   const lines = [`## Freeflow state at compaction`, "", `This compaction starts cycle ${facts.cycle}.${requested}`];
-  if (facts.routingProfile) lines.push(`Cognitive Routing profile when compacted: ${facts.routingProfile}.`);
   if (facts.background.length)
     lines.push(
       `Background commands still running: ${facts.background.map((job) => `${job.id} (${job.label}), output ${job.outputPath}`).join("; ")}.`,

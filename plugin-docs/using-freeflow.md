@@ -12,7 +12,7 @@ Freeflow is a feedback-based control system for coding agents: each step checks 
 | --- | --- | --- |
 | **The cycle** | Agree before building, build and verify, review and return, in a short always-loaded prompt with the Interaction Contract and the Working Method. | Every host where Freeflow delivers its prompts. |
 | **Eleven skills** | One per capability: discussing and agreeing, executing, verifying, reviewing, delivering, task memory, documents, research, and a few for contributors. Each brings references for less common situations and scripts that gather the facts a decision needs. | Every host. |
-| **Pi capabilities** | Tool Execution (including skill guidance at the tool call that needs it), Compaction, Messaging and Cognitive Routing. | Native Pi. |
+| **Pi capabilities** | Tool Execution (including skill guidance at the tool call that needs it), Compaction and Messaging. | Native Pi. |
 
 [How Freeflow Works](workflow.md) describes the cycle, the agreement and every skill.
 
@@ -26,7 +26,6 @@ Freeflow is a feedback-based control system for coding agents: each step checks 
 - preserves durable task memory when continuity matters;
 - separates factual verification from judgment and independent review;
 - keeps commit, integration, release, and launch as controlled boundaries;
-- optionally places compute across configured profiles on a qualified native Pi host;
 - optionally adds a layer over Pi's tools (working guidance, file tracking, clearer edit errors, `apply_patch`, background commands) through Tool Execution;
 - lets the agent compact a long session itself at a safe point, with Pi's compaction as the fallback.
 
@@ -35,9 +34,8 @@ Freeflow is a feedback-based control system for coding agents: each step checks 
 - grant permission because a skill or tool exists;
 - turn every task into a fixed sequence of documents and reviews;
 - make a passing command prove more than it observed;
-- make profile switching an independent review;
 - guarantee lower cost, better model output, or provider cache hits;
-- make Cognitive Routing or Tool Execution available on every host;
+- make Tool Execution available on every host;
 - replace Pi's own tools, permissions, or compaction.
 
 ## Start here
@@ -49,7 +47,6 @@ Freeflow is a feedback-based control system for coding agents: each step checks 
 5. Let the agent open the skill that fits; invoke one directly only when it helps communicate intent.
 6. Ask for evidence at the boundary that matters.
 7. Use Track Work for multi-slice or long-running tasks.
-8. On native Pi, optionally configure Cognitive Routing once the ordinary cycle is familiar.
 
 Natural language is preferred. You do not need to name every skill or plan the implementation for the agent.
 
@@ -152,7 +149,7 @@ supported findings with file locations and evidence. Do not edit or dispatch
 another review.
 ```
 
-Independent review must be selected explicitly and must come from a context that did not produce the reviewed state. Another Cognitive Routing profile in the same session is not independent review.
+Independent review must be selected explicitly and must come from a context that did not produce the reviewed state.
 
 ### Documentation or artifact work
 
@@ -222,11 +219,11 @@ You can ask the agent to skip an optional step, such as waiting for the agreemen
 
 ### Which skill does the work
 
-The agent opens the skill whose description fits the next result: Discuss Work while what or how is open, Execute Work for agreed changes (including finding why something fails), Verify Work for a factual claim, Review Work for judgment, Deliver Work for commit, push, merge, release or deploy, Track Work for task memory, Write Docs for documents. Cognitive Routing changes which model profile does the work; it does not change the skill or who decides.
+The agent opens the skill whose description fits the next result: Discuss Work while what or how is open, Execute Work for agreed changes (including finding why something fails), Verify Work for a factual claim, Review Work for judgment, Deliver Work for commit, push, merge, release or deploy, Track Work for task memory, Write Docs for documents.
 
 ### Slices
 
-A Slice is one coherent learning, delivery, or deepening result that can be executed and checked as a unit. It is not a file batch, phase name, test run, or routing assignment.
+A Slice is one coherent learning, delivery, or deepening result that can be executed and checked as a unit. It is not a file batch, phase name, test run, or worker assignment.
 
 Use separate Slices when dependencies, uncertainty, outcome boundaries, or working-set size make one attempt unreliable. Keep implementation, its focused checks, and accepted local correction in the same Slice while the intended result and evidence boundary remain coherent.
 
@@ -303,7 +300,6 @@ A Working Record is not:
 - a replacement for live source truth;
 - a Spec or Plan;
 - a transcript;
-- routing runtime state;
 - proof that recorded evidence remains current.
 
 Only the user changes task state. Closing a Slice does not complete the task.
@@ -389,7 +385,7 @@ edits shared repository configuration. Treat shared changes as team-facing behav
 /freeflow settings session
 ```
 
-manages temporary session enablement and optional-context settings. On a qualified native Pi host, it can also override the Cognitive Routing delegation mode (`executor`, `helper`, or `both`) and complete Coordinator, Helper, and Executor presets. Set a missing worker preset before enabling that worker's mode. Session overrides take precedence over personal and repository settings without mutating either file; reset or inherit restores the configured values. The footer shows the active profile, automatic/manual control, and delegation mode.
+manages temporary session enablement and optional-context settings. Session overrides take precedence over personal and repository settings without mutating either file; reset or inherit restores the configured values. The footer shows the task the session holds.
 
 ### Runtime prompts and skills
 
@@ -416,17 +412,9 @@ host session enablement
 -> built-in default
 ```
 
-For Cognitive Routing profiles:
-
-```text
-session profile override
--> personal profile
--> repository profile
-```
-
 ### Reload and idle boundaries
 
-Configuration changes may require `/reload` before every prompt, skill, and tool surface reflects the same effective state. Profile changes, profile overrides, and routing resume require an idle host.
+Configuration changes may require `/reload` before every prompt, skill, and tool surface reflects the same effective state. Settings changes require an idle host.
 
 Configuration proves neither installation nor effective runtime delivery. Verify the target host through [Getting Started](getting-started.md).
 
@@ -446,103 +434,17 @@ It keeps Pi's `read`, `bash`, `edit`, `write`, `grep`, `find` and codemode, and 
 
 On native Pi, Freeflow compaction is on by default. As the context nears the model's window, Freeflow tells the agent once; at a safe point it checkpoints its task's Working Record with Track Work's `checkpoint --compact` (or, with no task, writes a session summary), and Freeflow replaces the conversation with the task's bundle and continues the same run. Pi's own compaction stays on as the fallback. Run `/freeflow compact` to ask for it now, and `/freeflow status` to see the cycle and how close the context is to the notice. See [Compaction](capabilities/compaction.md).
 
-## Choose a Cognitive Routing mode
-
-Cognitive Routing is an experimental native-Pi capability. Read the complete [Cognitive Routing reference](capabilities/cognitive-routing.md) before relying on its recovery or evidence semantics.
-
-| Mode | Positioning | Main execution route | Good starting use |
-| --- | --- | --- | --- |
-| `helper` | **Quality-first — maximum performance and output-quality potential** | Coordinator implements; Helper supplies bounded support. | Quality-sensitive work where preparation, checks, and follow-through can strengthen a strong Coordinator. |
-| `executor` | **Savings-first — maximum savings potential** | Coordinator directs/assesses; Executor owns delegated environment work. | Work where a suitable lower-cost Executor can perform most execution without unacceptable rework. |
-| `both` | **Balanced** | Helper handles routine support; Executor handles substantive or consequential results. | Mixed workloads where frequent support and substantive production benefit from different presets. |
-
-These labels describe intended optimization direction and potential. They are not benchmark guarantees.
-
-### Why the Helper preset matters
-
-In Both mode, many routine assignments—source gathering, preparation, focused checks, task-memory maintenance, and separable follow-through—normally go to Helper. A comparatively economical but capable Helper can therefore account for a large share of potential savings.
-
-Do not choose Helper by price alone. If it repeatedly misunderstands work, omits evidence, or causes Executor/Coordinator rework, total cost and latency can increase.
-
-### Recommended OpenAI subscription starting presets
-
-When these model families and thinking levels are available through the current OpenAI subscription-backed Pi provider, the following are practical starting points:
-
-| Goal | Coordinator | Helper | Executor |
-| --- | --- | --- | --- |
-| General quality/cost balance | Astra `high` **or** Sol `xhigh` | Luna `max` | Sol `medium` |
-| Selected GPT-6 effort-history route | Astra `xhigh` | Luna `max` | Astra `low` |
-
-Rationale:
-
-- **Luna `max` as Helper** aims to keep frequent routine support comparatively economical while retaining useful reasoning quality.
-- **Sol `medium` as Executor** is a starting point for substantive execution where a moderate effort level may control cost.
-- **Astra `high` or Sol `xhigh` as Coordinator** reserves stronger reasoning for direction, consequential choices, and assessment.
-- **The same selected model at different efforts** can use the qualified effort-history route when the current provider/API/request shape supports it. Supported model IDs are `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol`; the example above uses Astra.
-
-These are operating recommendations, not Freeflow requirements or benchmark results. Confirm exact model IDs, subscription access, supported effort levels, current pricing, and model suitability in Pi's current model registry and provider. Availability and economics can change. The selected-model route does not guarantee provider cache eligibility or a cache hit, and Luna is not asserted to be universally cheapest across providers or pricing plans.
-
-### Example generic configuration
-
-```json
-{
-  "cognitiveRouting": {
-    "enabled": true,
-    "delegation": "both",
-    "projection": true,
-    "profiles": {
-      "coordinator": {
-        "provider": "provider-id",
-        "model": "coordinator-model-id",
-        "thinking": "high"
-      },
-      "helper": {
-        "provider": "provider-id",
-        "model": "helper-model-id",
-        "thinking": "max"
-      },
-      "executor": {
-        "provider": "provider-id",
-        "model": "executor-model-id",
-        "thinking": "medium"
-      }
-    }
-  }
-}
-```
-
-Coordinator must differ from every enabled worker as a complete provider/model/thinking pair. Helper and Executor may share a pair. Requested thinking levels must be supported exactly.
-
-### Controls
-
-```text
-/freeflow status
-/freeflow capabilities
-/freeflow settings
-/freeflow settings session
-/freeflow settings local
-/freeflow settings repo
-/freeflow profile coordinator
-/freeflow profile helper
-/freeflow profile executor
-/freeflow profile auto
-/freeflow profile history
-/freeflow resume
-```
-
-Manual profile control runs all work, unsplit, in one profile. It does not create an automatic routing policy, grant task authority, or make that profile an independent reviewer.
-
 ## Removed context features
 
 The former Freeflow Context tool (`freeflow_context`), Context Virtualization, and Conversation History were removed in a breaking change. Their source, guidance, tests, and evaluation definitions are preserved in the [legacy context archive](../.deprecated/legacy-context/README.md), not as current runtime guidance. Delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present; either key makes that config invalid and prevents Freeflow activation until removed.
 
 ## Understand cache and cost claims
 
-Freeflow can improve request stability and place work on different configured presets. These mechanisms affect potential cost; they do not guarantee savings.
+Freeflow can improve request stability. These mechanisms affect potential cost; they do not guarantee savings.
 
 ### RequestHistory
 
-Freeflow preserves compatible generated runtime-state and communication occurrences at their original positions and appends changed state later. This can reduce avoidable prefix churn. It never imports excluded evidence merely to manufacture a match.
+Freeflow preserves generated runtime-state occurrences at their original positions and appends changed state later. This can reduce avoidable prefix churn.
 
 ### Selected GPT-6 effort history
 
@@ -563,7 +465,7 @@ Include:
 - uncached input;
 - cache reads and writes when the provider reports them;
 - output and separately reported reasoning;
-- worker reports and routing overhead;
+- worker reports;
 - retries, correction, and recovery;
 - latency and user intervention;
 - tool or auxiliary costs.
@@ -587,10 +489,6 @@ Base skills require effective Freeflow activation and mandatory prompt availabil
 
 The action may expose a user-owned choice, source conflict, uncovered effect, or separately controlled boundary. Clarify the intended scope or authorize the exact next result; do not use a skill name to bypass the decision.
 
-### The agent stops after a worker report
-
-Under automatic Cognitive Routing, worker return ends the worker assignment but does not accept the result. Coordinator must assess it, and Track Work closure remains separate.
-
 ### A long task loses direction
 
 Ask the agent to recover the Working Record, current assignment, and applicable live sources. If no record exists, reconstruct only what can be supported rather than treating a summary as exact history.
@@ -599,9 +497,9 @@ Ask the agent to recover the Working Record, current assignment, and applicable 
 
 The check may observe only part of the required claim, apply to an older candidate, or omit compatibility, artifact, consumer, or deployment boundaries. Ask what the check proves and what remains unobserved.
 
-### Routing or a context capability is unavailable
+### A capability is unavailable
 
-Use `/freeflow status` and read the reported blocking reason. Do not copy another host's configuration, impersonate a profile, or enable an unqualified capability combination.
+Use `/freeflow status` and read the reported blocking reason. Do not copy another host's configuration or enable an unqualified capability combination.
 
 ### A cost number looks unexpectedly high or low
 
@@ -615,7 +513,6 @@ Freeflow documentation and deterministic checks can establish repository structu
 - host trust or marketplace availability;
 - universal model behavior;
 - prompt-cache hits or billing reductions;
-- independent review from routing profiles;
 - release publication or production deployment.
 
 Keep claims at the boundary actually observed.
@@ -625,7 +522,6 @@ Keep claims at the boundary actually observed.
 - [Getting Started](getting-started.md)
 - [How Freeflow Works](workflow.md)
 - [Skill routing and dependencies](../dev-docs/subsystems/skill-routing.md)
-- [Cognitive Routing](capabilities/cognitive-routing.md)
 - [Tool Execution](capabilities/tool-execution.md)
 - [Pi integration](integrations/pi.md)
 - [Capabilities](capabilities/README.md)

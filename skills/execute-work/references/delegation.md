@@ -1,6 +1,6 @@
 # Delegation
 
-Read this before handing work to another agent: a subagent, a parallel worker, an independent reviewer, a trial user of a skill, an eval or research agent, or a fan-out of many. Read it as that agent too, before your first command. It is judgment, except the Rules, which bind. On Pi under Cognitive Routing's automatic control, its Coordinator and worker references govern its own profiles; this reference covers the agents you start.
+Read this before handing work to another agent: a subagent, a parallel worker, an independent reviewer, a trial user of a skill, an eval or research agent, or a fan-out of many. Read it as that agent too, before your first command. It is judgment, except the Rules, which bind.
 
 The **coordinator** is the agent the user talks to. A **worker** does one assignment from a brief and hands back a return. A **sub-worker** is a worker's worker, the third and last level.
 

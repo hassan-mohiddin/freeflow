@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { writeFile, appendFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 
-const on = { freeflowConfig: { toolExecution: { enabled: true } }, cognitiveRouting: { enabled: false } };
+const on = { freeflowConfig: { toolExecution: { enabled: true } } };
 const CHANGED =
   "Files you read earlier changed since you read them: code.py. Read what you need from them again before editing them.";
 const results = (manager) =>

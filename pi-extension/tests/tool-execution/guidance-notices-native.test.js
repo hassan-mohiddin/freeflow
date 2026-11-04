@@ -4,14 +4,13 @@ import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 import { COMMIT_NOTICE, DIAGNOSE_NOTICE, INSTRUCTION_TEXT_NOTICE } from "../../dist/tool-execution/guidance-notices.js";
 
 const EXECUTE_WORK = /Read Execute Work \(\S+\/skills\/execute-work\/SKILL\.md\) before more tool calls/;
 
 const on = (toolExecution = { enabled: true }) => ({
   freeflowConfig: { toolExecution },
-  cognitiveRouting: { enabled: false },
   model: ["anthropic", "claude-opus-5-5"],
 });
 const results = (manager) =>

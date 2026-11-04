@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 
 const PREAMBLE =
   "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
@@ -69,7 +69,6 @@ for (const model of [
       {
         model,
         freeflowConfig: { toolExecution: { enabled: true } },
-        cognitiveRouting: { enabled: false },
         extensions: [guidedTool],
       },
     );
@@ -93,7 +92,6 @@ test("with Tool Execution off, Pi's rules, docs and sections are untouched", asy
     {
       model: ["anthropic", "claude-opus-5-5"],
       freeflowConfig: { toolExecution: { enabled: false } },
-      cognitiveRouting: { enabled: false },
     },
   );
 });

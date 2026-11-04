@@ -45,7 +45,7 @@ function otherValue(spec) {
   return [value, value];
 }
 
-const settable = SETTINGS.filter((spec) => spec.values !== "profile");
+const settable = SETTINGS;
 
 test("list with nothing set shows every setting all hosts act on at its default, and names the Pi-only ones", async (t) => {
   const f = await fixture();
@@ -179,8 +179,6 @@ test("refusals name what is wrong and write nothing", async (t) => {
     [["set", "enabled", "maybe", "--scope", "personal"], /enabled takes on or off, not maybe/],
     [["set", "review.mode", "always"], /set needs --scope/],
     [["set", "review.mode", "always", "--scope", "global"], /--scope must be repository, personal or session/],
-    [["set", SETTINGS.find((spec) => spec.values === "profile").key, "x", "--scope", "personal"], /routing profile/],
-    [["set", "cognitiveRouting.delegation", "off", "--scope", "session"], /has no Session scope here/],
     [["set", "review.model", "two\nlines", "--scope", "personal"], /review\.model takes a name on one line/],
   ];
   for (const [args, message] of cases) {
