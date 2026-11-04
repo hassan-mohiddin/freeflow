@@ -5,3 +5,4 @@ Tests for [`src/store/`](../../src/store/README.md), unit tests with a fake scri
 | File | Covers |
 |---|---|
 | `layer.test.js` | What counts as touching the store; the session's environment set and cleared; session start with a store (pull, then the menu), with what is missing, and with nothing to say; a run's end reading and syncing only after a touch, then the release at shutdown; an answered compaction request. |
+| `waits.test.js` | The Waits on row: one row per return, once, with or without a wake; the state read only while a Slice waits; the idle watch once a minute, stopped by a run's start. |

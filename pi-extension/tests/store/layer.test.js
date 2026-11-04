@@ -103,6 +103,25 @@ test("a run that touched the store reads it again and syncs what changed; others
   assert.equal(script.full.at(-1), "task release --ended");
 });
 
+test("a worker session (SPEC-009): its bundle is its delegation's, and its end releases its claims, then pushes", async () => {
+  const script = fake({
+    "session status": status({
+      home: "/s",
+      store: true,
+      session: "w",
+      task: null,
+      delegation: { id: "D-031", task: "p/task-001", record: "/s/r.md", progressAsOf: null },
+      claims: 1,
+    }),
+  });
+  const layer = new StoreLayer(script.run);
+  await layer.refresh();
+  await layer.bundle({});
+  assert.equal(script.full.at(-1), "view bundle --record /s/r.md --delegation D-031");
+  await layer.shutdown();
+  assert.deepEqual(script.full.slice(-2), ["release --ended", "store sync"]);
+});
+
 test("answering a compaction request marks its file done", async () => {
   const folder = await mkdtemp(join(tmpdir(), "freeflow-store-layer-"));
   try {

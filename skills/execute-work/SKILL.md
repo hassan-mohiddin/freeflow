@@ -31,7 +31,8 @@ Read a reference only when its situation arises.
 | Choosing the checks that will show the change works, reproducing the problem before a fix, running the existing tests before and after, what a check shows, or a claim beyond its evidence | [Verify Work](../verify-work/SKILL.md) |
 | An empirical question to answer before building on it | Discuss Work's [learning action](../discuss-work/references/learning-action.md) |
 | A choice that is the user's, or a step the agreement does not cover | [Discuss Work](../discuss-work/SKILL.md) |
-| Handing work to another agent (a subagent, parallel workers, a reviewer, a trial, eval or research agent, a fan-out), or working from another agent's brief | [delegation](references/delegation.md) |
+| Handing work to another agent (a subagent, parallel workers, a worker in a separate session, a reviewer, a trial, eval or research agent, a fan-out), or working from another agent's brief | [delegation](references/delegation.md) |
+| About to message another session, or a message from another session arrived | [delegation: Messages Between Sessions](references/delegation.md#messages-between-sessions), with its Rules |
 | Committing, pushing, merging, releasing or deploying | [Deliver Work](../deliver-work/SKILL.md) |
 
 ## Rules

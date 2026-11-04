@@ -697,3 +697,10 @@ test("delegate open and check-return --scratch keep a delegation in a folder wit
     await rm(folder, { recursive: true, force: true });
   }
 });
+
+test("the start command quotes a worktree path only when the shell would split it", async () => {
+  const { shellWord } = await import("../../../skills/track-work/scripts/lib/delegations5.mjs");
+  assert.equal(shellWord("/home/u/widget-d-001-build"), "/home/u/widget-d-001-build");
+  assert.equal(shellWord("/home/u/my widget-d-001"), "'/home/u/my widget-d-001'");
+  assert.equal(shellWord("/tmp/it's"), "'/tmp/it'\\''s'");
+});

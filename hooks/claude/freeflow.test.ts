@@ -811,6 +811,9 @@ test("a worker runs: its delegation comes from the spawn's prompt; near its thre
   expect(w.sent.length).toBe(1);
   expect(w.sent[0].to).toBe("agent-7"); // the engine spells { agentId } as the ID
   expect(w.sent[0].text).toContain("At your next safe point, rewrite D-012's progress.md");
+  expect(w.commands().filter((command) => command.startsWith("delegate log"))).toEqual([
+    `delegate log --record ${RECORD} --id D-012 --append --kind inform --body context at 76%: told to rewrite progress.md --agent agent-7`,
+  ]);
   expect(w.session.appended()).toEqual([]);
   // One notice a cycle for a worker too.
   w.response = { input_tokens: 100_000, cache_read_input_tokens: 70_000, cache_creation_input_tokens: 2_000 };
@@ -849,6 +852,10 @@ test("a worker hands back: a return that is not ready sends it back once, saying
     "Freeflow: D-012's return is not ready: no return.md. Write return.md as your brief says, then hand back.",
   );
   expect(w.commands()).toContain(`delegate check-return --record ${RECORD} --id D-012`);
+  // The block is a line in the task's delegation log (SPEC-009 4.2), with the worker's agent ID.
+  expect(w.commands()).toContain(
+    `delegate log --record ${RECORD} --id D-012 --append --kind blocked --body stop blocked: D-012's return is not ready: no return.md. --agent agent-7`,
+  );
   expect((await stop({ stop_hook_active: true })).block).toBeUndefined();
 
   w.answers["delegate check-return"] = { exitCode: 1, stderr: "Error: No folder for D-012 in /store.\n" };
@@ -869,6 +876,127 @@ test("the session ends: release the hold and push, as the ending session", async
   w.status = store({ changed: true });
   await $.session.end({ reason: "clear", sessionId: "sess-old", resume: { id: "sess-old" } });
   expect(w.commands()).toEqual(["session status", "store sync"]);
+});
+
+test("a worker session (SPEC-009): its compaction installs the worker's bundle; its end releases its claims", async ($, on) => {
+  const w = world(on);
+  const joined = (progressAsOf: string | null) =>
+    store({
+      delegation: { id: "D-031", task: "widget/task-001", record: RECORD, taskDir: "/t", progressAsOf },
+    });
+  w.answers[`view bundle --record ${RECORD} --delegation D-031`] = { stdout: "THE WORKER BUNDLE\n" };
+  w.status = joined(null);
+  await start($);
+  // Before its progress checkpoint: Claude's compaction, told whose worker it is, then the worker's bundle.
+  const before = await $.session.compact({ trigger: "auto", messages: CONVERSATION });
+  expect(w.compactions.at(-1).instructions).toContain("this session is the worker for D-031 of widget/task-001");
+  expect(before.messages?.map((m: any) => m.text)).toEqual(["Claude's summary.", "THE WORKER BUNDLE\n"]);
+  // After checkpoint --delegation in this cycle: the worker's bundle alone.
+  await w.clock.advance(2 * 60_000);
+  w.status = joined(at(1));
+  const own = await $.session.compact({ trigger: "manual", messages: CONVERSATION });
+  expect(own.messages?.map((m: any) => [m.role, m.text])).toEqual([
+    ["user", "THE WORKER BUNDLE\n"],
+    ["assistant", "Recovered from Freeflow's bundle."],
+  ]);
+  // Its end: its claims released and the log told it ended, then the store pushed.
+  w.runs.length = 0;
+  await $.session.end({ reason: "prompt_input_exit", sessionId: "sess-old", resume: { id: "sess-old" } });
+  expect(w.commands()).toEqual(["session status", "release --ended", "store sync"]);
+});
+
+test("a delegation the Slice waits on comes back (SPEC-009 4.4): one row, and the idle session woken once", async ($, on) => {
+  const w = world(on);
+  const waiting = (returned: string | null) =>
+    held(at(-30), {
+      waits: {
+        slice: "S-057",
+        channel: "/t/channel.jsonl",
+        delegations: [{ id: "D-031", returned, at: returned && at(1) }],
+      },
+    });
+  w.status = waiting(null);
+  await start($);
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(61_000);
+  expect(w.submitted).toEqual([]);
+  // The return: after the batching window, one prompt that names it.
+  w.status = waiting("done");
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(61_000);
+  expect(w.submitted).toEqual(["Freeflow: D-031 returned (done). S-057 waits on it: check it and close it."]);
+  // The same return never wakes it again.
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(61_000);
+  expect(w.submitted.length).toBe(1);
+});
+
+test("two returns within the batching window come as one prompt (SPEC-009 4.4)", async ($, on) => {
+  const w = world(on);
+  const waiting = (first: string | null, second: string | null) =>
+    held(at(-30), {
+      waits: {
+        slice: "S-057",
+        channel: "/t/channel.jsonl",
+        delegations: [
+          { id: "D-031", returned: first, at: first && at(1) },
+          { id: "D-032", returned: second, at: second && at(2) },
+        ],
+      },
+    });
+  w.status = waiting(null, null);
+  await start($);
+  // One return found at a turn end opens the window; another found 30 s later, still inside it, joins it.
+  w.status = waiting("done", null);
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(30_000);
+  w.status = waiting("done", "done");
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(2 * 60_000);
+  expect(w.submitted).toEqual([
+    "Freeflow: D-031 returned (done). S-057 waits on it: check it and close it. D-032 returned (done). S-057 waits on it: check it and close it.",
+  ]);
+});
+
+test("delegation.claimHours reaches Track Work's script and the agent's commands as FREEFLOW_CLAIM_HOURS (SPEC-009 4.7)", async ($, on) => {
+  const w = world(on);
+  w.settingsAnswers["list "] = {
+    stdout: JSON.stringify({
+      root: "/work/widget",
+      settings: [
+        { key: "delegation.claimHours", label: "Claim hours", value: "8", scope: "personal", hosts: "all" },
+        { key: "delegation.wakeOnReturn", label: "Wake on return", value: true, scope: "default", hosts: "all" },
+      ],
+      state: [],
+    }),
+  };
+  w.status = store();
+  await start($);
+  expect(w.env.FREEFLOW_CLAIM_HOURS).toBe("8");
+});
+
+test("a return logged while the session sits idle wakes it within two minutes, with no turn ending (SPEC-009 4.4)", async ($, on) => {
+  const w = world(on);
+  const waiting = (returned: string | null) =>
+    held(at(-30), {
+      waits: {
+        slice: "S-057",
+        channel: "/t/channel.jsonl",
+        delegations: [{ id: "D-031", returned, at: returned && at(1) }],
+      },
+    });
+  w.status = waiting(null);
+  await start($);
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(5 * 60_000);
+  expect(w.submitted).toEqual([]);
+  // The worker returns while nothing happens in this session: the next minute's look finds it, then the batch window.
+  w.status = waiting("done");
+  await w.clock.advance(2 * 60_000 + 1_000);
+  expect(w.submitted).toEqual(["Freeflow: D-031 returned (done). S-057 waits on it: check it and close it."]);
+  // Nothing is left to wait on, so it stops looking: no second prompt.
+  await w.clock.advance(10 * 60_000);
+  expect(w.submitted.length).toBe(1);
 });
 
 test("the store is the agent's to keep: file tools inside it are allowed where the mode would ask, and nothing else changes", async ($, on) => {

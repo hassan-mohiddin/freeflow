@@ -5,6 +5,7 @@ import { resolveToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig } from "../compaction/config.js";
 import { resolveMessagingConfig } from "../messaging/config.js";
 import {
+  resolveDelegationSettings,
   resolveGateSettings,
   resolveReviewSettings,
   SETTINGS,
@@ -216,6 +217,8 @@ export async function readCapabilityState(cwd, host = undefined) {
   const gates = enabled
     ? resolveGateSettings(repositoryConfig, sessionLocalConfig)
     : resolveGateSettings({ gates: { agreement: "off", slice: "off", delivery: "off", delegation: "off" } }, {});
+  // Delegation across sessions (SPEC-009 4.7): claim hours and whether a return wakes the session.
+  const delegation = resolveDelegationSettings(repositoryConfig, sessionLocalConfig);
   const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -243,6 +246,7 @@ export async function readCapabilityState(cwd, host = undefined) {
     skills,
     events,
     gates,
+    delegation,
     // ask_user: core, on whenever Freeflow is enabled (Task 002 D-001); off in subagents, which have no user.
     askUser: { enabled, effective: enabled },
   };
