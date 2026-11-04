@@ -131,9 +131,9 @@ function git(home, args) {
   }
 }
 
-async function sync(home, message) {
+async function sync(home, message, { push = true } = {}) {
   try {
-    const synced = await syncStore({ home, message });
+    const synced = await syncStore({ home, message, push });
     if (synced.local) return "Store: committed; a local store, nothing to push.";
     return synced.pushed
       ? "Store: committed and pushed."
@@ -505,9 +505,10 @@ export async function takeTask(home, id, identity, { takeover = false } = {}) {
 
 /**
  * Closes this session's hold: released, or with ended, as a harness layer closes it when the session ends, so that a
- * resume of this session takes the task back (F36).
+ * resume of this session takes the task back (F36). Without push it commits and leaves the push to the next sync, for
+ * a harness whose session end allows no time for the network (Codex's, SPEC-012 P3).
  */
-export async function releaseTask(home, identity, id = null, { ended = false } = {}) {
+export async function releaseTask(home, identity, id = null, { ended = false, push = true } = {}) {
   requireIdentity(identity);
   const task = id ? findTask(home, id) : heldTask(home, identity);
   if (!task) return "This session holds no task.\n";
@@ -525,7 +526,7 @@ export async function releaseTask(home, identity, id = null, { ended = false } =
   });
   await writeFile(sessions.path, `${closeHold(sessions, sessions.hold, state).replace(/\s+$/, "")}\n`);
   const done = ended ? `Released ${task.id} as ended: a resume of this session takes it back.` : `Released ${task.id}.`;
-  return `${done}\n${events ? `${events}\n` : ""}${await sync(home, `Release ${task.id} (${identity.short}${ended ? ", ended" : ""})`)}\n`;
+  return `${done}\n${events ? `${events}\n` : ""}${await sync(home, `Release ${task.id} (${identity.short}${ended ? ", ended" : ""})`, { push })}\n`;
 }
 
 /**

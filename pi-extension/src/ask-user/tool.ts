@@ -24,11 +24,6 @@ const DESCRIPTION = [
 const GUIDELINE =
   "Use ask_user for a choice that is the user's to make, with the options that matter and your recommendation first; never for facts you can look up or work out.";
 
-export interface AskUserHost {
-  /** Why this profile may not ask (a Cognitive Routing worker), or undefined when it may. */
-  refusal(ctx: any): string | undefined;
-}
-
 const textOf = (result: any) =>
   (result?.content ?? [])
     .filter((part: any) => part?.type === "text")
@@ -36,7 +31,7 @@ const textOf = (result: any) =>
     .join("\n");
 
 /** Registered once, declared only while Freeflow is effective outside subagents. */
-export function registerAskUserTool(pi: any, host: AskUserHost): void {
+export function registerAskUserTool(pi: any): void {
   pi.registerTool({
     name: ASK_USER,
     label: "Question",
@@ -117,15 +112,11 @@ export function registerAskUserTool(pi: any, host: AskUserHost): void {
       return new Text(paint(theme, "warning", firstLine(textOf(result)) || "Not asked"), 0, 0);
     },
     async execute(_id: string, params: any, signal: AbortSignal, _update: unknown, ctx: any) {
-      const refused = host.refusal(ctx);
       const checked = validateQuestions(params?.questions);
-      let outcome: AskOutcome;
-      if (refused) outcome = { status: "unavailable", reason: refused };
-      else if ("error" in checked)
-        return { content: [{ type: "text", text: checked.error }], details: {}, isError: true };
-      else outcome = await askUser(ctx, checked.questions, signal);
+      if ("error" in checked) return { content: [{ type: "text", text: checked.error }], details: {}, isError: true };
+      const outcome = await askUser(ctx, checked.questions, signal);
       return {
-        content: [{ type: "text", text: refused ? refused : outcomeText(outcome) }],
+        content: [{ type: "text", text: outcomeText(outcome) }],
         details: { outcome },
         ...(outcome.status === "answered" ? {} : { isError: true }),
       };

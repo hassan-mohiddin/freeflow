@@ -81,7 +81,7 @@ State is built lazily from the branch by `rebuild()`, which replays successful `
 - **Recording.** A successful top-level `read` of an instruction file records the text the model saw: its first line (from `offset`, as Pi counts it), its lines, and whether it ran to the end of the file. Pi's trailing "[N more lines in file. Use offset=… to continue.]" note after a `limit` is stripped first. A read Pi truncated (`details.truncation.truncated` or `firstLineExceedsLimit`), an image, an unusual `offset` or `limit`, a nested read and a failed read record nothing.
 - **Lifetime.** Records are rebuilt from the branch in `ensureBuilt()` (and by `loadedSkills()`): successful top-level reads after the latest `compaction` entry of any kind, skipping results an earlier version replaced with one line (marked `freeflowSkillRead`). A Freeflow compaction (`compacted()`) and Pi's own compaction (`piCompacted()` from `session_compact`) clear them; navigation invalidates them; `reset()` drops them.
 
-`loadedSkills()` names the skills whose `SKILL.md` is recorded, sorted (live records follow the order parallel reads complete, a rebuild the branch order, so an unsorted list could change at a resume with nothing new read), for the Runtime State line `Freeflow skills read in this context: …` ([Prompt assembly](prompt-assembly.md)). `index.ts` takes it in `update()` only, the point where the state refreshes anyway (run start and end, settings changes, compaction, navigation), so a skill read mid-run adds no state message, and leaves it empty while routing projection is on, because every profile shares the state.
+`loadedSkills()` names the skills whose `SKILL.md` is recorded, sorted (live records follow the order parallel reads complete, a rebuild the branch order, so an unsorted list could change at a resume with nothing new read), for the Runtime State line `Freeflow skills read in this context: …` ([Prompt assembly](prompt-assembly.md)). `index.ts` takes it in `update()` only, the point where the state refreshes anyway (run start and end, settings changes, compaction, navigation), so a skill read mid-run adds no state message.
 
 ### Edit error rewrites
 
@@ -137,7 +137,7 @@ Compaction's carried tool results leave guidance notices out (`withoutGuidanceNo
 
 ### Bash guard
 
-In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of which tools the current profile may call), `backgroundRefusal()` blocks a command ending in a single `&`, or a `sleep` of 10 seconds or more wherever a command starts: at the beginning or after `;`, `&`, `|`, `&&`, `||`, `(`, `{`, `then` or `do`. So `foo && sleep 30` is refused, and a long foreground `npm test` is not. The refusal points to `bash_background` and the until-loop.
+In `tool_call` for `bash`, `backgroundRefusal()` blocks a command ending in a single `&`, or a `sleep` of 10 seconds or more wherever a command starts: at the beginning or after `;`, `&`, `|`, `&&`, `||`, `(`, `{`, `then` or `do`. So `foo && sleep 30` is refused, and a long foreground `npm test` is not. The refusal points to `bash_background` and the until-loop.
 
 ## Decisions
 
@@ -157,7 +157,7 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | Freeflow does not set `TMPDIR`; background output goes to a per-session folder under the OS temp directory. | Pi's `bash` inherits the whole Pi process environment, so changing `TMPDIR` would change it for every tool, extension and MCP server. | Pointing `TMPDIR` at a session folder. | `fc32691` |
 | A repeat read of a Freeflow instruction file returns its whole text, like any other read. | A skill read long ago is far from the decision it should steer; reading it again brings it close, and the rereads once seen came from resume wording that is gone. | Answering a repeat read with one line (0.9.0 development, removed before release). | Hassan, 2026-10-24 |
 | Skill reads are forgotten at any compaction, including Pi's, whose kept tail may still hold some. | A read the model may not have costs a failed step; a repeat read costs only tokens. | Keeping reads in Pi's kept tail. | Skill re-reads, October 2026 |
-| The Runtime State's skills line changes only where the state refreshes anyway, and is left out under routing projection. | Each state change appends a whole state copy (about 100 to 200 tokens) after earlier input; a skill read is about 2,600 tokens. The state is shared by every profile, and the Coordinator's projected view lacks workers' reads. | Updating the line on every read; a line per profile. | Skill re-reads, October 2026 |
+| The Runtime State's skills line changes only where the state refreshes anyway. | Each state change appends a whole state copy (about 100 to 200 tokens) after earlier input; a skill read is about 2,600 tokens. | Updating the line on every read. | Skill re-reads, October 2026 |
 | Messages state the fact and one next step, with no reassurance. | The wording was reviewed against Freeflow's Beyond the Weights research on model behavior. | — | `48a9387`, `3894a01` |
 | Settings of the retired v2 runtime still load and do nothing. | Existing configuration files stay valid. | Rejecting them. | `ca1cc90` |
 | The prompt section does not repeat habits stated elsewhere, such as trying a new script on a case whose answer is known (Verify Work), or capping output, saying when it was cut, and saving long output to a scratch file (the Working Method's "Keep output small", since 0.9.0). | Pi sends the Working Method whenever Freeflow is on, so a repeated line is paid for twice on every request (Write Skill's Placement And Dependencies). The section keeps the mechanics of working in the environment. | Keeping both copies. | Context cut, October 2026 |
@@ -260,7 +260,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
   - `bash-guard.ts`: `backgroundRefusal()`, `LONGEST_FOREGROUND_SLEEP_S`.
   - `guidance-notices.ts`: `GuidanceNotices` (`runStarted`, `toolResult`) and the notice texts.
   - `apply-patch/`: `grammar.ts`, `parser.ts`, `match.ts` (Codex ports), `plan.ts` (`applyPatch()`), `tool.ts` (`registerApplyPatch()`). Its [README](../../pi-extension/src/tool-execution/apply-patch/README.md) records the upstream commit and license.
-- `pi-extension/src/index.ts`: wiring. `before_agent_start` (prompt sections, prompt-time notice), `tool_call` (routing gate, bash guard, `FileTracking.toolCall()`), `tool_result`, `turn_end`, `session_tree`, `session_compact` (restatement), `session_shutdown`, and the background host's `send`, `event` and `endEvents`.
+- `pi-extension/src/index.ts`: wiring. `before_agent_start` (prompt sections, prompt-time notice), `tool_call` (bash guard, `FileTracking.toolCall()`), `tool_result`, `turn_end`, `session_tree`, `session_compact` (restatement), `session_shutdown`, and the background host's `send`, `event` and `endEvents`.
 - `runtime/prompts/tool-execution.md`: the guidance text.
 - `pi-extension/src/compaction/`: shares `resolveToolPath()` and `touchedPaths()` for carried files and file lists.
 

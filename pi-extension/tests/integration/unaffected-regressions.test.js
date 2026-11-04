@@ -188,132 +188,6 @@ test("settings recheck idle state before committing a master-switch selection", 
   }
 });
 
-test("Cognitive Routing preset cancellation preserves the previous repository value", async () => {
-  const cwd = await configuredRepo({
-    cognitiveRouting: {
-      enabled: true,
-      profiles: {
-        coordinator: { provider: "test", model: "model-a", thinking: "low" },
-        executor: { provider: "test", model: "model-b", thinking: "high" },
-      },
-    },
-  });
-  const original = await readFile(join(cwd, ".freeflow/config.json"), "utf8");
-  try {
-    const { commands } = loadExtension({
-      setModel() {
-        return true;
-      },
-      setThinkingLevel() {},
-    });
-    const command = freeflowCommand(commands);
-    const settings = context(cwd, { isIdle: () => true });
-    settings.modelRegistry = cognitiveRoutingModelRegistry();
-    settings.ui.custom = async (factory) => {
-      let result;
-      const component = factory({ requestRender() {} }, theme, {}, (value) => {
-        result = value;
-      });
-      // Opening the preset picker and leaving it changes nothing.
-      choose(component, "Executor preset", "Cognitive Routing");
-      component.handleInput("\r");
-      component.handleInput("\u001b");
-      component.handleInput("\u001b");
-      return result;
-    };
-    await command.definition.handler("settings repo", settings);
-    assert.equal(await readFile(join(cwd, ".freeflow/config.json"), "utf8"), original);
-    assert.equal(settings.reloads.length, 0);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
-test("Cognitive Routing settings refresh after enabling the capability", async () => {
-  const cwd = await configuredRepo({
-    cognitiveRouting: {
-      enabled: false,
-      profiles: {
-        coordinator: { provider: "test", model: "model-a", thinking: "low" },
-        executor: { provider: "test", model: "model-b", thinking: "high" },
-      },
-    },
-  });
-  try {
-    const { commands } = loadExtension({
-      setModel() {
-        return true;
-      },
-      setThinkingLevel() {},
-    });
-    const command = freeflowCommand(commands);
-    const settings = context(cwd, { isIdle: () => true });
-    settings.modelRegistry = cognitiveRoutingModelRegistry();
-    settings.ui.custom = async (factory) => {
-      let result;
-      const component = factory({ requestRender() {} }, theme, {}, (value) => {
-        result = value;
-      });
-      // Enabled toggles in place, and the section's status follows.
-      choose(component, "Enabled", "Cognitive Routing");
-      component.handleInput("\r");
-      await component.waitForWrites();
-      assert.match(component.render(120).join("\n"), /› Cognitive Routing\s+on\n/);
-      component.handleInput("\u001b");
-      return result;
-    };
-    await command.definition.handler("settings repo", settings);
-    const saved = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
-    assert.equal(saved.cognitiveRouting.enabled, true);
-    assert.equal(settings.reloads.length, 1);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
-test("Cognitive Routing settings can disable projection without disabling routing", async () => {
-  const cwd = await configuredRepo({
-    cognitiveRouting: {
-      enabled: true,
-      projection: true,
-      profiles: {
-        coordinator: { provider: "test", model: "model-a", thinking: "low" },
-        executor: { provider: "test", model: "model-b", thinking: "high" },
-      },
-    },
-  });
-  try {
-    const { commands } = loadExtension({
-      setModel() {
-        return true;
-      },
-      setThinkingLevel() {},
-    });
-    const command = freeflowCommand(commands);
-    const settings = context(cwd, { isIdle: () => true });
-    settings.modelRegistry = cognitiveRoutingModelRegistry();
-    settings.ui.custom = async (factory) => {
-      let result;
-      const component = factory({ requestRender() {} }, theme, {}, (value) => {
-        result = value;
-      });
-      choose(component, "Context projection", "Cognitive Routing");
-      component.handleInput("\r");
-      await component.waitForWrites();
-      component.handleInput("\u001b");
-      component.handleInput("\u001b");
-      return result;
-    };
-    await command.definition.handler("settings repo", settings);
-    const saved = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
-    assert.equal(saved.cognitiveRouting.enabled, true);
-    assert.equal(saved.cognitiveRouting.projection ?? false, false);
-    assert.equal(settings.reloads.length, 1);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
 test("session settings preserve mandatory prompts through compaction and resume", async () => {
   const cwd = await configuredRepo();
   try {
@@ -362,57 +236,20 @@ test("remaining session overrides apply without changing repository configuratio
   }
 });
 
-function cognitiveRoutingModelRegistry() {
-  const models = [
-    { provider: "test", id: "model-a", name: "Model A", reasoning: true },
-    { provider: "test", id: "model-b", name: "Model B", reasoning: true },
-  ];
-  const supported = new Map([
-    ["model-a", new Set(["off", "low", "medium", "high"])],
-    ["model-b", new Set(["off", "low", "medium", "high", "max"])],
-  ]);
-  return {
-    getAvailable() {
-      return models;
-    },
-    find(provider, id) {
-      return models.find((model) => model.provider === provider && model.id === id);
-    },
-    async getApiKeyAndHeaders() {
-      return { ok: true };
-    },
-    clampThinkingLevel(model, level) {
-      return supported.get(model.id)?.has(level) ? level : "off";
-    },
-  };
-}
-
 test("a session can switch each capability without changing either config file", async () => {
-  const cwd = await configuredRepo({
-    toolExecution: { enabled: true },
-    cognitiveRouting: {
-      enabled: true,
-      projection: true,
-      profiles: {
-        coordinator: { provider: "test", model: "model-a", thinking: "low" },
-        executor: { provider: "test", model: "model-b", thinking: "high" },
-      },
-    },
-  });
+  const cwd = await configuredRepo({ toolExecution: { enabled: true, guidanceNotices: true } });
   try {
     const configPath = join(cwd, ".freeflow/config.json");
     const original = await readFile(configPath, "utf8");
     const { pi } = loadExtension();
     const ctx = context(cwd);
     const { readCapabilityState } = await import("../../dist/host/config.js");
-    for (const key of ["toolExecution.enabled", "compaction.enabled", "cognitiveRouting.projection"])
+    for (const key of ["toolExecution.enabled", "compaction.enabled"])
       assert.equal((await setSessionCoreOverride(key, false, ctx, pi)).reloadRequired, true);
     const state = await readCapabilityState(cwd);
     assert.equal(state.toolExecution.enabled, false);
     assert.equal(state.compaction.enabled, false);
-    assert.equal(state.cognitiveRouting.projection, false);
-    assert.equal(state.cognitiveRouting.projectionSource, "session");
-    assert.equal(state.cognitiveRouting.enabled, true, "an override of one switch leaves the others configured");
+    assert.equal(state.toolExecution.guidanceNotices, true, "an override of one switch leaves the others configured");
     // Messaging is off by default, so the session switches it on.
     assert.equal((await setSessionCoreOverride("messaging.enabled", true, ctx, pi)).reloadRequired, true);
     assert.equal((await readCapabilityState(cwd)).messaging.enabled, true);
@@ -423,7 +260,6 @@ test("a session can switch each capability without changing either config file",
     const reset = await readCapabilityState(cwd);
     assert.equal(reset.toolExecution.enabled, true);
     assert.equal(reset.compaction.enabled, true);
-    assert.equal(reset.cognitiveRouting.projection, true);
     assert.equal(reset.messaging.enabled, false);
   } finally {
     await rm(cwd, { recursive: true, force: true });

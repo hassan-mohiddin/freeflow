@@ -103,7 +103,7 @@ for (const [label, cachedShare, expected] of [
   ["a healthy session gets none", 0.97, 0],
 ]) {
   test(label, { timeout: 30000 }, async () => {
-    const { fixture } = await import("../fixtures/routing-native.js");
+    const { fixture } = await import("../fixtures/pi-native.js");
     await fixture(
       () => [],
       false,
@@ -119,7 +119,6 @@ for (const [label, cachedShare, expected] of [
       {
         maxRequests: 20,
         response: (n) => responseWithUsage(n, 60_000, Math.round(60_000 * cachedShare)),
-        cognitiveRouting: { enabled: false },
       },
     );
   });

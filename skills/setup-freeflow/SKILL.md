@@ -22,7 +22,7 @@ Answer setup questions and delivery checks read-only. An explicit action request
 | Setting up the Freeflow store for task memory, local only or local + cloud, in a cloud session too; moving a local store to the cloud; moving older records (a repository's `.freeflow/tasks/`, Pi's former Task Memory) into the store | [store setup](references/store-setup.md) |
 | Whether the host delivers Freeflow, or which host action refreshes it | Hosts, below |
 | Changing any setting the user asks for, in a file or for this session only | Change A Setting, below |
-| Cognitive Routing or Tool Execution values | Change A Setting, only when the user requests them; a routing profile only on Pi's `/freeflow settings` |
+| Tool Execution values | Change A Setting, only when the user requests them |
 
 ## Establish Mutation Authority
 
@@ -51,7 +51,7 @@ Resolve each configurable value in this order:
 host session override -> personal override -> repository value -> built-in default
 ```
 
-Host session overrides last one session and cannot bypass missing or invalid repository activation. Pi keeps them in the Pi session, and Cognitive Routing has its own host-managed session control there; other hosts keep them in the Freeflow home's `sessions/<session>/settings.json`, which the settings script writes and the session-start hook reads. Effective Freeflow requires a valid repository config, a missing or valid local config, session-resolved `enabled: true`, and the prompt files the host delivers (Hosts, below).
+Host session overrides last one session and cannot bypass missing or invalid repository activation. Pi keeps them in the Pi session; other hosts keep them in the Freeflow home's `sessions/<session>/settings.json`, which the settings script writes and the session-start hook reads. Effective Freeflow requires a valid repository config, a missing or valid local config, session-resolved `enabled: true`, and the prompt files the host delivers (Hosts, below).
 
 If setup is already valid and no change was requested, preserve it and report the effective sources. Do not rewrite config merely to normalize formatting or materialize defaults.
 
@@ -79,7 +79,7 @@ Use `.freeflow/local.json` for an explicitly selected per-checkout override of `
 }
 ```
 
-Omitted values inherit from repository config and built-in defaults; local precedence is per property, not whole-file replacement. Configure optional Cognitive Routing values only when the user requests them, through Change A Setting.
+Omitted values inherit from repository config and built-in defaults; local precedence is per property, not whole-file replacement.
 
 Before writing local config in a Git checkout, verify it is untracked and ignored. Do not modify shared ignore policy merely to store a personal preference: prefer the host's safe settings path, `.git/info/exclude`, or an existing ignore rule. Refuse to overwrite a tracked local config.
 
@@ -95,7 +95,7 @@ When the user asks to change a setting, run [settings](scripts/settings.mjs) rat
 
 ## Hosts
 
-When Freeflow is effective, host adapters deliver `runtime/prompts/core.md`, `interaction-contract.md` and `working-method.md`, the base Freeflow skill surface, and compact current capability state; on Pi also `tool-execution.md` and `cognitive-routing.md` while those capabilities are effective, with their skills and tools. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions. Context Virtualization and Conversation History are removed.
+When Freeflow is effective, host adapters deliver `runtime/prompts/core.md`, `interaction-contract.md` and `working-method.md`, the base Freeflow skill surface, and compact current capability state; on Pi also `tool-execution.md` while Tool Execution is effective, with its tools. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions. Context Virtualization and Conversation History are removed.
 
 ### Pi
 
@@ -105,25 +105,27 @@ Settings scopes:
 
 ```text
 /freeflow settings          personal overrides
-/freeflow settings session  temporary Freeflow and Cognitive Routing session controls
+/freeflow settings session  temporary Freeflow session controls
 /freeflow settings repo     shared repository settings
 ```
 
-Session settings can temporarily inherit, enable, or disable Freeflow and override Cognitive Routing profiles and delegation; one reset action clears them. They persist in the active Pi session branch, never write either config file, and cannot bypass missing or invalid repository activation. The personal settings path uses omission to inherit, refuses to overwrite invalid or tracked local config, and establishes local Git exclusion when needed. These user-operated controls update state before the next model turn and reload Pi resources when supported.
+Session settings can temporarily inherit, enable, or disable Freeflow; one reset action clears them. They persist in the active Pi session branch, never write either config file, and cannot bypass missing or invalid repository activation. The personal settings path uses omission to inherit, refuses to overwrite invalid or tracked local config, and establishes local Git exclusion when needed. These user-operated controls update state before the next model turn and reload Pi resources when supported.
 
 A config written during setup is visible to the adapter on the next agent turn. After first activation, tell the user to run `/reload` so Pi refreshes skills and resources fully; without it, core runtime context loads on the next turn but resource discovery waits. Confirm automatic delivery through current extension status or runtime evidence.
 
 ### Codex And Claude Code
 
-The packaged runtime hook reads the same two layers. At supported `SessionStart` boundaries (startup, resume, clear, and compact) it loads `core.md`, `interaction-contract.md` and `working-method.md`, each unless `prompts` (`core`, `interactionContract`, `workingMethod`; each a boolean, on by default, personal overriding shared per prompt) turns it off, and emits a compact active Runtime State, with the session's own values over both files. It does not process submitted prompts, inject skill bodies, or inspect Pi-only capabilities.
+The packaged runtime hook reads the same two layers. At supported `SessionStart` boundaries (startup, resume, clear, fork, and compact) it loads `core.md`, `interaction-contract.md` and `working-method.md`, each unless `prompts` (`core`, `interactionContract`, `workingMethod`; each a boolean, on by default, personal overriding shared per prompt) turns it off, and emits a compact active Runtime State, with the session's own values over both files. It does not process submitted prompts, inject skill bodies, or inspect Pi-only capabilities.
 
 On Claude Code, Freeflow's mod adds `/freeflow settings`: it lists the settings Claude Code acts on, and `/freeflow settings <key> <value> [--session | --personal | --repository]` (Personal by default; `inherit` removes one) changes one through the settings script, its line reaching you at once. With `enabled` off, the mod's task menu, notices, compaction, store sync and event log stop too, and its claims read no for every request. `/freeflow capabilities` lists what Freeflow can do in the session, on Claude Code and Pi.
+
+On Codex, Freeflow's driver answers eleven hook events, and Codex runs each only once the user trusts it: after first-time setup and after each update, tell the user to open `/hooks` and approve Freeflow's hooks (`SessionStart` twice, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostModelRequest`, `PreCompact`, `PostCompact`, `SubagentStart`, `SubagentStop`, `Stop`, `SessionEnd`); an unapproved hook is skipped silently. Codex compacts on its own, mid-turn once the context reaches its limit, so suggest `model_post_turn_compact_threshold_percent` in Codex's `config.toml` (for example `70`): Codex then compacts after a turn, once the agent has had its chance to checkpoint. Codex has no `/freeflow` command; change a setting with the [settings script](scripts/settings.mjs), and the driver takes `enabled`, `events.enabled` and the gates (`gates.*`) up at the next session start.
 
 After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session or startup, as available. Name the exact control the current host supports; do not prescribe Pi's `/reload`.
 
 ### What Freeflow Can Do Here
 
-Freeflow's driver for the host (Claude Code's mod, Pi's extension) writes, at session start, its claims for each request Freeflow knows: `yes` for what it does here today, `possible` for what the host offers and Freeflow does not use yet, `no` for what the host cannot do. Before relying on one, such as Freeflow compacting the session or keeping its event log, run [capabilities](scripts/capabilities.mjs): `node <setup-freeflow-directory>/scripts/capabilities.mjs check <request>` exits 0 only for `yes` and prints how or why not; `list` gives every request and the event log, `--json` the claims as data. Never assume a request that is not `yes`. A host with no driver (Codex, Cursor, Copilot, Gemini) has no claims: only the session-start guidance arrives there, and you run Freeflow's scripts yourself.
+Freeflow's driver for the host (Claude Code's mod, Pi's extension, Codex's driver) writes, at session start, its claims for each request Freeflow knows: `yes` for what it does here today, `possible` for what the host offers and Freeflow does not use yet, `no` for what the host cannot do. Before relying on one, such as Freeflow compacting the session or keeping its event log, run [capabilities](scripts/capabilities.mjs): `node <setup-freeflow-directory>/scripts/capabilities.mjs check <request>` exits 0 only for `yes` and prints how or why not; `list` gives every request and the event log, `--json` the claims as data. Never assume a request that is not `yes`. A host with no driver (Cursor, Copilot, Gemini) has no claims: only the session-start guidance arrives there, and you run Freeflow's scripts yourself.
 
 ## Establish Same-Turn Context
 

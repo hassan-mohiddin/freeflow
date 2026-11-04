@@ -11,7 +11,7 @@ const WINDOW = 200_000;
 const limits = { window: WINDOW, trigger: 183_616, notice: 150_000 };
 const notice = (text) => `<freeflow-notice type="compaction">\n${text}\n</freeflow-notice>`;
 
-function setup({ state, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" }, projection = false } = {}) {
+function setup({ state, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" } } = {}) {
   let tokens = 0;
   const calls = { answered: 0, bundle: [], summarize: [] };
   let current = state;
@@ -19,12 +19,9 @@ function setup({ state, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" 
   const ctx = { cwd: "/work", sessionManager: { getBranch: () => branch, getLeafId: () => String(branch.length) } };
   const controller = new CompactionController({
     effective: () => true,
-    routingProfile: () => undefined,
-    routingAssignment: () => undefined,
     background: () => [],
     measure: () => ({ tokens, thresholds: limits }),
     notice,
-    coordinatorUnderProjection: () => projection,
     summarize: async (preparation, instructions) => {
       calls.summarize.push(instructions);
       return { summary: "PI_SUMMARY", firstKeptEntryId: "kept", tokensBefore: 9, details: { readFiles: [] } };
@@ -90,15 +87,10 @@ test("rows at 50, 60 and 70% once each, then the cycle's one notice, naming the 
   assert.equal(controller.observe(ctx), undefined, "no second notice and no repeat");
 });
 
-test("with no task the notice asks for the session summary; under projection the Coordinator delegates", () => {
+test("with no task the notice asks for the session summary", () => {
   const plain = setup({ state: { home: "/home", store: false, session: "s-1" } });
   plain.at(150_000);
   assert.match(plain.controller.observe(plain.ctx).text, /checkpoint --session --compact --input -/);
-  const routed = setup({ state: task("2026-10-30T10:00:00Z"), projection: true });
-  routed.at(150_000);
-  const text = routed.controller.observe(routed.ctx).text;
-  assert.match(text, /do not checkpoint yourself/);
-  assert.match(text, /delegate an assignment asking the worker to checkpoint as Track Work says, with --compact/);
 });
 
 test("a run that ends with checkpoint --compact done compacts with the bundle, keeps nothing raw, and continues", async () => {

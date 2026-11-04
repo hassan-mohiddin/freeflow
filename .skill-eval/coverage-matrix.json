@@ -19,7 +19,7 @@
       "case_concept": "Commit only an owned fix while preserving unrelated staged work, then refuse to push or release until each is approved; hold a rollout when metrics ingestion is broken.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/deliver-work/SKILL.md",
-      "source_sha256": "212a4d24cd5fc0ba93dacf0e202b2fa2e6c988f8562148ba5b8f3728de12b1c6",
+      "source_sha256": "2b3c8ea836453425ecf55579ef98b141bc8f97e520717ae339a5819fe94daf04",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -42,7 +42,7 @@
       "case_concept": "Explore a materially open direction without treating discussion as authority, then refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss-work/SKILL.md",
-      "source_sha256": "5c2aa35d034887848584b43c287380359b3d00e5b47a99f511a14b72624ed4da",
+      "source_sha256": "666e9171956220c178eff5c32b656f943079c4b46e15ca8639e2973e6e4f1049",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -132,9 +132,9 @@
       "neighbours": ["discuss-work", "verify-work", "execute-work", "write-docs", "track-work"],
       "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
-      "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with the body before the 2026-10-22 restructure (the description is not what the suite delivers or measures; the restructure moves and deduplicates that text and has not been rerun), 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified.",
+      "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with the body before the 2026-10-22 restructure (the description is not what the suite delivers or measures; the restructure moves and deduplicates that text and has not been rerun), 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified. The review gate rewritten for SPEC-007 (2026-11-03: a plan from the diff and the base's policy at every review unit, Quick, Standard and Deep, records bound to a commit) has not been measured.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "10857de6b600bf9e0feaa9b986780dc7a93b68c98da563996b89efef6bc329bf",
+      "source_sha256": "21b20c9a5436aa7c8d251002142cb0793a2da94557a1f330046808979c24691f",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -157,7 +157,7 @@
       "case_concept": "Refuse activation with a removed context key in either config layer, tell the user which key/file to delete without rewriting config, and preserve the valid empty-config activation path.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/setup-freeflow/SKILL.md",
-      "source_sha256": "2727dc09be3c5b6970f8e1c712c7f328a47e4cc84a454c16dd07b967700dcff8",
+      "source_sha256": "0e7f1c271af76c4b9a6969357b68d2c43c6d47066e306ee86687e296458aa01e",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

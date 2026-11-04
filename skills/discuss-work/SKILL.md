@@ -113,8 +113,6 @@ Goal: after an interruption or compaction, the next context knows what the user 
 
 Without a Working Record, the list lives in the conversation; never create a record only to hold it. With one, [Track Work](../track-work/SKILL.md) says where the agreement, the user's answers and the list live.
 
-Under [Cognitive Routing](../../capabilities/cognitive-routing/SKILL.md), only Coordinator keeps the list and asks the user; a worker returns the choices it made.
-
 ## Choices During The Work
 
 Goal: no choice is made silently, and the user is interrupted only when the work cannot go on without them.

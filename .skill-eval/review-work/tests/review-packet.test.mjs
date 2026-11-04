@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -51,7 +51,7 @@ async function project(extra = {}) {
   return { root, base, task: join(root, ".freeflow/tasks/task-001-ttl") };
 }
 
-test("review-packet prefills the brief, names the gate triggers and budget, and check-brief accepts it", async () => {
+test("review-packet prefills the brief with the plan and its budget, and check-brief accepts it", async () => {
   const { root, base, task } = await project();
   try {
     const result = run(root, [
@@ -68,13 +68,20 @@ test("review-packet prefills the brief, names the gate triggers and budget, and 
     assert.equal(result.status, 0, result.stdout + result.stderr);
     const packet = JSON.parse(result.stdout);
     assert.equal(packet.checkBrief.ok, true);
+    // src/auth/ fires security and the workflow fires ci: a Deep review in the security tier.
     assert.deepEqual(
-      packet.gateTriggers.map((each) => each.trigger),
-      ["security, authentication, authorization or secrets", "CI or release files"],
+      packet.plan.because.map((each) => each.name),
+      ["security", "ci"],
     );
+    assert.equal(packet.plan.depth, "deep");
+    assert.equal(packet.plan.tier, "security");
     assert.match(packet.budget, /^Review 1 of at most 3/);
-    const brief = await readFile(join(task, "scratch/reviews/R1-brief.md"), "utf8");
-    assert.match(brief, /^Review: 1\nBoundary: merge to main\nReviewed state: [0-9a-f]{12}\n/);
+    assert.match(packet.notes.join("\n"), /each with its own brief \(--reviewer a, b and c\)/);
+    const brief = await readFile(join(task, "reviews/R1-brief.md"), "utf8");
+    assert.match(
+      brief,
+      /^Review: 1\nPlan: deep, tier security, 3 reviewers, up to Review 3, model auto \(the security tier's model\)\nBoundary: merge to main\nReviewed state: [0-9a-f]{12}\n/,
+    );
     assert.match(brief, /\nAgreement: `\.freeflow\/tasks\/task-001-ttl\/record\.md`\n/);
     assert.match(brief, /\nDocs: `dev-docs\/auth\.md`\n/);
     assert.match(brief, /\nReview rules: `REVIEW\.md`\n/);
@@ -83,7 +90,7 @@ test("review-packet prefills the brief, names the gate triggers and budget, and 
       brief,
       /\nMay run: the project's declared checks: `npm test`, `npm run lint`; and probes of the changed code on copies in your own scratch folder, with no edits to the repository\n/,
     );
-    assert.match(brief, /\nReport: `\.freeflow\/tasks\/task-001-ttl\/scratch\/reviews\/R1-report\.md`\n$/);
+    assert.match(brief, /\nReport: `\.freeflow\/tasks\/task-001-ttl\/reviews\/R1-report\.md`\n$/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -103,10 +110,10 @@ test("review-packet leaves the Boundary empty so check-brief refuses, and Review
     assert.equal(noReport.status, 1);
     assert.match(JSON.parse(noReport.stdout).notes.join("\n"), /no previous report/);
 
-    await write(task, { "scratch/reviews/R1-report.md": "Judgment: Blocking\n" });
+    await write(task, { "reviews/R1-report.md": "Judgment: Blocking\n" });
     const second = run(root, ["--review", "2", "--base", base, "--task", task, "--boundary", "merge", "--json"]);
     assert.equal(second.status, 0, second.stdout);
-    const brief = await readFile(join(task, "scratch/reviews/R2-brief.md"), "utf8");
+    const brief = await readFile(join(task, "reviews/R2-brief.md"), "utf8");
     assert.match(brief, new RegExp(`\\nDiff: ${reviewed.slice(0, 12)}\\.\\.`));
     assert.match(brief, /\nPrevious report: `[^`]*R1-report\.md`\n/);
     assert.match(JSON.parse(second.stdout).budget, /^Review 2 of at most 3/);
@@ -146,7 +153,7 @@ test("review-packet run from outside the repository writes repository-relative D
     ]);
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.equal(JSON.parse(result.stdout).checkBrief.ok, true);
-    const brief = await readFile(join(task, "scratch/reviews/R1-brief.md"), "utf8");
+    const brief = await readFile(join(task, "reviews/R1-brief.md"), "utf8");
     assert.match(brief, /\nDocs: `dev-docs\/auth\.md`\n/);
     assert.match(brief, /\nReview rules: `REVIEW\.md`\n/);
     assert.equal(brief.includes(elsewhere), false, brief);
@@ -164,7 +171,7 @@ test("review-packet points Review rules at a tracked Markdown file's Review Rule
   try {
     const result = run(root, ["--review", "1", "--base", base, "--task", task, "--boundary", "merge", "--json"]);
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    const brief = await readFile(join(task, "scratch/reviews/R1-brief.md"), "utf8");
+    const brief = await readFile(join(task, "reviews/R1-brief.md"), "utf8");
     assert.match(brief, /\nReview rules: `dev-docs\/README\.md#review-rules`\n/);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -180,6 +187,8 @@ test("review-packet points Method at the base's copy of Review Work when the cha
     const base = git(root, "rev-parse", "HEAD");
     await write(root, { "skills/review-work/references/work.md": "# Work Review, edited by the change\n" });
     git(root, "commit", "--quiet", "-am", "edit the method");
+    // Review Work's plan reads the settings validator from pi-extension/dist beside the skills, as in the package.
+    await symlink(resolve("pi-extension"), join(root, "pi-extension"));
     const copied = join(root, "skills/review-work/scripts/review-packet.mjs");
     const result = run(
       root,
@@ -187,7 +196,7 @@ test("review-packet points Method at the base's copy of Review Work when the cha
       copied,
     );
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    const brief = await readFile(join(task, "scratch/reviews/R1-brief.md"), "utf8");
+    const brief = await readFile(join(task, "reviews/R1-brief.md"), "utf8");
     const short = base.slice(0, 12);
     assert.match(
       brief,
@@ -204,15 +213,15 @@ test("review-packet numbers briefs in sequence across a task and never replaces 
   const { root, base, task } = await project();
   try {
     await write(task, {
-      "scratch/reviews/R1-brief.md": "Review: 1\nReviewed state: abc\n",
-      "scratch/reviews/R1-report.md": "Judgment: Pass\n",
-      "scratch/reviews/R2-brief.md": "Review: 1\nReviewed state: def\n",
-      "scratch/reviews/R2-report.md": "Judgment: Pass\n",
+      "reviews/R1-brief.md": "Review: 1\nReviewed state: abc\n",
+      "reviews/R1-report.md": "Judgment: Pass\n",
+      "reviews/R2-brief.md": "Review: 1\nReviewed state: def\n",
+      "reviews/R2-report.md": "Judgment: Pass\n",
     });
     const result = run(root, ["--review", "1", "--base", base, "--task", task, "--boundary", "merge", "--json"]);
     assert.equal(result.status, 0, result.stdout);
     assert.match(JSON.parse(result.stdout).brief, /R3-brief\.md$/);
-    assert.equal(await readFile(join(task, "scratch/reviews/R1-brief.md"), "utf8"), "Review: 1\nReviewed state: abc\n");
+    assert.equal(await readFile(join(task, "reviews/R1-brief.md"), "utf8"), "Review: 1\nReviewed state: abc\n");
     // Run again: R3 has no report yet, so its draft is written again rather than a new R4.
     const again = run(root, ["--review", "1", "--base", base, "--task", task, "--boundary", "merge", "--json"]);
     assert.match(JSON.parse(again.stdout).brief, /R3-brief\.md$/);
@@ -229,7 +238,7 @@ test("review-packet reads a REVIEW.md from the base: one the change adds is not 
     git(root, "commit", "--quiet", "-m", "add rules");
     const added = run(root, ["--review", "1", "--base", base, "--task", task, "--boundary", "merge", "--json"]);
     assert.equal(added.status, 0, added.stdout + added.stderr);
-    assert.match(await readFile(join(task, "scratch/reviews/R1-brief.md"), "utf8"), /\nReview rules: none\n/);
+    assert.match(await readFile(join(task, "reviews/R1-brief.md"), "utf8"), /\nReview rules: none\n/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -240,7 +249,7 @@ test("review-packet reads a REVIEW.md from the base: one the change adds is not 
     git(edited.root, "commit", "--quiet", "-m", "edit rules");
     const result = run(edited.root, ["--review", "1", "--base", edited.base, "--task", edited.task, "--boundary", "m"]);
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    const brief = await readFile(join(edited.task, "scratch/reviews/R1-brief.md"), "utf8");
+    const brief = await readFile(join(edited.task, "reviews/R1-brief.md"), "utf8");
     assert.match(
       brief,
       new RegExp(
@@ -255,7 +264,7 @@ test("review-packet reads a REVIEW.md from the base: one the change adds is not 
 test("review-packet takes Review 2's previous review from the same line of work when reviews of two changes interleave", async () => {
   const { root, base, task } = await project();
   try {
-    const reviews = join(task, "scratch/reviews");
+    const reviews = join(task, "reviews");
     await mkdir(reviews, { recursive: true });
     const a1 = git(root, "rev-parse", "HEAD");
     git(root, "checkout", "--quiet", "-b", "other", base);
@@ -288,7 +297,7 @@ test("review-packet takes Review 2's previous review from the same line of work 
 test("review-packet does not rewrite another change's brief that has not reported yet", async () => {
   const { root, base, task } = await project();
   try {
-    const reviews = join(task, "scratch/reviews");
+    const reviews = join(task, "reviews");
     await mkdir(reviews, { recursive: true });
     const dispatched = "Review: 1\nBoundary: change A\nReviewed state: 0123456789ab\n";
     await write(reviews, { "R1-brief.md": dispatched });

@@ -1,28 +1,33 @@
 #!/usr/bin/env node
 // Prefills a work reviewer's pointer brief (references/work.md, "The Brief") from the repository and the task folder,
 // then runs check-brief.mjs on it, so the brief points at the requirements, the right diff and the prior report
-// without being assembled by hand. It also reports the review gate's triggers the diff shows and the review-round
-// budget. Lines it cannot fill (the Boundary, unless given) stay empty, so check-brief refuses the brief until the
-// initiator fills them.
+// without being assembled by hand. It takes the review plan (lib/plan.mjs, as review-plan.mjs prints it) into the
+// brief's Plan line: depth, tier, reviewers and round budget, and refuses a round the plan does not allow. Lines it
+// cannot fill (the Boundary, unless given) stay empty, so check-brief refuses the brief until the initiator fills them.
 // Usage: review-packet.mjs --review <1|2|3> --base <ref> [--head <ref>] [--task <task folder>] [--out <brief.md>]
-//                          [--boundary <text>] [--agreement <path>]... [--evidence <path>]... [--may-run <text>]
-//                          [--root <repository>] [--json]
-// With --task, the brief is written to <task>/scratch/reviews/R<n>-brief.md, n the next number free in the task, the report path is R<n>-report.md beside
-// it, the agreement defaults to the task's record.md, and Review 2 or 3 takes its diff from the previous brief's
-// reviewed state, points to R<n-1>-report.md and prints the size of that correction diff. Docs come from Write Docs'
-// docs-check.mjs --covering on the changed files; Review rules from a REVIEW.md or a tracked Markdown file with a
-// "## Review Rules" section at the base; Method from the base's copy when Review Work is in the reviewed repository.
-// The default May run is the declared npm checks and probes on scratch copies.
-// Exit code: check-brief's (0 passes, 1 has problems); 2 on a usage or Git error.
+//                          [--reviewer <a|b|c>] [--add <trigger> --reason <text>]... [--boundary <text>]
+//                          [--agreement <path>]... [--evidence <path>]... [--may-run <text>] [--root <repository>] [--json]
+// With --task, the brief is written to <task>/reviews/R<n>-brief.md, n the next number free in the task, the report
+// path is R<n>-report.md beside it, the agreement defaults to the task's record.md, and Review 2 or 3 takes its diff
+// from the previous brief's reviewed state, points to that review's report (or a Deep review's R<n>-adjudication.md)
+// and prints the size of that correction diff. Without --task or --out, the folder is this session's reviews/ in the
+// Freeflow home. A Deep review's reviewers each get their own brief, --reviewer a, b and c: R<n>a-brief.md and so on,
+// with their reports beside them. Docs come from Write Docs' docs-check.mjs --covering on the changed files; Review
+// rules from a REVIEW.md or a tracked Markdown file with a "## Review Rules" section at the base; Method from the
+// base's copy when Review Work is in the reviewed repository. The default May run is the declared npm checks and probes
+// on scratch copies.
+// Exit code: check-brief's (0 passes, 1 has problems); 2 on a usage or Git error, or a round the plan does not allow.
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { PlanError, planReview } from "./lib/plan.mjs";
+import { reviewsDir } from "./lib/records.mjs";
 import { reviewRulesSections } from "./lib/review-rules.mjs";
 
 const USAGE =
-  "Usage: review-packet.mjs --review <1|2|3> --base <ref> [--head <ref>] [--task <task folder>] [--out <brief.md>] [--boundary <text>] [--agreement <path>]... [--evidence <path>]... [--may-run <text>] [--root <repository>] [--json]";
+  "Usage: review-packet.mjs --review <1|2|3> --base <ref> [--head <ref>] [--task <task folder>] [--out <brief.md>] [--reviewer <a|b|c>] [--add <trigger> --reason <text>]... [--boundary <text>] [--agreement <path>]... [--evidence <path>]... [--may-run <text>] [--root <repository>] [--json]";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CHECK_BRIEF = join(HERE, "check-brief.mjs");
 const DOCS_CHECK = resolve(HERE, "../../write-docs/scripts/docs-check.mjs");
@@ -42,6 +47,9 @@ try {
       head: { type: "string", default: "HEAD" },
       task: { type: "string" },
       out: { type: "string" },
+      reviewer: { type: "string" },
+      add: { type: "string", multiple: true, default: [] },
+      reason: { type: "string", multiple: true, default: [] },
       boundary: { type: "string" },
       agreement: { type: "string", multiple: true, default: [] },
       evidence: { type: "string", multiple: true, default: [] },
@@ -55,7 +63,12 @@ try {
 }
 const round = Number(values.review);
 if (![1, 2, 3].includes(round) || !values.base) fail(USAGE);
-if (!values.task && !values.out) fail(`give --task or --out for where the brief goes\n${USAGE}`);
+const sessionReviews = values.task || values.out ? null : reviewsDir({ task: null });
+if (!values.task && !values.out && !sessionReviews)
+  fail(`give --task or --out for where the brief goes (no session is named for this session's reviews/)\n${USAGE}`);
+if (values.reviewer !== undefined && !/^[a-c]$/.test(values.reviewer))
+  fail(`--reviewer is a, b or c: one of a Deep review's three reviewers\n${USAGE}`);
+if (values.add.length !== values.reason.length) fail(`each --add needs its --reason\n${USAGE}`);
 
 const git = (cwd, args) =>
   execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
@@ -84,34 +97,62 @@ const show = (path) => {
 };
 const tick = (paths) => paths.map((path) => `\`${show(path)}\``).join(", ");
 
+// The plan decides the depth, tier, reviewers and round budget the brief carries.
+let plan;
+try {
+  plan = planReview({
+    root,
+    base: values.base,
+    head: values.head,
+    task: values.task ? resolve(values.task) : null,
+    adds: values.add.map((trigger, index) => ({ trigger, reason: values.reason[index] })),
+  });
+} catch (error) {
+  if (error instanceof PlanError) fail(`review-packet: ${error.message}`);
+  throw error;
+}
+if (round > plan.rounds)
+  fail(
+    `the plan allows up to Review ${plan.rounds} (${plan.depth}${plan.roundsSetting.value < 3 ? `, review.rounds ${plan.roundsSetting.value}` : ""}), not Review ${round}`,
+  );
+const letter = values.reviewer ?? "";
+if (letter && plan.reviewers === 1)
+  fail(`the plan is ${plan.depth}, with one reviewer: --reviewer is for a Deep review's three`);
+
 const task = values.task ? resolve(values.task) : null;
-const reviews = task ? join(task, "scratch", "reviews") : dirname(resolve(values.out));
+const reviews = task ? join(task, "reviews") : values.out ? dirname(resolve(values.out)) : sessionReviews;
 // Reviews in a task folder are numbered in sequence across the task (R1, R2, … whatever their round), so a new
-// brief takes the next free number and never overwrites an earlier review's brief or report.
-const numbered = existsSync(reviews)
-  ? readdirSync(reviews)
-      .map((name) => /^R(\d+)-(?:brief|report)\.md$/.exec(name)?.[1])
-      .filter(Boolean)
-      .map(Number)
-  : [];
+// brief takes the next free number and never overwrites an earlier review's brief or report. A Deep review's three
+// reviewers share one number: R<n>a, R<n>b, R<n>c.
+const FILE = /^R(\d+)([a-z]?)-(brief|report|adjudication)\.md$/;
+const files = existsSync(reviews) ? readdirSync(reviews).filter((name) => FILE.test(name)) : [];
+const numbered = files.map((name) => Number(FILE.exec(name)[1]));
 const latest = numbered.length > 0 ? Math.max(...numbered) : 0;
-// The latest brief is written again only while it is a draft of this same review (no report yet, the same Review
+// The latest number is written again only while it is a draft of this same review (no report yet, the same Review
 // number and Boundary); a review that has reported, a brief for another round, or another change's brief that may be
 // out with a reviewer, is never replaced.
-const latestBrief = join(reviews, `R${latest}-brief.md`);
-const latestText = latest > 0 && existsSync(latestBrief) ? readFileSync(latestBrief, "utf8") : "";
+const inSlot = (n, kind) => files.filter((name) => FILE.exec(name)[1] === String(n) && FILE.exec(name)[3] === kind);
 const draftOfThisRound =
-  latestText !== "" &&
-  !existsSync(join(reviews, `R${latest}-report.md`)) &&
-  /^Review:\s*(\d)/m.exec(latestText)?.[1] === String(round) &&
-  /^Boundary:[ \t]*(.*)$/m.exec(latestText)?.[1].trim() === (values.boundary ?? "").trim();
+  latest > 0 &&
+  inSlot(latest, "report").length === 0 &&
+  inSlot(latest, "brief").some((name) => {
+    const text = readFileSync(join(reviews, name), "utf8");
+    return (
+      /^Review:\s*(\d)/m.exec(text)?.[1] === String(round) &&
+      /^Boundary:[ \t]*(.*)$/m.exec(text)?.[1].trim() === (values.boundary ?? "").trim()
+    );
+  });
 const slot = draftOfThisRound ? latest : latest + 1;
-const briefPath = values.out ? resolve(values.out) : join(reviews, `R${slot}-brief.md`);
-const reportName = /^R\d+-brief\.md$/.test(basename(briefPath))
+const briefPath = values.out ? resolve(values.out) : join(reviews, `R${slot}${letter}-brief.md`);
+const reportName = /^R\d+[a-z]?-brief\.md$/.test(basename(briefPath))
   ? basename(briefPath).replace("-brief", "-report")
-  : `R${slot}-report.md`;
-const reportPath = join(task ? reviews : dirname(briefPath), reportName);
+  : `R${slot}${letter}-report.md`;
+const reportPath = join(values.out ? dirname(briefPath) : reviews, reportName);
 const notes = [];
+if (plan.reviewers > 1 && !letter)
+  notes.push(
+    `the plan is ${plan.depth}: ${plan.reviewers} reviewers, each with its own brief (--reviewer a, b and c), none shown another's report until all have written theirs`,
+  );
 
 // Review 2 or 3 reviews the range since the previous review's reviewed state.
 let diffBase = values.base;
@@ -125,21 +166,28 @@ if (round > 1) {
     spawnSync("git", ["merge-base", "--is-ancestor", commit, head], { cwd: root }).status === 0;
   let previous = null;
   for (let n = slot - 1; n >= 1 && !previous; n -= 1) {
-    const path = join(reviews, `R${n}-brief.md`);
-    if (!existsSync(path)) continue;
-    const text = readFileSync(path, "utf8");
-    const state = reviewedState(text);
-    const commit = state && commitOf(state);
-    if (/^Review:\s*(\d)/m.exec(text)?.[1] === String(round - 1) && commit && inHistory(commit))
-      previous = { n, path, state };
+    for (const name of inSlot(n, "brief")) {
+      const path = join(reviews, name);
+      const text = readFileSync(path, "utf8");
+      const state = reviewedState(text);
+      const commit = state && commitOf(state);
+      if (/^Review:\s*(\d)/m.exec(text)?.[1] === String(round - 1) && commit && inHistory(commit)) {
+        previous = { n, path, state };
+        break;
+      }
+    }
   }
   if (previous) {
     diffBase = previous.state;
     if (previous.n !== slot - 1)
       notes.push(`the previous review is R${previous.n}; the briefs numbered after it review another change`);
-    const candidate = join(reviews, `R${previous.n}-report.md`);
-    if (existsSync(candidate)) previousReport = candidate;
-    else notes.push(`no previous report at ${show(candidate)}: add its path and adjudication to "Previous report"`);
+    // One reviewer's report, or a Deep review's adjudication over its three.
+    const candidates = [`R${previous.n}-report.md`, `R${previous.n}-adjudication.md`].map((name) =>
+      join(reviews, name),
+    );
+    const candidate = candidates.find((path) => existsSync(path));
+    if (candidate) previousReport = candidate;
+    else notes.push(`no previous report at ${show(candidates[0])}: add its path and adjudication to "Previous report"`);
   } else
     notes.push(
       `no earlier Review ${round - 1} brief whose Reviewed state is in this change's history: the diff starts at --base; fill "Previous report" by hand`,
@@ -209,32 +257,13 @@ if (!mayRun) {
   if (!declared.length) notes.push('no declared npm checks found: add the project\'s checks to "May run"');
 }
 
-// Review gate triggers the diff shows; the agreement's own review triggers and Review Rules paths need a reader.
-const TRIGGERS = [
-  [
-    "security, authentication, authorization or secrets",
-    /(^|[/_.-])(auth[nz]?|oauth|login|passwords?|secrets?|credentials?|tokens?|permissions?|crypto|sessions?)([/_.-]|$)|authenticat|authoriz|(^|\/)\.env/i,
-  ],
-  ["possible data loss or a migration of stored data", /(migrat|schema|\.sql$|database|(^|\/)db\/|storage|persist)/i],
-  [
-    "CI or release files",
-    /(^\.github\/workflows\/|^\.gitlab-ci|^\.circleci\/|(^|\/)release|CHANGELOG|^scripts\/release)/i,
-  ],
-  [
-    "a public interface",
-    /(^package\.json$|(^|\/)bin\/|\.d\.ts$|(^|\/)SKILL\.md$|command-surface|(^|\/)index\.[cm]?[jt]s$|\.proto$|openapi|(^|\/)api\/)/i,
-  ],
-];
-const triggers = TRIGGERS.flatMap(([trigger, pattern]) => {
-  const paths = changed.filter((path) => pattern.test(path));
-  return paths.length ? [{ trigger, paths: paths.slice(0, 10), more: Math.max(0, paths.length - 10) }] : [];
-});
 const budget =
   round === 1
-    ? "Review 1 of at most 3: the first selected independent review, broad by default."
+    ? `Review 1 of at most ${plan.rounds}: the first selected independent review, broad by default.${plan.depth === "quick" ? " Review 2 only if it is Blocking." : ""}`
     : round === 2
-      ? "Review 2 of at most 3: a focused follow-up on the range since Review 1; if it stays Blocking, adjudicate and diagnose before any Review 3."
+      ? `Review 2 of at most ${plan.rounds}: a focused follow-up on the range since Review 1; if it stays Blocking, adjudicate and diagnose${plan.rounds > 2 ? " before any Review 3" : ""}.`
       : "Review 3 of 3: exceptional, separately authorized and final; if it stays Blocking, rethink the approach rather than correct again.";
+const planLine = `${plan.depth}, tier ${plan.tier}, ${letter ? `reviewer ${letter} of ${plan.reviewers}` : `${plan.reviewers} reviewer${plan.reviewers === 1 ? "" : "s"}`}, up to Review ${plan.rounds}, model ${plan.model.value}${plan.model.value === "auto" ? ` (${plan.reviewerModel})` : ""}${plan.humans ? `, humans ${plan.humans}` : ""}`;
 
 // The method is read from the base when Review Work lives in the reviewed repository, so a change to Review Work
 // never supplies the method that reviews it.
@@ -272,6 +301,7 @@ if (round > 1 && diffBase !== values.base) {
 
 const lines = [
   `Review: ${round}`,
+  `Plan: ${planLine}`,
   `Boundary: ${values.boundary ?? ""}`,
   `Reviewed state: ${head.slice(0, 12)}`,
   `Method: ${method}`,
@@ -303,8 +333,20 @@ const result = {
   review: round,
   diff: `${diffBase}..${values.head}`,
   changedFiles: changed.length,
-  gateTriggers: triggers,
-  gateNotDetected: ["anything the work agreement names for review", "paths the Review Rules mark sensitive"],
+  plan: {
+    depth: plan.depth,
+    tier: plan.tier,
+    reviewers: plan.reviewers,
+    reviewer: letter || null,
+    rounds: plan.rounds,
+    humans: plan.humans,
+    model: plan.model.value,
+    reviewerModel: plan.reviewerModel,
+    evidence: plan.evidence,
+    because: plan.because
+      .filter((match) => match.depth !== "off")
+      .map(({ source, name, depth, tier, detail }) => ({ source, name, depth, tier, detail })),
+  },
   budget,
   correctionDiff: correction,
   notes,
@@ -315,12 +357,13 @@ else {
   console.log(`Brief: ${briefPath}`);
   console.log(lines.map((line) => `  ${line}`).join("\n"));
   console.log(`Changed files: ${changed.length}.`);
+  const active = result.plan.because;
   console.log(
-    triggers.length
-      ? `Gate triggers in the diff:\n${triggers.map((each) => `- ${each.trigger}: ${each.paths.join(", ")}${each.more ? ` and ${each.more} more` : ""}`).join("\n")}`
-      : "Gate triggers in the diff: none detected by path.",
+    active.length
+      ? `Plan: ${plan.depth} because:\n${active.map((each) => `- ${each.source === "built-in" ? `built-in "${each.name}"` : each.name}: ${each.detail.slice(0, 3).join("; ")}`).join("\n")}`
+      : `Plan: ${plan.depth}, the default; no trigger or rule matched.`,
   );
-  console.log(`Not detected here: ${result.gateNotDetected.join("; ")}.`);
+  console.log(`Evidence for a ${plan.depth} review: ${plan.evidence}.`);
   console.log(`Round budget: ${budget}`);
   if (correction)
     console.log(

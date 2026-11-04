@@ -20,7 +20,7 @@ The **Rules** are binding; if one cannot be met, stop and say why. Everything el
 | A version, release notes, tag or registry publication | [release](references/release.md) |
 | Deploying, exposing a change to users, rolling back or restoring production | [launch](references/launch.md) |
 
-Start every route with [delivery-state](scripts/delivery-state.mjs) (`node <deliver-work-directory>/scripts/delivery-state.mjs`): branch, upstream counts from local refs, staged, unstaged and untracked counts, a Git operation in progress, every worktree with the one holding this session's directory flagged, the latest tag, the version and the changelog's Unreleased entries. It reads only; what needs the network it reports unavailable.
+Start every route with [delivery-state](scripts/delivery-state.mjs) (`node <deliver-work-directory>/scripts/delivery-state.mjs`): branch, upstream counts from local refs, staged, unstaged and untracked counts, a Git operation in progress, every worktree with the one holding this session's directory flagged, the latest tag, the version and the changelog's Unreleased entries. It reads only; what needs the network it reports unavailable. With `--task <task folder> --base <ref>` it also prints Review Work's `Review:` line for HEAD, which The Review Check below reads.
 
 A request spanning routes, such as "commit and push": take them in order, each within its own yes, and stop at the first that fails.
 
@@ -31,6 +31,12 @@ A request spanning routes, such as "commit and push": take them in order, each w
 - Never stage or publish Working Records (`.freeflow/tasks/**`, or a Freeflow store's task folders), secrets, credentials, private keys, local environment files or unexplained sensitive content. Only Track Work's script syncs the Freeflow store, and only to the user's own private remote.
 - Never absorb or unstage pre-existing staged changes, or remove a worktree, checkout or other state you did not create. Never run a destructive reset, clean, branch or remote deletion, worktree removal or force push merely to produce a clean status.
 - After a commit, push, publication or deployment step fails or loses its acknowledgement, inspect what changed before retrying, and stop while it stays unknown; a network error does not mean nothing happened.
+
+## The Review Check
+
+Goal: work crosses its review unit only with a review on record for the commit that crosses it.
+
+Before the step the user's `review.unit` names (opening a pull request by default; a push, a commit, or the Return under `agreement`), read delivery-state's `Review:` line, Review Work's [review-status](../review-work/scripts/review-status.mjs). On record for the head: go on. None: run the plan's review first, as Review Work's The Review Gate says, or under `manual` propose it with its plan and cost and wait for a yes. A stale line names the diff-only re-review that covers the commits since. Until Freeflow's gates enforce it, this check is yours: nothing in the host stops the step without it.
 
 ## Commit
 
@@ -58,7 +64,7 @@ Stop and return the smallest blocking fact when:
 
 - what a route's yes covers is unclear;
 - live state differs from what was verified, reviewed or approved: changes, source commit, version, artifact, configuration or target;
-- required evidence or a selected review is missing;
+- required evidence, a selected review, or the review the unit needs (The Review Check) is missing;
 - a destination is unclear: remote, branch, base, pull-request target, registry, channel or environment;
 - a conflict needs more than a mechanical resolution of both sides' settled intended behavior, such as a behavior, source-of-truth or owner decision; never end a conflict by taking ours or theirs.
 

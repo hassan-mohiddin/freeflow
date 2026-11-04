@@ -3,8 +3,15 @@
 // HEAD, upstream and ahead/behind from local refs, staged, unstaged, untracked and conflicted counts, a Git operation
 // left in progress, every worktree with the one holding this session's working directory flagged, the latest tag, the
 // declared version and the changelog's Unreleased section. Anything that needs the network is reported unavailable.
-// Usage: delivery-state.mjs [--root <repository>] [--cwd <session directory>] [--json]
+// It also prints Review Work's line for HEAD (review-status.mjs): whether an independent review is on record for it,
+// from the task's reviews/ (--task) or this session's, and with --base the depth the review plan gives the change.
+// Usage: delivery-state.mjs [--root <repository>] [--cwd <session directory>] [--task <task folder>] [--base <ref>]
+//                           [--json]
 // --cwd defaults to the current directory. Exit code 0 when it reports, 2 outside a Git repository.
+import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import {
   branchState,
@@ -17,11 +24,19 @@ import {
   worktrees,
 } from "./lib/git-state.mjs";
 
-const USAGE = "Usage: delivery-state.mjs [--root <repository>] [--cwd <session directory>] [--json]";
+const USAGE =
+  "Usage: delivery-state.mjs [--root <repository>] [--cwd <session directory>] [--task <task folder>] [--base <ref>] [--json]";
+const REVIEW_STATUS = join(dirname(fileURLToPath(import.meta.url)), "../../review-work/scripts/review-status.mjs");
 let values;
 try {
   ({ values } = parseArgs({
-    options: { root: { type: "string" }, cwd: { type: "string" }, json: { type: "boolean", default: false } },
+    options: {
+      root: { type: "string" },
+      cwd: { type: "string" },
+      task: { type: "string" },
+      base: { type: "string" },
+      json: { type: "boolean", default: false },
+    },
   }));
 } catch (error) {
   console.error(`${error.message}\n${USAGE}`);
@@ -41,6 +56,27 @@ const trees = worktrees(root, cwd);
 const tag = latestTag(root);
 const version = projectVersion(root);
 const notes = changelog(root);
+
+/** Review Work's line for HEAD, or why there is none; it reads only the review records and Git. */
+function reviewState() {
+  if (!branch.head) return { line: "Review: no commits yet", state: null };
+  if (!existsSync(REVIEW_STATUS))
+    return { line: "Review: unavailable (Review Work's review-status.mjs is not installed here)", state: null };
+  const args = [REVIEW_STATUS, "--root", root, "--json"];
+  if (values.task) args.push("--task", values.task);
+  if (values.base) args.push("--base", values.base);
+  const run = spawnSync(process.execPath, args, { encoding: "utf8" });
+  try {
+    const status = JSON.parse(run.stdout);
+    return { line: status.line, state: status.state, record: status.record, reviews: status.reviews };
+  } catch {
+    return {
+      line: `Review: unavailable (${(run.stderr || "review-status failed").trim().split("\n")[0]})`,
+      state: null,
+    };
+  }
+}
+const review = reviewState();
 const state = {
   command: "delivery-state",
   root,
@@ -58,6 +94,7 @@ const state = {
   versionTagged:
     version?.version && tag ? [tag.tag, `v${version.version}`].includes(tag.tag) || tag.tag === version.version : false,
   changelog: notes,
+  review,
   unavailable: [
     "the remote's current state: ahead/behind uses local remote-tracking refs (fetch to refresh them, when that is covered)",
     "pull requests, CI results, registry versions and deployments",
@@ -102,6 +139,7 @@ else {
       }`,
     );
   else out.push("Changelog: none found");
+  out.push(review.line);
   out.push(`Unavailable without the network: ${state.unavailable.join("; ")}.`);
   console.log(out.join("\n"));
 }

@@ -1,6 +1,6 @@
 # Freeflow Pi Extension
 
-The Pi integration of Freeflow. Pi loads it as an extension and it adds Freeflow's runtime context, Cognitive Routing, Tool Execution, provider prompt-cache support, the `/freeflow` command, and Freeflow's skill commands.
+The Pi integration of Freeflow. Pi loads it as an extension and it adds Freeflow's runtime context, Tool Execution, provider prompt-cache support, the `/freeflow` command, and Freeflow's skill commands.
 
 Supported hosts: Pi `>=0.99.1` (developed and tested against the version pinned in the root `package.json`). The other hosts Freeflow supports load skills and hooks only; this directory is Pi-specific.
 
@@ -38,4 +38,4 @@ Commit `dist/` together with the `src/` change that produced it. Pi development 
 
 - [Pi integration](../plugin-docs/integrations/pi.md)
 - [Architecture](../dev-docs/README.md) and [Prompt architecture](../dev-docs/subsystems/prompt-assembly.md)
-- [Cognitive Routing](../plugin-docs/capabilities/cognitive-routing.md) and [Tool Execution](../plugin-docs/capabilities/tool-execution.md)
+- [Tool Execution](../plugin-docs/capabilities/tool-execution.md)

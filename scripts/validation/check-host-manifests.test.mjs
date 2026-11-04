@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   AGENT_PLUGINS_SCHEMA,
   validateAgentPluginManifest,
+  validateCodexHooks,
   validateGeminiHook,
   validateHostManifests,
 } from "./check-host-manifests.mjs";
@@ -68,6 +69,45 @@ test("Gemini's hook must resolve its adapter under Gemini and under Claude Code"
   assert.deepEqual(errors, [
     "hooks/hooks.json must invoke the Gemini adapter through ${extensionPath}${CLAUDE_PLUGIN_ROOT}",
   ]);
+});
+
+test("Codex's hooks run the driver on every event it answers, fork included and the bundle uncut (SPEC-012)", () => {
+  const live = JSON.parse(readFileSync(resolve(repoRoot, "hooks/codex/hooks.json"), "utf8"));
+  const errorsOf = (config) => {
+    const errors = [];
+    validateCodexHooks(config, "hooks.json", errors);
+    return errors.join("\n");
+  };
+  assert.equal(errorsOf(live), "");
+  const changed = (change) => {
+    const copy = structuredClone(live);
+    change(copy.hooks);
+    return errorsOf(copy);
+  };
+  assert.match(
+    changed((hooks) => (hooks.SessionStart[0].matcher = "startup|resume|clear")),
+    /startup\|resume\|clear\|fork matcher/,
+  );
+  assert.match(
+    changed((hooks) => (hooks.SessionStart[1].hooks[0].additionalContextLimit = 8000)),
+    /compact must set additionalContextLimit to 0/,
+  );
+  assert.match(
+    changed((hooks) => delete hooks.Stop),
+    /must configure Stop/,
+  );
+  assert.match(
+    changed((hooks) => (hooks.SessionEnd[0].hooks[0].timeout = 10)),
+    /SessionEnd must time out within Codex's 3 seconds/,
+  );
+  assert.match(
+    changed((hooks) => (hooks.Stop[0].hooks[0].command = 'node "${PLUGIN_ROOT}/hooks/codex/driver.mjs" PostToolUse')),
+    /Stop group 0 must invoke the Codex driver/,
+  );
+  assert.match(
+    changed((hooks) => (hooks.Interrupt = hooks.Stop)),
+    /configures Interrupt, which the driver does not answer/,
+  );
 });
 
 test("Hermes uses the portable Agent Plugins package rather than a native Python plugin", () => {

@@ -43,10 +43,10 @@ function otherValue(spec) {
   if (spec.values === "name") return ["claude-haiku-5-5", "claude-haiku-5-5"];
   if (spec.values === "number") return ["12.5", 12.5];
   const value = spec.values.find((each) => each !== spec.default);
-  return [value, value];
+  return [String(value), value];
 }
 
-const settable = SETTINGS.filter((spec) => spec.values !== "profile");
+const settable = SETTINGS.filter((spec) => spec.values !== "policy");
 
 test("list with nothing set shows every setting all hosts and Claude Code act on at its default, and names the Pi-only ones", async (t) => {
   const f = await fixture();
@@ -60,7 +60,9 @@ test("list with nothing set shows every setting all hosts and Claude Code act on
   assert.deepEqual(listed.state, []);
   const text = f.run("list");
   assert.equal(text.status, 0, text.stderr);
-  assert.match(text.stdout, /review\.mode\s+auto\s+default/);
+  assert.match(text.stdout, /review\.unit\s+pr\s+default/);
+  assert.match(text.stdout, /review\.rounds\s+3\s+default/);
+  assert.match(text.stdout, /review\.depth\s+none\s+default/);
   assert.match(text.stdout, /Pi-only settings are not listed \(--host pi lists them\)/);
   assert.deepEqual(
     f.json("list", "--host", "pi").settings.map((row) => row.key),
@@ -97,27 +99,27 @@ test("every settable key can be set, read back and unset in each of its scopes",
 test("inherit unsets a key in that scope", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
-  f.json("set", "review.mode", "always", "--scope", "personal");
-  const result = f.json("set", "review.mode", "inherit", "--scope", "personal");
+  f.json("set", "review.unit", "manual", "--scope", "personal");
+  const result = f.json("set", "review.unit", "inherit", "--scope", "personal");
   assert.equal(result.scope, "default");
-  assert.equal(result.value, "auto");
+  assert.equal(result.value, "pr");
 });
 
 test("a repository write drops a value equal to its default; a personal write keeps it and overrides the repository", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
-  f.json("set", "review.mode", "off", "--scope", "repository");
-  assert.deepEqual(await f.file(".freeflow/config.json"), { review: { mode: "off" } });
-  f.json("set", "review.mode", "auto", "--scope", "personal");
-  assert.deepEqual(await f.file(".freeflow/local.json"), { review: { mode: "auto" } });
-  assert.deepEqual(f.json("get", "review.mode"), {
-    key: "review.mode",
-    label: "Review",
-    value: "auto",
+  f.json("set", "review.unit", "push", "--scope", "repository");
+  assert.deepEqual(await f.file(".freeflow/config.json"), { review: { unit: "push" } });
+  f.json("set", "review.unit", "pr", "--scope", "personal");
+  assert.deepEqual(await f.file(".freeflow/local.json"), { review: { unit: "pr" } });
+  assert.deepEqual(f.json("get", "review.unit"), {
+    key: "review.unit",
+    label: "Review unit",
+    value: "pr",
     scope: "personal",
     hosts: "all",
   });
-  f.json("set", "review.mode", "auto", "--scope", "repository");
+  f.json("set", "review.unit", "pr", "--scope", "repository");
   assert.deepEqual(await f.file(".freeflow/config.json"), {}, "the repository's default value is pruned");
 });
 
@@ -137,18 +139,18 @@ test("a personal write adds .freeflow/local.json to Git's exclude first", async 
 test("a Session value wins over the files, lives in the Freeflow home and is gone in another session", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
-  f.json("set", "review.mode", "off", "--scope", "repository");
-  f.json("set", "review.mode", "always", "--scope", "session");
+  f.json("set", "review.unit", "push", "--scope", "repository");
+  f.json("set", "review.unit", "manual", "--scope", "session");
   assert.deepEqual(JSON.parse(await readFile(join(f.home, "sessions/s-1/settings.json"), "utf8")), {
-    "review.mode": "always",
+    "review.unit": "manual",
   });
-  assert.equal(f.json("get", "review.mode").scope, "session");
-  const other = spawnSync(process.execPath, [scriptPath, "get", "review.mode", "--root", f.root, "--json"], {
+  assert.equal(f.json("get", "review.unit").scope, "session");
+  const other = spawnSync(process.execPath, [scriptPath, "get", "review.unit", "--root", f.root, "--json"], {
     env: { ...f.env, FREEFLOW_SESSION: "s-2" },
     encoding: "utf8",
   });
   assert.equal(JSON.parse(other.stdout).scope, "repository");
-  const claude = spawnSync(process.execPath, [scriptPath, "get", "review.mode", "--root", f.root, "--json"], {
+  const claude = spawnSync(process.execPath, [scriptPath, "get", "review.unit", "--root", f.root, "--json"], {
     env: { ...f.env, FREEFLOW_SESSION: "", CLAUDE_CODE_SESSION_ID: "s-1" },
     encoding: "utf8",
   });
@@ -158,11 +160,16 @@ test("a Session value wins over the files, lives in the Freeflow home and is gon
 test("a change prints the Runtime State lines it changed, and the prompt note for a prompt", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
-  const review = f.run("set", "review.mode", "always", "--scope", "personal");
+  const review = f.run("set", "review.unit", "manual", "--scope", "personal");
   assert.equal(review.status, 0, review.stderr);
-  assert.match(review.stdout, /^review\.mode: always \(Personal, \.freeflow\/local\.json\)$/m);
-  assert.match(review.stdout, /^Runtime State: Review: `always`/m);
-  const cleared = f.json("unset", "review.mode", "--scope", "personal");
+  assert.match(review.stdout, /^review\.unit: manual \(Personal, \.freeflow\/local\.json\)$/m);
+  assert.match(review.stdout, /^Runtime State: Review: unit `manual`, model `auto`$/m);
+  const rounds = f.run("set", "review.rounds", "2", "--scope", "personal");
+  assert.equal(rounds.status, 0, rounds.stderr);
+  assert.match(rounds.stdout, /^Runtime State: Review: unit `manual`, model `auto`, up to Review 2$/m);
+  assert.deepEqual(await f.file(".freeflow/local.json"), { review: { unit: "manual", rounds: 2 } });
+  f.json("unset", "review.rounds", "--scope", "personal");
+  const cleared = f.json("unset", "review.unit", "--scope", "personal");
   assert.equal(cleared.changed.length, 0);
   assert.equal(cleared.cleared.length, 1);
   const prompt = f.run("set", "prompts.core", "off", "--scope", "personal");
@@ -177,13 +184,20 @@ test("refusals name what is wrong and write nothing", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
   const cases = [
-    [["get", "review.depth"], /unknown setting review\.depth/],
-    [["set", "review.mode", "sometimes", "--scope", "personal"], /review\.mode takes auto, off, always, not sometimes/],
+    [["get", "review.mode"], /unknown setting review\.mode/],
+    [
+      ["set", "review.unit", "sometimes", "--scope", "personal"],
+      /review\.unit takes pr, push, commit, agreement, manual, not sometimes/,
+    ],
+    [["set", "review.rounds", "4", "--scope", "personal"], /review\.rounds takes 1, 2, 3, not 4/],
+    [
+      ["set", "review.depth", "deep", "--scope", "repository"],
+      /review\.depth is a policy object, Repository scope only/,
+    ],
+    [["set", "review.depth", "deep", "--scope", "session"], /review\.depth is a policy object/],
     [["set", "enabled", "maybe", "--scope", "personal"], /enabled takes on or off, not maybe/],
-    [["set", "review.mode", "always"], /set needs --scope/],
-    [["set", "review.mode", "always", "--scope", "global"], /--scope must be repository, personal or session/],
-    [["set", SETTINGS.find((spec) => spec.values === "profile").key, "x", "--scope", "personal"], /routing profile/],
-    [["set", "cognitiveRouting.delegation", "off", "--scope", "session"], /has no Session scope here/],
+    [["set", "review.unit", "manual"], /set needs --scope/],
+    [["set", "review.unit", "manual", "--scope", "global"], /--scope must be repository, personal or session/],
     [["set", "review.model", "two\nlines", "--scope", "personal"], /review\.model takes a name on one line/],
     [["set", "governor.cap", "0", "--scope", "personal"], /governor\.cap takes a number above 0, not 0/],
     [["set", "governor.cap", "lots", "--scope", "personal"], /governor\.cap takes a number above 0, not lots/],
@@ -199,7 +213,7 @@ test("refusals name what is wrong and write nothing", async (t) => {
 test("the Session scope is refused without a session ID", async (t) => {
   const f = await fixture({ session: null });
   t.after(f.cleanup);
-  const result = f.run("set", "review.mode", "always", "--scope", "session");
+  const result = f.run("set", "review.unit", "manual", "--scope", "session");
   assert.equal(result.status, 1);
   assert.match(result.stderr, /the Session scope needs a host that names its session/);
 });
@@ -208,13 +222,13 @@ test("an invalid file stops every write and is named by list and get", async (t)
   const f = await fixture();
   t.after(f.cleanup);
   await mkdir(join(f.root, ".freeflow"));
-  await writeFile(join(f.root, ".freeflow/config.json"), `{"review":{"mode":"sometimes"}}\n`);
-  for (const args of [["list"], ["get", "review.mode"]]) {
+  await writeFile(join(f.root, ".freeflow/config.json"), `{"review":{"unit":"sometimes"}}\n`);
+  for (const args of [["list"], ["get", "review.unit"]]) {
     const result = f.run(...args);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /\.freeflow\/config\.json is invalid/);
   }
-  const write = f.run("set", "review.mode", "always", "--scope", "personal");
+  const write = f.run("set", "review.unit", "manual", "--scope", "personal");
   assert.equal(write.status, 1);
   assert.match(write.stderr, /fix it before changing a setting/);
   assert.equal(existsSync(join(f.root, ".freeflow/local.json")), false);
@@ -226,7 +240,7 @@ test("a personal file Git tracks is refused", async (t) => {
   await mkdir(join(f.root, ".freeflow"));
   await writeFile(join(f.root, ".freeflow/local.json"), "{}\n");
   execFileSync("git", ["-C", f.root, "add", "-f", ".freeflow/local.json"], { env: baseEnv });
-  const result = f.run("set", "review.mode", "always", "--scope", "personal");
+  const result = f.run("set", "review.unit", "manual", "--scope", "personal");
   assert.equal(result.status, 1);
   assert.match(result.stderr, /local\.json is tracked by git/);
 });
@@ -235,17 +249,17 @@ test("a file with v: 1 is read, and a write keeps it", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
   await mkdir(join(f.root, ".freeflow"));
-  await writeFile(join(f.root, ".freeflow/config.json"), `{"v":1,"review":{"mode":"off"}}\n`);
-  assert.equal(f.json("get", "review.mode").value, "off");
+  await writeFile(join(f.root, ".freeflow/config.json"), `{"v":1,"review":{"unit":"push"}}\n`);
+  assert.equal(f.json("get", "review.unit").value, "push");
   f.json("set", "enabled", "off", "--scope", "repository");
-  assert.deepEqual(await f.file(".freeflow/config.json"), { v: 1, review: { mode: "off" }, enabled: false });
+  assert.deepEqual(await f.file(".freeflow/config.json"), { v: 1, review: { unit: "push" }, enabled: false });
 });
 
 test("outside a Git repository a personal write still works", async (t) => {
   const f = await fixture({ git: false });
   t.after(f.cleanup);
-  f.json("set", "review.mode", "always", "--scope", "personal");
-  assert.deepEqual(await f.file(".freeflow/local.json"), { review: { mode: "always" } });
+  f.json("set", "review.unit", "manual", "--scope", "personal");
+  assert.deepEqual(await f.file(".freeflow/local.json"), { review: { unit: "manual" } });
 });
 
 test("a folder inside the repository reads and writes the repository's settings", async (t) => {
@@ -257,8 +271,8 @@ test("a folder inside the repository reads and writes the repository's settings"
     [
       scriptPath,
       "set",
-      "review.mode",
-      "always",
+      "review.unit",
+      "manual",
       "--scope",
       "repository",
       "--root",
@@ -268,6 +282,6 @@ test("a folder inside the repository reads and writes the repository's settings"
     { env: f.env, encoding: "utf8" },
   );
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(await f.file(".freeflow/config.json"), { review: { mode: "always" } });
+  assert.deepEqual(await f.file(".freeflow/config.json"), { review: { unit: "manual" } });
   assert.equal(f.json("list").root, f.root);
 });
