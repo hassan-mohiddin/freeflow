@@ -515,8 +515,17 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
       "Claude Code's status line (SPEC-015): only Claude Code's mod acts on it, through its own /freeflow settings",
   };
   const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
-  const { CONFIG_SECTIONS, REVIEW_KEYS, PROMPTS_KEYS, SKILLS_KEYS, EVENTS_KEYS, GATE_KEYS, DELEGATION_KEYS, GOVERNOR_KEYS, PANE_KEYS } =
-    await import("../../dist/host/config-validation.js");
+  const {
+    CONFIG_SECTIONS,
+    REVIEW_KEYS,
+    PROMPTS_KEYS,
+    SKILLS_KEYS,
+    EVENTS_KEYS,
+    GATE_KEYS,
+    DELEGATION_KEYS,
+    GOVERNOR_KEYS,
+    PANE_KEYS,
+  } = await import("../../dist/host/config-validation.js");
   const { TOOL_EXECUTION_KEYS } = await import("../../dist/tool-execution/config.js");
   const { COMPACTION_KEYS } = await import("../../dist/compaction/config.js");
   const { MESSAGING_KEYS } = await import("../../dist/messaging/config.js");
