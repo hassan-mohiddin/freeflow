@@ -19,7 +19,7 @@ The primary metric is success per task: whether every trial's held-back tests al
 
 ## 4. Compared to what
 
-Today: plain Claude Code, headless (`claude -p`), with Haiku 5.5 at effort xhigh and no plugin, in a clean configuration (`--setting-sources ""`). That is the `plain` arm, the reference. The `freeflow` arm is the same command, model, effort, tools, container, simulated user and turn cap, plus the Freeflow package built from commit 6a0c550b (main 0c6da0e3 merged into this suite's branch, with the store's boundary closed: the container sees the store's .git read-only and the host commits it) as the session's plugin and a fresh Freeflow store: Freeflow is the component compared, not extra compute. Neither arm is tuned on these tasks. The trivial baseline is the starting commit itself: check-tasks shows every task's tests fail there and pass at its merge.
+Today: plain Claude Code, headless (`claude -p`), with Haiku 5.5 at effort xhigh and no plugin, in a clean configuration (`--setting-sources ""`). That is the `plain` arm, the reference. The `freeflow` arm is the same command, model, effort, tools, container, simulated user and turn cap, plus the Freeflow package built from commit db8ef68d (main 0c6da0e3 merged into this suite's branch, with the store's boundary closed: the container sees the store's .git read-only, the host commits it, and the host runs no Git in a repository the subject could have made) as the session's plugin and a fresh Freeflow store: Freeflow is the component compared, not extra compute. Neither arm is tuned on these tasks. The trivial baseline is the starting commit itself: check-tasks shows every task's tests fail there and pass at its merge.
 
 ## 5. The unit and the count
 
