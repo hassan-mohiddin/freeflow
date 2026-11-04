@@ -608,11 +608,43 @@ export async function delegationStatus(loaded, { json = false } = {}) {
   return json ? `${JSON.stringify({ delegations: items }, null, 2)}\n` : `${lines.join("\n")}\n`;
 }
 
-/** Problems with a delegation's return: its State and headings, and every commit it names on the brief's branch. */
-export function returnProblems(directory) {
+/**
+ * The commits a return's Identities name, each a hex word of 7 to 40 characters with a digit, as before. Three things
+ * that hold such words are not commits: an email address, whose domain ends in a label of letters and whose name is
+ * not itself such a word (the GitHub ID in a noreply email); a UUID; and a folder name between two slashes of a path,
+ * except a URL's git ref, right after `blob/`, `tree/`, `commit/`, `raw/` or `blame/`. No other form is set aside:
+ * the text cannot tell another repository's commit from this one's, so the coordinator names those with --elsewhere.
+ */
+export function identityCommits(text) {
+  const plain = text
+    .replace(/(?<![\w.+-])(?![0-9a-f]{7,40}@)[\w.+-]+@(?:[\w-]+\.)+[A-Za-z]{2,}\b/g, " ")
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, " ")
+    .replace(/(?<!\/(?:blob|tree|commit|raw|blame))\/[0-9a-f]{7,40}(?=\/)/g, "/ ");
+  const commits = new Set();
+  for (const [commit] of plain.matchAll(/\b[0-9a-f]{7,40}\b/g))
+    // A hash can be all digits; a word of hex letters alone is not taken for one.
+    if (/\d/.test(commit)) commits.add(commit);
+  return [...commits];
+}
+
+/** The --elsewhere values: each `<hash>=<owner/name>`, a commit the coordinator read as another repository's. */
+export function parseElsewhere(values = []) {
+  return values.map((value) => {
+    const match = /^([0-9a-f]{7,40})=([A-Za-z0-9][\w.-]*\/[\w.-]+)$/.exec(value);
+    if (!match) fail(`--elsewhere is <hash>=<owner/name>, such as 079e17a4=openai/codex; not ${value}.`);
+    return { hash: match[1], repository: match[2] };
+  });
+}
+
+/**
+ * Problems with a delegation's return: its State and headings, and every commit it names on the brief's branch.
+ * A commit that is not in the repository is a problem unless `elsewhere` names it (either is a prefix of the
+ * other); each `elsewhere` entry must name a commit the return does and that is not in the repository.
+ */
+export function returnProblems(directory, elsewhere = []) {
   const brief = parseBrief(readFileSync(join(directory, "brief.md"), "utf8"));
   const path = join(directory, "return.md");
-  if (!existsSync(path)) return { brief, problems: ["no return.md yet"], commits: [] };
+  if (!existsSync(path)) return { brief, problems: ["no return.md yet"], commits: [], unchecked: [] };
   const text = readFileSync(path, "utf8");
   const problems = [];
   if (!new RegExp(`^# ${brief.id.replace(".", "\\.")} return\\b`).test(text))
@@ -623,20 +655,30 @@ export function returnProblems(directory) {
   const sections = sectionsOf(text.split(/\r?\n/));
   if (brief.Kind !== "review")
     for (const name of RETURN_SECTIONS) if (!(name in sections)) problems.push(`the heading "## ${name}" is missing`);
-  const commits = [...new Set((sections.Identities ?? []).join(" ").match(/\b[0-9a-f]{7,40}\b/g) ?? [])].filter(
-    // A hash can be all digits; a word of hex letters alone is not taken for one.
-    (token) => /\d/.test(token),
-  );
   const repo = brief.worktree && existsSync(brief.worktree) ? brief.worktree : brief.repo;
+  const commits = [];
+  const used = new Set();
   // A delegation without a branch only read: commits it names are what it read, not what it made.
-  for (const commit of repo ? commits : []) {
-    if (!ok(git(repo, ["rev-parse", "--verify", "--quiet", `${commit}^{commit}`])))
-      problems.push(`commit ${commit} does not exist`);
-    else if (!ok(git(repo, ["merge-base", "--is-ancestor", commit, brief.branch])))
+  for (const commit of repo ? identityCommits((sections.Identities ?? []).join("\n")) : []) {
+    if (!ok(git(repo, ["rev-parse", "--verify", "--quiet", `${commit}^{commit}`]))) {
+      const named = elsewhere.find(({ hash }) => hash.startsWith(commit) || commit.startsWith(hash));
+      if (named) used.add(named);
+      else problems.push(`commit ${commit} does not exist`);
+      continue;
+    }
+    commits.push(commit);
+    if (!ok(git(repo, ["merge-base", "--is-ancestor", commit, brief.branch])))
       problems.push(`commit ${commit} is not on branch ${brief.branch}`);
   }
-  return { brief, problems, commits: repo ? commits : [], state };
+  for (const entry of elsewhere)
+    if (!used.has(entry))
+      problems.push(`--elsewhere ${entry.hash}=${entry.repository} names no commit of the return that is missing here`);
+  return { brief, problems, commits, unchecked: elsewhere.filter((entry) => used.has(entry)), state };
 }
+
+/** How check-return and close name the commits --elsewhere set aside. */
+const elsewhereText = (unchecked) =>
+  unchecked.map(({ hash, repository }) => `${hash.slice(0, 8)} (${repository})`).join(", ");
 
 /** A return's Left open choices, one per "- <choice> -> <what was taken>[, technical]" line, and whether it has other text. */
 export function leftOpen(returnText) {
@@ -659,8 +701,12 @@ export async function checkReturn(loaded, options, { readOnly = false } = {}) {
   const { id, sub } = parseId(options["--id"]);
   const taskDir = loaded ? dirname(loaded.path) : resolve(options["--scratch"]);
   const directory = delegationDir(taskDir, id);
-  const { brief, problems, commits, state } = returnProblems(directory);
+  const { brief, problems, commits, unchecked, state } = returnProblems(
+    directory,
+    parseElsewhere(options["--elsewhere"]),
+  );
   if (problems.length) fail(`${id}'s return is not ready: ${problems.join("; ")}.`);
+  const named = unchecked.length ? `; not checked here, named another repository's: ${elsewhereText(unchecked)}` : "";
   const open = leftOpen(readFileSync(join(directory, "return.md"), "utf8"));
   const warning =
     open.other && !open.choices.length
@@ -698,7 +744,7 @@ export async function checkReturn(loaded, options, { readOnly = false } = {}) {
           .filter(Boolean)
           .join(", ")
       : "";
-  return `${id}'s return: State ${state}${routed ? ` (${brief.Kind}, ${routed})` : ""}; ${shape}; ${commits.length ? `its ${commits.length} commit(s) are on branch ${brief.branch}` : "it names no commit"}${open.choices.length ? `; ${open.choices.length} Left open choice(s)` : ""}.${note}${warning} ${next}\n`;
+  return `${id}'s return: State ${state}${routed ? ` (${brief.Kind}, ${routed})` : ""}; ${shape}; ${commits.length ? `its ${commits.length} commit(s) are on branch ${brief.branch}` : "it names no commit"}${named}${open.choices.length ? `; ${open.choices.length} Left open choice(s)` : ""}.${note}${warning} ${next}\n`;
 }
 
 /**
@@ -752,7 +798,7 @@ export async function closeDelegation(loaded, options, text) {
   if (!item)
     fail(`${id} has no line in Current Work's Delegations: it is closed, or was never opened with delegate open.`);
   const directory = delegationDir(taskDir, id);
-  const { brief, problems } = returnProblems(directory);
+  const { brief, problems, unchecked } = returnProblems(directory, parseElsewhere(options["--elsewhere"]));
   const finishing = task.history.entries.some((entry) => entry.id === id);
   let history = task.historyText;
   if (!finishing) {
@@ -793,6 +839,7 @@ export async function closeDelegation(loaded, options, text) {
       Result: fields.require("Result"),
       "Task effect": fields.require("Task effect"),
       "Merge commit": merge || null,
+      Elsewhere: unchecked.length ? `not checked here, named another repository's: ${elsewhereText(unchecked)}` : null,
       Return: relative(taskDir, join(directory, "return.md")),
     };
     const heading = `## ${id} — ${brief.title}`;
