@@ -756,3 +756,41 @@ test("the start command quotes a worktree path only when the shell would split i
   assert.equal(shellWord("/home/u/my widget-d-001"), "'/home/u/my widget-d-001'");
   assert.equal(shellWord("/tmp/it's"), "'/tmp/it'\\''s'");
 });
+
+test("delegate check-return checks a commit a dot joins to a URL suffix or a word, and matches --elsewhere in any case", async () => {
+  await withTask(async ({ record, repo, taskDir, cli }) => {
+    openBuild(cli, record, repo);
+    const folder = join(taskDir, "delegations", "D-001-build-the-thing");
+    const check = (...extra) => cli(["delegate", "check-return", "--record", record, "--id", "D-001", ...extra]);
+    const write = (line) => writeFile(join(folder, "return.md"), RETURN("D-001", "none").replace("commit none", line));
+    git(repo, ["commit", "--quiet", "--allow-empty", "-m", "on main only"]);
+    const offBranch = git(repo, ["rev-parse", "HEAD"]);
+    const missing = "0123456789abcdef0123456789abcdef01234567";
+    const forms = (hash) => [
+      `https://github.com/o/r/commit/${hash}.patch`,
+      `https://github.com/o/r/commit/${hash}.diff`,
+      `https://github.com/o/r/pull/12/commits/${hash}.patch`,
+      `https://gitlab.com/o/r/-/commit/${hash}.patch`,
+      `https://github.com/o/r/compare/${"a".repeat(7)}0000...${hash}.diff`,
+      `commit ${hash}.Next step`,
+      `main.${hash}`,
+    ];
+    // A missing commit, full and short, in each form is refused; so is one that is only on main.
+    for (const hash of [missing, missing.slice(0, 8)])
+      for (const line of forms(hash)) {
+        await write(line);
+        assert.match(check().stderr, new RegExp(`commit ${hash} does not exist`), line);
+      }
+    for (const hash of [offBranch, offBranch.slice(0, 8)])
+      for (const line of forms(hash).filter((form) => !form.includes("compare/"))) {
+        await write(line);
+        assert.match(check().stderr, new RegExp(`commit ${hash} is not on branch d-001-build-the-thing`), line);
+      }
+    // Another repository's commit written in uppercase is matched by --elsewhere in lowercase, and the other way.
+    const upstream = "079e17a422347e49d02501304f79fade7e569362";
+    await write(`pinned ${upstream.toUpperCase()}`);
+    assert.match(ok(check("--elsewhere", `${upstream.slice(0, 8)}=openai/codex`)), /openai\/codex/);
+    await write(`pinned ${upstream}`);
+    assert.match(ok(check("--elsewhere", `${upstream.slice(0, 8).toUpperCase()}=openai/codex`)), /openai\/codex/);
+  });
+});

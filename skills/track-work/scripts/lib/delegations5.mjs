@@ -613,9 +613,11 @@ export async function delegationStatus(loaded, { json = false } = {}) {
  * letter or digit touches (so `commit_abc1234d` is one, and `ABC1234D`). Three things that hold such words are not
  * commits: an email address, whose domain ends in a label of letters and whose name is not itself such a word (the
  * GitHub ID in a noreply email); a UUID; and a folder name between two slashes of a path, except a URL's git ref,
- * right after `blob/`, `tree/`, `commit/`, `raw/` or `blame/`. A dot that joins the word to a word on its other side
- * sets it aside too, as a decimal (`0.0123456`), a file name (`abc1234.txt`) or a version (`1.2.3abcdef`); a dot that
- * ends a sentence does not. No other form is set aside: the text cannot tell another repository's commit from this
+ * right after `blob/`, `tree/`, `commit/`, `raw/` or `blame/`. Two dotted forms are set aside too: a word right after
+ * a digit and a dot, as in a decimal (`0.0123456`) or a version (`1.2.3abcdef`), and a word right before a dot and a
+ * short lowercase file extension (`abc1234.txt`), but not `.patch` or `.diff`, which follow a commit in a URL. Any
+ * other dot leaves the word checked (`main.abc1234d`, `abc1234d.Next`, `commit/abc1234d.patch`), since a missed commit
+ * is the worse error. No other form is set aside: the text cannot tell another repository's commit from this
  * one's, so the coordinator names those with --elsewhere.
  */
 export function identityCommits(text) {
@@ -624,9 +626,11 @@ export function identityCommits(text) {
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, " ")
     .replace(/(?<!\/(?:blob|tree|commit|raw|blame))\/[0-9a-fA-F]{7,40}(?=\/)/g, "/ ");
   const commits = new Set();
-  // Bounded by what is not a letter or digit, so "_" joins a hash to a word without hiding it; a hash that a dot
-  // joins to a word on either side is a decimal, a file name or a version, not a commit.
-  for (const [commit] of plain.matchAll(/(?<![0-9A-Za-z])(?<!\w\.)[0-9A-Fa-f]{7,40}(?![0-9A-Za-z])(?!\.\w)/g))
+  // Bounded by what is not a letter or digit, so "_" joins a hash to a word without hiding it; after a digit and a
+  // dot it is a decimal or a version, and before a short lowercase extension other than .patch or .diff a file name.
+  for (const [commit] of plain.matchAll(
+    /(?<![0-9A-Za-z])(?<!\d\.)[0-9A-Fa-f]{7,40}(?![0-9A-Za-z])(?!\.(?!(?:patch|diff)\b)[a-z0-9]{1,5}\b)/g,
+  ))
     // A hash can be all digits; a word of hex letters alone is not taken for one.
     if (/\d/.test(commit)) commits.add(commit);
   return [...commits];
@@ -635,9 +639,9 @@ export function identityCommits(text) {
 /** The --elsewhere values: each `<hash>=<owner/name>`, a commit the coordinator read as another repository's. */
 export function parseElsewhere(values = []) {
   return values.map((value) => {
-    const match = /^([0-9a-f]{7,40})=([A-Za-z0-9][\w.-]*\/[\w.-]+)$/.exec(value);
+    const match = /^([0-9a-fA-F]{7,40})=([A-Za-z0-9][\w.-]*\/[\w.-]+)$/.exec(value);
     if (!match) fail(`--elsewhere is <hash>=<owner/name>, such as 079e17a4=openai/codex; not ${value}.`);
-    return { hash: match[1], repository: match[2] };
+    return { hash: match[1].toLowerCase(), repository: match[2] };
   });
 }
 
@@ -666,7 +670,9 @@ export function returnProblems(directory, elsewhere = []) {
   // A delegation without a branch only read: commits it names are what it read, not what it made.
   for (const commit of repo ? identityCommits((sections.Identities ?? []).join("\n")) : []) {
     if (!ok(git(repo, ["rev-parse", "--verify", "--quiet", `${commit}^{commit}`]))) {
-      const named = elsewhere.find(({ hash }) => hash.startsWith(commit) || commit.startsWith(hash));
+      const named = elsewhere.find(
+        ({ hash }) => hash.startsWith(commit.toLowerCase()) || commit.toLowerCase().startsWith(hash),
+      );
       if (named) used.add(named);
       else problems.push(`commit ${commit} does not exist`);
       continue;
