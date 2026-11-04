@@ -238,6 +238,36 @@ test("delegate check-return refuses a missing return, a missing heading and a co
   });
 });
 
+test("delegate check-return takes no email ID, path or UUID part, or other repository's commit for one of the branch's, and still refuses a commit that is not there", async () => {
+  await withTask(async ({ record, repo, taskDir, cli }) => {
+    openBuild(cli, record, repo);
+    const folder = join(taskDir, "delegations", "D-001-build-the-thing");
+    const worktree = join(dirname(repo), "repo-d-001-build-the-thing");
+    const base = git(worktree, ["rev-parse", "--short=8", "HEAD"]);
+    await writeFile(join(worktree, "thing.txt"), "t\n");
+    git(worktree, ["add", "thing.txt"]);
+    git(worktree, ["commit", "--quiet", "-m", "thing"]);
+    const onBranch = git(worktree, ["rev-parse", "--short=8", "HEAD"]);
+    const identities = [
+      `- Commits ${base}..${onBranch}, author Hassan Mohiddin <63719517+hassan-mohiddin@users.noreply.github.com>:`,
+      `  - ${onBranch} thing.`,
+      "- Evidence: /tmp/claude-0/-home-user/d5d6ba82-6849-5796-ad46-8163c07640ac/scratchpad/self-review.md",
+      "- Schemas copied at openai/codex 079e17a422347e49d02501304f79fade7e569362, a sparse clone (main at 079e17a4)",
+    ].join("\n");
+    const withIdentities = (lines) => RETURN("D-001", onBranch).replace(`branch, commit ${onBranch}\n`, `${lines}\n`);
+    await writeFile(join(folder, "return.md"), withIdentities(identities));
+    assert.match(
+      ok(cli(["delegate", "check-return", "--record", record, "--id", "D-001"])),
+      /^D-001's return: State done; every heading is there; its 2 commit\(s\) are on branch d-001-build-the-thing\./,
+    );
+    await writeFile(join(folder, "return.md"), withIdentities(`${identities}\n- Fix: 7e57ab1e`));
+    assert.match(
+      cli(["delegate", "check-return", "--record", record, "--id", "D-001"]).stderr,
+      /D-001's return is not ready: commit 7e57ab1e does not exist\.$/m,
+    );
+  });
+});
+
 test("open --parent nests a sub-worker's folder in its worker's and refuses a fourth level; recovery shows each its own brief, progress and return", async () => {
   await withTask(async ({ record, repo, taskDir, cli }) => {
     openBuild(cli, record, repo);

@@ -424,6 +424,23 @@ export async function delegationStatus(loaded, { json = false } = {}) {
   return json ? `${JSON.stringify({ delegations: items }, null, 2)}\n` : `${lines.join("\n")}\n`;
 }
 
+/**
+ * The commits a return's Identities name. A hex run counts only where it stands alone: one joined to other
+ * characters is part of something else, such as the GitHub ID in a noreply email, a UUID's group or a path.
+ * One named after a repository (`owner/name <hash>` or `owner/name@<hash>`), and any shorter form of it, is
+ * marked elsewhere: still checked when it resolves here, otherwise taken for that repository's.
+ */
+export function identityCommits(text) {
+  const named = [...text.matchAll(/\b[\w.-]+\/[\w.-]+[ @]([0-9a-f]{7,40})\b/g)].map((match) => match[1]);
+  const commits = new Map();
+  for (const [commit] of text.matchAll(/(?<![\w/+-])[0-9a-f]{7,40}(?![\w/+@-]|\.\w)/g)) {
+    // A hash can be all digits; a word of hex letters alone is not taken for one.
+    if (!/\d/.test(commit) || commits.has(commit)) continue;
+    commits.set(commit, { commit, elsewhere: named.some((full) => full.startsWith(commit)) });
+  }
+  return [...commits.values()];
+}
+
 /** Problems with a delegation's return: its State and headings, and every commit it names on the brief's branch. */
 export function returnProblems(directory) {
   const brief = parseBrief(readFileSync(join(directory, "brief.md"), "utf8"));
@@ -439,19 +456,19 @@ export function returnProblems(directory) {
   const sections = sectionsOf(text.split(/\r?\n/));
   if (brief.Kind !== "review")
     for (const name of RETURN_SECTIONS) if (!(name in sections)) problems.push(`the heading "## ${name}" is missing`);
-  const commits = [...new Set((sections.Identities ?? []).join(" ").match(/\b[0-9a-f]{7,40}\b/g) ?? [])].filter(
-    // A hash can be all digits; a word of hex letters alone is not taken for one.
-    (token) => /\d/.test(token),
-  );
   const repo = brief.worktree && existsSync(brief.worktree) ? brief.worktree : brief.repo;
+  const commits = [];
   // A delegation without a branch only read: commits it names are what it read, not what it made.
-  for (const commit of repo ? commits : []) {
-    if (!ok(git(repo, ["rev-parse", "--verify", "--quiet", `${commit}^{commit}`])))
-      problems.push(`commit ${commit} does not exist`);
-    else if (!ok(git(repo, ["merge-base", "--is-ancestor", commit, brief.branch])))
+  for (const { commit, elsewhere } of repo ? identityCommits((sections.Identities ?? []).join("\n")) : []) {
+    if (!ok(git(repo, ["rev-parse", "--verify", "--quiet", `${commit}^{commit}`]))) {
+      if (!elsewhere) problems.push(`commit ${commit} does not exist`);
+      continue;
+    }
+    commits.push(commit);
+    if (!ok(git(repo, ["merge-base", "--is-ancestor", commit, brief.branch])))
       problems.push(`commit ${commit} is not on branch ${brief.branch}`);
   }
-  return { brief, problems, commits: repo ? commits : [], state };
+  return { brief, problems, commits, state };
 }
 
 export async function checkReturn(loaded, options) {
