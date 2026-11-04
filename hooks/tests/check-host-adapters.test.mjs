@@ -350,7 +350,7 @@ test("each Claude Code hook stays under Claude Code's context cap and together t
 test("the mod's section is the Claude Code hooks' texts, in their order, for each configuration and session", () => {
   const home = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-home-"));
   mkdirSync(join(home, "sessions", "s-1"), { recursive: true });
-  writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ "review.mode": "always" })}\n`);
+  writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ "review.unit": "manual" })}\n`);
   const section = (workspace, env) => {
     const result = spawnSync(
       process.execPath,
@@ -381,7 +381,7 @@ test("the mod's section is the Claude Code hooks' texts, in their order, for eac
   // The session's own settings reach the section as they reach the hooks.
   const workspace = createWorkspace();
   const env = { ...isolatedEnv, FREEFLOW_HOME: home };
-  assert.match(section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-1" }).parts[0], /\nReview: `always`/);
+  assert.match(section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-1" }).parts[0], /\nReview: unit `manual`, model `auto`/);
   assert.doesNotMatch(section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-2" }).parts[0], /Review:/);
   // With the runtime context switched off, as the hooks are, the section is empty.
   assert.deepEqual(section(workspace, { ...env, FREEFLOW_DISABLE_RUNTIME_CONTEXT: "1" }).parts, ["", "", ""]);
