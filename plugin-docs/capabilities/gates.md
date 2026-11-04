@@ -56,6 +56,6 @@ Under `block` a gate refuses the call with the same text. A delivery step become
 
 ## Where it works
 
-Claude Code (the mod's `tool.check`) and Pi (the extension's `tool_call`). Codex, Cursor, Copilot and Gemini cannot check a call before it runs with Freeflow's hooks today, so they have no gates; `/freeflow capabilities` says `block` for each host.
+Claude Code (the mod's `tool.check`), Pi (the extension's `tool_call`) and Codex (the driver's `PreToolUse` hook). On Codex a warning reaches the agent as context before the call runs, and under `block` Codex refuses the call with the gate's text; Codex cannot ask you, so a delivery step under `block` is refused there. Codex does not run its hooks for hosted tools such as web search, so the gates do not see those, and Codex reads a gate's setting at session start: a change applies from the next session. Cursor, Copilot and Gemini cannot check a call before it runs with Freeflow's hooks today, so they have no gates; `/freeflow capabilities` (on Codex, `capabilities.mjs list`) says `block` for each host.
 
 The gate state is `sessions/<session ID>/gates.json` in the Freeflow home, written by Track Work's commands as the task, its agreement, its Slice and its delegations change; it stays on this machine.

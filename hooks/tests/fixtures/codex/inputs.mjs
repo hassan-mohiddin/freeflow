@@ -18,10 +18,11 @@ export const SCHEMAS = {
   SessionEnd: "session-end.command.input.schema.json",
 };
 
-/** The output schema each event's additionalContext answers in. */
+/** The output schema each event's additionalContext (and PreToolUse's deny) answers in. */
 export const OUTPUT_SCHEMAS = {
   SessionStart: "session-start.command.output.schema.json",
   UserPromptSubmit: "user-prompt-submit.command.output.schema.json",
+  PreToolUse: "pre-tool-use.command.output.schema.json",
   PostToolUse: "post-tool-use.command.output.schema.json",
 };
 
