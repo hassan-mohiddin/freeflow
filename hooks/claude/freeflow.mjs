@@ -666,8 +666,8 @@ async function resolveEnabled($) {
   if (result.ok && typeof result.data.value === "boolean") enabled = result.data.value;
   const events = await settings($, ["get", "events.enabled"]);
   if (events.ok && typeof events.data.value === "boolean") eventsOn = events.data.value;
-  await resolveGovernor($);
   const listed = await settings($, ["list"]);
+  await resolveGovernor($, listed);
   if (listed.ok)
     for (const row of listed.data.settings ?? []) {
       const gate = /^gates\.(\w+)$/.exec(row.key)?.[1];
@@ -927,11 +927,13 @@ let dayBase = undefined;
 const governed = new Set();
 
 /**
- * Reads `governor.mode` and `governor.cap` with one settings run; each stays as it was when the script fails.
+ * Reads `governor.mode` and `governor.cap` with one settings run, or from the listing the caller already read; each
+ * stays as it was when the script fails.
  * @param {any} $
+ * @param {any} [listed] a settings `list` result read for the same resolve
  */
-async function resolveGovernor($) {
-  const result = await settings($, ["list"]);
+async function resolveGovernor($, listed = undefined) {
+  const result = listed ?? (await settings($, ["list"]));
   if (!result.ok) return;
   const value = (/** @type {string} */ key) =>
     result.data.settings?.find((/** @type {any} */ row) => row.key === key)?.value;
