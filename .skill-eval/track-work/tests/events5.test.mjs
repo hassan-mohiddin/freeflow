@@ -80,7 +80,9 @@ test("schema v1: each kind's required fields, its values, and no field it does n
     "ts must be an ISO 8601 UTC time with milliseconds",
   );
   assert.match(lineProblem({ ...base("../escape"), kind: "turn.start" }), /^session must be a session ID/);
-  assert.match(lineProblem({ ...base(), harness: "codex", kind: "turn.start" }), /^harness must be one of/);
+  // Codex's driver writes "codex" (SPEC-012); a harness with no driver is still refused.
+  assert.equal(lineProblem({ ...base(), harness: "codex", kind: "turn.start" }), null);
+  assert.match(lineProblem({ ...base(), harness: "cursor", kind: "turn.start" }), /^harness must be one of/);
   assert.match(lineProblem({ ...base(), kind: "prompt" }), /^kind must be one of/);
   // Never contents (P4): a tool's output, a prompt, an answer, a file's text have no field to go in.
   assert.equal(
@@ -112,6 +114,8 @@ test("schema v1: each kind's required fields, its values, and no field it does n
     "compaction",
     "agent.spawn",
     "agent.stop",
+    "gate",
+    "agreement",
     "freeflow",
   ]);
 });
@@ -374,7 +378,9 @@ test("checkpoint and release commit the session's event summary since it took th
     assert.match(printed, /^Events for session aaaaaaaa-1111, widget\/task-001: 9 line\(s\) from /);
     assert.match(printed, /\n  claude-opus-5-5 high: 2 request\(s\), 5 in, 50 written, 1,900 read, 150 out\n/);
     assert.match(printed, /\nTool calls: 3, 1 of them Freeflow's own \(33%\)\n  Bash: 2, 1 failed\n  Edit: 1\n/);
-    assert.match(printed, /\nWorkers: 1 started, 1 stopped, 1 sent back\n$/);
+    assert.match(printed, /\nWorkers: 1 started, 1 stopped, 1 sent back\n/);
+    // Gate lines (SPEC-008) are counted on their own line; this log has none.
+    assert.match(printed, /\nGates: agreement 0, slice 0, delivery 0, delegation 0 would-fire\n$/);
     // Another session's view of this log is the whole log: it holds no task.
     assert.match(ok(cli(["events", "summary", "--session", "aaaaaaaa-1111"])), /: 10 line\(s\) from 2020-01-01/);
     assert.match(ok(cli(["events", "summary"])), /^- aaaaaaaa-1111: \d[\d,]* bytes, last written /);

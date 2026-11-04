@@ -5,22 +5,22 @@
 | Directory | Responsibility |
 |---|---|
 | [`host/`](host/README.md) | Freeflow on Pi in general: configuration, prompts, the Runtime State message, request history, status, the `/freeflow` command. |
-| [`cognitive-routing/`](cognitive-routing/README.md) | Cognitive Routing: Coordinator and worker profiles, delegation, projection, and handoffs. |
 | [`tool-execution/`](tool-execution/README.md) | Tool Execution: guidance sections, file tracking and notices, `apply_patch`, background commands. |
 | [`provider-support/`](provider-support/README.md) | Provider-specific prompt-cache support: breakpoints, keep-alive, effort history, cache health. |
 | [`compaction/`](compaction/README.md) | Freeflow compaction: the notice, then the task's bundle in place of the conversation after the agent's checkpoint, and Pi's own compaction with the bundle after it. |
 | [`events/`](events/README.md) | The event log and claims on Pi: each loop event as a schema v1 line, written when a run settles; the session's claims for request set 1. |
+| [`gates/`](gates/README.md) | The gates: Track Work's `gates5.mjs` on each tool call, from the session's gate state; a warning on the call's result, or a refusal. |
 | [`store/`](store/README.md) | The Freeflow store on Pi: Track Work's script on Pi's events, the menu at session start, the sync, the held task in the footer. |
 | [`ask-user/`](ask-user/README.md) | The `ask_user` tool: questions put to the user in a dialog, and the confirmation dialog Freeflow's own proposals use. |
 
 ## How a request flows through `index.ts`
 
-1. **`before_agent_start`**: refresh state, let routing prepare the run, write staged control changes, and set the system prompt sections: Pi's own, then Freeflow's fixed guidance, then Tool Execution's environment and guidance. It may also add a changed-files notice.
-2. **`context_with_system`**: tag messages with their native entries, add the Runtime State, let routing build the profile's view, and assemble request history so Freeflow's generated messages keep their positions.
+1. **`before_agent_start`**: refresh state, write staged session settings, and set the system prompt sections: Pi's own, then Freeflow's fixed guidance, then Tool Execution's environment and guidance. It may also add a changed-files notice.
+2. **`context_with_system`**: tag messages with their native entries, add the Runtime State, and assemble request history so Freeflow's generated messages keep their positions.
 3. **`before_provider_request`** (in `provider-support/`): adapt the payload for prompt caching where the route is qualified.
-4. **`tool_call` / `tool_result`**: routing's tool gate, the background-command guard, and file tracking.
-5. **`turn_end` / `agent_settled`**: routing finishes the turn, file tracking clears pending state, status updates; at the run's last turn the store is synced and a waiting `checkpoint --compact` is answered by Freeflow's compaction. **`turn_start`** runs the resets after a Freeflow compaction.
-6. **`session_compact` / `session_tree`**: reset request history, cache tracking, and routing ancestry; restate background commands after compaction.
+4. **`tool_call` / `tool_result`**: Freeflow's gates first, then the background-command guard and file tracking.
+5. **`turn_end` / `agent_settled`**: file tracking clears pending state, status updates; at the run's last turn the store is synced and a waiting `checkpoint --compact` is answered by Freeflow's compaction. **`turn_start`** runs the resets after a Freeflow compaction.
+6. **`session_compact` / `session_tree`**: reset request history and cache tracking; restate background commands after compaction.
 
 ## Conventions
 

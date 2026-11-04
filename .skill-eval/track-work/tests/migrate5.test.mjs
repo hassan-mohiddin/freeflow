@@ -132,7 +132,7 @@ test("migrate converts a Schema 4 record in place, keeping the old record whole 
     assert.match(ok(cli(["view", "recover", "--record", record])), /^This task's record is memory/);
     assert.match(
       cli(["migrate", "--record", record, ...MIGRATE]).stderr,
-      /migrate converts a Schema 4 record, or with --project brings a Schema 5 one into the store; this one is Schema 5/,
+      /migrate converts a Schema 4 record, a Schema 5 one written before the Recovery list, or with --project brings a Schema 5 one into the store; this one is Schema 5/,
     );
   });
 });
@@ -187,5 +187,62 @@ test("migrate refuses a cue that is not one and a cue for a Slice that is not cl
     );
     assert.ok(!existsSync(join(taskDir, "history.md")));
     assert.ok(!existsSync(join(taskDir, "sources", "schema4-record.md")));
+  });
+});
+
+test("migrate converts a Schema 5 record written before the one Recovery list, keeping the old record and every other line", async () => {
+  await withFixture(async ({ folder, record, taskDir, cli }) => {
+    let result = cli([
+      "migrate",
+      "--record",
+      record,
+      "--cue",
+      "read when the parser is in question",
+      "--cues",
+      join(folder, "cues.txt"),
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    const converted = await readFile(record, "utf8");
+    // Write it back the way records looked before #145: three headings, and a Carry line in In flight.
+    const old = converted
+      .replace(
+        /### Recovery\n\n[\s\S]*?(?=### Next action)/,
+        [
+          "### Defined by\n\n- specs/retry.md — the accepted retry policy\n",
+          "### Read on recovery\n\n- sources/discussion.md — the user's messages\n  that shaped the policy\n",
+          "### Read when\n\n- docs/benchmarks.md — baseline timings; read when measuring performance\n",
+          "",
+        ].join("\n"),
+      )
+      .replace(
+        /### In flight\n\n/,
+        "### In flight\n\n- Carry: src/http/client.ts (lines 10–40) — the loop under test\n",
+      );
+    await writeFile(record, old);
+    const otherLines = old
+      .split("\n")
+      .filter(
+        (line) =>
+          !/Defined by|Read on recovery|Read when|^- Carry|specs\/retry|sources\/discussion|that shaped|benchmarks/.test(
+            line,
+          ),
+      );
+
+    result = cli(["migrate", "--record", record]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Migrated to the Recovery list: .*4 line\(s\)/);
+    const after = await readFile(record, "utf8");
+    assert.match(
+      after,
+      /### Recovery\n\n- always, not counted: specs\/retry\.md — the accepted retry policy\n- always: sources\/discussion\.md — the user's messages that shaped the policy\n- when measuring performance: docs\/benchmarks\.md — baseline timings\n- always: src\/http\/client\.ts \(lines 10–40\) — the loop under test\n/,
+    );
+    assert.doesNotMatch(after, /### Defined by|### Read on recovery|### Read when|^- Carry/m);
+    for (const line of otherLines) assert.ok(after.includes(line), `kept: ${line}`);
+    assert.equal(await readFile(join(taskDir, "sources", "record-before-recovery.md"), "utf8"), old);
+    assert.equal(cli(["validate", "--record", record]).status, 0);
+
+    result = cli(["migrate", "--record", record]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Schema 5 one written before the Recovery list/);
   });
 });

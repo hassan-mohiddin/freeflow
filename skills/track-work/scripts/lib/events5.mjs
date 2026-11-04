@@ -1,5 +1,5 @@
 // The event log (SPEC-006, sections 4.1 to 4.4): what happens in a session's loop, one JSON object per line, in one
-// schema for every Freeflow driver. The drivers (Claude Code's mod, the Pi extension) hand their lines to
+// schema for every Freeflow driver. The drivers (Claude Code's mod, the Pi extension, Codex's driver) hand their lines to
 // `events append`, which checks each against schema v1, redacts and cuts a shell command, sets `seq` under a lock on the
 // file and appends; one writer keeps the schema in one place (T1). The log lives on this machine only, in
 // `<FREEFLOW_HOME>/events/<session>.jsonl`, which the store's Git ignores (P1); a checkpoint and a release write a short
@@ -11,12 +11,13 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { appendFile, mkdir, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
+import { GATES } from "./gates5.mjs";
 import { isFreeflowStore } from "./store.mjs";
 
 /** The schema's major version; readers accept it and the one before (there is none before 1). */
 export const EVENT_VERSION = 1;
 export const EVENTS_FOLDER = "events";
-export const HARNESSES = ["claude-code", "pi"];
+export const HARNESSES = ["claude-code", "pi", "codex"];
 /** How long a shell command's text may be once redacted (P4). */
 export const COMMAND_LIMIT = 200;
 /** Every line has these, set by its driver; `seq` alone is the writer's. */
@@ -67,8 +68,16 @@ export const KINDS = {
   compaction: { trigger: [text], by: [oneOf(["freeflow", "harness"]), true], before: [count], after: [count] },
   "agent.spawn": { delegation: [(value) => /^D-\d{3,}(\.\d+)?$/.test(value)], model: [text] },
   "agent.stop": { blocked: [boolean] },
+  // SPEC-008, additive to v1 (T3): a gate that did not allow a call, and an agreement `agree` recorded.
+  gate: {
+    gate: [oneOf(GATES), true],
+    decision: [oneOf(["warn", "ask", "block"]), true],
+    tool: [text, true],
+    rule: [text],
+  },
+  agreement: { outcome: [(value) => typeof value === "string" && value.trim() !== "", true], exactSpec: [text] },
   freeflow: {
-    what: [oneOf(["notice", "row", "menu", "compact", "sync", "capabilities", "dropped"]), true],
+    what: [oneOf(["notice", "row", "menu", "compact", "sync", "capabilities", "dropped", "error", "gates"]), true],
     detail: [(value) => typeof value === "string"],
     dropped: [count],
   },
@@ -128,7 +137,10 @@ export function lineProblem(line) {
   return null;
 }
 
-/** The line as written: its fields in schema order, the command and detail redacted and cut. */
+/** The free-text fields the writer redacts and cuts. */
+const CUT = new Set(["command", "detail", "outcome", "exactSpec"]);
+
+/** The line as written: its fields in schema order, the command, detail and an agreement's text redacted and cut. */
 function normalize(line, seq) {
   const fields = KINDS[line.kind];
   const written = {
@@ -142,7 +154,7 @@ function normalize(line, seq) {
   };
   for (const key of Object.keys(fields)) {
     if (line[key] === undefined) continue;
-    written[key] = key === "command" || key === "detail" ? redactAndCut(line[key], COMMAND_LIMIT) : line[key];
+    written[key] = CUT.has(key) ? redactAndCut(line[key], COMMAND_LIMIT) : line[key];
   }
   return written;
 }
@@ -336,6 +348,9 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
   let freeflowCalls = 0;
   let dropped = 0;
   let harness = null;
+  const gates = Object.fromEntries(GATES.map((gate) => [gate, 0]));
+  let gatesBlocked = 0;
+  let agreements = 0;
   for (const line of chosen) {
     harness ??= line.harness ?? null;
     if (line.kind === "model.request") {
@@ -367,6 +382,10 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       workers.stopped += 1;
       if (line.blocked) workers.blocked += 1;
     } else if (line.kind === "freeflow" && line.what === "dropped") dropped += line.dropped ?? 0;
+    else if (line.kind === "gate" && line.gate in gates) {
+      gates[line.gate] += 1;
+      if (line.decision !== "warn") gatesBlocked += 1;
+    } else if (line.kind === "agreement") agreements += 1;
   }
   const byName = (x, y) =>
     (x.model ?? x.tool).localeCompare(y.model ?? y.tool) || (x.effort ?? "").localeCompare(y.effort ?? "");
@@ -390,6 +409,8 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       share: toolCalls ? Math.round((freeflowCalls / toolCalls) * 1000) / 1000 : 0,
     },
     dropped,
+    gates: { ...gates, blocked: gatesBlocked },
+    agreements,
   };
 }
 
@@ -409,6 +430,12 @@ export function renderSummary(summary) {
     ),
     `Compactions: ${summary.compactions.freeflow} by Freeflow, ${summary.compactions.harness} by the harness`,
     `Workers: ${summary.workers.spawned} started, ${summary.workers.stopped} stopped${summary.workers.blocked ? `, ${summary.workers.blocked} sent back` : ""}`,
+    ...(summary.gates
+      ? [
+          `Gates: ${GATES.map((gate) => `${gate} ${summary.gates[gate] ?? 0}`).join(", ")} would-fire${summary.gates.blocked ? `, ${summary.gates.blocked} of them asked or refused` : ""}`,
+        ]
+      : []),
+    ...(summary.agreements ? [`Agreements recorded with agree: ${summary.agreements}`] : []),
     ...(summary.dropped ? [`Dropped: ${summary.dropped} line(s) were not written`] : []),
   ];
   return `${lines.join("\n")}\n`;

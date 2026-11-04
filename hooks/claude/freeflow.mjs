@@ -1,7 +1,9 @@
 // Freeflow's Claude Code layer: a hooks module Claude Code runs on its own events (the task-004 Spec's section 11).
 // It decides when Track Work's script runs and delivers what the script prints; what happens to a task's memory is
 // the script's. Its task memory work runs only where the Freeflow store exists (session status says so); its event
-// log and claims (SPEC-006) need none. Elsewhere every hook passes its event on unchanged.
+// log and claims (SPEC-006) need none, nor do its gates (SPEC-008). Elsewhere every hook passes its event on unchanged.
+
+import { decide, gateEvent, gateText, validGateState } from "../../skills/track-work/scripts/lib/gates5.mjs";
 
 const SCRIPT = "skills/track-work/scripts/working-record.mjs";
 const SETTINGS_SCRIPT = "skills/setup-freeflow/scripts/settings.mjs";
@@ -70,6 +72,21 @@ let interactive = true;
 let sessionId = null;
 /** @type {Map<string, number>} each worker's turns, and the main loop's under "main" */
 const turnsOf = new Map();
+
+// The gates (SPEC-008): before each tool call, Track Work's gates5.mjs decides it from the session's gate state, which
+// Track Work's lifecycle commands write to `<home>/sessions/<session>/gates.json`. The state is read once a turn and
+// again after a Track Work command; each gate's mode (`gates.*`) is read with `enabled`. Under warn the call runs and
+// the agent reads one row per gate per turn; under block the call is refused with the same text, and a delivery step
+// is put to the person where someone can answer.
+const GATE_KEYS = ["agreement", "slice", "delivery", "delegation"];
+/** @type {Record<string, string>} each gate's mode: off, warn or block */
+let gateModes = { agreement: "warn", slice: "warn", delivery: "warn", delegation: "warn" };
+/** @type {any} the session's gate state as last read; undefined until read this turn, null where there is none */
+let gateState = undefined;
+/** Whether the event log has its one line saying the gate state is missing. */
+let gateMissingSaid = false;
+/** @type {Map<string, Set<string>>} the gates that warned in each loop's current turn, by agent ID or "main" */
+const warnedGates = new Map();
 
 /**
  * Keeps one event line for the next flush, while Freeflow and its event log are on.
@@ -155,7 +172,10 @@ function claims() {
       ? claim("yes", "a prompt after its compaction ($.prompt.submit)")
       : claim("no", "nothing runs between turns in a headless run"),
     ask: claim("possible", "$.ui.ask exists; Freeflow does not ask through it yet"),
-    block: claim("possible", "tool.check can deny; Freeflow only allows store files today"),
+    block: claim(
+      "yes",
+      "tool.check refuses a gate's call under block, or asks the person for a delivery step (gates.*)",
+    ),
     sensors: eventsOn
       ? claim("yes", "turns, model requests, tool calls, compactions, workers, written to the event log")
       : claim("possible", "the event log is off (events.enabled)"),
@@ -644,6 +664,87 @@ async function resolveEnabled($) {
   if (result.ok && typeof result.data.value === "boolean") enabled = result.data.value;
   const events = await settings($, ["get", "events.enabled"]);
   if (events.ok && typeof events.data.value === "boolean") eventsOn = events.data.value;
+  const listed = await settings($, ["list"]);
+  if (listed.ok)
+    for (const row of listed.data.settings ?? []) {
+      const gate = /^gates\.(\w+)$/.exec(row.key)?.[1];
+      if (gate && GATE_KEYS.includes(gate) && ["off", "warn", "block"].includes(row.value))
+        gateModes = { ...gateModes, [gate]: row.value };
+    }
+}
+
+/**
+ * The session's gate state, read at most once a turn and after a Track Work command (SPEC-008 4.3); null where there
+ * is none, said once in the event log.
+ * @param {any} $
+ */
+async function readGates($) {
+  if (gateState !== undefined) return gateState;
+  if (!freeflowHome) return null;
+  sessionId ??= await $.session.id();
+  let parsed = null;
+  try {
+    parsed = JSON.parse(await $.fs.read(`${freeflowHome}/sessions/${sessionId}/gates.json`));
+  } catch {
+    // No state, or one that cannot be read: the gates that need it are quiet under warn and closed under block.
+  }
+  gateState = validGateState(parsed) ? parsed : null;
+  if (gateState === null && !gateMissingSaid) {
+    gateMissingSaid = true;
+    await emit($, "freeflow", { what: "gates", detail: "no gate state for this session" });
+  }
+  return gateState;
+}
+
+/**
+ * The gates on one tool call (SPEC-008 4.2, 4.3): the verdict as it stands under warn, with one row per gate per turn
+ * the agent reads (a worker's as a message to it); under block, a deny with the gate's text, or an ask for a delivery
+ * step where someone can answer. A deny beneath stands.
+ * @param {any} $
+ * @param {any} e
+ * @param {{ decision: string, reason?: string }} verdict
+ */
+async function gated($, e, verdict) {
+  if (verdict.decision === "deny") return verdict;
+  const input = /** @type {Record<string, unknown>} */ (e.input ?? {});
+  const delegation = e.agentId === undefined ? undefined : (await workerMap($, null)).get(e.agentId)?.delegation;
+  const result = decide(
+    await readGates($),
+    {
+      tool: e.tool,
+      paths: FILE_TOOLS.has(e.tool)
+        ? [input.file_path, input.notebook_path, input.path].filter((path) => typeof path === "string" && path)
+        : [],
+      command: COMMAND_TOOLS.has(e.tool) && typeof input.command === "string" ? input.command : undefined,
+      cwd: await $.session.cwd(),
+      readOnly: e.isReadOnly === true,
+      delegation,
+      canAsk: e.approver !== undefined,
+    },
+    gateModes,
+  );
+  if (result.decision === "allow") return verdict;
+  const agent = e.agentId ?? "main";
+  for (const fired of result.fired) await emit($, "gate", gateEvent(fired, e.tool), agent);
+  if (result.decision === "warn") {
+    const warned = warnedGates.get(agent) ?? new Set();
+    warnedGates.set(agent, warned);
+    const rows = result.fired
+      .filter((/** @type {any} */ fired) => !warned.has(fired.gate))
+      .map((/** @type {any} */ fired) => {
+        warned.add(fired.gate);
+        return gateText(fired);
+      });
+    for (const row of rows)
+      if (e.agentId !== undefined) await $.session.send({ to: { agentId: e.agentId }, text: row });
+      else await appendRow($, row);
+    return verdict;
+  }
+  const reason = result.fired
+    .filter((/** @type {any} */ fired) => fired.decision !== "warn")
+    .map((/** @type {any} */ fired) => gateText(fired))
+    .join("\n\n");
+  return { decision: /** @type {const} */ (result.decision === "ask" ? "ask" : "deny"), reason };
 }
 
 const SCOPE_NAMES = /** @type {Record<string, string>} */ ({
@@ -661,8 +762,13 @@ const SECTION_ROWS = new Set([
   "prompts.enabled",
   "skills.enabled",
   "events.enabled",
-  "review.mode",
+  "gates.agreement",
+  "gates.slice",
+  "gates.delivery",
+  "gates.delegation",
+  "review.unit",
   "review.model",
+  "review.rounds",
 ]);
 const COMMAND_USAGE = [
   "Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)",
@@ -694,8 +800,9 @@ function listText(data) {
         `  ${row.label.padEnd(width)}  ${shown(row.value).padEnd(8)}  ${SCOPE_NAMES[row.scope]}${SECTION_ROWS.has(row.key) ? "" : `  (${row.key})`}`,
     ),
     COMMAND_USAGE,
-    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, review.mode, review.model.",
-    "Pi-only settings (tool execution, compaction, messaging, Cognitive Routing) are changed on Pi or in the files.",
+    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.agreement, gates.slice, gates.delivery, gates.delegation, review.unit, review.model, review.rounds.",
+    "Review depth rules (review.depth) are edited in .freeflow/config.json; review-plan reads them from the base commit.",
+    "Pi-only settings (tool execution, compaction, messaging) are changed on Pi or in the files.",
   ].join("\n");
 }
 
@@ -1175,6 +1282,9 @@ export function register(on) {
   on("turn.start", async ($, e, next) => {
     if (e.agentId === undefined) mainTurns += 1;
     const agent = e.agentId ?? "main";
+    // Each turn reads the gate state again, and each gate may warn once in it.
+    if (e.agentId === undefined) gateState = undefined;
+    warnedGates.delete(agent);
     turnsOf.set(agent, (turnsOf.get(agent) ?? 0) + 1);
     await emit($, "turn.start", { turn: turnsOf.get(agent) }, agent);
     if (e.agentId === undefined) await caughtUp($);
@@ -1256,6 +1366,8 @@ export function register(on) {
     const started = await $.clock.now();
     const result = await next(e);
     const ended = await $.clock.now();
+    // A Track Work command may have changed the gate state: the next check reads it again.
+    if (command !== undefined && command.includes("working-record.mjs")) gateState = undefined;
     const paths = FILE_TOOLS.has(e.tool) ? toolPaths(input, await $.session.cwd()) : [];
     const root = storeRoot ?? null;
     const ours =
@@ -1279,16 +1391,17 @@ export function register(on) {
 
   // The store holds the task memory the agent keeps, so a file tool on a path that really lands inside it runs where
   // the mode would ask, as in a working directory with edits allowed; any deny, a rule's or a hook's, still stands.
+  // Then the gates decide (SPEC-008): a warning leaves the verdict as it is; a gate under block refuses, or asks.
   on("tool.check", async ($, e, next) => {
     const verdict = await next(e);
-    if (!enabled || verdict.decision !== "ask" || !FILE_TOOLS.has(e.tool)) return verdict;
-    const input = /** @type {Record<string, unknown>} */ (e.input ?? {});
-    const root = await storeRootOf($);
-    if (!root) return verdict;
-    const real = await placed($, input.file_path ?? input.notebook_path ?? input.path);
-    const inside = real !== undefined && (real === root || real.startsWith(root + separatorOf(root)));
-    return inside ? { decision: /** @type {const} */ ("allow"), reason: STORE_REASON } : verdict;
-  });
+    if (!enabled) return verdict;
+    return gated($, e, await storeAllowed($, e, verdict));
+  }).catch(async ($, e, next) =>
+    // A gate that fails is open under warn, as its sensor is, and closed under block (section 5).
+    Object.values(gateModes).includes("block")
+      ? { decision: /** @type {const} */ ("deny"), reason: "Freeflow's gates could not decide this call; try again." }
+      : next(e),
+  );
 
   on("session.compact", async ($, e, next) => {
     if (e.trigger === "precompute" || !enabled) return next(e);
@@ -1365,6 +1478,22 @@ export function register(on) {
     }
     return next(e);
   });
+}
+
+/**
+ * The store's allow: a file tool's ask on a path that really lands inside the store becomes an allow.
+ * @param {any} $
+ * @param {any} e
+ * @param {{ decision: string, reason?: string }} verdict
+ */
+async function storeAllowed($, e, verdict) {
+  if (verdict.decision !== "ask" || !FILE_TOOLS.has(e.tool)) return verdict;
+  const input = /** @type {Record<string, unknown>} */ (e.input ?? {});
+  const root = await storeRootOf($);
+  if (!root) return verdict;
+  const real = await placed($, input.file_path ?? input.notebook_path ?? input.path);
+  const inside = real !== undefined && (real === root || real.startsWith(root + separatorOf(root)));
+  return inside ? { decision: /** @type {const} */ ("allow"), reason: STORE_REASON } : verdict;
 }
 
 /**

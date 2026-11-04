@@ -15,7 +15,7 @@ its image or the evaluator changed since the last full run.
 ## Shape
 
 One arm, `freeflow`, with the same configuration as `.skill-eval/freeflow-routing`: Freeflow built from a commit
-(`configuration.json`, `main` at `1a21211c` by default), Cognitive Routing off, **Tool Execution on**, Claude Haiku 5.5
+(`configuration.json`, `main` at `1a21211c` by default), **Tool Execution on**, Claude Haiku 5.5
 (`anthropic/claude-haiku-5-5`, thinking `medium`) through `@gotgenes/pi-anthropic-auth` 3.4.3, Pi's host prompt, the
 whole tool set including `bash_background`, `monitor`, `stop_background` and `apply_patch`, one digest-pinned image
 (Node, Python, Git, tmux, procps, curl) with `network: none`, and a simulated user. Before and after are two runs with

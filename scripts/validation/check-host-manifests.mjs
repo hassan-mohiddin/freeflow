@@ -248,6 +248,58 @@ function validateClaudeCodexHook(config, label, variable, adapter, { matcher, pa
   });
 }
 
+// Codex runs Freeflow's driver on every event it uses (SPEC-012): one script, `driver.mjs <event>`. Session start
+// carries the guidance and the menu under a raised limit and includes fork; after a compaction it carries the bundle
+// with no limit (0); SessionEnd fits Codex's 3-second cap.
+const CODEX_EVENTS = [
+  "SessionStart",
+  "UserPromptSubmit",
+  "PreToolUse",
+  "PostToolUse",
+  "PostModelRequest",
+  "PreCompact",
+  "PostCompact",
+  "SubagentStart",
+  "SubagentStop",
+  "Stop",
+  "SessionEnd",
+];
+
+export function validateCodexHooks(config, label, errors) {
+  if (!isRecord(config) || !isRecord(config.hooks)) {
+    errors.push(`${label} must contain a hooks object`);
+    return;
+  }
+  const events = Object.keys(config.hooks);
+  for (const event of CODEX_EVENTS) if (!events.includes(event)) errors.push(`${label} must configure ${event}`);
+  for (const event of events) {
+    if (!CODEX_EVENTS.includes(event)) errors.push(`${label} configures ${event}, which the driver does not answer`);
+    const groups = Array.isArray(config.hooks[event]) ? config.hooks[event] : [];
+    if (groups.length === 0) errors.push(`${label} must define a ${event} hook`);
+    for (const [index, group] of groups.entries()) {
+      for (const handler of Array.isArray(group.hooks) ? group.hooks : []) {
+        const invocation = `\${PLUGIN_ROOT}/hooks/codex/driver.mjs" ${event}`;
+        if (handler.type !== "command" || typeof handler.command !== "string" || !handler.command.endsWith(invocation))
+          errors.push(
+            `${label} ${event} group ${index} must invoke the Codex driver through \${PLUGIN_ROOT} for ${event}`,
+          );
+        if (event === "SessionEnd" && !(handler.timeout <= 3))
+          errors.push(`${label} SessionEnd must time out within Codex's 3 seconds`);
+      }
+    }
+  }
+  const starts = Array.isArray(config.hooks.SessionStart) ? config.hooks.SessionStart : [];
+  const start = starts.find((group) => group?.matcher !== "compact");
+  const compact = starts.find((group) => group?.matcher === "compact");
+  if (start?.matcher !== "startup|resume|clear|fork")
+    errors.push(`${label} SessionStart must use the startup|resume|clear|fork matcher for the guidance and the menu`);
+  else if (!start.hooks?.every((handler) => handler.additionalContextLimit >= 5000))
+    errors.push(`${label} SessionStart must set additionalContextLimit to at least 5000`);
+  if (!compact) errors.push(`${label} SessionStart must answer compact for the bundle`);
+  else if (!compact.hooks?.every((handler) => handler.additionalContextLimit === 0))
+    errors.push(`${label} SessionStart compact must set additionalContextLimit to 0, so the bundle is never cut`);
+}
+
 export function validateGeminiHook(config, label, errors) {
   const groups = hookHandlers(config, "SessionStart", label, errors);
   if (groups.length === 0) return;
@@ -357,6 +409,7 @@ export function validateHostManifests(root = process.cwd()) {
       "hooks/freeflow-runtime-context.mjs",
       "hooks/adapters/claude-session-start.mjs",
       "hooks/adapters/codex-session-start.mjs",
+      "hooks/codex/driver.mjs",
       "hooks/adapters/gemini-session-start.mjs",
       "hooks/adapters/cursor-session-start.mjs",
       "hooks/adapters/copilot-session-start.mjs",
@@ -407,14 +460,9 @@ export function validateHostManifests(root = process.cwd()) {
     { matcher: "startup|resume|clear|compact|fork", parts: CLAUDE_PROMPT_PARTS },
     errors,
   );
-  validateClaudeCodexHook(
-    codexHooks,
-    "hooks/codex/hooks.json",
-    "${PLUGIN_ROOT}",
-    "codex-session-start.mjs",
-    { matcher: "startup|resume|clear|compact", contextLimit: 5000 },
-    errors,
-  );
+  validateCodexHooks(codexHooks, "hooks/codex/hooks.json", errors);
+  if (!packageJson?.files?.includes("hooks/codex/driver.mjs"))
+    errors.push("package.json.files must include hooks/codex/driver.mjs, which Codex's hooks run");
   // Codex loads no hooks from a plugin whose root plugin.json is an Agent Plugins manifest, so it installs the npm
   // package, which omits that manifest (scripts/validation/check-package.mjs).
   const codexSource = readJson(root, ".agents/plugins/marketplace.json", errors)?.plugins?.[0]?.source;

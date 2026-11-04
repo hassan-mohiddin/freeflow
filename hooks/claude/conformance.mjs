@@ -8,6 +8,8 @@ export default {
   compact:
     "a compaction: after a checkpoint, the bundle alone; before it, Claude's with the bundle after its summary; without a task, the summary",
   checkpoint: "checkpoint --compact compacts before any notice: the agent decides when (P102)",
+  block:
+    "the gates under block: refused with the gate's text, a delivery step put to the person where someone can answer, a deny beneath standing (SPEC-008 4.2)",
   send: "a worker runs: its delegation comes from the spawn's prompt; near its threshold it is told to keep progress.md; its compaction says how it recovers",
   wake: "a turn ends: sync a changed store; only checkpoint --compact compacts, once, between turns, then starts the next (P102)",
   sensors:

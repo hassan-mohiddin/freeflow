@@ -25,6 +25,23 @@ const store = (fields: object = {}) => ({
 });
 const held = (stateAsOf: string, fields: object = {}) =>
   store({ task: { id: "widget/task-001", record: RECORD, stateAsOf }, ...fields });
+// The session's gate state (SPEC-008), as Track Work writes it: by default one where every rule holds, so the gates
+// stay quiet in the tests that are not about them.
+const GATES_PATH = `${HOME}/sessions/${SESSION}/gates.json`;
+const gateState = (fields: object = {}) =>
+  JSON.stringify({
+    v: 1,
+    task: "widget/task-001",
+    taskDir: "/store/projects/widget/tasks/task-001-probe",
+    store: HOME,
+    agreement: "A-001",
+    session: null,
+    exactSpec: null,
+    slice: { id: "S-001", state: "in_progress" },
+    delegations: {},
+    updated: "2026-10-29T12:00:00.000Z",
+    ...fields,
+  });
 
 /** The engine and the script beneath the mod, answered from the scenario `w` the test changes as it goes. */
 function world(on: any) {
@@ -74,7 +91,7 @@ function world(on: any) {
     writes: [] as { path: string; text: string }[],
     claims: [] as { path: string; text: string }[],
     // The files the mod wrote, by path, which it reads back.
-    stored: new Map<string, string>(),
+    stored: new Map<string, string>([[GATES_PATH, gateState()]]),
     logs: [] as any[],
     clock: mock.clock(on, { now: T0 }),
     session: mock.session(on),
@@ -901,10 +918,12 @@ const LISTED = {
     { key: "prompts.core", label: "Core prompt", value: false, scope: "personal", hosts: "all" },
     { key: "skills.enabled", label: "Skills", value: true, scope: "default", hosts: "all" },
     { key: "skills.write-skill", label: "Skill write-skill", value: true, scope: "default", hosts: "all" },
-    { key: "review.mode", label: "Review", value: "always", scope: "repository", hosts: "all" },
-    { key: "review.model", label: "Reviewer model", value: null, scope: "default", hosts: "all" },
+    { key: "review.unit", label: "Review unit", value: "manual", scope: "repository", hosts: "all" },
+    { key: "review.model", label: "Reviewer model", value: "auto", scope: "default", hosts: "all" },
+    { key: "review.rounds", label: "Review rounds", value: 3, scope: "default", hosts: "all" },
+    { key: "review.depth", label: "Review depth rules", value: null, scope: "default", hosts: "all" },
   ],
-  state: ["Review: `always`"],
+  state: ["Review: unit `manual`, model `auto`"],
 };
 
 test("/freeflow settings: declared at session start, lists what Claude Code acts on, and changes one with the line the model reads now (SPEC-005 4.4)", async ($, on) => {
@@ -915,6 +934,8 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
   expect(w.settingsRuns.map((run) => run.args.join(" "))).toEqual([
     "get enabled --root /work/widget --json",
     "get events.enabled --root /work/widget --json",
+    // and the gates' modes (SPEC-008 4.5)
+    "list --root /work/widget --json",
   ]);
   expect(w.settingsRuns[0].session).toBe(SESSION);
 
@@ -924,56 +945,62 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
   // Each section's switch and the review always; another key only when a scope sets it.
   expect(listed.text).toStartWith("Freeflow settings for /work/widget (Claude Code)\n  Freeflow ");
   expect(listed.text).toContain("  Core prompt      off       Personal  (prompts.core)");
-  expect(listed.text).toContain("  Review           always    Repository\n");
+  expect(listed.text).toContain("  Review unit      manual    Repository\n");
+  expect(listed.text).toContain("  Review rounds    3         default\n");
   expect(listed.text).not.toContain("write-skill");
-  expect(listed.text).toContain("Pi-only settings (tool execution, compaction, messaging, Cognitive Routing)");
+  // review.depth has no row: the repository's file holds it, and the plan reads it from the base.
+  expect(listed.text).not.toContain("\n  Review depth rules");
+  expect(listed.text).toContain("Review depth rules (review.depth) are edited in .freeflow/config.json");
+  expect(listed.text).toContain("Pi-only settings (tool execution, compaction, messaging) are changed");
   expect(listed.context).toBeUndefined();
 
-  w.settingsAnswers["set review.mode always --scope personal "] = {
+  w.settingsAnswers["set review.unit manual --scope personal "] = {
     stdout: JSON.stringify({
-      key: "review.mode",
-      label: "Review",
-      value: "always",
+      key: "review.unit",
+      label: "Review unit",
+      value: "manual",
       scope: "personal",
       hosts: "all",
-      state: ["Review: `always`"],
-      changed: ["Review: `always`"],
+      state: ["Review: unit `manual`, model `auto`"],
+      changed: ["Review: unit `manual`, model `auto`"],
       cleared: [],
       notes: [],
     }),
   };
-  const changed = await freeflow($, "settings review.mode always");
-  expect(changed.text).toBe("Review: always, from .freeflow/local.json (Personal). The agent sees it now.");
+  const changed = await freeflow($, "settings review.unit manual");
+  expect(changed.text).toBe("Review unit: manual, from .freeflow/local.json (Personal). The agent sees it now.");
   expect(changed.context).toEqual([
-    "The user changed a Freeflow setting with /freeflow settings: review.mode is now always, from .freeflow/local.json (Personal).\nRuntime State now: Review: `always`",
+    "The user changed a Freeflow setting with /freeflow settings: review.unit is now manual, from .freeflow/local.json (Personal).\nRuntime State now: Review: unit `manual`, model `auto`",
   ]);
 
   // A scope flag and inherit reach the script as its scope and unset.
-  w.settingsAnswers["unset review.mode --scope session "] = {
+  w.settingsAnswers["unset review.unit --scope session "] = {
     stdout: JSON.stringify({
-      key: "review.mode",
-      label: "Review",
-      value: "auto",
+      key: "review.unit",
+      label: "Review unit",
+      value: "pr",
       scope: "default",
       hosts: "all",
       state: [],
       changed: [],
-      cleared: ["Review: `always`"],
+      cleared: ["Review: unit `manual`, model `auto`"],
       notes: [],
     }),
   };
-  const inherited = await freeflow($, "settings review.mode inherit --session");
-  expect(inherited.text).toBe("Review: auto, from the default. The agent sees it now.");
-  expect(inherited.context![0]).toEndWith("\nRuntime State no longer: Review: `always`");
+  const inherited = await freeflow($, "settings review.unit inherit --session");
+  expect(inherited.text).toBe("Review unit: pr, from the default. The agent sees it now.");
+  expect(inherited.context![0]).toEndWith("\nRuntime State no longer: Review: unit `manual`, model `auto`");
 
   // A refusal is the script's first line, and the model is told nothing.
-  w.settingsAnswers["set review.mode sometimes "] = {
+  w.settingsAnswers["set review.unit sometimes "] = {
     exitCode: 1,
-    stderr: "review.mode takes auto, off, always, not sometimes\nUsage: ...",
+    stderr: "review.unit takes pr, push, commit, agreement, manual, not sometimes\nUsage: ...",
   };
-  const refused = await freeflow($, "settings review.mode sometimes");
-  expect(refused).toEqual({ text: "Freeflow settings: review.mode takes auto, off, always, not sometimes" });
-  expect((await freeflow($, "settings review.mode always --global")).text).toStartWith(
+  const refused = await freeflow($, "settings review.unit sometimes");
+  expect(refused).toEqual({
+    text: "Freeflow settings: review.unit takes pr, push, commit, agreement, manual, not sometimes",
+  });
+  expect((await freeflow($, "settings review.unit manual --global")).text).toStartWith(
     "Freeflow settings: unknown option --global.",
   );
   expect((await freeflow($, "status")).text).toBe(
@@ -1320,7 +1347,7 @@ test("the claims: written at session start in the Freeflow home, with section 4.
     send: "yes",
     wake: "yes",
     ask: "possible",
-    block: "possible",
+    block: "yes",
     sensors: "yes",
     timers: "yes",
   });
@@ -1393,6 +1420,8 @@ test("the golden event log: a scripted session through the mod matches golden-ev
   await step($, w, 2_304, { effort: "high" });
   await $.tool.call({ tool: "Bash", command: "npm test -- --token=abc123" } as any);
   await $.tool.call({ tool: "Read", file_path: "/work/widget/src.mjs" } as any);
+  // A delivery step: the delivery gate warns and logs it (SPEC-008 4.4).
+  await $.tool.call({ tool: "Bash", command: "git push origin main" } as any);
   await $.agent.spawn(spawn("Do D-012's part."));
   await $.turn.start({ text: "x", turnId: "turn-w", agentId: "agent-7" } as any);
   await step($, w, 1_000, { agentId: "agent-7", model: "haiku" });
@@ -1660,4 +1689,183 @@ test("a catch-up step that fails twice is left, one try a turn (SPEC-013 section
   expect(w.logs.filter((line) => /menu step failed mid-session/.test(line)).length).toBe(2);
   // Only the first turn's catch-up had something to show.
   expect(appended(w)).toEqual([`${MID_SESSION}\n\n${SECTION}`]);
+});
+
+const GATE_ROW = /^Freeflow gate \(warn, (\w+)\): /;
+const gateRows = (w: any) => appended(w).filter((text) => GATE_ROW.test(text));
+const gateLines = (w: any) =>
+  w
+    .events()
+    .filter((line: any) => line.kind === "gate")
+    .map((line: any) => `${line.gate}:${line.decision}:${line.tool}`);
+const gateSettings = (modes: Record<string, string>) => ({
+  stdout: JSON.stringify({
+    root: "/work/widget",
+    settings: Object.entries(modes).map(([gate, value]) => ({
+      key: `gates.${gate}`,
+      label: gate,
+      value,
+      scope: "repository",
+      hosts: "all",
+    })),
+  }),
+});
+
+test("the gates warn: the call runs as the engine decided, the agent reads one row per gate per turn, and each would-fire is logged (SPEC-008 4.3)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  w.stored.set(GATES_PATH, gateState({ agreement: null, slice: null }));
+  await start($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  const edit = (file_path: string) => $.tool.check({ tool: "Edit", input: { file_path } } as any);
+
+  // A change outside the store with no agreement and no Slice: the verdict stands, and both gates warn once.
+  expect((await edit("/work/widget/src.mjs")).decision).toBe("ask");
+  expect(gateRows(w).map((text) => GATE_ROW.exec(text)![1])).toEqual(["agreement", "slice"]);
+  expect(gateRows(w)[1]).toBe(
+    [
+      "Freeflow gate (warn, slice): Edit on src.mjs with no open Slice in widget/task-001.",
+      "Why: an effect outside the record needs a Slice first, so a lost context can tell what was half done.",
+      "Way through: slice start-direct (or slice start), then go on. This gate only warns for now.",
+    ].join("\n"),
+  );
+  expect((await edit("/work/widget/other.mjs")).decision).toBe("ask");
+  expect(gateRows(w).length).toBe(2);
+  // The store's allow still holds, and the store is no change the gates guard; a read is none either.
+  expect((await edit(RECORD)).decision).toBe("allow");
+  expect((await $.tool.check({ tool: "Bash", input: { command: "git status" } } as any)).decision).toBe("ask");
+  expect(gateRows(w).length).toBe(2);
+
+  // A Track Work command changes the state: the next call reads it again. The delivery gate always reminds.
+  w.stored.set(GATES_PATH, gateState());
+  await $.tool.call({
+    tool: "Bash",
+    command: `node ${w.scriptPath} slice start-direct --record widget/task-001`,
+  } as any);
+  await $.tool.check({ tool: "Bash", input: { command: "npm test && git push" } } as any);
+  expect(gateRows(w).map((text) => GATE_ROW.exec(text)![1])).toEqual(["agreement", "slice", "delivery"]);
+  // A new turn warns again.
+  await $.turn.complete(turnEnd("answer"));
+  await $.turn.start({ text: "again", turnId: "turn-2" } as any);
+  await $.tool.check({ tool: "Bash", input: { command: "git commit -m x" } } as any);
+  expect(gateRows(w).length).toBe(4);
+  await $.turn.complete(turnEnd("answer"));
+  expect(gateLines(w)).toEqual([
+    "agreement:warn:Edit",
+    "slice:warn:Edit",
+    "agreement:warn:Edit",
+    "slice:warn:Edit",
+    "delivery:warn:Bash",
+    "delivery:warn:Bash",
+  ]);
+});
+
+test("the gates under block: refused with the gate's text, a delivery step put to the person where someone can answer, a deny beneath standing (SPEC-008 4.2)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  w.settingsAnswers["list "] = gateSettings({
+    agreement: "block",
+    slice: "block",
+    delivery: "block",
+    delegation: "block",
+  });
+  w.stored.set(GATES_PATH, gateState({ slice: null }));
+  w.verdict = { decision: "allow" };
+  await start($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+
+  const refused = await $.tool.check({ tool: "Write", input: { file_path: "/work/widget/new.mjs" } } as any);
+  expect(refused.decision).toBe("deny");
+  expect(refused.reason).toStartWith("Freeflow gate (block, slice): Write on new.mjs with no open Slice");
+  expect(gateRows(w)).toEqual([]);
+  // The store's own files stay allowed.
+  w.verdict = { decision: "ask" };
+  expect((await $.tool.check({ tool: "Edit", input: { file_path: RECORD } } as any)).decision).toBe("allow");
+  // A delivery step asks where someone can answer, and is refused where nobody can.
+  w.stored.set(GATES_PATH, gateState());
+  await $.tool.call({ tool: "Bash", command: `node ${w.scriptPath} slice resume --record widget/task-001` } as any);
+  w.verdict = { decision: "allow" };
+  const asked = await $.tool.check({ tool: "Bash", input: { command: "git push" }, approver: "person" } as any);
+  expect(asked.decision).toBe("ask");
+  expect(asked.reason).toContain("git push is a delivery step.");
+  expect((await $.tool.check({ tool: "Bash", input: { command: "git push" } } as any)).decision).toBe("deny");
+  // A deny from beneath is never turned into anything else.
+  w.verdict = { decision: "deny", rule: "Bash(git push:*)" };
+  expect(
+    (await $.tool.check({ tool: "Bash", input: { command: "git push" }, approver: "person" } as any)).decision,
+  ).toBe("deny");
+  await $.turn.complete(turnEnd("answer"));
+  expect(gateLines(w)).toEqual(["slice:block:Write", "delivery:ask:Bash", "delivery:block:Bash"]);
+});
+
+test("the delegation gate: a worker's write outside its brief's May write, or to the task's record, warns the worker (SPEC-008 4.2)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  w.stored.set(
+    GATES_PATH,
+    gateState({
+      delegations: {
+        "D-012": {
+          writes: ["/wt/d-012/skills/review-work/**"],
+          worktree: "/wt/d-012",
+          folder: "/store/projects/widget/tasks/task-001-probe/delegations/D-012-review",
+        },
+      },
+    }),
+  );
+  await start($);
+  await $.agent.spawn(spawn("Do D-012's part."));
+  await $.turn.start({ text: "x", turnId: "turn-w", agentId: "agent-7" } as any);
+  const worker = (file_path: string) => $.tool.check({ tool: "Edit", input: { file_path }, agentId: "agent-7" } as any);
+  await worker("/wt/d-012/skills/review-work/SKILL.md");
+  await worker("/store/projects/widget/tasks/task-001-probe/delegations/D-012-review/progress.md");
+  expect(w.sent).toEqual([]);
+  await worker("/wt/d-012/hooks/claude/freeflow.mjs");
+  expect(w.sent.map((each: any) => each.to)).toEqual(["agent-7"]); // the engine spells { agentId } as the ID
+  expect(w.sent[0].text).toStartWith(
+    "Freeflow gate (warn, delegation): Edit on /wt/d-012/hooks/claude/freeflow.mjs by D-012, outside its scope (May write: /wt/d-012/skills/review-work/**).",
+  );
+  // The main conversation is not told; the main loop is not a worker.
+  expect(gateRows(w)).toEqual([]);
+  await $.turn.complete({ ...turnEnd("answer"), agentId: "agent-7" } as any);
+  await $.classic.SubagentStop({ agent_id: "agent-7", agent_type: "general-purpose", stop_hook_active: false } as any);
+  expect(w.events().filter((line: any) => line.kind === "gate")).toEqual([
+    expect.objectContaining({
+      agent: "agent-7",
+      gate: "delegation",
+      decision: "warn",
+      rule: "outside the worker's scope",
+    }),
+  ]);
+});
+
+test("with no gate state the gates are quiet under warn and say so once in the event log; closed under block (SPEC-008 section 5)", async ($, on) => {
+  const w = world(on);
+  w.stored.delete(GATES_PATH);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  await start($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  expect((await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any)).decision).toBe(
+    "ask",
+  );
+  await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any);
+  expect(gateRows(w)).toEqual([]);
+  await $.turn.complete(turnEnd("answer"));
+  expect(w.events().filter((line: any) => line.kind === "freeflow" && line.what === "gates").length).toBe(1);
+});
+
+test("with no gate state under block, a change is refused with how to write one (SPEC-008 section 5)", async ($, on) => {
+  const w = world(on);
+  w.stored.delete(GATES_PATH);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  w.settingsAnswers["list "] = gateSettings({ agreement: "block" });
+  await start($);
+  const refused = await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any);
+  expect(refused.decision).toBe("deny");
+  expect(refused.reason).toContain("Freeflow cannot read its gate state; run `task here` or `agree`");
 });

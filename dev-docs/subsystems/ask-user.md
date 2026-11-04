@@ -15,8 +15,7 @@ For contributors changing how Freeflow on Pi asks the user a question, or how co
 It deliberately does not:
 
 - decide when to ask: the Interaction Contract, core's cycle and the asking skills do;
-- time out: a question waits for the user (Task 002 D-001), since an automatic answer would decide something the user owns;
-- let a Cognitive Routing worker ask: under automatic routing the Coordinator talks to the user, and a worker returns the choice in its report.
+- time out: a question waits for the user (Task 002 D-001), since an automatic answer would decide something the user owns.
 
 ## How It Works
 
@@ -38,8 +37,6 @@ Closing any dialog dismisses the whole question.
 
 **Availability.** The `askUser` entry in the capability state (`host/config.ts`) is effective whenever Freeflow is enabled, and disabled inside subagents with the other optional capabilities. `applyAskUserTool()` declares or withdraws the tool in `status()`. The tool is `model-only`: it asks the user, so scripts must not call it, and called directly its transcript rows apply.
 
-**Routing refusal.** The tool's host checks `routing.observationScope()`: under automatic control, a Helper or Executor gets a refusal telling it to put the choice in its report.
-
 **Guidance in three layers:**
 
 1. The tool description (shape and mechanics) and one `promptGuidelines` line, which Pi adds to the system prompt's rules while the tool is active. Tool Execution's rules rewrite (`tool-execution/prompt.ts`) removes only three of Pi's generic lines, so the guideline survives.
@@ -57,7 +54,6 @@ Closing any dialog dismisses the whole question.
 | The question tool serves every place Freeflow needs the user's choice, not Discuss Work alone. | Authority, direction, finishing work and task memory all need the user's choice; tying the tool to one skill would hide it from the rest. | The tool as Discuss Work's mechanism. | User, 2026-10-11 (Task 002 D-002) |
 | Guidance in three layers: tool description and prompt guideline, one Interaction Contract bullet, the method on demand (a Workflow reference until 2026-10-20, now Discuss Work's "Ask One Question"). | The agent always knows the tool and when it fits, and reads the full method only when about to ask; the contract bullet also serves Claude Code's own question tool. | A capability skill; the full method in the system prompt. | User, 2026-10-11 (D-002); moved with Agree Work, 2026-10-20; Agree Work merged into Discuss Work, 2026-10-22 |
 | No timeout. | An automatic answer decides something the user owns. | Claude Code's optional auto-continue. | D-001 |
-| Workers do not ask under automatic routing. | The Coordinator owns the user interaction; Claude Code's subagents cannot ask either. | Any profile asking. | Task 002 spec §4.2 |
 | Idle notices start the turn as a Freeflow custom message, not a user message. | A user message shows another session's or a command's words as the user's (the user's trial); `keepSections()` keeps Freeflow's sections on the run Pi starts (Pi #10267). | Starting idle turns as user messages (the earlier workaround for Pi #10267). | Task 002 D-008 |
 
 ## Intended Behavior That Looks Wrong

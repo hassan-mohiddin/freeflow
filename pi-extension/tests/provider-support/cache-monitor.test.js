@@ -74,7 +74,7 @@ test("cache diagnostics go to the monitor, never to the footer", async () => {
   );
   const ctx = { sessionManager: manager, ui: { setStatus: (...args) => h.footer.push(args) } };
   const messages = [{ role: "user", content: [{ type: "text", text: "one" }], timestamp: 1 }];
-  assert.equal(await history.assemble(messages, "ordinary", ctx), messages);
+  assert.equal(await history.assemble(messages, ctx), messages);
   assert.match(monitor.lines().join("\n"), /context replay unavailable/);
   assert.deepEqual(h.footer, [], "no footer writes");
 });
