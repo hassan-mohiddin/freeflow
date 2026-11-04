@@ -34,16 +34,13 @@ The kind of difficulty suggests the owner:
 
 ## Choose The Model And Effort
 
-Goal: each part runs on the cheapest model and effort that can do it well.
+Goal: each part runs on a model and effort that does it well, at the least cost: quality first, so a cheaper model is never chosen only because it is cheaper, and the strongest only with the user's yes (Rules).
 
-| Work | Default |
-| --- | --- |
-| Reading, gathering, web research, mechanical fixes, running evals, independent reviews, building what the brief has settled | The smallest capable model (on Claude, Haiku) at high effort (`xhigh`) |
-| Design, synthesis, judging what a review or a study means | The strongest model (on Claude, Opus), at most `high` effort, with the user's yes (Rules) |
+The user's routing table chooses: `rules/routing.md` in the Freeflow store, with a project's own `projects/<project>/rules/routing.md` read first, one row per kind of work, whether the brief has settled its decisions, and how its return is checked; the first row that matches wins. Only the user edits it: when it lacks a row you need, say so to the user rather than changing it. Give `delegate open` the work's `--kind`, `--settled yes | no` and `--check scripted | tests | judgement` (a script decides, tests decide, or a person or model must judge), with `--tier security` for the security review tier. It prints the Route line, such as `Route: cheap (claude-haiku-5-5), xhigh (rules/routing.md: build, settled yes, check tests)`, and the brief records Settled, Check and Route: start the worker on the model and effort that line names. A route that says it needs the user's yes is refused until you give `--agent "<model>, <effort>"`, which you do only after the user's yes. With no table, a table that does not parse, or no matching row, `delegate open` refuses with the reason and you choose by this section's goal, naming the model and effort with `--agent`; without a store, the default table `store init` writes is the guide: the cheap tier (on Claude, Haiku) at `xhigh` for gathering, research, evals, reviews and building what the brief has settled, and the coordinator's own model at most at `high`, with the user's yes, for unsettled builds, judgement and the security review tier.
 
-Spend the strong model on settling what the brief decides, and the small one on doing it. Choose effort by the job, not the maximum: higher effort raises cost more reliably than it raises success. A model policy of the user's, such as a reviewer model they set, overrides this table. Name the model and effort in every brief.
+Spend the strong model on settling what the brief decides, and the small one on doing it. Choose effort by the job, not the maximum: higher effort raises cost more reliably than it raises success. A model policy of the user's, such as a reviewer model they set, overrides the table. Name the model and effort in every brief.
 
-What past work cost helps you weigh it: Track Work's `working-record.mjs estimate --plan` prints the measured context, time and list-price cost of past delegations by kind, model and effort, `--fan-out <n>` prices n workers, and `estimate --store` adds up every task's. The figures show the cost; this table and its goal, a model that does the work well, still choose.
+What past work cost helps you weigh it: Track Work's `working-record.mjs estimate --plan` prints the measured context, time and list-price cost of past delegations by kind, model and effort, and how many of each kind, check and model were sent back and why; `--fan-out <n>` prices n workers, and `estimate --store` adds up every task's. The figures show the cost; the table and this section's goal, a model that does the work well, still choose.
 
 ## Write The Brief
 
@@ -54,7 +51,7 @@ Each delegation has a folder in the task directory, `delegations/D-NNN-<slug>/`,
 ```markdown
 # D-012 — <title>
 Task: <task> · From: S-024 (the Slice that opened it, when one did) · Continues: D-009 (when it does)
-Agent: <model>, <effort> · Kind: build | review | research | eval | gather · Handle: <the host's ID for the agent>
+Agent: <model>, <effort> · Kind: build | review | research | eval | gather · Settled: yes | no · Check: scripted | tests | judgement · Route: <the table's row> | given · Handle: <the host's ID for the agent>
 Space: <repository> worktree <path> at <commit>, branch <name> | the coordinator's checkout (read only)
 ## Result wanted
 ## Scope                    may write: …   must not touch: …
@@ -168,7 +165,7 @@ Goal: accept only what the evidence supports, and choose the next step from the 
 2. Read the return, then the diff against the base; a summary is not the work.
 3. Rerun the check that decides the result, and recompute any number the result rests on.
 4. Judge it against the brief's Result wanted and Done when. A plausible but different name, location or behavior shows a decision the brief left implicit: improve the next brief from it.
-5. As the coordinator, record the outcome with the tokens and minutes the host reports and, when you merged its branch, the merge commit. With a Working Record: `delegate close --id D-012 --outcome accepted | sent back | stopped --merge <commit> --tokens <n> --minutes <n>`, which writes its History entry and removes its line; where it can read the worker's own log (on Claude Code, beside the session's), it also measures what the worker used, so you type no figure. That closes the delegation.
+5. As the coordinator, record the outcome with the tokens and minutes the host reports and, when you merged its branch, the merge commit. With a Working Record: `delegate close --id D-012 --outcome accepted | sent back | stopped --merge <commit> --tokens <n> --minutes <n>`, which writes its History entry and removes its line; a return sent back takes `--reason brief | capability | scope` (the brief left out what the work needed, the model could not do it, or the work was not what the brief said), so a bad brief is not counted against the model; where it can read the worker's own log (on Claude Code, beside the session's), it also measures what the worker used, so you type no figure. That closes the delegation.
 
 Then choose from the gap. A supported result: continue. A missing observation: ask for it, in the same folder. A defect: send it back with the evidence. An approach the evidence invalidates: change the direction rather than repeat the demand. A choice the user owns: ask the user.
 

@@ -16,6 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { FREEFLOW_STORE_KIND, isFreeflowStore, STORE_MARKER, StoreError } from "./store.mjs";
+import { DEFAULT_TABLE, ROUTING_FILE } from "./routing5.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -163,6 +164,8 @@ async function layOut(home) {
     await mkdir(join(home, folder), { recursive: true });
     await writeFile(join(home, folder, ".gitkeep"), "");
   }
+  // The default routing table (SPEC-010 T2): the user's from here on, and only the user edits it.
+  await writeFile(join(home, ROUTING_FILE), DEFAULT_TABLE);
   await git(home, ["add", "--all"]);
   await git(home, ["commit", "--quiet", "--no-verify", "-m", "Create the Freeflow store"]);
 }

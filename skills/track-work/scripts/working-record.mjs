@@ -199,7 +199,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate open",
-    "Usage: delegate open --record <record.md> --title <title> --kind <build|review|research|eval|gather> --agent \"<model>, <effort>\" [--repo <path> [--base <ref>] [--branch <name>] [--worktree <path>]] [--from S-NNN] [--under A-NNN] [--continues D-NNN] [--handle <agent ID>] [--parent D-NNN] [--writes <glob> ...] [--session] --input <file|->\nAssigns D-NNN (or D-NNN.n with --parent), writes brief.md from the template, and, with --repo, makes the worker's own worktree on a new branch at the base (default HEAD). Without --parent it writes the delegation's line in Current Work's Delegations; --parent opens a sub-worker's delegation inside its worker's folder, and is refused for a sub-worker (no fourth level). --from defaults to the current Slice and --under to the open agreement. --writes, once per glob, names what the worker may write (relative to its worktree; absolute without one) and puts a \"May write:\" line at the top of the brief's Scope, which the delegation gate reads; without it a worker with a worktree may write the worktree, and one without is a reader; in a Freeflow store, the same globs are claimed for the delegation (claim), so other sessions are warned. --session hands the work to a separate session rather than a subagent: the brief's Agent line says Process: session, and the output prints the command that starts the worker session on Claude Code and on Pi, whose prompt runs delegate join. Each open logs a brief line in the task's delegation log (delegate log).\nInput: the brief's sections under \"## <section>\" headings: Result wanted, Scope and Done when required; Settled, Read and Return when optional. Read gains the delegation reference and the worker's recover command.\nWith no task, --scratch <folder> in place of --record keeps the delegation in <folder>/delegations/ with the same brief, and records nothing.",
+    "Usage: delegate open --record <record.md> --title <title> --kind <build|review|research|eval|gather> [--settled <yes|no>] [--check <scripted|tests|judgement>] [--tier <name>] [--agent \"<model>, <effort>\"] [--repo <path> [--base <ref>] [--branch <name>] [--worktree <path>]] [--from S-NNN] [--under A-NNN] [--continues D-NNN] [--handle <agent ID>] [--parent D-NNN] [--writes <glob> ...] [--session] --input <file|->\nAssigns D-NNN (or D-NNN.n with --parent), writes brief.md from the template, and, with --repo, makes the worker's own worktree on a new branch at the base (default HEAD). Without --parent it writes the delegation's line in Current Work's Delegations; --parent opens a sub-worker's delegation inside its worker's folder, and is refused for a sub-worker (no fourth level). --from defaults to the current Slice and --under to the open agreement. --writes, once per glob, names what the worker may write (relative to its worktree; absolute without one) and puts a \"May write:\" line at the top of the brief's Scope, which the delegation gate reads; without it a worker with a worktree may write the worktree, and one without is a reader; in a Freeflow store, the same globs are claimed for the delegation (claim), so other sessions are warned. --session hands the work to a separate session rather than a subagent: the brief's Agent line says Process: session, and the output prints the command that starts the worker session on Claude Code and on Pi, whose prompt runs delegate join. Each open logs a brief line in the task's delegation log (delegate log).\nRouting (SPEC-010): without --agent, the model and effort come from the routing table the user owns, the project's projects/<project>/rules/routing.md read before the store's rules/routing.md, by the first row that matches --kind (and --tier, as security for the review tier), --settled (whether the brief settled the work's decisions) and --check (how the return is checked: a script, tests, or judgement); the frontier tier is the coordinator's model, from the transcript FREEFLOW_TRANSCRIPT names, and the cheap tier the table's Cheap: line. It prints the Route line, and the brief's Agent line carries Settled, Check and Route (the table's row, or given). Refused, with the reason, when there is no table, a table does not parse, or no row matches, unless --agent is given; a row with Ask first: yes is refused until --agent is given, after the user's yes. With --agent, a table that does not parse only warns.\nInput: the brief's sections under \"## <section>\" headings: Result wanted, Scope and Done when required; Settled, Read and Return when optional. Read gains the delegation reference and the worker's recover command.\nWith no task, --scratch <folder> in place of --record keeps the delegation in <folder>/delegations/ with the same brief, and records nothing.",
   ],
   [
     "delegate amend",
@@ -215,7 +215,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate close",
-    "Usage: delegate close --record <record.md> --id <D-NNN> --outcome <accepted|sent back|stopped> [--merge <commit>] [--tokens <n>] [--minutes <n>] [--transcript <path>] --input <file|->\nRecords the outcome in the delegation's one History entry, with the model, effort, tokens and minutes the host reports, what the worker used (its Measured line: context, billed tokens and list-price cost by model and effort, working and wall-clock time, read from its own log beside the coordinator's transcript, --transcript or FREEFLOW_TRANSCRIPT, found by the brief's Handle or Freeflow's map of workers; else not measured), the merge commit and the return's path; removes its line; logs the outcome in the delegation log; releases the delegation's claims (unless sent back); syncs the store. Accepting adds each of the return's Left open choices to decisions.md with the next free ID, as \"- P<n> [default] <choice> -> <taken> (from D-NNN)\" (a technical one as a T item serving the plain item added last, to relink), and is refused when decisions.md would not validate. Accepting needs a return that passes check-return and, when the brief has a branch, the commit that merged it. A sub-worker's delegation is not closed here: its worker reports it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required.",
+    "Usage: delegate close --record <record.md> --id <D-NNN> --outcome <accepted|sent back|stopped> [--reason <brief|capability|scope>] [--merge <commit>] [--tokens <n>] [--minutes <n>] [--transcript <path>] --input <file|->\nRecords the outcome in the delegation's one History entry, with the model, effort, tokens and minutes the host reports, what the worker used (its Measured line: context, billed tokens and list-price cost by model and effort, working and wall-clock time, read from its own log beside the coordinator's transcript, --transcript or FREEFLOW_TRANSCRIPT, found by the brief's Handle or Freeflow's map of workers; else not measured), the merge commit and the return's path, and the brief's Settled, Check and Route; removes its line; logs the outcome in the delegation log; releases the delegation's claims (unless sent back); syncs the store. Accepting adds each of the return's Left open choices to decisions.md with the next free ID, as \"- P<n> [default] <choice> -> <taken> (from D-NNN)\" (a technical one as a T item serving the plain item added last, to relink), and is refused when decisions.md would not validate. Accepting needs a return that passes check-return and, when the brief has a branch, the commit that merged it. A return sent back needs --reason: brief (the brief left out what the work needed), capability (the model could not do it) or scope (the work was not what the brief said), recorded as the entry's Reason. A sub-worker's delegation is not closed here: its worker reports it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required.",
   ],
   [
     "agreement",
@@ -489,6 +489,9 @@ function allowedOptions(command, operation) {
         "--scratch",
         "--writes",
         "--session",
+        "--settled",
+        "--check",
+        "--tier",
       ]);
     if (operation === "join") return new Set([...record, "--id", "--home"]);
     if (operation === "log") return new Set([...record, "--id", "--append", "--kind", "--body", "--agent"]);
@@ -496,7 +499,17 @@ function allowedOptions(command, operation) {
     if (operation === "status") return new Set([...record, "--json"]);
     if (operation === "check-return") return new Set([...record, "--id", "--scratch"]);
     if (operation === "close")
-      return new Set([...record, "--id", "--outcome", "--merge", "--tokens", "--minutes", "--transcript", "--input"]);
+      return new Set([
+        ...record,
+        "--id",
+        "--outcome",
+        "--reason",
+        "--merge",
+        "--tokens",
+        "--minutes",
+        "--transcript",
+        "--input",
+      ]);
   }
   if (command === "validate") return new Set(["--root", "--record", "--strict", "--help"]);
   if (command === "agree" && operation === undefined) return new Set(["--outcome", "--exact-spec", "--home", "--help"]);

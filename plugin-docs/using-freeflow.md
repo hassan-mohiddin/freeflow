@@ -292,6 +292,10 @@ A session holds at most one task, and a task has one holder at a time. Where Fre
 
 The memory the agent shapes has a recovery budget that grows with the context window; when a task's memory keeps running over, the agent may propose expanded mode, which only you turn on. `working-record.mjs estimate --plan` sizes the work left from what past Slices used, and the work agreement can show it: how many context cycles, and the cost at list price.
 
+### Which model a worker runs on
+
+When the agent hands work to another agent, the model and effort come from your routing table, `rules/routing.md` in the store (a project's own `projects/<project>/rules/routing.md` is read first). A new store gets the default table, two tiers: the cheap tier (Haiku on Claude) at `xhigh` for gathering, research, evals, reviews and builds whose decisions the brief has settled, and the agent's own model at `high` for unsettled builds, judgement and security reviews, which the agent asks you about first. Edit the table to change it; the agent never does. Each delegation's brief and History entry say which row chose its model, and a return sent back records why (the brief, the model's capability, or the scope), so `estimate --plan` can show how often each kind of work on each model came back. A reviewer model you set with `review.model` still wins for reviews.
+
 ### What it does not do
 
 A Working Record is not:

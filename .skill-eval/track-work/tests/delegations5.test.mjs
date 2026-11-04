@@ -109,7 +109,7 @@ test("delegate open writes the brief, makes the worker's worktree on its own bra
     const brief = await readFile(join(taskDir, "delegations", "D-001-build-the-thing", "brief.md"), "utf8");
     assert.match(
       brief,
-      /^# D-001 — Build the thing\nTask: task-001-delegating · From: S-001 · Opened: \d{4}-\d{2}-\d{2}\nAgent: Haiku, xhigh · Kind: build · Handle: not started\n/,
+      /^# D-001 — Build the thing\nTask: task-001-delegating · From: S-001 · Opened: \d{4}-\d{2}-\d{2}\nAgent: Haiku, xhigh · Kind: build · Route: given · Handle: not started\n/,
     );
     assert.ok(
       brief.includes(
@@ -336,6 +336,9 @@ test("open --parent nests a sub-worker's folder in its worker's and refuses a fo
         title: "Build the thing",
         kind: "build",
         agent: "Haiku, xhigh",
+        settled: null,
+        check: null,
+        route: "given",
         opened: undefined,
         handle: top.handle,
         branch: "d-001-build-the-thing",
@@ -414,7 +417,7 @@ test("a Slice closes while its delegation runs; closing the delegation later app
     );
     assert.ok(
       history.endsWith(
-        `- Cue: read when the thing matters\n- Under: the user's request\n- From: S-001\n- Kind: build\n- Agent: Haiku, xhigh\n- Tokens: 41000\n- Minutes: 6\n- Measured: not measured\n- Result: thing.txt exists.\n- Task effect: Built.\n- Merge commit: ${merge}\n- Return: delegations/D-001-build-the-thing/return.md\n`,
+        `- Cue: read when the thing matters\n- Under: the user's request\n- From: S-001\n- Kind: build\n- Agent: Haiku, xhigh\n- Route: given\n- Tokens: 41000\n- Minutes: 6\n- Measured: not measured\n- Result: thing.txt exists.\n- Task effect: Built.\n- Merge commit: ${merge}\n- Return: delegations/D-001-build-the-thing/return.md\n`,
       ),
     );
     assert.match(await readFile(record, "utf8"), /### Delegations\n\n### Space/);
