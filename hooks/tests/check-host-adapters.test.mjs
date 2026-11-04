@@ -304,12 +304,12 @@ const CLAUDE_HOOK_CHARACTER_CAP = 10_000;
 // Room under the cap for future edits; a part over it needs trimming or another split.
 const PROMPT_PART_BUDGET = 9_500;
 
-function runManifestHooks(manifestPath, rootVariable, workspace) {
+function runManifestHooks(manifestPath, rootVariable, workspace, env = process.env) {
   const manifest = JSON.parse(readFileSync(join(repoRoot, manifestPath), "utf8"));
   return manifest.hooks.SessionStart[0].hooks.map((handler) => {
     const result = spawnSync("/bin/sh", ["-c", handler.command], {
       cwd: repoRoot,
-      env: { ...process.env, [rootVariable]: repoRoot },
+      env: { ...env, [rootVariable]: repoRoot },
       input: `${JSON.stringify({ hook_event_name: "SessionStart", source: "startup", cwd: workspace })}\n`,
       encoding: "utf8",
     });
@@ -343,6 +343,51 @@ test("each Claude Code hook stays under Claude Code's context cap and together t
     invalid.map(({ context }) => /# Freeflow Configuration Error/.test(context ?? "")),
     [true, false, false],
   );
+});
+
+// Claude Code's mod pins what these hooks deliver as one system prompt section, rendered by `runtime-context.mjs section`,
+// and leaves the hooks' copies out by their text (SPEC-013): each part must be exactly what its hook prints.
+test("the mod's section is the Claude Code hooks' texts, in their order, for each configuration and session", () => {
+  const home = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-home-"));
+  mkdirSync(join(home, "sessions", "s-1"), { recursive: true });
+  writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ "review.unit": "manual" })}\n`);
+  const section = (workspace, env) => {
+    const result = spawnSync(
+      process.execPath,
+      [join(repoRoot, "hooks/shared/runtime-context.mjs"), "section", "--cwd", workspace],
+      { cwd: repoRoot, env, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    return JSON.parse(result.stdout);
+  };
+  for (const [config, session] of [
+    ["{}\n", ""],
+    ["{}\n", "s-1"],
+    ['{"prompts":{"workingMethod":false}}\n', ""],
+    ['{"prompts":{"enabled":false}}\n', ""],
+    ['{"enabled":false}\n', ""],
+    ['{"enabled":1}\n', ""],
+  ]) {
+    const workspace = createWorkspace(config);
+    const env = { ...isolatedEnv, FREEFLOW_HOME: home, CLAUDE_CODE_SESSION_ID: session };
+    const hooks = runManifestHooks("hooks/claude/hooks.json", "CLAUDE_PLUGIN_ROOT", workspace, env).map(
+      ({ context }) => context ?? "",
+    );
+    const rendered = section(workspace, env);
+    assert.deepEqual(rendered.parts, hooks, `${config.trim()} in session "${session}"`);
+    assert.equal(rendered.home, home);
+  }
+  // The session's own settings reach the section as they reach the hooks.
+  const workspace = createWorkspace();
+  const env = { ...isolatedEnv, FREEFLOW_HOME: home };
+  assert.match(
+    section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-1" }).parts[0],
+    /\nReview: unit `manual`, model `auto`/,
+  );
+  assert.doesNotMatch(section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-2" }).parts[0], /Review:/);
+  // With the runtime context switched off, as the hooks are, the section is empty.
+  assert.deepEqual(section(workspace, { ...env, FREEFLOW_DISABLE_RUNTIME_CONTEXT: "1" }).parts, ["", "", ""]);
 });
 
 test("Codex's hook limit holds the whole context", () => {

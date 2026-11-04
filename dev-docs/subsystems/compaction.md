@@ -11,7 +11,7 @@ For contributors changing Freeflow compaction on Pi and Pi's layer for the Freef
 
 A long session outgrows the model's window. Pi compacts on its own: a separate summarizer call reads the conversation and the session continues from its summary and a recent tail. That summarizer has none of the working agent's knowledge of what the next step needs.
 
-Freeflow compaction lets the working agent decide what survives, through Track Work: at a safe point the agent checkpoints its task (or, with no task, writes a session summary) with `checkpoint --compact` and ends its turn, and Freeflow writes Pi's compaction entry with the task's bundle (everything recovery reads, in one text) as its summary; the run continues from it. It is the same design as Freeflow's Claude Code mod (task-004's Spec, sections 9 and 11; [Freeflow store](freeflow-store.md)), on Pi's events. Pi's layer for the store also gives a session the task menu at its start, syncs the store, releases the hold at shutdown and shows the held task in the footer.
+Freeflow compaction lets the working agent decide what survives, through Track Work: at a safe point the agent checkpoints its task (or, with no task, writes a session summary) with `checkpoint --compact` and ends its turn, and Freeflow writes Pi's compaction entry with the task's bundle (everything recovery reads, in one text) as its summary; the run continues from it. It is the same design as Freeflow's Claude Code mod (task-004's Spec, sections 9 and 11; [Freeflow store](freeflow-store.md)), on Pi's events. Pi's layer for the store also gives a session the task menu at its start, syncs the store, releases the hold at shutdown and shows the held task in the footer. When Freeflow arrives in a running session, by a reload that brings it in or `enabled` switched on after the start, the next run's start gives the menu it missed, once, as that run's message, after a line saying Freeflow started mid-session (SPEC-013): each session's start records its steps in the Freeflow home's `sessions/<session>/start.json`, the ledger Claude Code's mod keeps too, so a reload of a session that had its menu reads the ledger and gives nothing; a try that fails is logged and made once more at the next run.
 
 It deliberately does not:
 
@@ -144,13 +144,13 @@ Pi's file lists from an earlier Freeflow compaction are added back into Pi's pre
 ## Code Map
 
 - `pi-extension/src/compaction/`: `controller.ts` (`observe`, `settle`, `fallback`, `statusText`), `thresholds.ts`, `harness.ts`, `config.ts`. Its [README](../../pi-extension/src/compaction/README.md) lists each file.
-- `pi-extension/src/store/layer.ts`: `StoreLayer`, `scriptRunner()`, `sessionEnvironment()`, `touchesStore()`.
+- `pi-extension/src/store/layer.ts`: `StoreLayer`, `scriptRunner()`, `sessionEnvironment()`, `touchesStore()`, and the session-start ledger (`readStartLedger()`, `keepStartLedger()`).
 - `pi-extension/src/index.ts`: the hosts, the event handlers, `/freeflow compact`, the store's start and status line.
 - `skills/track-work/scripts/lib/pi-session.mjs`: Track Work's reader for Pi's session file.
 
 ## Tests
 
-`thresholds.test.js` (the notice and rows), `controller.test.js` (notices, the run-end compaction, a session summary, a bundle that fails, Pi's compaction in its three cases), `bundle.test.js` (a real Pi session with Track Work's real script: a session summary with no store, and a task in a local store, compacted with the bundle; the next request extends the one after compaction), `harness.test.js`, and `pi-extension/tests/store/layer.test.js` (store touches, the environment, session start, the run's end, an answered request). `request-path-budget.test.js` bounds the per-turn work.
+`thresholds.test.js` (the notice and rows), `controller.test.js` (notices, the run-end compaction, a session summary, a bundle that fails, Pi's compaction in its three cases), `bundle.test.js` (a real Pi session with Track Work's real script: a session summary with no store, and a task in a local store, compacted with the bundle; the next request extends the one after compaction), `harness.test.js`, `pi-extension/tests/store/layer.test.js` (store touches, the environment, session start, the run's end, an answered request), and `pi-extension/tests/store/catch-up.test.js` (an in-process Pi session: Freeflow switched on after the start gets the menu at the next run, once; a session that started with it gets none). `request-path-budget.test.js` bounds the per-turn work.
 
 ## Limits
 

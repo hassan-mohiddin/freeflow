@@ -27,7 +27,14 @@ import { currentSections, headSections, keepSections } from "./host/section-keep
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController, RECOVERY_TYPE, USER_REQUEST } from "./compaction/controller.js";
 import { strictest } from "./compaction/thresholds.js";
-import { StoreLayer, scriptRunner, sessionEnvironment, touchesStore } from "./store/layer.js";
+import {
+  StoreLayer,
+  keepStartLedger,
+  readStartLedger,
+  scriptRunner,
+  sessionEnvironment,
+  touchesStore,
+} from "./store/layer.js";
 import { EventRecorder } from "./events/recorder.js";
 import { DEFAULT_INBOUND_POLICY } from "./messaging/config.js";
 import { MESSAGE_TYPE, Messaging } from "./messaging/messaging.js";
@@ -62,6 +69,8 @@ const COMPACTION_NOTICE_TYPE = "freeflow-compaction-notice";
 const COMPACT_REQUEST_TYPE = "freeflow-compaction-request";
 // The Freeflow store's menu and rules at session start, or what keeps the session from a store.
 const STORE_TYPE = "freeflow-store";
+const MID_SESSION =
+  "Freeflow started mid-session: its session start did not run in this session, so what it gives a session at its start follows now.";
 /**
  * The context a turn ended with, as Pi estimates it: the turn's own usage plus the tool results after it. Pi's
  * getContextUsage rebuilds the session projection to find the same numbers. Undefined when the turn has no usable usage
@@ -325,6 +334,7 @@ export default function freeflow(pi) {
    */
   const storeStart = async (ctx, reason, generation) => {
     const held = store.heldTask();
+    const session = ctx.sessionManager?.getSessionId?.();
     try {
       if (reason === "reload") await store.refresh();
       else {
@@ -343,6 +353,8 @@ export default function freeflow(pi) {
               { deliverAs: "nextTurn" },
             ),
           );
+        // The start's steps are done: a reload of this session reads that and gives the menu no second time.
+        if (session) await keepStartLedger(freeflowHome(), session).catch(() => {});
       }
       // Session status and the take-back wrote the gate state; read it now, once.
       if (generation === surfaceGeneration) await gates.refresh({ settled: true });
@@ -350,6 +362,38 @@ export default function freeflow(pi) {
       if (generation === surfaceGeneration && store.heldTask() !== held) status(ctx);
     } catch {
       // The store is optional: without one, compaction works through the session summary (P4).
+    }
+  };
+  /**
+   * Freeflow arriving mid-session (SPEC-013): a session whose start ran without Freeflow (a reload that brings it in,
+   * `enabled` switched on later) has not had the store's pull and menu, which its session-start ledger says. The next
+   * run's start catches up, once, with the menu as the run's message; a try that fails is logged and made once more.
+   */
+  let startState = "due";
+  let startFailures = 0;
+  const catchUp = async (ctx) => {
+    if (startState !== "due" || capability?.enabled !== true) return undefined;
+    startState = "running";
+    const session = ctx.sessionManager?.getSessionId?.();
+    const held = store.heldTask();
+    try {
+      const home = freeflowHome();
+      if (session && (await readStartLedger(home, session))?.steps.menu) {
+        startState = "done";
+        return undefined;
+      }
+      const text = await store.start(ctx.cwd, [ctx.cwd, dirname(ctx.cwd), packageRoot]);
+      if (!store.current()) throw new Error("session status could not be read");
+      if (session) await keepStartLedger(home, session).catch(() => {});
+      events.freeflow("menu", "mid-session: sync, menu");
+      startState = "done";
+      if (store.heldTask() !== held) status(ctx);
+      return text ? `${MID_SESSION}\n\nFreeflow task memory:\n${text}` : undefined;
+    } catch (error) {
+      startFailures += 1;
+      events.freeflow("menu", `mid-session, menu failed: ${error instanceof Error ? error.message : String(error)}`);
+      startState = startFailures < 2 ? "due" : "done";
+      return undefined;
     }
   };
   /** `/freeflow capabilities`: Setup Freeflow's capabilities.mjs, the listing the agent reads too (section 4.6). */
@@ -521,6 +565,9 @@ export default function freeflow(pi) {
     await gates.refresh();
     events.sessionStarted(event?.reason, ctx.hasUI !== false);
     syncClaims();
+    // A reload keeps the session, whose ledger says whether its start had the store's menu (SPEC-013).
+    startState = capability?.enabled === true && event?.reason !== "reload" ? "done" : "due";
+    startFailures = 0;
     if (capability?.enabled === true) void storeStart(ctx, event?.reason, generation);
     status(ctx);
   });
@@ -575,6 +622,13 @@ export default function freeflow(pi) {
     promptRun = !fromMessage;
     messageRun = fromMessage;
     prompted = true;
+    // Freeflow arrived after this session's start: what its start would have given, as this run's message; a files
+    // notice waits for the next run.
+    const caught = startState === "due" ? await catchUp(ctx) : undefined;
+    if (caught)
+      return {
+        message: { customType: STORE_TYPE, content: freeflowNotice("store", caught), display: true, details: {} },
+      };
     // Like Claude Code's next-turn reminder: files the model read that changed while it was not running a tool.
     const changed = toolExecutionEffective() ? await files.changedNotice(ctx, false) : undefined;
     if (changed)

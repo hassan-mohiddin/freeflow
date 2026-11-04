@@ -157,7 +157,7 @@ function toolPaths(input, cwd) {
 function claims() {
   const claim = (/** @type {string} */ value, /** @type {string} */ how) => ({ claim: value, how });
   return {
-    pin: claim("possible", "prompt.section exists; Freeflow does not use it yet"),
+    pin: claim("yes", "its guidance is a section of the system prompt (prompt.compose)"),
     inject: claim("yes", "appends rows the agent reads ($.session.append)"),
     forget: claim("no", "nothing removes a stored row"),
     compact: interactive
@@ -866,6 +866,7 @@ async function settingsCommand($, args) {
   );
   if (!result.ok) return { text: `Freeflow settings: ${result.error}` };
   const data = result.data;
+  await guidanceChanged($);
   const wasOn = enabled;
   if (data.key === "enabled" || data.key === "events.enabled") {
     await resolveEnabled($);
@@ -898,6 +899,321 @@ async function settingsCommand($, args) {
   };
 }
 
+// Freeflow arriving mid-session, and its guidance pinned (SPEC-013). What session start does, it does once per session,
+// and a ledger in the Freeflow home (`sessions/<session>/start.json`) says which of its steps ran: a session whose start
+// did not run them (the plugin enabled or updated mid-session, `enabled` switched on, a harness that skips the hook)
+// gets each missing one at its next turn's start, the guidance and the menu as one row. Where this Claude Code composes
+// the system prompt through mods (`prompt.compose`), the session-start hooks' text is one section of it, so it is in
+// every request and survives every compaction, and the hooks' copies are left out while it is there.
+const SECTION_SCRIPT = "hooks/shared/runtime-context.mjs";
+/** The guidance's section in the system prompt; a plugin's own is `<plugin>:<name>`. */
+const SECTION_ID = "freeflow:guidance";
+/** Session start's steps, in the order a catch-up runs them. */
+const START_STEPS = ["window", "cycle", "capabilities", "sync", "menu", "guidance"];
+/** Tries a failed step gets, at most one a turn: the first, then one more at the next turn (section 4). */
+const STEP_TRIES = 2;
+const MID_SESSION =
+  "Freeflow started mid-session: its session start did not run in this session, so what it gives a session at its start follows now.";
+/** @type {{ session: string, steps: Record<string, string>, pinned: boolean } | null} the ledger, null until known */
+let started = null;
+/** Whether the ledger kept in the store was read into `started` for this session yet. */
+let ledgerRead = false;
+/** @type {Map<string, number>} each step's failed tries this session */
+const stepFailures = new Map();
+/** Whether a catch-up is running, so two turn starts never run one twice. */
+let catching = false;
+/** @type {{ parts: string[], text: string, home?: string } | null} the hooks' texts, their section; null until rendered */
+let guidance = null;
+/** Whether this session start's thread carries the section, for the ledger. */
+let pinnedAtStart = false;
+
+/** @param {string} home @param {string} session */
+const ledgerPath = (home, session) => `${home}/sessions/${session}/start.json`;
+
+/**
+ * The session-start hooks' texts for the session's folder and settings, rendered by the hooks' own renderer, the
+ * section they make joined in their order, and the Freeflow home the renderer reads; kept until settings change or a
+ * session start renders them again.
+ * @param {any} $
+ * @param {{ cwd?: string, session?: string }} [where] a session start's folder and session, else the session's own
+ */
+async function renderGuidance($, where = {}) {
+  if (guidance) return guidance;
+  const run = await $.process.run(
+    ["node", `${$.plugin.root}/${SECTION_SCRIPT}`, "section", "--cwd", where.cwd || (await $.session.cwd())],
+    { env: { CLAUDE_CODE_SESSION_ID: where.session || (await $.session.id()) }, timeoutMs: SETTINGS_TIMEOUT_MS },
+  );
+  let rendered;
+  try {
+    rendered = JSON.parse(run.stdout);
+  } catch {
+    rendered = undefined;
+  }
+  const parts = rendered?.parts;
+  if (run.exitCode !== 0 || !Array.isArray(parts) || !parts.every((part) => typeof part === "string"))
+    throw new Error(
+      `the guidance could not be rendered: ${(run.stderr.split("\n")[0] || `exit code ${run.exitCode}`).trim()}`,
+    );
+  guidance = {
+    parts,
+    text: parts.filter((part) => part.trim()).join("\n\n"),
+    home: typeof rendered.home === "string" ? rendered.home : undefined,
+  };
+  return guidance;
+}
+
+/**
+ * A settings change: the section is rendered again, once, so the next prompt the engine composes carries the change
+ * (one cache write, at the new thread or compaction where the engine sends a changed section).
+ * @param {any} $
+ */
+async function guidanceChanged($) {
+  guidance = null;
+  await renderGuidance($).catch((/** @type {unknown} */ error) =>
+    $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`),
+  );
+}
+
+/**
+ * A session start's result without the hooks' copies of the guidance, where the section carries it.
+ * @param {any} result
+ * @param {string[]} parts
+ */
+function withoutHookGuidance(result, parts) {
+  const ours = new Set(parts.map((part) => part.trim()).filter(Boolean));
+  if (!Array.isArray(result.additionalContext)) return result;
+  const rest = result.additionalContext.filter((/** @type {string} */ text) => !ours.has(String(text).trim()));
+  if (rest.length === result.additionalContext.length) return result;
+  const { additionalContext: _dropped, ...others } = result;
+  return rest.length ? { ...others, additionalContext: rest } : others;
+}
+
+/** @param {any} $ */
+async function keepLedger($) {
+  if (!freeflowHome || !started) return;
+  const file = { v: 1, steps: started.steps, pinned: started.pinned };
+  await $.fs
+    .write(ledgerPath(freeflowHome, started.session), `${JSON.stringify(file, null, 2)}\n`)
+    .catch((/** @type {unknown} */ error) =>
+      $.ui.log(`Freeflow: the session-start ledger: ${error instanceof Error ? error.message : String(error)}`),
+    );
+}
+
+/**
+ * The ledger a session keeps in the Freeflow home, or null where there is none.
+ * @param {any} $
+ * @param {string} home
+ * @param {string} session
+ */
+async function readLedger($, home, session) {
+  try {
+    const kept = JSON.parse(await $.fs.read(ledgerPath(home, session)));
+    return { steps: typeof kept.steps === "object" && kept.steps ? kept.steps : {}, pinned: kept.pinned === true };
+  } catch {
+    return null;
+  }
+}
+
+/** Whether every step ran or has had its tries. */
+const settled = () =>
+  started !== null && START_STEPS.every((step) => started?.steps[step] || (stepFailures.get(step) ?? 0) >= STEP_TRIES);
+
+/**
+ * The classic SessionStart's chain beneath the mod, with the hooks' copies of the guidance left out where the section
+ * carries it: a new thread and a compaction start their prompt over with it, and a resumed or forked thread keeps the
+ * prompt it recorded, so there only a ledger saying that prompt had it does. A compaction delivers the guidance again,
+ * through the section or the hooks, which the ledger keeps.
+ * @param {any} $
+ * @param {any} e
+ * @param {any} next
+ */
+async function pinnedStart($, e, next) {
+  const result = await next(e);
+  const fresh = e.source !== "compact";
+  if (fresh) {
+    guidance = null;
+    pinnedAtStart = false;
+  }
+  // Off, the hooks deliver nothing either, and the mod does nothing but serve /freeflow.
+  if (!enabled) return result;
+  let pinned = false;
+  let out = result;
+  try {
+    const rendered = await renderGuidance($, { cwd: e.cwd, session: e.session_id });
+    const home = freeflowHome ?? rendered.home;
+    const recorded = !["resume", "fork"].includes(e.source)
+      ? true
+      : Boolean(home) && (await readLedger($, String(home), e.session_id))?.pinned === true;
+    pinned = Boolean(rendered.text) && recorded;
+    if (pinned) out = withoutHookGuidance(result, rendered.parts);
+  } catch (error) {
+    $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}; the session-start hooks keep it`);
+  }
+  if (fresh) pinnedAtStart = pinned;
+  else {
+    const now = new Date(await $.clock.now()).toISOString();
+    if (started?.session === e.session_id) {
+      started.steps.guidance = now;
+      started.pinned = pinned;
+      await keepLedger($);
+    } else {
+      // Not known in this process: the next catch-up reads what the store keeps and adds this to it.
+      started = { session: e.session_id, steps: { guidance: now }, pinned };
+      ledgerRead = false;
+    }
+  }
+  return out;
+}
+
+/**
+ * A session start Freeflow ran with Freeflow on: every step is in the ledger, done by this start.
+ * @param {any} $
+ * @param {any} e
+ */
+async function startRan($, e) {
+  const now = new Date(await $.clock.now()).toISOString();
+  started = {
+    session: e.session_id,
+    steps: Object.fromEntries(START_STEPS.map((step) => [step, now])),
+    pinned: pinnedAtStart,
+  };
+  ledgerRead = true;
+  stepFailures.clear();
+  await keepLedger($);
+}
+
+/**
+ * At a main turn's start, with Freeflow on: each step session start would have done and has not, once, and the
+ * guidance and the menu as one row. A step that fails is logged and tried again at the next turn, once.
+ * @param {any} $
+ */
+async function caughtUp($) {
+  if (!enabled || catching || settled()) return;
+  catching = true;
+  try {
+    await catchUp($);
+  } catch (error) {
+    $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    catching = false;
+  }
+}
+
+/** @param {any} $ */
+async function catchUp($) {
+  const session = await $.session.id();
+  if (started && started.session !== session) {
+    started = null;
+    ledgerRead = false;
+    stepFailures.clear();
+  }
+  const found = await sessionStatus($, { session });
+  if (found?.home) freeflowHome = found.home;
+  if (!ledgerRead && freeflowHome) {
+    ledgerRead = true;
+    const kept = await readLedger($, freeflowHome, session);
+    if (kept)
+      started = { session, steps: { ...kept.steps, ...started?.steps }, pinned: started?.pinned ?? kept.pinned };
+  }
+  started ??= { session, steps: {}, pinned: false };
+  const ledger = started;
+  const due = START_STEPS.filter((step) => !ledger.steps[step] && (stepFailures.get(step) ?? 0) < STEP_TRIES);
+  if (!due.length) return;
+  const cwd = await $.session.cwd();
+  const now = new Date(await $.clock.now()).toISOString();
+  /** @type {string[]} */
+  const done = [];
+  /** @type {{ guidance?: string, menu?: string }} */
+  const shown = {};
+  /** @param {string} step @param {unknown} error */
+  const failed = async (step, error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    stepFailures.set(step, (stepFailures.get(step) ?? 0) + 1);
+    $.ui.log(`Freeflow: session start's ${step} step failed mid-session: ${message}`);
+    await emit($, "freeflow", { what: "menu", detail: `mid-session, ${step} failed: ${message}` });
+  };
+  const unread = new Error("session status could not be read");
+  for (const step of due.filter((each) => each !== "sync" && each !== "menu")) {
+    try {
+      if (step === "window") await readWindow($);
+      else if (step === "cycle") {
+        await newCycle($, null);
+        workers = null;
+      } else if (step === "capabilities") {
+        if (!found?.home) throw unread;
+        await writeCapabilities($, freeflowHome);
+      } else if (step === "guidance") shown.guidance = (await renderGuidance($)).text;
+      ledger.steps[step] = now;
+      done.push(step);
+    } catch (error) {
+      await failed(step, error);
+    }
+  }
+  const store = due.filter((each) => each === "sync" || each === "menu");
+  if (store.length) {
+    const missing = missingText(found);
+    if (!found) for (const step of store) await failed(step, unread);
+    else if (!found.store) {
+      // No store yet: the turn that ends with one takes it up, as after a session start without one.
+      awaitingStore = { session, cwd };
+      if (store.includes("menu") && missing.length) shown.menu = `the store is not ready.\n${missing.join("\n")}`;
+      for (const step of store) ledger.steps[step] = now;
+      done.push(...store);
+    } else
+      try {
+        await storeRootOf($, found);
+        const menu = await storeArrived($, found, session, cwd);
+        awaitingStore = null;
+        ledger.steps.sync ??= now;
+        if (store.includes("sync")) done.push("sync");
+        if (menu.exitCode !== 0)
+          throw new Error((menu.stderr.split("\n")[0] || `exit code ${menu.exitCode}`).replace(/^Error: /, ""));
+        if (store.includes("menu")) {
+          shown.menu = [menu.stdout.trimEnd(), ...missing].join("\n");
+          ledger.steps.menu = now;
+          done.push("menu");
+        }
+      } catch (error) {
+        await failed(store.includes("menu") ? "menu" : "sync", error);
+      }
+  }
+  if (shown.guidance || shown.menu)
+    await appendRow(
+      $,
+      [
+        MID_SESSION,
+        ...(shown.guidance ? [shown.guidance] : []),
+        ...(shown.menu ? [`Freeflow task memory:\n${shown.menu}`] : []),
+      ].join("\n\n"),
+    );
+  if (done.length) await emit($, "freeflow", { what: "menu", detail: `mid-session: ${done.join(", ")}` });
+  await keepLedger($);
+}
+
+/**
+ * The system prompt as the engine composed it, with the guidance as one section after the engine's own: the engine
+ * sends a changed answer only in a new thread or after a compaction, so it stands for the whole thread.
+ * @param {any} $
+ * @param {any} e
+ * @param {any} composed
+ */
+async function withGuidance($, e, composed) {
+  if (!enabled || e.traits?.includes("bare")) return composed;
+  try {
+    const { text } = await renderGuidance($);
+    if (!text) return composed;
+    return {
+      sections: [
+        ...composed.sections.filter((/** @type {{ id: string }} */ section) => section.id !== SECTION_ID),
+        { id: SECTION_ID, text, scope: /** @type {const} */ ("session") },
+      ],
+    };
+  } catch (error) {
+    $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
+    return composed;
+  }
+}
+
 /** @param {import("claude-code").On} on */
 export function register(on) {
   // The session is ready, or the module reloaded: declare /freeflow, and read whether Freeflow is on for this folder.
@@ -924,7 +1240,7 @@ export function register(on) {
   // Session start, /clear and resume: pull the store, give the scripts the window, and give the agent the menu, which
   // says which task this session holds, taken back when a resume finds the task its end released (Spec section 4, F36).
   on("classic.SessionStart", async ($, e, next) => {
-    const result = await next(e);
+    const result = await pinnedStart($, e, next);
     if (e.source === "compact") {
       await emit($, "session.start", { source: "compact", interactive });
       return result;
@@ -937,6 +1253,7 @@ export function register(on) {
     await readWindow($);
     const found = await sessionStatus($, { session: e.session_id });
     freeflowHome = found?.home;
+    await startRan($, e);
     await writeCapabilities($, freeflowHome);
     const state = found?.store ? found : null;
     await storeRootOf($, state);
@@ -970,8 +1287,12 @@ export function register(on) {
     warnedGates.delete(agent);
     turnsOf.set(agent, (turnsOf.get(agent) ?? 0) + 1);
     await emit($, "turn.start", { turn: turnsOf.get(agent) }, agent);
+    if (e.agentId === undefined) await caughtUp($);
     return next(e);
   });
+
+  // The guidance pinned as a section of the system prompt (SPEC-013).
+  on("prompt.compose", async ($, e, next) => withGuidance($, e, await next(e)));
 
   on("turn.step", async function* ($, e, next) {
     const response = yield* next(e);

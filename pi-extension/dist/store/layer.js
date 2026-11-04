@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve, sep } from "node:path";
 /**
  * Freeflow's Pi layer for the Freeflow store, as the Claude Code mod is Claude Code's (the task-004 Spec's section 11):
@@ -53,6 +53,32 @@ export function touchesStore(toolName, input, cwd, home) {
     const full = isAbsolute(path) ? resolve(path) : resolve(cwd, path);
     return full === root || full.startsWith(root + sep);
   });
+}
+/** Pi's steps of session start, as the ledger names them. */
+export const START_STEPS = ["window", "capabilities", "guidance", "sync", "menu"];
+export const startLedgerPath = (home, session) => join(home, "sessions", session, "start.json");
+/** The ledger a session keeps, or undefined where there is none or it cannot be read. */
+export async function readStartLedger(home, session) {
+  try {
+    const kept = JSON.parse(await readFile(startLedgerPath(home, session), "utf8"));
+    return {
+      v: 1,
+      steps: typeof kept?.steps === "object" && kept.steps ? kept.steps : {},
+      pinned: kept?.pinned === true,
+    };
+  } catch {
+    return undefined;
+  }
+}
+/** Records that every step of session start ran for the session, now. */
+export async function keepStartLedger(home, session, at = new Date()) {
+  const ledger = {
+    v: 1,
+    steps: Object.fromEntries(START_STEPS.map((step) => [step, at.toISOString()])),
+    pinned: true,
+  };
+  await mkdir(join(home, "sessions", session), { recursive: true });
+  await writeFile(startLedgerPath(home, session), `${JSON.stringify(ledger, null, 2)}\n`);
 }
 export class StoreLayer {
   run;
