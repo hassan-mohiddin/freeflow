@@ -3,13 +3,15 @@
 // sees the store's .git read-only, Track Work there leaves the commits to the host, and the guard refuses a write into
 // the store's .git. No model runs.
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { decideToolCall, guardState } from "../../../skills/evaluate-behavior/scripts/guard-rules.mjs";
+import { prepareFreeflowStore } from "../../../skills/evaluate-behavior/scripts/lib/hosts/claude-code/launch.mjs";
 import { startContainer } from "../../../skills/evaluate-behavior/scripts/lib/container.mjs";
 import { freeflowEvents } from "../../../skills/evaluate-behavior/scripts/lib/subject.mjs";
 import { dockerCalls, installFakeDocker } from "./helpers/fake-docker.mjs";
@@ -125,3 +127,167 @@ test("the guard lets the file tools write the store but not its .git, read both,
     assert.equal(decide("write", path.join(workspace, ".git", "config")), undefined);
   });
 });
+
+// With a real engine: the store mounted as the Freeflow arm mounts it, the subject's attempts made from inside the
+// container, then what the mod runs on the host at a turn's end. Skipped without docker or a local image with Git and
+// Node (the suite's freeflow-top-line image has both); the tests never pull one.
+const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
+const trackWork = path.join(repositoryRoot, "skills", "track-work", "scripts", "working-record.mjs");
+
+function imageWithGitAndNode() {
+  if (spawnSync("docker", ["version", "--format", "{{.Server.Version}}"], { encoding: "utf8" }).status !== 0)
+    return { skip: "docker is not installed or its daemon is not running" };
+  for (const name of [process.env.SKILL_EVAL_ESCAPE_IMAGE, "freeflow-top-line:v1"].filter(Boolean)) {
+    if (spawnSync("docker", ["image", "inspect", name], { encoding: "utf8" }).status !== 0) continue;
+    const probe = spawnSync(
+      "docker",
+      ["run", "--rm", "--network", "none", "--entrypoint", "sh", name, "-c", "git --version && node --version"],
+      { encoding: "utf8" },
+    );
+    if (probe.status === 0) return { image: name };
+  }
+  return { skip: "no local image with Git and Node (freeflow-top-line:v1, or SKILL_EVAL_ESCAPE_IMAGE)" };
+}
+
+const engine = imageWithGitAndNode();
+
+test(
+  "with the real mount, the subject cannot make the host run its code through the store: core.fsmonitor, commondir, a post-commit hook, a planted repository and a planted link all fail, and the host still commits what Track Work wrote in the container",
+  { skip: engine.skip ?? false, timeout: 180_000 },
+  async () => {
+    await withTempDirectory(async (root) => {
+      const workspace = path.join(root, "workspace");
+      const marks = path.join(root, "marks");
+      await mkdir(workspace);
+      await mkdir(marks);
+      const outside = path.join(marks, "outside.txt");
+      await writeFile(outside, "the host's own file\n");
+      const store = await prepareFreeflowStore(repositoryRoot, path.join(root, "freeflow-home"));
+      const session = "11111111-2222-4333-8444-555555555555";
+      const handle = await startContainer({
+        container: { image: engine.image, workdir: "/testbed", network: "none" },
+        workspace,
+        resources: [repositoryRoot],
+        writable: [store],
+        environment: { FREEFLOW_HOME: store, FREEFLOW_HOST_COMMITS: "1", CLAUDE_CODE_SESSION_ID: session },
+      });
+      const inContainer = (script) =>
+        spawnSync("docker", ["exec", handle.name, "sh", "-c", script], { encoding: "utf8" });
+      try {
+        // Each attempt on the store's .git fails in the container: it is mounted read-only.
+        for (const attempt of [
+          `git -C "$FREEFLOW_HOME" config core.fsmonitor "touch ${marks}/fsmonitor-ran; false #"`,
+          `printf '/tmp/planted\\n' > "$FREEFLOW_HOME/.git/commondir"`,
+          `printf '#!/bin/sh\\ntouch ${marks}/post-commit-ran\\n' > "$FREEFLOW_HOME/.git/hooks/post-commit" && chmod +x "$FREEFLOW_HOME/.git/hooks/post-commit"`,
+          `rm -rf "$FREEFLOW_HOME/.git"`,
+          `mv "$FREEFLOW_HOME/.git" "$FREEFLOW_HOME/old-git"`,
+        ]) {
+          const tried = inContainer(attempt);
+          assert.notEqual(tried.status, 0, `${attempt} succeeded: ${tried.stdout}${tried.stderr}`);
+        }
+        // What the subject can plant in the store's files: a repository of its own with a core.fsmonitor, and its
+        // session's event log as a link to a host file.
+        const planted = inContainer(
+          [
+            `mkdir -p "$FREEFLOW_HOME/rules/planted" "$FREEFLOW_HOME/events"`,
+            `cd "$FREEFLOW_HOME/rules/planted" && git init -q && echo x > f && git add f`,
+            `git -c user.name=s -c user.email=s@x commit -qm planted`,
+            `git config core.fsmonitor "touch ${marks}/nested-fsmonitor-ran; false #"`,
+            `ln -s ${outside} "$FREEFLOW_HOME/events/${session}.jsonl"`,
+          ].join(" && "),
+        );
+        assert.equal(planted.status, 0, planted.stderr);
+        // Track Work in the container writes the store's files and leaves the commit to the host.
+        const created = inContainer(
+          `node ${trackWork} task create --title "Probe task" --cue "read when probing" --goal "probe the store" --no-project`,
+        );
+        assert.equal(created.status, 0, created.stderr);
+        assert.match(
+          created.stdout,
+          /Store: not committed here; the host commits it \(FREEFLOW_HOST_COMMITS is set\)\./,
+        );
+
+        // What the mod runs on the host at a turn's end: session status, store sync, and the turn's event lines.
+        const host = (args, input) =>
+          spawnSync(process.execPath, [trackWork, ...args], {
+            encoding: "utf8",
+            input,
+            env: { ...process.env, FREEFLOW_HOME: store, CLAUDE_CODE_SESSION_ID: session, FREEFLOW_HOST_COMMITS: "" },
+          });
+        assert.equal(JSON.parse(host(["session", "status"]).stdout).changed, true);
+        const synced = host(["store", "sync"]);
+        assert.equal(synced.status, 0, synced.stderr);
+        assert.match(synced.stdout, /committed \d+ path\(s\)/);
+        host(["session", "status"]);
+        host(["store", "sync"]);
+        const line = {
+          v: 1,
+          ts: "2026-11-04T10:00:00.000Z",
+          session,
+          harness: "claude-code",
+          agent: "main",
+          kind: "turn.start",
+          turn: 1,
+        };
+        const appended = host(["events", "append", "--input", "-"], `${JSON.stringify(line)}\n`);
+        assert.notEqual(appended.status, 0);
+        assert.match(appended.stderr, /it is a symbolic link/);
+
+        assert.deepEqual(await readdir(marks), ["outside.txt"], "a planted command ran on the host");
+        assert.equal(await readFile(outside, "utf8"), "the host's own file\n");
+        assert.doesNotMatch(await readFile(path.join(store, ".git", "config"), "utf8"), /fsmonitor/);
+        const committed = spawnSync("git", ["-C", store, "log", "--name-only", "--format=%s"], { encoding: "utf8" });
+        assert.match(committed.stdout, /tasks\/task-001-probe-task\/record\.md/);
+        assert.equal(freeflowEvents(store, root).refused?.includes(`events/${session}.jsonl`), true);
+      } finally {
+        // The container wrote as its own user: hand the files back so the folder can be removed.
+        inContainer(`chmod -R a+rwX "$FREEFLOW_HOME" 2>/dev/null; true`);
+        await handle.remove();
+      }
+    });
+  },
+);
+
+test(
+  "the control: with the store's .git writable, as before the fix, the same plants from a container do run on the host",
+  { skip: engine.skip ?? false, timeout: 180_000 },
+  async () => {
+    await withTempDirectory(async (root) => {
+      const marks = path.join(root, "marks");
+      await mkdir(marks);
+      const store = await prepareFreeflowStore(repositoryRoot, path.join(root, "freeflow-home"));
+      const script = [
+        `git -C ${store} config core.fsmonitor "touch ${marks}/fsmonitor-ran; false #"`,
+        `printf '#!/bin/sh\\ntouch ${marks}/post-commit-ran\\n' > ${store}/.git/hooks/post-commit`,
+        `chmod +x ${store}/.git/hooks/post-commit`,
+        `echo x > ${store}/rules/x.md`,
+      ].join(" && ");
+      const planted = spawnSync(
+        "docker",
+        [
+          "run",
+          "--rm",
+          "--network",
+          "none",
+          "--volume",
+          `${store}:${store}`,
+          "--entrypoint",
+          "sh",
+          engine.image,
+          "-c",
+          `${script}; chmod -R a+rwX ${store}`,
+        ],
+        { encoding: "utf8" },
+      );
+      assert.equal(planted.status, 0, planted.stderr);
+      const host = (args) =>
+        spawnSync(process.execPath, [trackWork, ...args], {
+          encoding: "utf8",
+          env: { ...process.env, FREEFLOW_HOME: store },
+        });
+      host(["session", "status"]);
+      host(["store", "sync"]);
+      assert.deepEqual((await readdir(marks)).sort(), ["fsmonitor-ran", "post-commit-ran"]);
+    });
+  },
+);
