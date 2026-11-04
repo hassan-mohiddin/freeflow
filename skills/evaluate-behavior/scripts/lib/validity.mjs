@@ -52,6 +52,12 @@ export function validityProblems(run) {
     problems.push("no tokens: the run's usage totals zero tokens, so no model call is shown to have happened");
   }
   if (!answered(run) && !wroteSomething(run)) problems.push("no answer and nothing written in the workspace");
+  // A Freeflow arm whose plugin wrote no event line did not run Freeflow (SPEC-011 section 5): never counted as plain.
+  if (run.freeflowEvents?.required && run.freeflowEvents.lines === 0) {
+    problems.push(
+      "no Freeflow event log: the Freeflow arm's plugin wrote no event line, so Freeflow is not shown to have run",
+    );
+  }
   return problems;
 }
 

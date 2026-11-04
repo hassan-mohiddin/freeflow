@@ -72,7 +72,8 @@ export function claudeCodeSetupProblems({ label, model, extensions = [], setting
 /**
  * Problems with a group that runs its subjects on Claude Code, or [] when there are none: tools Claude Code has,
  * a model for every arm, no Pi extensions, bash only in a container environment, and none of the features the
- * adapter does not support yet (declared commands, runtime extension bundles, Freeflow).
+ * adapter does not support yet (declared commands, runtime extension bundles). A Freeflow arm loads the built
+ * package as a plugin (launch.mjs); its `hooks` are the package's, never a setting's.
  */
 export function claudeCodeGroupProblems(group, configurations) {
   const problems = [];
@@ -102,9 +103,6 @@ export function claudeCodeGroupProblems(group, configurations) {
     }
     if ((configuration.runtime?.extensions?.length ?? 0) > 0) {
       problems.push(`${label}.runtime.extensions are Pi extensions; Claude Code loads none`);
-    }
-    if (configuration.freeflow !== undefined && configuration.freeflow !== null) {
-      problems.push(`${label}.freeflow is not supported on Claude Code yet`);
     }
   }
   return problems;

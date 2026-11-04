@@ -269,6 +269,8 @@ test("a three-arm A/A/B group runs every arm and keys runs, grades, comparisons 
         "listCost",
         "interruptions",
         "defaultAnswers",
+        "overhead",
+        "overheadUncached",
         "peakContext",
         "skillReads",
         "skillReadTokens",

@@ -37,6 +37,9 @@ export const METRIC_NAMES = [
   "listCost",
   "interruptions",
   "defaultAnswers",
+  // A Freeflow arm's overhead from its own event log: Freeflow's estimated share of all input tokens, and of uncached.
+  "overhead",
+  "overheadUncached",
 ];
 
 const DIRECTIONS = new Set(["higher", "lower"]);

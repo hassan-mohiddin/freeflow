@@ -56,6 +56,8 @@ export function runMetricsFor({ observation, run, subject }) {
     // Set by a conversation once its simulated user's turns are known (participants.mjs); null without one.
     interruptions: null,
     defaultAnswers: null,
+    overhead: number(run?.freeflowEvents?.summary?.overhead?.share),
+    overheadUncached: number(run?.freeflowEvents?.summary?.overhead?.uncached),
     ...transcriptMetrics({ run, subject }),
   };
 }

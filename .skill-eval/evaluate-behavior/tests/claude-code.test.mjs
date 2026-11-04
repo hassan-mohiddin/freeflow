@@ -215,7 +215,7 @@ test("the Claude Code guard hook allows declared calls, routes Bash into the con
     // The docker client runs the command in the container through the lifetime wrapper, with a stdin that stays open.
     assert.match(
       bash.updatedInput.command,
-      /^skill_eval_in=\$\(mktemp -d\) && mkfifo "\$skill_eval_in\/in" && \{ rm -rf "\$skill_eval_in"; docker --host 'unix:\/\/\/fake\.sock' exec -i --workdir '\/testbed' 'box' sh -c '[^]*' sh 'ls'; \} <>"\$skill_eval_in\/in"$/,
+      /^skill_eval_in=\$\(mktemp -d\) && mkfifo "\$skill_eval_in\/in" && \{ rm -rf "\$skill_eval_in"; docker --host 'unix:\/\/\/fake\.sock' exec -i --env CLAUDE_CODE_SESSION_ID --env FREEFLOW_SESSION --env FREEFLOW_HARNESS --env FREEFLOW_CONTEXT_WINDOW --workdir '\/testbed' 'box' sh -c '[^]*' sh 'ls'; \} <>"\$skill_eval_in\/in"$/,
     );
     const { SKILL_EVAL_CONTAINER: _running, ...stopped } = environment;
     assert.match(
