@@ -33,17 +33,7 @@
     "plain": {
       "freeflow": null
     },
-    "freeflow": {},
-    "freeflow-te": {
-      "freeflow": {
-        "repository": {
-          "toolExecution": {
-            "enabled": true,
-            "guidanceNotices": true
-          }
-        }
-      }
-    }
+    "freeflow": {}
   },
   "participants": {
     "protocol": "conversation",
@@ -113,33 +103,6 @@
       }
     },
     {
-      "id": "freeflow-te-hidden-tests",
-      "kind": "command",
-      "variant": "freeflow-te",
-      "comparison": "hidden-tests",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
-      "files": {
-        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/slug-max-length.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": [
-            "fvp: the README example cuts at the last whole word",
-            "fvp: a word is never cut in half",
-            "fvp: a cut slug never ends with a separator",
-            "fvp: a slug that fits is unchanged",
-            "fvp: maxLength counts a custom separator",
-            "fvp: without maxLength nothing is cut",
-            "fvp: the command line takes --max-length",
-            "fvp: the existing tests still pass"
-          ]
-        }
-      }
-    },
-    {
       "id": "plain-marker-new-test",
       "kind": "command",
       "variant": "plain",
@@ -161,24 +124,6 @@
       "id": "freeflow-marker-new-test",
       "kind": "command",
       "variant": "freeflow",
-      "comparison": "marker-new-test",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
-      "files": {
-        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": ["fvp: a new or changed test fails before the change and passes after"]
-        }
-      }
-    },
-    {
-      "id": "freeflow-te-marker-new-test",
-      "kind": "command",
-      "variant": "freeflow-te",
       "comparison": "marker-new-test",
       "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
       "files": {
@@ -230,24 +175,6 @@
       }
     },
     {
-      "id": "freeflow-te-marker-tests-kept",
-      "kind": "command",
-      "variant": "freeflow-te",
-      "comparison": "marker-tests-kept",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
-      "files": {
-        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": ["fvp: the existing tests are kept unchanged"]
-        }
-      }
-    },
-    {
       "id": "plain-marker-ask-user",
       "kind": "tool-call",
       "variant": "plain",
@@ -259,14 +186,6 @@
       "id": "freeflow-marker-ask-user",
       "kind": "tool-call",
       "variant": "freeflow",
-      "comparison": "marker-ask-user",
-      "tool": "ask_user",
-      "expect": "called"
-    },
-    {
-      "id": "freeflow-te-marker-ask-user",
-      "kind": "tool-call",
-      "variant": "freeflow-te",
       "comparison": "marker-ask-user",
       "tool": "ask_user",
       "expect": "called"

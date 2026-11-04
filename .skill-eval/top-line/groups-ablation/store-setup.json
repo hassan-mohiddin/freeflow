@@ -1,0 +1,340 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "store-setup-ablation",
+  "type": "body",
+  "input": {
+    "prompt": "A first-time user has no Freeflow store and nothing tells them how to get one, and a cloud session's store doesn't work at all. Can you add store setup: local only or local plus cloud, what a cloud environment needs, and moving older records into the store?"
+  },
+  "fixture": {
+    "git": "ed0cfa682f638ef915b61e1f9ab9c6eca80bdeb0",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "freeflow": {},
+    "freeflow-no-track": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "track-work": false
+          }
+        }
+      }
+    },
+    "freeflow-no-gates": {
+      "freeflow": {
+        "repository": {
+          "gates": {
+            "agreement": "off",
+            "slice": "off",
+            "delivery": "off",
+            "delegation": "off"
+          }
+        }
+      }
+    },
+    "freeflow-no-review": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "review-work": false
+          }
+        }
+      }
+    }
+  },
+  "reference": "freeflow",
+  "component": ["freeflow.repository"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/store-setup.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/migrate5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs",
+        ".skill-eval/track-work/tests/store.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/discuss-work/tests/choices.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/migrate5.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/migrate5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/projects5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/session5.test.mjs",
+        ".skill-eval/track-work/tests/store.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/store.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "choices validates a list and refuses a broken one",
+            "a list with no items yet, such as a new task's decisions.md, is valid (P98)",
+            "the agreement shows the plan's size last (P101), and its Technical part the plan from estimate --plan --json (P87)",
+            "choices renders the agreement, the hand-over filter and the catch-up from the record",
+            "with a Schema 5 record, the list is decisions.md beside it and the catch-up reads the current Slice's update lines",
+            "migrate converts a Schema 4 record in place, keeping the old record whole and every closed Slice in History",
+            "migrate --project copies the task into the store as its next task, converts it there and commits, leaving the original as it was",
+            "migrate --project brings a Schema 5 task kept in a repository into the store, unchanged, leaving the original (P91)",
+            "migrate refuses a cue that is not one and a cue for a Slice that is not closed, writing nothing",
+            "a second session's take is refused with the holder and its last sync, and allowed after a release; each hold is pushed",
+            "a session holds one task at a time: take refuses a second, switch releases the first",
+            "the menu lists the open tasks of the project whose tasks name the folder's remote, or of every project elsewhere (P95), and says what this session holds",
+            "removing a task or a project is a pushed commit that Git history keeps, and task numbers are not reused",
+            "a task with no project: created where no project names the folder, listed in the menu, moved into a project and out again without reusing its number",
+            "outside a Freeflow store, project and task keep Pi's registry, and the hold commands say a store is needed",
+            "the session is read from the environment: Claude Code's IDs, a cloud session's link, or Freeflow's own variables",
+            "task here --scan remembers where a task's repository is on this machine, so recovery resolves its pointers (P96)",
+            "session status prints this session's state in the store as JSON: its task, its summary, unsynced changes and its transcript",
+            "view bundle --fallback adds the user's messages since the checkpoint, word for word, and a closing line naming the record's time and the transcript",
+            "store init lays an empty remote out as the store and pushes its first commit, authored as the user",
+            "store init --remote uses an empty clone of that remote already in the folder, as a cloud session has it (P97)",
+            "store init on a second machine joins the store as it is, with no commit of its own",
+            "store init refuses a remote that holds another repository, and leaves no folder behind",
+            "store init stops on a home that holds Pi's Task Memory, and clones nothing",
+            "store init needs an identity for the store's commits, and leaves an empty folder empty",
+            "store status says what is not committed or pushed, and store sync commits and pushes it",
+            "the Git check accepts a record inside the store and still refuses one a code repository does not ignore",
+            "appends to history.md on two machines merge by keeping both sides' lines",
+            "a record both machines changed keeps both copies and stops, until store sync --resolved",
+            "with no network the commit stays here without failing, and the next sync pushes it",
+            "a secret stops the push, named by path, line and kind, and a commit that held it never leaves",
+            "a push the remote refused because it moved takes the remote's commits and pushes again",
+            "store sync --pull takes the remote's commits and pushes nothing",
+            "the secret scan reads only a patch's added lines, at their line in the new file",
+            "store init without --remote makes a local store: committed here, nothing to push",
+            "store remote makes a local store a cloud store with its history, and refuses a repository that holds commits",
+            "session status names what keeps the session from a working store, and who fixes it (P94)"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-track-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-track",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/migrate5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs",
+        ".skill-eval/track-work/tests/store.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/discuss-work/tests/choices.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/migrate5.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/migrate5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/projects5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/session5.test.mjs",
+        ".skill-eval/track-work/tests/store.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/store.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "choices validates a list and refuses a broken one",
+            "a list with no items yet, such as a new task's decisions.md, is valid (P98)",
+            "the agreement shows the plan's size last (P101), and its Technical part the plan from estimate --plan --json (P87)",
+            "choices renders the agreement, the hand-over filter and the catch-up from the record",
+            "with a Schema 5 record, the list is decisions.md beside it and the catch-up reads the current Slice's update lines",
+            "migrate converts a Schema 4 record in place, keeping the old record whole and every closed Slice in History",
+            "migrate --project copies the task into the store as its next task, converts it there and commits, leaving the original as it was",
+            "migrate --project brings a Schema 5 task kept in a repository into the store, unchanged, leaving the original (P91)",
+            "migrate refuses a cue that is not one and a cue for a Slice that is not closed, writing nothing",
+            "a second session's take is refused with the holder and its last sync, and allowed after a release; each hold is pushed",
+            "a session holds one task at a time: take refuses a second, switch releases the first",
+            "the menu lists the open tasks of the project whose tasks name the folder's remote, or of every project elsewhere (P95), and says what this session holds",
+            "removing a task or a project is a pushed commit that Git history keeps, and task numbers are not reused",
+            "a task with no project: created where no project names the folder, listed in the menu, moved into a project and out again without reusing its number",
+            "outside a Freeflow store, project and task keep Pi's registry, and the hold commands say a store is needed",
+            "the session is read from the environment: Claude Code's IDs, a cloud session's link, or Freeflow's own variables",
+            "task here --scan remembers where a task's repository is on this machine, so recovery resolves its pointers (P96)",
+            "session status prints this session's state in the store as JSON: its task, its summary, unsynced changes and its transcript",
+            "view bundle --fallback adds the user's messages since the checkpoint, word for word, and a closing line naming the record's time and the transcript",
+            "store init lays an empty remote out as the store and pushes its first commit, authored as the user",
+            "store init --remote uses an empty clone of that remote already in the folder, as a cloud session has it (P97)",
+            "store init on a second machine joins the store as it is, with no commit of its own",
+            "store init refuses a remote that holds another repository, and leaves no folder behind",
+            "store init stops on a home that holds Pi's Task Memory, and clones nothing",
+            "store init needs an identity for the store's commits, and leaves an empty folder empty",
+            "store status says what is not committed or pushed, and store sync commits and pushes it",
+            "the Git check accepts a record inside the store and still refuses one a code repository does not ignore",
+            "appends to history.md on two machines merge by keeping both sides' lines",
+            "a record both machines changed keeps both copies and stops, until store sync --resolved",
+            "with no network the commit stays here without failing, and the next sync pushes it",
+            "a secret stops the push, named by path, line and kind, and a commit that held it never leaves",
+            "a push the remote refused because it moved takes the remote's commits and pushes again",
+            "store sync --pull takes the remote's commits and pushes nothing",
+            "the secret scan reads only a patch's added lines, at their line in the new file",
+            "store init without --remote makes a local store: committed here, nothing to push",
+            "store remote makes a local store a cloud store with its history, and refuses a repository that holds commits",
+            "session status names what keeps the session from a working store, and who fixes it (P94)"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-gates-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-gates",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/migrate5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs",
+        ".skill-eval/track-work/tests/store.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/discuss-work/tests/choices.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/migrate5.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/migrate5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/projects5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/session5.test.mjs",
+        ".skill-eval/track-work/tests/store.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/store.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "choices validates a list and refuses a broken one",
+            "a list with no items yet, such as a new task's decisions.md, is valid (P98)",
+            "the agreement shows the plan's size last (P101), and its Technical part the plan from estimate --plan --json (P87)",
+            "choices renders the agreement, the hand-over filter and the catch-up from the record",
+            "with a Schema 5 record, the list is decisions.md beside it and the catch-up reads the current Slice's update lines",
+            "migrate converts a Schema 4 record in place, keeping the old record whole and every closed Slice in History",
+            "migrate --project copies the task into the store as its next task, converts it there and commits, leaving the original as it was",
+            "migrate --project brings a Schema 5 task kept in a repository into the store, unchanged, leaving the original (P91)",
+            "migrate refuses a cue that is not one and a cue for a Slice that is not closed, writing nothing",
+            "a second session's take is refused with the holder and its last sync, and allowed after a release; each hold is pushed",
+            "a session holds one task at a time: take refuses a second, switch releases the first",
+            "the menu lists the open tasks of the project whose tasks name the folder's remote, or of every project elsewhere (P95), and says what this session holds",
+            "removing a task or a project is a pushed commit that Git history keeps, and task numbers are not reused",
+            "a task with no project: created where no project names the folder, listed in the menu, moved into a project and out again without reusing its number",
+            "outside a Freeflow store, project and task keep Pi's registry, and the hold commands say a store is needed",
+            "the session is read from the environment: Claude Code's IDs, a cloud session's link, or Freeflow's own variables",
+            "task here --scan remembers where a task's repository is on this machine, so recovery resolves its pointers (P96)",
+            "session status prints this session's state in the store as JSON: its task, its summary, unsynced changes and its transcript",
+            "view bundle --fallback adds the user's messages since the checkpoint, word for word, and a closing line naming the record's time and the transcript",
+            "store init lays an empty remote out as the store and pushes its first commit, authored as the user",
+            "store init --remote uses an empty clone of that remote already in the folder, as a cloud session has it (P97)",
+            "store init on a second machine joins the store as it is, with no commit of its own",
+            "store init refuses a remote that holds another repository, and leaves no folder behind",
+            "store init stops on a home that holds Pi's Task Memory, and clones nothing",
+            "store init needs an identity for the store's commits, and leaves an empty folder empty",
+            "store status says what is not committed or pushed, and store sync commits and pushes it",
+            "the Git check accepts a record inside the store and still refuses one a code repository does not ignore",
+            "appends to history.md on two machines merge by keeping both sides' lines",
+            "a record both machines changed keeps both copies and stops, until store sync --resolved",
+            "with no network the commit stays here without failing, and the next sync pushes it",
+            "a secret stops the push, named by path, line and kind, and a commit that held it never leaves",
+            "a push the remote refused because it moved takes the remote's commits and pushes again",
+            "store sync --pull takes the remote's commits and pushes nothing",
+            "the secret scan reads only a patch's added lines, at their line in the new file",
+            "store init without --remote makes a local store: committed here, nothing to push",
+            "store remote makes a local store a cloud store with its history, and refuses a repository that holds commits",
+            "session status names what keeps the session from a working store, and who fixes it (P94)"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-review-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-review",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/migrate5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs",
+        ".skill-eval/track-work/tests/store.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/discuss-work/tests/choices.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/migrate5.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/migrate5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/projects5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/session5.test.mjs",
+        ".skill-eval/track-work/tests/store.test.mjs": ".skill-eval/top-line/graders/store-setup/.skill-eval/track-work/tests/store.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "choices validates a list and refuses a broken one",
+            "a list with no items yet, such as a new task's decisions.md, is valid (P98)",
+            "the agreement shows the plan's size last (P101), and its Technical part the plan from estimate --plan --json (P87)",
+            "choices renders the agreement, the hand-over filter and the catch-up from the record",
+            "with a Schema 5 record, the list is decisions.md beside it and the catch-up reads the current Slice's update lines",
+            "migrate converts a Schema 4 record in place, keeping the old record whole and every closed Slice in History",
+            "migrate --project copies the task into the store as its next task, converts it there and commits, leaving the original as it was",
+            "migrate --project brings a Schema 5 task kept in a repository into the store, unchanged, leaving the original (P91)",
+            "migrate refuses a cue that is not one and a cue for a Slice that is not closed, writing nothing",
+            "a second session's take is refused with the holder and its last sync, and allowed after a release; each hold is pushed",
+            "a session holds one task at a time: take refuses a second, switch releases the first",
+            "the menu lists the open tasks of the project whose tasks name the folder's remote, or of every project elsewhere (P95), and says what this session holds",
+            "removing a task or a project is a pushed commit that Git history keeps, and task numbers are not reused",
+            "a task with no project: created where no project names the folder, listed in the menu, moved into a project and out again without reusing its number",
+            "outside a Freeflow store, project and task keep Pi's registry, and the hold commands say a store is needed",
+            "the session is read from the environment: Claude Code's IDs, a cloud session's link, or Freeflow's own variables",
+            "task here --scan remembers where a task's repository is on this machine, so recovery resolves its pointers (P96)",
+            "session status prints this session's state in the store as JSON: its task, its summary, unsynced changes and its transcript",
+            "view bundle --fallback adds the user's messages since the checkpoint, word for word, and a closing line naming the record's time and the transcript",
+            "store init lays an empty remote out as the store and pushes its first commit, authored as the user",
+            "store init --remote uses an empty clone of that remote already in the folder, as a cloud session has it (P97)",
+            "store init on a second machine joins the store as it is, with no commit of its own",
+            "store init refuses a remote that holds another repository, and leaves no folder behind",
+            "store init stops on a home that holds Pi's Task Memory, and clones nothing",
+            "store init needs an identity for the store's commits, and leaves an empty folder empty",
+            "store status says what is not committed or pushed, and store sync commits and pushes it",
+            "the Git check accepts a record inside the store and still refuses one a code repository does not ignore",
+            "appends to history.md on two machines merge by keeping both sides' lines",
+            "a record both machines changed keeps both copies and stops, until store sync --resolved",
+            "with no network the commit stays here without failing, and the next sync pushes it",
+            "a secret stops the push, named by path, line and kind, and a commit that held it never leaves",
+            "a push the remote refused because it moved takes the remote's commits and pushes again",
+            "store sync --pull takes the remote's commits and pushes nothing",
+            "the secret scan reads only a patch's added lines, at their line in the new file",
+            "store init without --remote makes a local store: committed here, nothing to push",
+            "store remote makes a local store a cloud store with its history, and refuses a repository that holds commits",
+            "session status names what keeps the session from a working store, and who fixes it (P94)"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "22f5cbdc3682d9291f38a623d35193e28cebb7aa"
+  }
+}

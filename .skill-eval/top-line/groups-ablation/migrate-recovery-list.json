@@ -1,0 +1,160 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "migrate-recovery-list-ablation",
+  "type": "body",
+  "input": {
+    "prompt": "Task records written before we switched to the one Recovery list can't be recovered anymore: every Track Work command refuses them because they still have Defined by, Read on recovery, Read when and Carry lines. Can you make migrate convert those records?"
+  },
+  "fixture": {
+    "git": "e0c720eba5853c2846308ca1e7f28859751b8a2b",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "freeflow": {},
+    "freeflow-no-track": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "track-work": false
+          }
+        }
+      }
+    },
+    "freeflow-no-gates": {
+      "freeflow": {
+        "repository": {
+          "gates": {
+            "agreement": "off",
+            "slice": "off",
+            "delivery": "off",
+            "delegation": "off"
+          }
+        }
+      }
+    },
+    "freeflow-no-review": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "review-work": false
+          }
+        }
+      }
+    }
+  },
+  "reference": "freeflow",
+  "component": ["freeflow.repository"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/migrate-recovery-list.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/migrate5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/migrate5.test.mjs": ".skill-eval/top-line/graders/migrate-recovery-list/.skill-eval/track-work/tests/migrate5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "migrate converts a Schema 4 record in place, keeping the old record whole and every closed Slice in History",
+            "migrate --project copies the task into the store as its next task, converts it there and commits, leaving the original as it was",
+            "migrate --project brings a Schema 5 task kept in a repository into the store, unchanged, leaving the original (P91)",
+            "migrate refuses a cue that is not one and a cue for a Slice that is not closed, writing nothing",
+            "migrate converts a Schema 5 record written before the one Recovery list, keeping the old record and every other line"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-track-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-track",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/migrate5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/migrate5.test.mjs": ".skill-eval/top-line/graders/migrate-recovery-list/.skill-eval/track-work/tests/migrate5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "migrate converts a Schema 4 record in place, keeping the old record whole and every closed Slice in History",
+            "migrate --project copies the task into the store as its next task, converts it there and commits, leaving the original as it was",
+            "migrate --project brings a Schema 5 task kept in a repository into the store, unchanged, leaving the original (P91)",
+            "migrate refuses a cue that is not one and a cue for a Slice that is not closed, writing nothing",
+            "migrate converts a Schema 5 record written before the one Recovery list, keeping the old record and every other line"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-gates-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-gates",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/migrate5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/migrate5.test.mjs": ".skill-eval/top-line/graders/migrate-recovery-list/.skill-eval/track-work/tests/migrate5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "migrate converts a Schema 4 record in place, keeping the old record whole and every closed Slice in History",
+            "migrate --project copies the task into the store as its next task, converts it there and commits, leaving the original as it was",
+            "migrate --project brings a Schema 5 task kept in a repository into the store, unchanged, leaving the original (P91)",
+            "migrate refuses a cue that is not one and a cue for a Slice that is not closed, writing nothing",
+            "migrate converts a Schema 5 record written before the one Recovery list, keeping the old record and every other line"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-review-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-review",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/migrate5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/migrate5.test.mjs": ".skill-eval/top-line/graders/migrate-recovery-list/.skill-eval/track-work/tests/migrate5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "migrate converts a Schema 4 record in place, keeping the old record whole and every closed Slice in History",
+            "migrate --project copies the task into the store as its next task, converts it there and commits, leaving the original as it was",
+            "migrate --project brings a Schema 5 task kept in a repository into the store, unchanged, leaving the original (P91)",
+            "migrate refuses a cue that is not one and a cue for a Slice that is not closed, writing nothing",
+            "migrate converts a Schema 5 record written before the one Recovery list, keeping the old record and every other line"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "16667d2bc0509a445d5c9e7d22f38442f604e2f4"
+  }
+}

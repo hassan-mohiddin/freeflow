@@ -1,0 +1,27 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "top-line-ablation",
+  "groups": [
+    "groups-ablation/migrate-recovery-list.json",
+    "groups-ablation/slice-cost-by-model.json",
+    "groups-ablation/review-packet-root.json",
+    "groups-ablation/compare-reworded.json",
+    "groups-ablation/docs-check-stamp.json",
+    "groups-ablation/plan-novelty-check.json",
+    "groups-ablation/pass-k-interval.json",
+    "groups-ablation/delegate-commands.json",
+    "groups-ablation/carry-tool-results.json",
+    "groups-ablation/slice-size-by-files.json",
+    "groups-ablation/rules-at-session-start.json",
+    "groups-ablation/delegation-without-task.json",
+    "groups-ablation/codex-gates.json",
+    "groups-ablation/checkpoint-compact.json",
+    "groups-ablation/resume-takes-back.json",
+    "groups-ablation/recheck-numbers.json",
+    "groups-ablation/settings-everywhere.json",
+    "groups-ablation/recovery-list.json",
+    "groups-ablation/store-setup.json",
+    "groups-ablation/codex-driver.json"
+  ]
+}

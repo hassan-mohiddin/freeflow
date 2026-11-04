@@ -1,0 +1,23 @@
+{
+  "schema_version": 2,
+  "kind": "configuration",
+  "id": "top-line",
+  "configuration": {
+    "host": { "name": "claude-code" },
+    "model": { "model": "anthropic/claude-haiku-5-5", "thinking": "xhigh" },
+    "subject": { "kind": "none" },
+    "runtime": { "prompt": "host" },
+    "network": "none",
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-top-line@sha256:232b8a058a2c9130ad6d6225b0f5e49cb144dfbfecdf379b9a5b9bc0c808c4af",
+      "workdir": "/testbed",
+      "network": "none"
+    },
+    "freeflow": {
+      "source": { "kind": "git", "ref": "83000618edc072e5f120894559e78a10f2d72858" },
+      "repository": { "review": { "unit": "pr", "depth": { "default": "standard" } } },
+      "personal": {}
+    }
+  }
+}

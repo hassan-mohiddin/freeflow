@@ -1,0 +1,172 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "pass-k-interval-ablation",
+  "type": "body",
+  "input": {
+    "prompt": "Research Work can't aggregate results over several seeds and tasks yet. Can you add aggregates: the interquartile mean, mean, median and optimality gap with stratified bootstrap intervals, the probability that one method beats another, and an interval for pass^k for one task or a whole suite?"
+  },
+  "fixture": {
+    "git": "c3a09c7fa7a0ace47bc2f6368e98239103588a6c",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "freeflow": {},
+    "freeflow-no-track": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "track-work": false
+          }
+        }
+      }
+    },
+    "freeflow-no-gates": {
+      "freeflow": {
+        "repository": {
+          "gates": {
+            "agreement": "off",
+            "slice": "off",
+            "delivery": "off",
+            "delegation": "off"
+          }
+        }
+      }
+    },
+    "freeflow-no-review": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "review-work": false
+          }
+        }
+      }
+    }
+  },
+  "reference": "freeflow",
+  "component": ["freeflow.repository"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/pass-k-interval.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/research-work/tests/aggregates.test.mjs"],
+      "files": {
+        ".skill-eval/research-work/tests/aggregates.test.mjs": ".skill-eval/top-line/graders/pass-k-interval/.skill-eval/research-work/tests/aggregates.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the point estimates follow their definitions",
+            "the stratified bootstrap resamples runs within each task, never across tasks",
+            "the probability of improvement averages, over tasks, the chance a run of X beats a run of Y",
+            "pass^k has an exact interval for one task and a bootstrap interval over tasks",
+            "the command line runs the aggregate family and the pass^k intervals",
+            "the bootstrap intervals match exact enumeration of every resample on small designs",
+            "a suite's pass^k interval resamples trials within tasks too, and warns when tasks are few",
+            "degenerate designs and odd inputs are named, never silently wrong"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-track-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-track",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/research-work/tests/aggregates.test.mjs"],
+      "files": {
+        ".skill-eval/research-work/tests/aggregates.test.mjs": ".skill-eval/top-line/graders/pass-k-interval/.skill-eval/research-work/tests/aggregates.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the point estimates follow their definitions",
+            "the stratified bootstrap resamples runs within each task, never across tasks",
+            "the probability of improvement averages, over tasks, the chance a run of X beats a run of Y",
+            "pass^k has an exact interval for one task and a bootstrap interval over tasks",
+            "the command line runs the aggregate family and the pass^k intervals",
+            "the bootstrap intervals match exact enumeration of every resample on small designs",
+            "a suite's pass^k interval resamples trials within tasks too, and warns when tasks are few",
+            "degenerate designs and odd inputs are named, never silently wrong"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-gates-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-gates",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/research-work/tests/aggregates.test.mjs"],
+      "files": {
+        ".skill-eval/research-work/tests/aggregates.test.mjs": ".skill-eval/top-line/graders/pass-k-interval/.skill-eval/research-work/tests/aggregates.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the point estimates follow their definitions",
+            "the stratified bootstrap resamples runs within each task, never across tasks",
+            "the probability of improvement averages, over tasks, the chance a run of X beats a run of Y",
+            "pass^k has an exact interval for one task and a bootstrap interval over tasks",
+            "the command line runs the aggregate family and the pass^k intervals",
+            "the bootstrap intervals match exact enumeration of every resample on small designs",
+            "a suite's pass^k interval resamples trials within tasks too, and warns when tasks are few",
+            "degenerate designs and odd inputs are named, never silently wrong"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-review-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-review",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/research-work/tests/aggregates.test.mjs"],
+      "files": {
+        ".skill-eval/research-work/tests/aggregates.test.mjs": ".skill-eval/top-line/graders/pass-k-interval/.skill-eval/research-work/tests/aggregates.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the point estimates follow their definitions",
+            "the stratified bootstrap resamples runs within each task, never across tasks",
+            "the probability of improvement averages, over tasks, the chance a run of X beats a run of Y",
+            "pass^k has an exact interval for one task and a bootstrap interval over tasks",
+            "the command line runs the aggregate family and the pass^k intervals",
+            "the bootstrap intervals match exact enumeration of every resample on small designs",
+            "a suite's pass^k interval resamples trials within tasks too, and warns when tasks are few",
+            "degenerate designs and odd inputs are named, never silently wrong"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "7c7b70ac85267160a4a4601af96f0d12e2581b14"
+  }
+}

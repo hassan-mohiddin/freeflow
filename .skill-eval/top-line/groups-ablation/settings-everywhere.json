@@ -1,0 +1,288 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "settings-everywhere-ablation",
+  "type": "body",
+  "input": {
+    "prompt": "Freeflow's settings can only be changed from Pi's settings screen. I want them changeable the same way on every host: one table of settings, a settings script the agent can run in any scope, and /freeflow settings on Claude Code. Can you build that?"
+  },
+  "fixture": {
+    "git": "25820f90c8cbccb8da760cce919f7c9470fab116",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "freeflow": {},
+    "freeflow-no-track": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "track-work": false
+          }
+        }
+      }
+    },
+    "freeflow-no-gates": {
+      "freeflow": {
+        "repository": {
+          "gates": {
+            "agreement": "off",
+            "slice": "off",
+            "delivery": "off",
+            "delegation": "off"
+          }
+        }
+      }
+    },
+    "freeflow-no-review": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "review-work": false
+          }
+        }
+      }
+    }
+  },
+  "reference": "freeflow",
+  "component": ["freeflow.repository"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/settings-everywhere.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/setup-freeflow/tests/settings.test.mjs",
+        "hooks/tests/check-host-adapters.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/setup-freeflow/tests/settings.test.mjs": ".skill-eval/top-line/graders/settings-everywhere/.skill-eval/setup-freeflow/tests/settings.test.mjs",
+        "hooks/tests/check-host-adapters.test.mjs": ".skill-eval/top-line/graders/settings-everywhere/hooks/tests/check-host-adapters.test.mjs",
+        "hooks/tests/check-runtime-context-hook.sh": ".skill-eval/top-line/graders/settings-everywhere/hooks/tests/check-runtime-context-hook.sh"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "list with nothing set shows every setting all hosts act on at its default, and names the Pi-only ones",
+            "every settable key can be set, read back and unset in each of its scopes",
+            "inherit unsets a key in that scope",
+            "a repository write drops a value equal to its default; a personal write keeps it and overrides the repository",
+            "a personal write adds .freeflow/local.json to Git's exclude first",
+            "a Session value wins over the files, lives in the Freeflow home and is gone in another session",
+            "a change prints the Runtime State lines it changed, and the prompt note for a prompt",
+            "refusals name what is wrong and write nothing",
+            "the Session scope is refused without a session ID",
+            "an invalid file stops every write and is named by list and get",
+            "a personal file Git tracks is refused",
+            "a file with v: 1 is read, and a write keeps it",
+            "outside a Git repository a personal write still works",
+            "a folder inside the repository reads and writes the repository's settings",
+            "host adapters share rendered mandatory context but emit host-native envelopes",
+            "host adapters stay inert for disabled and unsupported lifecycle inputs and report an invalid config",
+            "a config Pi accepts activates Freeflow on every hook host",
+            "the hooks and Pi agree on every config's validity",
+            "a hook host's Runtime State names the user's review choice, and only a choice",
+            "a hook host's Runtime State names the skills the user turned off, and drops an off prompt",
+            "a hook host reads the session's own settings over the files, for that session only",
+            "the shared config validator imports nothing but Node and its own files",
+            "the user selects which runtime prompts a hook host delivers",
+            "an invalid prompt selection is reported",
+            "each Claude Code hook stays under Claude Code's context cap and together they deliver every prompt once",
+            "Codex's hook limit holds the whole context",
+            "every runtime prompt fits one Claude Code hook with room to spare",
+            "the npm package Codex installs has no Agent Plugins manifest and delivers Freeflow's context",
+            "the root hooks file delivers Freeflow's context under Gemini and nothing under Claude Code"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-track-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-track",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/setup-freeflow/tests/settings.test.mjs",
+        "hooks/tests/check-host-adapters.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/setup-freeflow/tests/settings.test.mjs": ".skill-eval/top-line/graders/settings-everywhere/.skill-eval/setup-freeflow/tests/settings.test.mjs",
+        "hooks/tests/check-host-adapters.test.mjs": ".skill-eval/top-line/graders/settings-everywhere/hooks/tests/check-host-adapters.test.mjs",
+        "hooks/tests/check-runtime-context-hook.sh": ".skill-eval/top-line/graders/settings-everywhere/hooks/tests/check-runtime-context-hook.sh"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "list with nothing set shows every setting all hosts act on at its default, and names the Pi-only ones",
+            "every settable key can be set, read back and unset in each of its scopes",
+            "inherit unsets a key in that scope",
+            "a repository write drops a value equal to its default; a personal write keeps it and overrides the repository",
+            "a personal write adds .freeflow/local.json to Git's exclude first",
+            "a Session value wins over the files, lives in the Freeflow home and is gone in another session",
+            "a change prints the Runtime State lines it changed, and the prompt note for a prompt",
+            "refusals name what is wrong and write nothing",
+            "the Session scope is refused without a session ID",
+            "an invalid file stops every write and is named by list and get",
+            "a personal file Git tracks is refused",
+            "a file with v: 1 is read, and a write keeps it",
+            "outside a Git repository a personal write still works",
+            "a folder inside the repository reads and writes the repository's settings",
+            "host adapters share rendered mandatory context but emit host-native envelopes",
+            "host adapters stay inert for disabled and unsupported lifecycle inputs and report an invalid config",
+            "a config Pi accepts activates Freeflow on every hook host",
+            "the hooks and Pi agree on every config's validity",
+            "a hook host's Runtime State names the user's review choice, and only a choice",
+            "a hook host's Runtime State names the skills the user turned off, and drops an off prompt",
+            "a hook host reads the session's own settings over the files, for that session only",
+            "the shared config validator imports nothing but Node and its own files",
+            "the user selects which runtime prompts a hook host delivers",
+            "an invalid prompt selection is reported",
+            "each Claude Code hook stays under Claude Code's context cap and together they deliver every prompt once",
+            "Codex's hook limit holds the whole context",
+            "every runtime prompt fits one Claude Code hook with room to spare",
+            "the npm package Codex installs has no Agent Plugins manifest and delivers Freeflow's context",
+            "the root hooks file delivers Freeflow's context under Gemini and nothing under Claude Code"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-gates-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-gates",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/setup-freeflow/tests/settings.test.mjs",
+        "hooks/tests/check-host-adapters.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/setup-freeflow/tests/settings.test.mjs": ".skill-eval/top-line/graders/settings-everywhere/.skill-eval/setup-freeflow/tests/settings.test.mjs",
+        "hooks/tests/check-host-adapters.test.mjs": ".skill-eval/top-line/graders/settings-everywhere/hooks/tests/check-host-adapters.test.mjs",
+        "hooks/tests/check-runtime-context-hook.sh": ".skill-eval/top-line/graders/settings-everywhere/hooks/tests/check-runtime-context-hook.sh"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "list with nothing set shows every setting all hosts act on at its default, and names the Pi-only ones",
+            "every settable key can be set, read back and unset in each of its scopes",
+            "inherit unsets a key in that scope",
+            "a repository write drops a value equal to its default; a personal write keeps it and overrides the repository",
+            "a personal write adds .freeflow/local.json to Git's exclude first",
+            "a Session value wins over the files, lives in the Freeflow home and is gone in another session",
+            "a change prints the Runtime State lines it changed, and the prompt note for a prompt",
+            "refusals name what is wrong and write nothing",
+            "the Session scope is refused without a session ID",
+            "an invalid file stops every write and is named by list and get",
+            "a personal file Git tracks is refused",
+            "a file with v: 1 is read, and a write keeps it",
+            "outside a Git repository a personal write still works",
+            "a folder inside the repository reads and writes the repository's settings",
+            "host adapters share rendered mandatory context but emit host-native envelopes",
+            "host adapters stay inert for disabled and unsupported lifecycle inputs and report an invalid config",
+            "a config Pi accepts activates Freeflow on every hook host",
+            "the hooks and Pi agree on every config's validity",
+            "a hook host's Runtime State names the user's review choice, and only a choice",
+            "a hook host's Runtime State names the skills the user turned off, and drops an off prompt",
+            "a hook host reads the session's own settings over the files, for that session only",
+            "the shared config validator imports nothing but Node and its own files",
+            "the user selects which runtime prompts a hook host delivers",
+            "an invalid prompt selection is reported",
+            "each Claude Code hook stays under Claude Code's context cap and together they deliver every prompt once",
+            "Codex's hook limit holds the whole context",
+            "every runtime prompt fits one Claude Code hook with room to spare",
+            "the npm package Codex installs has no Agent Plugins manifest and delivers Freeflow's context",
+            "the root hooks file delivers Freeflow's context under Gemini and nothing under Claude Code"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-review-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-review",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/setup-freeflow/tests/settings.test.mjs",
+        "hooks/tests/check-host-adapters.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/setup-freeflow/tests/settings.test.mjs": ".skill-eval/top-line/graders/settings-everywhere/.skill-eval/setup-freeflow/tests/settings.test.mjs",
+        "hooks/tests/check-host-adapters.test.mjs": ".skill-eval/top-line/graders/settings-everywhere/hooks/tests/check-host-adapters.test.mjs",
+        "hooks/tests/check-runtime-context-hook.sh": ".skill-eval/top-line/graders/settings-everywhere/hooks/tests/check-runtime-context-hook.sh"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "list with nothing set shows every setting all hosts act on at its default, and names the Pi-only ones",
+            "every settable key can be set, read back and unset in each of its scopes",
+            "inherit unsets a key in that scope",
+            "a repository write drops a value equal to its default; a personal write keeps it and overrides the repository",
+            "a personal write adds .freeflow/local.json to Git's exclude first",
+            "a Session value wins over the files, lives in the Freeflow home and is gone in another session",
+            "a change prints the Runtime State lines it changed, and the prompt note for a prompt",
+            "refusals name what is wrong and write nothing",
+            "the Session scope is refused without a session ID",
+            "an invalid file stops every write and is named by list and get",
+            "a personal file Git tracks is refused",
+            "a file with v: 1 is read, and a write keeps it",
+            "outside a Git repository a personal write still works",
+            "a folder inside the repository reads and writes the repository's settings",
+            "host adapters share rendered mandatory context but emit host-native envelopes",
+            "host adapters stay inert for disabled and unsupported lifecycle inputs and report an invalid config",
+            "a config Pi accepts activates Freeflow on every hook host",
+            "the hooks and Pi agree on every config's validity",
+            "a hook host's Runtime State names the user's review choice, and only a choice",
+            "a hook host's Runtime State names the skills the user turned off, and drops an off prompt",
+            "a hook host reads the session's own settings over the files, for that session only",
+            "the shared config validator imports nothing but Node and its own files",
+            "the user selects which runtime prompts a hook host delivers",
+            "an invalid prompt selection is reported",
+            "each Claude Code hook stays under Claude Code's context cap and together they deliver every prompt once",
+            "Codex's hook limit holds the whole context",
+            "every runtime prompt fits one Claude Code hook with room to spare",
+            "the npm package Codex installs has no Agent Plugins manifest and delivers Freeflow's context",
+            "the root hooks file delivers Freeflow's context under Gemini and nothing under Claude Code"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "9807212c2045097b4126871653119b34a7766eed"
+  }
+}

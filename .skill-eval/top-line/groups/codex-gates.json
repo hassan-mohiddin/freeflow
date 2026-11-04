@@ -1,0 +1,121 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "codex-gates",
+  "type": "body",
+  "input": {
+    "prompt": "The gates run on Claude Code and Pi but not on Codex. Codex has a PreToolUse hook now; can you run the gates there?"
+  },
+  "fixture": {
+    "git": "5d92987c286c5408fddcae5f3f66990917d1b661",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/codex-gates.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", "hooks/tests/codex-driver.test.mjs"],
+      "files": {
+        "hooks/tests/codex-driver.test.mjs": ".skill-eval/top-line/graders/codex-gates/hooks/tests/codex-driver.test.mjs",
+        "hooks/tests/fixtures/codex/inputs.mjs": ".skill-eval/top-line/graders/codex-gates/hooks/tests/fixtures/codex/inputs.mjs",
+        "hooks/tests/fixtures/codex/pre-tool-use.command.output.schema.json": ".skill-eval/top-line/graders/codex-gates/hooks/tests/fixtures/codex/pre-tool-use.command.output.schema.json"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "every recorded input follows Codex's generated schema for its event",
+            "hooks.json names the driver for every event it answers, with fork, the bundle unlimited and SessionEnd within 3 s",
+            "each output is the shape Codex's output schema documents, and events that steer nothing print nothing",
+            "session start: the guidance, then the task menu; after Codex compacts, the guidance again and the task's bundle after Codex's summary",
+            "a model request past 50, 60 or 70 percent or the notice point: its row or notice reaches the model at the next tool call or prompt, once a cycle",
+            "a checkpoint after the notice, through Track Work's script, makes the bundle after Codex's next compaction current; checkpoint --compact is refused, naming Codex's thresholds",
+            "the event log: a scripted Codex session's lines are schema v1, in order, kept until the turn ends and written in one run, never contents",
+            "a gate under block: PreToolUse denies the call in Codex's deny shape with the gate's text as the reason, a delivery step too (Codex has no ask), and with no gate state the call is refused",
+            "the gates warn by default: the call runs, the row reaches the model once per gate per turn, and each would-fire is a gate line",
+            "the gates fail open under warn and closed under block: no gate state, and an error deciding",
+            "each conformance test names a yes claim of the driver, and every yes claim has one (SPEC-006 4.7)",
+            "capabilities.mjs lists Codex's claims from the file the driver writes",
+            "with Freeflow off for the session's folder, only the claims are written, every one no, and nothing else runs",
+            "with the event log off, the menu and rows still come and no line is kept",
+            "without a store: the guidance and what is missing, the event log still kept, no rows",
+            "token_usage missing: no row and no notice, and one freeflow line a session says so",
+            "the window and the notice point come from Codex's config: model_context_window and the auto-compact limit",
+            "a tool call's paths: a file tool's fields and apply_patch's files, never the patch's text",
+            "every handler fails open: no session, a home it cannot write, or an unknown event exits 0 with the guidance at most",
+            "the driver waits for input the host writes after starting it"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", "hooks/tests/codex-driver.test.mjs"],
+      "files": {
+        "hooks/tests/codex-driver.test.mjs": ".skill-eval/top-line/graders/codex-gates/hooks/tests/codex-driver.test.mjs",
+        "hooks/tests/fixtures/codex/inputs.mjs": ".skill-eval/top-line/graders/codex-gates/hooks/tests/fixtures/codex/inputs.mjs",
+        "hooks/tests/fixtures/codex/pre-tool-use.command.output.schema.json": ".skill-eval/top-line/graders/codex-gates/hooks/tests/fixtures/codex/pre-tool-use.command.output.schema.json"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "every recorded input follows Codex's generated schema for its event",
+            "hooks.json names the driver for every event it answers, with fork, the bundle unlimited and SessionEnd within 3 s",
+            "each output is the shape Codex's output schema documents, and events that steer nothing print nothing",
+            "session start: the guidance, then the task menu; after Codex compacts, the guidance again and the task's bundle after Codex's summary",
+            "a model request past 50, 60 or 70 percent or the notice point: its row or notice reaches the model at the next tool call or prompt, once a cycle",
+            "a checkpoint after the notice, through Track Work's script, makes the bundle after Codex's next compaction current; checkpoint --compact is refused, naming Codex's thresholds",
+            "the event log: a scripted Codex session's lines are schema v1, in order, kept until the turn ends and written in one run, never contents",
+            "a gate under block: PreToolUse denies the call in Codex's deny shape with the gate's text as the reason, a delivery step too (Codex has no ask), and with no gate state the call is refused",
+            "the gates warn by default: the call runs, the row reaches the model once per gate per turn, and each would-fire is a gate line",
+            "the gates fail open under warn and closed under block: no gate state, and an error deciding",
+            "each conformance test names a yes claim of the driver, and every yes claim has one (SPEC-006 4.7)",
+            "capabilities.mjs lists Codex's claims from the file the driver writes",
+            "with Freeflow off for the session's folder, only the claims are written, every one no, and nothing else runs",
+            "with the event log off, the menu and rows still come and no line is kept",
+            "without a store: the guidance and what is missing, the event log still kept, no rows",
+            "token_usage missing: no row and no notice, and one freeflow line a session says so",
+            "the window and the notice point come from Codex's config: model_context_window and the auto-compact limit",
+            "a tool call's paths: a file tool's fields and apply_patch's files, never the patch's text",
+            "every handler fails open: no session, a home it cannot write, or an unknown event exits 0 with the guidance at most",
+            "the driver waits for input the host writes after starting it"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "3f6f2d676fb155dc166c7fbe22ac5dcee9ea3848"
+  }
+}

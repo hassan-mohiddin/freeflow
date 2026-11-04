@@ -1,0 +1,81 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "checkpoint-compact",
+  "type": "body",
+  "input": {
+    "prompt": "Freeflow's mod on Claude Code compacts on its own once a checkpoint is done after the notice, sometimes in the middle of finished work it wanted to keep, or right before a pause. I'd rather the agent ask for the compaction explicitly. Can you add checkpoint --compact for that?"
+  },
+  "fixture": {
+    "git": "22f5cbdc3682d9291f38a623d35193e28cebb7aa",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/checkpoint-compact.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/session5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/session5.test.mjs": ".skill-eval/top-line/graders/checkpoint-compact/.skill-eval/track-work/tests/session5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "session status prints this session's state in the store as JSON: its task, its summary, unsynced changes and its transcript",
+            "view bundle --fallback adds the user's messages since the checkpoint, word for word, and a closing line naming the record's time and the transcript"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/session5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/session5.test.mjs": ".skill-eval/top-line/graders/checkpoint-compact/.skill-eval/track-work/tests/session5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "session status prints this session's state in the store as JSON: its task, its summary, unsynced changes and its transcript",
+            "view bundle --fallback adds the user's messages since the checkpoint, word for word, and a closing line naming the record's time and the transcript"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "f6ff437f30f4b42c11e896d35797f49ba273b2c0"
+  }
+}

@@ -26,12 +26,9 @@
     "freeflow": {
       "source": {
         "kind": "git",
-        "ref": "1cc270083d92133b8c9bfe22a4bdb7638d4b6a59"
+        "ref": "03ba55e093ccca72f0245965762b0c11fda282dd"
       },
       "repository": {
-        "cognitiveRouting": {
-          "enabled": false
-        },
         "toolExecution": {
           "enabled": false
         }

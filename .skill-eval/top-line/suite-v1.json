@@ -1,0 +1,84 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "top-line-v1",
+  "groups": [
+    "groups/migrate-recovery-list.json",
+    "groups/slice-cost-by-model.json",
+    "groups/review-packet-root.json",
+    "groups/compare-reworded.json",
+    "groups/docs-check-stamp.json",
+    "groups/plan-novelty-check.json",
+    "groups/pass-k-interval.json",
+    "groups/delegate-commands.json",
+    "groups/carry-tool-results.json",
+    "groups/slice-size-by-files.json",
+    "groups/rules-at-session-start.json",
+    "groups/delegation-without-task.json",
+    "groups/codex-gates.json",
+    "groups/checkpoint-compact.json",
+    "groups/resume-takes-back.json",
+    "groups/recheck-numbers.json",
+    "groups/settings-everywhere.json",
+    "groups/recovery-list.json",
+    "groups/store-setup.json",
+    "groups/codex-driver.json"
+  ],
+  "decisions": [
+    {
+      "measure": {
+        "comparison": "hidden-tests"
+      },
+      "arms": ["plain", "freeflow"],
+      "direction": "higher",
+      "method": "mcnemar",
+      "alpha": 0.05,
+      "min_cases": 6,
+      "trials": {
+        "initial": 3,
+        "max": 3,
+        "step": 1
+      }
+    },
+    {
+      "measure": {
+        "metric": "listCost"
+      },
+      "arms": ["plain", "freeflow"],
+      "direction": "lower",
+      "method": "bootstrap",
+      "alpha": 0.05,
+      "min_cases": 10
+    },
+    {
+      "measure": {
+        "metric": "durationMs"
+      },
+      "arms": ["plain", "freeflow"],
+      "direction": "lower",
+      "method": "bootstrap",
+      "alpha": 0.05,
+      "min_cases": 10
+    },
+    {
+      "measure": {
+        "score": "hidden-tests"
+      },
+      "arms": ["plain", "freeflow"],
+      "direction": "higher",
+      "method": "bootstrap",
+      "alpha": 0.05,
+      "min_cases": 10
+    },
+    {
+      "measure": {
+        "metric": "interruptions"
+      },
+      "arms": ["plain", "freeflow"],
+      "direction": "lower",
+      "method": "bootstrap",
+      "alpha": 0.05,
+      "min_cases": 10
+    }
+  ]
+}

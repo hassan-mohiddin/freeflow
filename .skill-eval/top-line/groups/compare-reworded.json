@@ -1,0 +1,109 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "compare-reworded",
+  "type": "body",
+  "input": {
+    "prompt": "skill-author compare --all-units only lists reworded units when they are rule-like, but Write Skill asks us to read every reworded unit after a big revision. Can you make --all-units list the other reworded units too?"
+  },
+  "fixture": {
+    "git": "c50c2ec8fed6692b5498d03e3f4948de0e832bd0",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/compare-reworded.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/write-skill/tests/compare.test.mjs"],
+      "files": {
+        ".skill-eval/write-skill/tests/compare.test.mjs": ".skill-eval/top-line/graders/compare-reworded/.skill-eval/write-skill/tests/compare.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "compare catches a dropped rule and fails until it has a verdict",
+            "compare finds a rule moved to another skill, flags a reworded one, and reports both scores",
+            "compare carries verdicts keyed by file and line, and names verdicts no longer needed",
+            "compare rejects a verdicts file that is not an object of non-empty strings",
+            "compare reads the working tree when no new ref is given",
+            "compare searches only model-facing Markdown, so a copy in other docs or a hidden folder does not hide a loss",
+            "compare --paths limits the units checked, and --deleted-only keeps only changed lines",
+            "compare treats lead-ins and very short units as non-rules",
+            "compare --markdown prints a readable report with the same exit status",
+            "compare reports an unknown ref as a structured error",
+            "compare with no arguments checks the working tree, uncommitted edits included, against the merge-base with main",
+            "compare reads runtime prompts by default and skips unchanged files",
+            "compare --base checks text kept outside Git against a folder copy",
+            "compare counts a dropped reason as rule-like, so it needs a verdict like a rule",
+            "compare --all-units needs a verdict for every unmatched unit, not only rule-like ones",
+            "compare --all-units lists the reworded units that are not rule-like, without changing the exit status"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/write-skill/tests/compare.test.mjs"],
+      "files": {
+        ".skill-eval/write-skill/tests/compare.test.mjs": ".skill-eval/top-line/graders/compare-reworded/.skill-eval/write-skill/tests/compare.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "compare catches a dropped rule and fails until it has a verdict",
+            "compare finds a rule moved to another skill, flags a reworded one, and reports both scores",
+            "compare carries verdicts keyed by file and line, and names verdicts no longer needed",
+            "compare rejects a verdicts file that is not an object of non-empty strings",
+            "compare reads the working tree when no new ref is given",
+            "compare searches only model-facing Markdown, so a copy in other docs or a hidden folder does not hide a loss",
+            "compare --paths limits the units checked, and --deleted-only keeps only changed lines",
+            "compare treats lead-ins and very short units as non-rules",
+            "compare --markdown prints a readable report with the same exit status",
+            "compare reports an unknown ref as a structured error",
+            "compare with no arguments checks the working tree, uncommitted edits included, against the merge-base with main",
+            "compare reads runtime prompts by default and skips unchanged files",
+            "compare --base checks text kept outside Git against a folder copy",
+            "compare counts a dropped reason as rule-like, so it needs a verdict like a rule",
+            "compare --all-units needs a verdict for every unmatched unit, not only rule-like ones",
+            "compare --all-units lists the reworded units that are not rule-like, without changing the exit status"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "a11edb36fbc766628e77092bd88bd9843320daf6"
+  }
+}

@@ -1,0 +1,424 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "codex-driver-ablation",
+  "type": "body",
+  "input": {
+    "prompt": "Freeflow on Codex only delivers its session-start guidance. Can you write a Freeflow driver for Codex that does what Codex's hooks allow, like the mod does on Claude Code?"
+  },
+  "fixture": {
+    "git": "fe1eda277b81cdd172c3c457c1561a7348e6f8db",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "freeflow": {},
+    "freeflow-no-track": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "track-work": false
+          }
+        }
+      }
+    },
+    "freeflow-no-gates": {
+      "freeflow": {
+        "repository": {
+          "gates": {
+            "agreement": "off",
+            "slice": "off",
+            "delivery": "off",
+            "delegation": "off"
+          }
+        }
+      }
+    },
+    "freeflow-no-review": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "review-work": false
+          }
+        }
+      }
+    }
+  },
+  "reference": "freeflow",
+  "component": ["freeflow.repository"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/codex-driver.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/track-work/tests/events5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs",
+        "hooks/tests/codex-driver.test.mjs",
+        "scripts/validation/check-host-manifests.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/track-work/tests/events5.test.mjs": ".skill-eval/top-line/graders/codex-driver/.skill-eval/track-work/tests/events5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs": ".skill-eval/top-line/graders/codex-driver/.skill-eval/track-work/tests/projects5.test.mjs",
+        "hooks/tests/codex-driver.test.mjs": ".skill-eval/top-line/graders/codex-driver/hooks/tests/codex-driver.test.mjs",
+        "scripts/validation/check-host-manifests.test.mjs": ".skill-eval/top-line/graders/codex-driver/scripts/validation/check-host-manifests.test.mjs",
+        "hooks/tests/check-runtime-context-hook.sh": ".skill-eval/top-line/graders/codex-driver/hooks/tests/check-runtime-context-hook.sh",
+        "hooks/tests/fixtures/codex/inputs.mjs": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/inputs.mjs",
+        "hooks/tests/fixtures/codex/model-request.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/model-request.command.input.schema.json",
+        "hooks/tests/fixtures/codex/post-compact.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/post-compact.command.input.schema.json",
+        "hooks/tests/fixtures/codex/post-tool-use.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/post-tool-use.command.input.schema.json",
+        "hooks/tests/fixtures/codex/post-tool-use.command.output.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/post-tool-use.command.output.schema.json",
+        "hooks/tests/fixtures/codex/pre-compact.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/pre-compact.command.input.schema.json",
+        "hooks/tests/fixtures/codex/pre-tool-use.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/pre-tool-use.command.input.schema.json",
+        "hooks/tests/fixtures/codex/session-end.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/session-end.command.input.schema.json",
+        "hooks/tests/fixtures/codex/session-start.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/session-start.command.input.schema.json",
+        "hooks/tests/fixtures/codex/session-start.command.output.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/session-start.command.output.schema.json",
+        "hooks/tests/fixtures/codex/stop.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/stop.command.input.schema.json",
+        "hooks/tests/fixtures/codex/subagent-start.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/subagent-start.command.input.schema.json",
+        "hooks/tests/fixtures/codex/subagent-stop.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/subagent-stop.command.input.schema.json",
+        "hooks/tests/fixtures/codex/user-prompt-submit.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/user-prompt-submit.command.input.schema.json",
+        "hooks/tests/fixtures/codex/user-prompt-submit.command.output.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/user-prompt-submit.command.output.schema.json"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "schema v1: each kind's required fields, its values, and no field it does not name",
+            "redaction replaces keys and tokens in a command before it is written",
+            "events append sets seq per log under a lock, redacts and cuts commands, and refuses what is not schema v1",
+            "two writers of one log never share a seq; a stale lock is cleared, a live one makes the batch fail",
+            "the event log stays out of the store's Git, and a home with only a log still takes a store",
+            "checkpoint and release commit the session's event summary since it took the task",
+            "summarize counts dropped lines and leaves out what came before since",
+            "a second session's take is refused with the holder and its last sync, and allowed after a release; each hold is pushed",
+            "a session holds one task at a time: take refuses a second, switch releases the first",
+            "the menu lists the open tasks of the project whose tasks name the folder's remote, or of every project elsewhere (P95), and says what this session holds",
+            "removing a task or a project is a pushed commit that Git history keeps, and task numbers are not reused",
+            "a task with no project: created where no project names the folder, listed in the menu, moved into a project and out again without reusing its number",
+            "outside a Freeflow store, every project and task command says a store is needed",
+            "the session is read from the environment: Claude Code's IDs, a cloud session's link, or Freeflow's own variables",
+            "task here --scan remembers where a task's repository is on this machine, so recovery resolves its pointers (P96)",
+            "task here --rules adds the store's rules and the folder's and held task's project rules after the menu, and nothing without it",
+            "a resumed session takes back the task its end released (F36), never one released on purpose or taken since",
+            "task release --ended --no-push commits the ended hold here only, and the next sync pushes it (SPEC-012 P3)",
+            "checkpoint refuses a store task this session does not hold, naming task take (F36)",
+            "every recorded input follows Codex's generated schema for its event",
+            "hooks.json names the driver for every event it answers, with fork, the bundle unlimited and SessionEnd within 3 s",
+            "each output is the shape Codex's output schema documents, and events that steer nothing print nothing",
+            "session start: the guidance, then the task menu; after Codex compacts, the guidance again and the task's bundle after Codex's summary",
+            "a model request past 50, 60 or 70 percent or the notice point: its row or notice reaches the model at the next tool call or prompt, once a cycle",
+            "a checkpoint after the notice, through Track Work's script, makes the bundle after Codex's next compaction current; checkpoint --compact is refused, naming Codex's thresholds",
+            "the event log: a scripted Codex session's lines are schema v1, in order, kept until the turn ends and written in one run, never contents",
+            "each conformance test names a yes claim of the driver, and every yes claim has one (SPEC-006 4.7)",
+            "capabilities.mjs lists Codex's claims from the file the driver writes",
+            "with Freeflow off for the session's folder, only the claims are written, every one no, and nothing else runs",
+            "with the event log off, the menu and rows still come and no line is kept",
+            "without a store: the guidance and what is missing, the event log still kept, no rows",
+            "token_usage missing: no row and no notice, and one freeflow line a session says so",
+            "the window and the notice point come from Codex's config: model_context_window and the auto-compact limit",
+            "a tool call's paths: a file tool's fields and apply_patch's files, never the patch's text",
+            "every handler fails open: no session, a home it cannot write, or an unknown event exits 0 with the guidance at most",
+            "the driver waits for input the host writes after starting it",
+            "live host manifests share one package identity and the canonical skill kernel",
+            "Agent Plugins 1.0 manifest rejects component path fields",
+            "Agent Plugins 1.0 manifest rejects invalid plugin names and schemas",
+            "OpenCode uses the canonical skill source without a second tree",
+            "Gemini SessionStart uses the optional matcher-free lifecycle configuration",
+            "Gemini's hook must resolve its adapter under Gemini and under Claude Code",
+            "Codex's hooks run the driver on every event it answers, fork included and the bundle uncut (SPEC-012)",
+            "Hermes uses the portable Agent Plugins package rather than a native Python plugin"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-track-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-track",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/track-work/tests/events5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs",
+        "hooks/tests/codex-driver.test.mjs",
+        "scripts/validation/check-host-manifests.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/track-work/tests/events5.test.mjs": ".skill-eval/top-line/graders/codex-driver/.skill-eval/track-work/tests/events5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs": ".skill-eval/top-line/graders/codex-driver/.skill-eval/track-work/tests/projects5.test.mjs",
+        "hooks/tests/codex-driver.test.mjs": ".skill-eval/top-line/graders/codex-driver/hooks/tests/codex-driver.test.mjs",
+        "scripts/validation/check-host-manifests.test.mjs": ".skill-eval/top-line/graders/codex-driver/scripts/validation/check-host-manifests.test.mjs",
+        "hooks/tests/check-runtime-context-hook.sh": ".skill-eval/top-line/graders/codex-driver/hooks/tests/check-runtime-context-hook.sh",
+        "hooks/tests/fixtures/codex/inputs.mjs": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/inputs.mjs",
+        "hooks/tests/fixtures/codex/model-request.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/model-request.command.input.schema.json",
+        "hooks/tests/fixtures/codex/post-compact.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/post-compact.command.input.schema.json",
+        "hooks/tests/fixtures/codex/post-tool-use.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/post-tool-use.command.input.schema.json",
+        "hooks/tests/fixtures/codex/post-tool-use.command.output.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/post-tool-use.command.output.schema.json",
+        "hooks/tests/fixtures/codex/pre-compact.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/pre-compact.command.input.schema.json",
+        "hooks/tests/fixtures/codex/pre-tool-use.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/pre-tool-use.command.input.schema.json",
+        "hooks/tests/fixtures/codex/session-end.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/session-end.command.input.schema.json",
+        "hooks/tests/fixtures/codex/session-start.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/session-start.command.input.schema.json",
+        "hooks/tests/fixtures/codex/session-start.command.output.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/session-start.command.output.schema.json",
+        "hooks/tests/fixtures/codex/stop.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/stop.command.input.schema.json",
+        "hooks/tests/fixtures/codex/subagent-start.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/subagent-start.command.input.schema.json",
+        "hooks/tests/fixtures/codex/subagent-stop.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/subagent-stop.command.input.schema.json",
+        "hooks/tests/fixtures/codex/user-prompt-submit.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/user-prompt-submit.command.input.schema.json",
+        "hooks/tests/fixtures/codex/user-prompt-submit.command.output.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/user-prompt-submit.command.output.schema.json"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "schema v1: each kind's required fields, its values, and no field it does not name",
+            "redaction replaces keys and tokens in a command before it is written",
+            "events append sets seq per log under a lock, redacts and cuts commands, and refuses what is not schema v1",
+            "two writers of one log never share a seq; a stale lock is cleared, a live one makes the batch fail",
+            "the event log stays out of the store's Git, and a home with only a log still takes a store",
+            "checkpoint and release commit the session's event summary since it took the task",
+            "summarize counts dropped lines and leaves out what came before since",
+            "a second session's take is refused with the holder and its last sync, and allowed after a release; each hold is pushed",
+            "a session holds one task at a time: take refuses a second, switch releases the first",
+            "the menu lists the open tasks of the project whose tasks name the folder's remote, or of every project elsewhere (P95), and says what this session holds",
+            "removing a task or a project is a pushed commit that Git history keeps, and task numbers are not reused",
+            "a task with no project: created where no project names the folder, listed in the menu, moved into a project and out again without reusing its number",
+            "outside a Freeflow store, every project and task command says a store is needed",
+            "the session is read from the environment: Claude Code's IDs, a cloud session's link, or Freeflow's own variables",
+            "task here --scan remembers where a task's repository is on this machine, so recovery resolves its pointers (P96)",
+            "task here --rules adds the store's rules and the folder's and held task's project rules after the menu, and nothing without it",
+            "a resumed session takes back the task its end released (F36), never one released on purpose or taken since",
+            "task release --ended --no-push commits the ended hold here only, and the next sync pushes it (SPEC-012 P3)",
+            "checkpoint refuses a store task this session does not hold, naming task take (F36)",
+            "every recorded input follows Codex's generated schema for its event",
+            "hooks.json names the driver for every event it answers, with fork, the bundle unlimited and SessionEnd within 3 s",
+            "each output is the shape Codex's output schema documents, and events that steer nothing print nothing",
+            "session start: the guidance, then the task menu; after Codex compacts, the guidance again and the task's bundle after Codex's summary",
+            "a model request past 50, 60 or 70 percent or the notice point: its row or notice reaches the model at the next tool call or prompt, once a cycle",
+            "a checkpoint after the notice, through Track Work's script, makes the bundle after Codex's next compaction current; checkpoint --compact is refused, naming Codex's thresholds",
+            "the event log: a scripted Codex session's lines are schema v1, in order, kept until the turn ends and written in one run, never contents",
+            "each conformance test names a yes claim of the driver, and every yes claim has one (SPEC-006 4.7)",
+            "capabilities.mjs lists Codex's claims from the file the driver writes",
+            "with Freeflow off for the session's folder, only the claims are written, every one no, and nothing else runs",
+            "with the event log off, the menu and rows still come and no line is kept",
+            "without a store: the guidance and what is missing, the event log still kept, no rows",
+            "token_usage missing: no row and no notice, and one freeflow line a session says so",
+            "the window and the notice point come from Codex's config: model_context_window and the auto-compact limit",
+            "a tool call's paths: a file tool's fields and apply_patch's files, never the patch's text",
+            "every handler fails open: no session, a home it cannot write, or an unknown event exits 0 with the guidance at most",
+            "the driver waits for input the host writes after starting it",
+            "live host manifests share one package identity and the canonical skill kernel",
+            "Agent Plugins 1.0 manifest rejects component path fields",
+            "Agent Plugins 1.0 manifest rejects invalid plugin names and schemas",
+            "OpenCode uses the canonical skill source without a second tree",
+            "Gemini SessionStart uses the optional matcher-free lifecycle configuration",
+            "Gemini's hook must resolve its adapter under Gemini and under Claude Code",
+            "Codex's hooks run the driver on every event it answers, fork included and the bundle uncut (SPEC-012)",
+            "Hermes uses the portable Agent Plugins package rather than a native Python plugin"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-gates-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-gates",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/track-work/tests/events5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs",
+        "hooks/tests/codex-driver.test.mjs",
+        "scripts/validation/check-host-manifests.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/track-work/tests/events5.test.mjs": ".skill-eval/top-line/graders/codex-driver/.skill-eval/track-work/tests/events5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs": ".skill-eval/top-line/graders/codex-driver/.skill-eval/track-work/tests/projects5.test.mjs",
+        "hooks/tests/codex-driver.test.mjs": ".skill-eval/top-line/graders/codex-driver/hooks/tests/codex-driver.test.mjs",
+        "scripts/validation/check-host-manifests.test.mjs": ".skill-eval/top-line/graders/codex-driver/scripts/validation/check-host-manifests.test.mjs",
+        "hooks/tests/check-runtime-context-hook.sh": ".skill-eval/top-line/graders/codex-driver/hooks/tests/check-runtime-context-hook.sh",
+        "hooks/tests/fixtures/codex/inputs.mjs": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/inputs.mjs",
+        "hooks/tests/fixtures/codex/model-request.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/model-request.command.input.schema.json",
+        "hooks/tests/fixtures/codex/post-compact.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/post-compact.command.input.schema.json",
+        "hooks/tests/fixtures/codex/post-tool-use.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/post-tool-use.command.input.schema.json",
+        "hooks/tests/fixtures/codex/post-tool-use.command.output.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/post-tool-use.command.output.schema.json",
+        "hooks/tests/fixtures/codex/pre-compact.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/pre-compact.command.input.schema.json",
+        "hooks/tests/fixtures/codex/pre-tool-use.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/pre-tool-use.command.input.schema.json",
+        "hooks/tests/fixtures/codex/session-end.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/session-end.command.input.schema.json",
+        "hooks/tests/fixtures/codex/session-start.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/session-start.command.input.schema.json",
+        "hooks/tests/fixtures/codex/session-start.command.output.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/session-start.command.output.schema.json",
+        "hooks/tests/fixtures/codex/stop.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/stop.command.input.schema.json",
+        "hooks/tests/fixtures/codex/subagent-start.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/subagent-start.command.input.schema.json",
+        "hooks/tests/fixtures/codex/subagent-stop.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/subagent-stop.command.input.schema.json",
+        "hooks/tests/fixtures/codex/user-prompt-submit.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/user-prompt-submit.command.input.schema.json",
+        "hooks/tests/fixtures/codex/user-prompt-submit.command.output.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/user-prompt-submit.command.output.schema.json"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "schema v1: each kind's required fields, its values, and no field it does not name",
+            "redaction replaces keys and tokens in a command before it is written",
+            "events append sets seq per log under a lock, redacts and cuts commands, and refuses what is not schema v1",
+            "two writers of one log never share a seq; a stale lock is cleared, a live one makes the batch fail",
+            "the event log stays out of the store's Git, and a home with only a log still takes a store",
+            "checkpoint and release commit the session's event summary since it took the task",
+            "summarize counts dropped lines and leaves out what came before since",
+            "a second session's take is refused with the holder and its last sync, and allowed after a release; each hold is pushed",
+            "a session holds one task at a time: take refuses a second, switch releases the first",
+            "the menu lists the open tasks of the project whose tasks name the folder's remote, or of every project elsewhere (P95), and says what this session holds",
+            "removing a task or a project is a pushed commit that Git history keeps, and task numbers are not reused",
+            "a task with no project: created where no project names the folder, listed in the menu, moved into a project and out again without reusing its number",
+            "outside a Freeflow store, every project and task command says a store is needed",
+            "the session is read from the environment: Claude Code's IDs, a cloud session's link, or Freeflow's own variables",
+            "task here --scan remembers where a task's repository is on this machine, so recovery resolves its pointers (P96)",
+            "task here --rules adds the store's rules and the folder's and held task's project rules after the menu, and nothing without it",
+            "a resumed session takes back the task its end released (F36), never one released on purpose or taken since",
+            "task release --ended --no-push commits the ended hold here only, and the next sync pushes it (SPEC-012 P3)",
+            "checkpoint refuses a store task this session does not hold, naming task take (F36)",
+            "every recorded input follows Codex's generated schema for its event",
+            "hooks.json names the driver for every event it answers, with fork, the bundle unlimited and SessionEnd within 3 s",
+            "each output is the shape Codex's output schema documents, and events that steer nothing print nothing",
+            "session start: the guidance, then the task menu; after Codex compacts, the guidance again and the task's bundle after Codex's summary",
+            "a model request past 50, 60 or 70 percent or the notice point: its row or notice reaches the model at the next tool call or prompt, once a cycle",
+            "a checkpoint after the notice, through Track Work's script, makes the bundle after Codex's next compaction current; checkpoint --compact is refused, naming Codex's thresholds",
+            "the event log: a scripted Codex session's lines are schema v1, in order, kept until the turn ends and written in one run, never contents",
+            "each conformance test names a yes claim of the driver, and every yes claim has one (SPEC-006 4.7)",
+            "capabilities.mjs lists Codex's claims from the file the driver writes",
+            "with Freeflow off for the session's folder, only the claims are written, every one no, and nothing else runs",
+            "with the event log off, the menu and rows still come and no line is kept",
+            "without a store: the guidance and what is missing, the event log still kept, no rows",
+            "token_usage missing: no row and no notice, and one freeflow line a session says so",
+            "the window and the notice point come from Codex's config: model_context_window and the auto-compact limit",
+            "a tool call's paths: a file tool's fields and apply_patch's files, never the patch's text",
+            "every handler fails open: no session, a home it cannot write, or an unknown event exits 0 with the guidance at most",
+            "the driver waits for input the host writes after starting it",
+            "live host manifests share one package identity and the canonical skill kernel",
+            "Agent Plugins 1.0 manifest rejects component path fields",
+            "Agent Plugins 1.0 manifest rejects invalid plugin names and schemas",
+            "OpenCode uses the canonical skill source without a second tree",
+            "Gemini SessionStart uses the optional matcher-free lifecycle configuration",
+            "Gemini's hook must resolve its adapter under Gemini and under Claude Code",
+            "Codex's hooks run the driver on every event it answers, fork included and the bundle uncut (SPEC-012)",
+            "Hermes uses the portable Agent Plugins package rather than a native Python plugin"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-review-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-review",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/track-work/tests/events5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs",
+        "hooks/tests/codex-driver.test.mjs",
+        "scripts/validation/check-host-manifests.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/track-work/tests/events5.test.mjs": ".skill-eval/top-line/graders/codex-driver/.skill-eval/track-work/tests/events5.test.mjs",
+        ".skill-eval/track-work/tests/projects5.test.mjs": ".skill-eval/top-line/graders/codex-driver/.skill-eval/track-work/tests/projects5.test.mjs",
+        "hooks/tests/codex-driver.test.mjs": ".skill-eval/top-line/graders/codex-driver/hooks/tests/codex-driver.test.mjs",
+        "scripts/validation/check-host-manifests.test.mjs": ".skill-eval/top-line/graders/codex-driver/scripts/validation/check-host-manifests.test.mjs",
+        "hooks/tests/check-runtime-context-hook.sh": ".skill-eval/top-line/graders/codex-driver/hooks/tests/check-runtime-context-hook.sh",
+        "hooks/tests/fixtures/codex/inputs.mjs": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/inputs.mjs",
+        "hooks/tests/fixtures/codex/model-request.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/model-request.command.input.schema.json",
+        "hooks/tests/fixtures/codex/post-compact.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/post-compact.command.input.schema.json",
+        "hooks/tests/fixtures/codex/post-tool-use.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/post-tool-use.command.input.schema.json",
+        "hooks/tests/fixtures/codex/post-tool-use.command.output.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/post-tool-use.command.output.schema.json",
+        "hooks/tests/fixtures/codex/pre-compact.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/pre-compact.command.input.schema.json",
+        "hooks/tests/fixtures/codex/pre-tool-use.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/pre-tool-use.command.input.schema.json",
+        "hooks/tests/fixtures/codex/session-end.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/session-end.command.input.schema.json",
+        "hooks/tests/fixtures/codex/session-start.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/session-start.command.input.schema.json",
+        "hooks/tests/fixtures/codex/session-start.command.output.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/session-start.command.output.schema.json",
+        "hooks/tests/fixtures/codex/stop.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/stop.command.input.schema.json",
+        "hooks/tests/fixtures/codex/subagent-start.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/subagent-start.command.input.schema.json",
+        "hooks/tests/fixtures/codex/subagent-stop.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/subagent-stop.command.input.schema.json",
+        "hooks/tests/fixtures/codex/user-prompt-submit.command.input.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/user-prompt-submit.command.input.schema.json",
+        "hooks/tests/fixtures/codex/user-prompt-submit.command.output.schema.json": ".skill-eval/top-line/graders/codex-driver/hooks/tests/fixtures/codex/user-prompt-submit.command.output.schema.json"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "schema v1: each kind's required fields, its values, and no field it does not name",
+            "redaction replaces keys and tokens in a command before it is written",
+            "events append sets seq per log under a lock, redacts and cuts commands, and refuses what is not schema v1",
+            "two writers of one log never share a seq; a stale lock is cleared, a live one makes the batch fail",
+            "the event log stays out of the store's Git, and a home with only a log still takes a store",
+            "checkpoint and release commit the session's event summary since it took the task",
+            "summarize counts dropped lines and leaves out what came before since",
+            "a second session's take is refused with the holder and its last sync, and allowed after a release; each hold is pushed",
+            "a session holds one task at a time: take refuses a second, switch releases the first",
+            "the menu lists the open tasks of the project whose tasks name the folder's remote, or of every project elsewhere (P95), and says what this session holds",
+            "removing a task or a project is a pushed commit that Git history keeps, and task numbers are not reused",
+            "a task with no project: created where no project names the folder, listed in the menu, moved into a project and out again without reusing its number",
+            "outside a Freeflow store, every project and task command says a store is needed",
+            "the session is read from the environment: Claude Code's IDs, a cloud session's link, or Freeflow's own variables",
+            "task here --scan remembers where a task's repository is on this machine, so recovery resolves its pointers (P96)",
+            "task here --rules adds the store's rules and the folder's and held task's project rules after the menu, and nothing without it",
+            "a resumed session takes back the task its end released (F36), never one released on purpose or taken since",
+            "task release --ended --no-push commits the ended hold here only, and the next sync pushes it (SPEC-012 P3)",
+            "checkpoint refuses a store task this session does not hold, naming task take (F36)",
+            "every recorded input follows Codex's generated schema for its event",
+            "hooks.json names the driver for every event it answers, with fork, the bundle unlimited and SessionEnd within 3 s",
+            "each output is the shape Codex's output schema documents, and events that steer nothing print nothing",
+            "session start: the guidance, then the task menu; after Codex compacts, the guidance again and the task's bundle after Codex's summary",
+            "a model request past 50, 60 or 70 percent or the notice point: its row or notice reaches the model at the next tool call or prompt, once a cycle",
+            "a checkpoint after the notice, through Track Work's script, makes the bundle after Codex's next compaction current; checkpoint --compact is refused, naming Codex's thresholds",
+            "the event log: a scripted Codex session's lines are schema v1, in order, kept until the turn ends and written in one run, never contents",
+            "each conformance test names a yes claim of the driver, and every yes claim has one (SPEC-006 4.7)",
+            "capabilities.mjs lists Codex's claims from the file the driver writes",
+            "with Freeflow off for the session's folder, only the claims are written, every one no, and nothing else runs",
+            "with the event log off, the menu and rows still come and no line is kept",
+            "without a store: the guidance and what is missing, the event log still kept, no rows",
+            "token_usage missing: no row and no notice, and one freeflow line a session says so",
+            "the window and the notice point come from Codex's config: model_context_window and the auto-compact limit",
+            "a tool call's paths: a file tool's fields and apply_patch's files, never the patch's text",
+            "every handler fails open: no session, a home it cannot write, or an unknown event exits 0 with the guidance at most",
+            "the driver waits for input the host writes after starting it",
+            "live host manifests share one package identity and the canonical skill kernel",
+            "Agent Plugins 1.0 manifest rejects component path fields",
+            "Agent Plugins 1.0 manifest rejects invalid plugin names and schemas",
+            "OpenCode uses the canonical skill source without a second tree",
+            "Gemini SessionStart uses the optional matcher-free lifecycle configuration",
+            "Gemini's hook must resolve its adapter under Gemini and under Claude Code",
+            "Codex's hooks run the driver on every event it answers, fork included and the bundle uncut (SPEC-012)",
+            "Hermes uses the portable Agent Plugins package rather than a native Python plugin"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "5d92987c286c5408fddcae5f3f66990917d1b661"
+  }
+}
