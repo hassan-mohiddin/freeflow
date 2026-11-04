@@ -1,0 +1,64 @@
+{
+  "plan": "study-plan.md",
+  "entries": [
+    {
+      "kind": "lock",
+      "sha256": "51c53a99676e9d2d883984f517aa43e1157a2e65768c003be453bc1d69ed42a4",
+      "by": "Hassan Mohiddin accepted SPEC-011's defaults, T2 included (suite v1 with predictions-v1.md and a locked study plan), 2026-11-03: \"Yes, you can go with the defaults\"; 2026-11-04: \"lets do the evals, you can start them\". Locked by D-041's worker, before any run.",
+      "at": "2026-11-04T08:18:48.730Z",
+      "hypotheses": {
+        "C1": {
+          "kind": "confirmatory",
+          "metric": "hidden-tests pass^3 per task",
+          "rule": "exact McNemar, alpha 0.05, at least 6 discordant tasks, freeflow ahead",
+          "method": "paired mcnemar"
+        },
+        "C2": {
+          "kind": "exploratory",
+          "metric": "listCost",
+          "rule": "paired bootstrap 95% interval of the mean difference, lower is better, at least 10 tasks",
+          "method": "bootstrap mean"
+        },
+        "C3": {
+          "kind": "exploratory",
+          "metric": "durationMs",
+          "rule": "paired bootstrap 95% interval, lower is better, at least 10 tasks",
+          "method": "bootstrap mean"
+        },
+        "C4": {
+          "kind": "exploratory",
+          "metric": "score.hidden-tests",
+          "rule": "paired bootstrap 95% interval, higher is better, at least 10 tasks",
+          "method": "bootstrap mean"
+        },
+        "C5": {
+          "kind": "exploratory",
+          "metric": "interruptions",
+          "rule": "paired bootstrap 95% interval, lower is better, at least 10 tasks",
+          "method": "bootstrap mean"
+        }
+      },
+      "variants": ["V1", "V2"],
+      "runs": [
+        {
+          "unit": "20 tasks",
+          "arm": "plain",
+          "trials": 3,
+          "split": null,
+          "budget": "Claude Code headless, Haiku 5.5 xhigh, read, write, edit, find, grep and bash in the container, the simulated user up to 8 turns, no tuning"
+        },
+        {
+          "unit": "20 tasks",
+          "arm": "freeflow",
+          "trials": 3,
+          "split": null,
+          "budget": "Claude Code headless, Haiku 5.5 xhigh, read, write, edit, find, grep and bash in the container, the simulated user up to 8 turns, no tuning"
+        }
+      ],
+      "git": {
+        "commit": "807961b597b14bdc5a62fbe57a67fb4efddff0c0",
+        "path": ".skill-eval/top-line/plan/study-plan.md"
+      }
+    }
+  ]
+}

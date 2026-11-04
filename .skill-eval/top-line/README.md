@@ -19,7 +19,7 @@ Nothing here has run. Every run calls a model and is Hassan's yes, with its coun
 | `suite-smoke.json` | The smoke subset: `migrate-recovery-list` and `review-packet-root` (fixes), `rules-at-session-start` and `resume-takes-back` (features), `settings-everywhere` (long), with the same decisions at `min_cases` 5. |
 | `suite-ablation.json` | The ladder over all 20 tasks, with no decision: counts per arm against `freeflow`. Run only after the top line is known. |
 | `predictions-v1.md` | What we expect, written before any run. |
-| `plan/study-plan.md` | Research Work's study plan, locked with `study.mjs lock` (`plan/study-plan.md.lock.json`). |
+| `plan/study-plan.md` | Research Work's study plan, locked with `study.mjs lock` (`plan/study-plan.lock.json`). |
 | `image/` | The container: `build-offline.mjs` (how this machine built it, with no package network), `Dockerfile` (the same where packages can be fetched), `digest.txt` (this machine's build). |
 
 ## The arms
