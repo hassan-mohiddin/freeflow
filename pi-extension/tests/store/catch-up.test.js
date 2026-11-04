@@ -49,8 +49,7 @@ test("Freeflow switched on after the session started: the next run's start bring
     {
       freeflowConfig: { enabled: false },
       // Freeflow is switched on in the repository after the session started.
-      beforePrompt: async ({ cwd }) =>
-        writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({})),
+      beforePrompt: async ({ cwd }) => writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({})),
     },
   );
 });
