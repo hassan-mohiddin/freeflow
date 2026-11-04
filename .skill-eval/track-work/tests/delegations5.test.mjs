@@ -238,7 +238,7 @@ test("delegate check-return refuses a missing return, a missing heading and a co
   });
 });
 
-test("delegate check-return takes no email ID or UUID for a commit, and refuses every other commit that is not there", async () => {
+test("delegate check-return takes no email ID, UUID or path folder for a commit, and refuses every other commit that is not there, a URL's ref included", async () => {
   await withTask(async ({ record, repo, taskDir, cli }) => {
     openBuild(cli, record, repo);
     const folder = join(taskDir, "delegations", "D-001-build-the-thing");
@@ -252,6 +252,7 @@ test("delegate check-return takes no email ID or UUID for a commit, and refuses 
       `- Commits ${base}..${onBranch}, author Hassan Mohiddin <63719517+hassan-mohiddin@users.noreply.github.com>:`,
       `  - ${onBranch} thing.`,
       "- Evidence: /tmp/claude-0/-home-user/d5d6ba82-6849-5796-ad46-8163c07640ac/scratchpad/self-review.md",
+      "- Checked under /tmp/runs/a1b2c3d4e5/out/",
     ].join("\n");
     const withIdentities = (lines) => RETURN("D-001", onBranch).replace(`branch, commit ${onBranch}\n`, `${lines}\n`);
     await writeFile(join(folder, "return.md"), withIdentities(identities));
@@ -275,6 +276,8 @@ test("delegate check-return takes no email ID or UUID for a commit, and refuses 
       `- See https://github.com/o/r/blob/${full}/skills/x.md`,
       `- See https://github.com/o/r/tree/${full}/skills`,
       `- Fix ${full}@v1.2`,
+      `- Fix ${full}@x.yz`,
+      `- See https://github.com/o/r/commit/${full}`,
     ]) {
       await writeFile(join(folder, "return.md"), withIdentities(`${identities}\n${missing}`));
       assert.match(

@@ -425,15 +425,17 @@ export async function delegationStatus(loaded, { json = false } = {}) {
 }
 
 /**
- * The commits a return's Identities name, each a hex word of 7 to 40 characters with a digit, as before. Two things
- * that hold such words are not commits: an email address, whose domain ends in a label of letters (the GitHub ID in
- * a noreply email), and a UUID. No other form is set aside, a URL's path included: the text cannot tell another
- * repository's commit from this one's, so the coordinator names those with --elsewhere.
+ * The commits a return's Identities name, each a hex word of 7 to 40 characters with a digit, as before. Three things
+ * that hold such words are not commits: an email address, whose domain ends in a label of letters and whose name is
+ * not itself such a word (the GitHub ID in a noreply email); a UUID; and a folder name between two slashes of a path,
+ * except a URL's git ref, right after `blob/`, `tree/`, `commit/`, `raw/` or `blame/`. No other form is set aside:
+ * the text cannot tell another repository's commit from this one's, so the coordinator names those with --elsewhere.
  */
 export function identityCommits(text) {
   const plain = text
-    .replace(/[\w.+-]+@(?:[\w-]+\.)+[A-Za-z]{2,}\b/g, " ")
-    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, " ");
+    .replace(/(?<![\w.+-])(?![0-9a-f]{7,40}@)[\w.+-]+@(?:[\w-]+\.)+[A-Za-z]{2,}\b/g, " ")
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, " ")
+    .replace(/(?<!\/(?:blob|tree|commit|raw|blame))\/[0-9a-f]{7,40}(?=\/)/g, "/ ");
   const commits = new Set();
   for (const [commit] of plain.matchAll(/\b[0-9a-f]{7,40}\b/g))
     // A hash can be all digits; a word of hex letters alone is not taken for one.
