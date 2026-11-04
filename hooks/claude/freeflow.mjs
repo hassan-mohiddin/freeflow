@@ -100,6 +100,8 @@ const WAIT_BATCH_MS = 60_000;
 const WAIT_POLL_MS = 60_000;
 /** The idle watch now running; a later turn end or watch replaces it. */
 let idleWatch = 0;
+/** The Waits on rows found in the batching window now open, which go out together when it closes (SPEC-009 4.4). */
+let pendingWaits = [];
 
 /**
  * Keeps one event line for the next flush, while Freeflow and its event log are on.
@@ -617,11 +619,16 @@ async function waitsReturned($, state, { wake }) {
     .join(" ");
   await emit($, "freeflow", { what: "waits", detail: back.map((/** @type {any} */ each) => each.id).join(", ") });
   if (wake && interactive && wakeOnReturn) {
+    // Returns found while a window is open join it, so several returns within a minute come as one row.
+    pendingWaits.push(row);
+    if (pendingWaits.length > 1) return;
     const turns = mainTurns;
     // A message that woke the session meanwhile starts its turn first, and the row goes into that turn instead.
     $.clock.after(WAIT_BATCH_MS, async () => {
-      if (mainTurns === turns) await $.prompt.submit({ text: `Freeflow: ${row}` });
-      else await appendRow($, `Freeflow: ${row}`);
+      const text = `Freeflow: ${pendingWaits.join(" ")}`;
+      pendingWaits = [];
+      if (mainTurns === turns) await $.prompt.submit({ text });
+      else await appendRow($, text);
     });
   } else await appendRow($, `Freeflow: ${row}`);
 }

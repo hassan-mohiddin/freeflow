@@ -29,6 +29,7 @@ import { CompactionController, RECOVERY_TYPE, USER_REQUEST } from "./compaction/
 import { strictest } from "./compaction/thresholds.js";
 import {
   StoreLayer,
+  claimHoursEnvironment,
   keepStartLedger,
   readStartLedger,
   scriptRunner,
@@ -229,6 +230,7 @@ export default function freeflow(pi) {
     capability = next;
     prompts = loaded;
     syncClaims();
+    claimHoursEnvironment(next.delegation?.claimHours);
     return next;
   }
   function status(ctx) {

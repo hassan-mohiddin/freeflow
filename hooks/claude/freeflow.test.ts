@@ -931,6 +931,50 @@ test("a delegation the Slice waits on comes back (SPEC-009 4.4): one row, and th
   expect(w.submitted.length).toBe(1);
 });
 
+test("two returns within the batching window come as one prompt (SPEC-009 4.4)", async ($, on) => {
+  const w = world(on);
+  const waiting = (first: string | null, second: string | null) =>
+    held(at(-30), {
+      waits: {
+        slice: "S-057",
+        channel: "/t/channel.jsonl",
+        delegations: [
+          { id: "D-031", returned: first, at: first && at(1) },
+          { id: "D-032", returned: second, at: second && at(2) },
+        ],
+      },
+    });
+  w.status = waiting(null, null);
+  await start($);
+  // One return found at a turn end opens the window; another found 30 s later, still inside it, joins it.
+  w.status = waiting("done", null);
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(30_000);
+  w.status = waiting("done", "done");
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(2 * 60_000);
+  expect(w.submitted).toEqual([
+    "Freeflow: D-031 returned (done). S-057 waits on it: check it and close it. D-032 returned (done). S-057 waits on it: check it and close it.",
+  ]);
+});
+
+test("delegation.claimHours reaches Track Work's script and the agent's commands as FREEFLOW_CLAIM_HOURS (SPEC-009 4.7)", async ($, on) => {
+  const w = world(on);
+  w.settingsAnswers["list "] = {
+    stdout: JSON.stringify({
+      root: "/work/widget",
+      settings: [
+        { key: "delegation.claimHours", label: "Claim hours", value: "8", scope: "personal", hosts: "all" },
+        { key: "delegation.wakeOnReturn", label: "Wake on return", value: true, scope: "default", hosts: "all" },
+      ],
+      state: [],
+    }),
+  };
+  w.status = store();
+  await start($);
+  expect(w.env.FREEFLOW_CLAIM_HOURS).toBe("8");
+});
+
 test("a return logged while the session sits idle wakes it within two minutes, with no turn ending (SPEC-009 4.4)", async ($, on) => {
   const w = world(on);
   const waiting = (returned: string | null) =>

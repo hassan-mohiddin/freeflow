@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/compaction/`, `pi-extension/src/store/`
 > **Tests:** `pi-extension/tests/compaction/`, `pi-extension/tests/store/`, `pi-extension/tests/integration/request-path-budget.test.js`
-> **Verified at:** `410c20c9` (2026-11-03)
+> **Verified at:** `288745f1` (2026-11-04)
 > **User docs:** `plugin-docs/capabilities/compaction.md`
 
 For contributors changing Freeflow compaction on Pi and Pi's layer for the Freeflow store: when Freeflow tells the agent compaction is near, what it writes into the session, how Pi's own compaction works with it, and which behaviors are deliberate.

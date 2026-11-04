@@ -77,6 +77,15 @@ export function sessionEnvironment(session: { id?: string; file?: string; window
   set("FREEFLOW_CONTEXT_WINDOW", session.window ? String(session.window) : undefined);
 }
 
+/**
+ * How long a claim on paths lasts (`delegation.claimHours`, SPEC-009 4.7), for Track Work's script: `claim` and
+ * `delegate open --writes` read it, in Freeflow's own runs and the agent's commands, as Claude Code's mod sets it.
+ */
+export function claimHoursEnvironment(hours: string | undefined): void {
+  if (hours) process.env.FREEFLOW_CLAIM_HOURS = hours;
+  else delete process.env.FREEFLOW_CLAIM_HOURS;
+}
+
 /** Whether a tool call may change the store: Track Work's script in a command, or a file tool on a path inside it. */
 export function touchesStore(toolName: string, input: any, cwd: string, home: string | undefined): boolean {
   if (toolName === "bash") return typeof input?.command === "string" && input.command.includes("working-record.mjs");

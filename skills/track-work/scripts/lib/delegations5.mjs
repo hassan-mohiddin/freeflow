@@ -263,10 +263,15 @@ export function taskIdOf(recordPath) {
 }
 
 /** The commands that start a separate session as the worker, for each harness that can (SPEC-009 4.1). */
+/** A path as one shell word: unchanged when it is plain, else single-quoted (a space in a folder name, for one). */
+export function shellWord(path) {
+  return /^[\w@%+=:,./-]+$/.test(path) ? path : `'${path.replace(/'/g, "'\\''")}'`;
+}
+
 function startCommands(id, task, recordArg, worktree) {
   const prompt = `You are the worker for ${id} of ${task}. Run: node ${SCRIPT} delegate join --record ${recordArg} --id ${id}`;
   const quoted = `"${prompt.replace(/(["\\$`])/g, "\\$1")}"`;
-  const at = worktree ? `cd ${worktree} && ` : "";
+  const at = worktree ? `cd ${shellWord(worktree)} && ` : "";
   return [
     "Start the worker session in its own process, on the harness's own terms:",
     `  Claude Code: ${at}claude --name ${id} ${quoted}`,

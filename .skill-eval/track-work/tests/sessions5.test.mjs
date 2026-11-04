@@ -662,6 +662,12 @@ test("claims: claim, release, expiry and renewal; the gate warns on another sess
       ),
       false,
     );
+    // A claim made after that session's gate state was written reaches it at its next session status, which the
+    // drivers run at every turn end, with no lifecycle command or sync of its own in between.
+    ok(cli(["claim", "--paths", "src/later.ts"], { cwd: repo }));
+    ok(cli(["session", "status"], { session: OTHER, cwd: repo }));
+    assert.ok((await gates(home, OTHER)).claims.some((each) => each.writes.includes(join(repo, "src/later.ts"))));
+    ok(cli(["release", "--paths", "src/later.ts"], { cwd: repo }));
     // Past its time a claim warns no one.
     assert.equal(
       decide(other, {
@@ -686,6 +692,11 @@ test("claims: claim, release, expiry and renewal; the gate warns on another sess
     assert.equal((await renewClaims({ home, identity: { id: COORDINATOR }, now: later })).length, 0);
     assert.equal(liveClaims(readClaimLines(file), later.getTime() + 60 * 60_000).length, 1);
     assert.equal(liveClaims(readClaimLines(file), later.getTime() + 3 * 3_600_000).length, 0);
+    // A second renewal extends it by its own length again, not by the whole time since it was first claimed.
+    const again = new Date(later.getTime() + 2 * 3_600_000 - 30 * 60_000);
+    const second = await renewClaims({ home, identity: { id: COORDINATOR }, now: again });
+    assert.equal(second.length, 1);
+    assert.equal(Date.parse(second[0].until), again.getTime() + 2 * 3_600_000);
 
     // Release: by path, then all; the session's end releases the rest with its hold.
     assert.match(ok(cli(["release", "--paths", "src/a.ts"], { cwd: repo })), /^Released 1 claim\(s\)\.$/m);

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { cwd } from "node:process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import {
   displayPath,
@@ -38,7 +38,7 @@ import {
   renderChannel,
 } from "./lib/delegations5.mjs";
 import { appendChannel, CHANNEL_KINDS } from "./lib/channel5.mjs";
-import { addClaims, claimHours, releaseClaims, renderClaims, renewClaims } from "./lib/claims5.mjs";
+import { addClaims, claimHours, claimsFiles, releaseClaims, renderClaims, renewClaims } from "./lib/claims5.mjs";
 import { addStoreRemote, initStore, missingParts, storeHome, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
 import {
   createProject,
@@ -882,7 +882,7 @@ async function runCore(command, rest) {
     // The drivers run session status at session start: a session whose gate state no command wrote yet gets one, so
     // the gates read what holds now rather than nothing (SPEC-008 section 5).
     const identity = sessionIdentity();
-    if (identity && !existsSync(gatesPath(home, identity.id))) await refreshGates({ home, identity });
+    if (identity && gatesStale(home, gatesPath(home, identity.id))) await refreshGates({ home, identity });
     const status = isFreeflowStore(home)
       ? await sessionStatus(home, sessionIdentity())
       : {
@@ -1331,4 +1331,15 @@ try {
 } catch (error) {
   process.stderr.write(`Error: ${error.message}\n`);
   process.exitCode = error.exitCode ?? 1;
+}
+
+/**
+ * Whether a session's gate state must be written again: there is none yet, or a claims file in the store changed after
+ * it was written, so a claim another session made since reaches this session's gate at its next session status
+ * (SPEC-009 4.5). A stat per claims file; the gate state is rewritten only when one is newer.
+ */
+function gatesStale(home, path) {
+  if (!existsSync(path)) return true;
+  const written = statSync(path).mtimeMs;
+  return claimsFiles(home).some((file) => statSync(file).mtimeMs > written);
 }
