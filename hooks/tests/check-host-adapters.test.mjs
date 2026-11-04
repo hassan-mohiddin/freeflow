@@ -381,7 +381,10 @@ test("the mod's section is the Claude Code hooks' texts, in their order, for eac
   // The session's own settings reach the section as they reach the hooks.
   const workspace = createWorkspace();
   const env = { ...isolatedEnv, FREEFLOW_HOME: home };
-  assert.match(section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-1" }).parts[0], /\nReview: unit `manual`, model `auto`/);
+  assert.match(
+    section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-1" }).parts[0],
+    /\nReview: unit `manual`, model `auto`/,
+  );
   assert.doesNotMatch(section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-2" }).parts[0], /Review:/);
   // With the runtime context switched off, as the hooks are, the section is empty.
   assert.deepEqual(section(workspace, { ...env, FREEFLOW_DISABLE_RUNTIME_CONTEXT: "1" }).parts, ["", "", ""]);
