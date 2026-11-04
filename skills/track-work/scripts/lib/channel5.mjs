@@ -5,11 +5,11 @@
 
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import { redact } from "./events5.mjs";
 import { ensureUnionMerge } from "./freeflow-store.mjs";
 import { freeflowStoreOf } from "./store.mjs";
+import { appendNoFollow } from "./no-follow.mjs";
 
 export const CHANNEL_FILE = "channel.jsonl";
 export const CHANNEL_VERSION = 1;
@@ -80,7 +80,7 @@ export async function appendChannel(taskDir, event, { identity, agent = null, no
   if (problem) throw new Error(`Not a delegation log line: ${problem}.`);
   const home = freeflowStoreOf(taskDir);
   if (home) await ensureUnionMerge(home);
-  await appendFile(channelPath(taskDir), `${JSON.stringify(line)}\n`);
+  await appendNoFollow(channelPath(taskDir), `${JSON.stringify(line)}\n`);
   return line;
 }
 

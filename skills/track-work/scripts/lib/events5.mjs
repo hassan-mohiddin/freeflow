@@ -7,13 +7,14 @@
 // a prompt, an answer, a file's content or a tool's output (P4): the writer refuses any field schema v1 does not name.
 // Readers ignore a kind or field they do not know, so a later minor version may add both.
 
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { appendFile, mkdir, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, open, readFile, readdir, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import { GATES } from "./gates5.mjs";
 import { PRICES, priceTable, requestCost } from "./measure5.mjs";
 import { isFreeflowStore } from "./store.mjs";
+import { appendNoFollow, openNoFollow, readNoFollowSync, writeNoFollow } from "./no-follow.mjs";
 
 /** The schema's major version; readers accept it and the one before (there is none before 1). */
 export const EVENT_VERSION = 1;
@@ -210,10 +211,11 @@ export function logPath(home, session) {
 /** The last `seq` in a log, read from its tail; a torn last line from a process that died is passed over. */
 async function lastSeq(path) {
   if (!existsSync(path)) return 0;
-  const { size } = await stat(path);
-  for (const window of [65536, size]) {
-    const handle = await open(path, "r");
-    try {
+  // Never through a link (no-follow.mjs): the log is opened once, and refused when it is not a regular file.
+  const handle = await openNoFollow(path);
+  try {
+    const { size } = await handle.stat();
+    for (const window of [65536, size]) {
       const length = Math.min(window, size);
       const buffer = Buffer.alloc(length);
       await handle.read(buffer, 0, length, size - length);
@@ -227,21 +229,21 @@ async function lastSeq(path) {
           // A torn or foreign line: keep looking further back.
         }
       }
-    } finally {
-      await handle.close();
+      if (window >= size) break;
     }
-    if (window >= size) break;
+    return 0;
+  } finally {
+    await handle.close();
   }
-  return 0;
 }
 
 /** Whether a log's last byte is not a line's end. */
 async function endsMidLine(path) {
   if (!existsSync(path)) return false;
-  const { size } = await stat(path);
-  if (!size) return false;
-  const handle = await open(path, "r");
+  const handle = await openNoFollow(path);
   try {
+    const { size } = await handle.stat();
+    if (!size) return false;
     const byte = Buffer.alloc(1);
     await handle.read(byte, 0, 1, size - 1);
     return byte[0] !== 0x0a;
@@ -288,7 +290,7 @@ async function ignoreInStore(home) {
   const path = join(home, ".gitignore");
   const current = existsSync(path) ? await readFile(path, "utf8") : "";
   if (current.split(/\r?\n/).some((line) => line.trim() === "/events/")) return;
-  await writeFile(path, `${current.replace(/\s*$/, "")}${current.trim() ? "\n" : ""}/events/\n`);
+  await writeNoFollow(path, `${current.replace(/\s*$/, "")}${current.trim() ? "\n" : ""}/events/\n`);
 }
 
 /**
@@ -341,7 +343,7 @@ export async function appendEvents(home, input) {
       let seq = await lastSeq(path);
       const text = lines.map((line) => `${JSON.stringify(normalize(line, (seq += 1)))}\n`).join("");
       // A torn last line, from a writer that died mid-write, stays on its own line, unread.
-      await appendFile(path, `${(await endsMidLine(path)) ? "\n" : ""}${text}`, { mode: 0o600 });
+      await appendNoFollow(path, `${(await endsMidLine(path)) ? "\n" : ""}${text}`, { mode: 0o600 });
     });
     written.push({ session, path, count: lines.length });
   }
@@ -357,19 +359,19 @@ export function readLog(path) {
   if (!existsSync(path)) return { lines: [], skipped: [], bytes: 0 };
   const lines = [];
   const skipped = [];
-  readFileSync(path, "utf8")
-    .split("\n")
-    .forEach((raw, index) => {
-      if (!raw.trim()) return;
-      try {
-        const line = JSON.parse(raw);
-        if (line?.v === EVENT_VERSION && typeof line.kind === "string") lines.push(line);
-        else skipped.push(index + 1);
-      } catch {
-        skipped.push(index + 1);
-      }
-    });
-  return { lines, skipped, bytes: statSync(path).size };
+  // Never through a link: a log someone replaced with one would be read from wherever it points.
+  const { text, bytes } = readNoFollowSync(path);
+  text.split("\n").forEach((raw, index) => {
+    if (!raw.trim()) return;
+    try {
+      const line = JSON.parse(raw);
+      if (line?.v === EVENT_VERSION && typeof line.kind === "string") lines.push(line);
+      else skipped.push(index + 1);
+    } catch {
+      skipped.push(index + 1);
+    }
+  });
+  return { lines, skipped, bytes };
 }
 
 /** Characters per token in the overhead estimate (SPEC-011, P4): an estimate, and the summary says so. */
@@ -682,7 +684,7 @@ export async function writeTaskSummary({ home, taskDir, taskId, session, since }
   const summary = summarize(lines, { session, since, task: taskId, bytes, prices: priceTable() });
   const target = join(taskDir, EVENTS_FOLDER, `${session}.json`);
   await mkdir(join(taskDir, EVENTS_FOLDER), { recursive: true });
-  await writeFile(target, `${JSON.stringify(summary, null, 2)}\n`);
+  await writeNoFollow(target, `${JSON.stringify(summary, null, 2)}\n`);
   return target;
 }
 

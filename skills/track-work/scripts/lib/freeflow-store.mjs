@@ -10,13 +10,14 @@
 
 import { execFile as execFileCallback } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { FREEFLOW_STORE_KIND, isFreeflowStore, STORE_MARKER, StoreError } from "./store.mjs";
 import { DEFAULT_TABLE, ROUTING_FILE } from "./routing5.mjs";
+import { writeNoFollow } from "./no-follow.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -151,7 +152,7 @@ async function identity(home, { name, email }) {
 /** Writes the sync state to local/, which only this machine reads. */
 async function recordSync(home, state) {
   await mkdir(join(home, "local"), { recursive: true });
-  await writeFile(
+  await writeNoFollow(
     join(home, "local", "sync.json"),
     `${JSON.stringify({ at: new Date().toISOString(), ...state }, null, 2)}\n`,
   );
@@ -173,21 +174,24 @@ export async function ensureUnionMerge(home) {
   const have = new Set(text.split(/\r?\n/).map((line) => line.trim()));
   const missing = STORE_ATTRIBUTES.filter((line) => !have.has(line));
   if (!missing.length) return;
-  await writeFile(path, `${text.replace(/\s*$/, "")}${text.trim() ? "\n" : ""}${missing.join("\n")}\n`);
+  await writeNoFollow(path, `${text.replace(/\s*$/, "")}${text.trim() ? "\n" : ""}${missing.join("\n")}\n`);
 }
 
 /** Writes the store's layout in a repository with no commit yet, on main, and commits it. */
 async function layOut(home) {
   await git(home, ["symbolic-ref", "HEAD", `refs/heads/${BRANCH}`]);
-  await writeFile(join(home, STORE_MARKER), `${JSON.stringify({ kind: FREEFLOW_STORE_KIND, version: 1 }, null, 2)}\n`);
-  await writeFile(join(home, ".gitignore"), `${STORE_IGNORE.join("\n")}\n`);
-  await writeFile(join(home, ".gitattributes"), `${STORE_ATTRIBUTES.join("\n")}\n`);
+  await writeNoFollow(
+    join(home, STORE_MARKER),
+    `${JSON.stringify({ kind: FREEFLOW_STORE_KIND, version: 1 }, null, 2)}\n`,
+  );
+  await writeNoFollow(join(home, ".gitignore"), `${STORE_IGNORE.join("\n")}\n`);
+  await writeNoFollow(join(home, ".gitattributes"), `${STORE_ATTRIBUTES.join("\n")}\n`);
   for (const folder of FOLDERS) {
     await mkdir(join(home, folder), { recursive: true });
-    await writeFile(join(home, folder, ".gitkeep"), "");
+    await writeNoFollow(join(home, folder, ".gitkeep"), "");
   }
   // The default routing table (SPEC-010 T2): the user's from here on, and only the user edits it.
-  await writeFile(join(home, ROUTING_FILE), DEFAULT_TABLE);
+  await writeNoFollow(join(home, ROUTING_FILE), DEFAULT_TABLE);
   await git(home, ["add", "--all"]);
   await git(home, ["commit", "--quiet", "--no-verify", "-m", "Create the Freeflow store"]);
 }
@@ -563,9 +567,9 @@ async function rebaseOntoRemote(home, { resolved = false } = {}) {
   for (const path of paths) {
     const copy = join(home, CONFLICT_COPIES, path);
     await mkdir(dirname(copy), { recursive: true });
-    await writeFile(copy, await gitRaw(home, ["show", `origin/${BRANCH}:${path}`]).catch(() => ""));
+    await writeNoFollow(copy, await gitRaw(home, ["show", `origin/${BRANCH}:${path}`]).catch(() => ""));
   }
-  await writeFile(join(home, CONFLICT), `${JSON.stringify({ at: new Date().toISOString(), paths }, null, 2)}\n`);
+  await writeNoFollow(join(home, CONFLICT), `${JSON.stringify({ at: new Date().toISOString(), paths }, null, 2)}\n`);
   await recordSync(home, { pushed: false, result: "conflict", reason: paths.join(", ") });
   fail(
     "sync-conflict",

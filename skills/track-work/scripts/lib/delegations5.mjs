@@ -5,7 +5,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
@@ -31,6 +31,7 @@ import { freeflowStoreOf, isFreeflowStore, projectOf, writeAtomically, writeTask
 import { sessionIdentity } from "./projects5.mjs";
 import { storeHome } from "./freeflow-store.mjs";
 import { CHECKS, ROUTING_FILE, SETTLED, routeFrom, routingFiles } from "./routing5.mjs";
+import { writeNoFollow } from "./no-follow.mjs";
 
 export const KINDS = new Set(["build", "review", "research", "eval", "gather"]);
 export const OUTCOMES = new Set(["accepted", "sent back", "stopped"]);
@@ -453,7 +454,7 @@ export async function openDelegation(loaded, options, text) {
   });
   const routeLine = given ? `Route: given (${agent})${routed.warning ? `\n${routed.warning}` : ""}` : routed.line;
   await mkdir(directory, { recursive: true });
-  await writeFile(briefPath, `${[...header, ...body].join("\n").trimEnd()}\n`);
+  await writeNoFollow(briefPath, `${[...header, ...body].join("\n").trimEnd()}\n`);
   if (!loaded)
     return `Opened ${id} — ${title}\n${briefPath}\nSpace: ${space}\n${routeLine}\nStart the worker with a prompt that names ${id} and the brief's path; nothing is recorded. Check its return with:\n  node ${SCRIPT} delegate check-return --scratch ${taskDir} --id ${id}\n`;
   const path = relative(taskDir, briefPath);
@@ -510,7 +511,7 @@ export async function amendDelegation(loaded, options, text) {
   if (!change && !handle) fail("delegate amend takes a change (--text or --input) or --handle.");
   if (handle) brief = brief.replace(/^(Agent: .*· Handle: ).*$/m, (_, lead) => `${lead}${handle}`);
   if (change) brief = `${brief.trimEnd()}\n- ${localDate()}: ${change}\n`;
-  await writeFile(path, brief);
+  await writeNoFollow(path, brief);
   let note = await logged(taskDir, {
     delegation: id,
     kind: "amend",
@@ -1043,11 +1044,11 @@ export async function joinDelegation(loaded, options, { home, identity, held }) 
     fail(`This session works for ${previous.id} already: a session works for one delegation.`);
   const handle = `session ${identity.id}`;
   text = text.replace(/^(Agent: .*· Handle: ).*$/m, (_, lead) => `${lead}${handle}`);
-  await writeFile(briefPath, text);
+  await writeNoFollow(briefPath, text);
   const path = joinedPath(home, identity);
   await mkdir(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
-  await writeFile(
+  await writeNoFollow(
     temporary,
     `${JSON.stringify({ id, task: taskName(loaded.path), record: loaded.path, taskDir, joinedAt: new Date().toISOString() }, null, 2)}\n`,
   );
@@ -1091,7 +1092,7 @@ export async function checkpointDelegation(loaded, id, text, { joined = null } =
   ]);
   const path = join(directory, "progress.md");
   const temporary = `${path}.${process.pid}.tmp`;
-  await writeFile(temporary, `${[`# ${id} progress`, `As of: ${asOf}`, "", ...body].join("\n").trimEnd()}\n`);
+  await writeNoFollow(temporary, `${[`# ${id} progress`, `As of: ${asOf}`, "", ...body].join("\n").trimEnd()}\n`);
   await rename(temporary, path);
   const note = await logged(taskDir, {
     delegation: id,

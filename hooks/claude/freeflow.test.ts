@@ -96,6 +96,8 @@ function world(on: any) {
     // The files the mod wrote, by path, which it reads back.
     stored: new Map<string, string>([[GATES_PATH, gateState()]]),
     logs: [] as any[],
+    // Paths that are themselves symbolic links, as $.fs.stat reports them (each also in `files`, where it lands).
+    links: new Set<string>(),
     clock: mock.clock(on, { now: T0 }),
     session: mock.session(on),
     commands: () => w.runs.map((run) => run.args.join(" ")),
@@ -227,7 +229,15 @@ function world(on: any) {
     const real = w.files.get(e.path) ?? (String(e.path).endsWith("store/x.md") ? "/store/x.md" : undefined);
     return real === undefined
       ? { deny: `ENOENT: ${e.path}` }
-      : { value: { kind: "file", size: 1, mtimeMs: 0, isLink: false, ...(e.resolve ? { realPath: real } : {}) } };
+      : {
+          value: {
+            kind: "file",
+            size: 1,
+            mtimeMs: 0,
+            isLink: w.links.has(e.path),
+            ...(e.resolve ? { realPath: real } : {}),
+          },
+        };
   });
   on("tool.check", () => ({ ...w.verdict }));
   // A tool runs: its result, or an error result when the scenario says so.
@@ -1470,6 +1480,32 @@ test("events.enabled off writes no line and claims sensors only as possible; Fre
   await $.tool.call({ tool: "Bash", command: "ls" } as any);
   await $.turn.complete(turnEnd("answer"));
   expect(w.eventRuns.length).toBe(runs);
+});
+
+test("a file the mod writes in the store is refused where it, or a folder on the way to it, is a link someone planted; the log says so", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  // sessions/ lands outside the store: the claims are not written through it.
+  w.files.set("/store/sessions", "/elsewhere/sessions");
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  await start($);
+  expect(w.claims).toEqual([]);
+  expect(w.logs.join("\n")).toContain(
+    "refused to write /store/sessions/sess-1/capabilities.json: it, or a folder on the way to it, is a link or not a file",
+  );
+  // The file itself a link: refused the same way.
+  w.files.delete("/store/sessions");
+  w.files.set("/store/sessions/sess-1/capabilities.json", "/elsewhere/capabilities.json");
+  w.links.add("/store/sessions/sess-1/capabilities.json");
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  await start($);
+  expect(w.claims).toEqual([]);
+  // A plain store: written.
+  w.files.delete("/store/sessions/sess-1/capabilities.json");
+  w.links.clear();
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  await start($);
+  expect(w.claims.map((write) => write.path)).toEqual(["/store/sessions/sess-1/capabilities.json"]);
 });
 
 test("the claims: written at session start in the Freeflow home, with section 4.5's claims for an interactive and a headless session", async ($, on) => {

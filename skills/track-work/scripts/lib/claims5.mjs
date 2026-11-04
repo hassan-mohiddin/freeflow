@@ -12,11 +12,11 @@
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { appendFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { normalPath, resolvePath } from "./gates5.mjs";
 import { ensureUnionMerge, storeHome } from "./freeflow-store.mjs";
 import { REPOSITORIES_FILE, isFreeflowStore } from "./store.mjs";
+import { appendNoFollow } from "./no-follow.mjs";
 
 export const CLAIMS_FILE = "claims.jsonl";
 export const CLAIM_VERSION = 1;
@@ -166,7 +166,7 @@ export function claimHours(option, env = process.env) {
 
 async function append(file, lines) {
   await ensureUnionMerge(file.home);
-  await appendFile(file.path, lines.map((line) => `${JSON.stringify(line)}\n`).join(""));
+  await appendNoFollow(file.path, lines.map((line) => `${JSON.stringify(line)}\n`).join(""));
 }
 
 /**

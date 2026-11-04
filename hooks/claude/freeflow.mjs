@@ -225,7 +225,7 @@ async function writeCapabilities($, home) {
     events: enabled && eventsOn,
     claims: enabled ? all : off,
   };
-  await $.fs.write(`${home}/sessions/${sessionId}/capabilities.json`, `${JSON.stringify(file, null, 2)}\n`);
+  await writeInHome($, home, `${home}/sessions/${sessionId}/capabilities.json`, `${JSON.stringify(file, null, 2)}\n`);
   await emit($, "freeflow", { what: "capabilities", detail: file.mode });
 }
 
@@ -323,6 +323,32 @@ async function placed($, path) {
 }
 
 /**
+ * Writes a file in the Freeflow home only where it lands where it is named. `$.fs.write` follows links, and the home's
+ * files may be written by someone who may not run code here (an evaluation's subject, whose container sees the store),
+ * so a file that is a link or not a regular file, or a folder on the way that lands elsewhere, refuses the write, with
+ * a line in the log. The look and the write are two calls: a link swapped in between them is not caught.
+ * @param {any} $
+ * @param {string} home the Freeflow home, as the path names it
+ * @param {string} path a path under home
+ * @param {string} text
+ * @returns {Promise<boolean>} whether it was written
+ */
+async function writeInHome($, home, path, text) {
+  const slashes = (/** @type {string | undefined} */ value) => value?.replace(/\\/g, "/");
+  const real = slashes((await $.fs.stat(home, { resolve: true }).catch(() => undefined))?.realPath)?.replace(/\/$/, "");
+  const named = slashes(path) ?? "";
+  const base = slashes(home)?.replace(/\/$/, "") ?? "";
+  const expected = real && named.startsWith(`${base}/`) ? `${real}${named.slice(base.length)}` : undefined;
+  const own = await $.fs.stat(path).catch(() => undefined);
+  if (expected && !own?.isLink && (!own || own.kind === "file") && slashes(await placed($, path)) === expected) {
+    await $.fs.write(path, text);
+    return true;
+  }
+  $.ui.log(`Freeflow: refused to write ${path}: it, or a folder on the way to it, is a link or not a file`);
+  return false;
+}
+
+/**
  * Reads the window the conversation compacts against, from the session itself: the model's, or the smaller one
  * Claude's compaction is set to (CLAUDE_CODE_AUTO_COMPACT_WINDOW); and where Claude's own compaction starts in it.
  * The window is the session's for the scripts too (T11).
@@ -363,7 +389,7 @@ async function cycleNumber($, state) {
 /** A compaction of the main conversation: the next cycle, its number counted in the store where there is one. */
 async function nextCycle($, state) {
   const number = state ? (await cycleNumber($, state)) + 1 : null;
-  if (state) await $.fs.write(cyclePath(state), `${JSON.stringify({ cycle: number })}\n`);
+  if (state) await writeInHome($, state.home, cyclePath(state), `${JSON.stringify({ cycle: number })}\n`);
   await newCycle($, number);
 }
 
@@ -557,7 +583,7 @@ async function ownCompaction($, e, next, state) {
   }
   if (made.stdout) await emit($, "freeflow", { what: "bundle", chars: made.stdout.length });
   // The bundle replaces the conversation: a checkpoint --compact waiting for this is answered, whoever compacted.
-  if (state.compact && !state.compact.done) await answered($, state.compact);
+  if (state.compact && !state.compact.done) await answered($, state.home, state.compact);
   if (!state.task && !state.delegation)
     await $.process.run([
       "node",
@@ -710,18 +736,20 @@ async function workerCompaction($, e, next) {
 /**
  * Marks a checkpoint --compact request answered, once the bundle has replaced the conversation.
  * @param {any} $
+ * @param {string} home the Freeflow home the request is in
  * @param {any} request
  */
-async function answered($, request) {
-  await $.fs.write(request.path, JSON.stringify({ ...request, path: undefined, done: true }, null, 2));
+async function answered($, home, request) {
+  await writeInHome($, home, request.path, JSON.stringify({ ...request, path: undefined, done: true }, null, 2));
 }
 
 /**
  * After a turn that ended with checkpoint --compact: compact between turns, then a prompt to go on (P51, P102).
  * @param {any} $
+ * @param {string} home the Freeflow home the request is in
  * @param {any} request
  */
-async function compactAndContinue($, request) {
+async function compactAndContinue($, home, request) {
   let dropped = null;
   try {
     // /compact, run as the person would: a plugin's own $.session.compact() passes none of its own hooks, so the
@@ -765,7 +793,7 @@ async function compactAndContinue($, request) {
     );
     return;
   }
-  await answered($, request);
+  await answered($, home, request);
   await appendRow(
     $,
     `Freeflow: the compaction your checkpoint asked for did not run (${dropped}), ${tries} times; it stops trying. Checkpoint with --compact again, or run /compact.`,
@@ -820,7 +848,7 @@ async function turnEnded($, e) {
   const request = state.compact;
   if (e.reason !== "answer" || !request || request.done || compactQueued || !checkpointDone(state)) return;
   compactQueued = true;
-  $.clock.after(0, () => compactAndContinue($, request));
+  $.clock.after(0, () => compactAndContinue($, state.home, request));
 }
 
 /**
@@ -1211,7 +1239,7 @@ async function baseOf($, window, day) {
   }
   if (dayBase?.resetsAt === window.resetsAt && dayBase.dayStart === day.start) return dayBase;
   dayBase = { resetsAt: window.resetsAt, dayStart: day.start, percent: window.percentUsed };
-  if (path) await $.fs.write(path, `${JSON.stringify(dayBase)}\n`).catch(() => undefined);
+  if (path) await writeInHome($, freeflowHome, path, `${JSON.stringify(dayBase)}\n`).catch(() => undefined);
   return dayBase;
 }
 
@@ -1431,11 +1459,14 @@ function hookGuidanceChars(result, parts) {
 async function keepLedger($) {
   if (!freeflowHome || !started) return;
   const file = { v: 1, steps: started.steps, pinned: started.pinned };
-  await $.fs
-    .write(ledgerPath(freeflowHome, started.session), `${JSON.stringify(file, null, 2)}\n`)
-    .catch((/** @type {unknown} */ error) =>
-      $.ui.log(`Freeflow: the session-start ledger: ${error instanceof Error ? error.message : String(error)}`),
-    );
+  await writeInHome(
+    $,
+    freeflowHome,
+    ledgerPath(freeflowHome, started.session),
+    `${JSON.stringify(file, null, 2)}\n`,
+  ).catch((/** @type {unknown} */ error) =>
+    $.ui.log(`Freeflow: the session-start ledger: ${error instanceof Error ? error.message : String(error)}`),
+  );
 }
 
 /**
@@ -1909,7 +1940,9 @@ export function register(on) {
     const map = await workerMap($, state);
     map.set(result.agentId, { delegation, noticed: false });
     if (state)
-      await $.fs.write(
+      await writeInHome(
+        $,
+        state.home,
         `${state.home}/sessions/${state.session}/delegations.json`,
         JSON.stringify(Object.fromEntries([...map].map(([agentId, worker]) => [agentId, worker.delegation])), null, 2),
       );

@@ -98,6 +98,7 @@ The P and T numbers name choices in the design that built this, task-004's Spec 
 - Nothing pushes without the secret scan, and only to the store's own remote (`store.test.mjs`).
 - There is no fourth level of delegation (`delegations5.test.mjs`).
 - Nothing in the store is written into a code repository; no test guards this absence.
+- Track Work never writes or reads through a symbolic link in Freeflow's files: every `appendFile` and direct `writeFile` goes through `lib/no-follow.mjs`, which opens with `O_NOFOLLOW`, refuses a FIFO or a device, and inside the Freeflow home refuses a folder on the way that is a link (`link-refused`); the event log's reads (`readLog`, the append's tail reads) do the same, and `store.mjs`'s temporary-file-and-rename writes look at the folders first. Someone who may write the store's files but not run code on the host, such as an evaluation's subject, cannot turn a host-side write into one anywhere (`no-follow.test.mjs`; `events5.test.mjs`, "events append never writes through a link planted in events/").
 - A test never measures the session running it: measurement reads only `FREEFLOW_TRANSCRIPT` or `--transcript`, and Track Work's suite runs with `FREEFLOW_TRANSCRIPT` cleared (`scripts/validation/with-symlinked-tmp.mjs`; `measure5.test.mjs`).
 - A prediction never counts a Slice measured only partly, or a time or cost that was not read (`planner5.test.mjs`).
 
@@ -121,6 +122,7 @@ The P and T numbers name choices in the design that built this, task-004's Spec 
 - `skills/track-work/scripts/working-record.mjs`: the CLI: options, help, dispatch, and the store task ID resolved to its record.
 - `skills/track-work/scripts/lib/freeflow-store.mjs`: the store: `initStore`, `addStoreRemote`, `storeStatus`, `syncStore`, the secret scan, conflicts.
 - `skills/track-work/scripts/lib/store.mjs`: paths and writes: the store marker, the Git check, task numbering, atomic publication.
+- `skills/track-work/scripts/lib/no-follow.mjs`: writes and reads that never follow a symbolic link (`writeNoFollow`, `appendNoFollow`, `openNoFollow`, `readNoFollowSync`, `refuseLinkedFolders`).
 - `skills/track-work/scripts/lib/record5.mjs`: Schema 5's parse and validation: field orders (`SLICE5_ORDER`, `ENTRY_ORDER`), states, IDs, the skeleton.
 - `skills/track-work/scripts/lib/transitions5.mjs`: the agreement, Slice and checkpoint commands, readings at start, checkpoint and close, the session summary, Space.
 - `skills/track-work/scripts/lib/events5.mjs`, `events-cli.mjs`: the event log's schema v1, the writer (`seq` under a lock on the file, redaction, a torn last line kept on its own), the summary at checkpoint and release (with SPEC-011's overhead estimate, `overheadOf`, and the list-price cost from `measure5.mjs`'s table, `costOf`), and the `events` commands.
@@ -145,8 +147,9 @@ Schema 4 has no modules of its own: `migrate5.mjs` alone reads a Schema 4 record
 All in `.skill-eval/track-work/tests/`, run by `npm run test:track-work` with the temporary folder reached through a symlink and `FREEFLOW_TRANSCRIPT` cleared:
 
 - `gates5.test.mjs`: the gates' decisions, the gate state each lifecycle command writes, `agree`, and the gates' counts (see [Gates](gates.md)).
-- `events5.test.mjs`: schema v1 and its overhead fields, redaction, `seq` under the lock with five writers, a stale and a live lock, the store's ignore line, the summary a checkpoint and a release commit, and the overhead estimate and cost against a hand count and Track Work's own pricing.
-- `store.test.mjs`: the store's layout, an empty clone of the remote used as it is, a home holding only `sessions/`, the Git check, sync against bare remotes, union merges, conflicts, offline commits, the secret scan, the refusal of Pi's home, and `session status`'s `missing` list.
+- `events5.test.mjs`: schema v1 and its overhead fields, redaction, `seq` under the lock with five writers, a stale and a live lock, the store's ignore line, the summary a checkpoint and a release commit, the overhead estimate and cost against a hand count and Track Work's own pricing, and an append refused through a planted link, a linked `events/` or a FIFO.
+- `no-follow.test.mjs`: writes, appends and reads refused through a link or a linked folder inside the home, a FIFO refused at once, and plain files written as `fs` writes them.
+- `store.test.mjs`: the store's layout, an empty clone of the remote used as it is, a home holding only `sessions/`, the Git check, sync against bare remotes, union merges, conflicts, offline commits, the secret scan, the refusal of Pi's home, `session status`'s `missing` list, `FREEFLOW_HOST_COMMITS`, and a repository planted among the store's files whose `core.fsmonitor` never runs.
 - `schema5.test.mjs`: Schema 5's files, their validation and broken shapes, each command's before and after, one History entry per close.
 - `views5.test.mjs`: `view recover` and `view bundle` in order, with budgets, checks and sizes.
 - `projects5.test.mjs`: projects, tasks, holds and takeovers, the menu (every project's open tasks where none matches), `task here --scan`, removals, tasks in no project and moves, the session read from the environment.

@@ -4,6 +4,7 @@ import { lstat, mkdir, readdir, readFile, rename, unlink, writeFile } from "node
 import { readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
+import { refuseLinkedFolders } from "./no-follow.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -264,6 +265,7 @@ export async function writeInitialAtomically(root, recordPath, text) {
   const temporaryPath = join(dirname(path), `.${basename(path)}.${process.pid}.${randomUUID()}.tmp`);
   let published = false;
   try {
+    await refuseLinkedFolders(path);
     await writeFile(temporaryPath, text, { encoding: "utf8", flag: "wx" });
     await rename(temporaryPath, path);
     published = true;
@@ -309,6 +311,7 @@ async function writeInitialFile(path, text) {
   const temporaryPath = join(dirname(path), `.${basename(path)}.${process.pid}.${randomUUID()}.tmp`);
   let published = false;
   try {
+    await refuseLinkedFolders(path);
     await writeFile(temporaryPath, text, { encoding: "utf8", flag: "wx" });
     await rename(temporaryPath, path);
     published = true;
@@ -342,6 +345,7 @@ async function publishAtomically(path, sourceText, candidateText) {
   const temporaryPath = join(dirname(path), `.${basename(path)}.${process.pid}.${randomUUID()}.tmp`);
   let published = false;
   try {
+    await refuseLinkedFolders(path);
     await writeFile(temporaryPath, candidateText, { encoding: "utf8", flag: "wx" });
     const beforeRename = await readFile(path, "utf8");
     if (beforeRename !== sourceText) fail("stale-source", "Record changed before publication; nothing was written");

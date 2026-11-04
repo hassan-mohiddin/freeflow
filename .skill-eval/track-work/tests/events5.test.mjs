@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -557,4 +557,51 @@ test("a model the price table lacks is counted, not priced, and a log with no re
   );
   const empty = renderSummary(summarize([], { session: "s" }));
   assert.doesNotMatch(empty, /Overhead|Cost at/);
+});
+
+test("events append never writes through a link planted in events/: the log a link, events/ a link, or a FIFO in its place", async () => {
+  await withFolder(async ({ folder, home, cli }) => {
+    const line = jsonl([{ ...base(), kind: "turn.start", turn: 1 }]);
+    await mkdir(join(home, "events"), { recursive: true });
+    const outside = join(folder, "outside.txt");
+    await writeFile(outside, "the host's own file\n");
+    // R7 B1's probe: the session's log replaced by a link to a file outside the store.
+    await symlink(outside, join(home, "events", "sess-1.jsonl"));
+    const linked = cli(["events", "append", "--input", "-"], { input: line });
+    assert.notEqual(linked.status, 0);
+    assert.match(linked.stderr, /Refused to use .*sess-1\.jsonl: it is a symbolic link/);
+    assert.equal(await readFile(outside, "utf8"), "the host's own file\n");
+    // A dangling link is not followed to make a file either.
+    const nowhere = join(folder, "made-through-link.jsonl");
+    await symlink(nowhere, join(home, "events", "sess-2.jsonl"));
+    assert.notEqual(
+      cli(["events", "append", "--input", "-"], { input: jsonl([{ ...base("sess-2"), kind: "turn.start", turn: 1 }]) })
+        .status,
+      0,
+    );
+    assert.equal(existsSync(nowhere), false);
+    // events/ itself a link to a folder outside the store.
+    const elsewhere = join(folder, "elsewhere");
+    await mkdir(elsewhere);
+    await rm(join(home, "events"), { recursive: true });
+    await symlink(elsewhere, join(home, "events"));
+    const folderLinked = cli(["events", "append", "--input", "-"], {
+      input: jsonl([{ ...base("sess-3"), kind: "turn.start", turn: 1 }]),
+    });
+    assert.notEqual(folderLinked.status, 0);
+    assert.match(folderLinked.stderr, /events is a symbolic link/);
+    assert.deepEqual(await readdir(elsewhere), []);
+    // A FIFO where the log goes: refused at once, not waited on.
+    await rm(join(home, "events"));
+    await mkdir(join(home, "events"));
+    execFileSync("mkfifo", [join(home, "events", "sess-4.jsonl")]);
+    const fifo = cli(["events", "append", "--input", "-"], {
+      input: jsonl([{ ...base("sess-4"), kind: "turn.start", turn: 1 }]),
+    });
+    assert.notEqual(fifo.status, 0);
+    assert.match(fifo.stderr, /not a regular file/);
+    // The control: a plain log is written.
+    ok(cli(["events", "append", "--input", "-"], { input: line }));
+    assert.equal((await readLines(join(home, "events", "sess-1.jsonl"))).length, 1);
+  });
 });

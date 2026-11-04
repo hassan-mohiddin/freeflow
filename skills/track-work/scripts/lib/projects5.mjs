@@ -5,7 +5,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm } from "node:fs/promises";
 import { hostname } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { releaseClaims } from "./claims5.mjs";
@@ -39,6 +39,7 @@ import {
   repositoryState,
   sessionSummaryPath,
 } from "./transitions5.mjs";
+import { writeNoFollow } from "./no-follow.mjs";
 
 export const SESSIONS_FILE = "sessions.md";
 export const MENU_TASKS = 15;
@@ -293,7 +294,7 @@ export async function createProject(home, name) {
   if (existsSync(folder)) fail(`Project ${slug} already exists.`);
   for (const sub of ["rules", "tasks"]) {
     await mkdir(join(folder, sub), { recursive: true });
-    await writeFile(join(folder, sub, ".gitkeep"), "");
+    await writeNoFollow(join(folder, sub, ".gitkeep"), "");
   }
   return `Project ${slug} created at ${folder}.\n${await sync(home, `Create project ${slug}`)}\n`;
 }
@@ -503,7 +504,7 @@ async function writeHold(home, task, identity, { takeover = false } = {}) {
       `${task.id} is ${holderText({ ...task, hold: holder })}. Ask the user before taking it over; then task take --id ${task.id} --takeover.`,
     );
   const text = holder ? closeHold(sessions, holder, "taken over") : sessions.text;
-  await writeFile(sessions.path, openHold({ text }, identity));
+  await writeNoFollow(sessions.path, openHold({ text }, identity));
   return holder;
 }
 
@@ -574,7 +575,7 @@ export async function releaseTask(home, identity, id = null, { ended = false, pu
     identity,
     since: holdStart(sessions.hold.from),
   });
-  await writeFile(sessions.path, `${closeHold(sessions, sessions.hold, state).replace(/\s+$/, "")}\n`);
+  await writeNoFollow(sessions.path, `${closeHold(sessions, sessions.hold, state).replace(/\s+$/, "")}\n`);
   // The session's claims end with it (SPEC-009 4.5), in the same commit.
   const claims = ended ? await releaseClaims({ home, identity }).catch(() => []) : [];
   const done = ended ? `Released ${task.id} as ended: a resume of this session takes it back.` : `Released ${task.id}.`;
@@ -610,7 +611,7 @@ export async function takeBack(home, identity) {
   }
   if (!last || last.hold.state !== "ended" || !last.isLast || last.task.hold) return null;
   const sessions = readSessions(last.task.dir);
-  await writeFile(sessions.path, openHold(sessions, identity));
+  await writeNoFollow(sessions.path, openHold(sessions, identity));
   await sync(home, `Take ${last.task.id} back (${identity.short})`);
   return `Took ${last.task.id} back: this session held it until it ended.`;
 }
@@ -658,7 +659,7 @@ export async function removeTask(home, id) {
   // Numbers are never reused: the tasks folder keeps the highest number a removal took away.
   const marker = join(dirname(task.dir), LAST_TASK_NUMBER);
   const last = Number((await readFile(marker, "utf8").catch(() => "0")).trim()) || 0;
-  await writeFile(marker, `${Math.max(last, Number(/task-(\d+)/.exec(id)[1]))}\n`);
+  await writeNoFollow(marker, `${Math.max(last, Number(/task-(\d+)/.exec(id)[1]))}\n`);
   await rm(task.dir, { recursive: true, force: true });
   const synced = await sync(home, `Remove ${id}`);
   const commit = git(home, ["rev-parse", "--short=8", "HEAD"]);
@@ -695,14 +696,14 @@ export async function moveTask(home, id, { project = null, noProject = false }, 
   // The folder it leaves keeps its number taken, as a removal does, so an old ID never names a new task.
   const marker = join(dirname(task.dir), LAST_TASK_NUMBER);
   const last = Number((await readFile(marker, "utf8").catch(() => "0")).trim()) || 0;
-  await writeFile(marker, `${Math.max(last, Number(/task-(\d+)/.exec(id)[1]))}\n`);
+  await writeNoFollow(marker, `${Math.max(last, Number(/task-(\d+)/.exec(id)[1]))}\n`);
   await rename(task.dir, folder);
   const moved = slug ? `${slug}/task-${number}` : `task-${number}`;
   // Its delegations' briefs name the task they belong to.
   for (const brief of briefsUnder(join(folder, "delegations"))) {
     const text = await readFile(brief, "utf8");
     if (text.includes(`Task: ${id} `) || text.includes(`Task: ${id}\n`))
-      await writeFile(
+      await writeNoFollow(
         brief,
         text.replace(`Task: ${id}`, () => `Task: ${moved}`),
       );

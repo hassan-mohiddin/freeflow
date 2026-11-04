@@ -3,7 +3,7 @@
 // observed into the arm's run record. Everything that depends on the host program lives in its adapter.
 
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync } from "node:fs";
 import { mkdir, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
@@ -245,19 +245,38 @@ function subjectRun({ group, variant }, subject, observation) {
  */
 export function freeflowEvents(home, runDirectory) {
   const folder = path.join(home, "events");
-  const files = existsSync(folder)
-    ? readdirSync(folder)
-        .filter((name) => name.endsWith(".jsonl"))
-        .sort()
-    : [];
+  // The subject may write the store, so a link in events/ (or events/ itself a link) is never read through: it is
+  // named under `refused` and left out (readLog refuses a link too, should one be swapped in after this look).
+  const folderIsLink = lstatSync(folder, { throwIfNoEntry: false })?.isSymbolicLink() === true;
+  const entries =
+    existsSync(folder) && !folderIsLink
+      ? readdirSync(folder, { withFileTypes: true })
+          .filter((entry) => entry.name.endsWith(".jsonl"))
+          .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
+      : [];
+  const refused = folderIsLink ? ["events"] : [];
+  const files = [];
   const lines = [];
-  for (const name of files) lines.push(...readLog(path.join(folder, name)).lines);
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      refused.push(`events/${entry.name}`);
+      continue;
+    }
+    try {
+      lines.push(...readLog(path.join(folder, entry.name)).lines);
+      files.push(entry.name);
+    } catch (error) {
+      if (error?.code !== "link-refused") throw error;
+      refused.push(`events/${entry.name}`);
+    }
+  }
   lines.sort((left, right) => String(left.ts).localeCompare(String(right.ts)) || (left.seq ?? 0) - (right.seq ?? 0));
   return {
     required: true,
     home: path.relative(runDirectory, home),
     logs: files.map((name) => path.relative(runDirectory, path.join(folder, name))),
     lines: lines.length,
+    ...(refused.length ? { refused } : {}),
     summary:
       lines.length === 0 ? null : summarize(lines, { session: files.map((name) => name.slice(0, -6)).join(",") }),
   };

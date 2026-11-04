@@ -3,12 +3,14 @@
 // sees the store's .git read-only, Track Work there leaves the commits to the host, and the guard refuses a write into
 // the store's .git. No model runs.
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import { startContainer } from "../../../skills/evaluate-behavior/scripts/lib/container.mjs";
+import { freeflowEvents } from "../../../skills/evaluate-behavior/scripts/lib/subject.mjs";
 import { dockerCalls, installFakeDocker } from "./helpers/fake-docker.mjs";
 
 async function withTempDirectory(run) {
@@ -56,5 +58,32 @@ test("a writable folder's .git is mounted read-only over the folder's read-write
       `${store}/.git:${store}/.git:ro`,
       `${plain}:${plain}`,
     ]);
+  });
+});
+
+test("the run's event log is never read through a link the subject planted in events/: each is named as refused", async () => {
+  await withTempDirectory(async (root) => {
+    const home = path.join(root, "freeflow-home");
+    const events = path.join(home, "events");
+    await mkdir(events, { recursive: true });
+    const line = { v: 1, ts: "2026-11-04T10:00:00.000Z", seq: 1, session: "s1", harness: "claude-code", agent: "main" };
+    await writeFile(path.join(events, "s1.jsonl"), `${JSON.stringify({ ...line, kind: "turn.start", turn: 1 })}\n`);
+    // A host file that parses as event lines, so a read through the link would count it.
+    const outside = path.join(root, "host-secret.jsonl");
+    await writeFile(outside, `${JSON.stringify({ ...line, session: "x", kind: "turn.start", turn: 9 })}\n`);
+    await symlink(outside, path.join(events, "x.jsonl"));
+    execFileSync("mkfifo", [path.join(events, "y.jsonl")]);
+    const read = freeflowEvents(home, root);
+    assert.deepEqual(read.logs, ["freeflow-home/events/s1.jsonl"]);
+    assert.equal(read.lines, 1);
+    assert.deepEqual(read.refused, ["events/x.jsonl", "events/y.jsonl"]);
+    // events/ itself a link: nothing read.
+    await rm(events, { recursive: true });
+    const elsewhere = path.join(root, "elsewhere");
+    await mkdir(elsewhere);
+    await writeFile(path.join(elsewhere, "z.jsonl"), await readFile(outside, "utf8"));
+    await symlink(elsewhere, events);
+    const linked = freeflowEvents(home, root);
+    assert.deepEqual([linked.lines, linked.logs, linked.refused], [0, [], ["events"]]);
   });
 });
