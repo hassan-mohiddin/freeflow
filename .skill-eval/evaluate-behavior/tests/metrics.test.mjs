@@ -70,6 +70,9 @@ test("a body run with turns gives exact metrics from its timestamps, turns, tool
     peakContext: null,
     skillReads: null,
     skillReadTokens: null,
+    listCost: null,
+    interruptions: null,
+    defaultAnswers: null,
   });
   // Registered through the hook, the same fields land in run.metrics.
   assert.deepEqual(runMetrics({ observation, run }), runMetricsFor({ observation, run }));
@@ -94,6 +97,9 @@ test("a one-shot run counts one turn and its top-level tool activity", () => {
     peakContext: null,
     skillReads: null,
     skillReadTokens: null,
+    listCost: null,
+    interruptions: null,
+    defaultAnswers: null,
   });
 });
 
@@ -109,6 +115,9 @@ test("missing usage, timestamps or tool activity give null, never 0", () => {
     peakContext: null,
     skillReads: null,
     skillReadTokens: null,
+    listCost: null,
+    interruptions: null,
+    defaultAnswers: null,
   });
   // Usage with no prompt tokens at all has no hit rate; usage without a cost has a null cost.
   const empty = runMetricsFor({
@@ -242,6 +251,12 @@ test("perTrial holds one entry per trial and arm with every metric, null where u
       peakContext: null,
       skillReads: null,
       skillReadTokens: null,
+      listCost: null,
+      interruptions: null,
+      defaultAnswers: null,
+      listCost: null,
+      interruptions: null,
+      defaultAnswers: null,
     });
     const failed = perTrial.find((entry) => entry.trial === "t3" && entry.arm === "same");
     assert.ok(Object.values(failed.values).every((value) => value === null));

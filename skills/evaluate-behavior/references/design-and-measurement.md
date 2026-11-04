@@ -160,7 +160,7 @@ Why the rule comes first, and what any decision rule names, is in Research Work'
 
 The unit is the case: each arm's values are averaged per case, as Research Work's rule combines trials, and an exact sign test runs over the cases that differ. The verdict is `beats` only with at least the minimum decided cases, p below the level, and the split in the declared direction; the same evidence the other way is `worse`; anything else is `no-difference-shown`. For example, 19 better, 5 worse and 6 equal gives p ≈ 0.007. Report the verdict beside the pooled counts, and the split behind it.
 
-The sign test ignores how much better a case was, so it is conservative for measures with large per-case differences, such as cost. To change the rule after seeing results, write a new suite and run it fresh.
+The sign test ignores how much better a case was, so it is conservative for measures with large per-case differences, such as cost. For success per task, `mcnemar` tests the cases only one arm solved in every trial; for cost and wall time, `bootstrap` gives the paired mean difference with its interval, which says how large the difference is. A suite that must answer several measures declares one rule per measure in `decisions`, the first being the claim; read each verdict on its own measure, and a later rule never rescues a first that showed no difference. To change a rule after seeing results, write a new suite and run it fresh.
 
 ## Size Cases And Trials To The Decision
 

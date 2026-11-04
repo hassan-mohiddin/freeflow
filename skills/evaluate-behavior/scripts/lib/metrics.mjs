@@ -5,6 +5,7 @@
 import { realpathSync } from "node:fs";
 import path from "node:path";
 
+import { PRICES, requestCost } from "../../../track-work/scripts/lib/measure5.mjs";
 import { measuredCost } from "./budget.mjs";
 import { METRIC_NAMES } from "./decision.mjs";
 import { registerAggregator, registerRunMetricsHook } from "./hooks.mjs";
@@ -51,8 +52,50 @@ export function runMetricsFor({ observation, run, subject }) {
     cost: measuredCost(usage),
     // The share of prompt tokens served from the provider's cache.
     cacheHitRate: prompted === null || prompted === 0 ? null : tokens.cacheRead / prompted,
+    listCost: listCost(run?.transcript),
+    // Set by a conversation once its simulated user's turns are known (participants.mjs); null without one.
+    interruptions: null,
+    defaultAnswers: null,
     ...transcriptMetrics({ run, subject }),
   };
+}
+
+/**
+ * The run's requests at API list price (SPEC-011 4.3), from each assistant message's model and usage in its transcript
+ * and Track Work's price table (measure5.mjs), workers' requests included where the transcript holds them (Claude
+ * Code marks a subagent's). Claude Code's usage (`input_tokens`, ...) and Pi's (`input`, ...) are both read. Null
+ * when no message has usage, or one's model has no price: a missing price is never a free request.
+ *
+ * @param {any[] | undefined} transcript
+ * @param {any} [table]
+ */
+export function listCost(transcript, table = PRICES) {
+  if (!Array.isArray(transcript)) return null;
+  let total = 0;
+  let priced = 0;
+  for (const message of transcript) {
+    if (message?.role !== "assistant" || !isObject(message.usage) || typeof message.model !== "string") continue;
+    const usage = message.usage;
+    const anthropic = usage.input_tokens !== undefined || usage.output_tokens !== undefined;
+    const cost = requestCost(
+      {
+        model: message.model.replace(/^anthropic\//, ""),
+        usage: anthropic
+          ? usage
+          : {
+              input_tokens: count(usage.input) ?? 0,
+              output_tokens: count(usage.output) ?? 0,
+              cache_read_input_tokens: count(usage.cacheRead) ?? 0,
+              cache_creation_input_tokens: count(usage.cacheWrite) ?? 0,
+            },
+      },
+      table,
+    );
+    if (cost === null) return null;
+    total += cost;
+    priced += 1;
+  }
+  return priced === 0 ? null : total;
 }
 
 /** The transcript-derived metrics, null unless the run is a Pi run with a transcript. */

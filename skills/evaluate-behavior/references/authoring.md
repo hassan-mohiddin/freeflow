@@ -316,7 +316,7 @@ A comparison ID joins one expectation per arm, all the same check. For each non-
 }
 ```
 
-A suite's `groups` run in order and resolve from the suite's directory; `decision` is optional. The loader checks the rest.
+A suite's `groups` run in order and resolve from the suite's directory; `decision`, or `decisions`, is optional. The loader checks the rest.
 
 ### Decision
 
@@ -337,9 +337,13 @@ A suite may declare the rule its trials are judged by, before any run. Without o
 - `measure` names exactly one of: `comparison`, a comparison ID from the groups' expectations (a pass counts 1, a fail 0); `metric`, a name in the aggregate's `metrics` section; `judged`, a dimension ID in its `judged` section; or `score`, the comparison ID of test-graded command expectations, read from the `scores` section (an expectation's own ID scores its one arm only). Section values are read from `perTrial` (`true` counts 1, `false` 0, numbers as given). Null and unavailable values are excluded and counted.
 - `arms` names two arms, the reference first; every group needs both, and `--variant` is refused. The loader refuses a measure a group records in one decision arm only, or that no group records in both; a group that records it in neither arm, such as a control case, loads, and its case is excluded and counted.
 - `direction`: whether `higher` or `lower` is better.
-- `method` defaults to `sign-test`, `alpha` to 0.05, and `min_cases` to 10.
-- The unit is the case. Each arm's values over a case's trials are averaged, and the second arm is better, worse or equal. An exact two-sided sign test over the better and worse cases (ties and excluded cases are counted, not tested) gives the verdict that [design and measurement](design-and-measurement.md#fix-the-decision-rule-first) defines, with `min_cases` as the minimum and `alpha` as the level.
+- `method` defaults to `sign-test`, `alpha` to 0.05, and `min_cases` to 10. The methods are Research Work's ([stats.mjs](../../research-work/scripts/lib/stats.mjs)):
+  - `sign-test`: the unit is the case. Each arm's values over a case's trials are averaged, and the second arm is better, worse or equal. An exact two-sided sign test over the better and worse cases (ties and excluded cases are counted, not tested) gives the verdict that [design and measurement](design-and-measurement.md#fix-the-decision-rule-first) defines, with `min_cases` as the minimum and `alpha` as the level.
+  - `mcnemar`, for a `comparison` only: an arm succeeds on a case when every one of its trials passed (pass^k). Exact McNemar over the cases where exactly one arm succeeded gives the verdict, with `min_cases` as the minimum of those discordant cases; the decision also records each arm's pass@1 and pass^k over the cases.
+  - `bootstrap`: each case's arm mean minus its reference mean, resampled 10,000 times with a fixed seed, gives a `1 - alpha` interval of the mean difference. With at least `min_cases` cases measured in both arms, an interval wholly on the better side of zero is `beats` and wholly on the worse side `worse`; it gives no p.
 - A suite with a decision always runs as trials and records an aggregate. `trials` is optional: without it, `--trials` sets the count (default 1). After `initial` trials, each case whose sign is not yet stable (the arms tie, or differ by less than one trial's worth: the observed range divided by the fewer values) runs up to `step` more trials of that group alone, until `max`. A case with an arm that has no usable value is not extended.
+
+A suite that measures several things, such as success, cost and time, declares `decisions`, a list of such rules, instead of `decision`: each gets its own verdict, the first is the aggregate's claim, and only the first may declare `trials`. A suite declares one or the other, never both.
 
 What the aggregate records for a decision is in [running and evidence](running-and-evidence.md#trials).
 

@@ -505,6 +505,7 @@ test("adaptive trials extend only undecided cases, by the declared step, and sto
     assert.deepEqual(aggregate.claim, {
       class: "no-difference-shown",
       k: 2,
+      method: "sign-test",
       ruleSha256: aggregate.decision.ruleSha256,
       better: 2,
       worse: 0,
@@ -749,6 +750,7 @@ test("a decision cut short supports no verdict: its claim keeps the counts, with
       class: "none",
       reason: "cancelled",
       k: 1,
+      method: "sign-test",
       ruleSha256: aggregate.decision.ruleSha256,
       better: 6,
       worse: 0,
@@ -879,5 +881,37 @@ test("the CLI aggregates a decision without a schedule even for one trial", asyn
     assert.equal(aggregate.requestedTrials, 1);
     assert.equal(Object.hasOwn(aggregate, "schedule"), false);
     assert.equal(aggregate.decision.better, 1);
+  });
+});
+
+test("the CLI gives every decision of a suite that declares several, the first its claim (SPEC-011 4.3)", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    const { trials: _schedule, ...rule } = SCHEDULE_RULE;
+    await writeSkill(root);
+    await writeJson(path.join(root, "groups/one.json"), group("one"));
+    const suite = await writeJson(path.join(root, "suite.json"), {
+      schema_version: 2,
+      kind: "suite",
+      id: "several",
+      groups: ["groups/one.json"],
+      decisions: [
+        rule,
+        { ...rule, method: "mcnemar" },
+        { ...rule, measure: { metric: "turns" }, direction: "lower", method: "bootstrap" },
+      ],
+    });
+    const result = runCli(root, bin, ["run", suite]);
+    assert.equal(result.status, 0, result.stderr);
+    const aggregate = await readAggregate(root, result.stdout);
+    assert.deepEqual(
+      aggregate.decisions.map((each) => each.rule.method),
+      ["sign-test", "mcnemar", "bootstrap"],
+    );
+    assert.deepEqual(aggregate.decision, aggregate.decisions[0]);
+    assert.equal(aggregate.claim.method, "sign-test");
+    const viewed = await renderResult(aggregate.id, { group: null, variant: null }, { root });
+    assert.match(viewed, /\nDecision 2: [^\n]+ on comparison target-read, higher is better\n/);
+    assert.match(viewed, /\nDecision 3: [^\n]+ on metric turns, lower is better\n/);
   });
 });
