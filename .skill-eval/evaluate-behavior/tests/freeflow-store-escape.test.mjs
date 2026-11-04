@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { decideToolCall, guardState } from "../../../skills/evaluate-behavior/scripts/guard-rules.mjs";
 import { startContainer } from "../../../skills/evaluate-behavior/scripts/lib/container.mjs";
 import { freeflowEvents } from "../../../skills/evaluate-behavior/scripts/lib/subject.mjs";
 import { dockerCalls, installFakeDocker } from "./helpers/fake-docker.mjs";
@@ -85,5 +86,42 @@ test("the run's event log is never read through a link the subject planted in ev
     await symlink(elsewhere, events);
     const linked = freeflowEvents(home, root);
     assert.deepEqual([linked.lines, linked.logs, linked.refused], [0, [], ["events"]]);
+  });
+});
+
+test("the guard lets the file tools write the store but not its .git, read both, and follows a link before it decides", async () => {
+  await withTempDirectory(async (root) => {
+    const workspace = path.join(root, "workspace");
+    const store = path.join(root, "freeflow-home");
+    await mkdir(workspace);
+    await mkdir(path.join(store, ".git", "hooks"), { recursive: true });
+    await writeFile(path.join(store, ".git", "config"), "[core]\n");
+    // A link the subject's bash could make in the store's files, pointing into its .git.
+    await symlink(path.join(store, ".git"), path.join(store, "dot-git"));
+    const environment = {
+      SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify([workspace]),
+      SKILL_EVAL_WRITABLE_ROOT: workspace,
+      SKILL_EVAL_WRITABLE_ROOTS: JSON.stringify([store]),
+      SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(["read", "write", "edit"]),
+    };
+    const decide = (tool, file) =>
+      decideToolCall(guardState(environment), tool, { path: file }, workspace, environment);
+    for (const [tool, file] of [
+      ["write", path.join(store, ".git", "config")],
+      ["edit", path.join(store, ".git", "config")],
+      ["write", path.join(store, ".git", "hooks", "post-commit")],
+      ["write", path.join(store, ".git", "commondir")],
+      ["write", path.join(store, ".git")],
+      ["write", path.join(store, "dot-git", "config")],
+    ]) {
+      const decision = decide(tool, file);
+      assert.equal(decision?.block, true, `${tool} ${file}`);
+      assert.match(decision.reason, /in a \.git only the host writes/);
+    }
+    assert.equal(decide("write", path.join(store, "rules", "style.md")), undefined);
+    assert.equal(decide("read", path.join(store, ".git", "config")), undefined);
+    // The workspace's own .git stays the subject's: its tasks commit there.
+    await mkdir(path.join(workspace, ".git"));
+    assert.equal(decide("write", path.join(workspace, ".git", "config")), undefined);
   });
 });

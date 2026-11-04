@@ -237,6 +237,9 @@ export function guardState(environment) {
     allowedRoots: [...allowedRoots, ...extraWritable],
     writableRoot: realpathSync(writableRootValue),
     writableRoots: [realpathSync(writableRootValue), ...extraWritable],
+    // Their .git is the host's alone: the host runs Git there (the Freeflow arm's mod commits its store), so a write
+    // into it, such as core.fsmonitor in .git/config, would run on the host. The container mounts it read-only.
+    readOnlyRoots: extraWritable.map((root) => path.join(root, ".git")),
     allowedTools: new Set(parseStringArray(environment.SKILL_EVAL_ALLOWED_TOOLS)),
     shell: parseShell(environment.SKILL_EVAL_SHELL),
   };
@@ -298,9 +301,13 @@ export function decideToolCall(state, toolName, input, cwd, environment) {
       reason: `${toolName} path cannot be resolved inside the evaluation environment: ${declared}`,
     };
   }
-  const roots = toolName === "read" || listing ? allowedRoots : writableRoots;
+  const reading = toolName === "read" || listing;
+  const roots = reading ? allowedRoots : writableRoots;
   if (!roots.some((root) => isContained(root, canonical))) {
     return { block: true, reason: `${toolName} path escapes the evaluation environment: ${declared}` };
+  }
+  if (!reading && (state.readOnlyRoots ?? []).some((root) => isContained(root, canonical))) {
+    return { block: true, reason: `${toolName} path is in a .git only the host writes: ${declared}` };
   }
   return undefined;
 }
