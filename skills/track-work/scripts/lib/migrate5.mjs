@@ -372,3 +372,101 @@ export async function migrateTask({ recordPath, text, root, cue, cues, home, pro
     .join("\n")
     .concat("\n");
 }
+
+// A Schema 5 record written before the one Recovery list (#145) keeps what to read on recovery under three headings,
+// Defined by, Read on recovery and Read when, with files to carry as Carry lines in In flight. These become Recovery
+// lines: a Defined by entry `always, not counted`, a Read on recovery entry and a Carry file `always`, and a Read when
+// entry a `when` line with its trigger. Every other line of the record is kept as it was.
+export const OLD_RECOVERY_HEADINGS = ["Defined by", "Read on recovery", "Read when"];
+
+/** Whether a Schema 5 record still has the headings that came before the one Recovery list. */
+export function hasOldRecoveryHeadings(text) {
+  return OLD_RECOVERY_HEADINGS.some((heading) => new RegExp(`^### ${heading}\\s*$`, "m").test(text));
+}
+
+function sectionBody(lines, heading) {
+  const start = lines.findIndex((line) => line.trim() === `### ${heading}`);
+  if (start === -1) return { start: -1, end: -1, body: [] };
+  let end = start + 1;
+  while (end < lines.length && !/^#{2,3} /.test(lines[end])) end += 1;
+  return { start, end, body: lines.slice(start + 1, end) };
+}
+
+/** One Read when entry, `<pointer> — <why>; read when <trigger>`, as `when <trigger>: <pointer> — <why>`. */
+function whenLine(entry) {
+  const match = /^(.*?)[;,.]?\s+[Rr]ead when (.+?)\.?$/.exec(entry);
+  if (!match) return `when its situation applies: ${entry}`;
+  return `when ${match[2].trim()}: ${match[1].trim()}`;
+}
+
+/**
+ * The record with its Recovery list in place of the older headings and Carry lines; `null` when it has none of them.
+ * Bullet continuation lines (indented two spaces) stay with their bullet.
+ */
+export function convertRecoveryHeadings(text) {
+  if (!hasOldRecoveryHeadings(text) && !/^- Carry:/m.test(text)) return null;
+  let lines = text.split("\n");
+  const recovery = [];
+  const take = (heading, toLine) => {
+    const { start, end, body } = sectionBody(lines, heading);
+    if (start === -1) return;
+    let current = null;
+    for (const line of body) {
+      if (line.startsWith("- ")) {
+        if (current !== null) recovery.push(toLine(current));
+        current = line.slice(2).trim();
+      } else if (/^\s{2,}\S/.test(line) && current !== null) current += ` ${line.trim()}`;
+    }
+    if (current !== null) recovery.push(toLine(current));
+    lines = [...lines.slice(0, start), ...lines.slice(end)];
+  };
+  take("Defined by", (entry) => `always, not counted: ${entry}`);
+  take("Read on recovery", (entry) => `always: ${entry}`);
+  take("Read when", whenLine);
+  // Carry lines leave In flight and become always lines, read fresh at the next recovery.
+  lines = lines.filter((line) => {
+    const carry = /^- Carry:\s*(.+)$/.exec(line);
+    if (!carry) return true;
+    if (!/^none\.?$/i.test(carry[1].trim())) recovery.push(`always: ${carry[1].trim()}`);
+    return false;
+  });
+  const next = lines.findIndex((line) => line.trim() === "### Next action");
+  if (next === -1) fail("this record has no ### Next action heading to put the Recovery list before");
+  const existing = sectionBody(lines, "Recovery");
+  if (existing.start !== -1) fail("this record has both a Recovery list and the older headings: merge them by hand");
+  const block = ["### Recovery", "", ...(recovery.length ? recovery.map((line) => `- ${line}`) : []), ""];
+  lines = [...lines.slice(0, next), ...block, ...lines.slice(next)];
+  return { record: lines.join("\n").replace(/\n{3,}/g, "\n\n"), count: recovery.length };
+}
+
+/** Converts a task's record.md in place, keeps the old one in sources/, and syncs the store that holds it. */
+export async function migrateRecoveryHeadings({ recordPath, text, home }) {
+  const converted = convertRecoveryHeadings(text);
+  if (!converted) fail("this record already has the one Recovery list: nothing to migrate");
+  parseRecord5(converted.record);
+  const taskDir = dirname(recordPath);
+  await mkdir(join(taskDir, "sources"), { recursive: true });
+  const kept = join(taskDir, "sources", "record-before-recovery.md");
+  await writeFile(kept, text);
+  await writeFile(recordPath, converted.record);
+  let synced = "";
+  if (home) {
+    try {
+      const outcome = await syncStore({ home, message: `Migrate ${basename(taskDir)} to the Recovery list` });
+      synced = outcome.local
+        ? "Store: committed; a local store."
+        : outcome.pushed
+          ? "Store: committed and pushed."
+          : `Store: committed, not pushed (${outcome.reason}).`;
+    } catch (error) {
+      synced = `Store not synced: ${error.message}`;
+    }
+  }
+  return [
+    `Migrated to the Recovery list: ${recordPath}, ${converted.count} line(s).`,
+    `The record as it was is kept in sources/record-before-recovery.md. Read the list: a when line's trigger is the old line's "read when" text.`,
+    synced,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
