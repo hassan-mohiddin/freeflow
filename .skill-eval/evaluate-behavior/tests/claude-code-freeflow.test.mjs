@@ -16,6 +16,8 @@ import { claudeStarts, installFakeClaude, startScriptedApi } from "./helpers/fak
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
 const trackWork = fileURLToPath(new URL("../../../skills/track-work", import.meta.url));
+// Track Work imports Discuss Work's choice list, so the fake package carries both, as the real one does.
+const discussWork = fileURLToPath(new URL("../../../skills/discuss-work", import.meta.url));
 const AMBIENT = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"];
 
 async function withTempDirectory(run) {
@@ -37,6 +39,7 @@ async function write(file, contents) {
 // script, which makes the arm's store.
 async function installFakeSnapshot(root) {
   await cp(trackWork, path.join(root, "track-work-source"), { recursive: true });
+  await cp(discussWork, path.join(root, "discuss-work-source"), { recursive: true });
   await write(
     path.join(root, "scripts", "freeflow-snapshot.mjs"),
     `import { cpSync, mkdirSync, writeFileSync } from "node:fs";
@@ -50,6 +53,7 @@ writeFileSync(path.join(target, "pi-extension", "freeflow", "index.js"), "export
 writeFileSync(path.join(target, "pi-extension", "dist", "host", "config-validation.js"),
   "export function validateRepositoryConfig() { return null; }\\nexport function validateLocalConfig() { return null; }\\n");
 cpSync(${JSON.stringify(path.join(root, "track-work-source"))}, path.join(target, "skills", "track-work"), { recursive: true });
+cpSync(${JSON.stringify(path.join(root, "discuss-work-source"))}, path.join(target, "skills", "discuss-work"), { recursive: true });
 writeFileSync(option("--metadata"), JSON.stringify({ sourceCommit: "${"c".repeat(40)}", packageName: "freeflow", packageVersion: "0.0.0-test" }));
 `,
   );
