@@ -27,7 +27,10 @@ export const CONFORMANCE = {
     "with no store, a session summary's checkpoint --compact compacts with its bundle and the run continues (P4)",
   ],
   ask: ["ask-user/ask-user.test.js", "the model reads the answers, each deciding only its question"],
-  block: ["tool-execution/changed-files-native.test.js", "a background command ending in & is refused before it runs"],
+  block: [
+    "gates/runtime.test.js",
+    "Pi's tool_call warns through the call's result and allows, or blocks with the reason under block",
+  ],
   sensors: [
     "events/recorder.test.js",
     "a Pi session writes its loop to the event log when the run settles, and its claims at session start",

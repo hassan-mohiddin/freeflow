@@ -509,7 +509,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     "review.depth": "review-plan reads the depth rules from the repository's file at the base commit",
   };
   const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
-  const { CONFIG_SECTIONS, REVIEW_KEYS, PROMPTS_KEYS, SKILLS_KEYS, EVENTS_KEYS } =
+  const { CONFIG_SECTIONS, REVIEW_KEYS, PROMPTS_KEYS, SKILLS_KEYS, EVENTS_KEYS, GATE_KEYS } =
     await import("../../dist/host/config-validation.js");
   const { TOOL_EXECUTION_KEYS } = await import("../../dist/tool-execution/config.js");
   const { COMPACTION_KEYS } = await import("../../dist/compaction/config.js");
@@ -522,6 +522,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     review: REVIEW_KEYS,
     skills: SKILLS_KEYS,
     events: EVENTS_KEYS,
+    gates: GATE_KEYS,
   };
   const nested = {};
   const keys = ["enabled"];

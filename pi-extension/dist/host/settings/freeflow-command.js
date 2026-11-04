@@ -9,11 +9,14 @@ import {
   setSessionCoreOverride,
 } from "../config.js";
 import {
+  GATE_KEYS,
+  GATE_MODES,
   REVIEW_DEFAULTS,
   REVIEW_ROUNDS,
   REVIEW_UNITS,
   RUNTIME_PROMPTS,
   SWITCHABLE_SKILLS,
+  resolveGateSettings,
   resolveReviewSettings,
   sectionEnabled,
 } from "../config-validation.js";
@@ -307,6 +310,19 @@ const INBOUND_DESCRIPTIONS = {
   hold: "Ask you before delivering any message.",
   refuse: "Refuse every message.",
 };
+// The gates (SPEC-008 4.5): one row per gate, off, warn or block.
+const GATE_LABELS = {
+  agreement: ["Agreement gate", "A change before the user's agreement is recorded"],
+  slice: ["Slice gate", "A change outside the record with no open Slice while a task is held"],
+  delivery: ["Delivery gate", "A commit, push, tag, merge, pull request, publish or release"],
+  delegation: ["Delegation gate", "A worker's write outside its brief's scope, or to the task's record"],
+};
+const GATE_VALUE_LABELS = { off: "off", warn: "warn", block: "block" };
+const GATE_DESCRIPTIONS = {
+  off: "No check.",
+  warn: "The agent reads a warning with the rule and the way through, and the event log counts it.",
+  block: "The call is refused with the same text; a delivery step becomes a question where you can answer.",
+};
 const REVIEW_UNIT_LABELS = {
   pr: "pull request",
   push: "push",
@@ -393,6 +409,7 @@ const SECTION_ORDER = [
   "freeflow.toolExecution",
   "freeflow.messaging",
   "freeflow.events",
+  "freeflow.gates",
   "freeflow.review",
   "freeflow.session",
 ];
@@ -477,6 +494,25 @@ function sessionFreeflowItems(state, ctx, rawConfig, localConfig) {
     eventsOn,
     true,
   );
+  // The gates, on every host with a Freeflow driver (SPEC-008 4.5).
+  const gateItems = GATE_KEYS.map((gate) => {
+    const inherited = configuredSetting(rawConfig, localConfig, ["gates", gate], "warn");
+    const item = createSessionChoiceItem({
+      id: `freeflow.gates.${gate}`,
+      label: GATE_LABELS[gate][0],
+      description: `${GATE_LABELS[gate][1]}, in this session.`,
+      key: `gates.${gate}`,
+      values: GATE_MODES,
+      valueLabels: GATE_VALUE_LABELS,
+      valueDescriptions: GATE_DESCRIPTIONS,
+      inheritedValue: inherited.value,
+      inheritedSource: inherited.source,
+      effectiveValue: state.gates?.[gate] ?? "warn",
+      sessionOverrides,
+    });
+    item.inactive = freeflowInactive;
+    return item;
+  });
   const inboundInherited = configuredSetting(rawConfig, localConfig, ["messaging", "inbound"], DEFAULT_INBOUND_POLICY);
   const inboundItem = createSessionChoiceItem({
     id: "freeflow.messaging.inbound",
@@ -609,6 +645,7 @@ function sessionFreeflowItems(state, ctx, rawConfig, localConfig) {
     sectionItem("freeflow.events", "Event log", "The event log for this session.", eventsOn ? "on" : "off", [
       eventsItem,
     ]),
+    sectionItem("freeflow.gates", "Gates", "Freeflow's gates for this session.", "", gateItems),
     sectionItem("freeflow.review", "Review", "Review Work for this session.", "", [
       reviewUnitItem,
       reviewModelItem,
@@ -981,6 +1018,36 @@ function freeflowItems(rawConfig, options = {}) {
     displaySuffix: eventsOn ? "on" : "off",
     children: [eventsEnabledItem],
   };
+  // The gates, on every host with a Freeflow driver (SPEC-008 4.5).
+  const gateModes = resolveGateSettings(rawConfig, localConfig);
+  const gatesGroup = {
+    id: "freeflow.gates",
+    label: "Gates",
+    description: "Configure Freeflow's gates on every host with a Freeflow driver: off, warn (the default) or block.",
+    kind: "group",
+    value: true,
+    inactive: freeflowInactive,
+    displaySuffix: "",
+    children: GATE_KEYS.map((gate) => {
+      const item = createScopedChoiceItem({
+        scope,
+        rawConfig,
+        localConfig,
+        id: `freeflow.gates.${gate}`,
+        label: GATE_LABELS[gate][0],
+        description: `${GATE_LABELS[gate][1]}.`,
+        path: ["gates", gate],
+        values: GATE_MODES,
+        valueLabels: GATE_VALUE_LABELS,
+        valueDescriptions: GATE_DESCRIPTIONS,
+        defaultValue: "warn",
+        effectiveValue: gateModes[gate],
+        effectiveSource: toolSource(["gates", gate]),
+      });
+      item.inactive = freeflowInactive;
+      return item;
+    }),
+  };
   // Review Work's choice on every host (config-validation.ts).
   const review = resolveReviewSettings(rawConfig, localConfig);
   const reviewUnitItem = createScopedChoiceItem({
@@ -1043,6 +1110,7 @@ function freeflowItems(rawConfig, options = {}) {
     compactionGroup,
     messagingGroup,
     eventsGroup,
+    gatesGroup,
     reviewGroup,
     promptsGroup,
     skillsGroup,

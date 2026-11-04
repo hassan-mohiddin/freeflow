@@ -229,7 +229,15 @@ export async function fixture(script, _unused, after, withUI = true, options = {
     agentDir = join(root, "agent");
   await mkdir(join(cwd, ".freeflow"), { recursive: true });
   await mkdir(agentDir);
-  await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ ...(options.freeflowConfig ?? {}) }));
+  await writeFile(
+    join(cwd, ".freeflow/config.json"),
+    JSON.stringify({
+      // The gates (SPEC-008) warn on most changes; their rows race with session start's gate state, so a native test
+      // pins them only where it turns them on (tests/gates/).
+      gates: { agreement: "off", slice: "off", delivery: "off", delegation: "off" },
+      ...(options.freeflowConfig ?? {}),
+    }),
+  );
   await writeFile(join(cwd, "evidence.txt"), "EXACT_EVIDENCE_BODY_81");
   await writeFile(join(cwd, "unselected.txt"), "UNSELECTED_PRIVATE_BODY_93");
   await writeFile(join(cwd, "recovery.txt"), "FRESH_RECOVERY_BODY_57");

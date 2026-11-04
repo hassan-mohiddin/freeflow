@@ -101,6 +101,32 @@ function validateEventsConfig(value: unknown) {
 }
 
 /**
+ * The gates (SPEC-008 4.5): each of the four is `off`, `warn` (the default: the agent reads a warning, the event log
+ * counts it) or `block` (a refusal, or for delivery a question where someone can answer), on every host with a Freeflow
+ * driver. Track Work's `lib/gates5.mjs` decides; the drivers read these values.
+ */
+export const GATE_KEYS = ["agreement", "slice", "delivery", "delegation"] as const;
+export const GATE_MODES = ["off", "warn", "block"] as const;
+export type GateSettings = Record<(typeof GATE_KEYS)[number], (typeof GATE_MODES)[number]>;
+
+function validateGatesConfig(value: unknown) {
+  if (!isRecord(value)) return "gates must be an object";
+  const unknown = Object.keys(value).find((key) => !(GATE_KEYS as readonly string[]).includes(key));
+  if (unknown) return `gates has unsupported key: ${unknown}`;
+  for (const key of GATE_KEYS)
+    if (value[key] !== undefined && !(GATE_MODES as readonly unknown[]).includes(value[key]))
+      return `gates.${key} must be one of ${GATE_MODES.join(", ")}`;
+  return null;
+}
+
+/** Each gate's mode for two valid config layers: the personal layer overrides the repository's, gate by gate. */
+export function resolveGateSettings(repository: unknown, local: unknown): GateSettings {
+  const layer = (config: any) => (isRecord(config?.gates) ? config.gates : {});
+  const [shared, personal] = [layer(repository), layer(local)];
+  return Object.fromEntries(GATE_KEYS.map((key) => [key, personal[key] ?? shared[key] ?? "warn"])) as GateSettings;
+}
+
+/**
  * How Review Work reviews finished work (SPEC-007). `unit` says when a review runs: at every pull request by default,
  * at a push, a commit or an agreement's Return, or `manual` (proposed with its plan and cost, run after a yes). `model`
  * is the reviewer's model, `auto` choosing the cheapest capable one; `rounds` caps Review 1, 2, 3. `depth` holds the
@@ -276,6 +302,18 @@ export const SETTINGS: readonly SettingSpec[] = [
     session: true,
   })),
   { key: "events.enabled", label: "Event log", values: "boolean", default: true, hosts: "all", session: true },
+  // The gates (SPEC-008 4.5).
+  { key: "gates.agreement", label: "Agreement gate", values: GATE_MODES, default: "warn", hosts: "all", session: true },
+  { key: "gates.slice", label: "Slice gate", values: GATE_MODES, default: "warn", hosts: "all", session: true },
+  { key: "gates.delivery", label: "Delivery gate", values: GATE_MODES, default: "warn", hosts: "all", session: true },
+  {
+    key: "gates.delegation",
+    label: "Delegation gate",
+    values: GATE_MODES,
+    default: "warn",
+    hosts: "all",
+    session: true,
+  },
   { key: "review.unit", label: "Review unit", values: REVIEW_UNITS, default: "pr", hosts: "all", session: true },
   { key: "review.model", label: "Reviewer model", values: "name", default: "auto", hosts: "all", session: true },
   { key: "review.rounds", label: "Review rounds", values: REVIEW_ROUNDS, default: 3, hosts: "all", session: true },
@@ -363,6 +401,7 @@ export const CONFIG_SECTIONS = [
   "review",
   "skills",
   "events",
+  "gates",
 ] as const;
 
 // outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
@@ -416,6 +455,10 @@ export function validateRepositoryConfig(value: unknown): string | null {
     const error = validateEventsConfig(value.events);
     if (error) return error;
   }
+  if (value.gates !== undefined) {
+    const error = validateGatesConfig(value.gates);
+    if (error) return error;
+  }
   if (value.review !== undefined) return validateReviewConfig(value.review, "repository");
 
   return null;
@@ -443,6 +486,7 @@ export function validateLocalConfig(value: unknown): string | null {
     "review",
     "skills",
     "events",
+    "gates",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -474,6 +518,10 @@ export function validateLocalConfig(value: unknown): string | null {
   }
   if (value.events !== undefined) {
     const error = validateEventsConfig(value.events);
+    if (error) return error;
+  }
+  if (value.gates !== undefined) {
+    const error = validateGatesConfig(value.gates);
     if (error) return error;
   }
   if (value.review !== undefined) return validateReviewConfig(value.review, "personal");

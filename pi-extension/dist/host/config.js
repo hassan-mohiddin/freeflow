@@ -5,6 +5,7 @@ import { resolveToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig } from "../compaction/config.js";
 import { resolveMessagingConfig } from "../messaging/config.js";
 import {
+  resolveGateSettings,
   resolveReviewSettings,
   SETTINGS,
   sectionEnabled,
@@ -211,6 +212,10 @@ export async function readCapabilityState(cwd, host = undefined) {
   const promptsEnabled = sectionEnabled(repositoryConfig, sessionLocalConfig, "prompts");
   // The event log (SPEC-006 P5): written while Freeflow and its own switch are on.
   const events = { enabled: enabled && sectionEnabled(repositoryConfig, sessionLocalConfig, "events") };
+  // The gates (SPEC-008 4.5): each gate's mode; with Freeflow off, every gate is off.
+  const gates = enabled
+    ? resolveGateSettings(repositoryConfig, sessionLocalConfig)
+    : resolveGateSettings({ gates: { agreement: "off", slice: "off", delivery: "off", delegation: "off" } }, {});
   const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -237,6 +242,7 @@ export async function readCapabilityState(cwd, host = undefined) {
     promptsEnabled,
     skills,
     events,
+    gates,
     // ask_user: core, on whenever Freeflow is enabled (Task 002 D-001); off in subagents, which have no user.
     askUser: { enabled, effective: enabled },
   };

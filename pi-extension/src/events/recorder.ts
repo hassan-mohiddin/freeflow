@@ -87,7 +87,10 @@ export function piClaims(inputs: ClaimInputs): Claims {
       ? claim("yes", "the run continues after its compaction")
       : claim("possible", "sendUserMessage exists; Freeflow wakes the run only after its compaction, which is off"),
     ask: inputs.askUser ? claim("yes", "the ask_user tool") : claim("no", "no person to ask in a subagent"),
-    block: claim("yes", "tool_call returns a block with its reason"),
+    block: claim(
+      "yes",
+      "tool_call returns a block with its reason: the gates under block (gates.*), Tool Execution's guards",
+    ),
     sensors: inputs.events
       ? claim("yes", "runs, turns, model requests, tool calls and compactions, written to the event log")
       : claim("possible", "the event log is off (events.enabled)"),
