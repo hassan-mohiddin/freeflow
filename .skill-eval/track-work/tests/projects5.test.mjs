@@ -243,6 +243,66 @@ test("the menu lists the open tasks of the project whose tasks name the folder's
   });
 });
 
+test("project list --json gives the pane every project's tasks with holds, the open agreement and Slice, and decisions waiting first (SPEC-015)", async () => {
+  await withStore(async ({ home, work, cli }) => {
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
+    for (const [session, title] of [
+      ["aaaaaaaa-1", "Held elsewhere"],
+      ["bbbbbbbb-2", "Mine"],
+    ])
+      ok(
+        cli(
+          session,
+          ["task", "create", "--title", title, "--goal", "g", "--cue", "read when it matters", "--project", "widget"],
+          work,
+        ),
+      );
+    ok(cli("bbbbbbbb-2", ["task", "release"]));
+    const mine = join(home, "projects", "widget", "tasks", "task-002-mine");
+    await writeFile(
+      join(mine, "decisions.md"),
+      '# Decisions\n\n- P1 [agreed] Which first? -> oldest. You: "go" (2026-11-01)\n- T1 [default] FIFO -> serves P1\n- P2 [proposed] Retry how often? -> three times\n',
+    );
+    ok(cli("bbbbbbbb-2", ["task", "take", "--id", "widget/task-002"]));
+    const listed = JSON.parse(ok(cli("bbbbbbbb-2", ["project", "list", "--json"])));
+    assert.equal(listed.session, "bbbbbbbb");
+    assert.deepEqual(
+      listed.projects.map((project) => [project.name, project.tasks.map((task) => task.id)]),
+      [["widget", ["widget/task-002", "widget/task-001"]]],
+    );
+    const [own, other] = listed.projects[0].tasks;
+    assert.deepEqual(
+      { ...own, hold: { ...own.hold, where: undefined, since: undefined }, lastSync: undefined },
+      {
+        id: "widget/task-002",
+        title: "Mine",
+        state: "active",
+        cue: "read when it matters",
+        hold: { session: "bbbbbbbb", harness: "Test harness", where: undefined, since: undefined },
+        thisSession: true,
+        lastSync: undefined,
+        agreement: null,
+        slice: null,
+        decisions: [
+          { id: "P2", state: "proposed", text: "Retry how often? -> three times" },
+          { id: "P1", state: "agreed", text: 'Which first? -> oldest. You: "go" (2026-11-01)' },
+          { id: "T1", state: "default", text: "FIFO -> serves P1" },
+        ],
+        problem: null,
+      },
+    );
+    assert.match(own.lastSync, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+    assert.equal(other.hold.session, "aaaaaaaa");
+    assert.equal(other.thisSession, false);
+    assert.deepEqual(other.decisions, []);
+    // The text form is unchanged.
+    assert.match(
+      ok(cli("bbbbbbbb-2", ["project", "list"])),
+      /^- widget: 2 task\(s\); repositories github.com\/acme\/widget\n$/,
+    );
+  });
+});
+
 test("removing a task or a project is a pushed commit that Git history keeps, and task numbers are not reused", async () => {
   await withStore(async ({ home, remote, cli }) => {
     ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
@@ -544,6 +604,35 @@ test("a resumed session takes back the task its end released (F36), never one re
     ok(cli("cccccccc-3", ["task", "take", "--id", "widget/task-001"]));
     ok(cli("cccccccc-3", ["task", "release"]));
     assert.doesNotMatch(ok(cli("cccccccc-3", ["task", "here", "--take-back"], work)), /Took/);
+  });
+});
+
+test("task release --ended --no-push commits the ended hold here only, and the next sync pushes it (SPEC-012 P3)", async () => {
+  await withStore(async ({ home, remote, work, cli }) => {
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
+    ok(
+      cli(
+        "aaaaaaaa-1",
+        ["task", "create", "--title", "One", "--goal", "g", "--cue", "read when one matters", "--project", "widget"],
+        work,
+      ),
+    );
+    const before = pushedLog(remote);
+    // Codex gives a session's end a second or so: the hold closes as ended, committed on this machine only.
+    assert.equal(
+      ok(cli("aaaaaaaa-1", ["task", "release", "--ended", "--no-push"])),
+      "Released widget/task-001 as ended: a resume of this session takes it back.\nStore: committed, not pushed (not pushed now: --no-push); the next store sync pushes it.\n",
+    );
+    assert.match(
+      await readFile(join(home, "projects", "widget", "tasks", "task-001-one", "sessions.md"), "utf8"),
+      /· ended · resume aaaaaaaa-1\n$/,
+    );
+    assert.equal(pushedLog(remote), before);
+    assert.equal(JSON.parse(ok(cli("aaaaaaaa-1", ["session", "status"]))).changed, true);
+    // The next session start's sync pushes it, and a resume still takes the task back.
+    ok(cli("aaaaaaaa-1", ["store", "sync"]));
+    assert.match(pushedLog(remote), /^Release widget\/task-001 \(aaaaaaaa, ended\)\n/);
+    assert.match(ok(cli("aaaaaaaa-1", ["task", "here", "--take-back"], work)), /^Took widget\/task-001 back/);
   });
 });
 

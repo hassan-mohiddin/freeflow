@@ -86,8 +86,6 @@ export class CompactionController {
   }
   noticeText(cycle, tokens, thresholds) {
     const head = `Context cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}, and Pi compacts on its own at about ${thresholds.trigger} tokens.`;
-    if (this.host.coordinatorUnderProjection())
-      return `${head} Your view leaves out what workers did, so do not checkpoint yourself: at a safe point (after the current assessment, or before the next assignment), delegate an assignment asking the worker to checkpoint as Track Work says, with --compact, and return with return_work; Freeflow compacts when the run ends.`;
     const command = this.host.store.command();
     const task = this.host.store.current()?.task;
     const worker = this.host.store.current()?.delegation;
@@ -181,15 +179,12 @@ export class CompactionController {
       version: 2,
       cycle,
       ...extra,
-      ...(this.host.routingProfile() ? { profile: this.host.routingProfile() } : {}),
-      ...(this.host.routingAssignment() ? { assignment: this.host.routingAssignment() } : {}),
     };
   }
   harness(branch, ctx, cycle, requestedBy) {
     return harnessPart({
       cycle,
       ...(requestedBy ? { requestedBy } : {}),
-      routingProfile: this.host.routingProfile(),
       background: this.host.background(),
       skills: skillsRead(currentCycle(branch), ctx.cwd),
       files: { readFiles: [], modifiedFiles: [] },

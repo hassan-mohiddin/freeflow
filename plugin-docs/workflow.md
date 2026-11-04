@@ -13,7 +13,7 @@ Work runs in one cycle:
 
 1. **Agree.** Before the first edit on a task that builds or changes behavior, the agent sends what it will do, where it stops, and the choices that are yours, each with its default, then waits.
 2. **Build and verify.** It builds within the agreement and checks the result on the path you will use.
-3. **Review and return.** It checks its own work, gets an independent review when Review Work's gate calls for one, and returns the work to you with what done looks like against what was done.
+3. **Review and return.** It checks its own work, gets the independent review Review Work's plan calls for, and returns the work to you with what done looks like against what was done.
 
 When evidence changes the picture, the agent goes back only to the step it affects and keeps the work that still holds. There are no modes and no mandatory phases: a question gets an answer, a one-line exact edit gets made, and a large change gets the whole cycle.
 
@@ -98,7 +98,7 @@ Each skill is one capability. Its first page covers the common case and a table 
 
 The commands are Pi's; Claude Code calls the same skills as `/freeflow:<skill>`, and Codex by mentioning the skill. Natural language works as well: the agent opens the skill whose description matches. A skill is a method, never permission; naming one does not authorize what it describes.
 
-On Pi, Freeflow's optional capabilities add skills of their own while they are on: Cognitive Routing, Compaction and Messaging.
+On Pi, Messaging adds a skill of its own while it is on.
 
 ### Scripts the skills run
 
@@ -107,10 +107,13 @@ The agent runs these itself; you see their output in its report. They are under 
 | Script | What it answers |
 | --- | --- |
 | Execute Work `touch-map.mjs` | What a change touches: entry points, readers, writers, scheduled code, covering tests and developer docs, each block saying what it did not search. |
-| Verify Work `self-review.mjs` | One report before the work returns to you: status, diff stat, every changed existing test or fixture with its hunk, each new test and whether it fails on the base, whether each requirement's check ran after the last edit, and the feature files covering the change with whether each was driven live since. |
+| Verify Work `self-review.mjs` | One report before the work returns to you: status, diff stat, every changed existing test or fixture with its hunk, each new test and whether it fails on the base, whether each requirement's check ran after the last edit (from the session's event log where there is one), and the feature files covering the change with whether each was driven live since. |
 | Verify Work `test-changes.mjs` | Every test, fixture or test setup file changed since a base commit, with its hunks; `--new` lists added test files. |
 | Discuss Work `choices.mjs` | Checks the decision list and renders the agreement, the Return's unseen choices, and a catch-up after an unattended run. |
-| Review Work `review-packet.mjs`, `check-brief.mjs` | Prefills an independent reviewer's brief, names the review gate's triggers and round budget, and refuses a brief with a missing line or a path that does not exist. |
+| Discuss Work `drift.mjs` | The hunks of the change against a base that no decision item's `Shows at` covers, those in code a feature file covers first, for the agent and a reviewer to judge. |
+| Review Work `review-plan.mjs` | How deep a change's review goes, from the diff, the project's `review.depth` read from the base commit and the agreement's `Review:` lines: Quick, Standard or Deep, its tier, reviewers and rounds, and why. The same diff always gets the same plan. |
+| Review Work `review-status.mjs` | Whether a review is on record for a commit: none, covered (its depth and judgment), or the commits since and the diff-only re-review that would cover them. Deliver Work's `delivery-state.mjs` prints the same line. |
+| Review Work `review-packet.mjs`, `check-brief.mjs`, `check-adjudication.mjs` | Prefills an independent reviewer's brief from the plan (one per reviewer for a Deep review), refuses a brief with a missing line or a path that does not exist, and checks the dispositions of a returned report against its judgment before recording the review. |
 | Deliver Work `delivery-state.mjs`, `commit-state.mjs`, `release-preflight.mjs`, `push-route.mjs` | Branch, upstream, uncommitted work, worktrees, tag, version and changelog in one read; your changes apart from pre-existing staged work; local checks of a release or a simple push, without performing either. |
 | Track Work `working-record.mjs view recover` | After context loss, in one call: the record's present state with an index of closed History, each defining artifact and recovery source and whether it resolves, and where live Git state disagrees with the record. |
 | Write Docs `docs-check.mjs`, `plan-lint.mjs`, `artifact-check.mjs` | Paths a document names that do not exist and docs whose code changed; Plan steps that name no check; a Spec, Plan or decision record's status and source trail. |
@@ -136,7 +139,7 @@ Freeflow 0.9.0 has ten skills instead of twenty-five. The removed names have no 
 
 ## Activation And Configuration
 
-Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal overrides and cannot activate Freeflow by itself. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Cognitive Routing, Tool Execution, Compaction and Messaging are optional capabilities. The former context settings `contextVirtualization` and `conversationHistory` are unsupported and make either config layer invalid until removed.
+Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal overrides and cannot activate Freeflow by itself. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Tool Execution, Compaction and Messaging are optional capabilities. The former context settings `contextVirtualization` and `conversationHistory` are unsupported and make either config layer invalid until removed.
 
 ```text
 host session enablement -> personal override -> repository value -> built-in default
@@ -144,7 +147,7 @@ host session enablement -> personal override -> repository value -> built-in def
 
 Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid. An invalid existing local config fails closed instead of silently inheriting shared settings. Session state cannot bypass missing or invalid repository activation.
 
-Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` edits temporary enablement and optional-context overrides; `/freeflow settings repo` edits shared configuration. On a qualified native Pi host, session settings also expose complete overrides for Cognitive Routing profiles enabled in that session that do not mutate either config file, take precedence over personal and repository profiles, and can inherit or reset independently. [Settings](settings.md) lists every key.
+Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` edits temporary enablement and optional-context overrides; `/freeflow settings repo` edits shared configuration. [Settings](settings.md) lists every key.
 
 ## Authority And Effects
 
@@ -164,7 +167,7 @@ Verification is factual work by the agent: a check supports only what it observe
 
 Self-review, Verify Work's check of the agent's own result, runs on every finished change, silently, before the Return. It covers the decision list and justifies every change to an existing test, fixture or setup. Clear local issues within the agreed outcome may be corrected and re-checked.
 
-An independent review is a separately selected reviewer in a separate context. Review Work's gate decides when one runs, by the `review` setting: `auto` (the default) reviews when the change touches security, auth or secrets, data loss or migrations, CI or release files, a public interface, a path your Review Rules mark sensitive, or anything your agreement names; `off` proposes one with its reason and cost and runs it only on your yes; `always` reviews every time. Switching Cognitive Routing profiles is not independent review.
+An independent review is a separately selected reviewer in a separate context. One runs at every review unit, `review.unit` in [settings](settings.md): before each pull request by default, or at each push, commit or agreement's Return; `manual` proposes each with its plan and estimated cost and runs it only on your yes. How deep it goes is Review Work's plan (`review-plan.mjs`), computed from the diff, your repository's `review.depth` rules read from the base commit, and the `Review:` lines of your agreement (`Review: src/billing/** deep`, or `Review: all`): Quick (one reviewer on the cheapest model), Standard (the default: one reviewer on the cheapest capable model, up to Review 2) or Deep (three reviewers in parallel, none seeing another's report until all have written theirs, up to Review 3). Built-in triggers make a change Deep: security (a permission decision, a credential read, a crypto call, or an auth, permission, secret or credential path), stored data (migrations, schema files), CI and release files, and a public interface (a skill's name or description, a command, a settings key, a package's `bin`, `exports` or `main`). The agent can add a trigger with its reason, never remove one. Each review is recorded against the commit it reviewed, in the task's `reviews/` folder, and before a pull request opens Deliver Work checks that a review covers the head commit. Until Freeflow's gates arrive, that check is the skill's, not enforced by the host.
 
 Review findings are evidence, not commands. An accepted correction that your agreement covers goes back to Execute Work; otherwise the agent asks once. Review budgets cap rounds; they do not authorize another review.
 
@@ -188,9 +191,5 @@ A recovered record restores memory, not authority or proof that its evidence is 
 Independent review, a commit, a decision of yours and a transfer to another session are return points only when the work agreement names them; a Slice ending alone does not require one. Commit, branch integration, migration, release, launch and destructive cleanup stay separately controlled.
 
 The agent may end by answering, waiting, pausing, handing off, deferring, stopping at a controlled boundary, or completing. Completion needs fresh verification, self-review, resolved selected reviews, accurate task memory, the docs the change made wrong corrected, and no hidden choice of yours or source conflict.
-
-## Cognitive Routing
-
-On native Pi with Cognitive Routing on, the cycle runs in the Coordinator, the profile you talk to. It delegates bounded assignments to a Helper or Executor and assesses what they return; a worker's report does not complete a Slice, task, commit, release or launch. Routing changes where computation runs, not who decides or what is authorized. See [Cognitive Routing](capabilities/cognitive-routing.md).
 
 See [Skill routing](../dev-docs/subsystems/skill-routing.md) for how the skills, references and scripts depend on each other.

@@ -12,7 +12,9 @@ import {
   CLAIM_HOURS,
   GATE_KEYS,
   GATE_MODES,
-  REVIEW_MODES,
+  REVIEW_DEFAULTS,
+  REVIEW_ROUNDS,
+  REVIEW_UNITS,
   RUNTIME_PROMPTS,
   SWITCHABLE_SKILLS,
   resolveDelegationSettings,
@@ -23,13 +25,12 @@ import {
 import { freeflowStatusText } from "../status.js";
 import { ensureLocalConfigIgnored, pruneDefaults } from "../config-store.js";
 import { PiSettingsComponent } from "./settings-view.js";
-import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG } from "../../tool-execution/config.js";
 import { DEFAULT_COMPACTION_ENABLED } from "../../compaction/config.js";
 import { DEFAULT_INBOUND_POLICY, DEFAULT_MESSAGING_ENABLED, INBOUND_POLICIES } from "../../messaging/config.js";
 /*
  * The /freeflow command and the settings model it edits: every Freeflow setting with its repository, personal, and
- * session scopes, the routing profile wizard, config file writes, and reload after saving. settings-view.ts draws the
+ * session scopes, config file writes, and reload after saving. settings-view.ts draws the
  * screen; this module decides what is on it.
  */
 const DEFAULT_FREEFLOW_ENABLED = true;
@@ -219,10 +220,12 @@ function createScopedBooleanItem(options) {
 }
 /** A choice among fixed values, in the Personal or Repository scope; Personal can inherit the repository's value. */
 function createScopedChoiceItem(options) {
-  const repositoryValue = getPath(options.rawConfig, options.path);
+  const choice = (value) => (options.numeric && typeof value === "number" ? String(value) : value);
+  const stored = (value) => (options.numeric ? Number(value) : value);
+  const repositoryValue = choice(getPath(options.rawConfig, options.path));
   const inheritedValue = options.values.includes(repositoryValue) ? repositoryValue : options.defaultValue;
   const inheritedSource = repositoryValue === undefined ? "builtin" : "repository";
-  const localValue = getPath(options.localConfig, options.path);
+  const localValue = choice(getPath(options.localConfig, options.path));
   const common = {
     id: options.id,
     label: options.label,
@@ -243,7 +246,10 @@ function createScopedChoiceItem(options) {
           ...options.valueDescriptions,
         },
         configScope: "local",
-        configValues: Object.fromEntries([["inherit", undefined], ...options.values.map((value) => [value, value])]),
+        configValues: Object.fromEntries([
+          ["inherit", undefined],
+          ...options.values.map((value) => [value, stored(value)]),
+        ]),
         inheritedValue,
         inheritedSource,
       }
@@ -256,71 +262,12 @@ function createScopedChoiceItem(options) {
         valueDescriptions: options.valueDescriptions,
         defaultValue: options.defaultValue,
         configScope: "repository",
+        ...(options.numeric
+          ? { configValues: Object.fromEntries(options.values.map((value) => [value, stored(value)])) }
+          : {}),
         repositoryUnset: repositoryValue === undefined,
         localOverrideValue: options.values.includes(localValue) ? localValue : undefined,
       };
-}
-function createScopedDelegationItem(options) {
-  const path = ["cognitiveRouting", "delegation"];
-  const repositoryValue = getPath(options.rawConfig, path);
-  const inheritedValue = ["executor", "helper", "both"].includes(repositoryValue) ? repositoryValue : "executor";
-  const inheritedSource = repositoryValue === undefined ? "builtin" : "repository";
-  const localValue = getPath(options.localConfig, path);
-  const descriptions = {
-    executor: "Coordinator delegates assignments to Executor.",
-    helper: "Coordinator delegates supporting assignments to Helper and keeps production implementation.",
-    both: "Coordinator chooses Helper or Executor for each assignment.",
-  };
-  const item =
-    options.scope === "local"
-      ? {
-          id: "freeflow.cognitiveRouting.delegation",
-          label: "Delegation",
-          description: "Choose enabled workers for automatic routing; this setting does not rank model presets.",
-          path,
-          kind: "enum",
-          value: ["executor", "helper", "both"].includes(localValue) ? localValue : LOCAL_INHERIT,
-          values: [LOCAL_INHERIT, "executor", "helper", "both"],
-          valueLabels: {
-            inherit: "inherit",
-            executor: "Executor only",
-            helper: "Helper only",
-            both: "Helper and Executor",
-          },
-          valueDescriptions: {
-            inherit: inheritText(inheritedValue, SOURCE_LABELS[inheritedSource]),
-            ...descriptions,
-          },
-          configScope: "local",
-          configValues: { inherit: undefined, executor: "executor", helper: "helper", both: "both" },
-          effectiveValue: options.effectiveValue,
-          effectiveSource: options.effectiveSource,
-          inheritedValue,
-          inheritedSource,
-        }
-      : {
-          id: "freeflow.cognitiveRouting.delegation",
-          label: "Delegation",
-          description: "Choose enabled workers for automatic routing. This edits shared .freeflow/config.json.",
-          path,
-          kind: "enum",
-          value: inheritedValue,
-          values: ["executor", "helper", "both"],
-          valueLabels: {
-            executor: "Executor only",
-            helper: "Helper only",
-            both: "Helper and Executor",
-          },
-          valueDescriptions: descriptions,
-          defaultValue: "executor",
-          configScope: "repository",
-          repositoryUnset: repositoryValue === undefined,
-          effectiveValue: options.effectiveValue,
-          effectiveSource: options.effectiveSource,
-          localOverrideValue: ["executor", "helper", "both"].includes(localValue) ? localValue : undefined,
-        };
-  item.displaySuffix = coreDisplaySuffix(item);
-  return item;
 }
 function resolveSettingsCoreView(rawConfig, layers) {
   const localConfig = layers?.local.valid && isRecord(layers.local.parsed) ? layers.local.parsed : {};
@@ -386,14 +333,31 @@ const GATE_DESCRIPTIONS = {
   warn: "The agent reads a warning with the rule and the way through, and the event log counts it.",
   block: "The call is refused with the same text; a delivery step becomes a question where you can answer.",
 };
-const REVIEW_DESCRIPTIONS = {
-  auto: "Review Work's risk check decides.",
-  off: "Never on its own; for a risky change the agent proposes a review, with its reason and cost, and waits for you.",
-  always: "Review every finished task.",
+const REVIEW_UNIT_LABELS = {
+  pr: "pull request",
+  push: "push",
+  commit: "commit",
+  agreement: "agreement",
+  manual: "manual",
+};
+const REVIEW_UNIT_DESCRIPTIONS = {
+  pr: "Review before each pull request opens.",
+  push: "Review before each push.",
+  commit: "Review before each commit.",
+  agreement: "Review at each agreement's Return.",
+  manual: "The agent proposes each review, with its plan and cost, and waits for your yes.",
+};
+const REVIEW_ROUND_KEYS = REVIEW_ROUNDS.map(String);
+const REVIEW_ROUND_LABELS = { 1: "Review 1", 2: "up to Review 2", 3: "up to Review 3" };
+const REVIEW_ROUND_DESCRIPTIONS = {
+  1: "One review; no follow-up review of the corrections.",
+  2: "A focused Review 2 of the corrections when it is needed.",
+  3: "Up to an exceptional, final Review 3 (the most a depth allows).",
 };
 /** A choice among fixed values in the Session scope; inherit follows the personal and repository settings. */
 function createSessionChoiceItem(options) {
-  const override = options.sessionOverrides[options.key];
+  const raw = options.sessionOverrides[options.key];
+  const override = options.numeric && typeof raw === "number" ? String(raw) : raw;
   const set = typeof override === "string" && options.values.includes(override);
   return {
     id: options.id,
@@ -412,7 +376,10 @@ function createSessionChoiceItem(options) {
       ...options.valueDescriptions,
     },
     configScope: "session",
-    configValues: Object.fromEntries([["inherit", undefined], ...options.values.map((value) => [value, value])]),
+    configValues: Object.fromEntries([
+      ["inherit", undefined],
+      ...options.values.map((value) => [value, options.numeric ? Number(value) : value]),
+    ]),
     effectiveValue: options.effectiveValue,
     effectiveSource: set ? "session" : options.inheritedSource,
     inheritedValue: options.inheritedValue,
@@ -451,7 +418,6 @@ const SECTION_ORDER = [
   "freeflow.compaction",
   "freeflow.toolExecution",
   "freeflow.messaging",
-  "freeflow.cognitiveRouting",
   "freeflow.events",
   "freeflow.gates",
   "freeflow.delegation",
@@ -471,7 +437,7 @@ function sectionItem(id, label, description, status, children) {
 function capabilityStatus(state) {
   return state?.effective ? "active" : state?.enabled ? "inactive" : "disabled";
 }
-function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig, localConfig) {
+function sessionFreeflowItems(state, ctx, rawConfig, localConfig) {
   const sessionOverrides = state.sessionOverrides;
   const configured = state.configuredCoreConfig;
   const configuredSources = state.configuredSources;
@@ -501,116 +467,6 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
     effectiveValue: state.enabled,
     sessionOverrides,
   });
-  const routing = state.cognitiveRouting;
-  const routingUnavailable = cognitiveRoutingController === undefined;
-  const cognitiveRoutingState = cognitiveRoutingController?.state();
-  const manualProfiles = ["coordinator", "helper", "executor"];
-  const heldProfile = cognitiveRoutingState?.controlMode.startsWith("manual-")
-    ? cognitiveRoutingState.activeProfile
-    : undefined;
-  const control = heldProfile && manualProfiles.includes(heldProfile) ? heldProfile : "auto";
-  const routingInactive = freeflowInactive || !routing?.effective || routingUnavailable;
-  const routingItems = [];
-  if (routing) {
-    const enabledItem = sessionSwitch(
-      "freeflow.cognitiveRouting.enabled",
-      "Enabled",
-      "Use Cognitive Routing in this session.",
-      "cognitiveRouting.enabled",
-      routing.enabled,
-      false,
-    );
-    enabledItem.inactive = freeflowInactive || routingUnavailable;
-    enabledItem.runtimeInactive = routingUnavailable;
-    const projectionItem = sessionSwitch(
-      "freeflow.cognitiveRouting.projection",
-      "Context projection",
-      "Show Coordinator the worker evidence selected for it instead of the whole history.",
-      "cognitiveRouting.projection",
-      routing.projection,
-      true,
-    );
-    // Delegation, projection and the presets can be set while routing is not running: setting a missing preset is how
-    // it starts. Only Control needs routing running, since holding a profile switches the model at once.
-    projectionItem.inactive = freeflowInactive || routingUnavailable;
-    projectionItem.runtimeInactive = routingUnavailable;
-    const delegationOverride = cognitiveRoutingController?.sessionDelegationOverride() ?? LOCAL_INHERIT;
-    const delegation = cognitiveRoutingState?.delegation ?? routing.delegation;
-    routingItems.push(
-      enabledItem,
-      {
-        id: "freeflow.cognitiveRouting.profile",
-        label: "Control",
-        description: "Automatic routing, or hold one profile until you release it.",
-        kind: "enum",
-        value: control,
-        values: ["auto", ...manualProfiles],
-        valueLabels: Object.fromEntries([
-          ["auto", "automatic"],
-          ...manualProfiles.map((profile) => [profile, `hold ${profile}`]),
-        ]),
-        valueDescriptions: Object.fromEntries([
-          ["auto", "Release any hold; Coordinator places the work."],
-          ...manualProfiles.map((profile) => [
-            profile,
-            `Hold ${profile} when delegation enables it; release with /freeflow profile auto.`,
-          ]),
-        ]),
-        inactive: routingInactive,
-        // Holding a profile switches the model at once, so it needs routing running, not only configured.
-        runtimeInactive: routingInactive,
-      },
-      {
-        id: "freeflow.cognitiveRouting.delegation",
-        label: "Delegation",
-        description: "Which workers Coordinator may use in this session.",
-        kind: "enum",
-        value: delegationOverride,
-        values: [LOCAL_INHERIT, "executor", "helper", "both"],
-        valueLabels: {
-          inherit: "inherit",
-          executor: "Executor only",
-          helper: "Helper only",
-          both: "Helper and Executor",
-        },
-        valueDescriptions: {
-          inherit: inheritText(
-            routing.delegation,
-            SOURCE_LABELS[cognitiveRoutingSettingsSource(routing.delegationSource)],
-          ),
-          executor: "Coordinator delegates assignments to Executor.",
-          helper: "Coordinator delegates supporting assignments to Helper and keeps production implementation.",
-          both: "Coordinator chooses Helper or Executor for each assignment.",
-        },
-        configScope: "session",
-        effectiveValue: delegation,
-        effectiveSource:
-          delegationOverride === LOCAL_INHERIT ? cognitiveRoutingSettingsSource(routing.delegationSource) : "session",
-        inheritedValue: routing.delegation,
-        inheritedSource: cognitiveRoutingSettingsSource(routing.delegationSource),
-        inactive: freeflowInactive || routingUnavailable,
-        runtimeInactive: routingUnavailable,
-      },
-      projectionItem,
-    );
-    if (cognitiveRoutingController) {
-      const sessionProfiles = cognitiveRoutingController.sessionProfileOverrides();
-      for (const name of manualProfiles) {
-        const item = cognitiveRoutingProfileItem({
-          name,
-          scope: "session",
-          rawConfig: {},
-          localConfig: {},
-          capabilityState: routing,
-          ctx,
-          sessionProfiles,
-        });
-        item.inactive ||= freeflowInactive || routingUnavailable;
-        item.runtimeInactive ||= routingUnavailable;
-        routingItems.push(item);
-      }
-    }
-  }
   const toolItem = sessionSwitch(
     "freeflow.toolExecution.enabled",
     "Enabled",
@@ -710,22 +566,38 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
     sessionOverrides,
   });
   inboundItem.inactive = freeflowInactive;
-  const reviewInherited = configuredSetting(rawConfig, localConfig, ["review", "mode"], "auto");
-  const reviewModeItem = createSessionChoiceItem({
-    id: "freeflow.review.mode",
-    label: "Independent review",
-    description: "When finished work is reviewed by a separate reviewer, in this session.",
-    key: "review.mode",
-    values: REVIEW_MODES,
-    valueLabels: { auto: "auto", off: "off", always: "always" },
-    valueDescriptions: REVIEW_DESCRIPTIONS,
-    inheritedValue: reviewInherited.value,
-    inheritedSource: reviewInherited.source,
-    effectiveValue: state.review?.mode ?? "auto",
+  const unitInherited = configuredSetting(rawConfig, localConfig, ["review", "unit"], REVIEW_DEFAULTS.unit);
+  const reviewUnitItem = createSessionChoiceItem({
+    id: "freeflow.review.unit",
+    label: "Review unit",
+    description: "When finished work gets its independent review, in this session.",
+    key: "review.unit",
+    values: REVIEW_UNITS,
+    valueLabels: REVIEW_UNIT_LABELS,
+    valueDescriptions: REVIEW_UNIT_DESCRIPTIONS,
+    inheritedValue: unitInherited.value,
+    inheritedSource: unitInherited.source,
+    effectiveValue: state.review?.unit ?? REVIEW_DEFAULTS.unit,
     sessionOverrides,
   });
-  reviewModeItem.inactive = freeflowInactive;
-  reviewModeItem.heading = true;
+  reviewUnitItem.inactive = freeflowInactive;
+  reviewUnitItem.heading = true;
+  const roundsInherited = configuredSetting(rawConfig, localConfig, ["review", "rounds"], REVIEW_DEFAULTS.rounds);
+  const reviewRoundsItem = createSessionChoiceItem({
+    id: "freeflow.review.rounds",
+    label: "Review rounds",
+    description: "The most review rounds of one change, in this session.",
+    key: "review.rounds",
+    values: REVIEW_ROUND_KEYS,
+    valueLabels: REVIEW_ROUND_LABELS,
+    valueDescriptions: REVIEW_ROUND_DESCRIPTIONS,
+    inheritedValue: String(roundsInherited.value),
+    inheritedSource: roundsInherited.source,
+    effectiveValue: String(state.review?.rounds ?? REVIEW_DEFAULTS.rounds),
+    sessionOverrides,
+    numeric: true,
+  });
+  reviewRoundsItem.inactive = freeflowInactive;
   const reviewModelItem = reviewerModelItem({
     scope: "session",
     rawConfig,
@@ -790,21 +662,6 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       skillsMaster,
       nestedGroup("freeflow.skills.each", "Each skill", "One switch per skill, in this session.", skillItems),
     ]),
-    ...(routing
-      ? [
-          sectionItem(
-            "freeflow.cognitiveRouting",
-            "Cognitive Routing",
-            "Routing for this session.",
-            routingUnavailable
-              ? "unavailable"
-              : cognitiveRoutingState?.effective
-                ? `active · ${control === "auto" ? "automatic" : `hold ${control}`}`
-                : capabilityStatus(routing),
-            routingItems,
-          ),
-        ]
-      : []),
     sectionItem(
       "freeflow.toolExecution",
       "Tool Execution",
@@ -831,7 +688,11 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       claimItem,
       wakeItem,
     ]),
-    sectionItem("freeflow.review", "Review", "Review Work for this session.", "", [reviewModeItem, reviewModelItem]),
+    sectionItem("freeflow.review", "Review", "Review Work for this session.", "", [
+      reviewUnitItem,
+      reviewModelItem,
+      reviewRoundsItem,
+    ]),
     sectionItem("freeflow.session", "Session", "Session overrides.", "", [
       {
         id: "freeflow.session.reset",
@@ -843,7 +704,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
         values: ["reset"],
         valueLabels: { reset: "Reset all session overrides" },
         valueDescriptions: {
-          reset: "Return every session setting, delegation, and routing preset to its configured value.",
+          reset: "Return every session setting to its configured value.",
         },
         // Counted when shown, so it follows changes made on this screen.
         format: () => {
@@ -864,42 +725,22 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
   ];
   return inSectionOrder(items);
 }
-const COGNITIVE_ROUTING_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-const COGNITIVE_ROUTING_EFFORT_DESCRIPTIONS = {
-  off: "No reasoning",
-  minimal: "Very brief reasoning",
-  low: "Light reasoning",
-  medium: "Moderate reasoning",
-  high: "Deep reasoning",
-  xhigh: "Extra-high reasoning",
-  max: "Maximum reasoning",
-};
-function cognitiveRoutingModelKey(provider, model) {
-  return `${provider}/${model}`;
-}
-function isCognitiveRoutingProfile(value) {
-  return (
-    isRecord(value) &&
-    typeof value.provider === "string" &&
-    typeof value.model === "string" &&
-    typeof value.thinking === "string" &&
-    COGNITIVE_ROUTING_THINKING_LEVELS.includes(value.thinking)
-  );
-}
+const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 /**
  * The thinking levels a model supports, by Pi's own rule (pi-ai's getSupportedThinkingLevels): a model without
  * reasoning has only off; a level its thinkingLevelMap maps to null is unsupported; xhigh and max need a mapping.
  * Pi's model registry has no such method, so the rule reads the model's data directly.
  */
-function cognitiveRoutingThinkingLevels(model) {
+function supportedThinkingLevels(model) {
   if (model?.reasoning !== true) return ["off"];
-  return COGNITIVE_ROUTING_THINKING_LEVELS.filter((level) => {
+  return THINKING_LEVELS.filter((level) => {
     const mapped = model.thinkingLevelMap?.[level];
     if (mapped === null) return false;
     return level === "xhigh" || level === "max" ? mapped !== undefined : true;
   });
 }
-function cognitiveRoutingModelOptions(ctx) {
+/** This host's authenticated models that support a thinking level, by `provider/id`, sorted. */
+function availableModelKeys(ctx) {
   const registry = ctx?.modelRegistry;
   if (typeof registry?.getAvailable !== "function") return [];
   let models;
@@ -911,53 +752,9 @@ function cognitiveRoutingModelOptions(ctx) {
   if (!Array.isArray(models)) return [];
   return models
     .filter((model) => typeof model?.provider === "string" && typeof model?.id === "string")
-    .map((model) => {
-      const thinkingLevels = cognitiveRoutingThinkingLevels(model);
-      const provider = model.provider;
-      const modelId = model.id;
-      const key = cognitiveRoutingModelKey(provider, modelId);
-      const displayName = typeof model.name === "string" && model.name !== modelId ? model.name : undefined;
-      return {
-        key,
-        provider,
-        model: modelId,
-        label: key,
-        description: displayName ? `${displayName} · ${thinkingLevels.join(", ")}` : thinkingLevels.join(", "),
-        thinkingLevels,
-      };
-    })
-    .filter((model) => model.thinkingLevels.length > 0)
-    .sort((a, b) => a.label.localeCompare(b.label));
-}
-function cognitiveRoutingProfileDisplay(value) {
-  return isCognitiveRoutingProfile(value) ? formatCoreValue(value) : "not configured";
-}
-function cognitiveRoutingSettingsSource(source) {
-  if (source === "session") return "session";
-  if (source === "repository") return "repository";
-  if (source === "personal" || source === "local") return "local";
-  return "builtin";
-}
-function cognitiveRoutingProfileDisplaySuffix(source, scope) {
-  if (!source) return undefined;
-  if (source === "session") return "(session override)";
-  if (source === "personal" && scope === "repository") return "(effective personal)";
-  return `(${source})`;
-}
-function cognitiveRoutingConfirmStep(summary) {
-  return {
-    title: "Confirm preset",
-    choices: [
-      {
-        key: "__save__",
-        value: "save",
-        label: `Save ${summary}`,
-        description: "Write the complete profile atomically.",
-      },
-      { key: "__cancel__", value: "cancel", label: "Cancel", description: "Leave the previous preset unchanged." },
-    ],
-    selectedKey: "__save__",
-  };
+    .filter((model) => supportedThinkingLevels(model).length > 0)
+    .map((model) => `${model.provider}/${model.id}`)
+    .sort((a, b) => a.localeCompare(b));
 }
 /**
  * The reviewer model: Freeflow passes the name on as written (Review Work), so the picker offers this host's
@@ -976,8 +773,8 @@ function reviewerModelItem(options) {
     ? { label: "Inherit configured setting", description: "Remove this session's reviewer model." }
     : local
       ? { label: "Inherit repository setting", description: "Remove your personal reviewer model." }
-      : { label: "None", description: "Review Work chooses the reviewer's model." };
-  const models = cognitiveRoutingModelOptions(options.ctx).map((model) => model.key);
+      : { label: "auto", description: "The cheapest capable model; a stronger one for the security tier." };
+  const models = availableModelKeys(options.ctx);
   const names = value && !models.includes(value) ? [value, ...models] : models;
   return {
     id: "freeflow.review.model",
@@ -989,12 +786,14 @@ function reviewerModelItem(options) {
         : "The model a reviewer runs on, where the host lets the agent choose one. This edits shared .freeflow/config.json.",
     path,
     kind: "string",
-    value,
-    format: (current) => (typeof current === "string" ? current : "none"),
+    // The Repository tab shows the default, auto, when the file sets no model.
+    value: session || local ? value : (value ?? REVIEW_DEFAULTS.model),
+    ...(session || local ? {} : { repositoryUnset: value === undefined }),
+    format: (current) => (typeof current === "string" ? current : REVIEW_DEFAULTS.model),
     configScope: options.scope,
     effectiveValue: options.effectiveValue,
     effectiveSource: options.effectiveSource,
-    inheritedValue: session || local ? inherited : undefined,
+    inheritedValue: session || local ? (inherited ?? REVIEW_DEFAULTS.model) : undefined,
     inheritedSource:
       session && name(getPath(options.localConfig, path))
         ? "local"
@@ -1020,170 +819,6 @@ function reviewerModelItem(options) {
     }),
   };
 }
-function createCognitiveRoutingProfileWizard(
-  currentValue,
-  models,
-  allowInherit,
-  inheritChoice = {
-    label: "Inherit repository preset",
-    description: "Remove the personal override without changing the repository preset.",
-    summary: "inherit repository preset",
-  },
-) {
-  const currentProfile = isCognitiveRoutingProfile(currentValue) ? currentValue : undefined;
-  const currentModelKey = currentProfile
-    ? cognitiveRoutingModelKey(currentProfile.provider, currentProfile.model)
-    : undefined;
-  const firstChoices = [
-    ...(allowInherit
-      ? [
-          {
-            key: LOCAL_INHERIT,
-            value: LOCAL_INHERIT,
-            label: inheritChoice.label,
-            description: inheritChoice.description,
-          },
-        ]
-      : []),
-    ...models.map((model) => ({
-      key: model.key,
-      value: model,
-      label: model.label,
-      description: model.description,
-    })),
-  ];
-  if (firstChoices.length === 0) {
-    firstChoices.push({
-      key: "__cancel__",
-      value: "cancel",
-      label: "No authenticated models available",
-      description: "Authenticate a provider before configuring this preset.",
-    });
-  }
-  return {
-    firstStep: () => ({
-      title: "Choose model",
-      choices: firstChoices,
-      selectedKey:
-        currentValue === LOCAL_INHERIT
-          ? LOCAL_INHERIT
-          : firstChoices.some((choice) => choice.key === currentModelKey)
-            ? currentModelKey
-            : firstChoices[0]?.key,
-    }),
-    nextStep: (selectedValues) => {
-      if (selectedValues.length === 1) {
-        const selected = selectedValues[0];
-        if (selected === LOCAL_INHERIT) {
-          return cognitiveRoutingConfirmStep(inheritChoice.summary);
-        }
-        const model = selected;
-        if (!model?.key || model.thinkingLevels.length === 0) return undefined;
-        const currentEffort = currentProfile && currentModelKey === model.key ? currentProfile.thinking : undefined;
-        return {
-          title: `Choose effort · ${model.label}`,
-          choices: model.thinkingLevels.map((level) => ({
-            key: level,
-            value: level,
-            label: level,
-            description: COGNITIVE_ROUTING_EFFORT_DESCRIPTIONS[level],
-          })),
-          selectedKey:
-            currentEffort && model.thinkingLevels.includes(currentEffort) ? currentEffort : model.thinkingLevels[0],
-        };
-      }
-      if (selectedValues.length === 2) {
-        const model = selectedValues[0];
-        const effort = selectedValues[1];
-        return cognitiveRoutingConfirmStep(`${model.label} · ${effort}`);
-      }
-      return undefined;
-    },
-    valueFromSelections: (selectedValues) => {
-      if (selectedValues[0] === LOCAL_INHERIT) return undefined;
-      const model = selectedValues[0];
-      return {
-        provider: model.provider,
-        model: model.model,
-        thinking: selectedValues[1],
-      };
-    },
-  };
-}
-function cognitiveRoutingProfileItem(options) {
-  const path = ["cognitiveRouting", "profiles", options.name];
-  const repositoryProfile = getPath(options.rawConfig, path);
-  const localProfile = getPath(options.localConfig, path);
-  const configuredProfile = options.capabilityState?.profiles?.[options.name] ?? repositoryProfile;
-  const sessionPair = options.sessionProfiles?.[options.name];
-  const sessionProfile = sessionPair
-    ? { provider: sessionPair.provider, model: sessionPair.modelId, thinking: sessionPair.thinking }
-    : undefined;
-  const effectiveProfile = sessionProfile ?? configuredProfile;
-  const localValue = isCognitiveRoutingProfile(localProfile) ? localProfile : LOCAL_INHERIT;
-  const value =
-    options.scope === "session"
-      ? (sessionProfile ?? (configuredProfile ? LOCAL_INHERIT : undefined))
-      : options.scope === "local"
-        ? localValue
-        : repositoryProfile;
-  const configuredSource =
-    options.capabilityState?.profileSources?.[options.name] ??
-    (isCognitiveRoutingProfile(repositoryProfile) ? "repository" : undefined);
-  const source = options.scope === "session" ? (sessionProfile ? "session" : configuredSource) : configuredSource;
-  const models = cognitiveRoutingModelOptions(options.ctx);
-  const inactive = options.scope !== "repository" && models.length === 0 && value !== LOCAL_INHERIT;
-  const inheritChoice =
-    options.scope === "session"
-      ? {
-          label: "Inherit configured preset",
-          description: "Remove the session override without changing local or repository configuration.",
-          summary: "inherit configured preset",
-        }
-      : undefined;
-  return {
-    id: `freeflow.cognitiveRouting.${options.name}`,
-    label: `${options.name.charAt(0).toUpperCase()}${options.name.slice(1)} preset`,
-    description:
-      options.scope === "session"
-        ? "Temporarily choose the model and effort for this profile in the current Pi session only."
-        : "Choose an authenticated available model and one effort supported by that model. Confirming writes the complete preset; cancel leaves it unchanged.",
-    path,
-    kind: "string",
-    value,
-    format: (current) => {
-      const inherits = current === LOCAL_INHERIT || (options.scope === "session" && current === undefined);
-      return inherits
-        ? options.scope === "session"
-          ? configuredProfile
-            ? "inherit configured preset"
-            : "not configured"
-          : "inherit repository preset"
-        : cognitiveRoutingProfileDisplay(current);
-    },
-    configScope: options.scope,
-    effectiveValue: effectiveProfile,
-    effectiveSource: cognitiveRoutingSettingsSource(source),
-    inheritedValue: options.scope === "session" ? configuredProfile : repositoryProfile,
-    inheritedSource: cognitiveRoutingSettingsSource(configuredSource ?? "builtin"),
-    inactive,
-    displaySuffix: cognitiveRoutingProfileDisplaySuffix(source, options.scope),
-    wizard: () =>
-      createCognitiveRoutingProfileWizard(
-        value,
-        models,
-        options.scope !== "repository" && (options.scope !== "session" || configuredProfile !== undefined),
-        inheritChoice,
-      ),
-  };
-}
-function isCognitiveRoutingRuntimeAvailable(pi) {
-  return (
-    typeof pi?.appendEntry === "function" &&
-    typeof pi?.setModel === "function" &&
-    typeof pi?.setThinkingLevel === "function"
-  );
-}
 function freeflowItems(rawConfig, options = {}) {
   const scope = options.scope === "local" ? "local" : "repository";
   const layers = options.layers;
@@ -1201,91 +836,6 @@ function freeflowItems(rawConfig, options = {}) {
     defaultValue: DEFAULT_FREEFLOW_ENABLED,
   });
   const freeflowInactive = !core.enabled;
-  const cognitiveRoutingState = options.cognitiveRouting;
-  const cognitiveRoutingRuntimeDisabled = options.runtimeAvailable !== true;
-  const cognitiveRoutingGroup = (() => {
-    const cognitiveRoutingEnabledItem = createScopedBooleanItem({
-      scope,
-      rawConfig,
-      localConfig,
-      id: "freeflow.cognitiveRouting.enabled",
-      label: "Enabled",
-      description: cognitiveRoutingRuntimeDisabled
-        ? "Requires a host model-state control API; configuration is read-only on this host."
-        : "Allow Cognitive Routing to manage explicit assignments and request native profile transitions.",
-      path: ["cognitiveRouting", "enabled"],
-      effectiveValue: cognitiveRoutingState?.enabled ?? false,
-      effectiveSource: cognitiveRoutingSettingsSource(cognitiveRoutingState?.enabledSource),
-      defaultValue: false,
-    });
-    cognitiveRoutingEnabledItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
-    cognitiveRoutingEnabledItem.runtimeInactive = cognitiveRoutingRuntimeDisabled;
-    const cognitiveRoutingDelegationItem = createScopedDelegationItem({
-      scope,
-      rawConfig,
-      localConfig,
-      effectiveValue: cognitiveRoutingState?.delegation ?? "executor",
-      effectiveSource: cognitiveRoutingSettingsSource(cognitiveRoutingState?.delegationSource),
-    });
-    cognitiveRoutingDelegationItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
-    cognitiveRoutingDelegationItem.runtimeInactive = cognitiveRoutingRuntimeDisabled;
-    const cognitiveRoutingProjectionItem = createScopedBooleanItem({
-      scope,
-      rawConfig,
-      localConfig,
-      id: "freeflow.cognitiveRouting.projection",
-      label: "Context projection",
-      description:
-        "Select worker evidence for Coordinator; disable projection to keep ordinary Pi context in all enabled profiles.",
-      path: ["cognitiveRouting", "projection"],
-      // On by default with routing, as cognitive-routing/config.ts resolves it.
-      effectiveValue: cognitiveRoutingState?.projection ?? true,
-      effectiveSource: cognitiveRoutingSettingsSource(cognitiveRoutingState?.projectionSource),
-      defaultValue: true,
-    });
-    cognitiveRoutingProjectionItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
-    cognitiveRoutingProjectionItem.runtimeInactive = cognitiveRoutingRuntimeDisabled;
-    const cognitiveRoutingProfiles = ["coordinator", "helper", "executor"].map((name) =>
-      cognitiveRoutingProfileItem({
-        name: name,
-        scope,
-        rawConfig,
-        localConfig,
-        capabilityState: cognitiveRoutingState,
-        ctx: options.ctx,
-      }),
-    );
-    for (const item of cognitiveRoutingProfiles) {
-      item.inactive ||= freeflowInactive || cognitiveRoutingRuntimeDisabled;
-      item.runtimeInactive = cognitiveRoutingRuntimeDisabled;
-    }
-    const cognitiveRoutingStatus = cognitiveRoutingRuntimeDisabled
-      ? "unavailable · host unsupported"
-      : cognitiveRoutingState
-        ? cognitiveRoutingState.effective
-          ? "active"
-          : cognitiveRoutingState.blockingReason?.code === "profile_missing"
-            ? "not configured"
-            : (cognitiveRoutingState.blockingReason?.code ?? "inactive")
-        : "unavailable";
-    return {
-      id: "freeflow.cognitiveRouting",
-      label: "Cognitive Routing",
-      description: cognitiveRoutingRuntimeDisabled
-        ? "Cognitive Routing configuration is visible for inspection but requires a host model-state control API."
-        : "Configure Coordinator, Helper, and Executor profiles plus the workers available for delegation.",
-      kind: "group",
-      value: cognitiveRoutingRuntimeDisabled ? false : (cognitiveRoutingState?.enabled ?? false),
-      inactive: freeflowInactive,
-      displaySuffix: cognitiveRoutingStatus,
-      children: [
-        cognitiveRoutingEnabledItem,
-        cognitiveRoutingDelegationItem,
-        ...cognitiveRoutingProfiles,
-        cognitiveRoutingProjectionItem,
-      ],
-    };
-  })();
   const toolExecutionState = options.toolExecution;
   const toolSource = (path) => {
     if (getPath(localConfig, path) !== undefined) return "local";
@@ -1583,23 +1133,41 @@ function freeflowItems(rawConfig, options = {}) {
   };
   // Review Work's choice on every host (config-validation.ts).
   const review = resolveReviewSettings(rawConfig, localConfig);
-  const reviewModeItem = createScopedChoiceItem({
+  const reviewUnitItem = createScopedChoiceItem({
     scope,
     rawConfig,
     localConfig,
-    id: "freeflow.review.mode",
-    label: "Independent review",
-    description: "When finished work is reviewed by a separate reviewer; the agent's own self-review always runs.",
-    path: ["review", "mode"],
-    values: REVIEW_MODES,
-    valueLabels: { auto: "auto", off: "off", always: "always" },
-    valueDescriptions: REVIEW_DESCRIPTIONS,
-    defaultValue: "auto",
-    effectiveValue: review.mode,
-    effectiveSource: toolSource(["review", "mode"]),
+    id: "freeflow.review.unit",
+    label: "Review unit",
+    description:
+      "When finished work gets its independent review; how deep it goes is the repository's review.depth, read from the base.",
+    path: ["review", "unit"],
+    values: REVIEW_UNITS,
+    valueLabels: REVIEW_UNIT_LABELS,
+    valueDescriptions: REVIEW_UNIT_DESCRIPTIONS,
+    defaultValue: REVIEW_DEFAULTS.unit,
+    effectiveValue: review.unit,
+    effectiveSource: toolSource(["review", "unit"]),
   });
-  reviewModeItem.inactive = freeflowInactive;
-  reviewModeItem.heading = true;
+  reviewUnitItem.inactive = freeflowInactive;
+  reviewUnitItem.heading = true;
+  const reviewRoundsItem = createScopedChoiceItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.review.rounds",
+    label: "Review rounds",
+    description: "The most review rounds of one change; a depth's own limit still applies.",
+    path: ["review", "rounds"],
+    values: REVIEW_ROUND_KEYS,
+    valueLabels: REVIEW_ROUND_LABELS,
+    valueDescriptions: REVIEW_ROUND_DESCRIPTIONS,
+    defaultValue: String(REVIEW_DEFAULTS.rounds),
+    effectiveValue: String(review.rounds),
+    effectiveSource: toolSource(["review", "rounds"]),
+    numeric: true,
+  });
+  reviewRoundsItem.inactive = freeflowInactive;
   const reviewModelItem = reviewerModelItem({
     scope,
     rawConfig,
@@ -1617,11 +1185,10 @@ function freeflowItems(rawConfig, options = {}) {
     value: true,
     inactive: freeflowInactive,
     displaySuffix: "",
-    children: [reviewModeItem, reviewModelItem],
+    children: [reviewUnitItem, reviewModelItem, reviewRoundsItem],
   };
   return inSectionOrder([
     freeflowItem,
-    ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
     toolExecutionGroup,
     compactionGroup,
     messagingGroup,
@@ -1660,17 +1227,14 @@ async function updateConfig(cwd, item, value, scope = item.configScope ?? "repos
   }
   const current = await readFreeflowConfig(cwd);
   const next = cloneJson(current);
-  setConfigValue(next, item, value);
+  // A choice whose file value is not its key (review.rounds' numbers) is written as the file value.
+  setConfigValue(next, item, configValueForChoice(item, value));
   pruneDefaults(next);
   await mkdir(join(cwd, ".freeflow"), { recursive: true });
   await writeFile(join(cwd, ".freeflow/config.json"), `${JSON.stringify(next, null, 2)}\n`, "utf8");
 }
-function isCognitiveRoutingProfileItem(item) {
-  return ["coordinator", "helper", "executor"].some((profile) => item.id === `freeflow.cognitiveRouting.${profile}`);
-}
 /** A value as the settings screen shows it, e.g. "enabled · personal" or "inherit → enabled (repository)". */
 function formatSettingValue(item, value) {
-  if (isCognitiveRoutingProfileItem(item)) return cognitiveRoutingProfileDisplay(value);
   if (typeof value === "boolean") return booleanValue(value);
   const key = String(value ?? "");
   return item.valueLabels?.[key] && key !== LOCAL_INHERIT ? item.valueLabels[key] : formatCoreValue(value);
@@ -1685,8 +1249,6 @@ function displayParts(item) {
   const tone = (value) => (value === true ? { tone: "on" } : value === false ? { tone: "off" } : {});
   if (item.kind === "group") return { value: item.displaySuffix ?? "" };
   if (item.transient && item.format) return { value: item.format(item.value) };
-  if (item.id === "freeflow.cognitiveRouting.profile")
-    return { value: item.valueLabels?.[String(item.value)] ?? String(item.value) };
   if (item.configScope === "local" || item.configScope === "session") {
     const inherits = item.value === LOCAL_INHERIT || item.value === undefined;
     if (inherits) {
@@ -1703,8 +1265,7 @@ function displayParts(item) {
       item.configValues && String(item.value) in item.configValues ? item.configValues[String(item.value)] : item.value;
     return { value: formatSettingValue(item, value), ...tone(value) };
   }
-  const value = item.value === undefined && isCognitiveRoutingProfileItem(item) ? undefined : item.value;
-  const shown = { value: formatSettingValue(item, value), ...tone(value) };
+  const shown = { value: formatSettingValue(item, item.value), ...tone(item.value) };
   const unset = item.repositoryUnset ?? (item.effectiveSource === "builtin" && item.defaultValue !== undefined);
   const notes = [
     ...(unset ? ["inherited"] : []),
@@ -1724,8 +1285,8 @@ function joinParts(parts) {
 function displayValue(item) {
   return joinParts(displayParts(item));
 }
-/** Small choices change in place; holding a profile switches models and a reset clears everything, so those ask. */
-const PICKED_CHOICES = new Set(["freeflow.cognitiveRouting.profile", "freeflow.session.reset"]);
+/** Small choices change in place; a reset clears everything, so it asks. */
+const PICKED_CHOICES = new Set(["freeflow.session.reset"]);
 function walkSettingsItems(items, visitor) {
   for (const item of items) {
     visitor(item);
@@ -1743,27 +1304,6 @@ function findSettingsItem(items, id) {
 function refreshSettingsDerivedState(items) {
   const freeflowItem = findSettingsItem(items, "freeflow.enabled");
   const freeflowInactive = freeflowItem ? effectiveItemValue(freeflowItem) !== true : false;
-  const cognitiveRoutingGroup = findSettingsItem(items, "freeflow.cognitiveRouting");
-  const cognitiveRoutingEnabledItem = findSettingsItem(items, "freeflow.cognitiveRouting.enabled");
-  const cognitiveRoutingDelegationItem = findSettingsItem(items, "freeflow.cognitiveRouting.delegation");
-  const delegation = cognitiveRoutingDelegationItem ? effectiveItemValue(cognitiveRoutingDelegationItem) : "executor";
-  const cognitiveRoutingProfiles = ["coordinator", ...workersForDelegation(delegation)].map((profile) =>
-    findSettingsItem(items, `freeflow.cognitiveRouting.${profile}`),
-  );
-  if (cognitiveRoutingGroup && cognitiveRoutingEnabledItem) {
-    const enabled = effectiveItemValue(cognitiveRoutingEnabledItem) === true;
-    const profilesConfigured = cognitiveRoutingProfiles.every((item) =>
-      item ? isCognitiveRoutingProfile(effectiveItemValue(item)) : false,
-    );
-    cognitiveRoutingGroup.value = enabled;
-    // A status the runtime reported (active with its control mode, a blocking reason, host unsupported) stays until
-    // the switch goes off; only the configuration statuses are worked out again here.
-    const current = cognitiveRoutingGroup.displaySuffix ?? "";
-    if (!enabled) cognitiveRoutingGroup.displaySuffix = "disabled";
-    else if (["", "disabled", "configured", "not configured"].includes(current))
-      cognitiveRoutingGroup.displaySuffix = profilesConfigured ? "configured" : "not configured";
-    cognitiveRoutingGroup.inactive = freeflowInactive;
-  }
   const contextGroup = findSettingsItem(items, "freeflow.context");
   if (contextGroup?.children?.length) {
     const enabledCount = contextGroup.children.filter((item) => effectiveItemValue(item) === true).length;
@@ -1888,7 +1428,7 @@ function settingsEntries(items, rootItems, onChange, depth = 0, lockedBy) {
       const toggle = item.children.find((child) => child.id === `${item.id}.enabled` || child.heading);
       if (toggle) {
         const header = settingEntry(toggle, rootItems, onChange, depth, lockedBy);
-        // The section's status adds what the switch alone does not say: not active, unavailable, the routing control.
+        // The section's status adds what the switch alone does not say: not active or unavailable.
         const parts = () => {
           const shown = displayParts(toggle);
           const status = item.displaySuffix ?? "";
@@ -2018,7 +1558,7 @@ const NON_TUI_SETTINGS_GUIDANCE =
   "Freeflow settings require Pi TUI mode. Use /freeflow status to inspect current state; supported non-TUI changes are /freeflow enable and /freeflow disable.";
 function ensureSettingsIdle(ctx) {
   if (typeof ctx?.isIdle !== "function" || ctx.isIdle()) return true;
-  ctx.ui?.notify?.("Freeflow settings and profile changes are available only while Pi is idle.", "warning");
+  ctx.ui?.notify?.("Freeflow settings changes are available only while Pi is idle.", "warning");
   return false;
 }
 function nonTuiGuidance(ctx, message) {
@@ -2032,10 +1572,9 @@ async function finalizeSettingsSession(
   afterChange,
   savedMessage,
   reloadWarning = "Run /reload for Freeflow changes to fully apply.",
-  afterChangeOptions = {},
 ) {
   if (!session.configChanged) return false;
-  await afterChange(true, afterChangeOptions);
+  await afterChange(true);
   if (session.failed) return false;
   ctx.ui.notify(savedMessage, "info");
   if (typeof ctx.reload !== "function") {
@@ -2061,7 +1600,7 @@ async function finalizeSessionSettings(session, ctx, afterChange) {
   await ctx.reload();
   return true;
 }
-export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiveRoutingController, diagnostics) {
+export async function handleFreeflowCommand(args, ctx, afterChange, pi, diagnostics) {
   const input = (args ?? "settings").trim().toLowerCase() || "settings";
   const [action, ...rest] = input.split(/\s+/);
   const actionValue = rest.join(" ");
@@ -2076,11 +1615,11 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
   const configState = layers.repository;
   const raw = configState.valid ? configState.parsed : {};
   if (action === "status") {
-    ctx.ui.notify(freeflowStatusText(state, cognitiveRoutingController, diagnostics?.status()), "info");
+    ctx.ui.notify(freeflowStatusText(state, diagnostics?.status()), "info");
     return { changed: false, reloaded: false };
   }
   if (!configState.valid) {
-    ctx.ui.notify(freeflowStatusText(state, cognitiveRoutingController), "warning");
+    ctx.ui.notify(freeflowStatusText(state), "warning");
     return { changed: false, reloaded: false, error: "not_configured" };
   }
   if (layers.local.exists && !layers.local.valid) {
@@ -2096,12 +1635,10 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
     const item = freeflowItems(raw, {
       scope: "repository",
       layers,
-      cognitiveRouting: state.cognitiveRouting,
       toolExecution: state.toolExecution,
       compaction: state.compaction,
       messaging: state.messaging,
       ctx,
-      runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
     }).find((candidate) => candidate.id === "freeflow.enabled");
     await updateConfig(ctx.cwd, item, enabled, "repository");
     await afterChange(true);
@@ -2153,17 +1690,15 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
     const rawNow = layersNow.repository.valid ? layersNow.repository.parsed : {};
     if (scope === "session") {
       const localNow = layersNow.local.valid && isRecord(layersNow.local.parsed) ? layersNow.local.parsed : {};
-      return sessionFreeflowItems(stateNow, cognitiveRoutingController, ctx, rawNow, localNow);
+      return sessionFreeflowItems(stateNow, ctx, rawNow, localNow);
     }
     return freeflowItems(rawNow, {
       scope,
       layers: layersNow,
-      cognitiveRouting: stateNow.cognitiveRouting,
       toolExecution: stateNow.toolExecution,
       compaction: stateNow.compaction,
       messaging: stateNow.messaging,
       ctx,
-      runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
     });
   };
   const scopes = SCOPES.map((scope) => ({
@@ -2179,133 +1714,31 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
   }));
   const changeSetting = async (settingsScope, item, value) => {
     if (!ensureSettingsIdle(ctx)) return { changed: false, reloadRequired: false };
-    if (!isCognitiveRoutingRuntimeAvailable(pi) && item.id.startsWith("freeflow.cognitiveRouting.")) {
-      ctx.ui.notify("Cognitive Routing is unavailable because this host lacks model-state controls.", "warning");
-      return { changed: false, reloadRequired: false };
-    }
-    if (item.id === "freeflow.cognitiveRouting.profile") {
-      if (!cognitiveRoutingController) {
-        ctx.ui.notify("Cognitive Routing is unavailable for this session.", "warning");
-        return { changed: false, reloadRequired: false };
-      }
-      const result =
-        value === "auto"
-          ? await cognitiveRoutingController.setAutomaticControl("profile-settings")
-          : await cognitiveRoutingController.setManualProfile(value, "profile-settings");
-      if ((result.status !== "automatic" && result.status !== "active") || result.reason) {
-        ctx.ui.notify(`Cognitive Routing settings could not be applied: ${result.reason ?? result.status}.`, "warning");
-        return { changed: false, reloadRequired: false };
-      }
-      await afterChange(false);
-      return { changed: true, reloadRequired: false };
-    }
-    if (settingsScope === "session" && item.id === "freeflow.cognitiveRouting.delegation") {
-      if (!cognitiveRoutingController) return { changed: false, reloadRequired: false };
-      const result = await cognitiveRoutingController.setSessionDelegationOverride(
-        value === LOCAL_INHERIT ? null : value,
-        "Session delegation settings",
-      );
-      if (result.status === "blocked" || result.reason) {
-        ctx.ui.notify(
-          `Cognitive Routing delegation mode could not be applied: ${result.reason ?? result.status}.`,
-          "warning",
-        );
-        return { changed: false, reloadRequired: false };
-      }
-      await afterChange(false);
-      return { changed: result.status !== "unchanged", reloadRequired: false };
-    }
     if (item.id === "freeflow.session.reset") {
-      const previousDelegation = cognitiveRoutingController?.sessionDelegationOverride() ?? null;
-      const delegationResult = cognitiveRoutingController
-        ? await cognitiveRoutingController.setSessionDelegationOverride(null, "Reset session delegation mode")
-        : { status: "unchanged" };
-      if (delegationResult.status === "blocked" || delegationResult.reason) {
-        ctx.ui.notify(
-          `Cognitive Routing session mode could not be reset: ${delegationResult.reason ?? delegationResult.status}.`,
-          "warning",
-        );
-        return { changed: false, reloadRequired: false };
-      }
-      const routingResult = cognitiveRoutingController
-        ? await cognitiveRoutingController.resetSessionProfileOverrides("Reset session overrides")
-        : { status: "unchanged" };
-      if (routingResult.status === "blocked" || routingResult.reason) {
-        if (delegationResult.status !== "unchanged") {
-          const restored = await cognitiveRoutingController.setSessionDelegationOverride(
-            previousDelegation,
-            "Session reset failed; prior delegation mode retained",
-          );
-          if (restored.status === "blocked" || restored.reason) {
-            await afterChange(false);
-            ctx.ui.notify(
-              `Session mode was reset but could not be restored: ${restored.reason ?? restored.status}. Reopen settings to see the current mode.`,
-              "warning",
-            );
-          }
-        }
-        ctx.ui.notify(
-          `Cognitive Routing session presets could not be reset: ${routingResult.reason ?? routingResult.status}.`,
-          "warning",
-        );
-        return { changed: false, reloadRequired: false };
-      }
       try {
         const result = await resetSessionOverrides(ctx, pi);
-        return {
-          changed: result.changed || routingResult.status !== "unchanged" || delegationResult.status !== "unchanged",
-          reloadRequired: result.reloadRequired,
-        };
+        return { changed: result.changed, reloadRequired: result.reloadRequired };
       } catch (error) {
         ctx.ui.notify(
-          `Routing presets were reset, but core/context session overrides could not be reset: ${error instanceof Error ? error.message : String(error)}`,
-          "warning",
-        );
-        return {
-          changed: routingResult.status !== "unchanged" || delegationResult.status !== "unchanged",
-          reloadRequired: false,
-        };
-      }
-    }
-    if (item.configScope === "session" && isCognitiveRoutingProfileItem(item)) {
-      if (!cognitiveRoutingController) {
-        ctx.ui.notify("Cognitive Routing is unavailable for this session.", "warning");
-        return { changed: false, reloadRequired: false };
-      }
-      const profile = item.id.split(".").at(-1);
-      const override =
-        value === undefined || value === LOCAL_INHERIT
-          ? null
-          : {
-              provider: value.provider,
-              modelId: value.model,
-              thinking: value.thinking,
-            };
-      const result = await cognitiveRoutingController.setSessionProfileOverride(
-        profile,
-        override,
-        "Session profile settings",
-      );
-      if (result.status === "blocked" || result.reason) {
-        ctx.ui.notify(
-          `Cognitive Routing session preset could not be applied: ${result.reason ?? result.status}.`,
+          `Session overrides could not be reset: ${error instanceof Error ? error.message : String(error)}`,
           "warning",
         );
         return { changed: false, reloadRequired: false };
       }
-      await afterChange(false);
-      return { changed: result.status !== "unchanged", reloadRequired: false };
     }
     if (item.configScope === "session") {
       const key = item.path.join(".");
+      const mapped = configValueForChoice(item, value);
       const override =
-        value === LOCAL_INHERIT || value === undefined
+        value === LOCAL_INHERIT || value === undefined || mapped === undefined
           ? null
           : value === "true"
             ? true
             : value === "false"
               ? false
-              : value;
+              : typeof mapped === "number"
+                ? mapped
+                : value;
       const result = await setSessionCoreOverride(key, override, ctx, pi);
       return { changed: result.changed, reloadRequired: result.reloadRequired === true };
     }
@@ -2331,7 +1764,6 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
       afterChange,
       "Freeflow settings saved. Reloading Freeflow runtime...",
       "Run /reload for Freeflow changes to fully apply.",
-      { reconcileCognitiveRouting: true },
     );
     return { changed: session.changed, reloaded, error: session.failed ? "write_failed" : undefined };
   }

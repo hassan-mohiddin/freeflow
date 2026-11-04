@@ -7,7 +7,7 @@ export function sessionStage(reader) {
   if (!sessionId) return;
   let stage = stages.get(sessionId);
   if (!stage) {
-    stages.set(sessionId, (stage = { events: [] }));
+    stages.set(sessionId, (stage = {}));
     for (const key of stages.keys()) if (stages.size > KEPT) stages.delete(key);
   }
   return stage;
@@ -20,9 +20,8 @@ export function stagedFor(reader) {
 /** Hand everything staged for this session to its owners to write now, leaving the stage empty. */
 export function takeStage(reader) {
   const stage = stagedFor(reader);
-  if (!stage) return { events: [] };
-  const staged = { events: stage.events, overrides: stage.overrides };
-  stage.events = [];
+  if (!stage) return {};
+  const staged = { overrides: stage.overrides };
   delete stage.overrides;
   return staged;
 }

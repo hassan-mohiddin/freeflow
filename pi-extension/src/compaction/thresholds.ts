@@ -36,7 +36,7 @@ export function thresholds(window: number, reserve: number): Thresholds {
   };
 }
 
-/** The strictest thresholds across models that may receive the full history (the active model and routing workers). */
+/** The strictest thresholds across models that may receive the full history. */
 export function strictest(models: readonly any[], settings: any): Thresholds | undefined {
   const all = models
     .filter((model) => typeof model?.contextWindow === "number" && model.contextWindow > 0)

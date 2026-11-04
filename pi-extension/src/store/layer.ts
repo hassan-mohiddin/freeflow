@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve, sep } from "node:path";
 
 /**
@@ -87,6 +87,48 @@ export function touchesStore(toolName: string, input: any, cwd: string, home: st
     const full = isAbsolute(path) ? resolve(path) : resolve(cwd, path);
     return full === root || full.startsWith(root + sep);
   });
+}
+
+/**
+ * The session-start ledger (SPEC-013): which of session start's steps ran for a session, kept in the Freeflow home's
+ * `sessions/<session>/start.json` in the shape Claude Code's mod writes. On Pi the guidance is a system section every run
+ * carries and the window and the claims are set at every session start, so only the store's pull and menu can be missed:
+ * by a reload that brings Freeflow into a running session, or `enabled` switched on after the session started.
+ */
+export interface StartLedger {
+  v: 1;
+  steps: Record<string, string>;
+  pinned: boolean;
+}
+
+/** Pi's steps of session start, as the ledger names them. */
+export const START_STEPS = ["window", "capabilities", "guidance", "sync", "menu"] as const;
+
+export const startLedgerPath = (home: string, session: string): string => join(home, "sessions", session, "start.json");
+
+/** The ledger a session keeps, or undefined where there is none or it cannot be read. */
+export async function readStartLedger(home: string, session: string): Promise<StartLedger | undefined> {
+  try {
+    const kept = JSON.parse(await readFile(startLedgerPath(home, session), "utf8"));
+    return {
+      v: 1,
+      steps: typeof kept?.steps === "object" && kept.steps ? kept.steps : {},
+      pinned: kept?.pinned === true,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Records that every step of session start ran for the session, now. */
+export async function keepStartLedger(home: string, session: string, at = new Date()): Promise<void> {
+  const ledger: StartLedger = {
+    v: 1,
+    steps: Object.fromEntries(START_STEPS.map((step) => [step, at.toISOString()])),
+    pinned: true,
+  };
+  await mkdir(join(home, "sessions", session), { recursive: true });
+  await writeFile(startLedgerPath(home, session), `${JSON.stringify(ledger, null, 2)}\n`);
 }
 
 export class StoreLayer {

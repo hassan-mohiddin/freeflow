@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { resolveCognitiveRoutingState, supportsCognitiveRoutingModelRegistry } from "../cognitive-routing/config.js";
 import { sessionStage, stagedFor } from "./staging.js";
 import { resolveToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig } from "../compaction/config.js";
@@ -32,7 +31,7 @@ import { cachedBranch } from "./branch.js";
  */
 export const SESSION_OVERRIDE_KEYS = SETTINGS.filter((spec) => spec.session).map((spec) => spec.key);
 export type SessionCoreKey = string;
-export type SessionOverrideValue = boolean | string;
+export type SessionOverrideValue = boolean | string | number;
 
 function validSessionValue(key: string, value: unknown): value is SessionOverrideValue {
   const spec = settingSpec(key);
@@ -248,23 +247,7 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
   const effectiveCore = resolveSessionCoreConfig(layers);
   const enabled = layers.configured && effectiveCore.config.enabled;
   const subagentContext = isSubagentContext(host);
-  const hostSupportsCognitiveRouting = !subagentContext && supportsCognitiveRoutingModelRegistry(host);
   const sessionLayer = sessionConfigLayer(currentSessionOverrides);
-  const configuredCognitiveRouting = await resolveCognitiveRoutingState(
-    layers.repository.parsed,
-    layers.local.parsed,
-    hostSupportsCognitiveRouting ? host : undefined,
-    sessionLayer,
-  );
-  const disabledReason = enabled ? undefined : { code: "disabled" as const, message: "Freeflow is disabled" };
-  const cognitiveRouting = enabled
-    ? configuredCognitiveRouting
-    : {
-        ...configuredCognitiveRouting,
-        enabled: false,
-        effective: false,
-        blockingReason: disabledReason,
-      };
   const repositoryConfig = layers.repository.valid ? layers.repository.parsed : {};
   const localConfig = layers.local.valid ? layers.local.parsed : {};
   const sessionLocalConfig = withSessionLayer(localConfig, sessionLayer);
@@ -303,8 +286,6 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
     sessionOverrides: { ...currentSessionOverrides },
     configSources: effectiveCore.sources,
     enabled,
-    hostSupportsCognitiveRouting,
-    cognitiveRouting,
     toolExecution,
     compaction,
     // Pi's Task Memory is gone: a config that still sets it loads, and /freeflow status says so (P6).
@@ -324,7 +305,6 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
 
   return {
     ...capabilityState,
-    cognitiveRouting: disableSubagentCapability(capabilityState.cognitiveRouting),
     toolExecution: disableSubagentCapability(capabilityState.toolExecution),
     compaction: disableSubagentCapability(capabilityState.compaction),
     messaging: disableSubagentCapability(capabilityState.messaging),

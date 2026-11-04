@@ -230,7 +230,7 @@ test(
   "in a real Pi session, a change before an agreement runs with the gate's row on its result, once a turn, and is logged",
   { timeout: 60000 },
   async () => {
-    const { fixture } = await import("../fixtures/routing-native.js");
+    const { fixture } = await import("../fixtures/pi-native.js");
     const { existsSync, readFileSync } = await import("node:fs");
     const script = resolve("skills/track-work/scripts/working-record.mjs");
     const home = await mkdtemp(join(tmpdir(), "freeflow-gates-native-"));
@@ -281,7 +281,6 @@ test(
         },
         true,
         {
-          cognitiveRouting: { enabled: false },
           freeflowConfig: { toolExecution: { enabled: true }, gates: { slice: "warn", agreement: "warn" } },
         },
       );

@@ -135,10 +135,7 @@ test("every group is one Freeflow arm with Tool Execution on, sealed in the pinn
     CASES.map((entry) => entry.id),
   );
   const shared = JSON.parse(readFileSync(path.join(suiteDirectory, "configuration.json"), "utf8")).configuration;
-  assert.deepEqual(shared.freeflow.repository, {
-    cognitiveRouting: { enabled: false },
-    toolExecution: { enabled: true },
-  });
+  assert.deepEqual(shared.freeflow.repository, { toolExecution: { enabled: true } });
   const image = JSON.parse(readFileSync(path.join(suiteDirectory, "image/digests.json"), "utf8")).shelf;
   for (const group of groups) {
     const entry = CASES.find((candidate) => candidate.id === group.id);

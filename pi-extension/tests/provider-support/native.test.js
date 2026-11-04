@@ -13,7 +13,7 @@ import {
 import freeflow from "../../dist/index.js";
 import { registerProviderSupport } from "../../dist/provider-support/index.js";
 import { ENTRY_TYPE } from "../../dist/provider-support/openai/history.js";
-import { response } from "../fixtures/routing-native.js";
+import { response } from "../fixtures/pi-native.js";
 
 async function native(extension, run, modelId = "gpt-6-astra") {
   const root = await mkdtemp(join(tmpdir(), "openai-effort-native-")),
@@ -172,31 +172,27 @@ for (const id of ["gpt-6-luna", "gpt-6-sol"]) {
 }
 
 for (const id of ["gpt-6-astra", "gpt-6-luna", "gpt-6-sol"]) {
-  test(
-    `the Freeflow extension adapts ${id} without repository activation or Cognitive Routing`,
-    { timeout: 30000 },
-    async () => {
-      await native(
-        freeflow,
-        async ({ session, manager, prompt }) => {
-          await prompt("one", "low");
-          const p = await prompt("two", "high");
-          assert.equal(p.model, id);
-          assert.equal(p.reasoning.effort, "low");
-          assert.equal(session.thinkingLevel, "high");
-          assert.ok(updates(p).some((x) => x.effort === "high"));
-          assert.ok(manager.getBranch().some((e) => e.customType === ENTRY_TYPE && e.data.key.endsWith(`/${id}`)));
-          assert.ok(!manager.getBranch().some((e) => e.customType === "freeflow-routing-v2"));
-          assert.ok(
-            !(p.tools ?? []).some((t) =>
-              ["delegate_work", "return_work", "routing_unit", "select_evidence", "compact_context"].includes(t.name),
-            ),
-          );
-        },
-        id,
-      );
-    },
-  );
+  test(`the Freeflow extension adapts ${id} without repository activation`, { timeout: 30000 }, async () => {
+    await native(
+      freeflow,
+      async ({ session, manager, prompt }) => {
+        await prompt("one", "low");
+        const p = await prompt("two", "high");
+        assert.equal(p.model, id);
+        assert.equal(p.reasoning.effort, "low");
+        assert.equal(session.thinkingLevel, "high");
+        assert.ok(updates(p).some((x) => x.effort === "high"));
+        assert.ok(manager.getBranch().some((e) => e.customType === ENTRY_TYPE && e.data.key.endsWith(`/${id}`)));
+        assert.ok(!manager.getBranch().some((e) => e.customType === "freeflow-routing-v2"));
+        assert.ok(
+          !(p.tools ?? []).some((t) =>
+            ["delegate_work", "return_work", "routing_unit", "select_evidence", "compact_context"].includes(t.name),
+          ),
+        );
+      },
+      id,
+    );
+  });
 }
 
 test(

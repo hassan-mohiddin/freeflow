@@ -556,7 +556,7 @@ async function rebaseOntoRemote(home, { resolved = false } = {}) {
  *
  * @param {{ home?: string, message?: string, pull?: boolean, resolved?: boolean }} options
  */
-export async function syncStore({ home: explicit, message, pull = false, resolved = false }) {
+export async function syncStore({ home: explicit, message, pull = false, resolved = false, push = true }) {
   const home = storeHome(explicit);
   requireStore(home);
   const conflict = await pendingConflict(home);
@@ -567,6 +567,9 @@ export async function syncStore({ home: explicit, message, pull = false, resolve
     );
   if (resolved && !conflict) fail("no-conflict", "No conflict waits; run store sync");
   const committed = await commitChanges(home, message);
+  // Committed here only, as a harness layer does where the session's end leaves no time for the network (Codex's
+  // SessionEnd); the next sync pushes it.
+  if (!push) return { home, committed, pulled: false, pushed: false, reason: "not pushed now: --no-push" };
   // A local store has nothing to take or push: its commits are its history.
   if (!(await hasRemote(home))) {
     await recordSync(home, { pushed: false, committed, result: "local" });

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted in the original architecture. Partially superseded by [ADR 0011: Single Adaptive Workflow](0011-single-adaptive-workflow.md) for mode, core-toggle, and prompt-surface semantics, and by [ADR 0014](0014-capability-skills-and-a-compact-core.md) (2026-10-22) for the Workflow and Action Selection cues: there is no Workflow or Action Selection skill, and the core prompt carries the cycle instead. This ADR supersedes the runtime-delivery details in ADR 0002; ADR 0002's evals-before-enforcement decision remains in force.
+Accepted in the original architecture. Partially superseded by [ADR 0011: Single Adaptive Workflow](0011-single-adaptive-workflow.md) for mode, core-toggle, and prompt-surface semantics, and by [ADR 0014](0014-capability-skills-and-a-compact-core.md) (2026-10-22) for the Workflow and Action Selection cues: there is no Workflow or Action Selection skill, and the core prompt carries the cycle instead. This ADR supersedes the runtime-delivery details in ADR 0002; ADR 0002's evals-before-enforcement decision remains in force. Cognitive Routing was removed on 2026-11-03 (SPEC-010): where this record names its cue, skill, Runtime State lines or bootstrap, none exists now; old bootstrap entries are still filtered.
 
 ## Decision
 

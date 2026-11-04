@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { resolveCognitiveRoutingState, supportsCognitiveRoutingModelRegistry } from "../cognitive-routing/config.js";
 import { sessionStage, stagedFor } from "./staging.js";
 import { resolveToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig } from "../compaction/config.js";
@@ -197,23 +196,7 @@ export async function readCapabilityState(cwd, host = undefined) {
   const effectiveCore = resolveSessionCoreConfig(layers);
   const enabled = layers.configured && effectiveCore.config.enabled;
   const subagentContext = isSubagentContext(host);
-  const hostSupportsCognitiveRouting = !subagentContext && supportsCognitiveRoutingModelRegistry(host);
   const sessionLayer = sessionConfigLayer(currentSessionOverrides);
-  const configuredCognitiveRouting = await resolveCognitiveRoutingState(
-    layers.repository.parsed,
-    layers.local.parsed,
-    hostSupportsCognitiveRouting ? host : undefined,
-    sessionLayer,
-  );
-  const disabledReason = enabled ? undefined : { code: "disabled", message: "Freeflow is disabled" };
-  const cognitiveRouting = enabled
-    ? configuredCognitiveRouting
-    : {
-        ...configuredCognitiveRouting,
-        enabled: false,
-        effective: false,
-        blockingReason: disabledReason,
-      };
   const repositoryConfig = layers.repository.valid ? layers.repository.parsed : {};
   const localConfig = layers.local.valid ? layers.local.parsed : {};
   const sessionLocalConfig = withSessionLayer(localConfig, sessionLayer);
@@ -252,8 +235,6 @@ export async function readCapabilityState(cwd, host = undefined) {
     sessionOverrides: { ...currentSessionOverrides },
     configSources: effectiveCore.sources,
     enabled,
-    hostSupportsCognitiveRouting,
-    cognitiveRouting,
     toolExecution,
     compaction,
     // Pi's Task Memory is gone: a config that still sets it loads, and /freeflow status says so (P6).
@@ -272,7 +253,6 @@ export async function readCapabilityState(cwd, host = undefined) {
   if (!subagentContext) return capabilityState;
   return {
     ...capabilityState,
-    cognitiveRouting: disableSubagentCapability(capabilityState.cognitiveRouting),
     toolExecution: disableSubagentCapability(capabilityState.toolExecution),
     compaction: disableSubagentCapability(capabilityState.compaction),
     messaging: disableSubagentCapability(capabilityState.messaging),

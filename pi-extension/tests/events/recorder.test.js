@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { EventRecorder, eventPath, exitCode, IDLE_FLUSH_MS, piClaims, REQUESTS } from "../../dist/events/recorder.js";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 import { CONFORMANCE } from "./conformance.js";
 
 // Freeflow's event log and claims on Pi (SPEC-006 4.2, 4.5): the recorder alone, then a real in-process Pi session with
 // Track Work's real script writing the log.
 const script = resolve("skills/track-work/scripts/working-record.mjs");
-const noRouting = { cognitiveRouting: { enabled: false }, freeflowConfig: { toolExecution: { enabled: true } } };
+const noRouting = { freeflowConfig: { toolExecution: { enabled: true } } };
 const bash = (command) => ({ name: "bash", args: { command } });
 const GOLDEN = new URL("./golden-events.jsonl", import.meta.url).pathname;
 
@@ -47,12 +47,11 @@ async function logLines(home, session, kinds) {
   assert.fail(`${path} never held ${kinds.join(", ")}`);
 }
 
-test("Pi's claims follow its capabilities: routing, compaction, messaging and the event log; off, every request is no", () => {
+test("Pi's claims follow its capabilities: compaction, messaging and the event log; off, every request is no", () => {
   const on = {
     enabled: true,
     events: true,
     compaction: true,
-    routing: false,
     messaging: false,
     askUser: true,
   };
@@ -75,10 +74,13 @@ test("Pi's claims follow its capabilities: routing, compaction, messaging and th
     sensors: "yes",
     timers: "yes",
   });
-  const all = claimOf(piClaims({ ...on, routing: true, messaging: true }));
-  assert.equal(all.forget, "yes");
-  assert.equal(all.route, "yes");
-  assert.equal(all.send, "yes");
+  const all = piClaims({ ...on, messaging: true });
+  assert.equal(all.send.claim, "yes");
+  for (const request of ["forget", "route"])
+    assert.deepEqual(all[request], {
+      claim: "possible",
+      how: "Pi offers setModel, setThinkingLevel and context_with_system; Freeflow does not use them",
+    });
   const quiet = piClaims({ ...on, compaction: false, events: false, askUser: false });
   assert.equal(quiet.compact.claim, "possible");
   assert.equal(quiet.wake.claim, "possible");
@@ -304,7 +306,7 @@ test("the lines wait for the session to stay idle after a run settles; a run tha
 });
 
 test("every request Pi claims as yes has its conformance test, and each test named exists (4.7)", () => {
-  const all = { enabled: true, events: true, compaction: true, routing: true, messaging: true, askUser: true };
+  const all = { enabled: true, events: true, compaction: true, messaging: true, askUser: true };
   const yes = Object.entries(piClaims(all))
     .filter(([, claim]) => claim.claim === "yes")
     .map(([request]) => request);

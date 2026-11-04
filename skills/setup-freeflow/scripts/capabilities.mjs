@@ -2,10 +2,10 @@
 
 // What Freeflow can do in this session (SPEC-006, section 4.6): the requests of request set 1, each as the session's
 // Freeflow driver claims it, yes (it carries the request out today, with a conformance test), possible (the harness
-// offers a carrier Freeflow does not use yet) or no (the harness offers none), and the event log. A driver writes its
-// claims at session start to <FREEFLOW_HOME>/sessions/<session>/capabilities.json; a host with no driver (Codex,
-// Cursor, Copilot, Gemini) has no file, and gets the session-start guidance only. A request that is not yes is never
-// assumed: `check` exits 0 only for yes.
+// offers a carrier Freeflow does not use yet) or no (the harness offers none), and the event log. A driver (Claude
+// Code's mod, Pi's extension, Codex's driver) writes its claims at session start to
+// <FREEFLOW_HOME>/sessions/<session>/capabilities.json; a host with no driver (Cursor, Copilot, Gemini) has no file, and
+// gets the session-start guidance only. A request that is not yes is never assumed: `check` exits 0 only for yes.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
@@ -104,7 +104,7 @@ function eventLog({ home, session, file }) {
   return { on, path, lines };
 }
 
-const DRIVER_NAMES = { "claude-code-mod": "Claude Code", "pi-extension": "Pi" };
+const DRIVER_NAMES = { "claude-code-mod": "Claude Code", "pi-extension": "Pi", "codex-driver": "Codex" };
 
 export function renderList(found, log) {
   const width = Math.max(...REQUESTS.map((request) => request.length));
@@ -120,7 +120,7 @@ export function renderList(found, log) {
     ].join("\n");
   }
   const file = found.file;
-  const head = `Freeflow on ${DRIVER_NAMES[found.driver] ?? found.driver} (${found.driver}${file.freeflow ? ` ${file.freeflow}` : ""}, request set ${file.requestSet}, ${file.mode ?? "mode unknown"})${file.enabled === false ? ": Freeflow is off in this session" : ""}`;
+  const head = `Freeflow on ${DRIVER_NAMES[found.driver] ?? found.driver} (${found.driver}${file.freeflow ? ` ${file.freeflow}` : ""}, request set ${file.requestSet}${file.mode ? `, ${file.mode}` : ""})${file.enabled === false ? ": Freeflow is off in this session" : ""}`;
   const events = log.on
     ? `Event log: on, ${log.path} (${log.lines.toLocaleString("en-US")} line(s))`
     : `Event log: off${file.enabled === false ? " (Freeflow is off)" : " (events.enabled)"}`;

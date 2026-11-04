@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 import { withoutGuidanceNotices } from "../../dist/tool-execution/guidance-notices.js";
 
-const on = { freeflowConfig: { toolExecution: { enabled: true } }, cognitiveRouting: { enabled: false } };
+const on = { freeflowConfig: { toolExecution: { enabled: true } } };
 
 // The text each tool call returned, in call order.
 function results(manager) {
@@ -168,6 +168,6 @@ test("with Tool Execution off, Pi's edit and write results are untouched", { tim
       assert.equal(write.isError, false);
     },
     true,
-    { freeflowConfig: { toolExecution: { enabled: false } }, cognitiveRouting: { enabled: false } },
+    { freeflowConfig: { toolExecution: { enabled: false } } },
   );
 });

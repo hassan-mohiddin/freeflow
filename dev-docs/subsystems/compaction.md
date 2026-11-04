@@ -11,14 +11,13 @@ For contributors changing Freeflow compaction on Pi and Pi's layer for the Freef
 
 A long session outgrows the model's window. Pi compacts on its own: a separate summarizer call reads the conversation and the session continues from its summary and a recent tail. That summarizer has none of the working agent's knowledge of what the next step needs.
 
-Freeflow compaction lets the working agent decide what survives, through Track Work: at a safe point the agent checkpoints its task (or, with no task, writes a session summary) with `checkpoint --compact` and ends its turn, and Freeflow writes Pi's compaction entry with the task's bundle (everything recovery reads, in one text) as its summary; the run continues from it. It is the same design as Freeflow's Claude Code mod (task-004's Spec, sections 9 and 11; [Freeflow store](freeflow-store.md)), on Pi's events. Pi's layer for the store also gives a session the task menu at its start, syncs the store, releases the hold at shutdown and shows the held task in the footer.
+Freeflow compaction lets the working agent decide what survives, through Track Work: at a safe point the agent checkpoints its task (or, with no task, writes a session summary) with `checkpoint --compact` and ends its turn, and Freeflow writes Pi's compaction entry with the task's bundle (everything recovery reads, in one text) as its summary; the run continues from it. It is the same design as Freeflow's Claude Code mod (task-004's Spec, sections 9 and 11; [Freeflow store](freeflow-store.md)), on Pi's events. Pi's layer for the store also gives a session the task menu at its start, syncs the store, releases the hold at shutdown and shows the held task in the footer. When Freeflow arrives in a running session, by a reload that brings it in or `enabled` switched on after the start, the next run's start gives the menu it missed, once, as that run's message, after a line saying Freeflow started mid-session (SPEC-013): each session's start records its steps in the Freeflow home's `sessions/<session>/start.json`, the ledger Claude Code's mod keeps too, so a reload of a session that had its menu reads the ledger and gives nothing; a try that fails is logged and made once more at the next run.
 
 It deliberately does not:
 
 - turn off, cancel, or change Pi's own compaction, which stays as the fallback;
 - write a summary of its own: the record's In flight is the agent's part (P59), and the bundle is made by Track Work's script;
-- read the store or the session file on the way to a request (performance rule R-1);
-- let a Coordinator under projection checkpoint (it delegates to a worker).
+- read the store or the session file on the way to a request (performance rule R-1).
 
 ## Vocabulary
 
@@ -31,7 +30,7 @@ It deliberately does not:
 | Checkpoint done | The held task's State as of, a worker session's `progress.md` time (`checkpoint --delegation`), or the session summary's time, is later than this cycle's notice, or its start when no notice came (P68). | `checkpointDone()` |
 | Bundle | Track Work's `view bundle`: the record and everything recovery reads, whole, with the files In flight carries (P60). | `StoreLayer.bundle()` |
 | Store state | `session status` as last read: the store, the held task, the session summary, a waiting compaction request. | `StoreLayer.current()` |
-| Harness part | The part of the summary Freeflow writes from facts it holds: the cycle, what asked for the compaction, the routing profile, running background commands, the Freeflow skills read in the cycle it ends. | `harnessPart()` in `harness.ts` |
+| Harness part | The part of the summary Freeflow writes from facts it holds: the cycle, what asked for the compaction, running background commands, the Freeflow skills read in the cycle it ends. | `harnessPart()` in `harness.ts` |
 | Fallback | Pi's own compaction, with the bundle after its summary when a task is held. | `CompactionController.fallback()` |
 
 ## How It Works
@@ -50,7 +49,7 @@ It deliberately does not:
 
 Worked example, 200k window with Pi's default reserve: trigger 200,000 − 16,384 = 183,616; the notice at the lower of 75% (150,000) and the trigger less a tenth of the window (163,616), so 150,000. Rows at 100,000, 120,000 and 140,000.
 
-1. **Measure.** `turn_end` calls `compaction.observe(ctx, turn)` after routing's turn end. `measure()` takes the context from the turn's own usage, and for a Coordinator under projection the larger of that and the full history's estimate. Thresholds come from `strictest()`: the lowest notice among every model that may receive the full history.
+1. **Measure.** `turn_end` calls `compaction.observe(ctx, turn)`. `measure()` takes the context from the turn's own usage, or Pi's estimate when the turn reports none. Thresholds come from `strictest()` over the active model.
 2. **Notify.** Below the notice, `observe()` returns a row at the highest of 50, 60 and 70% crossed, each once a cycle; at the notice, the cycle's one notice, then nothing more that cycle. The notice names the held task and the command (`checkpoint --record <ID> --compact`), or `checkpoint --session --compact` with none; in a worker session (one that ran `delegate join`, SPEC-009), `checkpoint --delegation <D-NNN> --compact`, and its compaction installs `view bundle --delegation`, its end running `release --ended` then a sync; and, for a coordinator whose current Slice waits on a delegation, `WaitWatch` (`store/waits.ts`) gives one row when it comes back (`D-NNN returned (done). S-NNN waits on it: check it and close it.`), through the inbound channel batched over 60 seconds, waking the idle session where `delegation.wakeOnReturn` is on; it reads session status again at a run's end and once a minute while idle, only while something it waits on has not come back; under projection it tells the Coordinator to delegate the checkpoint. `index.ts` sends it as a `freeflow-compaction-notice` message: steered into the next request mid-run, held for the next prompt at a run's end.
 
 ### The compaction
@@ -76,11 +75,6 @@ When Pi compacts (its trigger, an overflowing request, or `/compact`), `session_
 - **No task:** Pi's summarizer with Freeflow's general instructions (`FALLBACK_INSTRUCTIONS`), then the harness part.
 
 Pi's file lists from an earlier Freeflow compaction are added back into Pi's preparation. If anything throws, `fallback()` returns `undefined` and Pi compacts as it would alone.
-
-### With Cognitive Routing
-
-- The compaction records the routing profile and the assignment in progress; routing reads them back (`workerCompaction()`, `compactedInAssignment()` in `assembler.ts`).
-- A Coordinator under projection is told to delegate the checkpoint; Cognitive Routing's skill holds the rule (P3).
 
 ## Decisions
 
@@ -150,16 +144,15 @@ Pi's file lists from an earlier Freeflow compaction are added back into Pi's pre
 ## Code Map
 
 - `pi-extension/src/compaction/`: `controller.ts` (`observe`, `settle`, `fallback`, `statusText`), `thresholds.ts`, `harness.ts`, `config.ts`. Its [README](../../pi-extension/src/compaction/README.md) lists each file.
-- `pi-extension/src/store/layer.ts`: `StoreLayer`, `scriptRunner()`, `sessionEnvironment()`, `touchesStore()`.
+- `pi-extension/src/store/layer.ts`: `StoreLayer`, `scriptRunner()`, `sessionEnvironment()`, `touchesStore()`, and the session-start ledger (`readStartLedger()`, `keepStartLedger()`).
 - `pi-extension/src/index.ts`: the hosts, the event handlers, `/freeflow compact`, the store's start and status line.
 - `skills/track-work/scripts/lib/pi-session.mjs`: Track Work's reader for Pi's session file.
 
 ## Tests
 
-`thresholds.test.js` (the notice and rows), `controller.test.js` (notices, the run-end compaction, a session summary, a bundle that fails, Pi's compaction in its three cases), `bundle.test.js` (a real Pi session with Track Work's real script: a session summary with no store, and a task in a local store, compacted with the bundle; the next request extends the one after compaction), `harness.test.js`, and `pi-extension/tests/store/layer.test.js` (store touches, the environment, session start, the run's end, an answered request). `request-path-budget.test.js` bounds the per-turn work.
+`thresholds.test.js` (the notice and rows), `controller.test.js` (notices, the run-end compaction, a session summary, a bundle that fails, Pi's compaction in its three cases), `bundle.test.js` (a real Pi session with Track Work's real script: a session summary with no store, and a task in a local store, compacted with the bundle; the next request extends the one after compaction), `harness.test.js`, `pi-extension/tests/store/layer.test.js` (store touches, the environment, session start, the run's end, an answered request), and `pi-extension/tests/store/catch-up.test.js` (an in-process Pi session: Freeflow switched on after the start gets the menu at the next run, once; a session that started with it gets none). `request-path-budget.test.js` bounds the per-turn work.
 
 ## Limits
 
 - The live compaction on a real model has not been driven on Pi (P9's check needs a model key).
-- Under Cognitive Routing, a worker's checkpoint is followed by the compaction only when the whole run ends; no test drives a routed worker's checkpoint.
 - Slice measurement on Pi uses `--used`: Track Work has no reader for Pi's usage records.

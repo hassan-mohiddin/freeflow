@@ -95,18 +95,33 @@ export function rules(home, project) {
 const ITEM = /^- ([PT]\d+) \[(\w+)\]/;
 
 /**
- * The open agreement's decisions within their budget: items waiting on the user and those the user answered first,
- * then the rest newest first. Returns the lines shown and how many are hidden.
+ * decisions.md's item lines in the order they are shown: items waiting on the user (proposed, new) and those the user
+ * answered first, then the rest newest first.
  */
-export function activeDecisions(text, budget = ANCHOR.decisions) {
+export function orderedDecisions(text) {
   const items = (text ?? "").split(/\r?\n/).filter((line) => ITEM.test(line));
   const state = (line) => ITEM.exec(line)[2];
   const waiting = items.filter((line) => ["proposed", "new"].includes(state(line)));
   const answered = items.filter((line) => state(line) === "agreed");
   const rest = items.filter((line) => !waiting.includes(line) && !answered.includes(line)).reverse();
+  return [...waiting, ...answered, ...rest];
+}
+
+/** One decisions.md item line as data: its ID, its state in brackets, and the rest of its text. */
+export function decisionItem(line) {
+  const match = /^- ([PT]\d+) \[(\w+)\]\s*(.*)$/.exec(line);
+  return match ? { id: match[1], state: match[2], text: match[3] } : null;
+}
+
+/**
+ * The open agreement's decisions within their budget: items waiting on the user and those the user answered first,
+ * then the rest newest first. Returns the lines shown and how many are hidden.
+ */
+export function activeDecisions(text, budget = ANCHOR.decisions) {
+  const items = orderedDecisions(text);
   const shown = [];
   let used = 0;
-  for (const line of [...waiting, ...answered, ...rest]) {
+  for (const line of items) {
     if (used + words(line) > budget && shown.length) break;
     shown.push(line);
     used += words(line);
