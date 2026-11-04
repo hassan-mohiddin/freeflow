@@ -4,7 +4,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture } from "../fixtures/pi-native.js";
 import { startLedgerPath } from "../../dist/store/layer.js";
 
 // Freeflow arriving mid-session on Pi (SPEC-013), through an in-process Pi session: a session whose start ran without
@@ -47,11 +47,10 @@ test("Freeflow switched on after the session started: the next run's start bring
     },
     true,
     {
-      cognitiveRouting: { enabled: false },
       freeflowConfig: { enabled: false },
       // Freeflow is switched on in the repository after the session started.
       beforePrompt: async ({ cwd }) =>
-        writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ cognitiveRouting: { enabled: false } })),
+        writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({})),
     },
   );
 });
@@ -72,7 +71,6 @@ test("a session that started with Freeflow gets the menu from its start and no c
     },
     true,
     {
-      cognitiveRouting: { enabled: false },
       // Session start does not wait for the store (activation-status's Gotchas): the prompt waits until the start has
       // recorded its steps, which it does once the menu is made, so the menu reaches the first prompt.
       beforePrompt: async ({ manager }) => {
