@@ -32,7 +32,7 @@ Read a reference only when its situation arises.
 | An empirical question to answer before building on it | Discuss Work's [learning action](../discuss-work/references/learning-action.md) |
 | A choice that is the user's, or a step the agreement does not cover | [Discuss Work](../discuss-work/SKILL.md) |
 | Handing work to another agent (a subagent, parallel workers, a worker in a separate session, a reviewer, a trial, eval or research agent, a fan-out), or working from another agent's brief | [delegation](references/delegation.md) |
-| About to message another session, or a message from another session arrived | [parallel sessions](references/parallel-sessions.md) |
+| About to message another session, or a message from another session arrived | [delegation: Messages Between Sessions](references/delegation.md#messages-between-sessions), with its Rules |
 | Committing, pushing, merging, releasing or deploying | [Deliver Work](../deliver-work/SKILL.md) |
 
 ## Rules
