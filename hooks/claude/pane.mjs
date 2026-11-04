@@ -58,24 +58,13 @@ const firstError = (run) => (run.stderr.split("\n")[0] || `exit code ${run.exitC
  * /freeflow settings changes one; a run that fails leaves them as they were. Off, the pane closes and the status line
  * goes.
  * @param {any} $
+ * @param {any} [listed] the mod's own settings `list` result for this resolve, reused instead of a second run
  */
-export async function resolvePane($) {
+export async function resolvePane($, listed = undefined) {
   try {
-    const run = await $.process.run(
-      [
-        "node",
-        `${$.plugin.root}/${SETTINGS_SCRIPT}`,
-        "list",
-        "--host",
-        "claude-code",
-        "--root",
-        await $.session.cwd(),
-        "--json",
-      ],
-      { env: { CLAUDE_CODE_SESSION_ID: await $.session.id() }, timeoutMs: SETTINGS_TIMEOUT_MS },
-    );
-    if (run.exitCode !== 0) return;
-    const rows = new Map(JSON.parse(run.stdout).settings.map((/** @type {any} */ row) => [row.key, row.value]));
+    const settingsRows = listed !== undefined ? (listed.ok ? listed.data.settings : null) : await readSettingsRows($);
+    if (!settingsRows) return;
+    const rows = new Map(settingsRows.map((/** @type {any} */ row) => [row.key, row.value]));
     const value = (/** @type {string} */ key, /** @type {boolean} */ was) =>
       typeof rows.get(key) === "boolean" ? rows.get(key) : was;
     switches = {
@@ -86,6 +75,36 @@ export async function resolvePane($) {
   } catch {
     return;
   }
+  return applySwitches($);
+}
+
+/**
+ * The settings script's rows for the session's folder, or null when its run fails.
+ * @param {any} $
+ */
+async function readSettingsRows($) {
+  const run = await $.process.run(
+    [
+      "node",
+      `${$.plugin.root}/${SETTINGS_SCRIPT}`,
+      "list",
+      "--host",
+      "claude-code",
+      "--root",
+      await $.session.cwd(),
+      "--json",
+    ],
+    { env: { CLAUDE_CODE_SESSION_ID: await $.session.id() }, timeoutMs: SETTINGS_TIMEOUT_MS },
+  );
+  if (run.exitCode !== 0) return null;
+  return JSON.parse(run.stdout).settings;
+}
+
+/**
+ * Closes the pane and drops the status line when their switches are off.
+ * @param {any} $
+ */
+async function applySwitches($) {
   if (!switches.enabled || !switches.pane)
     if ((await $.ui.panes()).some((/** @type {any} */ pane) => pane.id === PANE)) await $.ui.close({ id: PANE });
   if ((!switches.enabled || !switches.statusLine) && pinned !== undefined) {

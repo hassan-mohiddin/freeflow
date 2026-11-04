@@ -324,10 +324,12 @@ test("/freeflow pane opens the pane and reads the scripts' JSON off the request 
   // A turn's end reads again, after the hook returned: closed, the pane's own reads (cost, plan, events) wait.
   w.runs.length = 0;
   await $.turn.complete({ turnId: "t1", reason: "answer", answer: "", durationMs: 1, isAborted: false });
-  expect(w.reads()).toEqual(["session status"]);
+  // The cost governor reads the held task's plan once at the turn's end (SPEC-014); that read is the governor's.
+  expect(w.reads()).toEqual(["session status", "estimate --plan --record /r.md --json"]);
   await w.clock.advance(1);
   expect(w.reads()).toEqual([
     "session status",
+    "estimate --plan --record /r.md --json",
     "session status",
     "project list --json",
     `delegate status --record ${TASK} --json`,

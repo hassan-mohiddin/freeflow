@@ -36,7 +36,7 @@ const USAGE = `Usage:
   settings.mjs unset <key> --scope repository|personal|session [--root <folder>] [--json]
 --root names a folder in the repository (default: the current folder); the settings are its repository's.
 The value "inherit" unsets the key in that scope. --host all (the default) lists the settings every host acts on and
-Claude Code's own (its cost governor, pane and status line), as does --host claude-code; --host pi lists Pi's too. The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
+Claude Code's own (its cost governor, pane and status line), as does --host claude-code; --host pi lists Pi's instead of Claude Code's. The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
 FREEFLOW_SESSION).`;
 
 class UsageError extends Error {}
@@ -118,7 +118,9 @@ function row(item) {
 
 function list(state, root, host, json) {
   const resolved = resolveAll(state);
-  const rows = resolved.filter((item) => host === "pi" || item.spec.hosts !== "pi");
+  const rows = resolved.filter((item) =>
+    host === "pi" ? item.spec.hosts !== "claude-code" : item.spec.hosts !== "pi",
+  );
   if (json) return `${JSON.stringify({ root, settings: rows.map(row), state: stateLines(resolved) }, null, 2)}\n`;
   const width = Math.max(...rows.map((item) => item.spec.key.length));
   const lines = rows.map(

@@ -659,6 +659,9 @@ async function settings($, args) {
   }
 }
 
+/** The settings listing the last resolveEnabled read, which the pane's switches reuse at session start. */
+let lastListed;
+
 /**
  * Reads `enabled` for the session's folder again; it stays as it was when the script fails or a file is invalid.
  * @param {any} $
@@ -669,6 +672,7 @@ async function resolveEnabled($) {
   const events = await settings($, ["get", "events.enabled"]);
   if (events.ok && typeof events.data.value === "boolean") eventsOn = events.data.value;
   const listed = await settings($, ["list"]);
+  lastListed = listed;
   await resolveGovernor($, listed);
   if (listed.ok)
     for (const row of listed.data.settings ?? []) {
@@ -1453,8 +1457,8 @@ export function register(on) {
     if (typeof e.isInteractive === "boolean") interactive = e.isInteractive;
     await resolveEnabled($);
     if (interactive !== was && freeflowHome && enabled) await writeCapabilities($, freeflowHome);
-    // The pane's and the status line's switches (SPEC-015).
-    await resolvePane($);
+    // The pane's and the status line's switches (SPEC-015), from the listing resolveEnabled just read.
+    await resolvePane($, lastListed);
     return next(e);
   });
 
