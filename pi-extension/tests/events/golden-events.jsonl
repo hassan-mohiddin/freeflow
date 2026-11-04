@@ -1,10 +1,12 @@
 {"v":1,"seq":1,"harness":"pi","agent":"main","kind":"session.start","source":"startup","interactive":true}
 {"v":1,"seq":2,"harness":"pi","agent":"main","kind":"freeflow","what":"capabilities","detail":"interactive"}
-{"v":1,"seq":3,"harness":"pi","agent":"main","kind":"turn.start","turn":1}
-{"v":1,"seq":4,"harness":"pi","agent":"main","kind":"model.request","model":"gpt-4o","effort":"off","in":10,"out":10,"cacheRead":0,"cacheWrite":0,"context":10,"stop":"toolUse"}
-{"v":1,"seq":5,"harness":"pi","agent":"main","kind":"tool.call","tool":"bash","ok":true,"ms":"<ms>","command":"echo SECRET_OUTPUT | rev","source":"agent"}
-{"v":1,"seq":6,"harness":"pi","agent":"main","kind":"tool.call","tool":"bash","ok":false,"exit":3,"ms":"<ms>","command":"node <repo>/skills/track-work/scripts/working-record.mjs store status --token=[redacted]; exit 3","source":"freeflow"}
-{"v":1,"seq":7,"harness":"pi","agent":"main","kind":"turn.end","turn":1,"reason":"answer","ms":"<ms>"}
-{"v":1,"seq":8,"harness":"pi","agent":"main","kind":"turn.start","turn":2}
-{"v":1,"seq":9,"harness":"pi","agent":"main","kind":"model.request","model":"gpt-4o","effort":"off","in":10,"out":10,"cacheRead":0,"cacheWrite":0,"context":10,"stop":"stop"}
-{"v":1,"seq":10,"harness":"pi","agent":"main","kind":"turn.end","turn":2,"reason":"answer","ms":"<ms>"}
+{"v":1,"seq":3,"harness":"pi","agent":"main","kind":"freeflow","what":"guidance","detail":"section","chars":"<chars>"}
+{"v":1,"seq":4,"harness":"pi","agent":"main","kind":"turn.start","turn":1}
+{"v":1,"seq":5,"harness":"pi","agent":"main","kind":"model.request","turn":1,"model":"gpt-4o","effort":"off","in":10,"out":10,"cacheRead":0,"cacheWrite":0,"context":10,"stop":"toolUse"}
+{"v":1,"seq":6,"harness":"pi","agent":"main","kind":"tool.call","tool":"bash","ok":true,"ms":"<ms>","command":"echo SECRET_OUTPUT | rev","source":"agent","outChars":14}
+{"v":1,"seq":7,"harness":"pi","agent":"main","kind":"freeflow","what":"notice","detail":"guidance","chars":"<chars>"}
+{"v":1,"seq":8,"harness":"pi","agent":"main","kind":"tool.call","tool":"bash","ok":false,"exit":3,"ms":"<ms>","command":"node <repo>/skills/track-work/scripts/working-record.mjs store status --token=[redacted]; exit 3","source":"freeflow","outChars":68}
+{"v":1,"seq":9,"harness":"pi","agent":"main","kind":"turn.end","turn":1,"reason":"answer","ms":"<ms>"}
+{"v":1,"seq":10,"harness":"pi","agent":"main","kind":"turn.start","turn":2}
+{"v":1,"seq":11,"harness":"pi","agent":"main","kind":"model.request","turn":2,"model":"gpt-4o","effort":"off","in":10,"out":10,"cacheRead":0,"cacheWrite":0,"context":10,"stop":"stop"}
+{"v":1,"seq":12,"harness":"pi","agent":"main","kind":"turn.end","turn":2,"reason":"answer","ms":"<ms>"}

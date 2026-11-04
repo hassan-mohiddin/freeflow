@@ -13,6 +13,7 @@ import {
   renderSummary,
   summarize,
 } from "../../../skills/track-work/scripts/lib/events5.mjs";
+import { PRICES, requestCost } from "../../../skills/track-work/scripts/lib/measure5.mjs";
 
 const scriptPath = resolve("skills/track-work/scripts/working-record.mjs");
 
@@ -448,4 +449,112 @@ test("summarize counts dropped lines and leaves out what came before since", () 
   assert.equal(summary.toolCalls, 0);
   assert.equal(summary.dropped, 4);
   assert.equal(summary.until, "2026-11-03T11:30:00.000Z");
+});
+
+// SPEC-011 4.1: the overhead fields, Freeflow's estimated share of the input, and the cost at list price.
+test("the overhead fields validate: a request's turn, a tool result's size, and what Freeflow put in the context", () => {
+  const ok = (line) => assert.equal(lineProblem({ ...base(), ...line }), null);
+  ok({ kind: "model.request", model: "claude-haiku-5-5", turn: 3, in: 1 });
+  ok({ kind: "tool.call", tool: "Bash", ok: true, source: "agent", outChars: 0 });
+  ok({ kind: "freeflow", what: "bundle", chars: 1200 });
+  ok({ kind: "freeflow", what: "guidance", chars: 900 });
+  assert.match(
+    lineProblem({ ...base(), kind: "tool.call", tool: "Bash", ok: true, source: "agent", outChars: -1 }),
+    /outChars/,
+  );
+  assert.match(lineProblem({ ...base(), kind: "freeflow", what: "notice", chars: 1.5 }), /chars/);
+  assert.match(lineProblem({ ...base(), kind: "model.request", model: "m", turn: "1" }), /turn/);
+});
+
+test("the summary's overhead matches a hand count, and its cost matches Track Work's for the same requests", () => {
+  const at = (minute) => `2026-11-04T10:${String(minute).padStart(2, "0")}:00.000Z`;
+  const request = (minute, fields) => ({
+    ...base("s", at(minute)),
+    kind: "model.request",
+    model: "claude-haiku-5-5",
+    effort: "xhigh",
+    ...fields,
+  });
+  const lines = [
+    { ...base("s", at(0)), kind: "freeflow", what: "guidance", chars: 4000 },
+    request(1, { turn: 1, in: 10, cacheWrite: 3000, cacheRead: 0, out: 200 }),
+    { ...base("s", at(2)), kind: "tool.call", tool: "Bash", ok: true, source: "freeflow", outChars: 800 },
+    { ...base("s", at(3)), kind: "tool.call", tool: "Read", ok: true, source: "agent", outChars: 2000 },
+    { ...base("s", at(4)), kind: "freeflow", what: "notice", chars: 400 },
+    request(5, { turn: 1, in: 5, cacheWrite: 1000, cacheRead: 3010, out: 100 }),
+    { ...base("s", at(6)), kind: "compaction", by: "freeflow" },
+    { ...base("s", at(7)), kind: "freeflow", what: "bundle", chars: 2000 },
+    request(8, { turn: 2, in: 0, cacheWrite: 2000, cacheRead: 1200, out: 50 }),
+    // A request from a log written before `turn`: the agent's, and counted as unattributed.
+    request(9, { in: 100, cacheRead: 500, cacheWrite: 0 }),
+  ];
+  const summary = summarize(lines, { session: "s" });
+  // By hand, in tokens (characters over 4). Request 1: of its 3,010 new tokens the guidance is 1,000. Request 2: the
+  // guidance's 1,000 is in its 3,010 cached; of its 1,005 new, the last output (200) and the agent's Read (500) are
+  // the agent's, Freeflow's Bash result (200) and the notice (100) Freeflow's. The compaction empties the context but
+  // for the guidance, in the system prompt. Request 3: the guidance's 1,000 of its 1,200 cached, the bundle's 500 of
+  // its 2,000 new. Request 4 has no turn. Uncached 6,115, of it Freeflow's 1,800; cached 4,710, of it Freeflow's 2,000.
+  assert.deepEqual(summary.overhead, {
+    estimate: true,
+    charsPerToken: 4,
+    tokens: 3800,
+    of: 10825,
+    share: Math.round((3800 / 10825) * 10000) / 10000,
+    uncached: Math.round((1800 / 6115) * 10000) / 10000,
+    cached: Math.round((2000 / 4710) * 10000) / 10000,
+    byWhat: { guidance: 0.7895, bundle: 0.1316, tools: 0.0526, notice: 0.0263 },
+    unattributed: 1,
+  });
+  // Haiku 5.5's card below 100,000 prompt tokens, per million: input 0.1, a cache write 0.125, a read 0.01, output 0.5.
+  const byHand =
+    (10 * 0.1 +
+      3000 * 0.125 +
+      200 * 0.5 +
+      (5 * 0.1 + 1000 * 0.125 + 3010 * 0.01 + 100 * 0.5) +
+      (2000 * 0.125 + 1200 * 0.01 + 50 * 0.5) +
+      (100 * 0.1 + 500 * 0.01)) /
+    1e6;
+  const trackWork = lines
+    .filter((line) => line.kind === "model.request")
+    .reduce(
+      (sum, line) =>
+        sum +
+        requestCost({
+          model: line.model,
+          usage: {
+            input_tokens: line.in ?? 0,
+            output_tokens: line.out ?? 0,
+            cache_read_input_tokens: line.cacheRead ?? 0,
+            cache_creation_input_tokens: line.cacheWrite ?? 0,
+          },
+        }),
+      0,
+    );
+  assert.ok(Math.abs(summary.cost.usd - byHand) < 1e-9, `${summary.cost.usd} against ${byHand}`);
+  assert.ok(Math.abs(summary.cost.usd - trackWork) < 1e-9);
+  assert.deepEqual(summary.cost.byModel, [{ model: "claude-haiku-5-5", effort: "xhigh", usd: summary.cost.usd }]);
+  assert.equal(summary.cost.unpriced, 0);
+  assert.equal(summary.cost.prices, PRICES.date);
+  const text = renderSummary(summary);
+  assert.match(
+    text,
+    /\nCost at API list price: \$0\.0010 \(claude-haiku-5-5 xhigh \$0\.0010\), prices of 2026-10-30\n/,
+  );
+  assert.match(
+    text,
+    /\nOverhead: 35% of input tokens by estimate \(Freeflow's injected text and its own tool results, 4 characters a token\), 29% of uncached, 42% of cached; the guidance 79%, the bundle 13%, its own tool results 5%, notices 3%; 1 request\(s\) without a turn counted as the agent's\n/,
+  );
+});
+
+test("a model the price table lacks is counted, not priced, and a log with no request prints no overhead or cost", () => {
+  const lines = [{ ...base("s"), kind: "model.request", model: "made-up-model", turn: 1, in: 10, out: 1 }];
+  const summary = summarize(lines, { session: "s" });
+  assert.equal(summary.cost.usd, 0);
+  assert.equal(summary.cost.unpriced, 1);
+  assert.match(
+    renderSummary(summary),
+    /Cost at API list price: \$0\.00, prices of 2026-10-30; 1 request\(s\) of a model with no price\n/,
+  );
+  const empty = renderSummary(summarize([], { session: "s" }));
+  assert.doesNotMatch(empty, /Overhead|Cost at/);
 });

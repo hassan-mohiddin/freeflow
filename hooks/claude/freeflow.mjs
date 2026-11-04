@@ -380,8 +380,30 @@ function noticeText($, context, state, number) {
  * @param {any} $
  * @param {string} text
  */
-async function appendRow($, text) {
+/**
+ * Appends a row the agent reads, and its `freeflow` line with how many characters it put into the context (SPEC-011
+ * 4.1).
+ * @param {any} $
+ * @param {string} text
+ * @param {string} what
+ * @param {string} [detail]
+ */
+async function appendRow($, text, what, detail) {
   await $.session.append({ message: { type: "user", content: [{ type: "text", text }] } });
+  await emit($, "freeflow", { what, detail, chars: text.length });
+}
+
+/**
+ * Sends a worker a message, and its `freeflow` line, in the worker's loop, with the characters it added.
+ * @param {any} $
+ * @param {string} agentId
+ * @param {string} text
+ * @param {string} what
+ * @param {string} [detail]
+ */
+async function sendWorker($, agentId, text, what, detail) {
+  await $.session.send({ to: { agentId }, text });
+  await emit($, "freeflow", { what, detail, chars: text.length }, agentId);
 }
 
 /** After each request of the main conversation: below the notice point, a row at the highest of ROWS_AT the context
@@ -407,8 +429,9 @@ async function watchMain($) {
     await appendRow(
       $,
       `Freeflow, context cycle ${number}: the context is at ${share(context)}; the checkpoint notice comes at about ${Math.round(point)} tokens.`,
+      "row",
+      `cycle ${number}, ${Math.round(row * 100)}%`,
     );
-    await emit($, "freeflow", { what: "row", detail: `cycle ${number}, ${Math.round(row * 100)}%` });
     return;
   }
   const state = await status($);
@@ -418,8 +441,7 @@ async function watchMain($) {
   if (!state) return;
   cycle.notice = await $.clock.now();
   const number = await cycleNumber($, state);
-  await appendRow($, noticeText($, context, state, number));
-  await emit($, "freeflow", { what: "notice", detail: `cycle ${number}` });
+  await appendRow($, noticeText($, context, state, number), "notice", `cycle ${number}`);
 }
 
 /** The workers this session started, by agent ID: read once from the store's sessions/ folder after a reload. */
@@ -445,10 +467,13 @@ async function noticeWorker($, step, response) {
   const size = contextWindow;
   if (!size || tokens < noticePoint(size)) return;
   worker.noticed = true;
-  await $.session.send({
-    to: { agentId: step.agentId },
-    text: `Freeflow: your context is at ${Math.round((100 * tokens) / size)}% of its window and compaction is near. At your next safe point, rewrite ${worker.delegation}'s progress.md (Done, Half done, Didn't work, Next), so a compaction loses nothing, then go on.`,
-  });
+  await sendWorker(
+    $,
+    step.agentId,
+    `Freeflow: your context is at ${Math.round((100 * tokens) / size)}% of its window and compaction is near. At your next safe point, rewrite ${worker.delegation}'s progress.md (Done, Half done, Didn't work, Next), so a compaction loses nothing, then go on.`,
+    "notice",
+    `worker ${worker.delegation}`,
+  );
 }
 
 /** Whether the checkpoint this cycle asked for is done: the record's State as of, or the summary's time, is later
@@ -502,7 +527,12 @@ async function ownCompaction($, e, next, state) {
     $,
     state.task ? ["view", "bundle", "--record", state.task.record] : ["view", "bundle", "--session"],
   );
-  if (made.exitCode !== 0) return withMessage(await next(e), unmade($, state, made));
+  if (made.exitCode !== 0) {
+    const message = unmade($, state, made);
+    await emit($, "freeflow", { what: "bundle", detail: "not made", chars: message.length });
+    return withMessage(await next(e), message);
+  }
+  if (made.stdout) await emit($, "freeflow", { what: "bundle", chars: made.stdout.length });
   // The bundle replaces the conversation: a checkpoint --compact waiting for this is answered, whoever compacted.
   if (state.compact && !state.compact.done) await answered($, state.compact);
   if (!state.task)
@@ -522,7 +552,10 @@ async function fallbackCompaction($, e, next, state) {
   const compacted = await next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${note}` : note });
   if (compacted.skip) return compacted;
   const made = await script($, ["view", "bundle", "--record", state.task.record, "--fallback"]);
-  return withMessage(compacted, made.exitCode === 0 ? made.stdout : unmade($, state, made));
+  const message = made.exitCode === 0 ? made.stdout : unmade($, state, made);
+  if (message)
+    await emit($, "freeflow", { what: "bundle", detail: "after Claude's compaction", chars: message.length });
+  return withMessage(compacted, message);
 }
 
 /** A worker's compaction: its summary names its delegation and how it recovers. */
@@ -565,7 +598,14 @@ async function compactAndContinue($, request) {
       // on from the bundle; a prompt submitted now would wait behind it and arrive out of date (F35).
       const turns = mainTurns;
       $.clock.after(CONTINUE_AFTER_MS, async () => {
-        if (mainTurns === turns) await $.prompt.submit({ text: CONTINUE });
+        if (mainTurns === turns) {
+          await $.prompt.submit({ text: CONTINUE });
+          await emit($, "freeflow", {
+            what: "compact",
+            detail: "the prompt after the compaction",
+            chars: CONTINUE.length,
+          });
+        }
       });
     }
   } catch (error) {
@@ -582,6 +622,8 @@ async function compactAndContinue($, request) {
     await appendRow(
       $,
       `Freeflow: the compaction your checkpoint asked for did not run (${dropped}); it tries again when the next turn ends.`,
+      "compact",
+      "not run",
     );
     return;
   }
@@ -589,6 +631,8 @@ async function compactAndContinue($, request) {
   await appendRow(
     $,
     `Freeflow: the compaction your checkpoint asked for did not run (${dropped}), ${tries} times; it stops trying. Checkpoint with --compact again, or run /compact.`,
+    "compact",
+    "not run, stopped",
   );
 }
 
@@ -623,7 +667,7 @@ async function turnEnded($, e) {
     const menu = await storeArrived($, state, session, cwd);
     // The menu has no place to go now, but a task taken back does: the agent learns it holds the task (F36).
     const tookBack = menu.exitCode === 0 ? /^Took .+ back: .+$/m.exec(menu.stdout)?.[0] : undefined;
-    if (tookBack) await appendRow($, `Freeflow: ${tookBack}`);
+    if (tookBack) await appendRow($, `Freeflow: ${tookBack}`, "menu", "took the task back");
   }
   if (state.changed) {
     await script($, ["store", "sync"]);
@@ -745,8 +789,8 @@ async function gated($, e, verdict) {
         return gateText(fired);
       });
     for (const row of rows)
-      if (e.agentId !== undefined) await $.session.send({ to: { agentId: e.agentId }, text: row });
-      else await appendRow($, row);
+      if (e.agentId !== undefined) await sendWorker($, e.agentId, row, "gates", "warning");
+      else await appendRow($, row, "gates", "warning");
     return verdict;
   }
   const reason = result.fired
@@ -1115,7 +1159,7 @@ async function governStep($) {
         : response === "notice"
           ? `Freeflow cost governor: a cap is reached: ${cap.what}${resets}. Say so to the user in your next answer; Freeflow only notifies (governor.mode warn).`
           : `Freeflow cost governor: a cap is reached: ${cap.what}${resets}. Stop at your next safe point: ${SAFE_POINT}. Checkpoint there (your task's record, or this session's summary), then end your turn asking the user whether to go on (governor.mode stop).`;
-    await appendRow($, text);
+    await appendRow($, text, "notice", "governor");
     await emit($, "governor", {
       cap: cap.cap,
       unit: cap.unit,
@@ -1215,6 +1259,31 @@ function withoutHookGuidance(result, parts) {
   return rest.length ? { ...others, additionalContext: rest } : others;
 }
 
+/** @type {{ what: string, detail: string, chars: number } | null} what the last session start's guidance added */
+let guidanceAdded = null;
+
+/**
+ * The guidance's `freeflow` line, after the session start's own (SPEC-011 4.1).
+ * @param {any} $
+ */
+async function emitGuidance($) {
+  if (guidanceAdded) await emit($, "freeflow", guidanceAdded);
+  guidanceAdded = null;
+}
+
+/**
+ * How many characters of a session start's result are the hooks' copies of the guidance.
+ * @param {any} result
+ * @param {string[]} parts
+ */
+function hookGuidanceChars(result, parts) {
+  const ours = new Set(parts.map((part) => part.trim()).filter(Boolean));
+  if (!Array.isArray(result.additionalContext)) return 0;
+  return result.additionalContext
+    .filter((/** @type {string} */ text) => ours.has(String(text).trim()))
+    .reduce((/** @type {number} */ sum, /** @type {string} */ text) => sum + String(text).length, 0);
+}
+
 /** @param {any} $ */
 async function keepLedger($) {
   if (!freeflowHome || !started) return;
@@ -1273,6 +1342,10 @@ async function pinnedStart($, e, next) {
       : Boolean(home) && (await readLedger($, String(home), e.session_id))?.pinned === true;
     pinned = Boolean(rendered.text) && recorded;
     if (pinned) out = withoutHookGuidance(result, rendered.parts);
+    // What the guidance put into the context (SPEC-011 4.1): the pinned section, or the hooks' copies of it.
+    const chars = pinned ? rendered.text.length : hookGuidanceChars(result, rendered.parts);
+    // Counted at a new thread only: the system prompt, and the estimate's count of it, outlast a compaction.
+    if (fresh) guidanceAdded = chars ? { what: "guidance", detail: pinned ? "pinned" : "hooks", chars } : null;
   } catch (error) {
     $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}; the session-start hooks keep it`);
   }
@@ -1412,8 +1485,10 @@ async function catchUp($) {
         ...(shown.guidance ? [shown.guidance] : []),
         ...(shown.menu ? [`Freeflow task memory:\n${shown.menu}`] : []),
       ].join("\n\n"),
+      "menu",
+      `mid-session: ${done.join(", ")}`,
     );
-  if (done.length) await emit($, "freeflow", { what: "menu", detail: `mid-session: ${done.join(", ")}` });
+  else if (done.length) await emit($, "freeflow", { what: "menu", detail: `mid-session: ${done.join(", ")}` });
   await keepLedger($);
 }
 
@@ -1481,6 +1556,7 @@ export function register(on) {
     await resolveEnabled($);
     if (!enabled) return result;
     await emit($, "session.start", { source: e.source, interactive });
+    await emitGuidance($);
     await newCycle($, null);
     workers = null;
     await readWindow($);
@@ -1494,24 +1570,18 @@ export function register(on) {
     await storeRootOf($, state);
     const missing = missingText(found);
     awaitingStore = state ? null : { session: e.session_id, cwd: e.cwd };
-    if (!state)
-      return missing.length
-        ? {
-            ...result,
-            additionalContext: [
-              ...(result.additionalContext ?? []),
-              `Freeflow task memory: the store is not ready.\n${missing.join("\n")}`,
-            ],
-          }
-        : result;
+    if (!state) {
+      if (!missing.length) return result;
+      const added = `Freeflow task memory: the store is not ready.\n${missing.join("\n")}`;
+      await emit($, "freeflow", { what: "menu", detail: "the store is not ready", chars: added.length });
+      return { ...result, additionalContext: [...(result.additionalContext ?? []), added] };
+    }
     const menu = await storeArrived($, state, e.session_id, e.cwd);
     if (menu.exitCode !== 0) return result;
-    await emit($, "freeflow", { what: "menu" });
     const text = [menu.stdout.trimEnd(), ...missing].join("\n");
-    return {
-      ...result,
-      additionalContext: [...(result.additionalContext ?? []), `Freeflow task memory:\n${text}\n`],
-    };
+    const added = `Freeflow task memory:\n${text}\n`;
+    await emit($, "freeflow", { what: "menu", chars: added.length });
+    return { ...result, additionalContext: [...(result.additionalContext ?? []), added] };
   });
 
   on("turn.start", async ($, e, next) => {
@@ -1544,6 +1614,7 @@ export function register(on) {
         $,
         "model.request",
         {
+          turn: turnsOf.get(e.agentId ?? "main"),
           model: String(model),
           effort: typeof e.effort === "string" ? e.effort : null,
           in: input,
@@ -1626,6 +1697,8 @@ export function register(on) {
         paths: paths.length ? paths : undefined,
         command,
         source: ours ? "freeflow" : "agent",
+        // The size of what the model reads back (SPEC-011 4.1), never the result itself.
+        outChars: typeof result?.text === "string" ? result.text.length : undefined,
       },
       e.agentId ?? "main",
     );

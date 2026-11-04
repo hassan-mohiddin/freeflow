@@ -4,6 +4,7 @@
 import { existsSync } from "node:fs";
 
 import { appendEvents, holdStart, KINDS, listLogs, logPath, readLog, renderSummary, summarize } from "./events5.mjs";
+import { priceTable } from "./measure5.mjs";
 import { heldTask, readSessions } from "./projects5.mjs";
 import { isFreeflowStore } from "./store.mjs";
 
@@ -39,7 +40,13 @@ export async function runEvents(operation, options, { home, identity, input }) {
     const { lines, skipped, bytes } = readLog(path);
     // This session's summary counts from when it took the task it holds, as the one a checkpoint commits does.
     const held = session === identity?.id ? heldSince(home, identity) : null;
-    const summary = summarize(lines, { session, since: held?.since ?? null, task: held?.task.id ?? null, bytes });
+    const summary = summarize(lines, {
+      session,
+      since: held?.since ?? null,
+      task: held?.task.id ?? null,
+      bytes,
+      prices: priceTable(),
+    });
     const unread = skipped.length ? `Skipped unreadable line(s) ${skipped.join(", ")} of ${path}.\n` : "";
     return options["--json"] ? `${JSON.stringify(summary, null, 2)}\n` : `${renderSummary(summary)}${unread}`;
   }

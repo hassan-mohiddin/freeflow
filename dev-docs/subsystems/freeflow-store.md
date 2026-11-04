@@ -63,6 +63,7 @@ The P and T numbers name choices in the design that built this, task-004's Spec 
 - **Readings only from the transcript the harness layer names** (P83, T30). Measurement writes into the record, so it never looks up a log by itself: a test inherits the session's environment, and a lookup would measure the session running it. `estimate` and `discussion list`, which only print, also find this Claude Code session's log by its ID.
 - **Planning is deterministic** (P89). Medians, ranges and ratios over measured History entries; the correction divides by the uncorrected median, so corrections do not compound. Rejected: a fitted or probabilistic predictor, since a task holds too few Slices for one and its figures could not be traced.
 - **Dollars at API list price from a dated table** (P86, T31). On a subscription the figure is what the work would cost through the API, not what is charged; `FREEFLOW_PRICES` replaces the table.
+- **Freeflow's overhead is an estimate from characters** (SPEC-011 P4, the owner's default, 2026-11-03). A driver knows what it put into the context and how long each tool result was, never how many tokens either took, so the summary counts 4 characters a token and says so. Each request's new input (`in` plus `cacheWrite`) is attributed in order to what was added since its agent's previous request (its output, then each tool result and each Freeflow addition), the rest to the agent; its cached input holds Freeflow's additions since the last compaction (and the guidance, which the system prompt keeps). A request without `turn` counts as the agent's and is reported. Rejected: counting tokens with a tokenizer per host, which no driver has.
 
 ## Intended Behavior That Looks Wrong
 
@@ -122,7 +123,7 @@ The P and T numbers name choices in the design that built this, task-004's Spec 
 - `skills/track-work/scripts/lib/store.mjs`: paths and writes: the store marker, the Git check, task numbering, atomic publication.
 - `skills/track-work/scripts/lib/record5.mjs`: Schema 5's parse and validation: field orders (`SLICE5_ORDER`, `ENTRY_ORDER`), states, IDs, the skeleton.
 - `skills/track-work/scripts/lib/transitions5.mjs`: the agreement, Slice and checkpoint commands, readings at start, checkpoint and close, the session summary, Space.
-- `skills/track-work/scripts/lib/events5.mjs`, `events-cli.mjs`: the event log's schema v1, the writer (`seq` under a lock on the file, redaction, a torn last line kept on its own), the summary at checkpoint and release, and the `events` commands.
+- `skills/track-work/scripts/lib/events5.mjs`, `events-cli.mjs`: the event log's schema v1, the writer (`seq` under a lock on the file, redaction, a torn last line kept on its own), the summary at checkpoint and release (with SPEC-011's overhead estimate, `overheadOf`, and the list-price cost from `measure5.mjs`'s table, `costOf`), and the `events` commands.
 - `skills/track-work/scripts/lib/gates5.mjs`, `gate-state5.mjs`: the gates' decision and the gate state ([Gates](gates.md)).
 - `skills/track-work/scripts/lib/views5.mjs`: `view recover`, `view bundle` (with `--fallback` and `--session`), `entry`, `index`.
 - `skills/track-work/scripts/lib/projects5.mjs`: projects, tasks, holds, the menu, `task move`, `session status`.
@@ -142,7 +143,7 @@ Schema 4 has no modules of its own: `migrate5.mjs` alone reads a Schema 4 record
 All in `.skill-eval/track-work/tests/`, run by `npm run test:track-work` with the temporary folder reached through a symlink and `FREEFLOW_TRANSCRIPT` cleared:
 
 - `gates5.test.mjs`: the gates' decisions, the gate state each lifecycle command writes, `agree`, and the gates' counts (see [Gates](gates.md)).
-- `events5.test.mjs`: schema v1, redaction, `seq` under the lock with five writers, a stale and a live lock, the store's ignore line, and the summary a checkpoint and a release commit.
+- `events5.test.mjs`: schema v1 and its overhead fields, redaction, `seq` under the lock with five writers, a stale and a live lock, the store's ignore line, the summary a checkpoint and a release commit, and the overhead estimate and cost against a hand count and Track Work's own pricing.
 - `store.test.mjs`: the store's layout, an empty clone of the remote used as it is, a home holding only `sessions/`, the Git check, sync against bare remotes, union merges, conflicts, offline commits, the secret scan, the refusal of Pi's home, and `session status`'s `missing` list.
 - `schema5.test.mjs`: Schema 5's files, their validation and broken shapes, each command's before and after, one History entry per close.
 - `views5.test.mjs`: `view recover` and `view bundle` in order, with budgets, checks and sizes.

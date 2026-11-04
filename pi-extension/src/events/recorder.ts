@@ -106,6 +106,16 @@ export function eventPath(path: string, cwd: string): string {
 }
 
 /** A shell command's exit code, where Pi gives one: only as text, "Command exited with code N". */
+/** How many characters of text a tool result or a message carries: what the model reads of it (SPEC-011 4.1). */
+export function textChars(content: unknown): number {
+  if (typeof content === "string") return content.length;
+  if (!Array.isArray(content)) return 0;
+  return content.reduce(
+    (sum: number, block: any) => sum + (typeof block?.text === "string" ? block.text.length : 0),
+    0,
+  );
+}
+
 export function exitCode(content: unknown): number | undefined {
   const text = Array.isArray(content)
     ? content.map((block: any) => (typeof block?.text === "string" ? block.text : "")).join("\n")
@@ -188,6 +198,7 @@ export class EventRecorder {
       Number.isInteger(value) && (value as number) >= 0 ? (value as number) : undefined;
     const [input, output, read, written] = [usage.input, usage.output, usage.cacheRead, usage.cacheWrite].map(count);
     this.emit("model.request", {
+      turn: this.turns || undefined,
       model: message.model,
       effort: typeof thinkingLevel === "string" && thinkingLevel ? thinkingLevel : null,
       in: input,
@@ -223,6 +234,7 @@ export class EventRecorder {
       paths: named.length ? named.map((path) => eventPath(path, cwd)) : undefined,
       command,
       source: ours ? "freeflow" : "agent",
+      outChars: textChars(event?.content),
     });
   }
 
@@ -230,8 +242,9 @@ export class EventRecorder {
     this.emit("compaction", { by, trigger });
   }
 
-  freeflow(what: string, detail?: string): void {
-    this.emit("freeflow", { what, detail });
+  /** A `freeflow` line; `chars` is what it put into the model's context, when it put something there (SPEC-011 4.1). */
+  freeflow(what: string, detail?: string, chars?: number): void {
+    this.emit("freeflow", { what, detail, chars: chars && chars > 0 ? chars : undefined });
   }
 
   sessionEnded(reason: unknown): void {
