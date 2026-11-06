@@ -4,6 +4,7 @@
 // that the evaluator would reject fails `npm run check` instead of failing silently at run time. It also checks
 // that every declared fixture is a directory inside the repository, which the loader leaves to run time.
 
+import { spawnSync } from "node:child_process";
 import { lstat, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,6 +42,11 @@ export async function findDefinitionFiles(evalRoot) {
 /** Why a group's declared fixture would fail at run time, or null. The loader resolves it from the repository root. */
 async function fixtureProblem(fixture, repositoryRoot) {
   if (fixture === null) return null;
+  // A commit fixture (SPEC-011 4.4) must name a commit the repository has.
+  if (typeof fixture === "object") {
+    const found = spawnSync("git", ["-C", repositoryRoot, "cat-file", "-e", `${fixture.git}^{commit}`]);
+    return found.status === 0 ? null : `declared fixture commit is not in the repository: ${fixture.git}`;
+  }
   const source = await realpath(path.resolve(repositoryRoot, fixture)).catch(() => null);
   const root = await realpath(repositoryRoot);
   if (source === null || (source !== root && !source.startsWith(root + path.sep))) {

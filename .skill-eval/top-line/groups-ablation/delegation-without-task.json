@@ -1,0 +1,252 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "delegation-without-task-ablation",
+  "type": "body",
+  "input": {
+    "prompt": "Agents keep starting subagents with no brief when there's no task, because the delegation method only applies to tasks. Can delegation work without a task too? Also, after a compaction the agent has to work out where the task folder is; the recovery checks should just say."
+  },
+  "fixture": {
+    "git": "55754128c9d2b57678b018a519a1a085489546dd",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "freeflow": {},
+    "freeflow-no-track": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "track-work": false
+          }
+        }
+      }
+    },
+    "freeflow-no-gates": {
+      "freeflow": {
+        "repository": {
+          "gates": {
+            "agreement": "off",
+            "slice": "off",
+            "delivery": "off",
+            "delegation": "off"
+          }
+        }
+      }
+    },
+    "freeflow-no-review": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "review-work": false
+          }
+        }
+      }
+    }
+  },
+  "reference": "freeflow",
+  "component": ["freeflow.repository"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/delegation-without-task.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/track-work/tests/delegations5.test.mjs",
+        ".skill-eval/track-work/tests/discussion5.test.mjs",
+        ".skill-eval/track-work/tests/views5.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/track-work/tests/delegations5.test.mjs": ".skill-eval/top-line/graders/delegation-without-task/.skill-eval/track-work/tests/delegations5.test.mjs",
+        ".skill-eval/track-work/tests/discussion5.test.mjs": ".skill-eval/top-line/graders/delegation-without-task/.skill-eval/track-work/tests/discussion5.test.mjs",
+        ".skill-eval/track-work/tests/views5.test.mjs": ".skill-eval/top-line/graders/delegation-without-task/.skill-eval/track-work/tests/views5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "delegate open writes the brief, makes the worker's worktree on its own branch at the base, and writes the delegation's line",
+            "delegate amend appends a dated change and records the handle; a returned delegation runs again",
+            "delegate check-return refuses a missing return, a missing heading and a commit absent from the brief's branch",
+            "open --parent nests a sub-worker's folder in its worker's and refuses a fourth level; recovery shows each its own brief, progress and return",
+            "a Slice closes while its delegation runs; closing the delegation later appends one History entry with its cost and merge",
+            "delegate close measures the worker from its own log, beside the coordinator's transcript (A)",
+            "delegate is for Schema 5 records",
+            "delegate open and check-return --scratch keep a delegation in a folder with no task, and record nothing",
+            "the Claude Code reader keeps only what the user typed, mid-turn messages included; resends and cut-off copies are dropped",
+            "the plain reader takes the User: messages of an export, with their times when given",
+            "discussion list numbers the user's messages since the last checkpoint; save writes a block of chosen ones with the agent's lines",
+            "a block that replaces another drops it; drop removes a block; block numbers are never reused",
+            "checkpoint lists the blocks whose shaped work is closed in History",
+            "a plain export can come from standard input, with the notes from a file",
+            "the session's log is the newest of its copies, as after a restart in another folder Claude Code writes a second one",
+            "view recover prints the opening line, rules, record, decisions, History and project indexes, then the checks, in the Spec's order",
+            "view entry prints History entries as stored, view index lists every entry, and Schema 5 has no resume view",
+            "checkpoint remembers where each Space repository is, so recover finds it from any folder",
+            "the active decisions put waiting and answered items first, then the rest newest first, within the budget"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-track-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-track",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/track-work/tests/delegations5.test.mjs",
+        ".skill-eval/track-work/tests/discussion5.test.mjs",
+        ".skill-eval/track-work/tests/views5.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/track-work/tests/delegations5.test.mjs": ".skill-eval/top-line/graders/delegation-without-task/.skill-eval/track-work/tests/delegations5.test.mjs",
+        ".skill-eval/track-work/tests/discussion5.test.mjs": ".skill-eval/top-line/graders/delegation-without-task/.skill-eval/track-work/tests/discussion5.test.mjs",
+        ".skill-eval/track-work/tests/views5.test.mjs": ".skill-eval/top-line/graders/delegation-without-task/.skill-eval/track-work/tests/views5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "delegate open writes the brief, makes the worker's worktree on its own branch at the base, and writes the delegation's line",
+            "delegate amend appends a dated change and records the handle; a returned delegation runs again",
+            "delegate check-return refuses a missing return, a missing heading and a commit absent from the brief's branch",
+            "open --parent nests a sub-worker's folder in its worker's and refuses a fourth level; recovery shows each its own brief, progress and return",
+            "a Slice closes while its delegation runs; closing the delegation later appends one History entry with its cost and merge",
+            "delegate close measures the worker from its own log, beside the coordinator's transcript (A)",
+            "delegate is for Schema 5 records",
+            "delegate open and check-return --scratch keep a delegation in a folder with no task, and record nothing",
+            "the Claude Code reader keeps only what the user typed, mid-turn messages included; resends and cut-off copies are dropped",
+            "the plain reader takes the User: messages of an export, with their times when given",
+            "discussion list numbers the user's messages since the last checkpoint; save writes a block of chosen ones with the agent's lines",
+            "a block that replaces another drops it; drop removes a block; block numbers are never reused",
+            "checkpoint lists the blocks whose shaped work is closed in History",
+            "a plain export can come from standard input, with the notes from a file",
+            "the session's log is the newest of its copies, as after a restart in another folder Claude Code writes a second one",
+            "view recover prints the opening line, rules, record, decisions, History and project indexes, then the checks, in the Spec's order",
+            "view entry prints History entries as stored, view index lists every entry, and Schema 5 has no resume view",
+            "checkpoint remembers where each Space repository is, so recover finds it from any folder",
+            "the active decisions put waiting and answered items first, then the rest newest first, within the budget"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-gates-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-gates",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/track-work/tests/delegations5.test.mjs",
+        ".skill-eval/track-work/tests/discussion5.test.mjs",
+        ".skill-eval/track-work/tests/views5.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/track-work/tests/delegations5.test.mjs": ".skill-eval/top-line/graders/delegation-without-task/.skill-eval/track-work/tests/delegations5.test.mjs",
+        ".skill-eval/track-work/tests/discussion5.test.mjs": ".skill-eval/top-line/graders/delegation-without-task/.skill-eval/track-work/tests/discussion5.test.mjs",
+        ".skill-eval/track-work/tests/views5.test.mjs": ".skill-eval/top-line/graders/delegation-without-task/.skill-eval/track-work/tests/views5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "delegate open writes the brief, makes the worker's worktree on its own branch at the base, and writes the delegation's line",
+            "delegate amend appends a dated change and records the handle; a returned delegation runs again",
+            "delegate check-return refuses a missing return, a missing heading and a commit absent from the brief's branch",
+            "open --parent nests a sub-worker's folder in its worker's and refuses a fourth level; recovery shows each its own brief, progress and return",
+            "a Slice closes while its delegation runs; closing the delegation later appends one History entry with its cost and merge",
+            "delegate close measures the worker from its own log, beside the coordinator's transcript (A)",
+            "delegate is for Schema 5 records",
+            "delegate open and check-return --scratch keep a delegation in a folder with no task, and record nothing",
+            "the Claude Code reader keeps only what the user typed, mid-turn messages included; resends and cut-off copies are dropped",
+            "the plain reader takes the User: messages of an export, with their times when given",
+            "discussion list numbers the user's messages since the last checkpoint; save writes a block of chosen ones with the agent's lines",
+            "a block that replaces another drops it; drop removes a block; block numbers are never reused",
+            "checkpoint lists the blocks whose shaped work is closed in History",
+            "a plain export can come from standard input, with the notes from a file",
+            "the session's log is the newest of its copies, as after a restart in another folder Claude Code writes a second one",
+            "view recover prints the opening line, rules, record, decisions, History and project indexes, then the checks, in the Spec's order",
+            "view entry prints History entries as stored, view index lists every entry, and Schema 5 has no resume view",
+            "checkpoint remembers where each Space repository is, so recover finds it from any folder",
+            "the active decisions put waiting and answered items first, then the rest newest first, within the budget"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-review-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-review",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/track-work/tests/delegations5.test.mjs",
+        ".skill-eval/track-work/tests/discussion5.test.mjs",
+        ".skill-eval/track-work/tests/views5.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/track-work/tests/delegations5.test.mjs": ".skill-eval/top-line/graders/delegation-without-task/.skill-eval/track-work/tests/delegations5.test.mjs",
+        ".skill-eval/track-work/tests/discussion5.test.mjs": ".skill-eval/top-line/graders/delegation-without-task/.skill-eval/track-work/tests/discussion5.test.mjs",
+        ".skill-eval/track-work/tests/views5.test.mjs": ".skill-eval/top-line/graders/delegation-without-task/.skill-eval/track-work/tests/views5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "delegate open writes the brief, makes the worker's worktree on its own branch at the base, and writes the delegation's line",
+            "delegate amend appends a dated change and records the handle; a returned delegation runs again",
+            "delegate check-return refuses a missing return, a missing heading and a commit absent from the brief's branch",
+            "open --parent nests a sub-worker's folder in its worker's and refuses a fourth level; recovery shows each its own brief, progress and return",
+            "a Slice closes while its delegation runs; closing the delegation later appends one History entry with its cost and merge",
+            "delegate close measures the worker from its own log, beside the coordinator's transcript (A)",
+            "delegate is for Schema 5 records",
+            "delegate open and check-return --scratch keep a delegation in a folder with no task, and record nothing",
+            "the Claude Code reader keeps only what the user typed, mid-turn messages included; resends and cut-off copies are dropped",
+            "the plain reader takes the User: messages of an export, with their times when given",
+            "discussion list numbers the user's messages since the last checkpoint; save writes a block of chosen ones with the agent's lines",
+            "a block that replaces another drops it; drop removes a block; block numbers are never reused",
+            "checkpoint lists the blocks whose shaped work is closed in History",
+            "a plain export can come from standard input, with the notes from a file",
+            "the session's log is the newest of its copies, as after a restart in another folder Claude Code writes a second one",
+            "view recover prints the opening line, rules, record, decisions, History and project indexes, then the checks, in the Spec's order",
+            "view entry prints History entries as stored, view index lists every entry, and Schema 5 has no resume view",
+            "checkpoint remembers where each Space repository is, so recover finds it from any folder",
+            "the active decisions put waiting and answered items first, then the rest newest first, within the budget"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "9d6b3cbaf4ea81ca213ec8aa308c2e7fa43b2a72"
+  }
+}

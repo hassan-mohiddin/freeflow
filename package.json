@@ -117,6 +117,8 @@
     "hooks/adapters/**",
     "hooks/claude/hooks.json",
     "hooks/claude/freeflow.mjs",
+    "hooks/claude/pane.mjs",
+    "hooks/claude/types.d.ts",
     "hooks/codex/hooks.json",
     "hooks/codex/driver.mjs",
     "hooks/cursor/hooks.json",

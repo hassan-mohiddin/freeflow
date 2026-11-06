@@ -60,7 +60,8 @@ async function git(cwd, args) {
 export async function taskCopyGaps(group, { root }) {
   const text = taskText(group);
   const gaps = [];
-  const fixture = group.fixture === null ? null : path.resolve(root, group.fixture);
+  // A commit fixture (git-fixture.mjs) is that commit's tree, with nothing ignored in it and no history.
+  const fixture = typeof group.fixture === "string" ? path.resolve(root, group.fixture) : null;
 
   // Git history: a fixture is copied as plain files, so the workspace is never a repository.
   const hasGit = fixture !== null && (await stat(path.join(fixture, ".git")).catch(() => null)) !== null;

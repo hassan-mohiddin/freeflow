@@ -6,6 +6,7 @@
 
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -281,8 +282,19 @@ export function containerName(purpose) {
  * at its own host path, so a path the subject was given, such as `node <skill>/scripts/x.mjs`, resolves in the
  * container exactly as it does for `read`.
  */
-function runOptions(container, { workspace, at, resources = [] }) {
-  const mounts = resources.flatMap((resource) => ["--volume", `${resource}:${resource}:ro`]);
+function runOptions(container, { workspace, at, resources = [], writable = [], environment = {} }) {
+  const mounts = [
+    ...resources.flatMap((resource) => ["--volume", `${resource}:${resource}:ro`]),
+    // A folder beside the workspace the subject may write, such as a Freeflow arm's store, at its own path. Its .git,
+    // when it has one, is mounted read-only over it: the host runs Git in that folder (the Freeflow arm's mod commits
+    // the store at each turn end), so the subject must not plant configuration, hooks or commondir there.
+    ...writable.flatMap((folder) => [
+      "--volume",
+      `${folder}:${folder}`,
+      ...(existsSync(path.join(folder, ".git")) ? ["--volume", `${folder}/.git:${folder}/.git:ro`] : []),
+    ]),
+    ...Object.entries(environment).flatMap(([name, value]) => ["--env", `${name}=${value}`]),
+  ];
   return [
     "--label",
     "skill-eval=1",
@@ -310,7 +322,14 @@ function runOptions(container, { workspace, at, resources = [] }) {
  * `workdir` is where bash and declared commands run. `remove()` force-removes the container and is safe to call more
  * than once; callers call it in `finally`, so a cancelled run removes it too.
  */
-export async function startContainer({ container, workspace, resources = [], purpose = "subject" }) {
+export async function startContainer({
+  container,
+  workspace,
+  resources = [],
+  writable = [],
+  environment = {},
+  purpose = "subject",
+}) {
   const name = containerName(purpose);
   const host = await dockerHost();
   // The host process (Pi, Claude Code) reports its working directory resolved, so the mount uses the same spelling.
@@ -329,7 +348,7 @@ export async function startContainer({ container, workspace, resources = [], pur
         "create",
         "--name",
         name,
-        ...runOptions(container, { workspace: workdir, at: workdir, resources }),
+        ...runOptions(container, { workspace: workdir, at: workdir, resources, writable, environment }),
         "--entrypoint",
         "sh",
         container.image,

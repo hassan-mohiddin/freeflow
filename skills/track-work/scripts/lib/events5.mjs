@@ -7,12 +7,14 @@
 // a prompt, an answer, a file's content or a tool's output (P4): the writer refuses any field schema v1 does not name.
 // Readers ignore a kind or field they do not know, so a later minor version may add both.
 
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { appendFile, mkdir, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, open, readFile, readdir, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import { GATES } from "./gates5.mjs";
+import { PRICES, priceTable, requestCost } from "./measure5.mjs";
 import { isFreeflowStore } from "./store.mjs";
+import { appendNoFollow, openNoFollow, readNoFollowSync, writeNoFollow } from "./no-follow.mjs";
 
 /** The schema's major version; readers accept it and the one before (there is none before 1). */
 export const EVENT_VERSION = 1;
@@ -55,6 +57,9 @@ export const KINDS = {
   "turn.start": { turn: [count] },
   "turn.end": { turn: [count], reason: [oneOf(["answer", "aborted", "refusal", "error"])], ms: [count] },
   "model.request": {
+    // SPEC-011 4.1, additive to v1: the turn of its agent's loop the request was made in, so the overhead estimate can
+    // tell a request's new input apart; a request without it counts as the agent's.
+    turn: [count],
     model: [text, true],
     effort: [nullable(text)],
     in: [count],
@@ -72,6 +77,8 @@ export const KINDS = {
     paths: [(value) => Array.isArray(value) && value.length <= PATHS_LIMIT && value.every(isPath)],
     command: [(value) => typeof value === "string"],
     source: [oneOf(["freeflow", "agent"]), true],
+    // SPEC-011 4.1: the size in characters of the result the model reads, never the result itself.
+    outChars: [count],
   },
   compaction: { trigger: [text], by: [oneOf(["freeflow", "harness"]), true], before: [count], after: [count] },
   "agent.spawn": { delegation: [(value) => /^D-\d{3,}(\.\d+)?$/.test(value)], model: [text] },
@@ -85,9 +92,27 @@ export const KINDS = {
   },
   agreement: { outcome: [(value) => typeof value === "string" && value.trim() !== "", true], exactSpec: [text] },
   freeflow: {
-    what: [oneOf(["notice", "row", "menu", "compact", "sync", "capabilities", "dropped", "error", "gates"]), true],
+    what: [
+      oneOf([
+        "notice",
+        "row",
+        "menu",
+        "compact",
+        "sync",
+        "capabilities",
+        "dropped",
+        "error",
+        "gates",
+        "bundle",
+        "guidance",
+      ]),
+      true,
+    ],
     detail: [(value) => typeof value === "string"],
     dropped: [count],
+    // SPEC-011 4.1: how many characters Freeflow put into the model's context with this line (a notice, a row, the
+    // menu, the bundle, the guidance); none when it put nothing there.
+    chars: [count],
   },
   // The cost governor: a cap, the use measured against it (both in percent of a window or in dollars), and its response.
   governor: {
@@ -186,10 +211,11 @@ export function logPath(home, session) {
 /** The last `seq` in a log, read from its tail; a torn last line from a process that died is passed over. */
 async function lastSeq(path) {
   if (!existsSync(path)) return 0;
-  const { size } = await stat(path);
-  for (const window of [65536, size]) {
-    const handle = await open(path, "r");
-    try {
+  // Never through a link (no-follow.mjs): the log is opened once, and refused when it is not a regular file.
+  const handle = await openNoFollow(path);
+  try {
+    const { size } = await handle.stat();
+    for (const window of [65536, size]) {
       const length = Math.min(window, size);
       const buffer = Buffer.alloc(length);
       await handle.read(buffer, 0, length, size - length);
@@ -203,21 +229,21 @@ async function lastSeq(path) {
           // A torn or foreign line: keep looking further back.
         }
       }
-    } finally {
-      await handle.close();
+      if (window >= size) break;
     }
-    if (window >= size) break;
+    return 0;
+  } finally {
+    await handle.close();
   }
-  return 0;
 }
 
 /** Whether a log's last byte is not a line's end. */
 async function endsMidLine(path) {
   if (!existsSync(path)) return false;
-  const { size } = await stat(path);
-  if (!size) return false;
-  const handle = await open(path, "r");
+  const handle = await openNoFollow(path);
   try {
+    const { size } = await handle.stat();
+    if (!size) return false;
     const byte = Buffer.alloc(1);
     await handle.read(byte, 0, 1, size - 1);
     return byte[0] !== 0x0a;
@@ -264,7 +290,7 @@ async function ignoreInStore(home) {
   const path = join(home, ".gitignore");
   const current = existsSync(path) ? await readFile(path, "utf8") : "";
   if (current.split(/\r?\n/).some((line) => line.trim() === "/events/")) return;
-  await writeFile(path, `${current.replace(/\s*$/, "")}${current.trim() ? "\n" : ""}/events/\n`);
+  await writeNoFollow(path, `${current.replace(/\s*$/, "")}${current.trim() ? "\n" : ""}/events/\n`);
 }
 
 /**
@@ -317,7 +343,7 @@ export async function appendEvents(home, input) {
       let seq = await lastSeq(path);
       const text = lines.map((line) => `${JSON.stringify(normalize(line, (seq += 1)))}\n`).join("");
       // A torn last line, from a writer that died mid-write, stays on its own line, unread.
-      await appendFile(path, `${(await endsMidLine(path)) ? "\n" : ""}${text}`, { mode: 0o600 });
+      await appendNoFollow(path, `${(await endsMidLine(path)) ? "\n" : ""}${text}`, { mode: 0o600 });
     });
     written.push({ session, path, count: lines.length });
   }
@@ -333,26 +359,152 @@ export function readLog(path) {
   if (!existsSync(path)) return { lines: [], skipped: [], bytes: 0 };
   const lines = [];
   const skipped = [];
-  readFileSync(path, "utf8")
-    .split("\n")
-    .forEach((raw, index) => {
-      if (!raw.trim()) return;
-      try {
-        const line = JSON.parse(raw);
-        if (line?.v === EVENT_VERSION && typeof line.kind === "string") lines.push(line);
-        else skipped.push(index + 1);
-      } catch {
-        skipped.push(index + 1);
+  // Never through a link: a log someone replaced with one would be read from wherever it points.
+  const { text, bytes } = readNoFollowSync(path);
+  text.split("\n").forEach((raw, index) => {
+    if (!raw.trim()) return;
+    try {
+      const line = JSON.parse(raw);
+      if (line?.v === EVENT_VERSION && typeof line.kind === "string") lines.push(line);
+      else skipped.push(index + 1);
+    } catch {
+      skipped.push(index + 1);
+    }
+  });
+  return { lines, skipped, bytes };
+}
+
+/** Characters per token in the overhead estimate (SPEC-011, P4): an estimate, and the summary says so. */
+export const CHARS_PER_TOKEN = 4;
+
+/**
+ * Freeflow's share of the input tokens, estimated from the log (SPEC-011 4.1): what Freeflow put into the context (a
+ * `freeflow` line's `chars`) and the results of its own tool calls (`outChars` of a `source: freeflow` call), in
+ * characters over CHARS_PER_TOKEN, against each request's input. Each agent's loop is followed on its own. A request's
+ * new input (`in` plus `cacheWrite`) is attributed to what was added since its agent's previous request, in the order
+ * it was added: that request's output first, then each tool result and each of Freeflow's additions, until the new
+ * input is used up; what is left over is the agent's (its prompt, the user's messages). Its cached input (`cacheRead`)
+ * holds what earlier requests added: Freeflow's part of it is what Freeflow added since the last compaction (the
+ * guidance, in the system prompt, since the session started), at most all of it. A request with no `turn` (a log written before the field) counts as the agent's and is counted as
+ * unattributed (section 5).
+ */
+function overheadOf(lines) {
+  const agents = new Map();
+  const totals = { uncached: 0, cached: 0, freeflowUncached: 0, freeflowCached: 0, unattributed: 0 };
+  const byWhat = new Map();
+  const add = (what, tokens) => byWhat.set(what, (byWhat.get(what) ?? 0) + tokens);
+  const loop = (agent) => {
+    if (!agents.has(agent)) agents.set(agent, { added: [], context: new Map(), lastOut: 0 });
+    return agents.get(agent);
+  };
+  for (const line of lines) {
+    const state = loop(line.agent ?? "main");
+    if (line.kind === "tool.call" && Number.isInteger(line.outChars)) {
+      const freeflow = line.source === "freeflow";
+      state.added.push({ what: freeflow ? "tools" : null, tokens: line.outChars / CHARS_PER_TOKEN });
+    } else if (line.kind === "freeflow" && Number.isInteger(line.chars) && line.chars > 0) {
+      state.added.push({ what: line.what, tokens: line.chars / CHARS_PER_TOKEN });
+    } else if (line.kind === "compaction") {
+      // A compaction replaces the conversation; the system prompt, and the guidance in it, stays.
+      state.context = new Map([...state.context].filter(([what]) => what === "guidance"));
+    } else if (line.kind === "model.request") {
+      const uncached = (line.in ?? 0) + (line.cacheWrite ?? 0);
+      const cached = line.cacheRead ?? 0;
+      totals.uncached += uncached;
+      totals.cached += cached;
+      if (!Number.isInteger(line.turn)) {
+        totals.unattributed += 1;
+      } else {
+        const held = [...state.context.values()].reduce((sum, tokens) => sum + tokens, 0);
+        const fromCache = Math.min(held, cached);
+        for (const [what, tokens] of state.context) add(what, held ? (fromCache * tokens) / held : 0);
+        totals.freeflowCached += fromCache;
+        let left = uncached;
+        for (const each of [{ what: null, tokens: state.lastOut }, ...state.added]) {
+          const taken = Math.min(each.tokens, left);
+          left -= taken;
+          if (each.what === null || taken <= 0) continue;
+          totals.freeflowUncached += taken;
+          add(each.what, taken);
+          state.context.set(each.what, (state.context.get(each.what) ?? 0) + taken);
+        }
       }
-    });
-  return { lines, skipped, bytes: statSync(path).size };
+      state.added = [];
+      state.lastOut = line.out ?? 0;
+    }
+  }
+  const all = totals.uncached + totals.cached;
+  const freeflow = totals.freeflowUncached + totals.freeflowCached;
+  // Four places, so a share printed as a whole percent is rounded once.
+  const ratio = (part, whole) => (whole ? Math.round((part / whole) * 10000) / 10000 : 0);
+  return {
+    estimate: true,
+    charsPerToken: CHARS_PER_TOKEN,
+    tokens: Math.round(freeflow),
+    of: all,
+    share: ratio(freeflow, all),
+    uncached: ratio(totals.freeflowUncached, totals.uncached),
+    cached: ratio(totals.freeflowCached, totals.cached),
+    byWhat: Object.fromEntries(
+      [...byWhat]
+        .filter(([, tokens]) => tokens > 0)
+        .sort(([x, a], [y, b]) => b - a || x.localeCompare(y))
+        .map(([what, tokens]) => [what, ratio(tokens, freeflow)]),
+    ),
+    unattributed: totals.unattributed,
+  };
+}
+
+/**
+ * Each model and effort's requests priced at API list price with Track Work's price table (measure5.mjs), request by
+ * request, so a model whose price depends on the prompt's size gets the right card. A cache write is priced as a
+ * five-minute one, since a line does not say which it was; a model the table has no card for is counted, not priced.
+ */
+function costOf(lines, table) {
+  const byModel = new Map();
+  let usd = 0;
+  let unpriced = 0;
+  for (const line of lines) {
+    if (line.kind !== "model.request") continue;
+    const cost = requestCost(
+      {
+        model: line.model,
+        usage: {
+          input_tokens: line.in ?? 0,
+          output_tokens: line.out ?? 0,
+          cache_read_input_tokens: line.cacheRead ?? 0,
+          cache_creation_input_tokens: line.cacheWrite ?? 0,
+        },
+      },
+      table,
+    );
+    if (cost === null) {
+      unpriced += 1;
+      continue;
+    }
+    usd += cost;
+    const key = `${line.model}\u0000${line.effort ?? ""}`;
+    const entry = byModel.get(key) ?? { model: line.model, effort: line.effort ?? null, usd: 0 };
+    entry.usd += cost;
+    byModel.set(key, entry);
+  }
+  const round = (value) => Math.round(value * 1e9) / 1e9;
+  return {
+    usd: round(usd),
+    byModel: [...byModel.values()]
+      .map((each) => ({ ...each, usd: round(each.usd) }))
+      .sort((x, y) => x.model.localeCompare(y.model) || (x.effort ?? "").localeCompare(y.effort ?? "")),
+    unpriced,
+    prices: table.date ?? null,
+  };
 }
 
 /**
  * What a session's lines add up to (section 4.4): model requests and their tokens by model and effort, tool calls by
- * tool with their failures, compactions by who ran them, workers, and the share of tool calls that were Freeflow's own.
+ * tool with their failures, compactions by who ran them, workers, and the share of tool calls that were Freeflow's own;
+ * with SPEC-011 4.1, Freeflow's estimated share of the input tokens and the requests' cost at list price.
  */
-export function summarize(lines, { session, since = null, task = null, bytes = null } = {}) {
+export function summarize(lines, { session, since = null, task = null, bytes = null, prices = PRICES } = {}) {
   const chosen = since ? lines.filter((line) => line.ts >= since) : lines;
   const times = chosen.map((line) => line.ts).sort();
   const tokens = new Map();
@@ -428,6 +580,8 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       toolCalls: freeflowCalls,
       share: toolCalls ? Math.round((freeflowCalls / toolCalls) * 1000) / 1000 : 0,
     },
+    overhead: overheadOf(chosen),
+    cost: costOf(chosen, prices),
     dropped,
     ...(governor.length ? { governor } : {}),
     gates: { ...gates, blocked: gatesBlocked },
@@ -444,6 +598,30 @@ function governorLine(each) {
   return `  ${each.ts}: ${CAP_NAMES[each.cap] ?? each.cap} at ${figure(each.use)} of ${figure(each.limit)}, ${RESPONSE_NAMES[each.response] ?? each.response}`;
 }
 
+const WHAT_NAMES = {
+  tools: "its own tool results",
+  bundle: "the bundle",
+  notice: "notices",
+  row: "rows",
+  menu: "the menu",
+  guidance: "the guidance",
+  compact: "compaction prompts",
+};
+const percent = (value) => `${Math.round(value * 100)}%`;
+
+/** The overhead line: Freeflow's estimated share of the input, uncached and cached, and what it was made of. */
+function overheadLine(overhead) {
+  const parts = Object.entries(overhead.byWhat).map(([what, share]) => `${WHAT_NAMES[what] ?? what} ${percent(share)}`);
+  return `Overhead: ${percent(overhead.share)} of input tokens by estimate (Freeflow's injected text and its own tool results, ${overhead.charsPerToken} characters a token), ${percent(overhead.uncached)} of uncached, ${percent(overhead.cached)} of cached${parts.length ? `; ${parts.join(", ")}` : ""}${overhead.unattributed ? `; ${overhead.unattributed} request(s) without a turn counted as the agent's` : ""}`;
+}
+
+/** The cost line: the requests at API list price, by model and effort. */
+function costLine(cost) {
+  const money = (value) => `$${value < 0.01 && value > 0 ? value.toFixed(4) : value.toFixed(2)}`;
+  const models = cost.byModel.map((each) => `${each.model}${each.effort ? ` ${each.effort}` : ""} ${money(each.usd)}`);
+  return `Cost at API list price: ${money(cost.usd)}${models.length ? ` (${models.join(", ")})` : ""}${cost.prices ? `, prices of ${cost.prices}` : ""}${cost.unpriced ? `; ${cost.unpriced} request(s) of a model with no price` : ""}`;
+}
+
 /** A summary as the few lines `events summary` prints. */
 export function renderSummary(summary) {
   const n = (value) => value.toLocaleString("en-US");
@@ -454,6 +632,8 @@ export function renderSummary(summary) {
       (each) =>
         `  ${each.model}${each.effort ? ` ${each.effort}` : ""}: ${n(each.requests)} request(s), ${n(each.in)} in, ${n(each.cacheWrite)} written, ${n(each.cacheRead)} read, ${n(each.out)} out`,
     ),
+    ...(summary.cost && summary.modelRequests ? [costLine(summary.cost)] : []),
+    ...(summary.overhead && summary.modelRequests ? [overheadLine(summary.overhead)] : []),
     `Tool calls: ${n(summary.toolCalls)}, ${n(summary.freeflow.toolCalls)} of them Freeflow's own (${Math.round(summary.freeflow.share * 100)}%)`,
     ...summary.tools.map(
       (each) => `  ${each.tool}: ${n(each.calls)}${each.failed ? `, ${n(each.failed)} failed` : ""}`,
@@ -501,10 +681,10 @@ export async function writeTaskSummary({ home, taskDir, taskId, session, since }
   const path = logPath(home, session);
   if (!existsSync(path)) return null;
   const { lines, bytes } = readLog(path);
-  const summary = summarize(lines, { session, since, task: taskId, bytes });
+  const summary = summarize(lines, { session, since, task: taskId, bytes, prices: priceTable() });
   const target = join(taskDir, EVENTS_FOLDER, `${session}.json`);
   await mkdir(join(taskDir, EVENTS_FOLDER), { recursive: true });
-  await writeFile(target, `${JSON.stringify(summary, null, 2)}\n`);
+  await writeNoFollow(target, `${JSON.stringify(summary, null, 2)}\n`);
   return target;
 }
 

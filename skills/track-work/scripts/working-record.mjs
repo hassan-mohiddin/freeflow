@@ -39,7 +39,15 @@ import {
 } from "./lib/delegations5.mjs";
 import { appendChannel, CHANNEL_KINDS } from "./lib/channel5.mjs";
 import { addClaims, claimHours, claimsFiles, releaseClaims, renderClaims, renewClaims } from "./lib/claims5.mjs";
-import { addStoreRemote, initStore, missingParts, storeHome, storeStatus, syncStore } from "./lib/freeflow-store.mjs";
+import {
+  addStoreRemote,
+  HOST_COMMITS_TEXT,
+  initStore,
+  missingParts,
+  storeHome,
+  storeStatus,
+  syncStore,
+} from "./lib/freeflow-store.mjs";
 import {
   createProject,
   createTask,
@@ -716,6 +724,7 @@ async function runStore(operation, options) {
       pull: options["--pull"] === true,
       resolved: options["--resolved"] === true,
     });
+    if (synced.hostCommits) return `${HOST_COMMITS_TEXT}\n`;
     const committed = synced.committed ? `committed ${synced.committed} path(s), ` : "nothing to commit, ";
     if (synced.local) return `Synced the local store ${synced.home}: ${committed}nothing to push.\n`;
     if (options["--pull"] && synced.pulled)

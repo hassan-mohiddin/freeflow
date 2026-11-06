@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "top-line-smoke",
+  "groups": [
+    "groups/review-packet-root.json",
+    "groups/pass-k-interval.json",
+    "groups/compare-reworded.json",
+    "groups/docs-check-stamp.json",
+    "groups/plan-novelty-check.json"
+  ],
+  "decisions": [
+    {
+      "measure": {
+        "comparison": "hidden-tests"
+      },
+      "arms": ["plain", "freeflow"],
+      "direction": "higher",
+      "method": "mcnemar",
+      "alpha": 0.05,
+      "min_cases": 5,
+      "trials": {
+        "initial": 3,
+        "max": 3,
+        "step": 1
+      }
+    },
+    {
+      "measure": {
+        "metric": "listCost"
+      },
+      "arms": ["plain", "freeflow"],
+      "direction": "lower",
+      "method": "bootstrap",
+      "alpha": 0.05,
+      "min_cases": 5
+    },
+    {
+      "measure": {
+        "metric": "durationMs"
+      },
+      "arms": ["plain", "freeflow"],
+      "direction": "lower",
+      "method": "bootstrap",
+      "alpha": 0.05,
+      "min_cases": 5
+    },
+    {
+      "measure": {
+        "score": "hidden-tests"
+      },
+      "arms": ["plain", "freeflow"],
+      "direction": "higher",
+      "method": "bootstrap",
+      "alpha": 0.05,
+      "min_cases": 5
+    },
+    {
+      "measure": {
+        "metric": "interruptions"
+      },
+      "arms": ["plain", "freeflow"],
+      "direction": "lower",
+      "method": "bootstrap",
+      "alpha": 0.05,
+      "min_cases": 5
+    }
+  ]
+}

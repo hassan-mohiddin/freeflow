@@ -8,6 +8,7 @@ import { armNames } from "./arms.mjs";
 import { runCommandExpectation } from "./grade-command.mjs";
 import { gradeDeterministic } from "./grade.mjs";
 import { fingerprintDirectory, WORKSPACE, workspaceChanges } from "./sandbox.mjs";
+import { extractGitTree, isGitFixture } from "./git-fixture.mjs";
 import { taskCopyGaps } from "./task-copy.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -23,18 +24,25 @@ const REFUSED = new Set(["unsolvable", "already-solved"]);
  * Called from definitions.mjs; a reference must stay in the definition root and must not sit inside the fixture,
  * which the subject sees.
  */
-export function validateReferenceSolution(value, { root, fixture, arms }) {
+export function validateReferenceSolution(value, { root, fixture, arms, gitFixture = false }) {
   if (value === undefined) return null;
   const invalid = (message) => ({ code: "invalid-definition", message: `group.reference_solution ${message}` });
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return invalid("must be an object with exactly one of patch or files");
+    return invalid("must be an object with exactly one of patch, files or git");
   }
   const sources = Object.keys(value).filter((key) => key !== "arm");
-  if (sources.length !== 1 || !["patch", "files"].includes(sources[0])) {
-    return invalid("must declare exactly one of patch or files, and may also declare arm");
+  if (sources.length !== 1 || !["patch", "files", "git"].includes(sources[0])) {
+    return invalid("must declare exactly one of patch, files or git, and may also declare arm");
   }
   if (value.arm !== undefined && !(arms ?? []).includes(value.arm)) {
     return invalid(`arm must name one of group.arms: ${(arms ?? []).join(", ")}`);
+  }
+  // A commit (SPEC-011 4.4): the solved workspace is its tree, less the fixture's exclusions; only for a commit fixture.
+  if (sources[0] === "git") {
+    if (!gitFixture) return invalid("git needs a commit fixture (group.fixture.git)");
+    return typeof value.git === "string" && /^[0-9a-f]{40}$/.test(value.git)
+      ? null
+      : invalid("git must be a full 40-character commit");
   }
   const keys = sources;
   const declared = value[keys[0]];
@@ -58,7 +66,7 @@ export function validateReferenceSolution(value, { root, fixture, arms }) {
 /** The definition-root paths a reference reads, which a run counts as inputs (group.files). */
 export function referenceFiles(group, root) {
   const reference = group.reference_solution;
-  if (!reference) return [];
+  if (!reference || reference.git !== undefined) return [];
   const declared = reference.patch ?? reference.files;
   return [path.resolve(root, declared)];
 }
@@ -280,8 +288,21 @@ export async function enforceReferenceChecks(selection, { root, resultDirectory,
  * Returns the fingerprint evidence the workspace graders read, or an error string when the reference cannot apply.
  */
 async function applyReference(group, { root, workspace }) {
-  const { after: before } = await copyFixture(group, { root, workspace });
   const reference = group.reference_solution;
+  if (reference.git !== undefined) {
+    // The solved tree replaces the starting one, so a file the change removed is gone, as it is at that commit.
+    const { after: before } = await copyFixture(group, { root, workspace: `${workspace}-before` });
+    try {
+      await extractGitTree({ root, commit: reference.git, exclude: group.fixture.exclude, destination: workspace });
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
+    } finally {
+      await rm(`${workspace}-before`, { recursive: true, force: true });
+    }
+    const after = await fingerprintDirectory(workspace, WORKSPACE);
+    return { after, changes: workspaceChanges(before, after) };
+  }
+  const { after: before } = await copyFixture(group, { root, workspace });
   if (reference.patch !== undefined) {
     const patch = path.resolve(root, reference.patch);
     try {
@@ -307,7 +328,9 @@ async function applyReference(group, { root, workspace }) {
 
 /** Copies the fixture into `workspace` unchanged; the evidence shows no change. */
 async function copyFixture(group, { root, workspace }) {
-  if (group.fixture !== null) {
+  if (isGitFixture(group.fixture)) {
+    await extractGitTree({ root, commit: group.fixture.git, exclude: group.fixture.exclude, destination: workspace });
+  } else if (group.fixture !== null) {
     await cp(path.resolve(root, group.fixture), workspace, {
       recursive: true,
       dereference: false,

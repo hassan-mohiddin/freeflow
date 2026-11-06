@@ -7,7 +7,7 @@
 // Each write is derived again from the record, so a lifecycle change made by hand is set right by the next command.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, rename } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
 import { GATE_STATE_VERSION, normalPath, resolvePath, validGateState } from "./gates5.mjs";
@@ -15,6 +15,7 @@ import { fieldText, parseRecord5 } from "./record5.mjs";
 import { heldTask } from "./projects5.mjs";
 import { isFreeflowStore, storeOf } from "./store.mjs";
 import { claimsForGates, repositoryOf } from "./claims5.mjs";
+import { writeNoFollow } from "./no-follow.mjs";
 
 export const GATES_FILE = "gates.json";
 
@@ -37,7 +38,7 @@ export async function writeGateState(home, sessionId, state) {
   const path = gatesPath(home, sessionId);
   await mkdir(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`);
+  await writeNoFollow(temporary, `${JSON.stringify(state, null, 2)}\n`);
   await rename(temporary, path);
   return path;
 }

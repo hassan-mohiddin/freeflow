@@ -1,0 +1,83 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "carry-tool-results",
+  "type": "body",
+  "input": {
+    "prompt": "After a compaction the agent keeps re-running the same commands to see their output again. Pi's context reuse carries tool results across a compaction; can Track Work do that too, with a task or without one?"
+  },
+  "fixture": {
+    "git": "5862088ceff2e1741705f7be7f24aeb042b0a968",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/carry-tool-results.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/carry5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/carry5.test.mjs": ".skill-eval/top-line/graders/carry-tool-results/.skill-eval/track-work/tests/carry5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "carry list numbers this compaction cycle's tool results; carry show prints one by number or by ID from any cycle",
+            "a Carry line names a result: checkpoint pins its number to its ID, and the bundle carries it whole, then the newest others within the carry budget",
+            "without a task, the session summary's Carry lines are pinned and carried, then the newest others"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/carry5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/carry5.test.mjs": ".skill-eval/top-line/graders/carry-tool-results/.skill-eval/track-work/tests/carry5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "carry list numbers this compaction cycle's tool results; carry show prints one by number or by ID from any cycle",
+            "a Carry line names a result: checkpoint pins its number to its ID, and the bundle carries it whole, then the newest others within the carry budget",
+            "without a task, the session summary's Carry lines are pinned and carried, then the newest others"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "4adc34f94d883dcab2fef7df10a5b742021a79c5"
+  }
+}

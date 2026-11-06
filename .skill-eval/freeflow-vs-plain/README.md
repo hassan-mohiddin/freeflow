@@ -22,7 +22,7 @@ Every group runs the same task twice per trial, paired by task, on the same host
 | Arm        | Declared as                                                                                                                                                                                                                                                                    |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `plain`    | `freeflow: null`: plain Pi with its own system prompt and no Freeflow. The reference.                                                                                                                                                                                          |
-| `freeflow` | Freeflow's Pi extension built from the commit in `configuration.json` (`freeflow.source.ref`), default settings except **Cognitive Routing off** (no delegation, no worker profiles) and **Tool Execution off** (see [Limits](#limits)). Messaging is off by default. |
+| `freeflow` | Freeflow's Pi extension built from the commit in `configuration.json` (`freeflow.source.ref`), default settings except **Tool Execution off** (see [Limits](#limits)). Messaging is off by default. The commit is main at `03ba55e0` (re-pinned for SPEC-011 4.4; it was `1cc27008`, 21 Oct, with Cognitive Routing off, which main has removed and refuses as a setting). |
 
 Both arms share `configuration.json`: host `pi`, `runtime.prompt: host` (so Freeflow's own prompt reaches the model),
 `subject.kind: none`, `network: none`, and the model (`anthropic/claude-haiku-5-5`, thinking `medium`; Grok 4.7 was the first choice and is no longer available). Each group adds only its task,
@@ -220,51 +220,46 @@ node skills/evaluate-behavior/scripts/skill-eval.mjs view <aggregate-id>
 
 ## v0.9.0 arms
 
-The 21 Oct suites above keep their declared decisions. v0.9.0 is measured by four more suites over one more group set,
+The 21 Oct suites above keep their declared decisions. v0.9.0 is measured by two more suites over one more group set,
 `groups-v090/` (written by `scripts/groups.mjs` beside `groups/`), on `configuration-v090.json`: the 21 Oct
 configuration with Freeflow pinned at v0.9.0 (`51b9682f`). Each group is the 21 Oct task (prompt, fixture, image,
-user, hidden tests, markers, rubric) with three arms:
+user, hidden tests, markers, rubric) with two arms:
 
 | Arm | Declared as |
 | --- | --- |
 | `plain` | plain Pi, as on 21 Oct. The reference. |
 | `freeflow` | Freeflow v0.9.0 with the 21 Oct settings: Cognitive Routing off, Tool Execution off. |
-| `freeflow-te` | Freeflow v0.9.0 with Tool Execution on and `toolExecution.guidanceNotices` on, as a Pi user has it: its tools, the guidance notices and the changed-files lines are live. |
 
 `tools` adds Tool Execution's `bash_background`, `monitor`, `stop_background` and `apply_patch` for every arm (a group has
 one tool list); Pi's `--tools` is an allowlist, so plain Pi and Freeflow with Tool Execution off, which register none of
-them, do not have them. The evaluator now runs those tools inside the subject's container, so the Limits reason for
-turning Tool Execution off no longer holds for this arm.
+them, do not have them. A third arm, `freeflow-te` (Tool Execution on with its guidance notices), and its two suites were
+dropped with the re-pin to main (SPEC-011 4.4); the tools stay declared, so runs already made still match with `--reuse`.
 
 | Suite | Decision |
 | --- | --- |
 | `suite-v090.json` | `hidden-tests`, `plain` against `freeflow`, higher is better |
 | `suite-v090-cost.json` | `cost`, `plain` against `freeflow`, lower is better |
-| `suite-v090-te.json` | `hidden-tests`, `plain` against `freeflow-te`, higher is better |
-| `suite-v090-te-cost.json` | `cost`, `plain` against `freeflow-te`, lower is better |
 
 Each has the 21 Oct rule (sign test, `alpha` 0.05, three trials, `min_cases` 6). A decision suite runs every arm of
-its groups, so the first run is 10 tasks × 3 arms × 3 trials = 90 subject runs, and the other three take every run from
-it with `--reuse`, at no cost. Read them as the 21 Oct pair is read, once per Freeflow arm.
+its groups, so the first run is 10 tasks × 2 arms × 3 trials = 60 subject runs, and the other takes every run from it
+with `--reuse`, at no cost. Read them as the 21 Oct pair is read.
 
 **The 21 Oct runs cannot be reused.** A reuse key covers the installed host version and the evaluator's own scripts. The
 21 Oct runs were made with Pi 1.3.0 and the evaluator at `f714b582` (recomputing their keys gives the indexed ones);
 this machine now has Pi 1.4.0, and the evaluator has changed since (it now confines Tool Execution's tools in the
-container, which `freeflow-te` needs). So `--reuse` matches none of them, and `plain` runs again here. That keeps every
+container). So `--reuse` matches none of them, and `plain` runs again here. That keeps every
 comparison paired on one host version and one evaluator. The 21 Oct Freeflow (`1cc27008`) is not an arm: comparing it
 with v0.9.0 through the 21 Oct result would cross Pi versions; add it as an arm (30 more runs) if that comparison is
 wanted.
 
 ```bash
-# from the repository root, with TMPDIR under $HOME on Colima; a pilot first (two tasks, all three arms, 6 runs)
+# from the repository root, with TMPDIR under $HOME on Colima; a pilot first (two tasks, both arms, 4 runs)
 node skills/evaluate-behavior/scripts/skill-eval.mjs run .skill-eval/freeflow-vs-plain/suite-v090.json --pilot 2 --jobs 4 --max-cost 2
 node skills/evaluate-behavior/scripts/skill-eval.mjs run .skill-eval/freeflow-vs-plain/suite-v090-cost.json --reuse
-node skills/evaluate-behavior/scripts/skill-eval.mjs run .skill-eval/freeflow-vs-plain/suite-v090-te.json --reuse
-node skills/evaluate-behavior/scripts/skill-eval.mjs run .skill-eval/freeflow-vs-plain/suite-v090-te-cost.json --reuse
 ```
 
-For a later build, pass `--source freeflow=<commit> --source freeflow-te=<commit>` to every one of the four, so
-`--reuse` matches. Estimated cost of the 90 runs, from the figures below: about $0.4 to $1.5 on Pi's list prices.
+For a later build, pass `--source freeflow=<commit>` to both, so `--reuse` matches. Estimated cost of the 60 runs, from
+the figures below: about $0.3 to $1 on Pi's list prices.
 
 ## Cost
 

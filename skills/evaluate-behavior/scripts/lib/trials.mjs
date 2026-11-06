@@ -36,7 +36,7 @@ const CHECK_STATES = ["pass", "fail", "unavailable"];
 export async function runTrials(definitionFile, selectors, options = {}) {
   const { root = process.cwd(), signal, trials = null, maxCost = null, onTrial, dryRun = false } = options;
   const { evaluate = runEvaluation, jobs = 1, pilot = null } = options;
-  const { selection, rule } = await loadSelection(definitionFile, selectors, root);
+  const { selection, rule, rules } = await loadSelection(definitionFile, selectors, root);
   const schedule = rule?.trials ?? null;
   if (schedule !== null && trials !== null && trials !== schedule.initial) {
     throw new Error(
@@ -164,6 +164,8 @@ export async function runTrials(definitionFile, selectors, options = {}) {
   if (held.length > 0) aggregate.held = held;
   if (schedule !== null) aggregate.schedule = { ...schedule, rounds };
   if (rule !== null) aggregate.decision = decide(rule, groups);
+  // Several measures (SPEC-011 4.3): every rule's verdict, the first being the claim's.
+  if (rules.length > 1) aggregate.decisions = rules.map((each) => decide(each, groups));
   aggregate.claim = claimFor(results, aggregate, initial, held.length);
   if (budget !== null) aggregate.budget = budgetEvidence(budget);
   await writeJson(path.join(directory, "aggregate.json"), aggregate);
@@ -253,6 +255,8 @@ export async function rebuildAggregate(aggregatePath, { root = process.cwd(), re
   const held = heldRuns(groups);
   if (held.length > 0) rebuilt.held = held;
   if (aggregate.decision !== undefined) rebuilt.decision = decide(aggregate.decision.rule, groups);
+  if (Array.isArray(aggregate.decisions))
+    rebuilt.decisions = aggregate.decisions.map((each) => decide(each.rule, groups));
   const k = aggregate.schedule?.initial ?? aggregate.requestedTrials;
   rebuilt.claim = claimFor(trialResults, rebuilt, k, held.length);
   await writeJson(file, rebuilt);
@@ -268,11 +272,12 @@ async function loadSelection(definitionFile, selectors, root) {
   const definition = await loadDefinition(definitionPath, { root });
   const selection = selectDefinition(definition, selectors);
   const rule = definition.kind === "suite" ? (definition.decision ?? null) : null;
-  if (rule === null) return { selection, rule };
+  const rules = definition.kind === "suite" ? (definition.decisions ?? (rule === null ? [] : [rule])) : [];
+  if (rule === null) return { selection, rule, rules };
   if (selectors?.variant !== null && selectors?.variant !== undefined) {
     throw new Error("the suite's decision compares two arms; --variant would run only one");
   }
-  return { selection, rule };
+  return { selection, rule, rules };
 }
 
 /**

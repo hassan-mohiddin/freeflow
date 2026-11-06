@@ -1,0 +1,189 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "recovery-list",
+  "type": "body",
+  "input": {
+    "prompt": "What recovery reads lives in four places in a record (Defined by, Read on recovery, Read when, and In flight's Carry line), and view recover tells the agent to read only the first two. Can you replace them with one Recovery list?"
+  },
+  "fixture": {
+    "git": "d86edbf6528df936392033134586ca7fe1da16aa",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/recovery-list.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/track-work/tests/budget5.test.mjs",
+        ".skill-eval/track-work/tests/discussion5.test.mjs",
+        ".skill-eval/track-work/tests/migrate5.test.mjs",
+        ".skill-eval/track-work/tests/schema5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs",
+        ".skill-eval/track-work/tests/views5.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/track-work/tests/budget5.test.mjs": ".skill-eval/top-line/graders/recovery-list/.skill-eval/track-work/tests/budget5.test.mjs",
+        ".skill-eval/track-work/tests/discussion5.test.mjs": ".skill-eval/top-line/graders/recovery-list/.skill-eval/track-work/tests/discussion5.test.mjs",
+        ".skill-eval/track-work/tests/migrate5.test.mjs": ".skill-eval/top-line/graders/recovery-list/.skill-eval/track-work/tests/migrate5.test.mjs",
+        ".skill-eval/track-work/tests/schema5.test.mjs": ".skill-eval/top-line/graders/recovery-list/.skill-eval/track-work/tests/schema5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs": ".skill-eval/top-line/graders/recovery-list/.skill-eval/track-work/tests/session5.test.mjs",
+        ".skill-eval/track-work/tests/views5.test.mjs": ".skill-eval/top-line/graders/recovery-list/.skill-eval/track-work/tests/views5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the budget scales with the square root of the window, expanded half as large again",
+            "budget prints the budget before anything is written: from the window the harness sets, --window or the default",
+            "budget --record shows what each part holds and what is left; an always, not counted line's file is sized and never counted",
+            "checkpoint --input rewrites In flight whole and replaces Recovery after a Recovery: line, keeping what it is not given, and refuses a line without its label or class",
+            "view bundle prints everything recovery reads, in the Spec's order, each source whole even over the budget",
+            "task set-budget changes the mode in the header, on the user's word; set-state keeps it",
+            "without a task, checkpoint --session writes the session summary and view bundle --session prints it after the rules",
+            "a task in the store resolves its pointers in the work repository the command runs in, not in the store",
+            "the Claude Code reader keeps only what the user typed, mid-turn messages included; resends and cut-off copies are dropped",
+            "the plain reader takes the User: messages of an export, with their times when given",
+            "discussion list numbers the user's messages since the last checkpoint; save writes a block of chosen ones with the agent's lines",
+            "a block that replaces another drops it; drop removes a block; block numbers are never reused",
+            "checkpoint lists the blocks whose shaped work is closed in History",
+            "a plain export can come from standard input, with the notes from a file",
+            "the session's log is the newest of its copies, as after a restart in another folder Claude Code writes a second one",
+            "migrate converts a Schema 4 record in place, keeping the old record whole and every closed Slice in History",
+            "migrate --project copies the task into the store as its next task, converts it there and commits, leaving the original as it was",
+            "migrate --project brings a Schema 5 task kept in a repository into the store, unchanged, leaving the original (P91)",
+            "migrate refuses a cue that is not one and a cue for a Slice that is not closed, writing nothing",
+            "the Schema 5 fixture's record.md, history.md and decisions.md validate, and each file's broken shapes are refused",
+            "init writes record.md, history.md and decisions.md, and refuses a cue that is not one",
+            "init writes Schema 5 and requires a cue",
+            "the slice commands change only what they name, and closing a Slice appends exactly one History entry",
+            "a close stopped after writing History finishes on a second run, without a second entry",
+            "agreements: one open at a time, updates in the user's words, and closing carries the decision list into one History entry",
+            "slice record writes one retroactive History entry and leaves record.md alone",
+            "a Slice is not closed as completed while a delegation it waits on is open",
+            "validate and checkpoint warn on a section over its budget, and checkpoint sets State as of",
+            "in a cloud store, checkpoint writes the work repository's Space line, and closes and checkpoints push the store",
+            "Schema 4's commands and views are gone: a Schema 5 record is refused them by name",
+            "task set-state on a Schema 5 record pauses its Slice and refuses completion while one is open",
+            "a remote is named host/owner/repo whatever its URL's form",
+            "session status prints this session's state in the store as JSON: its task, its summary, unsynced changes and its transcript",
+            "view bundle --fallback adds the user's messages since the checkpoint, word for word, and a closing line naming the record's time and the transcript",
+            "with no store, a session summary still asks for Freeflow's compaction, and session status reports both (P4)",
+            "without a task, the session summary's Recovery always lines name files, which the bundle copies fresh with their lines (P9); a line with no class, or a Carry line, is refused",
+            "view recover prints the opening line, rules, record, decisions, History and project indexes, then the checks, in the Spec's order",
+            "view entry prints History entries as stored, view index lists every entry, and there is no resume view",
+            "checkpoint remembers where each Space repository is, so recover finds it from any folder",
+            "recover and the bundle read the files a record names in a Space repository, from a folder outside it (F34)",
+            "the active decisions put waiting and answered items first, then the rest newest first, within the budget"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/track-work/tests/budget5.test.mjs",
+        ".skill-eval/track-work/tests/discussion5.test.mjs",
+        ".skill-eval/track-work/tests/migrate5.test.mjs",
+        ".skill-eval/track-work/tests/schema5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs",
+        ".skill-eval/track-work/tests/views5.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/track-work/tests/budget5.test.mjs": ".skill-eval/top-line/graders/recovery-list/.skill-eval/track-work/tests/budget5.test.mjs",
+        ".skill-eval/track-work/tests/discussion5.test.mjs": ".skill-eval/top-line/graders/recovery-list/.skill-eval/track-work/tests/discussion5.test.mjs",
+        ".skill-eval/track-work/tests/migrate5.test.mjs": ".skill-eval/top-line/graders/recovery-list/.skill-eval/track-work/tests/migrate5.test.mjs",
+        ".skill-eval/track-work/tests/schema5.test.mjs": ".skill-eval/top-line/graders/recovery-list/.skill-eval/track-work/tests/schema5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs": ".skill-eval/top-line/graders/recovery-list/.skill-eval/track-work/tests/session5.test.mjs",
+        ".skill-eval/track-work/tests/views5.test.mjs": ".skill-eval/top-line/graders/recovery-list/.skill-eval/track-work/tests/views5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the budget scales with the square root of the window, expanded half as large again",
+            "budget prints the budget before anything is written: from the window the harness sets, --window or the default",
+            "budget --record shows what each part holds and what is left; an always, not counted line's file is sized and never counted",
+            "checkpoint --input rewrites In flight whole and replaces Recovery after a Recovery: line, keeping what it is not given, and refuses a line without its label or class",
+            "view bundle prints everything recovery reads, in the Spec's order, each source whole even over the budget",
+            "task set-budget changes the mode in the header, on the user's word; set-state keeps it",
+            "without a task, checkpoint --session writes the session summary and view bundle --session prints it after the rules",
+            "a task in the store resolves its pointers in the work repository the command runs in, not in the store",
+            "the Claude Code reader keeps only what the user typed, mid-turn messages included; resends and cut-off copies are dropped",
+            "the plain reader takes the User: messages of an export, with their times when given",
+            "discussion list numbers the user's messages since the last checkpoint; save writes a block of chosen ones with the agent's lines",
+            "a block that replaces another drops it; drop removes a block; block numbers are never reused",
+            "checkpoint lists the blocks whose shaped work is closed in History",
+            "a plain export can come from standard input, with the notes from a file",
+            "the session's log is the newest of its copies, as after a restart in another folder Claude Code writes a second one",
+            "migrate converts a Schema 4 record in place, keeping the old record whole and every closed Slice in History",
+            "migrate --project copies the task into the store as its next task, converts it there and commits, leaving the original as it was",
+            "migrate --project brings a Schema 5 task kept in a repository into the store, unchanged, leaving the original (P91)",
+            "migrate refuses a cue that is not one and a cue for a Slice that is not closed, writing nothing",
+            "the Schema 5 fixture's record.md, history.md and decisions.md validate, and each file's broken shapes are refused",
+            "init writes record.md, history.md and decisions.md, and refuses a cue that is not one",
+            "init writes Schema 5 and requires a cue",
+            "the slice commands change only what they name, and closing a Slice appends exactly one History entry",
+            "a close stopped after writing History finishes on a second run, without a second entry",
+            "agreements: one open at a time, updates in the user's words, and closing carries the decision list into one History entry",
+            "slice record writes one retroactive History entry and leaves record.md alone",
+            "a Slice is not closed as completed while a delegation it waits on is open",
+            "validate and checkpoint warn on a section over its budget, and checkpoint sets State as of",
+            "in a cloud store, checkpoint writes the work repository's Space line, and closes and checkpoints push the store",
+            "Schema 4's commands and views are gone: a Schema 5 record is refused them by name",
+            "task set-state on a Schema 5 record pauses its Slice and refuses completion while one is open",
+            "a remote is named host/owner/repo whatever its URL's form",
+            "session status prints this session's state in the store as JSON: its task, its summary, unsynced changes and its transcript",
+            "view bundle --fallback adds the user's messages since the checkpoint, word for word, and a closing line naming the record's time and the transcript",
+            "with no store, a session summary still asks for Freeflow's compaction, and session status reports both (P4)",
+            "without a task, the session summary's Recovery always lines name files, which the bundle copies fresh with their lines (P9); a line with no class, or a Carry line, is refused",
+            "view recover prints the opening line, rules, record, decisions, History and project indexes, then the checks, in the Spec's order",
+            "view entry prints History entries as stored, view index lists every entry, and there is no resume view",
+            "checkpoint remembers where each Space repository is, so recover finds it from any folder",
+            "recover and the bundle read the files a record names in a Space repository, from a folder outside it (F34)",
+            "the active decisions put waiting and answered items first, then the rest newest first, within the budget"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "49e764f4096aff9e72767ee38991a8abbab21180"
+  }
+}

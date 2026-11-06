@@ -1,0 +1,152 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "review-packet-root-ablation",
+  "type": "body",
+  "input": {
+    "prompt": "When I run Review Work's review-packet.mjs with --root from a different folder, the brief it writes names the Docs and Review rules files with the wrong paths, and check-brief.mjs then refuses it because those files don't exist. Can you fix it?"
+  },
+  "fixture": {
+    "git": "50509d23d7978005c3d54abd97254cb6634b9178",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "freeflow": {},
+    "freeflow-no-track": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "track-work": false
+          }
+        }
+      }
+    },
+    "freeflow-no-gates": {
+      "freeflow": {
+        "repository": {
+          "gates": {
+            "agreement": "off",
+            "slice": "off",
+            "delivery": "off",
+            "delegation": "off"
+          }
+        }
+      }
+    },
+    "freeflow-no-review": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "review-work": false
+          }
+        }
+      }
+    }
+  },
+  "reference": "freeflow",
+  "component": ["freeflow.repository"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/review-packet-root.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/review-work/tests/review-packet.test.mjs"],
+      "files": {
+        ".skill-eval/review-work/tests/review-packet.test.mjs": ".skill-eval/top-line/graders/review-packet-root/.skill-eval/review-work/tests/review-packet.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "review-packet prefills the brief, names the gate triggers and budget, and check-brief accepts it",
+            "review-packet leaves the Boundary empty so check-brief refuses, and Review 2 starts at the last reviewed state",
+            "review-packet run from outside the repository writes repository-relative Docs and Review rules paths that check-brief accepts"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-track-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-track",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/review-work/tests/review-packet.test.mjs"],
+      "files": {
+        ".skill-eval/review-work/tests/review-packet.test.mjs": ".skill-eval/top-line/graders/review-packet-root/.skill-eval/review-work/tests/review-packet.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "review-packet prefills the brief, names the gate triggers and budget, and check-brief accepts it",
+            "review-packet leaves the Boundary empty so check-brief refuses, and Review 2 starts at the last reviewed state",
+            "review-packet run from outside the repository writes repository-relative Docs and Review rules paths that check-brief accepts"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-gates-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-gates",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/review-work/tests/review-packet.test.mjs"],
+      "files": {
+        ".skill-eval/review-work/tests/review-packet.test.mjs": ".skill-eval/top-line/graders/review-packet-root/.skill-eval/review-work/tests/review-packet.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "review-packet prefills the brief, names the gate triggers and budget, and check-brief accepts it",
+            "review-packet leaves the Boundary empty so check-brief refuses, and Review 2 starts at the last reviewed state",
+            "review-packet run from outside the repository writes repository-relative Docs and Review rules paths that check-brief accepts"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-review-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-review",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/review-work/tests/review-packet.test.mjs"],
+      "files": {
+        ".skill-eval/review-work/tests/review-packet.test.mjs": ".skill-eval/top-line/graders/review-packet-root/.skill-eval/review-work/tests/review-packet.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "review-packet prefills the brief, names the gate triggers and budget, and check-brief accepts it",
+            "review-packet leaves the Boundary empty so check-brief refuses, and Review 2 starts at the last reviewed state",
+            "review-packet run from outside the repository writes repository-relative Docs and Review rules paths that check-brief accepts"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "58649618f23d3d0f36e8c0a4da3d6ee16bac4f46"
+  }
+}

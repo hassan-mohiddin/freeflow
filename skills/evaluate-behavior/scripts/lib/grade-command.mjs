@@ -106,7 +106,8 @@ function passRuleProblem(pass) {
  */
 export function validateCommandExpectations(group, { arms, root, fail }) {
   const sources = [];
-  const fixture = group.fixture === null ? null : path.resolve(root, group.fixture);
+  // A commit fixture is not a folder here, so no grader file can lie inside it.
+  const fixture = typeof group.fixture === "string" ? path.resolve(root, group.fixture) : null;
   for (const [index, expectation] of group.expectations.entries()) {
     if (expectation.kind !== COMMAND_KIND) continue;
     const label = `group.expectations[${index}]`;

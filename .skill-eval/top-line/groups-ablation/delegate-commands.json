@@ -1,0 +1,164 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "delegate-commands-ablation",
+  "type": "body",
+  "input": {
+    "prompt": "Delegations for Schema 5 tasks are all kept by hand right now: writing the brief, making the worker's worktree, recording it, checking and closing the return. Can you add delegate commands to Track Work's script for that?"
+  },
+  "fixture": {
+    "git": "83454ea2f87e39ddf8f4ea53e15cc36c136934a9",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "freeflow": {},
+    "freeflow-no-track": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "track-work": false
+          }
+        }
+      }
+    },
+    "freeflow-no-gates": {
+      "freeflow": {
+        "repository": {
+          "gates": {
+            "agreement": "off",
+            "slice": "off",
+            "delivery": "off",
+            "delegation": "off"
+          }
+        }
+      }
+    },
+    "freeflow-no-review": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "review-work": false
+          }
+        }
+      }
+    }
+  },
+  "reference": "freeflow",
+  "component": ["freeflow.repository"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/delegate-commands.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/delegations5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/delegations5.test.mjs": ".skill-eval/top-line/graders/delegate-commands/.skill-eval/track-work/tests/delegations5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "delegate open writes the brief, makes the worker's worktree on its own branch at the base, and writes the delegation's line",
+            "delegate amend appends a dated change and records the handle; a returned delegation runs again",
+            "delegate check-return refuses a missing return, a missing heading and a commit absent from the brief's branch",
+            "open --parent nests a sub-worker's folder in its worker's and refuses a fourth level; recovery shows each its own brief, progress and return",
+            "a Slice closes while its delegation runs; closing the delegation later appends one History entry with its cost and merge",
+            "delegate is for Schema 5 records"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-track-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-track",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/delegations5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/delegations5.test.mjs": ".skill-eval/top-line/graders/delegate-commands/.skill-eval/track-work/tests/delegations5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "delegate open writes the brief, makes the worker's worktree on its own branch at the base, and writes the delegation's line",
+            "delegate amend appends a dated change and records the handle; a returned delegation runs again",
+            "delegate check-return refuses a missing return, a missing heading and a commit absent from the brief's branch",
+            "open --parent nests a sub-worker's folder in its worker's and refuses a fourth level; recovery shows each its own brief, progress and return",
+            "a Slice closes while its delegation runs; closing the delegation later appends one History entry with its cost and merge",
+            "delegate is for Schema 5 records"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-gates-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-gates",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/delegations5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/delegations5.test.mjs": ".skill-eval/top-line/graders/delegate-commands/.skill-eval/track-work/tests/delegations5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "delegate open writes the brief, makes the worker's worktree on its own branch at the base, and writes the delegation's line",
+            "delegate amend appends a dated change and records the handle; a returned delegation runs again",
+            "delegate check-return refuses a missing return, a missing heading and a commit absent from the brief's branch",
+            "open --parent nests a sub-worker's folder in its worker's and refuses a fourth level; recovery shows each its own brief, progress and return",
+            "a Slice closes while its delegation runs; closing the delegation later appends one History entry with its cost and merge",
+            "delegate is for Schema 5 records"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-review-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-review",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/delegations5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/delegations5.test.mjs": ".skill-eval/top-line/graders/delegate-commands/.skill-eval/track-work/tests/delegations5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "delegate open writes the brief, makes the worker's worktree on its own branch at the base, and writes the delegation's line",
+            "delegate amend appends a dated change and records the handle; a returned delegation runs again",
+            "delegate check-return refuses a missing return, a missing heading and a commit absent from the brief's branch",
+            "open --parent nests a sub-worker's folder in its worker's and refuses a fourth level; recovery shows each its own brief, progress and return",
+            "a Slice closes while its delegation runs; closing the delegation later appends one History entry with its cost and merge",
+            "delegate is for Schema 5 records"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "9273f5e456a0b6707852bc990808d0fe13587310"
+  }
+}

@@ -51,7 +51,7 @@ A group is a **task** (what the agent is asked to do and how it is graded) and a
 
 The loader checks every field above (`schema_version` 2, `kind`, the `id` pattern, `type`, exactly one of `input.prompt` and `input.turns`, a contained `fixture` directory, unique `tools` and expectation IDs, at least one expectation, review question or rubric dimension) and names the one it refuses. What it cannot teach:
 
-- `input.turns` may repeat a natural turn. The `fixture` directory's contents become the workspace.
+- `input.turns` may repeat a natural turn. The `fixture` directory's contents become the workspace. A fixture may instead be a commit of the definition root's own repository, `{ "git": "<40-character commit>", "exclude": ["<path>", ...] }`: the workspace is that commit's tree less the excluded paths, with no Git history, written fresh for each run; its identity is the commit, so no working-tree change moves it ([coding tasks](coding-tasks.md)).
 - `input.resume_before` lists turns (from 2) before which the subject's Pi session is closed and resumed from its own file (Pi's RPC `switch_session`, so extensions see `session_shutdown`, then `session_start` with reason `resume`), as a user resuming it would; it needs a body group on `pi` with `configuration.runtime.session: true` and no participants. Each resumed turn records `resumed.sessionFile` in `run.json`.
 - `review_questions` are rendered for the reviewer and never sent to the subject. The reviewer sees every arm's run as Run A, Run B, Run C, ... in a random order, must answer every question for every label, and its answers are mapped back to arm names; `review --swap` repeats the review with the order reversed and records agreement per question, and per arm when the arms are not `baseline` and `candidate`.
 - A group with only review questions has no deterministic checks; its evidence comes from the advisory review alone. A group with only a rubric is graded by its judges alone.
@@ -316,7 +316,7 @@ A comparison ID joins one expectation per arm, all the same check. For each non-
 }
 ```
 
-A suite's `groups` run in order and resolve from the suite's directory; `decision` is optional. The loader checks the rest.
+A suite's `groups` run in order and resolve from the suite's directory; `decision`, or `decisions`, is optional. The loader checks the rest.
 
 ### Decision
 
@@ -337,9 +337,13 @@ A suite may declare the rule its trials are judged by, before any run. Without o
 - `measure` names exactly one of: `comparison`, a comparison ID from the groups' expectations (a pass counts 1, a fail 0); `metric`, a name in the aggregate's `metrics` section; `judged`, a dimension ID in its `judged` section; or `score`, the comparison ID of test-graded command expectations, read from the `scores` section (an expectation's own ID scores its one arm only). Section values are read from `perTrial` (`true` counts 1, `false` 0, numbers as given). Null and unavailable values are excluded and counted.
 - `arms` names two arms, the reference first; every group needs both, and `--variant` is refused. The loader refuses a measure a group records in one decision arm only, or that no group records in both; a group that records it in neither arm, such as a control case, loads, and its case is excluded and counted.
 - `direction`: whether `higher` or `lower` is better.
-- `method` defaults to `sign-test`, `alpha` to 0.05, and `min_cases` to 10.
-- The unit is the case. Each arm's values over a case's trials are averaged, and the second arm is better, worse or equal. An exact two-sided sign test over the better and worse cases (ties and excluded cases are counted, not tested) gives the verdict that [design and measurement](design-and-measurement.md#fix-the-decision-rule-first) defines, with `min_cases` as the minimum and `alpha` as the level.
+- `method` defaults to `sign-test`, `alpha` to 0.05, and `min_cases` to 10. The methods are Research Work's ([stats.mjs](../../research-work/scripts/lib/stats.mjs)):
+  - `sign-test`: the unit is the case. Each arm's values over a case's trials are averaged, and the second arm is better, worse or equal. An exact two-sided sign test over the better and worse cases (ties and excluded cases are counted, not tested) gives the verdict that [design and measurement](design-and-measurement.md#fix-the-decision-rule-first) defines, with `min_cases` as the minimum and `alpha` as the level.
+  - `mcnemar`, for a `comparison` only: an arm succeeds on a case when every one of its trials passed (pass^k). Exact McNemar over the cases where exactly one arm succeeded gives the verdict, with `min_cases` as the minimum of those discordant cases; the decision also records each arm's pass@1 and pass^k over the cases.
+  - `bootstrap`: each case's arm mean minus its reference mean, resampled 10,000 times with a fixed seed, gives a `1 - alpha` interval of the mean difference. With at least `min_cases` cases measured in both arms, an interval wholly on the better side of zero is `beats` and wholly on the worse side `worse`; it gives no p.
 - A suite with a decision always runs as trials and records an aggregate. `trials` is optional: without it, `--trials` sets the count (default 1). After `initial` trials, each case whose sign is not yet stable (the arms tie, or differ by less than one trial's worth: the observed range divided by the fewer values) runs up to `step` more trials of that group alone, until `max`. A case with an arm that has no usable value is not extended.
+
+A suite that measures several things, such as success, cost and time, declares `decisions`, a list of such rules, instead of `decision`: each gets its own verdict, the first is the aggregate's claim, and only the first may declare `trials`. A suite declares one or the other, never both.
 
 What the aggregate records for a decision is in [running and evidence](running-and-evidence.md#trials).
 
@@ -377,5 +381,5 @@ A configuration with `freeflow` runs the subject with Freeflow loaded, built fro
 - `source` is a Git commit; the package is built from that commit with the definition root's `scripts/freeflow-snapshot.mjs`, once per distinct ref per group, into the group's `resources/freeflow/`. The user's development snapshot is never used or changed.
 - `repository` is written to the workspace's `.freeflow/config.json` and `personal`, when not empty, to `.freeflow/local.json`, before the workspace's starting state is taken, so neither counts as a subject change. Both default to `{}`, and that build's own validator checks them.
 - `runtime.prompt` is `host`, because the isolated prompt replaces the host's system prompt, which would remove Freeflow's own instructions.
-- Freeflow's extension loads right after the evaluator's guard, the package directory is readable by the subject, and Freeflow may register custom tools that `tools` then names.
+- On Pi, Freeflow's extension loads right after the evaluator's guard, the package directory is readable by the subject, and Freeflow may register custom tools that `tools` then names. On Claude Code, the package is the session's plugin (`--plugin-dir`, its hooks and mod with it), and the arm gets a fresh Freeflow store of its own, `freeflow-home/` in the run's folder, as `FREEFLOW_HOME`, which its bash sees at the same path and its file tools may write ([Claude Code host](coding-tasks.md#claude-code-host)).
 - `run.json` records the ref, resolved commit, package name and version, tarball hash, and the settings under `resources.freeflow`.

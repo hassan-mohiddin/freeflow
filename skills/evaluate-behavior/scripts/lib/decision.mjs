@@ -4,7 +4,7 @@
 
 import { createHash } from "node:crypto";
 
-import { signTest } from "../../../research-work/scripts/lib/stats.mjs";
+import { bootstrapMean, mcnemarExact, signTest } from "../../../research-work/scripts/lib/stats.mjs";
 import { ARM_NAME } from "./arms.mjs";
 
 // The exact sign test is Research Work's; the evaluator's callers and tests import it from here.
@@ -33,10 +33,25 @@ export const METRIC_NAMES = [
   "peakContext",
   "skillReads",
   "skillReadTokens",
+  // SPEC-011 4.3: the run's requests at API list price, and the simulated user's turns.
+  "listCost",
+  "interruptions",
+  "defaultAnswers",
+  // A Freeflow arm's overhead from its own event log: Freeflow's estimated share of all input tokens, and of uncached.
+  "overhead",
+  "overheadUncached",
 ];
 
 const DIRECTIONS = new Set(["higher", "lower"]);
 const DEFAULTS = { method: "sign-test", alpha: 0.05, min_cases: 10 };
+/**
+ * The tests a rule may use: the exact sign test over each case's mean; exact McNemar over each case's success, an arm
+ * succeeding on a case when every one of its trials passed (pass^k); and a paired bootstrap interval of the mean
+ * difference over cases. Each is Research Work's (stats.mjs).
+ */
+export const METHODS = ["sign-test", "mcnemar", "bootstrap"];
+/** The bootstrap's resamples and its fixed seed, so the same results always give the same interval. */
+export const BOOTSTRAP = Object.freeze({ resamples: 10000, seed: 1 });
 const VERDICT_TEXT = { beats: "beats", worse: "worse", "no-difference-shown": "no difference shown" };
 
 function isPlainObject(value) {
@@ -51,57 +66,75 @@ function isInteger(value, minimum) {
  * Validates a suite's `decision` and returns it with defaults applied (`method` sign-test, `alpha` 0.05,
  * `min_cases` 10), which is the form that is hashed and recorded. `fail(message)` must throw.
  */
-export function validateDecision(value, fail) {
-  if (!isPlainObject(value)) fail("suite.decision must be an object");
+export function validateDecision(value, fail, label = "suite.decision") {
+  if (!isPlainObject(value)) fail(`${label} must be an object`);
   for (const key of Object.keys(value)) {
-    if (!DECISION_FIELDS.has(key)) fail(`suite.decision contains unsupported field ${key}`);
+    if (!DECISION_FIELDS.has(key)) fail(`${label} contains unsupported field ${key}`);
   }
   for (const key of ["measure", "arms", "direction"]) {
-    if (!Object.hasOwn(value, key)) fail(`suite.decision is missing ${key}`);
+    if (!Object.hasOwn(value, key)) fail(`${label} is missing ${key}`);
   }
 
   const measure = value.measure;
   const kinds = isPlainObject(measure) ? Object.keys(measure) : [];
   if (kinds.length !== 1 || !Object.hasOwn(MEASURE_KINDS, kinds[0])) {
-    fail("suite.decision.measure must have exactly one of comparison, metric, judged or score");
+    fail(`${label}.measure must have exactly one of comparison, metric, judged or score`);
   }
   const [kind] = kinds;
   if (typeof measure[kind] !== "string" || !MEASURE_NAME.test(measure[kind])) {
-    fail(`suite.decision.measure.${kind} must be a name of letters, numbers, dots, underscores or hyphens`);
+    fail(`${label}.measure.${kind} must be a name of letters, numbers, dots, underscores or hyphens`);
   }
   if (kind === "metric" && !METRIC_NAMES.includes(measure.metric)) {
-    fail(`suite.decision.measure.metric must be one of ${METRIC_NAMES.join(", ")}`);
+    fail(`${label}.measure.metric must be one of ${METRIC_NAMES.join(", ")}`);
   }
 
   const arms = value.arms;
   if (!Array.isArray(arms) || arms.length !== 2 || arms.some((arm) => typeof arm !== "string" || !ARM_NAME.test(arm))) {
-    fail("suite.decision.arms must be two arm names, the reference first");
+    fail(`${label}.arms must be two arm names, the reference first`);
   }
-  if (arms[0] === arms[1]) fail("suite.decision.arms must name two different arms");
-  if (!DIRECTIONS.has(value.direction)) fail("suite.decision.direction must be higher or lower");
+  if (arms[0] === arms[1]) fail(`${label}.arms must name two different arms`);
+  if (!DIRECTIONS.has(value.direction)) fail(`${label}.direction must be higher or lower`);
 
   const method = value.method ?? DEFAULTS.method;
-  if (method !== "sign-test") fail("suite.decision.method must be sign-test");
+  if (!METHODS.includes(method)) fail(`${label}.method must be one of ${METHODS.join(", ")}`);
+  // McNemar's test needs a success per trial, which a comparison's pass or fail is.
+  if (method === "mcnemar" && kind !== "comparison") fail(`${label}.method mcnemar needs a comparison measure`);
   const alpha = value.alpha ?? DEFAULTS.alpha;
-  if (typeof alpha !== "number" || !(alpha > 0 && alpha < 1)) fail("suite.decision.alpha must be between 0 and 1");
+  if (typeof alpha !== "number" || !(alpha > 0 && alpha < 1)) fail(`${label}.alpha must be between 0 and 1`);
   const minCases = value.min_cases ?? DEFAULTS.min_cases;
-  if (!isInteger(minCases, 1)) fail("suite.decision.min_cases must be a positive integer");
+  if (!isInteger(minCases, 1)) fail(`${label}.min_cases must be a positive integer`);
 
   const rule = { measure: { [kind]: measure[kind] }, arms: [...arms], direction: value.direction, method, alpha };
   Object.assign(rule, { min_cases: minCases });
   if (Object.hasOwn(value, "trials")) {
     const trials = value.trials;
-    if (!isPlainObject(trials)) fail("suite.decision.trials must be an object");
+    if (!isPlainObject(trials)) fail(`${label}.trials must be an object`);
     for (const key of Object.keys(trials)) {
-      if (!SCHEDULE_FIELDS.includes(key)) fail(`suite.decision.trials contains unsupported field ${key}`);
+      if (!SCHEDULE_FIELDS.includes(key)) fail(`${label}.trials contains unsupported field ${key}`);
     }
     for (const key of SCHEDULE_FIELDS) {
-      if (!isInteger(trials[key], 1)) fail(`suite.decision.trials.${key} must be a positive integer`);
+      if (!isInteger(trials[key], 1)) fail(`${label}.trials.${key} must be a positive integer`);
     }
-    if (trials.max < trials.initial) fail("suite.decision.trials.max must be at least trials.initial");
+    if (trials.max < trials.initial) fail(`${label}.trials.max must be at least trials.initial`);
     rule.trials = { initial: trials.initial, max: trials.max, step: trials.step };
   }
   return rule;
+}
+
+/**
+ * Validates a suite's `decisions` (SPEC-011 4.3): one rule per measure, each validated as a `decision` is, the first
+ * the suite's claim. Only the first may declare `trials`, since one schedule sets how many trials every case runs.
+ */
+export function validateDecisions(value, fail) {
+  if (!Array.isArray(value) || value.length === 0) fail("suite.decisions must be a non-empty array");
+  const rules = value.map((each, index) => validateDecision(each, fail, `suite.decisions[${index}]`));
+  for (const [index, rule] of rules.entries()) {
+    if (index > 0 && rule.trials !== undefined)
+      fail(`suite.decisions[${index}].trials: only the first decision schedules trials`);
+  }
+  const keys = rules.map((rule) => canonicalJson({ measure: rule.measure, arms: rule.arms, method: rule.method }));
+  if (new Set(keys).size !== keys.length) fail("suite.decisions repeats a measure, arms and method");
+  return rules;
 }
 
 /**
@@ -249,6 +282,8 @@ function caseOutcome(group, rule) {
  * "no-difference-shown".
  */
 export function decide(rule, groups) {
+  if (rule.method === "mcnemar") return decideMcnemar(rule, groups);
+  if (rule.method === "bootstrap") return decideBootstrap(rule, groups);
   const cases = groups.map((group) => caseOutcome(group, rule));
   const count = (sign) => cases.filter((entry) => entry.sign === sign).length;
   const better = count("better");
@@ -278,6 +313,126 @@ export function decide(rule, groups) {
   };
 }
 
+/** What every verdict carries, whatever its method. */
+function verdictBase(rule, cases) {
+  const count = (sign) => cases.filter((entry) => entry.sign === sign).length;
+  const excludedValues = cases.reduce(
+    (sum, entry) => sum + Object.values(entry.arms ?? {}).reduce((armSum, arm) => armSum + arm.excluded, 0),
+    0,
+  );
+  return {
+    rule,
+    ruleSha256: ruleSha256(rule),
+    reference: rule.arms[0],
+    arm: rule.arms[1],
+    better: count("better"),
+    worse: count("worse"),
+    ties: count("equal"),
+    excluded: count("excluded"),
+    excludedValues,
+  };
+}
+
+/**
+ * Exact McNemar over each case's success (SPEC-011 4.3). An arm succeeds on a case when every one of its trials passed
+ * (pass^k); its pass@1 is the share of its trials that passed. A case where exactly one arm succeeded is discordant
+ * and decided, better or worse by the rule's direction; "beats" needs `min_cases` discordant cases, p < alpha and
+ * the split in the declared direction. A trial whose value is not a pass or a fail is excluded and counted.
+ */
+function decideMcnemar(rule, groups) {
+  const [reference, arm] = rule.arms;
+  const cases = groups.map((group) => {
+    const found = armValues(group, rule);
+    const outcome = { id: group.id, trials: group.trials };
+    if (found.absent !== undefined) return { ...outcome, sign: "excluded", reason: found.absent };
+    const arms = {};
+    for (const name of rule.arms) {
+      const { values, excluded } = found.arms[name];
+      const binary = values.filter((value) => value === 0 || value === 1);
+      const n = binary.length;
+      arms[name] = {
+        n,
+        mean: n === 0 ? null : binary.reduce((sum, value) => sum + value, 0) / n,
+        excluded: excluded + values.length - n,
+        passK: n === 0 ? null : binary.every((value) => value === 1),
+      };
+    }
+    if (arms[reference].n === 0 || arms[arm].n === 0) {
+      return { ...outcome, arms, sign: "excluded", reason: "an arm has no usable value" };
+    }
+    const armOnly = arms[arm].passK && !arms[reference].passK;
+    const referenceOnly = arms[reference].passK && !arms[arm].passK;
+    const ahead = rule.direction === "higher" ? armOnly : referenceOnly;
+    const behind = rule.direction === "higher" ? referenceOnly : armOnly;
+    return { ...outcome, arms, sign: ahead ? "better" : behind ? "worse" : "equal" };
+  });
+  const decidedCases = cases.filter((entry) => entry.sign !== "excluded");
+  const armOnly = decidedCases.filter((entry) => entry.arms[arm].passK && !entry.arms[reference].passK).length;
+  const referenceOnly = decidedCases.filter((entry) => entry.arms[reference].passK && !entry.arms[arm].passK).length;
+  const test = mcnemarExact({ armOnly, referenceOnly });
+  const base = verdictBase(rule, cases);
+  const decided = test.discordant;
+  let verdict = "no-difference-shown";
+  if (decided >= rule.min_cases && test.p < rule.alpha && base.better !== base.worse)
+    verdict = base.better > base.worse ? "beats" : "worse";
+  const share = (name, pick) =>
+    decidedCases.length === 0
+      ? null
+      : decidedCases.reduce((sum, entry) => sum + pick(entry.arms[name]), 0) / decidedCases.length;
+  return {
+    ...base,
+    verdict,
+    decided,
+    p: test.p,
+    mcnemar: {
+      armOnly,
+      referenceOnly,
+      bothPassed: decidedCases.filter((entry) => entry.arms[arm].passK && entry.arms[reference].passK).length,
+      neitherPassed: decidedCases.filter((entry) => !entry.arms[arm].passK && !entry.arms[reference].passK).length,
+    },
+    passAt1: Object.fromEntries(rule.arms.map((name) => [name, share(name, (each) => each.mean)])),
+    passK: Object.fromEntries(rule.arms.map((name) => [name, share(name, (each) => (each.passK ? 1 : 0))])),
+    cases,
+  };
+}
+
+/**
+ * A paired bootstrap of the mean difference over cases (SPEC-011 4.3): each case's arm mean minus its reference mean,
+ * resampled BOOTSTRAP.resamples times with a fixed seed, at a 1 - alpha percentile interval. "beats" needs
+ * `min_cases` cases measured in both arms and an interval wholly on the better side of zero; wholly on the worse side
+ * is "worse". It gives an interval, not a p.
+ */
+function decideBootstrap(rule, groups) {
+  const [reference, arm] = rule.arms;
+  const cases = groups.map((group) => {
+    const { stable: _stable, ...entry } = caseOutcome(group, rule);
+    if (entry.sign === "excluded") return entry;
+    return { ...entry, difference: entry.arms[arm].mean - entry.arms[reference].mean };
+  });
+  const differences = cases.filter((entry) => entry.difference !== undefined).map((entry) => entry.difference);
+  const base = verdictBase(rule, cases);
+  let interval = null;
+  let verdict = "no-difference-shown";
+  if (differences.length > 0) {
+    const result = bootstrapMean(differences, { ...BOOTSTRAP, confidence: 1 - rule.alpha });
+    interval = {
+      mean: result.estimate,
+      low: result.low,
+      high: result.high,
+      confidence: result.confidence,
+      resamples: result.resamples,
+      seed: result.seed,
+    };
+    const above = result.low > 0;
+    const below = result.high < 0;
+    if (differences.length >= rule.min_cases && (above || below)) {
+      const better = rule.direction === "higher" ? above : below;
+      verdict = better ? "beats" : "worse";
+    }
+  }
+  return { ...base, verdict, decided: differences.length, p: null, interval, cases };
+}
+
 /** Case IDs the adaptive schedule extends: tied or within one trial's worth, and below the schedule's maximum. */
 export function undecidedCases(rule, groups) {
   if (rule.trials === undefined) return [];
@@ -293,6 +448,7 @@ export function decisionClaim(decision, { k, supported, reason }) {
     class: supported ? decision.verdict : "none",
     ...(reason ? { reason } : {}),
     k,
+    method: decision.rule.method,
     ruleSha256: decision.ruleSha256,
     better: decision.better,
     worse: decision.worse,
@@ -300,6 +456,7 @@ export function decisionClaim(decision, { k, supported, reason }) {
     decided: decision.decided,
     excluded: decision.excluded,
     p: decision.p,
+    ...(decision.interval ? { interval: decision.interval } : {}),
   };
 }
 
@@ -352,9 +509,33 @@ export function renderClaim(aggregate) {
   if (summary === null) return [];
   const decision = aggregate.decision;
   if (decision === undefined) return [`Claim: ${summary.reached}; ${summary.detail}`];
+  const lines = [`Claim: ${summary.reached}; ${summary.detail}`, ...decisionLines(decision)];
+  for (const round of aggregate.schedule?.rounds ?? []) {
+    lines.push(
+      row("adaptive", [
+        `round=${round.round}`,
+        `trials=${round.trials}/${round.scheduled}`,
+        `cases=${round.groups.join(",")}`,
+      ]),
+    );
+  }
+  lines.push(...caseLines(decision));
+  // A suite with several measures (SPEC-011 4.3): each further decision's verdict, rule and cases after the claim's.
+  for (const [index, other] of (aggregate.decisions ?? []).slice(1).entries()) {
+    const { kind, name } = measureOf(other.rule);
+    lines.push(
+      `Decision ${index + 2}: ${verdictText(other.verdict)}; ${other.arm} against ${other.reference} on ${kind} ${name}, ${other.rule.direction} is better`,
+      ...decisionLines(other),
+      ...caseLines(other),
+    );
+  }
+  return lines;
+}
+
+/** A decision's rule and verdict rows, with what its method adds: McNemar's split and pass rates, or the interval. */
+function decisionLines(decision) {
   const rule = decision.rule;
   const lines = [
-    `Claim: ${summary.reached}; ${summary.detail}`,
     row("decision", [
       `rule=sha256:${decision.ruleSha256}`,
       `method=${rule.method}`,
@@ -370,18 +551,43 @@ export function renderClaim(aggregate) {
       `decided=${decision.decided}`,
       `excluded=${decision.excluded}`,
       `excluded-values=${decision.excludedValues}`,
-      `p=${formatNumber(decision.p)}`,
+      `p=${decision.p === null || decision.p === undefined ? "-" : formatNumber(decision.p)}`,
     ]),
   ];
-  for (const round of aggregate.schedule?.rounds ?? []) {
+  if (decision.mcnemar) {
     lines.push(
-      row("adaptive", [
-        `round=${round.round}`,
-        `trials=${round.trials}/${round.scheduled}`,
-        `cases=${round.groups.join(",")}`,
+      row("mcnemar", [
+        `${decision.arm}-only=${decision.mcnemar.armOnly}`,
+        `${decision.reference}-only=${decision.mcnemar.referenceOnly}`,
+        `both=${decision.mcnemar.bothPassed}`,
+        `neither=${decision.mcnemar.neitherPassed}`,
+        ...rule.arms.map(
+          (arm) => `${arm}=pass@1:${share(decision.passAt1?.[arm])} pass^k:${share(decision.passK?.[arm])}`,
+        ),
       ]),
     );
   }
+  if (decision.interval) {
+    const { mean, low, high, confidence, resamples, seed } = decision.interval;
+    lines.push(
+      row("bootstrap", [
+        `${decision.arm}-${decision.reference}=mean:${formatNumber(mean)}`,
+        `${Math.round(confidence * 100)}%=[${formatNumber(low)}, ${formatNumber(high)}]`,
+        `resamples=${resamples}`,
+        `seed=${seed}`,
+      ]),
+    );
+  }
+  return lines;
+}
+
+function share(value) {
+  return typeof value === "number" ? formatNumber(value) : "-";
+}
+
+/** A decision's rows for each case. */
+function caseLines(decision) {
+  const lines = [];
   for (const entry of decision.cases) {
     const arms = Object.entries(entry.arms ?? {}).map(
       ([arm, summary]) => `${arm}=${summary.mean === null ? "-" : formatNumber(summary.mean)} (n=${summary.n})`,

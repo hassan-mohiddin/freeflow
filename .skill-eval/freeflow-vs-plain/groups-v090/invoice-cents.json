@@ -33,17 +33,7 @@
     "plain": {
       "freeflow": null
     },
-    "freeflow": {},
-    "freeflow-te": {
-      "freeflow": {
-        "repository": {
-          "toolExecution": {
-            "enabled": true,
-            "guidanceNotices": true
-          }
-        }
-      }
-    }
+    "freeflow": {}
   },
   "participants": {
     "protocol": "conversation",
@@ -109,31 +99,6 @@
       }
     },
     {
-      "id": "freeflow-te-hidden-tests",
-      "kind": "command",
-      "variant": "freeflow-te",
-      "comparison": "hidden-tests",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
-      "files": {
-        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/invoice-cents.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": [
-            "fvp: prices convert to the pence written on the price list",
-            "fvp: the invoice shows each item at its listed price",
-            "fvp: the printed example invoice shows the notebook at £4.35 and the right total",
-            "fvp: the till receipt charges the listed prices",
-            "fvp: a printed invoice keeps its layout",
-            "fvp: the existing tests still pass"
-          ]
-        }
-      }
-    },
-    {
       "id": "plain-marker-new-test",
       "kind": "command",
       "variant": "plain",
@@ -155,24 +120,6 @@
       "id": "freeflow-marker-new-test",
       "kind": "command",
       "variant": "freeflow",
-      "comparison": "marker-new-test",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
-      "files": {
-        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": ["fvp: a new or changed test fails before the change and passes after"]
-        }
-      }
-    },
-    {
-      "id": "freeflow-te-marker-new-test",
-      "kind": "command",
-      "variant": "freeflow-te",
       "comparison": "marker-new-test",
       "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
       "files": {
@@ -224,24 +171,6 @@
       }
     },
     {
-      "id": "freeflow-te-marker-tests-kept",
-      "kind": "command",
-      "variant": "freeflow-te",
-      "comparison": "marker-tests-kept",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
-      "files": {
-        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": ["fvp: the existing tests are kept unchanged"]
-        }
-      }
-    },
-    {
       "id": "plain-marker-fix-at-root",
       "kind": "changed-paths",
       "variant": "plain",
@@ -253,14 +182,6 @@
       "id": "freeflow-marker-fix-at-root",
       "kind": "changed-paths",
       "variant": "freeflow",
-      "comparison": "marker-fix-at-root",
-      "expect": "excludes",
-      "paths": ["src/printer.js", "src/invoice.js", "bin/invoice.js"]
-    },
-    {
-      "id": "freeflow-te-marker-fix-at-root",
-      "kind": "changed-paths",
-      "variant": "freeflow-te",
       "comparison": "marker-fix-at-root",
       "expect": "excludes",
       "paths": ["src/printer.js", "src/invoice.js", "bin/invoice.js"]

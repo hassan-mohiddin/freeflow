@@ -1,0 +1,123 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "docs-check-stamp",
+  "type": "body",
+  "input": {
+    "prompt": "Every time I change code a dev doc covers, I have to bump its Verified at by hand, and that often ends up as a separate commit. Can docs-check move a stale document's Verified at itself? And while you're there, CI runs every check and test suite one after another, which takes almost 5 minutes; can you split the tests into parallel shards?"
+  },
+  "fixture": {
+    "git": "6f378c9ba331105847bfe4311d441df8b92b6db6",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/docs-check-stamp.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/write-docs/tests/docs-check.test.mjs",
+        "scripts/validation/check-release-workflow.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/write-docs/tests/docs-check.test.mjs": ".skill-eval/top-line/graders/docs-check-stamp/.skill-eval/write-docs/tests/docs-check.test.mjs",
+        "scripts/validation/check-release-workflow.test.mjs": ".skill-eval/top-line/graders/docs-check-stamp/scripts/validation/check-release-workflow.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "--covering finds the doc that covers a file, and reports it current",
+            "--covering finds the doc that covers a folder holding the file, and reports it stale",
+            "--covering reports a path nothing covers, and counts docs with no Covers line",
+            "--covering searches the docs index by default and the given docs otherwise",
+            "--covering prints one line per covering doc as text",
+            "--covering exits 2 when the project has no docs index and none are given",
+            "--driven counts a covered change committed together with its doc, which the default treats as reviewed",
+            "--stamp moves a stale doc's Verified at to HEAD, so the doc and the code go in one commit",
+            "--stamp leaves a feature file alone, since its Verified at is the commit it was driven at",
+            "CI workflow covers generated output and release governance tests",
+            "CI and release workflows assert a clean worktree after tests",
+            "release workflow satisfies publication ordering and artifact invariants",
+            "rejects publication before release-note extraction",
+            "bounds npm registry propagation verification after publish",
+            "npm test runs every test:* suite, so a new suite cannot be left out of CI",
+            "CI's test shards run every suite npm test lists, each exactly once, including a suite added later"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/write-docs/tests/docs-check.test.mjs",
+        "scripts/validation/check-release-workflow.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/write-docs/tests/docs-check.test.mjs": ".skill-eval/top-line/graders/docs-check-stamp/.skill-eval/write-docs/tests/docs-check.test.mjs",
+        "scripts/validation/check-release-workflow.test.mjs": ".skill-eval/top-line/graders/docs-check-stamp/scripts/validation/check-release-workflow.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "--covering finds the doc that covers a file, and reports it current",
+            "--covering finds the doc that covers a folder holding the file, and reports it stale",
+            "--covering reports a path nothing covers, and counts docs with no Covers line",
+            "--covering searches the docs index by default and the given docs otherwise",
+            "--covering prints one line per covering doc as text",
+            "--covering exits 2 when the project has no docs index and none are given",
+            "--driven counts a covered change committed together with its doc, which the default treats as reviewed",
+            "--stamp moves a stale doc's Verified at to HEAD, so the doc and the code go in one commit",
+            "--stamp leaves a feature file alone, since its Verified at is the commit it was driven at",
+            "CI workflow covers generated output and release governance tests",
+            "CI and release workflows assert a clean worktree after tests",
+            "release workflow satisfies publication ordering and artifact invariants",
+            "rejects publication before release-note extraction",
+            "bounds npm registry propagation verification after publish",
+            "npm test runs every test:* suite, so a new suite cannot be left out of CI",
+            "CI's test shards run every suite npm test lists, each exactly once, including a suite added later"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "114ddf70cdac166208d47f6bc923e504212ae0ea"
+  }
+}

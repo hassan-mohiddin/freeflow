@@ -1,0 +1,253 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)"
+HOOK_PATH="$ROOT_DIR/hooks/freeflow-runtime-context.mjs"
+CLAUDE_HOOKS_JSON="$ROOT_DIR/hooks/claude/hooks.json"
+CODEX_HOOKS_JSON="$ROOT_DIR/hooks/codex/hooks.json"
+GEMINI_HOOKS_JSON="$ROOT_DIR/hooks/hooks.json"
+CURSOR_HOOKS_JSON="$ROOT_DIR/hooks/cursor/hooks.json"
+COPILOT_HOOKS_JSON="$ROOT_DIR/com.github.copilot/hooks/hooks.json"
+CORE_PROMPT="$ROOT_DIR/runtime/prompts/core.md"
+INTERACTION_PROMPT="$ROOT_DIR/runtime/prompts/interaction-contract.md"
+
+fail() {
+  echo "runtime-context hook check failed: $*" >&2
+  exit 1
+}
+
+assert_contains() {
+  local text="$1"
+  local expected="$2"
+  local label="$3"
+  grep -Fq -- "$expected" <<<"$text" || fail "$label missing '$expected'"
+}
+
+assert_not_contains() {
+  local text="$1"
+  local unexpected="$2"
+  local label="$3"
+  if grep -Fq -- "$unexpected" <<<"$text"; then
+    fail "$label unexpectedly contains '$unexpected'"
+  fi
+}
+
+[[ -f "$HOOK_PATH" ]] || fail "missing hook script"
+for hooks_manifest in "$CLAUDE_HOOKS_JSON" "$CODEX_HOOKS_JSON" "$GEMINI_HOOKS_JSON" "$CURSOR_HOOKS_JSON" "$COPILOT_HOOKS_JSON"; do
+  [[ -f "$hooks_manifest" ]] || fail "missing hooks manifest: $hooks_manifest"
+done
+[[ -f "$CORE_PROMPT" ]] || fail "missing core prompt"
+[[ -f "$INTERACTION_PROMPT" ]] || fail "missing interaction contract prompt"
+[[ ! -f "$ROOT_DIR/runtime/prompts/skills.md" ]] || fail "retired skills prompt remains"
+node --check "$HOOK_PATH"
+node -e '
+const fs = require("fs");
+const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};
+if (!Array.isArray(hooks.SessionStart) || hooks.SessionStart.length !== 1) process.exit(1);
+if (hooks.SessionStart[0]?.matcher !== "startup|resume|clear|compact") process.exit(1);
+if (hooks.UserPromptSubmit || hooks.SessionEnd) process.exit(1);
+' "$CODEX_HOOKS_JSON" || fail "Codex hooks manifest does not expose only SessionStart"
+node -e '
+const fs = require("fs");
+const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};
+if (!Array.isArray(hooks.SessionStart) || hooks.SessionStart.length !== 1) process.exit(1);
+if (hooks.SessionStart[0]?.matcher !== "startup|resume|clear|compact|fork") process.exit(1);
+' "$CLAUDE_HOOKS_JSON" || fail "Claude hooks manifest does not preserve lifecycle starts"
+node -e '
+const fs = require("fs");
+const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};
+if (!Array.isArray(hooks.SessionStart) || hooks.SessionStart.length !== 1) process.exit(1);
+if (Object.prototype.hasOwnProperty.call(hooks.SessionStart[0], "matcher")) process.exit(1);
+' "$GEMINI_HOOKS_JSON" || fail "Gemini hooks manifest does not expose SessionStart"
+node -e '
+const fs = require("fs");
+const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};
+if (!Array.isArray(hooks.sessionStart) || hooks.sessionStart.length !== 1) process.exit(1);
+' "$CURSOR_HOOKS_JSON" || fail "Cursor hooks manifest does not expose sessionStart"
+node -e '
+const fs = require("fs");
+const config = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+if (config.version !== 1 || !Array.isArray(config.hooks?.SessionStart) || config.hooks.SessionStart.length !== 1) process.exit(1);
+' "$COPILOT_HOOKS_JSON" || fail "Copilot hooks manifest does not expose versioned SessionStart"
+
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+mkdir -p "$tmp_dir/.freeflow"
+printf '{}\n' >"$tmp_dir/.freeflow/config.json"
+
+codex_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
+disabled_by_env="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | FREEFLOW_DISABLE_RUNTIME_CONTEXT=1 node "$HOOK_PATH" SessionStart)"
+[[ -z "$disabled_by_env" ]] || fail "FREEFLOW_DISABLE_RUNTIME_CONTEXT=1 should suppress injection"
+
+for unsupported_event in PostToolUse UserPromptSubmit SessionEnd; do
+  unsupported_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | node "$HOOK_PATH" "$unsupported_event")"
+  [[ -z "$unsupported_output" ]] || fail "$unsupported_event should not inject runtime context"
+done
+
+for expected in \
+  '"hookEventName":"SessionStart"' \
+  "# Freeflow Stable Guidance" \
+  "## Terms" \
+  "## How Freeflow Works" \
+  "## Recover After Context Loss" \
+  "# Freeflow Interaction Contract" \
+  "Only a request to act authorizes action." \
+  "# Freeflow Working Method" \
+  "Claim only what you observed." \
+  "Freeflow: active"; do
+  assert_contains "$codex_output" "$expected" "configured core context"
+done
+assert_not_contains "$codex_output" "## Mode" "configured core context"
+assert_not_contains "$codex_output" "Default mode" "configured core context"
+assert_not_contains "$codex_output" "Active mode" "configured core context"
+assert_not_contains "$codex_output" "Interaction Contract: enabled" "configured core context"
+assert_not_contains "$codex_output" "Skills: enabled" "configured core context"
+assert_not_contains "$codex_output" "session-modes" "configured core context"
+
+# Empty mandatory fragments fail closed rather than emitting a partial active surface.
+whitespace_root="$(mktemp -d)"
+mkdir -p "$whitespace_root/hooks" "$whitespace_root/runtime/prompts" "$whitespace_root/repo/.freeflow"
+cp "$HOOK_PATH" "$whitespace_root/hooks/freeflow-runtime-context.mjs"
+mkdir -p "$whitespace_root/hooks/adapters" "$whitespace_root/hooks/shared"
+cp "$ROOT_DIR/hooks/adapters/codex-session-start.mjs" "$whitespace_root/hooks/adapters/codex-session-start.mjs"
+cp "$ROOT_DIR/hooks/shared/runtime-context.mjs" "$whitespace_root/hooks/shared/runtime-context.mjs"
+cp -R "$ROOT_DIR/runtime/prompts/." "$whitespace_root/runtime/prompts/"
+# The renderer validates config with Pi's built validator.
+for validator in host/config-validation.js host/config-store.js host/catalog.js host/canonical.js cognitive-routing/types.js tool-execution/config.js compaction/config.js messaging/config.js; do
+  mkdir -p "$(dirname "$whitespace_root/pi-extension/dist/$validator")"
+  cp "$ROOT_DIR/pi-extension/dist/$validator" "$whitespace_root/pi-extension/dist/$validator"
+done
+printf ' \n\t\n' >"$whitespace_root/runtime/prompts/core.md"
+printf '{}\n' >"$whitespace_root/repo/.freeflow/config.json"
+whitespace_output="$(printf '{\"cwd\":\"%s\"}\n' "$whitespace_root/repo" | node "$whitespace_root/hooks/freeflow-runtime-context.mjs" SessionStart)"
+[[ -z "$whitespace_output" ]] || fail "whitespace-only mandatory prompt should fail closed"
+# The Working Method is optional, as on Pi: without it the core is still delivered.
+cp "$CORE_PROMPT" "$whitespace_root/runtime/prompts/core.md"
+rm "$whitespace_root/runtime/prompts/working-method.md"
+no_method_output="$(printf '{\"cwd\":\"%s\"}\n' "$whitespace_root/repo" | node "$whitespace_root/hooks/freeflow-runtime-context.mjs" SessionStart)"
+assert_contains "$no_method_output" "# Freeflow Interaction Contract" "missing Working Method"
+assert_not_contains "$no_method_output" "# Freeflow Working Method" "missing Working Method"
+rm -rf "$whitespace_root"
+
+claude_output="$(printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s"}\n' "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$claude_output" '"hookEventName":"SessionStart"' "Claude wrapper"
+assert_contains "$claude_output" "# Freeflow Interaction Contract" "Claude core context"
+assert_contains "$claude_output" "## Terms" "Claude core context"
+assert_contains "$claude_output" "Freeflow: active" "Claude core context"
+
+# Every supported lifecycle start receives the same mandatory core surface.
+for source in startup resume clear compact; do
+  output="$(printf '{"hook_event_name":"SessionStart","source":"%s","cwd":"%s"}\n' "$source" "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
+  assert_contains "$output" "# Freeflow Stable Guidance" "$source SessionStart context"
+  assert_contains "$output" "# Freeflow Interaction Contract" "$source SessionStart context"
+  assert_contains "$output" "# Freeflow Working Method" "$source SessionStart context"
+  assert_contains "$output" "Freeflow: active" "$source SessionStart context"
+done
+
+# Pi-only configuration remains isolated from the shared non-Pi hook.
+cognitive_dir="$(mktemp -d)"
+mkdir -p "$cognitive_dir/.freeflow"
+printf '{"cognitiveRouting":{"enabled":true}}\n' >"$cognitive_dir/.freeflow/config.json"
+cognitive_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$cognitive_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$cognitive_output" "# Freeflow Stable Guidance" "Pi-only capability tolerance"
+assert_not_contains "$cognitive_output" "Cognitive Routing" "non-Pi capability isolation"
+rm -rf "$cognitive_dir"
+
+# Old mode and core-toggle configuration is a breaking invalidation, not a compatibility path. `skills.enabled` is
+# valid again, as the master switch over the skills.
+for obsolete_config in \
+  '{"defaultMode":"workflow"}' \
+  '{"interactionContract":false}' \
+  '{"skills":{"enabled":"no"}}'; do
+  obsolete_dir="$(mktemp -d)"
+  mkdir -p "$obsolete_dir/.freeflow"
+  printf '%s\n' "$obsolete_config" >"$obsolete_dir/.freeflow/config.json"
+  obsolete_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$obsolete_dir" | node "$HOOK_PATH" SessionStart)"
+  assert_contains "$obsolete_output" "# Freeflow Configuration Error" "obsolete config: $obsolete_config"
+  assert_not_contains "$obsolete_output" "# Freeflow Stable Guidance" "obsolete config: $obsolete_config"
+  rm -rf "$obsolete_dir"
+done
+
+# No prompt-submit or clear-transfer path may create or consume legacy session state.
+state_dir="$(mktemp -d)"
+printf '{"hook_event_name":"UserPromptSubmit","session_id":"old-session","cwd":"%s","prompt":"Switch to conversation mode."}\n' "$tmp_dir" |
+  PLUGIN_DATA="$state_dir" node "$HOOK_PATH" UserPromptSubmit >/dev/null
+printf '{"hook_event_name":"SessionEnd","reason":"clear","session_id":"old-session","cwd":"%s"}\n' "$tmp_dir" |
+  PLUGIN_DATA="$state_dir" node "$HOOK_PATH" SessionEnd >/dev/null
+[[ ! -e "$state_dir/session-modes" ]] || fail "legacy session-mode state directory was created"
+rm -rf "$state_dir"
+
+# Missing, invalid, disabled, and invalid-local activation remain inert; an existing invalid file is reported.
+missing_dir="$(mktemp -d)"
+invalid_dir="$(mktemp -d)"
+mkdir -p "$invalid_dir/.freeflow"
+printf '{invalid\n' >"$invalid_dir/.freeflow/config.json"
+missing_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$missing_dir" | node "$HOOK_PATH" SessionStart)"
+invalid_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$invalid_dir" | node "$HOOK_PATH" SessionStart)"
+[[ -z "$missing_output" ]] || fail "missing config should not activate runtime context"
+assert_contains "$invalid_output" "# Freeflow Configuration Error" "invalid config"
+assert_contains "$invalid_output" ".freeflow/config.json is invalid" "invalid config"
+assert_not_contains "$invalid_output" "# Freeflow Stable Guidance" "invalid config"
+rm -rf "$missing_dir" "$invalid_dir"
+
+legacy_repo_dir="$(mktemp -d)"
+mkdir -p "$legacy_repo_dir/.freeflow"
+printf '{"contextVirtualization":false,"conversationHistory":true}\n' >"$legacy_repo_dir/.freeflow/config.json"
+legacy_repo_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$legacy_repo_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$legacy_repo_output" "# Freeflow Configuration Error" "removed repository context settings"
+assert_contains "$legacy_repo_output" "contextVirtualization, conversationHistory" "removed repository context settings"
+assert_contains "$legacy_repo_output" ".freeflow/config.json" "removed repository context settings"
+if [[ "$legacy_repo_output" == *"# Freeflow Stable Guidance"* ]]; then
+  fail "removed repository context settings must not activate Freeflow core"
+fi
+rm -rf "$legacy_repo_dir"
+
+legacy_local_dir="$(mktemp -d)"
+mkdir -p "$legacy_local_dir/.freeflow"
+printf '{}\n' >"$legacy_local_dir/.freeflow/config.json"
+printf '{"conversationHistory":false}\n' >"$legacy_local_dir/.freeflow/local.json"
+legacy_local_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$legacy_local_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$legacy_local_output" "# Freeflow Configuration Error" "removed local context setting"
+assert_contains "$legacy_local_output" "conversationHistory" "removed local context setting"
+assert_contains "$legacy_local_output" ".freeflow/local.json" "removed local context setting"
+if [[ "$legacy_local_output" == *"# Freeflow Stable Guidance"* ]]; then
+  fail "removed local context setting must not activate Freeflow core"
+fi
+rm -rf "$legacy_local_dir"
+
+disabled_dir="$(mktemp -d)"
+mkdir -p "$disabled_dir/.freeflow"
+printf '{"enabled":false}\n' >"$disabled_dir/.freeflow/config.json"
+disabled_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$disabled_dir" | node "$HOOK_PATH" SessionStart)"
+[[ -z "$disabled_output" ]] || fail "disabled Freeflow should suppress hook prompt delivery"
+rm -rf "$disabled_dir"
+
+invalid_local_dir="$(mktemp -d)"
+mkdir -p "$invalid_local_dir/.freeflow"
+printf '{}\n' >"$invalid_local_dir/.freeflow/config.json"
+printf '{"enabled":"no"}\n' >"$invalid_local_dir/.freeflow/local.json"
+invalid_local_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$invalid_local_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$invalid_local_output" ".freeflow/local.json is invalid: enabled must be a boolean" "invalid local config"
+assert_not_contains "$invalid_local_output" "# Freeflow Stable Guidance" "invalid local config should fail closed"
+rm -rf "$invalid_local_dir"
+
+# Personal disablement remains separate from shared activation.
+local_disabled_dir="$(mktemp -d)"
+mkdir -p "$local_disabled_dir/.freeflow"
+printf '{}\n' >"$local_disabled_dir/.freeflow/config.json"
+printf '{"enabled":false}\n' >"$local_disabled_dir/.freeflow/local.json"
+local_disabled_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$local_disabled_dir" | node "$HOOK_PATH" SessionStart)"
+[[ -z "$local_disabled_output" ]] || fail "local master override should suppress hook prompt delivery"
+rm -rf "$local_disabled_dir"
+
+# Repo-owned host instructions are not activation markers and are not modified.
+printf '# Repo agents\n\nKeep this guidance.\n' >"$tmp_dir/AGENTS.md"
+printf '# Repo Claude\n\nKeep this guidance too.\n' >"$tmp_dir/CLAUDE.md"
+cp "$tmp_dir/AGENTS.md" "$tmp_dir/AGENTS.before"
+cp "$tmp_dir/CLAUDE.md" "$tmp_dir/CLAUDE.before"
+host_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$host_output" "# Freeflow Interaction Contract" "host-independent activation"
+cmp -s "$tmp_dir/AGENTS.before" "$tmp_dir/AGENTS.md" || fail "hook modified AGENTS.md"
+cmp -s "$tmp_dir/CLAUDE.before" "$tmp_dir/CLAUDE.md" || fail "hook modified CLAUDE.md"
+
+echo "runtime-context hook checks passed"

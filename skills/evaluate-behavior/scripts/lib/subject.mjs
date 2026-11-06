@@ -3,8 +3,11 @@
 // observed into the arm's run record. Everything that depends on the host program lives in its adapter.
 
 import { createHash } from "node:crypto";
+import { existsSync, lstatSync, readdirSync } from "node:fs";
 import { mkdir, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
+
+import { readLog, summarize } from "../../../track-work/scripts/lib/events5.mjs";
 
 import { baseProcessEnvironment } from "./process.mjs";
 import { writeFreeflowSettings } from "./freeflow.mjs";
@@ -87,6 +90,8 @@ export async function runBody({
       container: declaredContainer,
       workspace: subject.workspace,
       resources: subject.resourceRoots,
+      writable: subject.writableRoots,
+      environment: subject.containerEnvironment,
     });
     subject.processEnvironment.SKILL_EVAL_CONTAINER = containerTarget(container);
   }
@@ -222,10 +227,59 @@ function subjectRun({ group, variant }, subject, observation) {
       stderr: subject.stderrFile,
     },
   };
+  // A Claude Code Freeflow arm's own event log, read from its store: what Freeflow did and its overhead (SPEC-011 4.2).
+  if (subject.freeflowHome) run.freeflowEvents = freeflowEvents(subject.freeflowHome, path.dirname(subject.eventsFile));
   // Run-metrics hooks derive their fields from what this run already recorded.
   const metrics = runMetrics({ group, arm: variant, subject, observation, run });
   if (metrics !== null) run.metrics = metrics;
   return run;
+}
+
+/**
+ * A Freeflow arm's event log, from the `events/` of its store: each session's log (relative to the run's folder), how
+ * many lines they hold, and `events summary`'s summary of them, overhead and list-price cost included. A run whose
+ * log holds no line is invalid (validity.mjs): the plugin did not run, so the run is never counted as Freeflow's.
+ *
+ * @param {string} home the arm's FREEFLOW_HOME
+ * @param {string} runDirectory the run's folder
+ */
+export function freeflowEvents(home, runDirectory) {
+  const folder = path.join(home, "events");
+  // The subject may write the store, so a link in events/ (or events/ itself a link) is never read through: it is
+  // named under `refused` and left out (readLog refuses a link too, should one be swapped in after this look).
+  const folderIsLink = lstatSync(folder, { throwIfNoEntry: false })?.isSymbolicLink() === true;
+  const entries =
+    existsSync(folder) && !folderIsLink
+      ? readdirSync(folder, { withFileTypes: true })
+          .filter((entry) => entry.name.endsWith(".jsonl"))
+          .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
+      : [];
+  const refused = folderIsLink ? ["events"] : [];
+  const files = [];
+  const lines = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      refused.push(`events/${entry.name}`);
+      continue;
+    }
+    try {
+      lines.push(...readLog(path.join(folder, entry.name)).lines);
+      files.push(entry.name);
+    } catch (error) {
+      if (error?.code !== "link-refused") throw error;
+      refused.push(`events/${entry.name}`);
+    }
+  }
+  lines.sort((left, right) => String(left.ts).localeCompare(String(right.ts)) || (left.seq ?? 0) - (right.seq ?? 0));
+  return {
+    required: true,
+    home: path.relative(runDirectory, home),
+    logs: files.map((name) => path.relative(runDirectory, path.join(folder, name))),
+    lines: lines.length,
+    ...(refused.length ? { refused } : {}),
+    summary:
+      lines.length === 0 ? null : summarize(lines, { session: files.map((name) => name.slice(0, -6)).join(",") }),
+  };
 }
 
 async function runOneShotDescription(options) {
@@ -391,6 +445,8 @@ async function prepareSubject(
       sessionDirectory,
       model: group.variants[variant].model,
       freeflowEntry: freeflow?.entry ?? null,
+      // Claude Code loads the whole package as a plugin (SPEC-011 4.2).
+      freeflowRoot: freeflow?.packageRoot ?? null,
       hostExtensions,
       workspace,
       variantDirectory,
@@ -420,6 +476,12 @@ async function prepareSubject(
           },
     // Where the built Freeflow package lies, so metrics can tell its skill reads apart; not recorded in run.json.
     freeflowRoot: freeflow?.packageRoot ?? null,
+    // A Claude Code Freeflow arm's own store (FREEFLOW_HOME), where its event log is written; null otherwise.
+    freeflowHome: launch.freeflowHome ?? null,
+    // Folders beside the workspace the subject may write, mounted read-write in its container: the arm's store.
+    writableRoots: launch.writableRoots ?? [],
+    // Variables the subject's container starts with, so its bash finds them as the host's does.
+    containerEnvironment: launch.containerEnvironment ?? {},
     runtime: materializedRuntime,
     host,
     fixture,
@@ -447,6 +509,8 @@ async function prepareSubject(
       }),
       // A declared shell lets the guard allow bash; its isolation extension runs it.
       ...(group.variants[variant].shell ? { SKILL_EVAL_SHELL: JSON.stringify(group.variants[variant].shell) } : {}),
+      // The guard lets the file tools read and write these too.
+      ...(launch.writableRoots?.length ? { SKILL_EVAL_WRITABLE_ROOTS: JSON.stringify(launch.writableRoots) } : {}),
       // Last, so nothing inherited or declared can point the subject back at the parent's home or Pi settings.
       ...isolation.environment,
     },

@@ -10,13 +10,15 @@
 
 import { execFile as execFileCallback } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { FREEFLOW_STORE_KIND, isFreeflowStore, STORE_MARKER, StoreError } from "./store.mjs";
 import { DEFAULT_TABLE, ROUTING_FILE } from "./routing5.mjs";
+import { writeNoFollow } from "./no-follow.mjs";
+import { gitRefused } from "./untrusted.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -41,9 +43,36 @@ function fail(code, message, exitCode = 1) {
   throw new StoreError(code, message, {}, exitCode);
 }
 
+/**
+ * Options every Git command in the store runs with: a repository someone planted inside the store's files (a folder
+ * with its own .git) is never looked into, so its configuration, such as core.fsmonitor, never runs. A store holds no
+ * submodules of its own.
+ */
+const STORE_GIT = [
+  "-c",
+  "diff.ignoreSubmodules=all",
+  "-c",
+  "submodule.recurse=false",
+  "-c",
+  "fetch.recurseSubmodules=false",
+];
+
+/**
+ * The variable that leaves the store's commits to the host: set (to 1) where Track Work runs beside a host that
+ * commits the store itself, such as inside an evaluation's container whose store's .git is read-only, store sync
+ * commits and syncs nothing and says the host commits.
+ */
+export const HOST_COMMITS = "FREEFLOW_HOST_COMMITS";
+export const HOST_COMMITS_TEXT = `Store: not committed here; the host commits it (${HOST_COMMITS} is set).`;
+
 async function git(cwd, args, { allowFailure = false } = {}) {
+  if (gitRefused(cwd)) {
+    const why = `Track Work runs no Git in ${cwd}: it is in a folder FREEFLOW_UNTRUSTED_ROOTS names`;
+    if (!allowFailure) fail("git-refused", why);
+    return { ok: false, stdout: "", stderr: why };
+  }
   try {
-    const { stdout } = await execFile("git", ["-C", cwd, ...args], { maxBuffer: 16 * 1024 * 1024 });
+    const { stdout } = await execFile("git", ["-C", cwd, ...STORE_GIT, ...args], { maxBuffer: 16 * 1024 * 1024 });
     return { ok: true, stdout: stdout.trim() };
   } catch (error) {
     if (!allowFailure)
@@ -129,7 +158,7 @@ async function identity(home, { name, email }) {
 /** Writes the sync state to local/, which only this machine reads. */
 async function recordSync(home, state) {
   await mkdir(join(home, "local"), { recursive: true });
-  await writeFile(
+  await writeNoFollow(
     join(home, "local", "sync.json"),
     `${JSON.stringify({ at: new Date().toISOString(), ...state }, null, 2)}\n`,
   );
@@ -151,21 +180,24 @@ export async function ensureUnionMerge(home) {
   const have = new Set(text.split(/\r?\n/).map((line) => line.trim()));
   const missing = STORE_ATTRIBUTES.filter((line) => !have.has(line));
   if (!missing.length) return;
-  await writeFile(path, `${text.replace(/\s*$/, "")}${text.trim() ? "\n" : ""}${missing.join("\n")}\n`);
+  await writeNoFollow(path, `${text.replace(/\s*$/, "")}${text.trim() ? "\n" : ""}${missing.join("\n")}\n`);
 }
 
 /** Writes the store's layout in a repository with no commit yet, on main, and commits it. */
 async function layOut(home) {
   await git(home, ["symbolic-ref", "HEAD", `refs/heads/${BRANCH}`]);
-  await writeFile(join(home, STORE_MARKER), `${JSON.stringify({ kind: FREEFLOW_STORE_KIND, version: 1 }, null, 2)}\n`);
-  await writeFile(join(home, ".gitignore"), `${STORE_IGNORE.join("\n")}\n`);
-  await writeFile(join(home, ".gitattributes"), `${STORE_ATTRIBUTES.join("\n")}\n`);
+  await writeNoFollow(
+    join(home, STORE_MARKER),
+    `${JSON.stringify({ kind: FREEFLOW_STORE_KIND, version: 1 }, null, 2)}\n`,
+  );
+  await writeNoFollow(join(home, ".gitignore"), `${STORE_IGNORE.join("\n")}\n`);
+  await writeNoFollow(join(home, ".gitattributes"), `${STORE_ATTRIBUTES.join("\n")}\n`);
   for (const folder of FOLDERS) {
     await mkdir(join(home, folder), { recursive: true });
-    await writeFile(join(home, folder, ".gitkeep"), "");
+    await writeNoFollow(join(home, folder, ".gitkeep"), "");
   }
   // The default routing table (SPEC-010 T2): the user's from here on, and only the user edits it.
-  await writeFile(join(home, ROUTING_FILE), DEFAULT_TABLE);
+  await writeNoFollow(join(home, ROUTING_FILE), DEFAULT_TABLE);
   await git(home, ["add", "--all"]);
   await git(home, ["commit", "--quiet", "--no-verify", "-m", "Create the Freeflow store"]);
 }
@@ -448,7 +480,9 @@ const lastLine = (text, fallback) => {
 
 /** Git's output exactly as printed, for file contents and patches. */
 async function gitRaw(cwd, args) {
-  const { stdout } = await execFile("git", ["-C", cwd, ...args], { maxBuffer: 64 * 1024 * 1024 });
+  if (gitRefused(cwd))
+    fail("git-refused", `Track Work runs no Git in ${cwd}: it is in a folder FREEFLOW_UNTRUSTED_ROOTS names`);
+  const { stdout } = await execFile("git", ["-C", cwd, ...STORE_GIT, ...args], { maxBuffer: 64 * 1024 * 1024 });
   return stdout;
 }
 
@@ -456,10 +490,35 @@ async function remoteBranch(home) {
   return (await git(home, ["rev-parse", "--verify", "--quiet", `origin/${BRANCH}`], { allowFailure: true })).ok;
 }
 
+/**
+ * The folders inside the store, as paths relative to it, that hold a repository of their own (a `.git` file or
+ * folder). A store has none; one someone planted is left out of every commit, since `git add` looks into a repository
+ * it records (running its configuration, such as core.fsmonitor, whatever submodule options it is given). Links are
+ * not followed.
+ *
+ * @param {string} home
+ */
+async function nestedRepositories(home) {
+  const found = [];
+  const walk = async (folder, inside) => {
+    for (const entry of await readdir(folder, { withFileTypes: true })) {
+      if (entry.name === ".git") {
+        if (inside) found.push(inside);
+      } else if (entry.isDirectory())
+        await walk(join(folder, entry.name), inside ? `${inside}/${entry.name}` : entry.name);
+    }
+  };
+  await walk(home, "");
+  return found;
+}
+
 async function commitChanges(home, message) {
   const changed = (await git(home, ["status", "--porcelain"])).stdout.split("\n").filter(Boolean);
   if (changed.length === 0) return 0;
-  await git(home, ["add", "--all"]);
+  const nested = await nestedRepositories(home);
+  await git(home, ["add", "--all", "--", ".", ...nested.map((folder) => `:(exclude,literal)${folder}`)]);
+  // What changed may be only a planted repository, which is left out: then there is nothing to commit.
+  if ((await git(home, ["diff", "--cached", "--name-only"])).stdout === "") return 0;
   await git(home, [
     "commit",
     "--quiet",
@@ -541,9 +600,9 @@ async function rebaseOntoRemote(home, { resolved = false } = {}) {
   for (const path of paths) {
     const copy = join(home, CONFLICT_COPIES, path);
     await mkdir(dirname(copy), { recursive: true });
-    await writeFile(copy, await gitRaw(home, ["show", `origin/${BRANCH}:${path}`]).catch(() => ""));
+    await writeNoFollow(copy, await gitRaw(home, ["show", `origin/${BRANCH}:${path}`]).catch(() => ""));
   }
-  await writeFile(join(home, CONFLICT), `${JSON.stringify({ at: new Date().toISOString(), paths }, null, 2)}\n`);
+  await writeNoFollow(join(home, CONFLICT), `${JSON.stringify({ at: new Date().toISOString(), paths }, null, 2)}\n`);
   await recordSync(home, { pushed: false, result: "conflict", reason: paths.join(", ") });
   fail(
     "sync-conflict",
@@ -555,13 +614,15 @@ async function rebaseOntoRemote(home, { resolved = false } = {}) {
  * Commits what changed, takes the remote's commits under the local ones, and pushes, after the secret scan. A push
  * refused because the remote moved takes its commits and tries again; no network or no access leaves the commits
  * here and says so, without failing: work never waits on the network. With `pull`, nothing is pushed. A conflict
- * stops until `resolved`.
+ * stops until `resolved`. With FREEFLOW_HOST_COMMITS=1 it does nothing and says the host commits.
  *
  * @param {{ home?: string, message?: string, pull?: boolean, resolved?: boolean }} options
  */
 export async function syncStore({ home: explicit, message, pull = false, resolved = false, push = true }) {
   const home = storeHome(explicit);
   requireStore(home);
+  if (process.env[HOST_COMMITS] === "1")
+    return { home, committed: 0, pulled: false, pushed: false, hostCommits: true, reason: HOST_COMMITS_TEXT };
   const conflict = await pendingConflict(home);
   if (conflict && !resolved)
     fail(

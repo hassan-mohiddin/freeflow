@@ -508,6 +508,25 @@ function commandOf(tool, input) {
   return undefined;
 }
 
+/**
+ * The size of a tool's result in characters (SPEC-011 4.1), where its response is text, holds its text as `output`
+ * or `stdout`, or as content blocks; otherwise none.
+ * @param {unknown} response
+ */
+function resultChars(response) {
+  if (typeof response === "string") return response.length;
+  if (!response || typeof response !== "object") return undefined;
+  const value = /** @type {Record<string, unknown>} */ (response);
+  for (const key of ["output", "stdout"]) if (typeof value[key] === "string") return String(value[key]).length;
+  if (Array.isArray(value.content))
+    return value.content.reduce(
+      (/** @type {number} */ sum, /** @type {any} */ block) =>
+        sum + (typeof block?.text === "string" ? block.text.length : 0),
+      0,
+    );
+  return undefined;
+}
+
 /** Whether the tool's response says it failed; Codex documents no exit code, so a plain output counts as ran. */
 function failed(response) {
   if (!response || typeof response !== "object") return false;
@@ -836,6 +855,7 @@ function postToolUse(ctx) {
         paths: paths.length ? paths : undefined,
         command,
         source: ours ? "freeflow" : "agent",
+        outChars: resultChars(ctx.input.tool_response),
       },
       agentOf(ctx),
     );

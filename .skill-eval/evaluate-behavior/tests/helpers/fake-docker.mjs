@@ -64,9 +64,9 @@ if (command === "version") {
 } else if (command === "create") {
   const { options, volumes } = parseRun(rest);
   const [source, target] = volumes[0].split(":");
-  // Further volumes are read-only resources mounted at their own host path.
+  // Further volumes are mounted at their own host path: read-only resources, or a writable folder (path:path).
   const resources = volumes.slice(1).map((volume) => volume.split(":"));
-  if (resources.some(([from, to, mode]) => from !== to || mode !== "ro")) fail("fake docker: a resource mount must be path:path:ro");
+  if (resources.some(([from, to, mode]) => from !== to || (mode !== "ro" && mode !== undefined))) fail("fake docker: a further mount must be path:path or path:path:ro");
   writeFileSync(stateFile(options["--name"]), JSON.stringify({ source, target, links: {}, resources: resources.map(([from]) => from) }));
   process.stdout.write("fake-container-id\\n");
 } else if (command === "start") {

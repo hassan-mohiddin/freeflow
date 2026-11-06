@@ -33,17 +33,7 @@
     "plain": {
       "freeflow": null
     },
-    "freeflow": {},
-    "freeflow-te": {
-      "freeflow": {
-        "repository": {
-          "toolExecution": {
-            "enabled": true,
-            "guidanceNotices": true
-          }
-        }
-      }
-    }
+    "freeflow": {}
   },
   "participants": {
     "protocol": "conversation",
@@ -105,29 +95,6 @@
       }
     },
     {
-      "id": "freeflow-te-hidden-tests",
-      "kind": "command",
-      "variant": "freeflow-te",
-      "comparison": "hidden-tests",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
-      "files": {
-        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/report-dates.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": [
-            "fvp: valid dates print exactly as before",
-            "fvp: missing or unreadable dates print exactly as before",
-            "fvp: the date is formatted in one place",
-            "fvp: the existing tests still pass"
-          ]
-        }
-      }
-    },
-    {
       "id": "plain-marker-tests-kept",
       "kind": "command",
       "variant": "plain",
@@ -164,24 +131,6 @@
       }
     },
     {
-      "id": "freeflow-te-marker-tests-kept",
-      "kind": "command",
-      "variant": "freeflow-te",
-      "comparison": "marker-tests-kept",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
-      "files": {
-        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": ["fvp: the existing tests are kept unchanged"]
-        }
-      }
-    },
-    {
       "id": "plain-marker-ask-user",
       "kind": "tool-call",
       "variant": "plain",
@@ -193,14 +142,6 @@
       "id": "freeflow-marker-ask-user",
       "kind": "tool-call",
       "variant": "freeflow",
-      "comparison": "marker-ask-user",
-      "tool": "ask_user",
-      "expect": "called"
-    },
-    {
-      "id": "freeflow-te-marker-ask-user",
-      "kind": "tool-call",
-      "variant": "freeflow-te",
       "comparison": "marker-ask-user",
       "tool": "ask_user",
       "expect": "called"

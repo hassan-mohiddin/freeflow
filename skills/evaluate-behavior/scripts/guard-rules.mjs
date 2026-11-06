@@ -93,13 +93,26 @@ const CONTAINER_LIFETIME = [
 ].join("\n");
 
 /**
+ * The variables a harness gives the subject's bash that say which session it is, passed by name into its container
+ * (a name the host's bash lacks is not set there), so Track Work run in the container knows the session as on the
+ * host (SPEC-011 4.2).
+ */
+export const SESSION_VARIABLES = [
+  "CLAUDE_CODE_SESSION_ID",
+  "FREEFLOW_SESSION",
+  "FREEFLOW_HARNESS",
+  "FREEFLOW_CONTEXT_WINDOW",
+];
+
+/**
  * The host command that runs `command` in the subject's container: the docker client, given a stdin that stays open
  * for as long as it runs (a FIFO opened read-write, which never ends and is removed at once), runs the lifetime
  * wrapper, which runs the command at the container's working directory.
  */
 export function containerCommand(target, command) {
   const host = typeof target.host === "string" && target.host !== "" ? `--host ${shellQuote(target.host)} ` : "";
-  const exec = `docker ${host}exec -i --workdir ${shellQuote(target.workdir)} ${shellQuote(target.name)} sh -c ${shellQuote(CONTAINER_LIFETIME)} sh ${shellQuote(command)}`;
+  const forwarded = SESSION_VARIABLES.map((name) => `--env ${name} `).join("");
+  const exec = `docker ${host}exec -i ${forwarded}--workdir ${shellQuote(target.workdir)} ${shellQuote(target.name)} sh -c ${shellQuote(CONTAINER_LIFETIME)} sh ${shellQuote(command)}`;
   return `skill_eval_in=$(mktemp -d) && mkfifo "$skill_eval_in/in" && { rm -rf "$skill_eval_in"; ${exec}; } <>"$skill_eval_in/in"`;
 }
 
@@ -218,9 +231,15 @@ export function guardState(environment) {
   const allowedRoots = parseStringArray(environment.SKILL_EVAL_ALLOWED_ROOTS).map((root) => realpathSync(root));
   const writableRootValue = environment.SKILL_EVAL_WRITABLE_ROOT;
   if (!writableRootValue) throw new Error("SKILL_EVAL_WRITABLE_ROOT is required");
+  // Folders beside the workspace the subject may also write and read, such as a Freeflow arm's store.
+  const extraWritable = parseStringArray(environment.SKILL_EVAL_WRITABLE_ROOTS).map((root) => realpathSync(root));
   return {
-    allowedRoots,
+    allowedRoots: [...allowedRoots, ...extraWritable],
     writableRoot: realpathSync(writableRootValue),
+    writableRoots: [realpathSync(writableRootValue), ...extraWritable],
+    // Their .git is the host's alone: the host runs Git there (the Freeflow arm's mod commits its store), so a write
+    // into it, such as core.fsmonitor in .git/config, would run on the host. The container mounts it read-only.
+    readOnlyRoots: extraWritable.map((root) => path.join(root, ".git")),
     allowedTools: new Set(parseStringArray(environment.SKILL_EVAL_ALLOWED_TOOLS)),
     shell: parseShell(environment.SKILL_EVAL_SHELL),
   };
@@ -239,6 +258,7 @@ export function guardState(environment) {
  */
 export function decideToolCall(state, toolName, input, cwd, environment) {
   const { allowedRoots, writableRoot, allowedTools, shell } = state;
+  const writableRoots = state.writableRoots ?? [writableRoot];
   if (!allowedTools.has(toolName)) {
     return { block: true, reason: `Tool is not declared for this evaluation: ${toolName}` };
   }
@@ -281,9 +301,13 @@ export function decideToolCall(state, toolName, input, cwd, environment) {
       reason: `${toolName} path cannot be resolved inside the evaluation environment: ${declared}`,
     };
   }
-  const roots = toolName === "read" || listing ? allowedRoots : [writableRoot];
+  const reading = toolName === "read" || listing;
+  const roots = reading ? allowedRoots : writableRoots;
   if (!roots.some((root) => isContained(root, canonical))) {
     return { block: true, reason: `${toolName} path escapes the evaluation environment: ${declared}` };
+  }
+  if (!reading && (state.readOnlyRoots ?? []).some((root) => isContained(root, canonical))) {
+    return { block: true, reason: `${toolName} path is in a .git only the host writes: ${declared}` };
   }
   return undefined;
 }

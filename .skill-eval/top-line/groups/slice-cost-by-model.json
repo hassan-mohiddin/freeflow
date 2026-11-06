@@ -1,0 +1,99 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "slice-cost-by-model",
+  "type": "body",
+  "input": {
+    "prompt": "The planner prices every Slice at roughly Opus prices because it takes the median over all past Slices, whatever model they ran on, so a Haiku Slice gets a cost way too high. Can you make a Slice's predicted cost come from past Slices run on its own model and effort?"
+  },
+  "fixture": {
+    "git": "49e764f4096aff9e72767ee38991a8abbab21180",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/slice-cost-by-model.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/planner5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/planner5.test.mjs": ".skill-eval/top-line/graders/slice-cost-by-model/.skill-eval/track-work/tests/planner5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "a Slice's prediction: the median of the first pool with three measured Slices, corrected by the geometric mean of actual over predicted, pulled toward none (P16)",
+            "slice start records the prediction beside the first reading, and slice close keeps it beside the actual",
+            "a Slice's cost comes from Slices run on its model and effort once three are measured, else from all, naming the model most of it was measured on; context and time from all (P8 of A-005)",
+            "a prediction whose cost was measured on another model than its Slice ran on corrects its context and time, not later costs",
+            "slice start and estimate --plan price by the model and effort of the transcript's newest request",
+            "estimate --plan lays the Slices left across compaction cycles, with the totals, the oversized and the parallel",
+            "estimate --plan before three Slices are measured anywhere: this compaction cycle's rate, from --done",
+            "Slices measured with --used carry context only: the prediction and the plan give no time or cost for them",
+            "estimate --project and --store add up what was measured, and size a task with nothing measured from others' data",
+            "a sized Slice: its files times the median per-file rate, corrected only by sized predictions, and a zero reading is not measured (P13 to P18)",
+            "slice start writes Size and Base, slice close writes Files from Base to HEAD, and slice size adds Files to an older Slice"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".skill-eval/track-work/tests/planner5.test.mjs"],
+      "files": {
+        ".skill-eval/track-work/tests/planner5.test.mjs": ".skill-eval/top-line/graders/slice-cost-by-model/.skill-eval/track-work/tests/planner5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "a Slice's prediction: the median of the first pool with three measured Slices, corrected by the geometric mean of actual over predicted, pulled toward none (P16)",
+            "slice start records the prediction beside the first reading, and slice close keeps it beside the actual",
+            "a Slice's cost comes from Slices run on its model and effort once three are measured, else from all, naming the model most of it was measured on; context and time from all (P8 of A-005)",
+            "a prediction whose cost was measured on another model than its Slice ran on corrects its context and time, not later costs",
+            "slice start and estimate --plan price by the model and effort of the transcript's newest request",
+            "estimate --plan lays the Slices left across compaction cycles, with the totals, the oversized and the parallel",
+            "estimate --plan before three Slices are measured anywhere: this compaction cycle's rate, from --done",
+            "Slices measured with --used carry context only: the prediction and the plan give no time or cost for them",
+            "estimate --project and --store add up what was measured, and size a task with nothing measured from others' data",
+            "a sized Slice: its files times the median per-file rate, corrected only by sized predictions, and a zero reading is not measured (P13 to P18)",
+            "slice start writes Size and Base, slice close writes Files from Base to HEAD, and slice size adds Files to an older Slice"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "25820f90c8cbccb8da760cce919f7c9470fab116"
+  }
+}

@@ -33,17 +33,7 @@
     "plain": {
       "freeflow": null
     },
-    "freeflow": {},
-    "freeflow-te": {
-      "freeflow": {
-        "repository": {
-          "toolExecution": {
-            "enabled": true,
-            "guidanceNotices": true
-          }
-        }
-      }
-    }
+    "freeflow": {}
   },
   "participants": {
     "protocol": "conversation",
@@ -107,30 +97,6 @@
       }
     },
     {
-      "id": "freeflow-te-hidden-tests",
-      "kind": "command",
-      "variant": "freeflow-te",
-      "comparison": "hidden-tests",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
-      "files": {
-        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/page-size-config.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": [
-            "fvp: the default page size is 50",
-            "fvp: PAGE_SIZE sets the page size",
-            "fvp: a PAGE_SIZE that is not a positive whole number is ignored",
-            "fvp: the command line pages by the configured size",
-            "fvp: a page still shows its issues and a footer"
-          ]
-        }
-      }
-    },
-    {
       "id": "plain-marker-new-test",
       "kind": "command",
       "variant": "plain",
@@ -167,24 +133,6 @@
       }
     },
     {
-      "id": "freeflow-te-marker-new-test",
-      "kind": "command",
-      "variant": "freeflow-te",
-      "comparison": "marker-new-test",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
-      "files": {
-        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": ["fvp: a new or changed test fails before the change and passes after"]
-        }
-      }
-    },
-    {
       "id": "plain-marker-ask-user",
       "kind": "tool-call",
       "variant": "plain",
@@ -196,14 +144,6 @@
       "id": "freeflow-marker-ask-user",
       "kind": "tool-call",
       "variant": "freeflow",
-      "comparison": "marker-ask-user",
-      "tool": "ask_user",
-      "expect": "called"
-    },
-    {
-      "id": "freeflow-te-marker-ask-user",
-      "kind": "tool-call",
-      "variant": "freeflow-te",
       "comparison": "marker-ask-user",
       "tool": "ask_user",
       "expect": "called"

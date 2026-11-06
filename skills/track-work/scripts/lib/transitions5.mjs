@@ -5,11 +5,11 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
 import { budgetFor, contextWindow, measureTask, measuredLines, sourceFiles, spaceRepositories } from "./budget5.mjs";
-import { storeHome, syncStore } from "./freeflow-store.mjs";
+import { HOST_COMMITS_TEXT, storeHome, syncStore } from "./freeflow-store.mjs";
 import {
   CLOSED_STATES,
   DECISIONS_FILE,
@@ -52,6 +52,8 @@ import { holdStart, summaryForTask } from "./events5.mjs";
 // projects5 imports this module too; both use the other's functions only when a command runs.
 import { readSessions, sessionIdentity } from "./projects5.mjs";
 import { REPOSITORIES_FILE, freeflowStoreOf, isFreeflowStore, writeAtomically, writeTaskFile } from "./store.mjs";
+import { writeNoFollow } from "./no-follow.mjs";
+import { gitRefused } from "./untrusted.mjs";
 
 function fail(code, message) {
   const error = new Error(message);
@@ -185,6 +187,7 @@ async function syncAfter(task, what) {
   const taskName = basename(dirname(task.loaded.path));
   try {
     const synced = await syncStore({ home, message: `${taskName}: ${what}` });
+    if (synced.hostCommits) return HOST_COMMITS_TEXT;
     const committed = synced.committed ? `committed ${synced.committed} path(s)` : "nothing to commit";
     if (synced.local) return `Store: ${committed}; a local store, nothing to push.`;
     return synced.pushed
@@ -578,6 +581,7 @@ async function closeAgreement(options, text, loaded) {
 }
 
 function git(directory, args) {
+  if (gitRefused(directory)) return null;
   try {
     return execFileSync("git", ["-C", directory, ...args], {
       encoding: "utf8",
@@ -624,7 +628,7 @@ export async function rememberRepository(home, state) {
   const known = JSON.parse(await readFile(path, "utf8").catch(() => "{}"));
   if (known[state.name] === state.top) return;
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify({ ...known, [state.name]: state.top }, null, 2)}\n`);
+  await writeNoFollow(path, `${JSON.stringify({ ...known, [state.name]: state.top }, null, 2)}\n`);
 }
 
 /**
@@ -901,7 +905,7 @@ export function compactionRequestPath(home, identity) {
 export async function writeCompactionRequest(home, identity) {
   const path = compactionRequestPath(home, identity);
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify({ requestedAt: new Date().toISOString(), done: false }, null, 2)}\n`);
+  await writeNoFollow(path, `${JSON.stringify({ requestedAt: new Date().toISOString(), done: false }, null, 2)}\n`);
 }
 
 /**
@@ -948,7 +952,7 @@ export async function checkpointSession({ home: explicit, identity, text }) {
   const home = storeHome(explicit);
   const path = sessionSummaryPath(home, identity);
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `# Session summary\n\nAs of: ${new Date().toISOString()}\n\n${lines.join("\n").trim()}\n`);
+  await writeNoFollow(path, `# Session summary\n\nAs of: ${new Date().toISOString()}\n\n${lines.join("\n").trim()}\n`);
   return `Session summary: ${path}. Freeflow's compaction installs it and removes it; nothing becomes a task.\n`;
 }
 

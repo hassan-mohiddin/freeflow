@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -119,6 +120,41 @@ test("a declared fixture must be a directory inside the repository, resolved fro
         ["file.json", "group file: declared fixture is not a directory: .skill-eval/family/fixtures/file"],
         ["relative.json", "group relative: declared fixture is missing or escapes the repository: fixtures/present"],
       ],
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a commit fixture must name a commit the repository has (SPEC-011 4.4)", async () => {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), "check-eval-definitions-")));
+  try {
+    const git = (...args) =>
+      execFileSync("git", ["-C", root, ...args], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          GIT_AUTHOR_NAME: "t",
+          GIT_AUTHOR_EMAIL: "t@t",
+          GIT_COMMITTER_NAME: "t",
+          GIT_COMMITTER_EMAIL: "t@t",
+        },
+      }).trim();
+    git("init", "-q");
+    await writeFile(path.join(root, "a.txt"), "a\n");
+    git("add", "a.txt");
+    git("commit", "-qm", "a");
+    const commit = git("rev-parse", "HEAD");
+    await writeJson(root, ".skill-eval/family/groups/known.json", { ...group("known"), fixture: { git: commit } });
+    await writeJson(root, ".skill-eval/family/groups/unknown.json", {
+      ...group("unknown"),
+      fixture: { git: "e".repeat(40) },
+    });
+    const { checked, failures } = await checkEvalDefinitions(root);
+    assert.equal(checked, 2);
+    assert.deepEqual(
+      failures.map((failure) => [path.basename(failure.file), failure.message]),
+      [["unknown.json", `group unknown: declared fixture commit is not in the repository: ${"e".repeat(40)}`]],
     );
   } finally {
     await rm(root, { recursive: true, force: true });

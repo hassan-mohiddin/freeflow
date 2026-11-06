@@ -1,0 +1,224 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "slice-size-by-files-ablation",
+  "type": "body",
+  "input": {
+    "prompt": "The planner predicts every Slice as the median one, so a one-line fix and a 200-file removal get the same figures. Can you size each Slice by the files it will touch when planning?"
+  },
+  "fixture": {
+    "git": "051e9395355d83486871a6a508232a70a75ccde8",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "freeflow": {},
+    "freeflow-no-track": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "track-work": false
+          }
+        }
+      }
+    },
+    "freeflow-no-gates": {
+      "freeflow": {
+        "repository": {
+          "gates": {
+            "agreement": "off",
+            "slice": "off",
+            "delivery": "off",
+            "delegation": "off"
+          }
+        }
+      }
+    },
+    "freeflow-no-review": {
+      "freeflow": {
+        "repository": {
+          "skills": {
+            "review-work": false
+          }
+        }
+      }
+    }
+  },
+  "reference": "freeflow",
+  "component": ["freeflow.repository"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/slice-size-by-files.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/planner5.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/discuss-work/tests/choices.test.mjs": ".skill-eval/top-line/graders/slice-size-by-files/.skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/planner5.test.mjs": ".skill-eval/top-line/graders/slice-size-by-files/.skill-eval/track-work/tests/planner5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "choices validates a list and refuses a broken one",
+            "a list with no items yet, such as a new task's decisions.md, is valid (P98)",
+            "the agreement shows the plan's size last (P101), and its Technical part the plan from estimate --plan --json (P87)",
+            "a sized plan: the Size line gives the range, the most likely cost and what it rests on, and each Slice its own figures (P18)",
+            "choices renders the agreement, the hand-over filter and the catch-up from the record",
+            "with a Schema 5 record, the list is decisions.md beside it and the catch-up reads the current Slice's update lines",
+            "a Slice's prediction: the median of the first pool with three measured Slices, corrected by the geometric mean of actual over predicted, pulled toward none (P16)",
+            "slice start records the prediction beside the first reading, and slice close keeps it beside the actual",
+            "estimate --plan lays the Slices left across compaction cycles, with the totals, the oversized and the parallel",
+            "estimate --plan before three Slices are measured anywhere: this compaction cycle's rate, from --done",
+            "Slices measured with --used carry context only: the prediction and the plan give no time or cost for them",
+            "estimate --project and --store add up what was measured, and size a task with nothing measured from others' data",
+            "a sized Slice: its files times the median per-file rate, corrected only by sized predictions, and a zero reading is not measured (P13 to P18)",
+            "slice start writes Size and Base, slice close writes Files from Base to HEAD, and slice size adds Files to an older Slice"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-track-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-track",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/planner5.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/discuss-work/tests/choices.test.mjs": ".skill-eval/top-line/graders/slice-size-by-files/.skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/planner5.test.mjs": ".skill-eval/top-line/graders/slice-size-by-files/.skill-eval/track-work/tests/planner5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "choices validates a list and refuses a broken one",
+            "a list with no items yet, such as a new task's decisions.md, is valid (P98)",
+            "the agreement shows the plan's size last (P101), and its Technical part the plan from estimate --plan --json (P87)",
+            "a sized plan: the Size line gives the range, the most likely cost and what it rests on, and each Slice its own figures (P18)",
+            "choices renders the agreement, the hand-over filter and the catch-up from the record",
+            "with a Schema 5 record, the list is decisions.md beside it and the catch-up reads the current Slice's update lines",
+            "a Slice's prediction: the median of the first pool with three measured Slices, corrected by the geometric mean of actual over predicted, pulled toward none (P16)",
+            "slice start records the prediction beside the first reading, and slice close keeps it beside the actual",
+            "estimate --plan lays the Slices left across compaction cycles, with the totals, the oversized and the parallel",
+            "estimate --plan before three Slices are measured anywhere: this compaction cycle's rate, from --done",
+            "Slices measured with --used carry context only: the prediction and the plan give no time or cost for them",
+            "estimate --project and --store add up what was measured, and size a task with nothing measured from others' data",
+            "a sized Slice: its files times the median per-file rate, corrected only by sized predictions, and a zero reading is not measured (P13 to P18)",
+            "slice start writes Size and Base, slice close writes Files from Base to HEAD, and slice size adds Files to an older Slice"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-gates-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-gates",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/planner5.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/discuss-work/tests/choices.test.mjs": ".skill-eval/top-line/graders/slice-size-by-files/.skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/planner5.test.mjs": ".skill-eval/top-line/graders/slice-size-by-files/.skill-eval/track-work/tests/planner5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "choices validates a list and refuses a broken one",
+            "a list with no items yet, such as a new task's decisions.md, is valid (P98)",
+            "the agreement shows the plan's size last (P101), and its Technical part the plan from estimate --plan --json (P87)",
+            "a sized plan: the Size line gives the range, the most likely cost and what it rests on, and each Slice its own figures (P18)",
+            "choices renders the agreement, the hand-over filter and the catch-up from the record",
+            "with a Schema 5 record, the list is decisions.md beside it and the catch-up reads the current Slice's update lines",
+            "a Slice's prediction: the median of the first pool with three measured Slices, corrected by the geometric mean of actual over predicted, pulled toward none (P16)",
+            "slice start records the prediction beside the first reading, and slice close keeps it beside the actual",
+            "estimate --plan lays the Slices left across compaction cycles, with the totals, the oversized and the parallel",
+            "estimate --plan before three Slices are measured anywhere: this compaction cycle's rate, from --done",
+            "Slices measured with --used carry context only: the prediction and the plan give no time or cost for them",
+            "estimate --project and --store add up what was measured, and size a task with nothing measured from others' data",
+            "a sized Slice: its files times the median per-file rate, corrected only by sized predictions, and a zero reading is not measured (P13 to P18)",
+            "slice start writes Size and Base, slice close writes Files from Base to HEAD, and slice size adds Files to an older Slice"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-no-review-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow-no-review",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/planner5.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/discuss-work/tests/choices.test.mjs": ".skill-eval/top-line/graders/slice-size-by-files/.skill-eval/discuss-work/tests/choices.test.mjs",
+        ".skill-eval/track-work/tests/planner5.test.mjs": ".skill-eval/top-line/graders/slice-size-by-files/.skill-eval/track-work/tests/planner5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "choices validates a list and refuses a broken one",
+            "a list with no items yet, such as a new task's decisions.md, is valid (P98)",
+            "the agreement shows the plan's size last (P101), and its Technical part the plan from estimate --plan --json (P87)",
+            "a sized plan: the Size line gives the range, the most likely cost and what it rests on, and each Slice its own figures (P18)",
+            "choices renders the agreement, the hand-over filter and the catch-up from the record",
+            "with a Schema 5 record, the list is decisions.md beside it and the catch-up reads the current Slice's update lines",
+            "a Slice's prediction: the median of the first pool with three measured Slices, corrected by the geometric mean of actual over predicted, pulled toward none (P16)",
+            "slice start records the prediction beside the first reading, and slice close keeps it beside the actual",
+            "estimate --plan lays the Slices left across compaction cycles, with the totals, the oversized and the parallel",
+            "estimate --plan before three Slices are measured anywhere: this compaction cycle's rate, from --done",
+            "Slices measured with --used carry context only: the prediction and the plan give no time or cost for them",
+            "estimate --project and --store add up what was measured, and size a task with nothing measured from others' data",
+            "a sized Slice: its files times the median per-file rate, corrected only by sized predictions, and a zero reading is not measured (P13 to P18)",
+            "slice start writes Size and Base, slice close writes Files from Base to HEAD, and slice size adds Files to an older Slice"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "5862088ceff2e1741705f7be7f24aeb042b0a968"
+  }
+}

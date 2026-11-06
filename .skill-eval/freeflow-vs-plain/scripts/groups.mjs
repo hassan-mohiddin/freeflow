@@ -370,13 +370,11 @@ function expectations(task, arms = ARMS) {
   return list;
 }
 
-// The v0.9.0 arms. `freeflow` keeps the 21 Oct arm's settings (Tool Execution off) on the v0.9.0 build;
-// `freeflow-te` turns Tool Execution on with its guidance notices, as a Pi user has it, so its tools, the skills'
-// scripts' notices and the changed-files lines are live. Their tools are declared for every arm (one task, one tool
-// list); plain Pi and Freeflow with Tool Execution off register none of them, so those arms do not have them.
-const V090_ARMS = ["plain", "freeflow", "freeflow-te"];
+// The v0.9.0 arms. `freeflow` keeps the 21 Oct arm's settings (Tool Execution off) on the v0.9.0 build. Its Tool
+// Execution arm (`freeflow-te`) was dropped with the re-pin to main (SPEC-011 4.4); Tool Execution's tools stay
+// declared, as plain Pi and Freeflow with Tool Execution off register none of them, so the earlier runs still match.
+const V090_ARMS = ["plain", "freeflow"];
 const V090_TOOLS = [...TOOLS, "bash_background", "monitor", "stop_background", "apply_patch"];
-const TOOL_EXECUTION_ON = { toolExecution: { enabled: true, guidanceNotices: true } };
 
 const digestsFile = join(SUITE, "image", "digests.json");
 const digests = existsSync(digestsFile) ? JSON.parse(readFileSync(digestsFile, "utf8")) : {};
@@ -420,7 +418,7 @@ for (const task of TASKS) {
     ...group,
     tools: V090_TOOLS,
     configuration: { ...group.configuration, extends: "../configuration-v090.json" },
-    arms: { plain: { freeflow: null }, freeflow: {}, "freeflow-te": { freeflow: { repository: TOOL_EXECUTION_ON } } },
+    arms: { plain: { freeflow: null }, freeflow: {} },
     expectations: expectations(task, V090_ARMS),
   };
   writeFileSync(join(SUITE, "groups-v090", `${task.id}.json`), `${JSON.stringify(v090, null, 2)}\n`);

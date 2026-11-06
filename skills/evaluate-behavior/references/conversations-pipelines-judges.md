@@ -40,7 +40,7 @@ A **conversation** pairs the subject with a simulated user:
 ```
 
 - It needs a body group whose `input` is a `prompt`: the opening message.
-- `card` is a text file, kept out of the fixture: everything the simulated user knows, read in when the definition loads.
+- `card` is a text file, kept out of the fixture: everything the simulated user knows, read in when the definition loads. A card that gives a default for what it does not cover says it as "your recommendation is fine": the run's `defaultAnswers` metric counts that phrase and the rule's "I don't know", and `interruptions` counts every message before the one that ends the conversation.
 - `max_turns` (default 10) caps the subject's turns, the opening included. `stop` is the phrase with which the user ends the conversation.
 - `model` and optional `thinking` name the user's model.
 

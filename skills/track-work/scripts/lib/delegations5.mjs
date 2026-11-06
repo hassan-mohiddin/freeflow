@@ -5,12 +5,12 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyLineReplacements, parseFragment } from "./document.mjs";
 import { slugify } from "./format.mjs";
-import { syncStore } from "./freeflow-store.mjs";
+import { HOST_COMMITS_TEXT, syncStore } from "./freeflow-store.mjs";
 import { appendChannel, latestReturn, readChannel } from "./channel5.mjs";
 import { addClaims, claimHours, claimGroups, releaseClaims } from "./claims5.mjs";
 import { parseChoices } from "../../../discuss-work/scripts/lib/choices.mjs";
@@ -31,6 +31,8 @@ import { freeflowStoreOf, isFreeflowStore, projectOf, writeAtomically, writeTask
 import { sessionIdentity } from "./projects5.mjs";
 import { storeHome } from "./freeflow-store.mjs";
 import { CHECKS, ROUTING_FILE, SETTLED, routeFrom, routingFiles } from "./routing5.mjs";
+import { writeNoFollow } from "./no-follow.mjs";
+import { gitRefused } from "./untrusted.mjs";
 
 export const KINDS = new Set(["build", "review", "research", "eval", "gather"]);
 export const OUTCOMES = new Set(["accepted", "sent back", "stopped"]);
@@ -77,6 +79,11 @@ const oneLine = (text) =>
     .trim();
 
 function git(directory, args) {
+  if (gitRefused(directory))
+    return {
+      failed: true,
+      message: `Track Work runs no Git in ${directory}: it is in a folder FREEFLOW_UNTRUSTED_ROOTS names`,
+    };
   try {
     return execFileSync("git", ["-C", directory, ...args], {
       encoding: "utf8",
@@ -229,6 +236,7 @@ async function sync(taskDir, message) {
   if (!home) return "Not in a Freeflow store: nothing to commit.";
   try {
     const synced = await syncStore({ home, message });
+    if (synced.hostCommits) return HOST_COMMITS_TEXT;
     if (synced.local) return "Store: committed; a local store, nothing to push.";
     return synced.pushed
       ? "Store: committed and pushed."
@@ -452,7 +460,7 @@ export async function openDelegation(loaded, options, text) {
   });
   const routeLine = given ? `Route: given (${agent})${routed.warning ? `\n${routed.warning}` : ""}` : routed.line;
   await mkdir(directory, { recursive: true });
-  await writeFile(briefPath, `${[...header, ...body].join("\n").trimEnd()}\n`);
+  await writeNoFollow(briefPath, `${[...header, ...body].join("\n").trimEnd()}\n`);
   if (!loaded)
     return `Opened ${id} — ${title}\n${briefPath}\nSpace: ${space}\n${routeLine}\nStart the worker with a prompt that names ${id} and the brief's path; nothing is recorded. Check its return with:\n  node ${SCRIPT} delegate check-return --scratch ${taskDir} --id ${id}\n`;
   const path = relative(taskDir, briefPath);
@@ -509,7 +517,7 @@ export async function amendDelegation(loaded, options, text) {
   if (!change && !handle) fail("delegate amend takes a change (--text or --input) or --handle.");
   if (handle) brief = brief.replace(/^(Agent: .*· Handle: ).*$/m, (_, lead) => `${lead}${handle}`);
   if (change) brief = `${brief.trimEnd()}\n- ${localDate()}: ${change}\n`;
-  await writeFile(path, brief);
+  await writeNoFollow(path, brief);
   let note = await logged(taskDir, {
     delegation: id,
     kind: "amend",
@@ -1042,11 +1050,11 @@ export async function joinDelegation(loaded, options, { home, identity, held }) 
     fail(`This session works for ${previous.id} already: a session works for one delegation.`);
   const handle = `session ${identity.id}`;
   text = text.replace(/^(Agent: .*· Handle: ).*$/m, (_, lead) => `${lead}${handle}`);
-  await writeFile(briefPath, text);
+  await writeNoFollow(briefPath, text);
   const path = joinedPath(home, identity);
   await mkdir(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
-  await writeFile(
+  await writeNoFollow(
     temporary,
     `${JSON.stringify({ id, task: taskName(loaded.path), record: loaded.path, taskDir, joinedAt: new Date().toISOString() }, null, 2)}\n`,
   );
@@ -1090,7 +1098,7 @@ export async function checkpointDelegation(loaded, id, text, { joined = null } =
   ]);
   const path = join(directory, "progress.md");
   const temporary = `${path}.${process.pid}.tmp`;
-  await writeFile(temporary, `${[`# ${id} progress`, `As of: ${asOf}`, "", ...body].join("\n").trimEnd()}\n`);
+  await writeNoFollow(temporary, `${[`# ${id} progress`, `As of: ${asOf}`, "", ...body].join("\n").trimEnd()}\n`);
   await rename(temporary, path);
   const note = await logged(taskDir, {
     delegation: id,

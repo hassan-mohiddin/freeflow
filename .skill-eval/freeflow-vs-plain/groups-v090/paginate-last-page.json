@@ -33,17 +33,7 @@
     "plain": {
       "freeflow": null
     },
-    "freeflow": {},
-    "freeflow-te": {
-      "freeflow": {
-        "repository": {
-          "toolExecution": {
-            "enabled": true,
-            "guidanceNotices": true
-          }
-        }
-      }
-    }
+    "freeflow": {}
   },
   "participants": {
     "protocol": "conversation",
@@ -109,31 +99,6 @@
       }
     },
     {
-      "id": "freeflow-te-hidden-tests",
-      "kind": "command",
-      "variant": "freeflow-te",
-      "comparison": "hidden-tests",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
-      "files": {
-        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/paginate-last-page.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": [
-            "fvp: an exact multiple has no empty trailing page",
-            "fvp: a partial last page is counted",
-            "fvp: an empty result list still has one page",
-            "fvp: the pager shows no link to an empty page",
-            "fvp: pages show their slice of the results",
-            "fvp: the existing tests still pass"
-          ]
-        }
-      }
-    },
-    {
       "id": "plain-marker-new-test",
       "kind": "command",
       "variant": "plain",
@@ -170,24 +135,6 @@
       }
     },
     {
-      "id": "freeflow-te-marker-new-test",
-      "kind": "command",
-      "variant": "freeflow-te",
-      "comparison": "marker-new-test",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
-      "files": {
-        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": ["fvp: a new or changed test fails before the change and passes after"]
-        }
-      }
-    },
-    {
       "id": "plain-marker-tests-kept",
       "kind": "command",
       "variant": "plain",
@@ -209,24 +156,6 @@
       "id": "freeflow-marker-tests-kept",
       "kind": "command",
       "variant": "freeflow",
-      "comparison": "marker-tests-kept",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
-      "files": {
-        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": ["fvp: the existing tests are kept unchanged"]
-        }
-      }
-    },
-    {
-      "id": "freeflow-te-marker-tests-kept",
-      "kind": "command",
-      "variant": "freeflow-te",
       "comparison": "marker-tests-kept",
       "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
       "files": {

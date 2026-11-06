@@ -1,16 +1,56 @@
 // How the evaluator launches Claude Code for a subject: headless (`claude -p`) with stream-json in and out, only the
 // declared tools, no settings, instructions, plugins' skills, MCP servers or slash commands from anywhere on the
-// machine, the evaluator's guard as a PreToolUse hook, and the system prompt the runtime's prompt mode asks for.
+// machine, the evaluator's guard as a PreToolUse hook, and the system prompt the runtime's prompt mode asks for. A
+// Freeflow arm (SPEC-011 4.2) also loads the built Freeflow package as a plugin, its session-start hooks and its mod
+// with it, with a fresh Freeflow store of its own in the run's folder.
 
+import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 import { loadDeclaredContext, renderDeclaredContext } from "../../../guard-rules.mjs";
 import { CLAUDE_CODE_TOOLS, claudeCodeModel } from "./constraints.mjs";
 import { readSkill, skillListing } from "./skills.mjs";
 
 const guardHook = fileURLToPath(new URL("../../../claude-guard.mjs", import.meta.url));
+const run = promisify(execFile);
+/** Track Work's script inside a Freeflow package, which makes the arm's store. */
+const TRACK_WORK = path.join("skills", "track-work", "scripts", "working-record.mjs");
+/** Who the store's commits are authored as: the evaluator, never the user. */
+export const STORE_AUTHOR = Object.freeze({ name: "skill-eval", email: "skill-eval@localhost" });
+
+/**
+ * A Freeflow arm's store: a fresh local Freeflow store in the run's folder, made by the package's own Track Work, so
+ * the arm starts as a first-time user with a store does, and its event log lands in the run's outputs.
+ *
+ * @param {string} packageRoot the built Freeflow package
+ * @param {string} home where the store goes, which must not exist yet
+ */
+export async function prepareFreeflowStore(packageRoot, home) {
+  try {
+    await run(
+      process.execPath,
+      [
+        path.join(packageRoot, TRACK_WORK),
+        "store",
+        "init",
+        "--home",
+        home,
+        "--git-name",
+        STORE_AUTHOR.name,
+        "--git-email",
+        STORE_AUTHOR.email,
+      ],
+      { timeout: 60_000, env: { ...process.env, FREEFLOW_HOME: home, GIT_CONFIG_NOSYSTEM: "1" } },
+    );
+  } catch (error) {
+    const detail = String(error?.stderr ?? "").trim() || (error instanceof Error ? error.message : String(error));
+    throw new Error(`the Freeflow arm's store could not be made: ${detail}`);
+  }
+  return home;
+}
 
 // Claude Code switches every subject gets: no automatic compaction, no updater or nonessential traffic, and no
 // CLAUDE.md or memory, which the isolated config directory would not hold anyway. Retries stay at Claude Code's own
@@ -91,7 +131,16 @@ function isolatedPrompt(tools, listing, declaredContext, cwd) {
  * evaluator's; "host" keeps Claude Code's and appends the declared skills and context. Claude Code still adds its
  * own identity line and an environment note to every request; the run's host-context record shows them.
  */
-export async function prepareClaudeLaunch({ group, environment, runtime, model, workspace, isolation }) {
+export async function prepareClaudeLaunch({
+  group,
+  environment,
+  runtime,
+  model,
+  workspace,
+  isolation,
+  freeflowRoot = null,
+  variantDirectory = null,
+}) {
   const directory = path.join(isolation.root, "launch");
   await mkdir(directory, { recursive: true });
   const settingsFile = path.join(directory, "settings.json");
@@ -119,5 +168,24 @@ export async function prepareClaudeLaunch({ group, environment, runtime, model, 
   args.push("--tools", tools.join(","));
   if (isolated) args.push("--system-prompt-file", promptFile);
   else if (appended !== "") args.push("--append-system-prompt-file", promptFile);
-  return { args, environment: { ...CLAUDE_CODE_ENVIRONMENT } };
+  if (freeflowRoot === null) return { args, environment: { ...CLAUDE_CODE_ENVIRONMENT } };
+  // The Freeflow arm: the package as the session's plugin (its hooks.json and mod with it), and FREEFLOW_HOME at a
+  // fresh store in the run's folder, which the subject's bash sees at the same path and may write, all but its .git,
+  // which the container mounts read-only. Track Work in the container therefore leaves the store's commits to the
+  // host (FREEFLOW_HOST_COMMITS), whose mod commits the store at each turn end.
+  const home = await prepareFreeflowStore(freeflowRoot, path.join(variantDirectory ?? isolation.root, "freeflow-home"));
+  args.push("--plugin-dir", freeflowRoot);
+  return {
+    args,
+    // On the host, Track Work runs no Git in a folder the subject writes, but for the store itself, whose .git the
+    // container sees read-only (a repository the subject made could carry a core.fsmonitor or a filter).
+    environment: {
+      ...CLAUDE_CODE_ENVIRONMENT,
+      FREEFLOW_HOME: home,
+      FREEFLOW_UNTRUSTED_ROOTS: JSON.stringify([workspace, home]),
+    },
+    writableRoots: [home],
+    containerEnvironment: { FREEFLOW_HOME: home, FREEFLOW_HOST_COMMITS: "1" },
+    freeflowHome: home,
+  };
 }

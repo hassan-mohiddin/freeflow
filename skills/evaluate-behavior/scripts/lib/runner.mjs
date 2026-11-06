@@ -7,6 +7,7 @@ import { COMMAND_TOOL, loadDefinition, selectDefinition } from "./definitions.mj
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
 import { prepareFreeflow } from "./freeflow.mjs";
+import { isGitFixture, prepareGitFixture } from "./git-fixture.mjs";
 import { postRunRecords } from "./hooks.mjs";
 import { hostAdapter } from "./hosts/index.mjs";
 import { identityRefusal, inputIdentity } from "./identity.mjs";
@@ -172,7 +173,8 @@ function workingTreeInputs(selection, definitionPath, root) {
   const inputs = new Set([definitionPath]);
   for (const { group, variants } of selection.groups) {
     for (const file of group.files ?? []) inputs.add(file);
-    if (group.fixture !== null) inputs.add(path.resolve(root, group.fixture));
+    // A commit fixture is identified by its commit, which no working-tree change moves.
+    if (typeof group.fixture === "string") inputs.add(path.resolve(root, group.fixture));
     for (const bundle of group.runtime?.extensions ?? []) {
       for (const resource of bundle.resources) inputs.add(path.resolve(root, resource));
     }
@@ -357,7 +359,9 @@ async function runGroup({
   let harness = {};
   if (!stopped()) {
     try {
-      fixture = await prepareFixture({ declaredPath: group.fixture, root, groupDirectory });
+      fixture = isGitFixture(group.fixture)
+        ? await prepareGitFixture({ fixture: group.fixture, root, groupDirectory })
+        : await prepareFixture({ declaredPath: group.fixture, root, groupDirectory });
       runtime = await prepareRuntime({
         runtime: group.runtime ?? { host: groupHost(group), ...DEFAULT_RUNTIME },
         root,

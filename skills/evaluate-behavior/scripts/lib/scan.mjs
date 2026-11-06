@@ -20,13 +20,17 @@
 //
 // A file the task gives the subject (in the workspace, or a declared skill or context) is never flagged.
 
+import { execFile } from "node:child_process";
 import { lstat, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import { registerPostRunHook } from "./hooks.mjs";
 import { networkAttempts, program, simpleCommands } from "./scan-shell.mjs";
 import { readRegularFile, readSubjectFile, skippedNote } from "./subject-file.mjs";
+
+const runGit = promisify(execFile);
 
 export const CLEARANCES = "clearances.json";
 const READ_TOOLS = new Set(["read", "ls", "find", "grep"]);
@@ -300,6 +304,19 @@ async function filesUnder(target) {
   return files;
 }
 
+/** The diff from a commit fixture's commit to a reference commit, less the fixture's exclusions; "" when unreadable. */
+async function commitDiff(root, fixture, commit) {
+  const pathspec = [".", ...(fixture?.exclude ?? []).map((entry) => `:(exclude)${entry}`)];
+  try {
+    const { stdout } = await runGit("git", ["-C", root, "diff", "--no-color", fixture.git, commit, "--", ...pathspec], {
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    return stdout;
+  } catch {
+    return "";
+  }
+}
+
 /** A definition file's text (a grader, the fixture, the reference solution), never through a link, to a bound. */
 async function textFile(file) {
   const result = await readRegularFile(file, OUTPUT_FILE_LIMIT);
@@ -377,11 +394,16 @@ async function answerCopies({ run, group, arm, root, skipped }) {
 
   const reference = group.reference_solution;
   if (reference && (reference.arm === undefined || reference.arm === arm)) {
-    const source = path.resolve(root, reference.patch ?? reference.files);
     let text = "";
-    for (const file of await filesUnder(source)) text += `${await textFile(file)}\n`;
+    if (reference.git !== undefined) {
+      // A commit's solution is its diff from the fixture's commit (SPEC-011 4.4), read as a patch.
+      text = await commitDiff(root, group.fixture, reference.git);
+    } else {
+      const source = path.resolve(root, reference.patch ?? reference.files);
+      for (const file of await filesUnder(source)) text += `${await textFile(file)}\n`;
+    }
     // A patch's added lines are the solution; its context and removed lines are the fixture.
-    if (reference.patch !== undefined) {
+    if (reference.patch !== undefined || reference.git !== undefined) {
       text = text
         .split(/\r?\n/)
         .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
@@ -393,7 +415,7 @@ async function answerCopies({ run, group, arm, root, skipped }) {
     if (copied.length >= 3 && copied.length * 2 >= solution.length) {
       flags.push(
         flagOf("answer-copy", "the subject's output contains most of the reference solution's distinctive lines", {
-          source: reference.patch ?? reference.files,
+          source: reference.patch ?? reference.files ?? `git:${reference.git}`,
           matched: copied.length,
           of: solution.length,
           lines: copied.slice(0, 5),

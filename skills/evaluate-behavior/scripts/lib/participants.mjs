@@ -198,6 +198,25 @@ export function participantFiles(participantsList, root) {
 
 // Execution -------------------------------------------------------------------------------------------------------
 
+/**
+ * A conversation's interruptions (SPEC-011 4.3): the simulated user's turns after the opening, each one a time the
+ * subject stopped for the user before the work was done, and of them the answers by default, where the card did not
+ * say (its "your recommendation is fine", or the rule's "I don't know"). The message that ends the conversation is
+ * not one, nor is a message that failed.
+ *
+ * @param {Array<{ message: string, stop?: boolean, errors?: string[] }>} messages
+ */
+export function interruptionCounts(messages) {
+  const answered = messages.filter((entry) => !entry.stop && (entry.errors ?? []).length === 0);
+  return {
+    interruptions: answered.length,
+    defaultAnswers: answered.filter((entry) => DEFAULT_ANSWERS.some((pattern) => pattern.test(entry.message))).length,
+  };
+}
+
+/** What a simulated user says when its card does not answer: its card's default, or the rule's. */
+export const DEFAULT_ANSWERS = [/\byour recommendation is fine\b/i, /\bI don['’]?t know\b/i];
+
 /** The participants an arm runs, or null for one ordinary subject. */
 export function armParticipants(group, arm) {
   return group.variants?.[arm]?.participants ?? null;
@@ -297,6 +316,8 @@ async function runConversation(options, participants) {
   };
   // The arm's usage covers everything it ran, so a spend ceiling counts the simulated user too.
   run.usage = mergeUsage(run.usage, usage);
+  // The subject's interruptions: the user's turns it needed (SPEC-011 4.3).
+  if (run.metrics) Object.assign(run.metrics, interruptionCounts(messages));
   if (ended === "user-error" && run.state === "complete") {
     run.state = "infrastructure-failed";
     run.error = { kind: "participant", message: messages.at(-1).errors.join("; ") };

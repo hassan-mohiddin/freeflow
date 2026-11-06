@@ -7,11 +7,11 @@
 // the Schema 4 record is kept whole as sources/schema4-record.md, and Notes move to sources/notes.md.
 
 import { existsSync } from "node:fs";
-import { cp, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rename } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import { fieldLines, fieldValue, parseDocument } from "./document.mjs";
 import { slugify } from "./format.mjs";
-import { syncStore } from "./freeflow-store.mjs";
+import { HOST_COMMITS_TEXT, syncStore } from "./freeflow-store.mjs";
 import {
   DECISIONS_FILE,
   EMPTY_DECISIONS,
@@ -30,6 +30,7 @@ import {
   warnings5,
 } from "./record5.mjs";
 import { isFreeflowStore, nextTaskNumber } from "./store.mjs";
+import { writeNoFollow } from "./no-follow.mjs";
 
 export const ARCHIVE = "sources/schema4-record.md";
 const MISSING_CUE = "read when — no cue was given at migrate; add one as a Correction";
@@ -302,11 +303,13 @@ async function copyIntoProject(home, project, taskDir) {
 export async function copyTaskIntoStore({ recordPath, home, project }) {
   const taskDir = await copyIntoProject(home, project, dirname(recordPath));
   const outcome = await syncStore({ home, message: `Bring ${basename(taskDir)} into the store` });
-  const synced = outcome.local
-    ? "Store: committed; a local store."
-    : outcome.pushed
-      ? "Store: committed and pushed."
-      : `Store: committed, not pushed (${outcome.reason}).`;
+  const synced = outcome.hostCommits
+    ? HOST_COMMITS_TEXT
+    : outcome.local
+      ? "Store: committed; a local store."
+      : outcome.pushed
+        ? "Store: committed and pushed."
+        : `Store: committed, not pushed (${outcome.reason}).`;
   const id = `${slugify(project)}/${/^task-\d{3,}/.exec(basename(taskDir))[0]}`;
   return `Brought into the store as ${id}: ${join(taskDir, "record.md")}\nThe original folder is unchanged: ${dirname(recordPath)}.\n${synced}\n`;
 }
@@ -328,23 +331,23 @@ export async function migrateTask({ recordPath, text, root, cue, cues, home, pro
   if (existsSync(join(taskDir, HISTORY_FILE)))
     fail(`${join(taskDir, HISTORY_FILE)} exists: this task looks migrated already`);
   await mkdir(join(taskDir, "sources"), { recursive: true });
-  await writeFile(join(taskDir, ARCHIVE), text);
+  await writeNoFollow(join(taskDir, ARCHIVE), text);
   if (result.notes) {
     const notesPath = join(taskDir, "sources", "notes.md");
     const before = existsSync(notesPath) ? `${(await readFile(notesPath, "utf8")).trimEnd()}\n\n` : "";
-    await writeFile(notesPath, `${before}${result.notes}`);
+    await writeNoFollow(notesPath, `${before}${result.notes}`);
   }
   const list = join(taskDir, "sources", "decisions.md");
   let decisions = existsSync(list) ? "left in sources/decisions.md" : "not there: the task kept none";
   if (result.agreementOpen && existsSync(list)) {
     const content = await readFile(list, "utf8");
-    await writeFile(join(taskDir, DECISIONS_FILE), /^#/.test(content) ? content : `${EMPTY_DECISIONS}\n${content}`);
+    await writeNoFollow(join(taskDir, DECISIONS_FILE), /^#/.test(content) ? content : `${EMPTY_DECISIONS}\n${content}`);
     await rename(list, join(taskDir, "sources", "decisions-before-schema5.md"));
     decisions = "moved to decisions.md, the open agreement's list";
   } else if (!existsSync(join(taskDir, DECISIONS_FILE)))
-    await writeFile(join(taskDir, DECISIONS_FILE), EMPTY_DECISIONS);
-  await writeFile(join(taskDir, HISTORY_FILE), result.history);
-  await writeFile(join(taskDir, "record.md"), result.record);
+    await writeNoFollow(join(taskDir, DECISIONS_FILE), EMPTY_DECISIONS);
+  await writeNoFollow(join(taskDir, HISTORY_FILE), result.history);
+  await writeNoFollow(join(taskDir, "record.md"), result.record);
   const warnings = warnings5({ record: parseRecord5(result.record), history: parseHistory5(result.history) }).filter(
     (warning) => !warning.includes("no cue was given"),
   );
@@ -352,11 +355,13 @@ export async function migrateTask({ recordPath, text, root, cue, cues, home, pro
   if (project) {
     try {
       const outcome = await syncStore({ home, message: `Migrate ${basename(taskDir)} to Schema 5` });
-      synced = outcome.local
-        ? "Store: committed; a local store."
-        : outcome.pushed
-          ? "Store: committed and pushed."
-          : `Store: committed, not pushed (${outcome.reason}).`;
+      synced = outcome.hostCommits
+        ? HOST_COMMITS_TEXT
+        : outcome.local
+          ? "Store: committed; a local store."
+          : outcome.pushed
+            ? "Store: committed and pushed."
+            : `Store: committed, not pushed (${outcome.reason}).`;
     } catch (error) {
       synced = `Store not synced: ${error.message}`;
     }
@@ -447,17 +452,19 @@ export async function migrateRecoveryHeadings({ recordPath, text, home }) {
   const taskDir = dirname(recordPath);
   await mkdir(join(taskDir, "sources"), { recursive: true });
   const kept = join(taskDir, "sources", "record-before-recovery.md");
-  await writeFile(kept, text);
-  await writeFile(recordPath, converted.record);
+  await writeNoFollow(kept, text);
+  await writeNoFollow(recordPath, converted.record);
   let synced = "";
   if (home) {
     try {
       const outcome = await syncStore({ home, message: `Migrate ${basename(taskDir)} to the Recovery list` });
-      synced = outcome.local
-        ? "Store: committed; a local store."
-        : outcome.pushed
-          ? "Store: committed and pushed."
-          : `Store: committed, not pushed (${outcome.reason}).`;
+      synced = outcome.hostCommits
+        ? HOST_COMMITS_TEXT
+        : outcome.local
+          ? "Store: committed; a local store."
+          : outcome.pushed
+            ? "Store: committed and pushed."
+            : `Store: committed, not pushed (${outcome.reason}).`;
     } catch (error) {
       synced = `Store not synced: ${error.message}`;
     }

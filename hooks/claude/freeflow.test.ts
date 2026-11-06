@@ -96,6 +96,8 @@ function world(on: any) {
     // The files the mod wrote, by path, which it reads back.
     stored: new Map<string, string>([[GATES_PATH, gateState()]]),
     logs: [] as any[],
+    // Paths that are themselves symbolic links, as $.fs.stat reports them (each also in `files`, where it lands).
+    links: new Set<string>(),
     clock: mock.clock(on, { now: T0 }),
     session: mock.session(on),
     commands: () => w.runs.map((run) => run.args.join(" ")),
@@ -118,6 +120,7 @@ function world(on: any) {
     ]),
     verdict: { decision: "ask" } as { decision: string; rule?: string },
     toolFails: false as boolean,
+    toolText: "" as string,
     // Track Work's script as the mod runs it, under the plugin's root.
     scriptPath: "" as string,
   };
@@ -226,11 +229,19 @@ function world(on: any) {
     const real = w.files.get(e.path) ?? (String(e.path).endsWith("store/x.md") ? "/store/x.md" : undefined);
     return real === undefined
       ? { deny: `ENOENT: ${e.path}` }
-      : { value: { kind: "file", size: 1, mtimeMs: 0, isLink: false, ...(e.resolve ? { realPath: real } : {}) } };
+      : {
+          value: {
+            kind: "file",
+            size: 1,
+            mtimeMs: 0,
+            isLink: w.links.has(e.path),
+            ...(e.resolve ? { realPath: real } : {}),
+          },
+        };
   });
   on("tool.check", () => ({ ...w.verdict }));
   // A tool runs: its result, or an error result when the scenario says so.
-  on("tool.call", () => ({ result: {}, text: "", ...(w.toolFails ? { isError: true } : {}) }));
+  on("tool.call", () => ({ result: {}, text: w.toolText, ...(w.toolFails ? { isError: true } : {}) }));
   on("fs.write", (_: any, e: any) => {
     // The claims a session start writes are kept apart, as the event runs are (SPEC-006 T4).
     if (String(e.path ?? e[0]).endsWith("/capabilities.json")) {
@@ -1229,7 +1240,9 @@ test("the event log: each loop event the mod sees is one schema v1 line, in orde
   await step($, w, 1_000, { effort: "high" });
   // Allowed, as the mode would: an ask here refuses a test's call, which no person can answer.
   w.verdict = { decision: "allow" };
+  w.toolText = "12 tests pass";
   await $.tool.call({ tool: "Bash", command: "npm test -- --token=abc123" } as any);
+  w.toolText = "";
   w.toolFails = true;
   await $.tool.call({ tool: "Edit", file_path: "/work/widget/src.mjs", old_string: "a", new_string: "b" } as any);
   expect(w.eventRuns).toEqual([]);
@@ -1241,6 +1254,7 @@ test("the event log: each loop event the mod sees is one schema v1 line, in orde
   expect(w.eventRuns[0].session).toBe(SESSION);
   expect(kinds(w)).toEqual([
     "session.start",
+    "freeflow",
     "freeflow",
     "freeflow",
     "turn.start",
@@ -1261,13 +1275,21 @@ test("the event log: each loop event the mod sees is one schema v1 line, in orde
   // A -p run: no one at the prompt (section 4.5).
   expect(lines[0]).toMatchObject({ kind: "session.start", source: "startup", interactive: false });
   expect(lines.filter((line: any) => line.kind === "freeflow").map((line: any) => line.what)).toEqual([
+    "guidance",
     "capabilities",
     "menu",
     "sync",
   ]);
-  expect(lines[3]).toMatchObject({ kind: "turn.start", agent: "main", turn: 1 });
-  expect(lines[4]).toMatchObject({
+  // What Freeflow put into the context, in characters (SPEC-011 4.1): the guidance pinned, and the menu as delivered.
+  expect(lines[1]).toMatchObject({ kind: "freeflow", what: "guidance", detail: "pinned" });
+  expect(lines[1].chars).toBeGreaterThan(0);
+  expect(lines[3]).toMatchObject({ what: "menu", chars: `Freeflow task memory:\n${MENU.trimEnd()}\n`.length });
+  expect(lines.find((line: any) => line.what === "capabilities").chars).toBeUndefined();
+  const shifted = lines.slice(1);
+  expect(shifted[3]).toMatchObject({ kind: "turn.start", agent: "main", turn: 1 });
+  expect(shifted[4]).toMatchObject({
     kind: "model.request",
+    turn: 1,
     model: "opus",
     effort: "high",
     in: 3,
@@ -1278,27 +1300,36 @@ test("the event log: each loop event the mod sees is one schema v1 line, in orde
     stop: "end_turn",
   });
   // The command goes to the writer, which redacts and cuts it; Claude Code gives no exit code.
-  expect(lines[5]).toMatchObject({
+  expect(shifted[5]).toMatchObject({
     kind: "tool.call",
     tool: "Bash",
     ok: true,
     command: "npm test -- --token=abc123",
     source: "agent",
+    outChars: "12 tests pass".length,
   });
-  expect(lines[5].exit).toBeUndefined();
-  expect(lines[5].paths).toBeUndefined();
-  expect(lines[6]).toMatchObject({ kind: "tool.call", tool: "Edit", ok: false, paths: ["src.mjs"], source: "agent" });
-  expect(lines[6].command).toBeUndefined();
+  expect(shifted[5].exit).toBeUndefined();
+  expect(shifted[5].paths).toBeUndefined();
+  expect(shifted[6]).toMatchObject({
+    kind: "tool.call",
+    tool: "Edit",
+    ok: false,
+    paths: ["src.mjs"],
+    source: "agent",
+    outChars: 0,
+  });
+  expect(shifted[6].command).toBeUndefined();
   // Never contents: no prompt text, answer, file content or tool output.
   expect(JSON.stringify(lines)).not.toContain("go");
   expect(JSON.stringify(lines)).not.toContain("Done.");
   expect(JSON.stringify(lines)).not.toContain("old_string");
-  expect(lines[7]).toMatchObject({ kind: "turn.end", turn: 1, reason: "answer", ms: 1_000 });
+  expect(JSON.stringify(lines)).not.toContain("tests pass");
+  expect(shifted[7]).toMatchObject({ kind: "turn.end", turn: 1, reason: "answer", ms: 1_000 });
 
   // Nothing new, nothing written.
   await $.turn.complete(turnEnd("answer"));
   expect(w.eventRuns.length).toBe(2);
-  expect(kinds(w).slice(9)).toEqual(["turn.end", "freeflow"]);
+  expect(kinds(w).slice(10)).toEqual(["turn.end", "freeflow"]);
 });
 
 test("the event log is written at a compaction, a worker's hand-back and the session's end, and before a checkpoint or release runs (T2)", async ($, on) => {
@@ -1364,8 +1395,8 @@ test("a flush that fails drops its lines and says so: one log line now, and a dr
   w.eventAnswer = { exitCode: 1, stderr: "Error: sess-1.jsonl is locked by another writer" };
   await $.turn.start({ text: "go", turnId: "turn-1" } as any);
   await $.turn.complete(turnEnd("answer"));
-  // The session's start, its claims, the turn's start and end.
-  expect(w.logs.at(-1)).toBe("Freeflow: 4 event line(s) not written: sess-1.jsonl is locked by another writer");
+  // The session's start, its guidance, its claims, the turn's start and end.
+  expect(w.logs.at(-1)).toBe("Freeflow: 5 event line(s) not written: sess-1.jsonl is locked by another writer");
   w.eventAnswer = { stdout: "Wrote" };
   await $.turn.start({ text: "go", turnId: "turn-2" } as any);
   await $.turn.complete(turnEnd("answer"));
@@ -1382,7 +1413,7 @@ test("a flush that fails drops its lines and says so: one log line now, and a dr
     agent: "main",
     kind: "freeflow",
     what: "dropped",
-    dropped: 4,
+    dropped: 5,
   });
   // Written, the count starts again.
   await $.turn.start({ text: "go", turnId: "turn-3" } as any);
@@ -1449,6 +1480,32 @@ test("events.enabled off writes no line and claims sensors only as possible; Fre
   await $.tool.call({ tool: "Bash", command: "ls" } as any);
   await $.turn.complete(turnEnd("answer"));
   expect(w.eventRuns.length).toBe(runs);
+});
+
+test("a file the mod writes in the store is refused where it, or a folder on the way to it, is a link someone planted; the log says so", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  // sessions/ lands outside the store: the claims are not written through it.
+  w.files.set("/store/sessions", "/elsewhere/sessions");
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  await start($);
+  expect(w.claims).toEqual([]);
+  expect(w.logs.join("\n")).toContain(
+    "refused to write /store/sessions/sess-1/capabilities.json: it, or a folder on the way to it, is a link or not a file",
+  );
+  // The file itself a link: refused the same way.
+  w.files.delete("/store/sessions");
+  w.files.set("/store/sessions/sess-1/capabilities.json", "/elsewhere/capabilities.json");
+  w.links.add("/store/sessions/sess-1/capabilities.json");
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  await start($);
+  expect(w.claims).toEqual([]);
+  // A plain store: written.
+  w.files.delete("/store/sessions/sess-1/capabilities.json");
+  w.links.clear();
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  await start($);
+  expect(w.claims.map((write) => write.path)).toEqual(["/store/sessions/sess-1/capabilities.json"]);
 });
 
 test("the claims: written at session start in the Freeflow home, with section 4.5's claims for an interactive and a headless session", async ($, on) => {

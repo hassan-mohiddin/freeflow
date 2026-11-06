@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { contextFor, gitRoot, recoveryEntries, resolvePointer } from "./recover.mjs";
 import { FIXED_BUDGETS, budgets5, parseRecord5 } from "./record5.mjs";
 import { REPOSITORIES_FILE, freeflowStoreOf, isFreeflowStore, projectOf } from "./store.mjs";
+import { gitRefused } from "./untrusted.mjs";
 
 /** The window assumed when the harness gives none (T11), and the anchor of the curve: 10,000 words at 200k tokens. */
 export const DEFAULT_WINDOW = 200_000;
@@ -203,6 +204,7 @@ export function sourceFiles(entries, context, skip = new Set()) {
 export function pointerRoot(root) {
   let here = null;
   try {
+    if (gitRefused(process.cwd())) throw new Error("no Git here");
     here = execFileSync("git", ["rev-parse", "--show-toplevel"], {
       cwd: process.cwd(),
       encoding: "utf8",

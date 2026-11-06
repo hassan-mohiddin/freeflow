@@ -276,9 +276,15 @@ function advisoryBlock(review) {
   return parts.join("\n");
 }
 
-// The aggregate's decision: the rule, the split, the sign test p and the verdict.
+// The aggregate's decisions: each one's rule, split, test and verdict, the claim's first (SPEC-011 4.3).
 function decisionBlock(aggregate) {
-  const decision = aggregate.decision;
+  const decisions = Array.isArray(aggregate.decisions) ? aggregate.decisions : [aggregate.decision];
+  return decisions.map((decision, index) => oneDecision(aggregate, decision, index)).join("\n");
+}
+
+const METHOD_NAMES = { "sign-test": "sign test", mcnemar: "McNemar", bootstrap: "bootstrap" };
+
+function oneDecision(aggregate, decision, index) {
   if (!decision || typeof decision !== "object" || !decision.rule) return "";
   const rule = decision.rule;
   const measure = Object.entries(rule.measure ?? {})
@@ -293,9 +299,32 @@ function decisionBlock(aggregate) {
     ["rule sha256", decision.ruleSha256],
     ["split (better / worse / ties)", `${decision.better} / ${decision.worse} / ${decision.ties}`],
     ["decided / excluded", `${decision.decided} / ${decision.excluded}`],
-    ["p (sign test)", Number.isFinite(decision.p) ? String(Number(decision.p.toPrecision(4))) : "-"],
+    [
+      `p (${METHOD_NAMES[rule.method] ?? rule.method})`,
+      Number.isFinite(decision.p) ? String(Number(decision.p.toPrecision(4))) : "-",
+    ],
+    ...(decision.mcnemar
+      ? [
+          [
+            "McNemar (arm only / reference only / both / neither)",
+            `${decision.mcnemar.armOnly} / ${decision.mcnemar.referenceOnly} / ${decision.mcnemar.bothPassed} / ${decision.mcnemar.neitherPassed}`,
+          ],
+          ...rule.arms.map((arm) => [
+            `${arm}: pass@1, pass^k`,
+            `${fmt(decision.passAt1?.[arm])}, ${fmt(decision.passK?.[arm])}`,
+          ]),
+        ]
+      : []),
+    ...(decision.interval
+      ? [
+          [
+            `mean difference, ${Math.round(decision.interval.confidence * 100)}% interval`,
+            `${fmt(decision.interval.mean)} [${fmt(decision.interval.low)}, ${fmt(decision.interval.high)}] (${decision.interval.resamples} resamples, seed ${decision.interval.seed})`,
+          ],
+        ]
+      : []),
     ["verdict", verdictText(decision.verdict)],
-    ["claim", claimSummary(aggregate)?.reached ?? "none"],
+    ...(index === 0 ? [["claim", claimSummary(aggregate)?.reached ?? "none"]] : []),
   ];
   const cases = Array.isArray(decision.cases) ? decision.cases : [];
   const caseRows = cases.map(
@@ -303,7 +332,7 @@ function decisionBlock(aggregate) {
       `<tr><td>${esc(entry.id)}</td><td>${esc(entry.trials ?? "-")}</td><td>${esc(entry.sign ?? "-")}</td><td>${esc(entry.reason ?? "")}</td><td><code>${esc(compact(entry.arms))}</code></td></tr>`,
   );
   return [
-    `<section class="decision"><h2>Decision</h2>`,
+    `<section class="decision"><h2>Decision${index > 0 ? ` ${index + 1}` : ""}</h2>`,
     `<table><tbody>${rows.map(([name, value]) => `<tr><th>${esc(name)}</th><td>${esc(value)}</td></tr>`).join("")}</tbody></table>`,
     `<h4>Cases</h4><table><thead><tr><th>case</th><th>trials</th><th>sign</th><th>reason</th><th>arms</th></tr></thead><tbody>${caseRows.join("")}</tbody></table>`,
     "</section>",

@@ -37,7 +37,7 @@ import {
   touchesStore,
 } from "./store/layer.js";
 import { WAITS_KEY, WAIT_BATCH_MS, WaitWatch } from "./store/waits.js";
-import { EventRecorder } from "./events/recorder.js";
+import { EventRecorder, textChars } from "./events/recorder.js";
 import { DEFAULT_INBOUND_POLICY } from "./messaging/config.js";
 import { MESSAGE_TYPE, Messaging } from "./messaging/messaging.js";
 import { freeflowHome } from "./messaging/registry.js";
@@ -196,6 +196,8 @@ export default function freeflow(pi) {
   // Whether before_agent_start prepared the run about to start, and whether a run started that nothing prepared and
   // whose first message has not been seen yet (an extension's message on Pi before 1.2.0).
   let runPrepared = false;
+  /** The guidance section the event log last counted, so it is counted once each time it changes. */
+  let guidanceLogged = "";
   let runUnprepared = false;
   const files = new FileTracking();
   const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
@@ -354,13 +356,14 @@ export default function freeflow(pi) {
       else {
         const text = await store.start(ctx.cwd, [ctx.cwd, dirname(ctx.cwd), packageRoot]);
         if (generation !== surfaceGeneration) return;
-        if (text) events.freeflow("menu");
+        const menu = text ? freeflowNotice("store", `Freeflow task memory:\n${text}`) : "";
+        if (text) events.freeflow("menu", undefined, menu.length);
         if (text)
           await Promise.resolve(
             api.sendMessage(
               {
                 customType: STORE_TYPE,
-                content: freeflowNotice("store", `Freeflow task memory:\n${text}`),
+                content: menu,
                 display: true,
                 details: {},
               },
@@ -399,10 +402,11 @@ export default function freeflow(pi) {
       const text = await store.start(ctx.cwd, [ctx.cwd, dirname(ctx.cwd), packageRoot]);
       if (!store.current()) throw new Error("session status could not be read");
       if (session) await keepStartLedger(home, session).catch(() => {});
-      events.freeflow("menu", "mid-session: sync, menu");
+      const caught = text ? `${MID_SESSION}\n\nFreeflow task memory:\n${text}` : undefined;
+      events.freeflow("menu", "mid-session: sync, menu", caught ? freeflowNotice("store", caught).length : undefined);
       startState = "done";
       if (store.heldTask() !== held) status(ctx);
-      return text ? `${MID_SESSION}\n\nFreeflow task memory:\n${text}` : undefined;
+      return caught;
     } catch (error) {
       startFailures += 1;
       events.freeflow("menu", `mid-session, menu failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -629,6 +633,12 @@ export default function freeflow(pi) {
     // Nothing of Freeflow while it is disabled or unconfigured (Task 003 D-002).
     if (capability?.enabled === true && hasUsableMandatoryPrompts(prompts))
       sections.freeflow_guidance = stableRuntimeContext(prompts, { prompts: capability?.prompts });
+    // The guidance section, once each time it changes (SPEC-011 4.1); it stays in every request's cached head.
+    const guidanceText = typeof sections.freeflow_guidance === "string" ? sections.freeflow_guidance : "";
+    if (guidanceText !== guidanceLogged) {
+      guidanceLogged = guidanceText;
+      if (guidanceText) events.freeflow("guidance", "section", guidanceText.length);
+    }
     if (toolExecution)
       Object.assign(sections, toolExecutionTail(api.getSettings?.()?.shellPath, prompts?.toolExecutionPrompt));
     // What Freeflow set, so requests of runs an extension's message starts keep it (host/section-keeper.ts).
@@ -743,16 +753,17 @@ export default function freeflow(pi) {
     }
     // The gates' warning rows for this call, once per gate per turn (SPEC-008 4.3).
     const gateRows = gates.takeRows(event.toolCallId);
+    const rowChars = (rows) => rows.reduce((sum, row) => sum + row.length, 0);
+    if (gateRows.length) events.freeflow("gates", "warning", rowChars(gateRows));
     if (!toolExecutionEffective())
       return gateRows.length ? { content: withLines(event.content ?? [], gateRows) } : undefined;
     const shaped = await files.toolResult(event, ctx);
     // The push retriever's notice joins the result before it is delivered, after anything Tool Execution added.
     const executeWorkUnread = () =>
       !(capability?.skills?.off ?? []).includes("execute-work") && !files.loadedSkills(ctx).includes("execute-work");
-    const lines = [
-      ...(guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd, executeWorkUnread) : []),
-      ...gateRows,
-    ];
+    const notices = guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd, executeWorkUnread) : [];
+    if (notices.length) events.freeflow("notice", "guidance", rowChars(notices));
+    const lines = [...notices, ...gateRows];
     return lines.length ? { content: withLines(shaped?.content ?? event.content ?? [], lines) } : shaped;
   });
   pi.on("turn_end", async (event, ctx) => {
@@ -767,13 +778,20 @@ export default function freeflow(pi) {
       // After the store was read at the run's end: a delegation the Slice waits on that came back gives its row.
       if (!compacting && capability?.enabled === true) await waits.runEnded().catch(() => {});
       if (compacting) {
+        // What the compaction put in the conversation's place: the bundle and the line after it (SPEC-011 4.1).
+        const chars = compacting.entries.reduce(
+          (sum, entry) =>
+            sum + (typeof entry?.summary === "string" ? entry.summary.length : 0) + textChars(entry?.content),
+          0,
+        );
+        events.freeflow("bundle", undefined, chars);
         if (compacting.entries.some((entry) => entry?.type === "compaction")) events.compaction("freeflow");
         return compacting;
       }
     }
     const notice = compaction.observe(ctx, event);
     if (notice) {
-      events.freeflow("notice", notice.level);
+      events.freeflow("notice", notice.level, notice.text.length);
       // Mid-run the notice joins the next request; when the run is ending it waits for the next prompt rather than
       // starting work nobody asked for.
       await Promise.resolve(

@@ -2,7 +2,8 @@ import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { ARM_NAME, armNames, DEFAULT_REFERENCE } from "./arms.mjs";
-import { decisionProblem, validateDecision } from "./decision.mjs";
+import { decisionProblem, validateDecision, validateDecisions } from "./decision.mjs";
+import { isGitFixture, validateGitFixture } from "./git-fixture.mjs";
 import { isSourceExtension, sourceExtensionInputs, validateSourceExtension } from "./build-source.mjs";
 import { validateCommandExpectations } from "./grade-command.mjs";
 import { expectationProblems } from "./grade.mjs";
@@ -719,7 +720,10 @@ async function validateGroup(value, definitionPath, root) {
     fail("invalid-definition", "group.type must be description or body", definitionPath);
   }
   validateInput(group.input, definitionPath);
-  if (group.fixture !== null) requireSafeRelativePath(group.fixture, "group.fixture", definitionPath);
+  // A fixture is a folder in the definition root, or a commit of its repository (git-fixture.mjs, SPEC-011 4.4).
+  if (isGitFixture(group.fixture)) {
+    group.fixture = validateGitFixture(group.fixture, (message) => fail("invalid-definition", message, definitionPath));
+  } else if (group.fixture !== null) requireSafeRelativePath(group.fixture, "group.fixture", definitionPath);
   requireStringArray(group.tools, "group.tools", definitionPath, { unique: true });
   validateCommands(group, definitionPath);
   const { resolved, names, reference, component, extendsFile } = await resolveArms(group, definitionPath, root);
@@ -754,7 +758,8 @@ async function validateGroup(value, definitionPath, root) {
   const referenceProblem = validateReferenceSolution(group.reference_solution, {
     root,
     arms: names,
-    fixture: group.fixture === null ? null : path.resolve(root, group.fixture),
+    fixture: typeof group.fixture === "string" ? path.resolve(root, group.fixture) : null,
+    gitFixture: isGitFixture(group.fixture),
   });
   if (referenceProblem !== null) fail(referenceProblem.code, referenceProblem.message, definitionPath);
   const graderFiles = validateCommandExpectations(group, {
@@ -857,7 +862,7 @@ function validateSuite(value, definitionPath) {
   const suite = requireExactKeys(
     value,
     ["schema_version", "kind", "id", "groups"],
-    ["decision"],
+    ["decision", "decisions"],
     "suite",
     definitionPath,
   );
@@ -869,8 +874,16 @@ function validateSuite(value, definitionPath) {
     requireSuiteReference(reference, `suite.groups[${index}]`, definitionPath);
   }
   if (groups.length === 0) fail("invalid-definition", "suite.groups must not be empty", definitionPath);
-  if (Object.hasOwn(suite, "decision")) {
-    suite.decision = validateDecision(suite.decision, (message) => fail("invalid-definition", message, definitionPath));
+  const invalid = (message) => fail("invalid-definition", message, definitionPath);
+  if (Object.hasOwn(suite, "decision") && Object.hasOwn(suite, "decisions")) {
+    invalid("suite declares decision or decisions, not both");
+  }
+  if (Object.hasOwn(suite, "decision")) suite.decision = validateDecision(suite.decision, invalid);
+  // Several measures in one suite (SPEC-011 4.3): each its own rule and verdict; the first is the suite's claim and
+  // the only one that may schedule trials.
+  if (Object.hasOwn(suite, "decisions")) {
+    suite.decisions = validateDecisions(suite.decisions, invalid);
+    suite.decision = suite.decisions[0];
   }
   return suite;
 }
@@ -1004,10 +1017,13 @@ export async function loadDefinition(file, { root = process.cwd() } = {}) {
     }
     groups.push(group);
   }
-  const problem = suite.decision === undefined ? null : decisionProblem(suite.decision, groups);
-  if (problem !== null) {
+  const rules = suite.decisions ?? (suite.decision === undefined ? [] : [suite.decision]);
+  for (const [index, rule] of rules.entries()) {
+    const problem = decisionProblem(rule, groups);
+    if (problem === null) continue;
     const file = problem.group === null ? "" : ` (${path.relative(definitionRoot, problem.group.files[0])})`;
-    fail("invalid-definition", `suite.decision: ${problem.message}${file}`, loaded.file);
+    const label = suite.decisions === undefined ? "suite.decision" : `suite.decisions[${index}]`;
+    fail("invalid-definition", `${label}: ${problem.message}${file}`, loaded.file);
   }
   return { ...suite, groups };
 }

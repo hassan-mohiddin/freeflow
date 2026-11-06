@@ -245,19 +245,28 @@ test("the guard leaves a container shell command to the route, loaded last, whic
         assert.equal(input.command, original);
         assert.equal(route({ toolName: "bash", input }, { cwd: workspace }), undefined);
         const argv = await dockerArguments(root, input.command);
-        assert.deepEqual(argv.slice(0, 8), [
+        // The variables that name the session pass by name, so Track Work in the container knows it (SPEC-011 4.2).
+        assert.deepEqual(argv.slice(0, 16), [
           "--host",
           "unix:///x.sock",
           "exec",
           "-i",
+          "--env",
+          "CLAUDE_CODE_SESSION_ID",
+          "--env",
+          "FREEFLOW_SESSION",
+          "--env",
+          "FREEFLOW_HARNESS",
+          "--env",
+          "FREEFLOW_CONTEXT_WINDOW",
           "--workdir",
           "/testbed",
           "skill-eval-subject-1",
           "sh",
         ]);
-        assert.equal(argv[8], "-c");
-        assert.equal(argv[10], "sh");
-        assert.equal(argv[11], original);
+        assert.equal(argv[16], "-c");
+        assert.equal(argv[18], "sh");
+        assert.equal(argv[19], original);
         // The route leaves every other tool alone.
         assert.equal(route({ toolName: "read", input: { path: "a" } }, { cwd: workspace }), undefined);
       },
@@ -282,7 +291,25 @@ test("Freeflow's background commands and monitors run in the container like bash
       for (const tool of ["bash_background", "monitor"]) {
         const decision = decide(tool, { command: "npm run dev", description: "dev server" });
         const argv = await dockerArguments(root, decision.command);
-        assert.deepEqual(argv.slice(0, 5), ["exec", "-i", "--workdir", "/testbed", "box"], tool);
+        assert.deepEqual(
+          argv.slice(0, 13),
+          [
+            "exec",
+            "-i",
+            "--env",
+            "CLAUDE_CODE_SESSION_ID",
+            "--env",
+            "FREEFLOW_SESSION",
+            "--env",
+            "FREEFLOW_HARNESS",
+            "--env",
+            "FREEFLOW_CONTEXT_WINDOW",
+            "--workdir",
+            "/testbed",
+            "box",
+          ],
+          tool,
+        );
         assert.equal(argv.at(-1), "npm run dev", tool);
         assert.match(decide(tool, {}).reason, new RegExp(`${tool} needs a command`));
       }
@@ -293,7 +320,10 @@ test("Freeflow's background commands and monitors run in the container like bash
       const route = toolCallHandler(registerSkillEvalContainerRoute);
       const input = { command: "tail -f log | grep --line-buffered ERROR", description: "errors" };
       assert.equal(route({ toolName: "monitor", input }, { cwd: workspace }), undefined);
-      assert.match(input.command, /^skill_eval_in=.* docker exec -i --workdir '\/testbed' 'box' sh -c /);
+      assert.match(
+        input.command,
+        /^skill_eval_in=.* docker exec -i --env CLAUDE_CODE_SESSION_ID --env FREEFLOW_SESSION --env FREEFLOW_HARNESS --env FREEFLOW_CONTEXT_WINDOW --workdir '\/testbed' 'box' sh -c /,
+      );
     });
 
     // A shell isolation extension confines only the bash it wraps; a background command would run on the host.

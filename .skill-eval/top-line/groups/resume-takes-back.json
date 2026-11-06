@@ -1,0 +1,121 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "resume-takes-back",
+  "type": "body",
+  "input": {
+    "prompt": "When a cloud session's container is reclaimed and I resume the session, it comes back holding nothing, because the session's end released its task. Can a resumed session take back the task it held when it ended?"
+  },
+  "fixture": {
+    "git": "7846e351e84007c4ee3cb0dd70bad0c279201172",
+    "exclude": [".deprecated", ".skill-eval/review-suite", ".skill-eval/top-line", ".freeflow"]
+  },
+  "tools": ["read", "write", "edit", "find", "grep", "bash"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "plain": {
+      "freeflow": null
+    },
+    "freeflow": {}
+  },
+  "reference": "plain",
+  "component": ["freeflow"],
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "low",
+      "max_turns": 8,
+      "stop": "THANKS, DONE",
+      "card": ".skill-eval/top-line/cards/resume-takes-back.md"
+    }
+  },
+  "expectations": [
+    {
+      "id": "plain-hidden-tests",
+      "kind": "command",
+      "variant": "plain",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/track-work/tests/projects5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/track-work/tests/projects5.test.mjs": ".skill-eval/top-line/graders/resume-takes-back/.skill-eval/track-work/tests/projects5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs": ".skill-eval/top-line/graders/resume-takes-back/.skill-eval/track-work/tests/session5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "a second session's take is refused with the holder and its last sync, and allowed after a release; each hold is pushed",
+            "a session holds one task at a time: take refuses a second, switch releases the first",
+            "the menu lists the open tasks of the project whose tasks name the folder's remote, or of every project elsewhere (P95), and says what this session holds",
+            "removing a task or a project is a pushed commit that Git history keeps, and task numbers are not reused",
+            "a task with no project: created where no project names the folder, listed in the menu, moved into a project and out again without reusing its number",
+            "outside a Freeflow store, every project and task command says a store is needed",
+            "the session is read from the environment: Claude Code's IDs, a cloud session's link, or Freeflow's own variables",
+            "task here --scan remembers where a task's repository is on this machine, so recovery resolves its pointers (P96)",
+            "task here --rules adds the store's rules and the folder's and held task's project rules after the menu, and nothing without it",
+            "a resumed session takes back the task its end released (F36), never one released on purpose or taken since",
+            "checkpoint refuses a store task this session does not hold, naming task take (F36)",
+            "session status prints this session's state in the store as JSON: its task, its summary, unsynced changes and its transcript",
+            "view bundle --fallback adds the user's messages since the checkpoint, word for word, and a closing line naming the record's time and the transcript",
+            "with no store, a session summary still asks for Freeflow's compaction, and session status reports both (P4)",
+            "without a task, the session summary's Carry lines name files, which the bundle copies fresh with their lines; any other Carry line is refused"
+          ]
+        }
+      }
+    },
+    {
+      "id": "freeflow-hidden-tests",
+      "kind": "command",
+      "variant": "freeflow",
+      "comparison": "hidden-tests",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        ".skill-eval/track-work/tests/projects5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs"
+      ],
+      "files": {
+        ".skill-eval/track-work/tests/projects5.test.mjs": ".skill-eval/top-line/graders/resume-takes-back/.skill-eval/track-work/tests/projects5.test.mjs",
+        ".skill-eval/track-work/tests/session5.test.mjs": ".skill-eval/top-line/graders/resume-takes-back/.skill-eval/track-work/tests/session5.test.mjs"
+      },
+      "timeout_seconds": 900,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "a second session's take is refused with the holder and its last sync, and allowed after a release; each hold is pushed",
+            "a session holds one task at a time: take refuses a second, switch releases the first",
+            "the menu lists the open tasks of the project whose tasks name the folder's remote, or of every project elsewhere (P95), and says what this session holds",
+            "removing a task or a project is a pushed commit that Git history keeps, and task numbers are not reused",
+            "a task with no project: created where no project names the folder, listed in the menu, moved into a project and out again without reusing its number",
+            "outside a Freeflow store, every project and task command says a store is needed",
+            "the session is read from the environment: Claude Code's IDs, a cloud session's link, or Freeflow's own variables",
+            "task here --scan remembers where a task's repository is on this machine, so recovery resolves its pointers (P96)",
+            "task here --rules adds the store's rules and the folder's and held task's project rules after the menu, and nothing without it",
+            "a resumed session takes back the task its end released (F36), never one released on purpose or taken since",
+            "checkpoint refuses a store task this session does not hold, naming task take (F36)",
+            "session status prints this session's state in the store as JSON: its task, its summary, unsynced changes and its transcript",
+            "view bundle --fallback adds the user's messages since the checkpoint, word for word, and a closing line naming the record's time and the transcript",
+            "with no store, a session summary still asks for Freeflow's compaction, and session status reports both (P4)",
+            "without a task, the session summary's Carry lines name files, which the bundle copies fresh with their lines; any other Carry line is refused"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "git": "d86edbf6528df936392033134586ca7fe1da16aa"
+  }
+}

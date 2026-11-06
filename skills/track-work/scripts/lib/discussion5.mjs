@@ -4,11 +4,12 @@
 // transcript goes through a reader per format, so any harness can supply one.
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { isPiSession, piUserMessages } from "./pi-session.mjs";
 import { loadTask5 } from "./record5.mjs";
+import { writeNoFollow } from "./no-follow.mjs";
 
 export const DISCUSSION_FILE = join("sources", "discussion.md");
 const BLOCK = /^## (B-\d{3,}) — (.+?) · (.+?) · shapes (.+?)(?: · replaces (B-\d{3,}))?$/;
@@ -304,7 +305,7 @@ export async function saveBlock(
     ...(body.length ? [""] : []),
     ...block,
   ];
-  await writeFile(file, `${trimEnd(out).join("\n")}\n`);
+  await writeNoFollow(file, `${trimEnd(out).join("\n")}\n`);
   return `Saved ${id} — ${title}: ${chosen.length} message(s)${replaces ? `; dropped ${replaces}, which it replaces` : ""}.\n${DISCUSSION_FILE} is a must-read source while it holds blocks: list it under Read on recovery.\n`;
 }
 
@@ -321,7 +322,7 @@ export async function dropBlock({ path: recordPath }, id) {
   const block = blocks.find((each) => each.id === id);
   if (!block) fail(`No block ${id} in ${DISCUSSION_FILE}.`);
   const out = trimEnd([...lines.slice(0, block.start), ...lines.slice(block.end)]);
-  await writeFile(file, `${out.join("\n")}\n`);
+  await writeNoFollow(file, `${out.join("\n")}\n`);
   const left = blocks.length - 1;
   return `Dropped ${id}; Git keeps it. ${left ? `${left} block(s) left.` : `No blocks left: drop its line from Recovery (${DISCUSSION_FILE}).`}\n`;
 }

@@ -33,17 +33,7 @@
     "plain": {
       "freeflow": null
     },
-    "freeflow": {},
-    "freeflow-te": {
-      "freeflow": {
-        "repository": {
-          "toolExecution": {
-            "enabled": true,
-            "guidanceNotices": true
-          }
-        }
-      }
-    }
+    "freeflow": {}
   },
   "participants": {
     "protocol": "conversation",
@@ -107,30 +97,6 @@
       }
     },
     {
-      "id": "freeflow-te-hidden-tests",
-      "kind": "command",
-      "variant": "freeflow-te",
-      "comparison": "hidden-tests",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-hidden.test.mjs"],
-      "files": {
-        ".fvp-hidden.test.mjs": ".skill-eval/freeflow-vs-plain/graders/duration-test.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": [
-            "fvp: a test was added or extended",
-            "fvp: the new tests pass on the current code",
-            "fvp: the new tests fail on the code before the fix",
-            "fvp: the fixed source is left as it is",
-            "fvp: the existing tests still pass"
-          ]
-        }
-      }
-    },
-    {
       "id": "plain-marker-tests-kept",
       "kind": "command",
       "variant": "plain",
@@ -152,24 +118,6 @@
       "id": "freeflow-marker-tests-kept",
       "kind": "command",
       "variant": "freeflow",
-      "comparison": "marker-tests-kept",
-      "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
-      "files": {
-        ".fvp-markers.test.mjs": ".skill-eval/freeflow-vs-plain/graders/markers.test.mjs",
-        ".fvp-lib.mjs": ".skill-eval/freeflow-vs-plain/graders/lib.mjs"
-      },
-      "timeout_seconds": 300,
-      "pass": {
-        "tests": {
-          "format": "node-test",
-          "required": ["fvp: the existing tests are kept unchanged"]
-        }
-      }
-    },
-    {
-      "id": "freeflow-te-marker-tests-kept",
-      "kind": "command",
-      "variant": "freeflow-te",
       "comparison": "marker-tests-kept",
       "argv": ["node", "--test", "--test-reporter=tap", ".fvp-markers.test.mjs"],
       "files": {

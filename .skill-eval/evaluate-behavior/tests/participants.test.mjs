@@ -666,6 +666,27 @@ test("a conversation runs until the simulated user says the stop phrase", async 
   });
 });
 
+test("a conversation counts its interruptions: the user's turns before the stop, and those answered by default (SPEC-011 4.3)", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await write(path.join(root, "user.json"), [
+      "Use the one in plan.md.",
+      "I don't know.",
+      "Your recommendation is fine.",
+      `Great. ${STOP}`,
+    ]);
+    const file = await writeTask(root, baseGroup({ participants: conversation() }));
+
+    const result = cli(root, bin, ["run", file]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const run = await readJson(path.join(result.stdout.match(/^Path: (.+)$/m)[1], "groups/multi/baseline/run.json"));
+    assert.equal(run.participants.ended, "stop");
+    // Three answers before the stop, two of them where the card said nothing; the stop is no interruption.
+    assert.deepEqual([run.metrics.interruptions, run.metrics.defaultAnswers], [3, 2]);
+  });
+});
+
 test("a conversation ends at max_turns, and a failed simulated user fails the run", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installFakePi(root);

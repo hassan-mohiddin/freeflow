@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
+import { gitRefused } from "./untrusted.mjs";
 
 // Pointers in a record's lines, found and resolved: what each Recovery entry points to and whether it can be read now
 // (the budget and the views), and the pointers on a Slice's update lines for
@@ -13,6 +14,7 @@ const COMMIT = /^[0-9a-f]{7,40}$/;
 const URL = /^[a-z][a-z0-9+.-]*:\/\//i;
 
 function git(root, args) {
+  if (gitRefused(root)) return null;
   try {
     return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
   } catch {

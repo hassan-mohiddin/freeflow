@@ -67,6 +67,7 @@ export default [
     ms: 0,
     command: "npm test -- --token=[redacted]",
     source: "agent",
+    outChars: 9,
   },
   {
     v: 1,
@@ -129,6 +130,7 @@ export default [
     ms: 0,
     paths: ["src/app.js"],
     source: "agent",
+    outChars: 50,
   },
   {
     v: 1,

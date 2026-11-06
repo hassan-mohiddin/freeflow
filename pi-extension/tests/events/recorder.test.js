@@ -217,6 +217,8 @@ test(
               return JSON.stringify({
                 ...rest,
                 ...(rest.ms === undefined ? {} : { ms: "<ms>" }),
+                // What Freeflow added follows the runtime prompts' text, which changes on its own (SPEC-011 4.1).
+                ...(rest.kind === "freeflow" && rest.chars !== undefined ? { chars: "<chars>" } : {}),
                 ...(rest.command ? { command: rest.command.split(resolve(".")).join("<repo>") } : {}),
               });
             });

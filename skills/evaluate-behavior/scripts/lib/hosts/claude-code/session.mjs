@@ -287,7 +287,7 @@ class ClaudeSession {
     }
     if (event.type === "system" && event.subtype === "init") this.observeInit(event);
     else if (this.activeTurn === null) return;
-    else if (event.type === "assistant") this.observeAssistant(event.message);
+    else if (event.type === "assistant") this.observeAssistant(event.message, event);
     else if (event.type === "user") this.observeUser(event.message);
     else if (event.type === "result") this.observeResult(event);
   }
@@ -317,7 +317,7 @@ class ClaudeSession {
   }
 
   // Claude Code reports each content block of an assistant message as its own event; they are one message.
-  observeAssistant(message) {
+  observeAssistant(message, event = {}) {
     if (!message || typeof message !== "object") return;
     const turn = this.activeTurn;
     turn.promptAccepted = true;
@@ -330,6 +330,9 @@ class ClaudeSession {
       this.transcript.push(entry);
     }
     entry.stopReason = message.stop_reason ?? entry.stopReason ?? null;
+    // Each request's usage and whether a worker (a subagent) made it, so its cost at list price can be counted.
+    if (message.usage && typeof message.usage === "object") entry.usage = message.usage;
+    if (typeof event.parent_tool_use_id === "string") entry.worker = true;
     for (const block of Array.isArray(message.content) ? message.content : []) {
       entry.content.push(block);
       if (block?.type !== "tool_use") continue;

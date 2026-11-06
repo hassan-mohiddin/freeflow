@@ -78,6 +78,12 @@ export function eventPath(path, cwd) {
   return full.startsWith(base + sep) ? relative(base, full).split(sep).join("/") : full;
 }
 /** A shell command's exit code, where Pi gives one: only as text, "Command exited with code N". */
+/** How many characters of text a tool result or a message carries: what the model reads of it (SPEC-011 4.1). */
+export function textChars(content) {
+  if (typeof content === "string") return content.length;
+  if (!Array.isArray(content)) return 0;
+  return content.reduce((sum, block) => sum + (typeof block?.text === "string" ? block.text.length : 0), 0);
+}
 export function exitCode(content) {
   const text = Array.isArray(content)
     ? content.map((block) => (typeof block?.text === "string" ? block.text : "")).join("\n")
@@ -152,6 +158,7 @@ export class EventRecorder {
     const count = (value) => (Number.isInteger(value) && value >= 0 ? value : undefined);
     const [input, output, read, written] = [usage.input, usage.output, usage.cacheRead, usage.cacheWrite].map(count);
     this.emit("model.request", {
+      turn: this.turns || undefined,
       model: message.model,
       effort: typeof thinkingLevel === "string" && thinkingLevel ? thinkingLevel : null,
       in: input,
@@ -185,13 +192,15 @@ export class EventRecorder {
       paths: named.length ? named.map((path) => eventPath(path, cwd)) : undefined,
       command,
       source: ours ? "freeflow" : "agent",
+      outChars: textChars(event?.content),
     });
   }
   compaction(by, trigger) {
     this.emit("compaction", { by, trigger });
   }
-  freeflow(what, detail) {
-    this.emit("freeflow", { what, detail });
+  /** A `freeflow` line; `chars` is what it put into the model's context, when it put something there (SPEC-011 4.1). */
+  freeflow(what, detail, chars) {
+    this.emit("freeflow", { what, detail, chars: chars && chars > 0 ? chars : undefined });
   }
   sessionEnded(reason) {
     this.emit("session.end", { reason: typeof reason === "string" && reason ? reason : undefined });

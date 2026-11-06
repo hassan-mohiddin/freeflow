@@ -7,16 +7,24 @@ Freeflow keeps a log of what happens in each session's loop, and says what it ca
 One line per event, in `events/<session ID>.jsonl` in the Freeflow home (`FREEFLOW_HOME`, `~/.freeflow` by default):
 
 - the session's start and end, and each turn;
-- each model request: the model, its effort, and its tokens (input, cache read and written, output);
-- each tool call: the tool, whether it failed, the exit code where the host gives one (Pi does, Claude Code and Codex do not), how long it took, the paths a file tool named, and a shell command's text;
+- each model request: the turn it was made in, the model, its effort, and its tokens (input, cache read and written, output);
+- each tool call: the tool, whether it failed, the exit code where the host gives one (Pi does, Claude Code and Codex do not), how long it took, the paths a file tool named, a shell command's text, and how many characters its result had;
 - compactions, and whether Freeflow or the host ran them; workers started and stopped;
-- Freeflow's own actions: a notice, a context row, the task menu, a compaction it ran, a store sync, its claims;
+- Freeflow's own actions: a notice, a context row, the task menu, the guidance, the bundle a compaction put in place of the conversation, a compaction it ran, a store sync, its claims; where one of them put text into the agent's context, how many characters;
 - each time a [gate](gates.md) warned, asked or refused (the gate, the tool and the rule), and an agreement recorded with `agree`.
 - on Claude Code, each row or notice of the cost governor: the cap, the use against it, and the response (see [Settings](../settings.md), Cost governor); `events summary` lists them.
 
 A line never holds a prompt, an answer, a file's content or a tool's output. In a command, keys and tokens (`sk-…`, `ghp_…`, `github_pat_…`, `xox…-`, `AKIA…`, `Bearer …`, and any `…key=`, `…token=`, `…secret=` or `…password=` value) are replaced with `[redacted]` before it is written, and the command is cut to 200 characters.
 
-The log stays on this machine: the store's Git ignores `events/`, and nothing in it is sent anywhere or read by the model. What leaves the machine is a summary: at each checkpoint and when a session releases its task, Freeflow writes `events/<session ID>.json` into the task's folder, which the store commits: model requests and tokens by model and effort, tool calls by tool with failures, compactions, workers, the share of tool calls that were Freeflow's own, and how often each gate would have fired.
+The log stays on this machine: the store's Git ignores `events/`, and nothing in it is sent anywhere or read by the model. What leaves the machine is a summary: at each checkpoint and when a session releases its task, Freeflow writes `events/<session ID>.json` into the task's folder, which the store commits: model requests and tokens by model and effort, what those requests cost at API list price, Freeflow's overhead, tool calls by tool with failures, compactions, workers, the share of tool calls that were Freeflow's own, and how often each gate would have fired.
+
+Freeflow's overhead is an estimate: the share of the input tokens that was Freeflow's own text (its guidance, menu, notices, rows and bundle) and the results of its own tool calls, counted at 4 characters a token. It is given for all input, then for uncached and cached input apart, with what it was made of:
+
+```text
+Overhead: 18% of input tokens by estimate (Freeflow's injected text and its own tool results, 4 characters a token), 4% of uncached, 21% of cached; its own tool results 41%, the bundle 33%, notices 6%
+```
+
+A request with no turn (a log written before this field existed) counts as the agent's, and the line says how many there were. The cost uses the price table Track Work plans with; a cache write is priced as a five-minute one, since the log does not say which it was.
 
 Freeflow keeps the log until you delete it. Ask the agent, or run Track Work's script yourself:
 

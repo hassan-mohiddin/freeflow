@@ -40,9 +40,11 @@ export const RETIRED = [
 ];
 
 /** Not read: history (the changelog, decision records, release evidence, the deprecated archive), frozen eval
- * fixtures, pi-extension/dist, which is built from the src this check reads, and this check and its test, which name
+ * fixtures and the top-line suite's tasks (its graders, groups and tasks.json copy each merged PR's tests at that
+ * commit), pi-extension/dist, which is built from the src this check reads, and this check and its test, which name
  * them to find them. */
 const NOT_READ = [
+  /^\.skill-eval\/top-line\/(?:graders\/|groups[^/]*\/|tasks\.json$)/,
   /^scripts\/validation\/check-hosts(?:\.test)?\.mjs$/,
   /^CHANGELOG\.md$/,
   /^dev-docs\/adr\//,
