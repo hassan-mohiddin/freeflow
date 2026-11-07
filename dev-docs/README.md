@@ -79,7 +79,7 @@ Freeflow does not ship a CLI, duplicate manifest command handlers, enforcement h
 - **Kiro, OpenCode, Hermes and other skills-compatible hosts:** the root Agent Plugins 1.0 package or their skill-source configuration pointing at `skills/`; no always-on prompt surface.
 - **Pi:** the root package manifest loads `pi-extension/freeflow/index.js` (Pi 0.99.1 or later).
 
-All hook adapters stay inert without valid repository activation and never expose Pi capabilities. An existing but invalid `.freeflow/config.json` or `.freeflow/local.json` delivers a short configuration error naming the file instead of the core prompt, as Pi's status does; a missing repository config delivers nothing. Hook trust and registration remain host concerns; local checks prove package and hook shapes, not host dispatch. Per-host detail: [Prompt assembly](subsystems/prompt-assembly.md#host-delivery).
+All hook adapters stay inert without a repository config and never expose Pi capabilities. A config file that cannot be used keeps the guidance on: each setting it ignores keeps its default and is named in the Runtime State (D-045), as Pi's footer and status name it; a missing repository config delivers nothing. Hook trust and registration remain host concerns; local checks prove package and hook shapes, not host dispatch. Per-host detail: [Prompt assembly](subsystems/prompt-assembly.md#host-delivery).
 
 ## Review Rules
 

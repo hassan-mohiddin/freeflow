@@ -949,12 +949,15 @@ const from = (scope) =>
 function listText(data) {
   const rows = data.settings.filter((/** @type {any} */ row) => SECTION_ROWS.has(row.key) || row.scope !== "default");
   const width = Math.max(...rows.map((/** @type {any} */ row) => row.label.length));
+  // The settings a file ignores are named with the script's own line for them, and Freeflow stays on (D-045).
+  const ignored = (data.state ?? []).filter((/** @type {string} */ line) => line.startsWith("Settings ignored:"));
   return [
     `Freeflow settings for ${data.root} (Claude Code)`,
     ...rows.map(
       (/** @type {any} */ row) =>
         `  ${row.label.padEnd(width)}  ${shown(row.value).padEnd(8)}  ${SCOPE_NAMES[row.scope]}${SECTION_ROWS.has(row.key) ? "" : `  (${row.key})`}`,
     ),
+    ...ignored,
     COMMAND_USAGE,
     "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.agreement, gates.slice, gates.delivery, gates.delegation, review.unit, review.model, review.rounds, governor.mode, governor.cap, pane.enabled, pane.statusLine.",
     "Review depth rules (review.depth) are edited in .freeflow/config.json; review-plan reads them from the base commit.",

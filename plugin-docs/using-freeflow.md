@@ -354,17 +354,17 @@ Freeflow uses layered settings. The exact available controls depend on the host.
 
 ### Shared repository activation
 
-`.freeflow/config.json` is the required shared activation boundary. Minimal activation is:
+`.freeflow/config.json` is the shared settings file, and `{}` is a valid minimal one:
 
 ```json
 {}
 ```
 
-Use `/setup-freeflow` to create or repair the supported repository configuration. Setup does not write instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
+On Pi, Freeflow is on in any folder where it is installed, with the defaults, whether or not this file exists; `"enabled": false` in either file turns it off. On Claude Code and Codex the guidance starts only in a folder that has this file. Use `/setup-freeflow` to create or repair the supported repository configuration. Setup does not write instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
 
 ### Personal override
 
-`.freeflow/local.json` supplies per-checkout personal overrides. It cannot activate Freeflow by itself. An invalid existing personal layer fails closed rather than silently inheriting the shared layer.
+`.freeflow/local.json` supplies per-checkout personal overrides. It does not turn Freeflow on by itself on Claude Code or Codex. A setting in either file that Freeflow cannot use is ignored and named (the footer and `/freeflow status` say which), and the default, or the other file's value, applies to it; a file that is not JSON is read as empty and named the same way. `settings.mjs doctor` shows the fix for each.
 
 On Pi:
 
@@ -480,8 +480,8 @@ A cheaper request that causes repeated work can be more expensive overall. Missi
 
 ### Freeflow appears inactive
 
-- Confirm `.freeflow/config.json` exists and is valid.
-- Check whether `.freeflow/local.json` is invalid and failing closed.
+- Check the footer: `freeflow: on · N setting(s) ignored (settings.mjs doctor)` means Freeflow is on and names what it ignores. Run `/freeflow status` for the names, and `settings.mjs doctor` for the fix.
+- `freeflow: off` means a file sets `enabled: false`, or this session's override does.
 - Reload or start a new session after installation/configuration changes.
 - Verify host delivery using [Getting Started](getting-started.md).
 

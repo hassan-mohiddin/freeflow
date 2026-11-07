@@ -268,8 +268,8 @@ const missingText = (found) =>
 
 /**
  * Whether Freeflow and its event log are on for the session's folder: Session, then Personal, then Repository, then
- * the default, as the settings script resolves them. An invalid file leaves both on, as Claude Code's mod does when
- * the script refuses; the guidance itself reports the file.
+ * the default, as the settings script resolves them. A file that cannot be used contributes what it keeps; the
+ * settings it ignores are named by the guidance, which is how the session says so (D-045).
  * @param {string} root
  * @param {any} ctx
  */
@@ -278,7 +278,6 @@ async function resolveSwitches(root, ctx) {
   const validation = await import(pathToFileURL(join(PLUGIN_ROOT, "pi-extension/dist/host/config-validation.js")).href);
   const repository = store.readConfigFile(root, "repository");
   const personal = store.readConfigFile(root, "personal");
-  if (repository.error || personal.error) return { enabled: true, events: true, gates: { ...DEFAULT_GATE_SETTINGS } };
   const layers = {
     repository: repository.value,
     personal: personal.value,

@@ -139,7 +139,7 @@ Freeflow 0.9.0 has ten skills instead of twenty-five. The removed names have no 
 
 ## Activation And Configuration
 
-Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal overrides and cannot activate Freeflow by itself. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Tool Execution, Compaction and Messaging are optional capabilities. The former context settings `contextVirtualization` and `conversationHistory` are unsupported and make either config layer invalid until removed.
+Freeflow is on where Pi has it installed, and on Claude Code and Codex in a folder with a shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal overrides. A setting a file holds that Freeflow cannot use is ignored and named, and the default applies to it. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Tool Execution, Compaction and Messaging are optional capabilities. The former context settings `contextVirtualization` and `conversationHistory` are unsupported: each is ignored and named until removed.
 
 ```text
 host session enablement -> personal override -> repository value -> built-in default

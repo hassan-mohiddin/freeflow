@@ -87,12 +87,13 @@ test("host adapters stay inert for disabled and unsupported lifecycle inputs and
   for (const [host, [relativePath]] of Object.entries(adapters)) {
     const input = inputFor(host, disabledWorkspace);
     assert.equal(runAdapter(relativePath, disabledWorkspace, input, eventFor(host)), undefined);
+    // A config Freeflow cannot fully use stays on, with the guidance, and names the setting it ignores (D-045).
     const invalid = contextOf(
       runAdapter(relativePath, invalidWorkspace, inputFor(host, invalidWorkspace), eventFor(host)),
     );
-    assert.match(invalid, /# Freeflow Configuration Error/, host);
-    assert.match(invalid, /\.freeflow\/config\.json is invalid: enabled must be a boolean/, host);
-    assert.doesNotMatch(invalid, /# Freeflow Stable Guidance/, host);
+    assert.match(invalid, /# Freeflow Stable Guidance/, host);
+    assert.match(invalid, /Settings ignored: \.freeflow\/config\.json enabled: enabled must be a boolean/, host);
+    assert.match(invalid, /Run `settings\.mjs doctor`/, host);
     assert.equal(runAdapter(relativePath, disabledWorkspace, input, "UserPromptSubmit"), undefined);
   }
 });
@@ -131,7 +132,7 @@ test("the hooks and Pi agree on every config's validity", async () => {
     ["{}", '{"review":{"effort":"high"}}'],
     ["{invalid", undefined],
     ["[]", undefined],
-    // A removed feature's key is refused on every host as on Pi.
+    // A removed feature's key is ignored and named on every host, as on Pi.
     ['{"cognitiveRouting":{"enabled":false}}', undefined],
     ["{}", '{"cognitiveRouting":{}}'],
     // An optional version, which a later Freeflow writes (SPEC-005 4.6).
@@ -143,8 +144,9 @@ test("the hooks and Pi agree on every config's validity", async () => {
     const pi = await readFreeflowConfigLayers(workspace);
     const hook = readConfig(workspace);
     const label = `config ${config}, local ${local}`;
-    assert.equal(hook.configured, pi.configured, label);
-    assert.equal(hook.enabled, pi.configured && pi.coreConfig.enabled, label);
+    // Every host reads the same files the same way: the same switch, and the same settings ignored and named (D-045).
+    assert.equal(hook.enabled, pi.coreConfig.enabled, label);
+    assert.deepEqual(hook.ignored, pi.ignored, label);
   }
 });
 
@@ -167,22 +169,24 @@ test("a hook host's Runtime State names the user's review choice, and only a cho
     /\nReview: unit `manual`, model `shared-model`, up to Review 1$/,
   );
   assert.doesNotMatch(runtimeState({ review: { unit: "manual" } }, { review: { unit: "pr" } }), /Review:/);
+  // A value the host cannot use is ignored and named; Freeflow stays on (D-045).
   const workspace = createWorkspace('{"review":{"unit":"sometimes"}}\n');
   const invalid = contextOf(runAdapter(adapters.codex[0], workspace, inputFor("codex", workspace)));
+  assert.match(invalid, /^Freeflow: active$/m);
   assert.match(
     invalid,
-    /\.freeflow\/config\.json is invalid: review\.unit must be one of pr, push, commit, agreement, manual/,
+    /Settings ignored: \.freeflow\/config\.json review\.unit: review\.unit must be one of pr, push, commit, agreement, manual/,
   );
   // review.mode is gone: the message names its replacement.
   const old = createWorkspace('{"review":{"mode":"always"}}\n');
   assert.match(
     contextOf(runAdapter(adapters.codex[0], old, inputFor("codex", old))),
-    /\.freeflow\/config\.json is invalid: review\.mode is replaced by review\.unit/,
+    /Settings ignored: \.freeflow\/config\.json review\.mode: review\.mode is replaced by review\.unit/,
   );
   const removed = createWorkspace('{"cognitiveRouting":{"enabled":true}}\n');
   assert.match(
     contextOf(runAdapter(adapters.codex[0], removed, inputFor("codex", removed))),
-    /\.freeflow\/config\.json is invalid: Cognitive Routing was removed from Freeflow: delete the cognitiveRouting key from \.freeflow\/config\.json\./,
+    /Settings ignored: \.freeflow\/config\.json cognitiveRouting: Cognitive Routing was removed from Freeflow/,
   );
 });
 
@@ -290,10 +294,14 @@ test("the user selects which runtime prompts a hook host delivers", () => {
   assert.equal(runAdapter(adapters.claude[0], workspace, inputFor("claude", workspace)), undefined);
 });
 
-test("an invalid prompt selection is reported", () => {
+test("an invalid prompt selection is ignored and named, and the prompt keeps its default", () => {
   const workspace = createWorkspace("{}\n", '{"prompts":{"workingMethod":"off"}}\n');
   const context = contextOf(runAdapter(adapters.codex[0], workspace, inputFor("codex", workspace)));
-  assert.match(context, /\.freeflow\/local\.json is invalid: prompts\.workingMethod must be a boolean/);
+  assert.match(
+    context,
+    /Settings ignored: \.freeflow\/local\.json prompts\.workingMethod: prompts\.workingMethod must be a boolean/,
+  );
+  assert.match(context, /# Freeflow Working Method/);
 });
 
 // Claude Code caps each hook's additionalContext at 10,000 characters and saves anything longer to a file, giving the
@@ -331,7 +339,7 @@ test("each Claude Code hook stays under Claude Code's context cap and together t
     "# Freeflow Runtime State",
   ])
     assert.equal(all.split(heading).length - 1, 1, heading);
-  // A selected-off prompt's hook delivers nothing; an invalid config is reported once, by the core hook.
+  // A selected-off prompt's hook delivers nothing; an ignored setting is named once, by the core hook.
   const selected = runManifestHooks(
     "hooks/claude/hooks.json",
     "CLAUDE_PLUGIN_ROOT",
@@ -340,7 +348,7 @@ test("each Claude Code hook stays under Claude Code's context cap and together t
   assert.equal(selected[2].context, undefined);
   const invalid = runManifestHooks("hooks/claude/hooks.json", "CLAUDE_PLUGIN_ROOT", createWorkspace('{"enabled":1}\n'));
   assert.deepEqual(
-    invalid.map(({ context }) => /# Freeflow Configuration Error/.test(context ?? "")),
+    invalid.map(({ context }) => /Settings ignored: \.freeflow\/config\.json enabled: /.test(context ?? "")),
     [true, false, false],
   );
 });

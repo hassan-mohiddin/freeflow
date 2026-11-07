@@ -297,9 +297,9 @@ test("a base policy that does not validate refuses the plan with the key and the
   const personal = await repo({ ".gitignore": ".freeflow/local.json\n" }, { "src/a.js": "1\n" });
   try {
     await write(personal.root, { ".freeflow/local.json": JSON.stringify({ review: { depth: { default: "quick" } } }) });
+    // A personal depth is ignored and named by the settings (D-045): the plan runs on the base's policy, not the file's.
     const result = personal.run();
-    assert.equal(result.status, 2);
-    assert.match(result.stderr, /local\.json is invalid: review\.depth is Repository scope only/);
+    assert.equal(result.status, 0, result.stderr);
   } finally {
     await personal.cleanup();
   }

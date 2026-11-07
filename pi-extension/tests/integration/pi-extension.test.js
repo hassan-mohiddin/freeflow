@@ -812,17 +812,26 @@ test("Pi expands setup-freeflow when dispatching its unconfigured skill command"
   }
 });
 
-test("Pi keeps Freeflow inactive until repository activation exists", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-missing-setup-"));
+test("Pi turns Freeflow on without a config file: installed means on, and enabled false turns it off", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-no-config-"));
   try {
-    const { handlers } = loadExtension();
+    const { handlers, commands } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
-    assert.equal(resources.skillPaths.length, 1);
+    // Without a config file every skill and the guidance load, with the defaults.
+    assert.ok(resources.skillPaths.length > 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
-    assert.equal(result.systemPrompt, "base prompt");
-    assert.equal(result.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
+    assert.match(result.renderedGuidance, /## Freeflow core/);
+    const state = await readCapabilityState(cwd);
+    assert.equal(state.enabled, true);
+    assert.equal(state.configExists, false);
+    const statusCtx = context(cwd);
+    await commands.find((command) => command.name === "freeflow").definition.handler("status", statusCtx);
+    assert.match(statusCtx.notifications.at(-1).message, /^Freeflow: enabled/);
+    // enabled: false in the personal file turns it off, as on Claude Code.
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: false }), "utf8");
+    assert.equal((await readCapabilityState(cwd)).enabled, false);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -887,22 +896,23 @@ test("Pi applies a session value over the files for a choice, a model name and a
   }
 });
 
-test("Pi rejects obsolete modes and removed core toggles in configuration", async () => {
+test("Pi ignores obsolete modes and removed core toggles, names them, and stays on", async () => {
   // The removed top-level Interaction Contract switch; today `prompts.interactionContract` and `prompts.enabled`.
   for (const config of [{ defaultMode: "workflow" }, { interactionContract: false }]) {
     const cwd = await configuredRepo(config);
     try {
       const layers = await readFreeflowConfigLayers(cwd);
-      assert.equal(layers.configured, false);
-      assert.equal(layers.repository.valid, false);
-      assert.match(layers.parseError, /unsupported top-level config key/);
+      assert.equal(layers.ignored.length, 1);
+      assert.match(layers.ignored[0].reason, /unsupported key/);
+      const state = await readCapabilityState(cwd);
+      assert.equal(state.enabled, true);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
   }
 });
 
-test("Pi reports exactly which removed context keys must be deleted from each config layer", async () => {
+test("Pi names which removed context keys must be deleted from each config layer, and stays on", async () => {
   for (const [file, key] of [
     ["config.json", "contextVirtualization"],
     ["config.json", "conversationHistory"],
@@ -915,36 +925,39 @@ test("Pi reports exactly which removed context keys must be deleted from each co
         await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ [key]: true }), "utf8");
       }
       const layers = await readFreeflowConfigLayers(cwd);
-      assert.equal(layers.configured, false);
-      assert.match(layers.parseError, new RegExp(key));
-      assert.match(layers.parseError, new RegExp(`\\.freeflow/${file.replace(".", "\\.")}`));
+      assert.deepEqual(
+        layers.ignored.map((item) => [item.file, item.key]),
+        [[`.freeflow/${file}`, key]],
+      );
       const { commands } = loadExtension();
       const command = commands.find((candidate) => candidate.name === "freeflow");
       const status = context(cwd);
       await command.definition.handler("status", status);
-      assert.match(status.notifications.at(-1).message, new RegExp(key));
-      assert.match(status.notifications.at(-1).message, new RegExp(`\\.freeflow/${file.replace(".", "\\.")}`));
-      assert.match(status.notifications.at(-1).message, /Delete those keys before using Freeflow/);
-      assert.match(status.notifications.at(-1).message, new RegExp(`fix \\.freeflow/${file.replace(".", "\\.")}`));
+      const message = status.notifications.at(-1).message;
+      assert.match(message, /^Freeflow: enabled/);
+      assert.match(message, new RegExp(`\\.freeflow/${file.replace(".", "\\.")} ${key}: `));
+      assert.match(message, /settings\.mjs doctor/);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
   }
 });
 
-test("a config that still sets cognitiveRouting is refused, saying the feature was removed and the key to delete", async () => {
+test("a config that still sets cognitiveRouting ignores it, says the feature was removed, and stays on", async () => {
   for (const file of ["config.json", "local.json"]) {
     const removed = { cognitiveRouting: { enabled: false } };
     const cwd = await configuredRepo(file === "config.json" ? removed : {});
     try {
       if (file === "local.json") await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify(removed), "utf8");
       const layers = await readFreeflowConfigLayers(cwd);
-      assert.equal(layers.configured, false);
-      const message = `Cognitive Routing was removed from Freeflow: delete the cognitiveRouting key from .freeflow/${file}.`;
-      assert.equal(layers.parseError, message);
+      assert.deepEqual(layers.ignored, [
+        { file: `.freeflow/${file}`, key: "cognitiveRouting", reason: "Cognitive Routing was removed from Freeflow" },
+      ]);
+      assert.equal((await readCapabilityState(cwd)).enabled, true);
       const { commands } = loadExtension();
       const status = context(cwd);
       await commands.find((candidate) => candidate.name === "freeflow").definition.handler("status", status);
+      const message = `Cognitive Routing was removed from Freeflow`;
       assert.ok(status.notifications.at(-1).message.includes(message), status.notifications.at(-1).message);
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -952,21 +965,22 @@ test("a config that still sets cognitiveRouting is refused, saying the feature w
   }
 });
 
-test("Pi treats invalid configuration as inactive", async () => {
+test("Pi keeps Freeflow on when the repository config holds a value it cannot use, and names the value", async () => {
   const cwd = await configuredRepo({ enabled: "false" });
   try {
     const { handlers, commands } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
-    assert.equal(resources.skillPaths.length, 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
-    assert.equal(result.systemPrompt, "base prompt");
-    assert.equal(result.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
+    assert.match(result.renderedGuidance, /## Freeflow core/);
     const freeflowCommand = commands.find((command) => command.name === "freeflow");
     const statusCtx = context(cwd);
     await freeflowCommand.definition.handler("status", statusCtx);
-    assert.match(statusCtx.notifications.at(-1).message, /invalid config/);
+    assert.match(
+      statusCtx.notifications.at(-1).message,
+      /Settings ignored: \.freeflow\/config\.json enabled: enabled must be a boolean/,
+    );
+    assert.match(statusCtx.notifications.at(-1).message, /^Freeflow: enabled/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -1008,37 +1022,42 @@ test("Pi resolves Tool Execution as one capability and reports it in the Runtime
 });
 
 test("Pi rejects invalid Tool Execution configuration", async () => {
-  for (const [toolExecution, error] of [
-    [{ enabled: "yes" }, /toolExecution\.enabled must be a boolean/],
-    [{ sandbox: true }, /toolExecution has unsupported key: sandbox/],
+  for (const [toolExecution, key, error] of [
+    [{ enabled: "yes" }, "toolExecution.enabled", /toolExecution\.enabled must be a boolean/],
+    [{ sandbox: true }, "toolExecution.sandbox", /toolExecution has unsupported key: sandbox/],
   ]) {
     const cwd = await configuredRepo({ toolExecution });
     try {
       const layers = await readFreeflowConfigLayers(cwd);
-      assert.equal(layers.configured, false);
-      assert.match(layers.parseError, error);
+      assert.equal(layers.ignored.length, 1);
+      assert.equal(layers.ignored[0].key, key);
+      assert.match(layers.ignored[0].reason, error);
+      // The bad key keeps its default: Tool Execution stays on.
+      assert.equal((await readCapabilityState(cwd)).toolExecution.enabled, true);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
   }
 });
 
-test("Pi session enablement cannot bypass repository activation", async () => {
+test("Pi session enablement holds over the files, and a session that is off stays off without a config file", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-session-activation-"));
   await mkdir(join(cwd, ".freeflow"));
   const { pi } = loadExtension();
   const ctx = context(cwd);
   try {
-    await setSessionCoreOverride("enabled", true, ctx, pi);
+    await setSessionCoreOverride("enabled", false, ctx, pi);
     let state = await readCapabilityState(cwd);
-    assert.equal(state.configured, false);
     assert.equal(state.enabled, false);
 
-    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ enabled: false }), "utf8");
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ enabled: true }), "utf8");
     state = await readCapabilityState(cwd);
-    assert.equal(state.configured, true);
-    assert.equal(state.enabled, true);
+    assert.equal(state.enabled, false);
     assert.equal(state.configSources.enabled, "session");
+
+    await resetSessionOverrides(ctx, pi);
+    state = await readCapabilityState(cwd);
+    assert.equal(state.enabled, true);
   } finally {
     await resetSessionOverrides(ctx, pi);
     await rm(cwd, { recursive: true, force: true });
@@ -1067,21 +1086,23 @@ test("Pi restores remaining session overrides from the active branch and ignores
   }
 });
 
-test("Pi fails closed when an existing local override is invalid", async () => {
-  const cwd = await configuredRepo();
+test("Pi stays on when an existing local override cannot be read: it reads as empty and is named", async () => {
+  // The repository's block gate still applies when the personal file is unreadable (the file reads as empty).
+  const cwd = await configuredRepo({ enabled: true, gates: { slice: "block" } });
   try {
     await writeFile(join(cwd, ".freeflow/local.json"), "{ invalid\n", "utf8");
     const layers = await readFreeflowConfigLayers(cwd);
-    assert.equal(layers.repositoryConfigured, true);
-    assert.equal(layers.configured, false);
-    assert.equal(layers.local.valid, false);
+    assert.deepEqual(
+      layers.ignored.map((item) => [item.file, item.key]),
+      [[".freeflow/local.json", null]],
+    );
+    assert.match(layers.local.parseError, /./);
     const state = await readCapabilityState(cwd);
-    assert.equal(state.configured, false);
-    assert.equal(state.enabled, false);
+    assert.equal(state.enabled, true);
+    assert.equal(state.gates.slice, "block");
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
-    assert.equal(resources.skillPaths.length, 1);
+    assert.ok(resources.skillPaths.length > 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -1145,7 +1166,6 @@ test("Pi local enablement overrides the repository master switch", async () => {
   try {
     await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: false }, null, 2), "utf8");
     const state = await readCapabilityState(cwd);
-    assert.equal(state.configured, true);
     assert.equal(state.enabled, false);
     assert.equal(state.configSources.enabled, "local");
   } finally {
@@ -1223,8 +1243,8 @@ test("Pi enable and disable commands mutate only the master switch", async () =>
   }
 });
 
-test("Pi settings refuse to overwrite an invalid local override", async () => {
-  const cwd = await configuredRepo();
+test("Pi settings open over an unreadable local file, which stays as it is; a write refuses a file with ignored settings", async () => {
+  const cwd = await configuredRepo({ foo: 1 });
   try {
     const localPath = join(cwd, ".freeflow/local.json");
     await writeFile(localPath, "{ invalid\n", "utf8");
@@ -1232,10 +1252,19 @@ test("Pi settings refuse to overwrite an invalid local override", async () => {
     const freeflowCommand = commands.find((command) => command.name === "freeflow");
     assert.ok(freeflowCommand);
     const ctx = context(cwd);
-    ctx.ui.custom = async () => assert.fail("settings UI must not open for invalid local config");
+    let opened = false;
+    ctx.ui.custom = async () => {
+      opened = true;
+      return undefined;
+    };
     await freeflowCommand.definition.handler("settings", ctx);
+    assert.equal(opened, true);
     assert.equal(await readFile(localPath, "utf8"), "{ invalid\n");
-    assert.match(ctx.notifications.at(-1).message, /local\.json is invalid; repair or remove it/);
+    // The repository file ignores `foo`: a write would drop it, so the write is refused, naming doctor.
+    const disable = context(cwd);
+    await freeflowCommand.definition.handler("disable", disable);
+    assert.match(disable.notifications.at(-1).message, /has settings Freeflow ignores; run settings\.mjs doctor/);
+    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")), { foo: 1 });
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

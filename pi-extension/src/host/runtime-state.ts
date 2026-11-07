@@ -1,4 +1,4 @@
-import { reviewStateLine, skillsStateLine } from "./config-validation.js";
+import { ignoredStateLine, reviewStateLine, skillsStateLine } from "./config-validation.js";
 import { hasUsableMandatoryPrompts } from "./prompts.js";
 
 /**
@@ -55,18 +55,12 @@ export function freeflowRuntimeStateMessage(
   } = {},
 ) {
   const mandatoryPromptAvailable = capabilityState?.enabled !== true || hasUsableMandatoryPrompts(freeflowContext);
-  const freeflowStatus = capabilityState?.configured
-    ? capabilityState.enabled
-      ? mandatoryPromptAvailable
-        ? "active"
-        : "unavailable"
-      : "inactive"
-    : capabilityState?.configExists
-      ? "config error"
-      : "setup needed";
+  const freeflowStatus = capabilityState?.enabled ? (mandatoryPromptAvailable ? "active" : "unavailable") : "inactive";
   // Only a choice the user made: the default adds nothing, so most users' state stays as it was.
   const review = freeflowStatus === "active" ? reviewStateLine(capabilityState?.review) : null;
   const skillsOff = freeflowStatus === "active" ? skillsStateLine(capabilityState?.skills?.off) : null;
+  // A setting a config file ignores is named whatever the status, so the user sees it (D-045).
+  const ignored = ignoredStateLine(capabilityState?.ignored ?? []);
 
   return {
     role: "custom",
@@ -79,6 +73,7 @@ export function freeflowRuntimeStateMessage(
       `Freeflow: ${freeflowStatus}`,
       ...(review ? [review] : []),
       ...(skillsOff ? [skillsOff] : []),
+      ...(ignored ? [ignored] : []),
       "",
       "Capabilities:",
       `- Tool Execution: ${publicCapabilityStatus(capabilityState?.toolExecution)}`,

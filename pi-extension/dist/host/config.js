@@ -9,13 +9,12 @@ import {
   resolveGateSettings,
   resolveReviewSettings,
   SETTINGS,
+  sanitizeConfigFile,
   sectionEnabled,
   selectedRuntimePrompts,
   settingSpec,
   skillsOff,
   validSettingValue,
-  validateLocalConfig,
-  validateRepositoryConfig,
 } from "./config-validation.js";
 import { cachedBranch } from "./branch.js";
 /**
@@ -62,55 +61,58 @@ function disableSubagentCapability(capability) {
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-async function readConfigFileState(path, validate) {
+async function readConfigFileState(path, file, scope) {
+  let raw;
   try {
-    const raw = await readFile(path, "utf8");
-    const parsed = JSON.parse(raw);
-    const validationError = validate(parsed);
-    if (validationError) {
-      return {
-        path,
-        exists: true,
-        valid: false,
-        parsed: {},
-        parseError: validationError,
-      };
-    }
-    return { path, exists: true, valid: true, parsed, parseError: null };
+    raw = await readFile(path, "utf8");
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
-    if (code === "ENOENT") {
-      return {
-        path,
-        exists: false,
-        valid: false,
-        parsed: {},
-        parseError: null,
-      };
-    }
+    if (code === "ENOENT") return { path, file, exists: false, parsed: {}, ignored: [], parseError: null };
     const message = error instanceof Error ? error.message : String(error);
     return {
       path,
+      file,
       exists: true,
-      valid: false,
       parsed: {},
+      ignored: [{ file, key: null, reason: `cannot be read: ${message}` }],
       parseError: message,
     };
   }
+  let value;
+  try {
+    value = JSON.parse(raw);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      path,
+      file,
+      exists: true,
+      parsed: {},
+      ignored: [{ file, key: null, reason: `not JSON: ${message}` }],
+      parseError: message,
+    };
+  }
+  const { config, ignored } = sanitizeConfigFile(value, scope);
+  return {
+    path,
+    file,
+    exists: true,
+    parsed: config,
+    ignored: ignored.map((item) => ({ ...item, file })),
+    parseError: null,
+  };
 }
 function readFreeflowConfigState(cwd) {
-  return readConfigFileState(join(cwd, ".freeflow/config.json"), validateRepositoryConfig);
+  return readConfigFileState(join(cwd, ".freeflow/config.json"), ".freeflow/config.json", "repository");
 }
 function readFreeflowLocalConfigState(cwd) {
-  return readConfigFileState(join(cwd, ".freeflow/local.json"), validateLocalConfig);
+  return readConfigFileState(join(cwd, ".freeflow/local.json"), ".freeflow/local.json", "personal");
 }
 export async function readFreeflowConfig(cwd) {
-  const state = await readFreeflowConfigState(cwd);
-  return state.valid ? state.parsed : {};
+  return (await readFreeflowConfigState(cwd)).parsed;
 }
 export async function readFreeflowLocalConfig(cwd) {
-  const state = await readFreeflowLocalConfigState(cwd);
-  return state.valid ? state.parsed : {};
+  return (await readFreeflowLocalConfigState(cwd)).parsed;
 }
 function resolveLayeredValue(repository, local, key, fallback) {
   if (Object.hasOwn(local, key)) {
@@ -166,39 +168,30 @@ function resolveSessionCoreConfig(layers) {
     sources: { enabled: typeof enabled === "boolean" ? "session" : sources.enabled },
   };
 }
+/**
+ * Both config files, each read to the settings it keeps. Nothing here turns Freeflow off: a file that cannot be used
+ * ignores what it cannot use, and `ignored` names each of those settings for the hosts to show (D-045).
+ */
 export async function readFreeflowConfigLayers(cwd) {
   const [repository, local] = await Promise.all([readFreeflowConfigState(cwd), readFreeflowLocalConfigState(cwd)]);
-  const repositoryConfig = repository.valid ? repository.parsed : {};
-  const localConfig = local.valid ? local.parsed : {};
-  const core = resolveCoreConfig(repositoryConfig, localConfig);
-  const localValid = !local.exists || local.valid;
-  const configured = repository.valid && localValid;
-  let blockingState = null;
-  if (!repository.valid) {
-    blockingState = repository;
-  } else if (local.exists && !local.valid) {
-    blockingState = local;
-  }
+  const core = resolveCoreConfig(repository.parsed, local.parsed);
   return {
-    configured,
-    repositoryConfigured: repository.valid,
     repository,
     local,
     coreConfig: core.config,
     sources: core.sources,
-    blockingConfigPath: blockingState?.path ?? null,
-    parseError: blockingState?.parseError ?? null,
+    ignored: [...repository.ignored, ...local.ignored],
   };
 }
 // host is Pi's extension context (or none); Pi's runtime objects are wider than its exported types.
 export async function readCapabilityState(cwd, host = undefined) {
   const layers = await readFreeflowConfigLayers(cwd);
   const effectiveCore = resolveSessionCoreConfig(layers);
-  const enabled = layers.configured && effectiveCore.config.enabled;
+  const enabled = effectiveCore.config.enabled;
   const subagentContext = isSubagentContext(host);
   const sessionLayer = sessionConfigLayer(currentSessionOverrides);
-  const repositoryConfig = layers.repository.valid ? layers.repository.parsed : {};
-  const localConfig = layers.local.valid ? layers.local.parsed : {};
+  const repositoryConfig = layers.repository.parsed;
+  const localConfig = layers.local.parsed;
   const sessionLocalConfig = withSessionLayer(localConfig, sessionLayer);
   const toolExecution = resolveToolExecutionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const compaction = resolveCompactionConfig(repositoryConfig, sessionLocalConfig, enabled);
@@ -220,16 +213,10 @@ export async function readCapabilityState(cwd, host = undefined) {
   // Delegation across sessions (SPEC-009 4.7): claim hours and whether a return wakes the session.
   const delegation = resolveDelegationSettings(repositoryConfig, sessionLocalConfig);
   const capabilityState = {
-    configured: layers.configured,
-    repositoryConfigured: layers.repositoryConfigured,
     configExists: layers.repository.exists,
-    configValid: layers.configured,
-    configPath: layers.blockingConfigPath ?? layers.repository.path,
-    parseError: layers.parseError,
     localConfigExists: layers.local.exists,
-    localConfigValid: !layers.local.exists || layers.local.valid,
-    localConfigPath: layers.local.path,
-    localConfigParseError: layers.local.parseError,
+    // Settings a config file ignores, each with its file and reason: every host names them and keeps the default (D-045).
+    ignored: layers.ignored,
     configuredCoreConfig: layers.coreConfig,
     configuredSources: layers.sources,
     sessionOverrides: { ...currentSessionOverrides },
