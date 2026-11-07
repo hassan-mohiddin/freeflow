@@ -527,7 +527,7 @@ export default function freeflow(pi) {
     const state = capability ?? (await loadSurface(ctx ?? { cwd: event?.cwd ?? process.cwd() }));
     return {
       // Only what this configuration can use (Task 003 D-002): capability skills only while their capability is
-      // effective, and while Freeflow is inactive (disabled, unconfigured, or its prompts missing) only Setup Freeflow,
+      // effective, and while Freeflow is inactive (disabled, or its prompts missing) only Setup Freeflow,
       // so /setup-freeflow still works.
       skillPaths:
         state?.enabled === true && hasUsableMandatoryPrompts(prompts)
@@ -627,7 +627,7 @@ export default function freeflow(pi) {
     if (toolExecution)
       Object.assign(sections, toolExecutionSections(event.systemPrompt, api.getSettings?.()?.shellPath));
     for (const name of ["freeflow_guidance", "environment", "tool_execution"]) delete sections[name];
-    // Nothing of Freeflow while it is disabled or unconfigured (Task 003 D-002).
+    // Nothing of Freeflow while it is disabled (Task 003 D-002); an absent config file leaves it on (D-045).
     if (capability?.enabled === true && hasUsableMandatoryPrompts(prompts))
       sections.freeflow_guidance = stableRuntimeContext(prompts, { prompts: capability?.prompts });
     if (toolExecution)

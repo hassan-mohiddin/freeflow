@@ -803,6 +803,24 @@ async function settings($, args) {
 let lastListed;
 
 /**
+ * The gates a settings listing ignores: those its `gates.<gate>` or `gates` entries name, and every gate when a whole
+ * file is ignored, since that file's gate values are then unknown (D-045).
+ * @param {{ key: string | null }[]} ignored the listing's ignored entries
+ * @returns {Set<string>}
+ */
+function ignoredGates(ignored) {
+  const gates = new Set();
+  for (const item of ignored) {
+    if (item.key === null || item.key === "gates") for (const gate of GATE_KEYS) gates.add(gate);
+    else {
+      const gate = /^gates\.(\w+)$/.exec(item.key)?.[1];
+      if (gate) gates.add(gate);
+    }
+  }
+  return gates;
+}
+
+/**
  * Reads `enabled` for the session's folder again; it stays as it was when the script fails or a file is invalid.
  * @param {any} $
  */
@@ -814,15 +832,19 @@ async function resolveEnabled($) {
   const listed = await settings($, ["list"]);
   lastListed = listed;
   await resolveGovernor($, listed);
-  if (listed.ok)
+  if (listed.ok) {
+    // A gate whose value or file the listing ignores keeps the mode this process last read for it: the default would
+    // weaken a block a config problem did not cause (D-045, review 1 B1).
+    const ignored = ignoredGates(listed.data.ignored ?? []);
     for (const row of listed.data.settings ?? []) {
       if (row.key === "delegation.wakeOnReturn" && typeof row.value === "boolean") wakeOnReturn = row.value;
       if (row.key === "delegation.claimHours" && row.value != null)
         await $.env.set("FREEFLOW_CLAIM_HOURS", String(row.value));
       const gate = /^gates\.(\w+)$/.exec(row.key)?.[1];
-      if (gate && GATE_KEYS.includes(gate) && ["off", "warn", "block"].includes(row.value))
+      if (gate && GATE_KEYS.includes(gate) && !ignored.has(gate) && ["off", "warn", "block"].includes(row.value))
         gateModes = { ...gateModes, [gate]: row.value };
     }
+  }
 }
 
 /**
