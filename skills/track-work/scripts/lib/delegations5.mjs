@@ -609,19 +609,23 @@ export async function delegationStatus(loaded, { json = false } = {}) {
 }
 
 /**
- * The commits a return's Identities name, each a hex word of 7 to 40 characters with a digit, as before. Three things
- * that hold such words are not commits: an email address, whose domain ends in a label of letters and whose name is
- * not itself such a word (the GitHub ID in a noreply email); a UUID; and a folder name between two slashes of a path,
- * except a URL's git ref, right after `blob/`, `tree/`, `commit/`, `raw/` or `blame/`. No other form is set aside:
- * the text cannot tell another repository's commit from this one's, so the coordinator names those with --elsewhere.
+ * The commits a return's Identities name: a hex word of 7 to 40 characters with a digit, in lower or upper case, that no
+ * letter or digit touches (so `commit_abc1234d` is one, and `ABC1234D`). Three things that hold such words are not
+ * commits: an email address, whose domain ends in a label of letters and whose name is not itself such a word (the
+ * GitHub ID in a noreply email); a UUID; and a folder name between two slashes of a path, except a URL's git ref,
+ * right after `blob/`, `tree/`, `commit/`, `raw/` or `blame/`. A word next to a dot stays a commit: `0.0123456` or
+ * `abc1234.txt` is refused when missing, a safe error, since a missed commit is the worse one. No other form is set
+ * aside: the text cannot tell another repository's commit from this one's, so the coordinator names those with
+ * --elsewhere.
  */
 export function identityCommits(text) {
   const plain = text
-    .replace(/(?<![\w.+-])(?![0-9a-f]{7,40}@)[\w.+-]+@(?:[\w-]+\.)+[A-Za-z]{2,}\b/g, " ")
+    .replace(/(?<![\w.+-])(?![0-9a-fA-F]{7,40}@)[\w.+-]+@(?:[\w-]+\.)+[A-Za-z]{2,}\b/g, " ")
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, " ")
-    .replace(/(?<!\/(?:blob|tree|commit|raw|blame))\/[0-9a-f]{7,40}(?=\/)/g, "/ ");
+    .replace(/(?<!\/(?:blob|tree|commit|raw|blame))\/[0-9a-fA-F]{7,40}(?=\/)/g, "/ ");
   const commits = new Set();
-  for (const [commit] of plain.matchAll(/\b[0-9a-f]{7,40}\b/g))
+  // Bounded by what is not a letter or digit, so "_" joins a hash to a word without hiding it.
+  for (const [commit] of plain.matchAll(/(?<![0-9A-Za-z])[0-9A-Fa-f]{7,40}(?![0-9A-Za-z])/g))
     // A hash can be all digits; a word of hex letters alone is not taken for one.
     if (/\d/.test(commit)) commits.add(commit);
   return [...commits];
@@ -630,9 +634,9 @@ export function identityCommits(text) {
 /** The --elsewhere values: each `<hash>=<owner/name>`, a commit the coordinator read as another repository's. */
 export function parseElsewhere(values = []) {
   return values.map((value) => {
-    const match = /^([0-9a-f]{7,40})=([A-Za-z0-9][\w.-]*\/[\w.-]+)$/.exec(value);
+    const match = /^([0-9a-fA-F]{7,40})=([A-Za-z0-9][\w.-]*\/[\w.-]+)$/.exec(value);
     if (!match) fail(`--elsewhere is <hash>=<owner/name>, such as 079e17a4=openai/codex; not ${value}.`);
-    return { hash: match[1], repository: match[2] };
+    return { hash: match[1].toLowerCase(), repository: match[2] };
   });
 }
 
@@ -661,7 +665,9 @@ export function returnProblems(directory, elsewhere = []) {
   // A delegation without a branch only read: commits it names are what it read, not what it made.
   for (const commit of repo ? identityCommits((sections.Identities ?? []).join("\n")) : []) {
     if (!ok(git(repo, ["rev-parse", "--verify", "--quiet", `${commit}^{commit}`]))) {
-      const named = elsewhere.find(({ hash }) => hash.startsWith(commit) || commit.startsWith(hash));
+      const named = elsewhere.find(
+        ({ hash }) => hash.startsWith(commit.toLowerCase()) || commit.toLowerCase().startsWith(hash),
+      );
       if (named) used.add(named);
       else problems.push(`commit ${commit} does not exist`);
       continue;

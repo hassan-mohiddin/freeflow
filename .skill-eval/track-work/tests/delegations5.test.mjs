@@ -299,6 +299,44 @@ test("delegate check-return takes no email ID, UUID or path folder for a commit,
   });
 });
 
+test("delegate check-return takes a commit in uppercase or joined to a word by _", async () => {
+  await withTask(async ({ record, repo, taskDir, cli }) => {
+    openBuild(cli, record, repo);
+    const folder = join(taskDir, "delegations", "D-001-build-the-thing");
+    const worktree = join(dirname(repo), "repo-d-001-build-the-thing");
+    await writeFile(join(worktree, "thing.txt"), "t\n");
+    git(worktree, ["add", "thing.txt"]);
+    git(worktree, ["commit", "--quiet", "-m", "thing"]);
+    const onBranch = git(worktree, ["rev-parse", "--short=8", "HEAD"]);
+    const check = () => cli(["delegate", "check-return", "--record", record, "--id", "D-001"]);
+    const write = (text) => writeFile(join(folder, "return.md"), text);
+    // A commit in uppercase, and one joined to "commit" by _, is checked like any other.
+    const upper = onBranch.toUpperCase();
+    await write(RETURN("D-001", upper));
+    assert.match(
+      ok(check()),
+      /^D-001's return: State done; every heading is there; its 1 commit\(s\) are on branch d-001-build-the-thing\./,
+    );
+    await write(RETURN("D-001", onBranch).replace(`commit ${onBranch}`, `commit_${onBranch}`));
+    assert.match(
+      ok(check()),
+      /^D-001's return: State done; every heading is there; its 1 commit\(s\) are on branch d-001-build-the-thing\./,
+    );
+    // Either form that names no commit of the repository is still refused.
+    for (const [text, hash] of [
+      [RETURN("D-001", "ABCDEF12"), "ABCDEF12"],
+      [RETURN("D-001", "abcdef12").replace("commit abcdef12", "commit_abcdef12"), "abcdef12"],
+    ]) {
+      await write(text);
+      assert.match(
+        check().stderr,
+        new RegExp(`D-001's return is not ready: commit ${hash} does not exist\\.$`, "m"),
+        text,
+      );
+    }
+  });
+});
+
 test("delegate check-return and close take another repository's commit only as --elsewhere names it, and History records it", async () => {
   await withTask(async ({ record, repo, taskDir, cli }) => {
     openBuild(cli, record, repo);
@@ -706,4 +744,44 @@ test("the start command quotes a worktree path only when the shell would split i
   assert.equal(shellWord("/home/u/widget-d-001-build"), "/home/u/widget-d-001-build");
   assert.equal(shellWord("/home/u/my widget-d-001"), "'/home/u/my widget-d-001'");
   assert.equal(shellWord("/tmp/it's"), "'/tmp/it'\\''s'");
+});
+
+test("delegate check-return checks a commit a dot joins to a URL suffix or a word, and matches --elsewhere in any case", async () => {
+  await withTask(async ({ record, repo, taskDir, cli }) => {
+    openBuild(cli, record, repo);
+    const folder = join(taskDir, "delegations", "D-001-build-the-thing");
+    const check = (...extra) => cli(["delegate", "check-return", "--record", record, "--id", "D-001", ...extra]);
+    const write = (line) => writeFile(join(folder, "return.md"), RETURN("D-001", "none").replace("commit none", line));
+    git(repo, ["commit", "--quiet", "--allow-empty", "-m", "on main only"]);
+    const offBranch = git(repo, ["rev-parse", "HEAD"]);
+    const missing = "0123456789abcdef0123456789abcdef01234567";
+    const forms = (hash) => [
+      `https://github.com/o/r/commit/${hash}.patch`,
+      `https://github.com/o/r/commit/${hash}.diff`,
+      `https://github.com/o/r/pull/12/commits/${hash}.patch`,
+      `https://gitlab.com/o/r/-/commit/${hash}.patch`,
+      `https://github.com/o/r/compare/${"a".repeat(7)}0000...${hash}.diff`,
+      `commit ${hash}.Next step`,
+      `main.${hash}`,
+      `Missing commit ${hash}.then`,
+      `file ${hash}.txt`,
+    ];
+    // A missing commit, full and short, in each form is refused; so is one that is only on main.
+    for (const hash of [missing, missing.slice(0, 8)])
+      for (const line of forms(hash)) {
+        await write(line);
+        assert.match(check().stderr, new RegExp(`commit ${hash} does not exist`), line);
+      }
+    for (const hash of [offBranch, offBranch.slice(0, 8)])
+      for (const line of forms(hash).filter((form) => !form.includes("compare/"))) {
+        await write(line);
+        assert.match(check().stderr, new RegExp(`commit ${hash} is not on branch d-001-build-the-thing`), line);
+      }
+    // Another repository's commit written in uppercase is matched by --elsewhere in lowercase, and the other way.
+    const upstream = "079e17a422347e49d02501304f79fade7e569362";
+    await write(`pinned ${upstream.toUpperCase()}`);
+    assert.match(ok(check("--elsewhere", `${upstream.slice(0, 8)}=openai/codex`)), /openai\/codex/);
+    await write(`pinned ${upstream}`);
+    assert.match(ok(check("--elsewhere", `${upstream.slice(0, 8).toUpperCase()}=openai/codex`)), /openai\/codex/);
+  });
 });
