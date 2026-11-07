@@ -48,9 +48,9 @@ for file in \
 	[[ -f "$file" ]] || fail "missing required file: $file"
 done
 
-require_text "$setup_skill" '.freeflow/config.json` is the required shared repository activation config'
+require_text "$setup_skill" '.freeflow/config.json` is the shared repository settings file'
 require_text "$setup_skill" '.freeflow/local.json` is an optional per-checkout personal override'
-require_text "$setup_skill" 'An invalid existing local config blocks effective Freeflow'
+require_text "$setup_skill" 'A setting in either file that Freeflow cannot use is ignored and named'
 require_text "$setup_skill" 'Do not create or append Freeflow instructions in `AGENTS.md`'
 require_text "$setup_skill" 'Configuration does not prove runtime delivery.'
 require_text "$setup_skill" 'automatic runtime delivery as **confirmed**, **unavailable**, or **unconfirmed**'

@@ -7,8 +7,8 @@ description: "Use when installing, activating or turning off Freeflow in a repos
 
 Create or repair the smallest valid layered setup. Keep repository activation, personal overrides, and host runtime delivery as separate facts.
 
-- `.freeflow/config.json` is the required shared repository activation config.
-- `.freeflow/local.json` is an optional per-checkout personal override. It cannot activate Freeflow by itself.
+- `.freeflow/config.json` is the shared repository settings file; `{}` is valid. On Pi, Freeflow shows the setup needed without it; Claude Code and Codex give guidance only where it exists.
+- `.freeflow/local.json` is an optional per-checkout personal override. `"enabled": false` in it turns Freeflow off.
 - Runtime delivery depends on the current host's installed and trusted adapter. Configuration does not prove runtime delivery.
 
 Answer setup questions and delivery checks read-only. An explicit action request authorizes the smallest selected setup change under the state rules below. When repository config is missing, first activation authorizes minimal shared config; it does not authorize personal overrides, optional capabilities, replacement of invalid config, or edits to repo-owned host instructions.
@@ -28,8 +28,8 @@ Answer setup questions and delivery checks read-only. An explicit action request
 
 Classify the current state before editing:
 
-- **Unconfigured:** repository config is missing or invalid, so repository activation is absent and Freeflow is not effective. An explicit setup request may create minimal config when it is missing. Replacing or reinterpreting invalid config requires specific authorization and resolving the source conflict.
-- **Configured but ineffective:** valid repository activation exists, but effective `enabled` is `false` or an invalid local config blocks runtime. No Freeflow guidance is effective. An explicit request governs the selected enablement, configuration, or repair.
+- **Unconfigured:** no repository config. On Claude Code and Codex no Freeflow guidance is effective here; on Pi the state is setup needed: Freeflow does not run, the Runtime State tells the agent to set it up with this skill, and only this skill is exposed. An explicit setup request may create minimal config when it is missing. A setting a file ignores is not a state: Freeflow stays on, and `settings.mjs doctor` shows each fix. Replacing a file that is not JSON requires specific authorization and resolving the source conflict.
+- **Configured but ineffective:** effective `enabled` is `false`, from a file or this session. No Freeflow guidance is effective. An explicit request governs the selected enablement, configuration, or repair.
 - **Effective:** Freeflow core guidance, the Interaction Contract, and base skills are effective; obey them. An explicit setup or repair request may be carried out within its authority; optional capability behavior remains independently gated.
 
 User-operated host settings are direct user actions, not agent-performed config edits. Prefer them when available, do not claim their state changed until the host reports it, and verify the resulting source and effective state afterward.
@@ -43,7 +43,7 @@ Before editing:
 3. inspect repo instructions only when a conflict would change setup behavior;
 4. identify the host and available delivery evidence when runtime status matters.
 
-A valid repository config establishes activation. A missing local config inherits repository settings. An invalid existing local config blocks effective Freeflow instead of falling back silently.
+A repository config is the shared settings file; Freeflow runs on Pi where it exists (otherwise the state is setup needed), and on Claude Code and Codex where it exists. A missing local config inherits repository settings. A setting in either file that Freeflow cannot use is ignored and named; the default, or the other file's value, applies to it. Never fall back silently: name it.
 
 Resolve each configurable value in this order:
 
@@ -51,7 +51,7 @@ Resolve each configurable value in this order:
 host session override -> personal override -> repository value -> built-in default
 ```
 
-Host session overrides last one session and cannot bypass missing or invalid repository activation. Pi keeps them in the Pi session; other hosts keep them in the Freeflow home's `sessions/<session>/settings.json`, which the settings script writes and the session-start hook reads. Effective Freeflow requires a valid repository config, a missing or valid local config, session-resolved `enabled: true`, and the prompt files the host delivers (Hosts, below).
+Host session overrides last one session. Pi keeps them in the Pi session; other hosts keep them in the Freeflow home's `sessions/<session>/settings.json`, which the settings script writes and the session-start hook reads. Effective Freeflow requires session-resolved `enabled: true` and the prompt files the host delivers (Hosts, below); on Pi, Claude Code and Codex it also requires the repository config to exist.
 
 If setup is already valid and no change was requested, preserve it and report the effective sources. Do not rewrite config merely to normalize formatting or materialize defaults.
 
@@ -65,7 +65,7 @@ For a new setup, write the minimal activation boundary:
 
 Missing core keys use the built-in default `enabled: true`. Add `enabled: false` only when the user explicitly requests Freeflow to be disabled. Add optional capability configuration only when the user explicitly requests it. Do not add task state, phase, file inventories, plans, version metadata, activation paths, empty optional sections, host instruction copies, or generated workflow text.
 
-These keys are unsupported in either config file and make it invalid until repaired: `defaultMode`, `interactionContract`, `contextVirtualization`, and `conversationHistory`. The user deletes them wherever present; setup never migrates or removes them automatically.
+These keys are unsupported in either config file; each is ignored and named until removed: `defaultMode`, `interactionContract`, `contextVirtualization`, and `conversationHistory`. The user deletes them wherever present; setup never migrates or removes them automatically.
 
 Do not create or append Freeflow instructions in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, or another host-owned instruction surface, including to compensate for unavailable or unconfirmed delivery. Existing repo instructions remain live source truth within host precedence. They are not activation markers, but they can conflict with Freeflow behavior: name a conflict and ask through Discuss Work before changing setup or behavior when it would alter the next action, rather than overwriting them to make Freeflow appear active. Do not install repo-local hooks, CLI commands, lint rules, global standards, documentation inventories, or state files during setup.
 
@@ -83,11 +83,11 @@ Omitted values inherit from repository config and built-in defaults; local prece
 
 Before writing local config in a Git checkout, verify it is untracked and ignored. Do not modify shared ignore policy merely to store a personal preference: prefer the host's safe settings path, `.git/info/exclude`, or an existing ignore rule. Refuse to overwrite a tracked local config.
 
-If local config is invalid, report that it blocks effective runtime. Repair or remove it only with authorization; never discard it and fall back silently.
+If local config holds settings Freeflow ignores, report each by name, as the footer and `/freeflow status` do, with the fix `settings.mjs doctor` shows. `doctor` changes nothing without `--fix`; repair or remove a file's content only with authorization, and never discard it silently.
 
 ## Change A Setting
 
-When the user asks to change a setting, run [settings](scripts/settings.mjs) rather than editing a file: `node <setup-freeflow-directory>/scripts/settings.mjs set <key> <value> --scope repository|personal|session`; `unset <key>`, or the value `inherit`, removes it from that scope, and `list` and `get <key>` show each value with the scope that set it (`--json` for data). It refuses a key or value the settings table does not allow, writes with the rules above (a personal file kept out of Git and refused when tracked, an invalid file never overwritten) and drops a repository value equal to its default. Its output names the Runtime State lines that changed: they hold for you from now on, while prompt text already given stays until the next session start or compaction. The Session scope lasts this session only and needs a host that names its session. The user changes the same settings with `/freeflow settings` on Pi and on Claude Code.
+When the user asks to change a setting, run [settings](scripts/settings.mjs) rather than editing a file; a file with settings Freeflow ignores refuses the write, so `doctor` shows the fix first: `node <setup-freeflow-directory>/scripts/settings.mjs set <key> <value> --scope repository|personal|session`; `unset <key>`, or the value `inherit`, removes it from that scope, and `list` and `get <key>` show each value with the scope that set it (`--json` for data). It refuses a key or value the settings table does not allow, writes with the rules above (a personal file kept out of Git and refused when tracked, an invalid file never overwritten) and drops a repository value equal to its default. Its output names the Runtime State lines that changed: they hold for you from now on, while prompt text already given stays until the next session start or compaction. The Session scope lasts this session only and needs a host that names its session. The user changes the same settings with `/freeflow settings` on Pi and on Claude Code.
 
 ## Set Up The Store
 

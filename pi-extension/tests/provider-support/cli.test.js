@@ -19,6 +19,9 @@ test(
         join(agentDir, "auth.json"),
         JSON.stringify({ openai: { type: "api_key", key: "fixture-not-real" } }),
       );
+      // A folder with its repository config: Freeflow runs here (D-045 round 3 sets the setup-needed state without it).
+      await mkdir(join(root, ".freeflow"));
+      await writeFile(join(root, ".freeflow/config.json"), "{}");
       await writeFile(
         join(agentDir, "settings.json"),
         JSON.stringify({

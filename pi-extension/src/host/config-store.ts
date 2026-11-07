@@ -6,10 +6,10 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
   SETTINGS,
+  sanitizeConfigFile,
   settingSpec,
   validSettingValue,
-  validateLocalConfig,
-  validateRepositoryConfig,
+  type IgnoredSetting,
   type SettingScope,
   type SettingSpec,
   type SettingValue,
@@ -84,20 +84,24 @@ export function pruneDefaults(config: JsonObject) {
 
 export const CONFIG_FILES = { repository: ".freeflow/config.json", personal: ".freeflow/local.json" } as const;
 
-/** A config file: absent, valid with its value, or invalid with the reason. */
-export type ConfigFileState = { exists: boolean; value: JsonObject; error: string | null };
+/**
+ * A config file as the hosts read it: absent, or its settings with the ones it ignores. A file that is not JSON reads as
+ * empty, with `error` and one ignored entry (D-045). A file with ignored entries is never written over: see writeConfigValue.
+ */
+export type ConfigFileState = { exists: boolean; value: JsonObject; error: string | null; ignored: IgnoredSetting[] };
 
 export function readConfigFile(root: string, scope: "repository" | "personal"): ConfigFileState {
   const path = join(root, CONFIG_FILES[scope]);
-  if (!existsSync(path)) return { exists: false, value: {}, error: null };
-  let value: unknown;
+  if (!existsSync(path)) return { exists: false, value: {}, error: null, ignored: [] };
+  let raw: unknown;
   try {
-    value = JSON.parse(readFileSync(path, "utf8"));
+    raw = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    return { exists: true, value: {}, error: `not JSON: ${error instanceof Error ? error.message : String(error)}` };
+    const message = `not JSON: ${error instanceof Error ? error.message : String(error)}`;
+    return { exists: true, value: {}, error: message, ignored: [{ key: null, reason: message }] };
   }
-  const error = scope === "repository" ? validateRepositoryConfig(value) : validateLocalConfig(value);
-  return { exists: true, value: error ? {} : (value as JsonObject), error };
+  const { config, ignored } = sanitizeConfigFile(raw, scope);
+  return { exists: true, value: config, error: null, ignored };
 }
 
 /**
@@ -147,7 +151,11 @@ export async function writeConfigValue(
   value: unknown,
 ) {
   const current = readConfigFile(root, scope);
-  if (current.error) throw new Error(`${CONFIG_FILES[scope]} is invalid (${current.error}); fix it first.`);
+  // Writing would drop what the file ignores, so a file with ignored settings is fixed by doctor first (D-045).
+  if (current.ignored.length > 0)
+    throw new Error(
+      `${CONFIG_FILES[scope]} has settings Freeflow ignores; run settings.mjs doctor to see the fix before changing a setting.`,
+    );
   const next = cloneJson(current.value);
   if (value === undefined) deletePath(next, path);
   else setPath(next, path, value);

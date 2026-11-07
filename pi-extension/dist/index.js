@@ -99,11 +99,12 @@ function sendSkillPrompt(pi, skill, args) {
 }
 async function sendSkillCommand(pi, ctx, skill, args) {
   const state = await readCapabilityState(ctx.cwd, ctx);
-  if (skill === "setup-freeflow" && !state.configured) {
+  // Setup Freeflow always dispatches: it is how a missing or broken config is repaired, and Freeflow may be off.
+  if (skill === "setup-freeflow") {
     sendSkillPrompt(pi, skill, args);
     return;
   }
-  if (!state.configured || !state.enabled) {
+  if (state.setupNeeded || !state.enabled) {
     ctx.ui.notify("Run /setup-freeflow or enable Freeflow before dispatching this skill.", "warning");
     return;
   }
@@ -141,8 +142,8 @@ function freeflowCompletions(prefix) {
 export default function freeflow(pi) {
   // Cache diagnostics are reported to /freeflow status; the footer only shows current settings.
   const cacheMonitor = new CacheMonitor();
-  // Only an explicit master-switch disable turns provider support off; unconfigured repositories keep it.
-  registerProviderSupport(pi, () => !(capability?.configured === true && capability.enabled === false), cacheMonitor);
+  // Provider support runs only where Freeflow runs: not while it is off, nor while its setup is needed (D-045, round 3).
+  registerProviderSupport(pi, () => capability?.setupNeeded !== true && capability?.enabled !== false, cacheMonitor);
   const api = pi;
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   // The Freeflow store's layer: Track Work's script on Pi's events, as the Claude Code mod is on Claude Code's.
@@ -526,7 +527,7 @@ export default function freeflow(pi) {
     const state = capability ?? (await loadSurface(ctx ?? { cwd: event?.cwd ?? process.cwd() }));
     return {
       // Only what this configuration can use (Task 003 D-002): capability skills only while their capability is
-      // effective, and while Freeflow is inactive (disabled, unconfigured, or its prompts missing) only Setup Freeflow,
+      // effective, and while Freeflow is inactive (disabled, or its prompts missing) only Setup Freeflow,
       // so /setup-freeflow still works.
       skillPaths:
         state?.enabled === true && hasUsableMandatoryPrompts(prompts)
@@ -626,7 +627,7 @@ export default function freeflow(pi) {
     if (toolExecution)
       Object.assign(sections, toolExecutionSections(event.systemPrompt, api.getSettings?.()?.shellPath));
     for (const name of ["freeflow_guidance", "environment", "tool_execution"]) delete sections[name];
-    // Nothing of Freeflow while it is disabled or unconfigured (Task 003 D-002).
+    // Nothing of Freeflow while it is disabled (Task 003 D-002); an absent config file leaves it on (D-045).
     if (capability?.enabled === true && hasUsableMandatoryPrompts(prompts))
       sections.freeflow_guidance = stableRuntimeContext(prompts, { prompts: capability?.prompts });
     if (toolExecution)

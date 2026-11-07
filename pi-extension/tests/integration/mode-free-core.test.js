@@ -9,7 +9,12 @@ import freeflowExtension from "../../dist/index.js";
 import { readCapabilityState, readFreeflowConfigLayers, setSessionCoreOverride } from "../../dist/host/config.js";
 import { getRuntimeContext, hasUsableMandatoryPrompts, stableRuntimeContext } from "../../dist/host/prompts.js";
 import { freeflowRuntimeStateMessage } from "../../dist/host/runtime-state.js";
-import { reviewStateLine, validateLocalConfig, validateRepositoryConfig } from "../../dist/host/config-validation.js";
+import {
+  ignoredStateLine,
+  reviewStateLine,
+  validateLocalConfig,
+  validateRepositoryConfig,
+} from "../../dist/host/config-validation.js";
 import { FREEFLOW_MODEL_SKILL_NAMES } from "../../dist/host/catalog.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
@@ -69,22 +74,25 @@ async function configuredRepo(config = {}) {
   return cwd;
 }
 
-test("obsolete mode and core-toggle configuration keys are rejected", async () => {
+test("obsolete mode and core-toggle configuration keys are ignored and named, and Freeflow stays on", async () => {
   // `prompts.interactionContract` and `prompts.enabled` replaced the top-level switch.
   for (const config of [{ defaultMode: "workflow" }, { interactionContract: false }]) {
     const cwd = await configuredRepo(config);
     try {
       const layers = await readFreeflowConfigLayers(cwd);
-      assert.equal(layers.configured, false);
-      assert.equal(layers.repository.valid, false);
-      assert.match(layers.parseError, /unsupported top-level config key/);
+      assert.equal(layers.ignored.length, 1);
+      assert.equal(layers.ignored[0].file, ".freeflow/config.json");
+      assert.match(layers.ignored[0].reason, /unsupported key/);
+      const state = await readCapabilityState(cwd);
+      assert.equal(state.enabled, true);
+      assert.deepEqual(state.ignored, layers.ignored);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
   }
 });
 
-test("removed context settings invalidate repository and local configuration with a migration message", async () => {
+test("removed context settings are ignored and named in each file, and Freeflow stays on", async () => {
   for (const [file, key] of [
     ["config.json", "contextVirtualization"],
     ["config.json", "conversationHistory"],
@@ -97,13 +105,14 @@ test("removed context settings invalidate repository and local configuration wit
         await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ [key]: true }), "utf8");
       }
       const layers = await readFreeflowConfigLayers(cwd);
-      assert.equal(layers.configured, false);
-      assert.match(layers.parseError, /Removed Freeflow context setting/);
-      assert.ok(layers.parseError.includes(key));
-      assert.ok(layers.parseError.includes(`.freeflow/${file}`));
+      assert.deepEqual(
+        layers.ignored.map((item) => [item.file, item.key]),
+        [[`.freeflow/${file}`, key]],
+      );
+      assert.match(layers.ignored[0].reason, /removed Freeflow context setting/);
       const state = await readCapabilityState(cwd);
-      assert.equal(state.enabled, false);
-      assert.match(state.parseError, /Delete those keys before using Freeflow/);
+      assert.equal(state.enabled, true);
+      assert.match(ignoredStateLine(state.ignored), new RegExp(`\\.freeflow/${file.replace(".", "\\.")} ${key}: `));
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -216,10 +225,11 @@ test("the personal review setting overrides the shared one field by field, and o
   // The repository's depth rules are the plan's, not the Runtime State's.
   assert.doesNotMatch((await runtimeState({ review: { depth: { default: "deep" } } })).content, /Review:/);
 
-  // An invalid file leaves Freeflow off, and no review line with it.
+  // A value Freeflow cannot use stays on: it is ignored and named, and the shared choice holds.
   const invalid = await runtimeState({ review: { unit: "manual" } }, { review: { unit: "never" } });
-  assert.match(invalid.content, /Freeflow: config error/);
-  assert.doesNotMatch(invalid.content, /Review:/);
+  assert.match(invalid.content, /^Freeflow: active$/m);
+  assert.match(invalid.content, /^Review: unit `manual`, model `auto`$/m);
+  assert.match(invalid.content, /^Settings ignored: \.freeflow\/local\.json review\.unit: /m);
   assert.equal(reviewStateLine(undefined), null);
 });
 
@@ -227,8 +237,8 @@ test("an empty valid config enables the single Freeflow core", async () => {
   const cwd = await configuredRepo();
   try {
     const state = await readCapabilityState(cwd);
-    assert.equal(state.configured, true);
     assert.equal(state.enabled, true);
+    assert.deepEqual(state.ignored, []);
     assert.deepEqual(state.configuredCoreConfig, { enabled: true });
     assert.equal("contextVirtualization" in state, false);
     assert.equal("conversationHistory" in state, false);

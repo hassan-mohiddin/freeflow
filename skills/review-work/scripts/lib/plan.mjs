@@ -90,10 +90,12 @@ export function basePolicy(root, base) {
   return { source: "file", review };
 }
 
-/** unit, model and rounds: this session's setting, else the personal file's, else the base's, else the default. */
+/**
+ * unit, model and rounds: this session's setting, else the personal file's, else the base's, else the default. A
+ * personal file that cannot be read contributes nothing, as on every host (D-045); the base's policy still refuses below.
+ */
 export function reviewSettings(root, policy, env) {
   const personal = readConfigFile(root, "personal");
-  if (personal.error) throw new PlanError(`.freeflow/local.json is invalid: ${personal.error}`);
   const session = readSessionSettings(freeflowHome(env), sessionOf(env));
   const pick = (key) => {
     if (session[`review.${key}`] !== undefined) return { value: session[`review.${key}`], from: "this session" };

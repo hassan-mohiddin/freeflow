@@ -270,7 +270,7 @@ function createScopedChoiceItem(options) {
       };
 }
 function resolveSettingsCoreView(rawConfig, layers) {
-  const localConfig = layers?.local.valid && isRecord(layers.local.parsed) ? layers.local.parsed : {};
+  const localConfig = layers?.local.parsed ?? {};
   const fallbackCore = { enabled: getPath(rawConfig, ["enabled"]) !== false };
   const fallbackSources = {
     enabled: typeof getPath(rawConfig, ["enabled"]) === "boolean" ? "repository" : "builtin",
@@ -1201,6 +1201,13 @@ function freeflowItems(rawConfig, options = {}) {
   ]);
 }
 async function updateConfig(cwd, item, value, scope = item.configScope ?? "repository") {
+  // Writing back a file that holds settings Freeflow ignores would drop them: doctor fixes that file first (D-045).
+  const before = await readFreeflowConfigLayers(cwd);
+  const target = scope === "local" ? before.local : before.repository;
+  if (target.ignored.length > 0)
+    throw new Error(
+      `${target.file} has settings Freeflow ignores; run settings.mjs doctor to see the fix before changing a setting.`,
+    );
   if (scope === "local") {
     if (!item.path?.length) {
       throw new Error(`${item.label} is a settings group, not a writable setting.`);
@@ -1613,21 +1620,15 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, diagnost
   }
   const [layers, state] = await Promise.all([readFreeflowConfigLayers(ctx.cwd), readCapabilityState(ctx.cwd, ctx)]);
   const configState = layers.repository;
-  const raw = configState.valid ? configState.parsed : {};
+  const raw = configState.parsed;
   if (action === "status") {
     ctx.ui.notify(freeflowStatusText(state, diagnostics?.status()), "info");
     return { changed: false, reloaded: false };
   }
-  if (!configState.valid) {
+  // With no shared config file the setup is needed: settings and enablement wait for Setup Freeflow (D-045, round 3).
+  if (state.setupNeeded) {
     ctx.ui.notify(freeflowStatusText(state), "warning");
     return { changed: false, reloaded: false, error: "not_configured" };
-  }
-  if (layers.local.exists && !layers.local.valid) {
-    ctx.ui.notify(
-      `.freeflow/local.json is invalid; repair or remove it before changing Freeflow settings. ${layers.local.parseError ?? ""}`.trim(),
-      "warning",
-    );
-    return { changed: false, reloaded: false, error: "invalid_local_config" };
   }
   if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
     if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
@@ -1640,7 +1641,12 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, diagnost
       messaging: state.messaging,
       ctx,
     }).find((candidate) => candidate.id === "freeflow.enabled");
-    await updateConfig(ctx.cwd, item, enabled, "repository");
+    try {
+      await updateConfig(ctx.cwd, item, enabled, "repository");
+    } catch (error) {
+      ctx.ui.notify(error instanceof Error ? error.message : String(error), "warning");
+      return { changed: false, reloaded: false, error: "ignored_settings" };
+    }
     await afterChange(true);
     // The command writes the repository file; a personal file or a session override still wins over it.
     const after = await readCapabilityState(ctx.cwd, ctx);
@@ -1687,9 +1693,9 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, diagnost
       readFreeflowConfigLayers(ctx.cwd),
       readCapabilityState(ctx.cwd, ctx),
     ]);
-    const rawNow = layersNow.repository.valid ? layersNow.repository.parsed : {};
+    const rawNow = layersNow.repository.parsed;
     if (scope === "session") {
-      const localNow = layersNow.local.valid && isRecord(layersNow.local.parsed) ? layersNow.local.parsed : {};
+      const localNow = layersNow.local.parsed;
       return sessionFreeflowItems(stateNow, ctx, rawNow, localNow);
     }
     return freeflowItems(rawNow, {
@@ -1742,7 +1748,12 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, diagnost
       const result = await setSessionCoreOverride(key, override, ctx, pi);
       return { changed: result.changed, reloadRequired: result.reloadRequired === true };
     }
-    await updateConfig(ctx.cwd, item, value, item.configScope ?? "repository");
+    try {
+      await updateConfig(ctx.cwd, item, value, item.configScope ?? "repository");
+    } catch (error) {
+      ctx.ui.notify(error instanceof Error ? error.message : String(error), "warning");
+      return { changed: false, reloadRequired: false };
+    }
     return { changed: true, reloadRequired: true };
   };
   // The first scope opens loaded; the others load when Tab reaches them.

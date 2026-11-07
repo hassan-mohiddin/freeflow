@@ -4,13 +4,7 @@ import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
-import {
-  SETTINGS,
-  settingSpec,
-  validSettingValue,
-  validateLocalConfig,
-  validateRepositoryConfig,
-} from "./config-validation.js";
+import { SETTINGS, sanitizeConfigFile, settingSpec, validSettingValue } from "./config-validation.js";
 /**
  * Reading and writing Freeflow's settings, the same for Pi's screen and for the settings script every other host runs:
  * the repository's `.freeflow/config.json`, the personal `.freeflow/local.json`, and, outside Pi, a session's own file
@@ -70,15 +64,16 @@ export function pruneDefaults(config) {
 export const CONFIG_FILES = { repository: ".freeflow/config.json", personal: ".freeflow/local.json" };
 export function readConfigFile(root, scope) {
   const path = join(root, CONFIG_FILES[scope]);
-  if (!existsSync(path)) return { exists: false, value: {}, error: null };
-  let value;
+  if (!existsSync(path)) return { exists: false, value: {}, error: null, ignored: [] };
+  let raw;
   try {
-    value = JSON.parse(readFileSync(path, "utf8"));
+    raw = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    return { exists: true, value: {}, error: `not JSON: ${error instanceof Error ? error.message : String(error)}` };
+    const message = `not JSON: ${error instanceof Error ? error.message : String(error)}`;
+    return { exists: true, value: {}, error: message, ignored: [{ key: null, reason: message }] };
   }
-  const error = scope === "repository" ? validateRepositoryConfig(value) : validateLocalConfig(value);
-  return { exists: true, value: error ? {} : value, error };
+  const { config, ignored } = sanitizeConfigFile(raw, scope);
+  return { exists: true, value: config, error: null, ignored };
 }
 /**
  * Keeps `.freeflow/local.json` out of Git before the first personal write: refuses when Git tracks it, and adds it to the
@@ -121,7 +116,11 @@ export async function ensureLocalConfigIgnored(root) {
  */
 export async function writeConfigValue(root, scope, path, value) {
   const current = readConfigFile(root, scope);
-  if (current.error) throw new Error(`${CONFIG_FILES[scope]} is invalid (${current.error}); fix it first.`);
+  // Writing would drop what the file ignores, so a file with ignored settings is fixed by doctor first (D-045).
+  if (current.ignored.length > 0)
+    throw new Error(
+      `${CONFIG_FILES[scope]} has settings Freeflow ignores; run settings.mjs doctor to see the fix before changing a setting.`,
+    );
   const next = cloneJson(current.value);
   if (value === undefined) deletePath(next, path);
   else setPath(next, path, value);

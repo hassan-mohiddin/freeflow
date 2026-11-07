@@ -7,17 +7,17 @@ import { resolveCompactionConfig } from "../compaction/config.js";
 import { resolveMessagingConfig } from "../messaging/config.js";
 import {
   type ConfigObject,
+  type IgnoredSetting,
   resolveDelegationSettings,
   resolveGateSettings,
   resolveReviewSettings,
   SETTINGS,
+  sanitizeConfigFile,
   sectionEnabled,
   selectedRuntimePrompts,
   settingSpec,
   skillsOff,
   validSettingValue,
-  validateLocalConfig,
-  validateRepositoryConfig,
 } from "./config-validation.js";
 import { cachedBranch } from "./branch.js";
 /**
@@ -79,71 +79,82 @@ function isRecord(value: unknown): value is ConfigObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** One config file as read: whether it exists, whether it is valid, and why not. */
+/** An ignored setting, named with the file it is in: `.freeflow/config.json` and the key, or the whole file. */
+export type IgnoredEntry = IgnoredSetting & { file: string };
+
+/**
+ * One config file as read: whether it exists, its settings with the ones it ignores, and the reason it could not be
+ * read at all (a file that is not JSON reads as empty, with one ignored entry for the whole file).
+ */
 type ConfigFileState = {
   path: string;
+  file: string;
   exists: boolean;
-  valid: boolean;
   parsed: ConfigObject;
+  ignored: IgnoredEntry[];
   parseError: string | null;
 };
 
 async function readConfigFileState(
   path: string,
-  validate: (value: unknown) => string | null,
+  file: string,
+  scope: "repository" | "personal",
 ): Promise<ConfigFileState> {
+  let raw: string;
   try {
-    const raw = await readFile(path, "utf8");
-    const parsed = JSON.parse(raw);
-    const validationError = validate(parsed);
-    if (validationError) {
-      return {
-        path,
-        exists: true,
-        valid: false,
-        parsed: {},
-        parseError: validationError,
-      };
-    }
-    return { path, exists: true, valid: true, parsed, parseError: null };
+    raw = await readFile(path, "utf8");
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
-    if (code === "ENOENT") {
-      return {
-        path,
-        exists: false,
-        valid: false,
-        parsed: {},
-        parseError: null,
-      };
-    }
+    if (code === "ENOENT") return { path, file, exists: false, parsed: {}, ignored: [], parseError: null };
     const message = error instanceof Error ? error.message : String(error);
     return {
       path,
+      file,
       exists: true,
-      valid: false,
       parsed: {},
+      ignored: [{ file, key: null, reason: `cannot be read: ${message}` }],
       parseError: message,
     };
   }
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      path,
+      file,
+      exists: true,
+      parsed: {},
+      ignored: [{ file, key: null, reason: `not JSON: ${message}` }],
+      parseError: message,
+    };
+  }
+  const { config, ignored } = sanitizeConfigFile(value, scope);
+  return {
+    path,
+    file,
+    exists: true,
+    parsed: config,
+    ignored: ignored.map((item) => ({ ...item, file })),
+    parseError: null,
+  };
 }
 
 function readFreeflowConfigState(cwd: string) {
-  return readConfigFileState(join(cwd, ".freeflow/config.json"), validateRepositoryConfig);
+  return readConfigFileState(join(cwd, ".freeflow/config.json"), ".freeflow/config.json", "repository");
 }
 
 function readFreeflowLocalConfigState(cwd: string) {
-  return readConfigFileState(join(cwd, ".freeflow/local.json"), validateLocalConfig);
+  return readConfigFileState(join(cwd, ".freeflow/local.json"), ".freeflow/local.json", "personal");
 }
 
 export async function readFreeflowConfig(cwd: string) {
-  const state = await readFreeflowConfigState(cwd);
-  return state.valid ? state.parsed : {};
+  return (await readFreeflowConfigState(cwd)).parsed;
 }
 
 export async function readFreeflowLocalConfig(cwd: string) {
-  const state = await readFreeflowLocalConfigState(cwd);
-  return state.valid ? state.parsed : {};
+  return (await readFreeflowLocalConfigState(cwd)).parsed;
 }
 
 function resolveLayeredValue(repository: ConfigObject, local: ConfigObject, key: string, fallback: unknown) {
@@ -212,29 +223,19 @@ function resolveSessionCoreConfig(layers: FreeflowConfigLayers) {
 
 export type FreeflowConfigLayers = Awaited<ReturnType<typeof readFreeflowConfigLayers>>;
 
+/**
+ * Both config files, each read to the settings it keeps. Nothing here turns Freeflow off: a file that cannot be used
+ * ignores what it cannot use, and `ignored` names each of those settings for the hosts to show (D-045).
+ */
 export async function readFreeflowConfigLayers(cwd: string) {
   const [repository, local] = await Promise.all([readFreeflowConfigState(cwd), readFreeflowLocalConfigState(cwd)]);
-  const repositoryConfig = repository.valid ? repository.parsed : {};
-  const localConfig = local.valid ? local.parsed : {};
-  const core = resolveCoreConfig(repositoryConfig, localConfig);
-  const localValid = !local.exists || local.valid;
-  const configured = repository.valid && localValid;
-  let blockingState = null;
-  if (!repository.valid) {
-    blockingState = repository;
-  } else if (local.exists && !local.valid) {
-    blockingState = local;
-  }
-
+  const core = resolveCoreConfig(repository.parsed, local.parsed);
   return {
-    configured,
-    repositoryConfigured: repository.valid,
     repository,
     local,
     coreConfig: core.config,
     sources: core.sources,
-    blockingConfigPath: blockingState?.path ?? null,
-    parseError: blockingState?.parseError ?? null,
+    ignored: [...repository.ignored, ...local.ignored],
   };
 }
 
@@ -245,11 +246,14 @@ export type CapabilityState = Awaited<ReturnType<typeof readCapabilityState>>;
 export async function readCapabilityState(cwd: string, host: any = undefined) {
   const layers = await readFreeflowConfigLayers(cwd);
   const effectiveCore = resolveSessionCoreConfig(layers);
-  const enabled = layers.configured && effectiveCore.config.enabled;
+  // Setup needed (D-045, round 3): with no shared config file Freeflow does not run in this folder, whatever a personal
+  // file or this session says; the agent is told to set it up. A file that exists keeps its settings as before.
+  const setupNeeded = !layers.repository.exists;
+  const enabled = !setupNeeded && effectiveCore.config.enabled;
   const subagentContext = isSubagentContext(host);
   const sessionLayer = sessionConfigLayer(currentSessionOverrides);
-  const repositoryConfig = layers.repository.valid ? layers.repository.parsed : {};
-  const localConfig = layers.local.valid ? layers.local.parsed : {};
+  const repositoryConfig = layers.repository.parsed;
+  const localConfig = layers.local.parsed;
   const sessionLocalConfig = withSessionLayer(localConfig, sessionLayer);
   const toolExecution = resolveToolExecutionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const compaction = resolveCompactionConfig(repositoryConfig, sessionLocalConfig, enabled);
@@ -271,16 +275,11 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
   // Delegation across sessions (SPEC-009 4.7): claim hours and whether a return wakes the session.
   const delegation = resolveDelegationSettings(repositoryConfig, sessionLocalConfig);
   const capabilityState = {
-    configured: layers.configured,
-    repositoryConfigured: layers.repositoryConfigured,
     configExists: layers.repository.exists,
-    configValid: layers.configured,
-    configPath: layers.blockingConfigPath ?? layers.repository.path,
-    parseError: layers.parseError,
+    setupNeeded,
     localConfigExists: layers.local.exists,
-    localConfigValid: !layers.local.exists || layers.local.valid,
-    localConfigPath: layers.local.path,
-    localConfigParseError: layers.local.parseError,
+    // Settings a config file ignores, each with its file and reason: every host names them and keeps the default (D-045).
+    ignored: layers.ignored,
     configuredCoreConfig: layers.coreConfig,
     configuredSources: layers.sources,
     sessionOverrides: { ...currentSessionOverrides },

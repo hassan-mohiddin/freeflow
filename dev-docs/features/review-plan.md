@@ -1,7 +1,7 @@
 # Review plan and review status
 
 > **Covers:** `skills/review-work/scripts/review-plan.mjs`, `skills/review-work/scripts/review-status.mjs`, `skills/review-work/scripts/lib/plan.mjs`, `skills/review-work/scripts/lib/triggers.mjs`, `skills/review-work/scripts/lib/records.mjs`, `skills/review-work/scripts/check-adjudication.mjs`, `skills/deliver-work/scripts/delivery-state.mjs`
-> **Verified at:** `1e1866bd` (2026-11-03)
+> **Verified at:** `f1f29ece` (2026-11-07)
 > **User docs:** `plugin-docs/workflow.md`, `plugin-docs/settings.md`
 
 Before work crosses its review unit (a pull request by default), the agent runs Review Work's `review-plan.mjs` and the user sees the plan in the agent's report: how deep the independent review goes (Quick, Standard or Deep), its tier, reviewers, rounds and humans, and why, computed from the diff, the `review.depth` policy in the base commit's `.freeflow/config.json`, the agreement's `Review:` lines and the built-in triggers. After the review is adjudicated, `check-adjudication.mjs --record` binds it to the commit it reviewed, and `review-status.mjs`, also printed by Deliver Work's `delivery-state.mjs`, says whether a review is on record for the head. Every command here reads files and Git only, with no model call. How it works: [Verification, review and evaluation](../subsystems/verification-review-evaluation.md#the-review-plan-and-the-review-record).

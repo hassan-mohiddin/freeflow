@@ -2,19 +2,21 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-// The validator Pi uses, so a config is valid or invalid on every host alike.
+// The validator and reader Pi uses, so a config reads the same on every host: a file's settings it cannot use are
+// ignored and named, and the rest stays (D-045).
 import {
+  ignoredStateLine,
   resolveReviewSettings,
   reviewStateLine,
   selectedRuntimePrompts,
   skillsOff,
   skillsStateLine,
-  validateLocalConfig,
-  validateRepositoryConfig,
 } from "../../pi-extension/dist/host/config-validation.js";
 import {
+  CONFIG_FILES,
   cloneJson,
   freeflowHome,
+  readConfigFile,
   readSessionSettings,
   sessionId,
   setPath,
@@ -55,30 +57,6 @@ export function findWorkspaceRoot(cwd) {
   }
 }
 
-function readConfigLayer(filePath, validate) {
-  if (!fs.existsSync(filePath)) {
-    return { exists: false, valid: false, parsed: {}, error: null };
-  }
-
-  try {
-    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
-    const error = validate(parsed);
-    return {
-      exists: true,
-      valid: error === null,
-      parsed: error === null ? parsed : {},
-      error,
-    };
-  } catch (error) {
-    return {
-      exists: true,
-      valid: false,
-      parsed: {},
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
 function resolveLayeredValue(repository, local, key, fallback) {
   if (Object.hasOwn(local, key)) return local[key];
   if (Object.hasOwn(repository, key)) return repository[key];
@@ -112,28 +90,27 @@ function withSession(local, session) {
   return merged;
 }
 
+/**
+ * The settings for a folder, each file read to what it keeps. `exists` is the repository file; `ignored` names every
+ * setting a file ignores, with its file and reason. Nothing here turns Freeflow off for a file that cannot be used (D-045).
+ */
 export function readConfig(root, { session = null, env = process.env } = {}) {
-  const repository = readConfigLayer(path.join(root, ".freeflow", "config.json"), validateRepositoryConfig);
-  const local = readConfigLayer(path.join(root, ".freeflow", "local.json"), validateLocalConfig);
-  const localValid = !local.exists || local.valid;
-  const configured = repository.valid && localValid;
-  local.parsed = withSession(local.valid ? local.parsed : {}, readSessionSettings(freeflowHome(env), session));
-  const core = resolveCoreConfig(repository.valid ? repository.parsed : {}, local.parsed);
-  const enabled = configured && core.enabled;
+  const repository = readConfigFile(root, "repository");
+  const personal = readConfigFile(root, "personal");
+  const local = withSession(personal.value, readSessionSettings(freeflowHome(env), session));
+  const core = resolveCoreConfig(repository.value, local);
+  const ignored = [
+    ...repository.ignored.map((item) => ({ ...item, file: CONFIG_FILES.repository })),
+    ...personal.ignored.map((item) => ({ ...item, file: CONFIG_FILES.personal })),
+  ];
 
   return {
     exists: repository.exists,
-    valid: configured,
-    configured,
-    repositoryValid: repository.valid,
-    localExists: local.exists,
-    localValid,
-    error: repository.valid ? local.error : repository.error,
-    errorPath: repository.valid ? ".freeflow/local.json" : ".freeflow/config.json",
-    enabled,
-    prompts: selectedRuntimePrompts(repository.parsed, local.parsed),
-    review: resolveReviewSettings(repository.parsed, local.parsed),
-    skillsOff: skillsOff(repository.parsed, local.parsed),
+    enabled: core.enabled,
+    ignored,
+    prompts: selectedRuntimePrompts(repository.value, local),
+    review: resolveReviewSettings(repository.value, local),
+    skillsOff: skillsOff(repository.value, local),
   };
 }
 
@@ -162,7 +139,11 @@ function loadRuntimeContext(selection, part) {
 // skills itself, so the skills line is how an off skill reaches the agent here. With the core prompt off, which the
 // Runtime State belongs to, the lines still come when there are any: the rest of Freeflow stays on.
 function runtimeStateContext(config) {
-  const lines = [reviewStateLine(config.review), skillsStateLine(config.skillsOff)].filter(Boolean);
+  const lines = [
+    reviewStateLine(config.review),
+    skillsStateLine(config.skillsOff),
+    ignoredStateLine(config.ignored),
+  ].filter(Boolean);
   if (!config.prompts.core && lines.length === 0) return null;
   return ["# Freeflow Runtime State", "", "Freeflow: active", ...lines].join("\n");
 }
@@ -170,22 +151,14 @@ function runtimeStateContext(config) {
 /**
  * The session-start context for the repository at `root`: every selected prompt, or one `part` of it (`core`,
  * `interactionContract`, `workingMethod`). Claude Code caps each hook's context at 10,000 characters, so it runs one
- * hook per part. A configuration error and the Runtime State, which the core prompt refers to, travel with the core.
+ * hook per part. The Runtime State, which the core prompt refers to, travels with the core.
  */
 export function renderRuntimeContext(root, part = undefined, { session = null, env = process.env } = {}) {
   if (part !== undefined && !Object.hasOwn(PROMPT_FILES, part)) return "";
   const config = readConfig(root, { session, env });
-  if (!config.valid) {
-    // A missing repository config means Freeflow is not set up here: stay silent. An existing invalid file is reported,
-    // as Pi's status does, so Freeflow is not silently missing.
-    if (!config.error || (part && part !== "core")) return "";
-    return [
-      "# Freeflow Configuration Error",
-      "",
-      `Freeflow is inactive because ${config.errorPath} is invalid: ${config.error}`,
-      `Fix ${config.errorPath} or use the setup-freeflow skill, then start a new session.`,
-    ].join("\n");
-  }
+  // A folder with no repository config is not set up here: stay silent, as before. A config that is present stays on
+  // with the settings it can use, and the Runtime State names the ones it ignores (D-045).
+  if (!config.exists) return "";
   if (!config.enabled) return "";
 
   // The user chooses the prompts on hosts other than Pi; with none selected there is nothing to deliver.
