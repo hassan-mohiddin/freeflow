@@ -5,6 +5,11 @@ import { hasUsableMandatoryPrompts } from "./prompts.js";
  * diagnostics such as prompt-cache health.
  */
 export function setFreeflowStatus(ctx, capabilityState = undefined, freeflowContext = undefined, options = {}) {
+  // Setup needed (D-045, round 3): no shared config file, so Freeflow is not running in this folder.
+  if (capabilityState?.setupNeeded) {
+    ctx.ui.setStatus("freeflow", "freeflow: setup needed");
+    return;
+  }
   if (capabilityState && !capabilityState.enabled) {
     const source = capabilityState.configSources?.enabled === "session" ? " (session)" : "";
     ctx.ui.setStatus("freeflow", `freeflow: off${source}`);
@@ -27,6 +32,7 @@ export function setFreeflowStatus(ctx, capabilityState = undefined, freeflowCont
 }
 /** The /freeflow status report: capability state and diagnostics, including prompt-cache health. */
 export function freeflowStatusText(state, diagnostics) {
+  if (state.setupNeeded) return "Freeflow: inactive (repo not set up); run /setup-freeflow";
   const sessionSuffix = (source) => (source === "session" ? " (session override)" : "");
   return [
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled)}`,

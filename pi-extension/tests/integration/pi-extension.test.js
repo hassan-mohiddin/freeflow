@@ -812,26 +812,59 @@ test("Pi expands setup-freeflow when dispatching its unconfigured skill command"
   }
 });
 
-test("Pi turns Freeflow on without a config file: installed means on, and enabled false turns it off", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-no-config-"));
+test("Pi in a folder with no config file shows setup needed: only Setup Freeflow loads, the agent is told to set it up, and nothing else runs", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-setup-needed-"));
   try {
-    const { handlers, commands } = loadExtension();
-    const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    // Without a config file every skill and the guidance load, with the defaults.
-    assert.ok(resources.skillPaths.length > 1);
+    const setupLine =
+      "Freeflow is installed, but this folder has no .freeflow/config.json. Before other work, tell the user and set Freeflow up here with the Setup Freeflow skill, which asks them for the choices that are theirs; if they decline, work without Freeflow.";
+    const { handlers, commands, sentMessages, sentMessageOptions } = loadExtension();
+    const ctx = context(cwd);
+    await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    assert.equal(ctx.statuses.at(-1).value, "freeflow: setup needed");
+    // Only Setup Freeflow is exposed, and no Freeflow guidance is sent.
+    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.equal(resources.skillPaths.length, 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
-    const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
-    assert.match(result.renderedGuidance, /## Freeflow core/);
-    const state = await readCapabilityState(cwd);
-    assert.equal(state.enabled, true);
-    assert.equal(state.configExists, false);
+    const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(result.renderedGuidance ?? "", "", "no Freeflow guidance while the setup is needed");
+    // The Runtime State says so, and carries the instruction word for word after the status line.
+    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
+    const state = lastRuntimeState(providerContext.messages).content;
+    assert.ok(state.includes(`Freeflow: setup needed\n${setupLine}\n`), state);
+    // Tool Execution, Compaction and the store's menu do not run; /setup-freeflow dispatches.
+    const capability = await readCapabilityState(cwd, ctx);
+    assert.equal(capability.setupNeeded, true);
+    assert.equal(capability.enabled, false);
+    assert.equal(capability.toolExecution.effective, false);
+    assert.equal(capability.compaction.effective, false);
+    const setup = commands.find((command) => command.name === "setup-freeflow");
+    await setup.definition.handler(undefined, context(cwd));
+    assert.equal(sentMessages.at(-1), "/skill:setup-freeflow");
+    assert.deepEqual(sentMessageOptions.at(-1), { expandPromptTemplates: true, deliverAs: "followUp" });
+    // /freeflow status says how to set it up, and enabling waits for the setup.
+    const freeflow = commands.find((command) => command.name === "freeflow").definition;
     const statusCtx = context(cwd);
-    await commands.find((command) => command.name === "freeflow").definition.handler("status", statusCtx);
-    assert.match(statusCtx.notifications.at(-1).message, /^Freeflow: enabled/);
-    // enabled: false in the personal file turns it off, as on Claude Code.
+    await freeflow.handler("status", statusCtx);
+    assert.equal(statusCtx.notifications.at(-1).message, "Freeflow: inactive (repo not set up); run /setup-freeflow");
+    const enable = context(cwd);
+    await freeflow.handler("enable", enable);
+    assert.equal(
+      await readFile(join(cwd, ".freeflow/config.json"), "utf8").then(
+        () => true,
+        () => false,
+      ),
+      false,
+    );
+    // enabled: false in the personal file keeps Freeflow off once the shared file exists, as on Claude Code.
     await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: true }), "utf8");
+    assert.equal((await readCapabilityState(cwd)).setupNeeded, true);
+    await writeFile(join(cwd, ".freeflow/config.json"), "{}", "utf8");
+    assert.equal((await readCapabilityState(cwd)).enabled, true);
     await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: false }), "utf8");
-    assert.equal((await readCapabilityState(cwd)).enabled, false);
+    const off = await readCapabilityState(cwd);
+    assert.equal(off.setupNeeded, false);
+    assert.equal(off.enabled, false);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

@@ -7,7 +7,7 @@ description: "Use when installing, activating or turning off Freeflow in a repos
 
 Create or repair the smallest valid layered setup. Keep repository activation, personal overrides, and host runtime delivery as separate facts.
 
-- `.freeflow/config.json` is the shared repository settings file; `{}` is valid. Pi has Freeflow on without it; Claude Code and Codex give guidance only where it exists.
+- `.freeflow/config.json` is the shared repository settings file; `{}` is valid. On Pi, Freeflow shows the setup needed without it; Claude Code and Codex give guidance only where it exists.
 - `.freeflow/local.json` is an optional per-checkout personal override. `"enabled": false` in it turns Freeflow off.
 - Runtime delivery depends on the current host's installed and trusted adapter. Configuration does not prove runtime delivery.
 
@@ -28,7 +28,7 @@ Answer setup questions and delivery checks read-only. An explicit action request
 
 Classify the current state before editing:
 
-- **Unconfigured:** no repository config. On Claude Code and Codex no Freeflow guidance is effective here; on Pi Freeflow is on with its defaults. An explicit setup request may create minimal config when it is missing. A setting a file ignores is not a state: Freeflow stays on, and `settings.mjs doctor` shows each fix. Replacing a file that is not JSON requires specific authorization and resolving the source conflict.
+- **Unconfigured:** no repository config. On Claude Code and Codex no Freeflow guidance is effective here; on Pi the state is setup needed: Freeflow does not run, the Runtime State tells the agent to set it up with this skill, and only this skill is exposed. An explicit setup request may create minimal config when it is missing. A setting a file ignores is not a state: Freeflow stays on, and `settings.mjs doctor` shows each fix. Replacing a file that is not JSON requires specific authorization and resolving the source conflict.
 - **Configured but ineffective:** effective `enabled` is `false`, from a file or this session. No Freeflow guidance is effective. An explicit request governs the selected enablement, configuration, or repair.
 - **Effective:** Freeflow core guidance, the Interaction Contract, and base skills are effective; obey them. An explicit setup or repair request may be carried out within its authority; optional capability behavior remains independently gated.
 
@@ -43,7 +43,7 @@ Before editing:
 3. inspect repo instructions only when a conflict would change setup behavior;
 4. identify the host and available delivery evidence when runtime status matters.
 
-A repository config is the shared settings file; Freeflow is on wherever Pi has it installed, and on Claude Code and Codex where it exists. A missing local config inherits repository settings. A setting in either file that Freeflow cannot use is ignored and named; the default, or the other file's value, applies to it. Never fall back silently: name it.
+A repository config is the shared settings file; Freeflow runs on Pi where it exists (otherwise the state is setup needed), and on Claude Code and Codex where it exists. A missing local config inherits repository settings. A setting in either file that Freeflow cannot use is ignored and named; the default, or the other file's value, applies to it. Never fall back silently: name it.
 
 Resolve each configurable value in this order:
 
@@ -51,7 +51,7 @@ Resolve each configurable value in this order:
 host session override -> personal override -> repository value -> built-in default
 ```
 
-Host session overrides last one session. Pi keeps them in the Pi session; other hosts keep them in the Freeflow home's `sessions/<session>/settings.json`, which the settings script writes and the session-start hook reads. Effective Freeflow requires session-resolved `enabled: true` and the prompt files the host delivers (Hosts, below); on Claude Code and Codex it also requires the repository config to exist.
+Host session overrides last one session. Pi keeps them in the Pi session; other hosts keep them in the Freeflow home's `sessions/<session>/settings.json`, which the settings script writes and the session-start hook reads. Effective Freeflow requires session-resolved `enabled: true` and the prompt files the host delivers (Hosts, below); on Pi, Claude Code and Codex it also requires the repository config to exist.
 
 If setup is already valid and no change was requested, preserve it and report the effective sources. Do not rewrite config merely to normalize formatting or materialize defaults.
 

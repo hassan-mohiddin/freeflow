@@ -1907,6 +1907,11 @@ export async function handleFreeflowCommand(
     ctx.ui.notify(freeflowStatusText(state, diagnostics?.status()), "info");
     return { changed: false, reloaded: false };
   }
+  // With no shared config file the setup is needed: settings and enablement wait for Setup Freeflow (D-045, round 3).
+  if (state.setupNeeded) {
+    ctx.ui.notify(freeflowStatusText(state), "warning");
+    return { changed: false, reloaded: false, error: "not_configured" };
+  }
 
   if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
     if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };

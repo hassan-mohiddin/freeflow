@@ -8,6 +8,10 @@ import { hasUsableMandatoryPrompts } from "./prompts.js";
  */
 const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
 
+/** The Runtime State line for a folder with no shared config file, word for word (D-045, round 3). */
+const SETUP_NEEDED_INSTRUCTION =
+  "Freeflow is installed, but this folder has no .freeflow/config.json. Before other work, tell the user and set Freeflow up here with the Setup Freeflow skill, which asks them for the choices that are theirs; if they decline, work without Freeflow.";
+
 // Runtime State and bootstrap messages that older Freeflow versions sent or saved in sessions, under a feature's own
 // type (`freeflow-<feature>-runtime-state`, `freeflow-<feature>-bootstrap`) or as one `freeflow-bootstrap` naming its
 // components; they are never sent again.
@@ -55,7 +59,15 @@ export function freeflowRuntimeStateMessage(
   } = {},
 ) {
   const mandatoryPromptAvailable = capabilityState?.enabled !== true || hasUsableMandatoryPrompts(freeflowContext);
-  const freeflowStatus = capabilityState?.enabled ? (mandatoryPromptAvailable ? "active" : "unavailable") : "inactive";
+  const freeflowStatus = capabilityState?.setupNeeded
+    ? "setup needed"
+    : capabilityState?.enabled
+      ? mandatoryPromptAvailable
+        ? "active"
+        : "unavailable"
+      : "inactive";
+  // With the setup needed, the agent is told to set Freeflow up here, and what to do if the user declines (D-045, round 3).
+  const setupLine = capabilityState?.setupNeeded ? [SETUP_NEEDED_INSTRUCTION] : [];
   // Only a choice the user made: the default adds nothing, so most users' state stays as it was.
   const review = freeflowStatus === "active" ? reviewStateLine(capabilityState?.review) : null;
   const skillsOff = freeflowStatus === "active" ? skillsStateLine(capabilityState?.skills?.off) : null;
@@ -71,6 +83,7 @@ export function freeflowRuntimeStateMessage(
       "This is extension-generated runtime state. Use it to interpret the stable Freeflow guidance.",
       "",
       `Freeflow: ${freeflowStatus}`,
+      ...setupLine,
       ...(review ? [review] : []),
       ...(skillsOff ? [skillsOff] : []),
       ...(ignored ? [ignored] : []),

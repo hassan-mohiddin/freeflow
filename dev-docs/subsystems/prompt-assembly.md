@@ -120,7 +120,7 @@ See [Pi integration](../../plugin-docs/integrations/pi.md) for native-host behav
 
 - Missing `core.md` or `interaction-contract.md`: preserve the host’s base prompt, hide base skills and optional capabilities, and report Freeflow guidance unavailable.
 - Missing optional capability: report the capability unavailable; its skill, cue and tools are not sent.
-- Disabled Freeflow, a folder with no repository config on Claude Code and Codex, or missing mandatory prompts: preserve the host prompt and send nothing of Freeflow's except the Runtime State and the Setup Freeflow skill (so `/setup-freeflow` works); a settings change that turns Freeflow on or off costs one cache write (Task 003 D-001, D-002).
+- Disabled Freeflow, a folder with no repository config (on Pi the setup-needed state: only Setup Freeflow is exposed, and its Runtime State line tells the agent to set Freeflow up; on Claude Code and Codex, nothing of Freeflow's), or missing mandatory prompts: preserve the host prompt and send nothing of Freeflow's except the Runtime State and the Setup Freeflow skill (so `/setup-freeflow` works); a settings change that turns Freeflow on or off costs one cache write (Task 003 D-001, D-002).
 - Historical bootstrap entries: filter them from the request; do not create new one-time bootstrap messages.
 - Runtime State unavailable: do not infer it from model identity, response style, or old transition history.
 - Native Pi request replay preserves Freeflow-generated snapshots only when the permitted ancestry and rendered prefix remain compatible; model/provider, tool/schema, instruction, earlier-content, compaction, navigation, or unsupported effort changes may shorten reuse. Provider cache hits remain outside the local assembly contract.

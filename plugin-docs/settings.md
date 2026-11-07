@@ -130,9 +130,10 @@ Pi's footer shows one `freeflow:` line with what changes while you work: the tas
 | `freeflow: on (all capabilities off)` | Freeflow on, every capability off |
 | `freeflow: off`, `freeflow: off (session)` | Freeflow off, in the files or by this session's override |
 | `freeflow: unavailable` | Freeflow on, but its packaged guidance cannot be read |
+| `freeflow: setup needed` | no `.freeflow/config.json` in this folder: Freeflow does not run here, and the agent is told to set it up with Setup Freeflow |
 | `freeflow: on · N setting(s) ignored (settings.mjs doctor)` | Freeflow on; N settings in a file are ignored, each keeping its default |
 
-Freeflow is on with no configuration file, and with a file that is not JSON or holds a setting it cannot use: the setting is ignored and named, and the rest of the file is used. `/freeflow status` names each ignored setting and its file, and `settings.mjs doctor` shows the fix.
+Without `.freeflow/config.json` Pi shows `freeflow: setup needed` and Freeflow does not run in that folder. Freeflow is on with a file that is not JSON or holds a setting it cannot use: the setting is ignored and named, and the rest of the file is used. `/freeflow status` names each ignored setting and its file, and `settings.mjs doctor` shows the fix.
 
 `/freeflow status` gives the full state, with prompt-cache diagnostics, running background commands and the context cycle.
 

@@ -360,7 +360,7 @@ Freeflow uses layered settings. The exact available controls depend on the host.
 {}
 ```
 
-On Pi, Freeflow is on in any folder where it is installed, with the defaults, whether or not this file exists; `"enabled": false` in either file turns it off. On Claude Code and Codex the guidance starts only in a folder that has this file. Use `/setup-freeflow` to create or repair the supported repository configuration. Setup does not write instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
+On Pi, a folder with no `.freeflow/config.json` shows `freeflow: setup needed`: Freeflow does not run there, and the agent is told to set it up with Setup Freeflow. `"enabled": false` in either file turns Freeflow off once the file exists. On Claude Code and Codex the guidance starts only in a folder that has this file. Use `/setup-freeflow` to create or repair the supported repository configuration. Setup does not write instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
 
 ### Personal override
 

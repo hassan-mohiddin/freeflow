@@ -246,7 +246,10 @@ export type CapabilityState = Awaited<ReturnType<typeof readCapabilityState>>;
 export async function readCapabilityState(cwd: string, host: any = undefined) {
   const layers = await readFreeflowConfigLayers(cwd);
   const effectiveCore = resolveSessionCoreConfig(layers);
-  const enabled = effectiveCore.config.enabled;
+  // Setup needed (D-045, round 3): with no shared config file Freeflow does not run in this folder, whatever a personal
+  // file or this session says; the agent is told to set it up. A file that exists keeps its settings as before.
+  const setupNeeded = !layers.repository.exists;
+  const enabled = !setupNeeded && effectiveCore.config.enabled;
   const subagentContext = isSubagentContext(host);
   const sessionLayer = sessionConfigLayer(currentSessionOverrides);
   const repositoryConfig = layers.repository.parsed;
@@ -273,6 +276,7 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
   const delegation = resolveDelegationSettings(repositoryConfig, sessionLocalConfig);
   const capabilityState = {
     configExists: layers.repository.exists,
+    setupNeeded,
     localConfigExists: layers.local.exists,
     // Settings a config file ignores, each with its file and reason: every host names them and keeps the default (D-045).
     ignored: layers.ignored,

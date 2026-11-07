@@ -172,10 +172,12 @@ for (const id of ["gpt-6-luna", "gpt-6-sol"]) {
 }
 
 for (const id of ["gpt-6-astra", "gpt-6-luna", "gpt-6-sol"]) {
-  test(`the Freeflow extension adapts ${id} without repository activation`, { timeout: 30000 }, async () => {
+  test(`the Freeflow extension adapts ${id} in a folder with its repository config`, { timeout: 30000 }, async () => {
     await native(
       freeflow,
-      async ({ session, manager, prompt }) => {
+      async ({ session, manager, prompt, root }) => {
+        await mkdir(join(root, ".freeflow"), { recursive: true });
+        await writeFile(join(root, ".freeflow/config.json"), "{}");
         await prompt("one", "low");
         const p = await prompt("two", "high");
         assert.equal(p.model, id);
@@ -212,6 +214,25 @@ test(
       assert.equal(high.reasoning.effort, "low");
       assert.equal(updates(high).at(-1).effort, "high");
     });
+  },
+);
+
+// D-045 round 3: with no shared config file the setup is needed, so Freeflow's provider support does not run.
+test(
+  "the Freeflow extension leaves GPT-6 effort requests native while the setup is needed",
+  { timeout: 30000 },
+  async () => {
+    await native(
+      freeflow,
+      async ({ manager, prompt }) => {
+        await prompt("one", "low");
+        const p = await prompt("two", "high");
+        assert.equal(p.reasoning.effort, "high", "the requested effort is sent natively");
+        assert.deepEqual(updates(p), []);
+        assert.ok(!manager.getEntries().some((e) => e.customType === ENTRY_TYPE));
+      },
+      "gpt-6-astra",
+    );
   },
 );
 
