@@ -143,6 +143,7 @@ export const CASES = [
     hit: null,
     expect: [],
     not: ["agree-work", "execute-work"],
+    route: ["discuss-work"],
     prompt: "How does `shelf search` decide which bookmarks match?",
   },
   {
@@ -150,6 +151,7 @@ export const CASES = [
     hit: null,
     expect: [],
     not: ["agree-work"],
+    route: ["discuss-work"],
     prompt: "In README.md, change the heading `## Usage` to `## Using shelf`. Nothing else.",
   },
 
@@ -778,6 +780,7 @@ export const CASES = [
     hit: null,
     expect: [],
     not: ["workflow", "agree-work"],
+    route: ["discuss-work"],
     prompt: "What does `shelf list --json` print?",
   },
 
@@ -896,7 +899,7 @@ export const CASES = [
 ];
 
 /** The skill that does a measured skill's job on a build that merged it: its owner, itself when not merged. */
-// Skills a build's core tells the agent to read at the start of every task: Discuss Work at the first request, Execute
+// Skills a build's core tells the agent to read at the start of every task: Discuss Work at a session's first message, Execute
 // Work before the first tool call. On such a build, opening one on a near miss is the cue followed, not a false trigger.
 export const READ_FIRST = ["discuss-work", "execute-work"];
 

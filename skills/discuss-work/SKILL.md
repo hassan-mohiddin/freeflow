@@ -41,7 +41,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 Goal: the user gets an answer to what they said, and nothing is recorded or started that they did not ask for.
 
-Answer the message itself before anything else; the [Interaction Contract](../../runtime/prompts/interaction-contract.md) governs what it asks for. A question, an idea, criticism or a status check gets its answer and changes nothing else: it needs no agreement and no record update, and starts no work. While a discussion is still moving, the conversation holds it; what it settles is recorded once, when it settles, as [Track Work](../track-work/SKILL.md) says. A stop or a limit from the user holds from the moment they say it, and with a Working Record it is recorded then.
+Answer the message itself before anything else; the [Interaction Contract](../../runtime/prompts/interaction-contract.md) governs what it asks for. A question, an idea, criticism or a status check gets its answer and changes nothing else: it needs no agreement and no record update, and starts no work. While a discussion is still moving, the conversation holds it; a change to the work that it settles is recorded once, when it settles, and the rest waits for the checkpoint, as [Track Work](../track-work/SKILL.md) says. A stop or a limit from the user holds from the moment they say it, and with a Working Record it is recorded then.
 
 ## Explore
 
@@ -141,10 +141,10 @@ When sources the work relies on disagree, state each one's exact claim, scope an
 
 Goal: agreed work changes only when you and the user have settled the change, and then in one step.
 
-Answer first, as Answer The Message says. When the discussion settles a change to the work, say in one line what changes, then make it in one step through Track Work:
+Answer first, as Answer The Message says. When the discussion settles a change to the work, say in one line what changes, then make it in one go through Track Work, the open Slice first:
 
-- **The agreement:** the same outcome with different terms (scope, a limit, where you stop) is an update; a different outcome ends the agreement and opens a new one.
 - **The open Slice:** it continues when its result still serves the agreement; otherwise close it as abandoned, with the reason, so its partial state is on record.
+- **The agreement:** the same outcome with different terms (scope, a limit, where you stop) is an update; a different outcome ends the agreement and opens a new one, once no Slice works under it.
 - **The decision list:** an item the change answers becomes `agreed`; one it overturns becomes `changed`, with why.
 
 A discussion that settles nothing changes nothing; the messages open work rests on are saved at the next checkpoint.

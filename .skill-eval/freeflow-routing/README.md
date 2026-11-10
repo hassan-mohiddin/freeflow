@@ -93,7 +93,7 @@ they count toward no hit rate there, like Action Selection's after the merge, an
 `vw-claim`) are dropped. On the base the suite therefore measures 75 requests and 34 near-miss checks;
 on a build with Research Work, 78 requests and 36 checks.
 
-Near misses dropped on the merged build (Freeflow's current skill list), so its false-trigger total is 18 checks, not 36:
+Near misses dropped on the merged build (Freeflow's current skill list), so its false-trigger total is 15 checks, not 36:
 
 | Case | Near miss | Why |
 | --- | --- | --- |
@@ -103,10 +103,12 @@ Near misses dropped on the merged build (Freeflow's current skill list), so its 
 | `wp-import`, `ws-design`, `ws-sync` | Write Spec, Write Plan, Write Docs | own route: Write Docs |
 | `aw-limit-flag`, `nm-sc-feature`, `nm-dd-local`, `nm-df-known-cause`, `nm-mg-notes` | Simplify Code, Simplify Code, Design for Depth, Diagnose Failure, Migration Work | the request is a code change, Execute Work's job (`route`) |
 | `nm-by-urgent`, `nm-di-decided` | Bypass, Discuss | a change to agree before building, Discuss Work's job (`route`) |
+| `nm-aw-question`, `nm-aw-exact`, `nm-wf-question` | Discuss Work (Agree Work's near misses) | a session's first message is read by Discuss Work (`route`) |
 | `nm-as-obvious` | Action Selection | no owner |
 
-Near misses that move: Agree Work's (`nm-aw-question`, `nm-aw-exact`, `nm-wf-question`) to Discuss Work, Workflow's
-(`nm-wf-question`) to Execute Work, Write Plan's (`ew-plan-step-2`, `rv-plan`) to Write Docs.
+Near misses that move: Workflow's (`nm-wf-question`) to Execute Work, Write Plan's (`ew-plan-step-2`, `rv-plan`) to Write Docs.
+Agree Work's near misses (`nm-aw-question`, `nm-aw-exact`, `nm-wf-question`) are dropped on the merged build: Discuss Work is
+read at a session's first message, so each case names it as its route (`route`).
 
 **Why body groups and not description groups.** The evaluator's description groups measure a declared target skill
 (`skill-read`) and `revision: description-only` compares two snapshots that differ only in a description. Neither fits:
@@ -145,7 +147,7 @@ skill merged into it, on both builds: Deliver Work's row adds Commit Work, Finis
 so before and after of one v0.9.0 skill read side by side.
 
 **Read first.** On a build whose core says to read Execute Work before the first tool call (and Discuss Work at a
-task's first request), opening either on a near miss is what the build asks for, so the report drops near-miss checks on
+session's first message), opening either on a near miss is what the build asks for, so the report drops near-miss checks on
 those two skills (`READ_FIRST` in `cases.mjs`) for that build's groups, with the reason "read first on this build". It
 reads the build's `runtime/prompts/core.md` from the package the evaluator built for the group.
 

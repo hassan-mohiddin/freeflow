@@ -133,6 +133,7 @@ Freeflow 0.9.0 has ten skills instead of twenty-five. The removed names have no 
 | Discuss, Agree Work | Discuss Work (`/discuss-work`) |
 | Commit Work, Finish Branch, Release Work, Launch Work | Deliver Work (`/deliver-work`) |
 | Design for Depth, Simplify Code, Diagnose Failure, Migration Work | Execute Work (`/execute-work`) and its references |
+| Handoff | Track Work's checkpoint and task release |
 | Write Spec, Write Plan | Write Docs (`/write-docs`) |
 | Map Features | Verify Work's feature map reference (`/verify-work`) |
 

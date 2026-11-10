@@ -428,7 +428,7 @@ test("a request ends: one notice a cycle, at the lower of 75% and a tenth before
   );
   expect(notices()[0]).toContain("Claude Code compacts on its own at about 167000");
   expect(notices()[0]).toContain("Keep working until a safe point: a finished step whose result you know");
-  expect(notices()[0]).toContain("rewrite widget/task-001's Current Context");
+  expect(notices()[0]).toContain("bring widget/task-001's Current Context up to date");
   expect(notices()[0]).toContain("checkpoint --record widget/task-001 --compact --input -");
   expect(notices()[0]).toContain("Then end your turn");
   expect(notices()[0]).toContain("the only notice this context cycle");

@@ -93,9 +93,10 @@ test("on the base every case is measured as written; on the merged build a merge
     { skill: "research-work", target: null, reason: "no owner" },
   ]);
   assert.equal(routed("rs-paired-result", MERGED_BUILD).owned, true);
-  // A near miss whose owner is still another skill than the request's route moves to the owner.
-  assert.deepEqual(routed("nm-aw-exact", MERGED_BUILD).checks, [
-    { skill: "agree-work", family: "discuss-work", target: "discuss-work" },
+  // A near miss whose owner is the request's own route is dropped: Discuss Work is read at a session's first message.
+  assert.deepEqual(routed("nm-aw-exact", MERGED_BUILD).checks, []);
+  assert.deepEqual(routed("nm-aw-exact", MERGED_BUILD).dropped, [
+    { skill: "agree-work", target: "discuss-work", reason: "shares the request's route" },
   ]);
   assert.deepEqual(routed("ew-plan-step-2", MERGED_BUILD).checks, [
     { skill: "write-plan", family: "write-docs", target: "write-docs" },
@@ -121,7 +122,7 @@ test("on the base every case is measured as written; on the merged build a merge
   });
   assert.deepEqual(gradedSkills(CASES.find((entry) => entry.id === "nm-aw-exact")), {
     read: [],
-    no: ["agree-work", "discuss-work"],
+    no: ["agree-work"],
   });
   for (const entry of CASES) {
     const { read, no } = gradedSkills(entry);
@@ -232,7 +233,7 @@ test("on the merged build the report counts owners for merged skills, per old sk
     run("cw-commit-tsv", [[["read", { path: skill("deliver-work") }]]], MERGED_BUILD),
     // Deliver Work on a pull request: Finish Branch's route; the Commit Work near miss is dropped (own route).
     run("fb-pull-request", [[["read", { path: skill("deliver-work") }]]], MERGED_BUILD),
-    // Discuss Work on an exact edit: Agree Work's near miss, now Discuss Work's.
+    // Discuss Work on an exact edit: its route on this build, so Agree Work's near miss is dropped there.
     run("nm-aw-exact", [[["read", { path: skill("discuss-work") }]]], MERGED_BUILD),
     // Execute Work on a code change: Workflow's route; the request's other skills are not near misses.
     run("wf-fix-and-test", [[["read", { path: skill("execute-work") }]]], MERGED_BUILD),
@@ -244,18 +245,18 @@ test("on the merged build the report counts owners for merged skills, per old sk
   assert.deepEqual(skills["commit-work"].opensItself, { count: 0, total: 1, rate: 0 });
   assert.equal(skills["commit-work"].falseTrigger, null);
   assert.deepEqual(skills["finish-branch"].hit, { count: 1, total: 1, rate: 1 });
-  assert.deepEqual(skills["agree-work"].falseTrigger, { count: 1, total: 1, rate: 1 });
+  assert.equal(skills["agree-work"].falseTrigger, null);
   assert.deepEqual(skills.workflow.hit, { count: 1, total: 1, rate: 1 });
   assert.equal(skills["action-selection"].hit, null);
   assert.equal(skills["action-selection"].unowned, 1);
   assert.deepEqual(owners["deliver-work"].hit, { count: 2, total: 2, rate: 1 });
   assert.deepEqual(owners["deliver-work"].opensItself, { count: 2, total: 2, rate: 1 });
-  assert.deepEqual(owners["discuss-work"].falseTrigger, { count: 1, total: 1, rate: 1 });
+  assert.equal(owners["discuss-work"].falseTrigger, null);
   assert.deepEqual(owners["execute-work"].hit, { count: 1, total: 1, rate: 1 });
   assert.deepEqual(owners["deliver-work"].merged, ["commit-work", "finish-branch", "launch-work", "release-work"]);
   assert.deepEqual(overall.hit, { count: 3, total: 3, rate: 1 });
   assert.equal(overall.unowned, 1);
-  assert.equal(overall.droppedChecks, 2);
+  assert.equal(overall.droppedChecks, 3);
   // The same requests on the base: Deliver Work does not exist there, so the owner rows read the base's skills.
   const before = summarize([
     run("cw-commit-tsv", [[["read", { path: skill("commit-work") }]]]),
@@ -310,6 +311,8 @@ test("the report counts a reference read or named, a script run with node, and a
       ],
     ]),
     run("rv-plan", [[["read", { path: file("review-work/references/artifact.md") }]]]),
+    // A reference read with cat, here through head, counts too, as the removed handoff check did.
+    run("nm-as-obvious", [[["bash", { command: `cat ${file("review-work/references/artifact.md")} | head -80` }]]]),
     // An earlier build's push reference counts as branch closeout, which holds its text now.
     run("fb-done", [[["read", { path: file("deliver-work/references/push.md") }]]]),
     // An earlier build's Map Features skill counts as the feature map reference.
@@ -332,7 +335,7 @@ test("the report counts a reference read or named, a script run with node, and a
   assert.deepEqual(parts["deliver-work/references/branch-closeout.md"], { count: 1, total: 1, rate: 1 });
   assert.deepEqual(parts["verify-work/references/feature-map.md"], { count: 1, total: 1, rate: 1 });
   assert.deepEqual(overall.parts, { count: 6, total: 8, rate: 6 / 8 });
-  assert.equal(overall.runsReadingAReference, 4);
+  assert.equal(overall.runsReadingAReference, 5);
   assert.equal(overall.runsRunningAScript, 2);
 });
 

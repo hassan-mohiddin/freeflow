@@ -13,7 +13,6 @@ Use the smallest current source set relevant to the change:
 - Read `dev-docs/adr/` when the change touches a durable decision.
 - Recover the active Working Record through Track Work when an ongoing task has one.
 - Before designing or changing a capability, check the task records for related tasks and read their `record.md`, `specs/`, and `plans/`. Accepted designs and their rationale often live only there. They are in the Freeflow store (`FREEFLOW_HOME`, default `~/.freeflow`), under the `freeflow` project: `working-record.mjs task search --query <words> --project freeflow` searches them. Records not yet moved into the store are in this repository's `.freeflow/tasks/`, which is Git-ignored: `.ignore` keeps it visible to ripgrep-based search, but tools that honor only `.gitignore` skip it, so search that path explicitly.
-- Read a handoff only when a point-in-time transfer is needed or the current record does not cover it.
 - Read the relevant live skill, runtime contract, test, package metadata, or release-evidence record before editing.
 - Inspect `.skill-eval/` and the accepted bundle when changing or evaluating a skill's evidence. Historical v1 cases and reports under `.deprecated/skill-evals-v1/` are documentary only and never establish current readiness.
 

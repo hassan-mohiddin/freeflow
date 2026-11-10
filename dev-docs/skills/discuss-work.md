@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/discuss-work/`
 > **Tests:** `.skill-eval/discuss-work/tests/`
-> **Verified at:** `b5efd624` (2026-11-10)
+> **Verified at:** `ecfd0788` (2026-11-10)
 
 For anyone changing Discuss Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/discuss-work/SKILL.md).
 

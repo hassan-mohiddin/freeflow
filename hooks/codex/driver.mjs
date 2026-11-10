@@ -414,7 +414,7 @@ function noticeText(found, tokens, window, limit, number) {
   const command = `node ${SCRIPT}`;
   const at = limit ? `; Codex compacts on its own at about ${limit} tokens` : "";
   const checkpoint = found?.task
-    ? `At that point, checkpoint ${found.task.id}: rewrite ${found.task.id}'s Current Context, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${found.task.id} --input - with In flight's lines.`
+    ? `At that point, checkpoint ${found.task.id}: bring ${found.task.id}'s Current Context up to date, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work and is not saved yet (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${found.task.id} --input - with In flight's lines.`
     : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
   return `Freeflow, context cycle ${number}: compaction is near. The context is at ${share(tokens, window)}${at}. Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn. When Codex compacts, Freeflow adds the record as of that checkpoint after Codex's summary. This is the only notice this context cycle.`;
 }

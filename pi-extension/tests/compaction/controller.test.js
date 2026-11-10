@@ -76,7 +76,7 @@ test("rows at 50, 60 and 70% once each, then the cycle's one notice, naming the 
   const once = controller.observe(ctx);
   assert.equal(once.level, "notice");
   assert.match(once.text, /Keep working until a safe point/);
-  assert.match(once.text, /checkpoint freeflow\/task-001: rewrite its Current Context/);
+  assert.match(once.text, /checkpoint freeflow\/task-001: bring its Current Context up to date/);
   assert.match(
     once.text,
     /run node \/pkg\/working-record\.mjs checkpoint --record freeflow\/task-001 --compact --input -/,

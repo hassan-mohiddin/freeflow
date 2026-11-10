@@ -53,7 +53,7 @@ A Working Record is appropriate when:
 
 Preserve only supported state that could affect later interpretation or action. Give each detailed fact one canonical owner. Track Work should store current meaning rather than append discussion chronology.
 
-When the initial record need arises from discussion, preserve the state that justified the record in the first authorized atomic update. Do not create an empty shell and lose the decisions, proposals, or uncertainty that made continuity necessary. Once a record exists, use it as working memory during the discussion, updating it at meaningful boundaries (accepted choices, open questions, options still considered, material the user supplies, the route as it emerges) as Track Work describes.
+When the initial record need arises from discussion, preserve the state that justified the record in the first authorized atomic update. Do not create an empty shell and lose the decisions, proposals, or uncertainty that made continuity necessary. Once a record exists, the discussion still lives in the conversation: record a change to the work when it settles, and what you currently understand at the checkpoint, as Track Work describes.
 
 When a rough route is useful, preserve provisional Slices, the return points between them, and their actual dependencies without pretending the later implementation is settled. Keep the current Slice concrete and later work directional. Use the existing Current Context, Current Work, Future Work, and History fields; do not add a second phase or context-cycle ledger.
 

@@ -33,7 +33,7 @@
     "discuss-work": {
       "job": "Work out with the user what to do and how while that is open, agree the work and every user-owned choice before building, keep them in one decision list, and stop silent selection when owner authority or source truth is unsettled.",
       "positive_trigger": "An idea, request or direction with open alternatives; a task that builds or changes behavior; or a next action that depends on owner-controlled behavior, a source conflict, or lower-fidelity fallback.",
-      "near_miss": "A direct factual question, or a change the user specified exactly.",
+      "near_miss": "A change the user specified exactly.",
       "pressure": "A technically possible action still has material alternatives, and urgency demands substituting a replay for unavailable native verification without asking.",
       "observable": "Preserve settled facts, compare only material paths, send one agreement with defaults, ask one direct decision question when blocked, and make no blocked mutation.",
       "stop_edge": "Converge when the next sound action no longer depends on open direction; return to the narrowest owning activity only after the decision or conflict resolves.",
@@ -42,7 +42,7 @@
       "case_concept": "Explore a materially open direction without treating discussion as authority, then refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss-work/SKILL.md",
-      "source_sha256": "91b030755bddf0564bb7164cc06c61665f35567d7f80b09253de0a49e7d2406d",
+      "source_sha256": "b9c3f8cabc22871508c23288f0adae71909e526728663a896764b8af461931bb",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -170,7 +170,7 @@
     },
     "track-work": {
       "job": "Maintain durable living task memory across execution, feedback, pauses, and context loss, and write the point-in-time checkpoint when work pauses or transfers to another session or person.",
-      "positive_trigger": "Ongoing work needs a recoverable current state, slice, decisions, evidence, proposals, or next action, or work is paused or handed off to another session or person.",
+      "positive_trigger": "Ongoing work needs a recoverable current state, slice, decisions, evidence, proposals, or next action, or work is paused or transferred to another session or person.",
       "near_miss": "A short self-contained action needs no durable record.",
       "pressure": "Compaction, session navigation, or in-slice feedback tempts the agent to invent authority, duplicate history, or replace the current slice; a transfer is pressed to read as all-done despite failed checks and an ambiguous destination.",
       "observable": "Restore bounded active state, reconcile live evidence, preserve one coherent Current Slice, and maintain decisions, checkpoints, proposals, Notes, evidence, and the next action without logging every activity.",
@@ -180,7 +180,7 @@
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current Track Work skill, rewritten for Schema 5 in task-004 (Phase 7.1), has not been behaviorally evaluated at this snapshot; Unverified. Earlier, Schema 4's Work Agreement guidance measured on 2026-10-13 (.skill-eval/work-agreement, baseline 5a7db0e6, candidate 522903b7, anthropic/claude-haiku-5-5 medium, 3 trials; aggregates 20261012212234-b38e8191 natural and 20261012212240-5af3ab7e explicit): agreement updated on a change of direction 3/3 vs 0/3; next step proposed at the agreement's edge 3/3 vs 1/3 and scope proposed 3/3 vs 2/3 (advisory Haiku judge); ask-first, unanswered-proposal and no-push/PR checks equal on both arms. Workflow's body was read in no natural run. This entry's own claim is not what that suite measures and stays unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "7a449eedb4580eed35797fddac623972fd8c840c9eec6a2390803f19d4cbb584",
+      "source_sha256": "36bf6638e32ad9606b9863adb3575afadd0eae916e683a8c57e1f8385c42a3fc",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

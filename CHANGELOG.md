@@ -9,6 +9,7 @@
 - Track Work no longer runs Schema 4 records: only `migrate` reads one, and every other command refuses it and names `migrate`. `init --schema 4`, `view resume`, Checkpoints and Decisions (`checkpoint propose`, `activate`, `defer`, `resume` and `close`, `decision add`, `supersede` and `retire`), `slice reopen`, the registry's `project link`, `task import`, `task env` and `task fanout`, and the Schema 4 reference are gone; `project` and `task` commands work only in a Freeflow store. Discuss Work's `choices.mjs --record` reads a Schema 5 record only.
 - Evaluate Behavior's `skill-eval run --dry-run` is now `--uncommitted`: it always ran subjects and called models, and only allowed uncommitted inputs, so the old name promised a run that spends nothing. `--dry-run` is refused with a message naming the new flag; stored results keep their `dryRun` field and still read.
 - Review Work's review mode is replaced: `review.mode` (`auto`, `off`, `always`) is gone, and a configuration that still sets it is refused with a message naming `review.unit`. An independent review now runs at every review unit, `review.unit` (`pr` by default, or `push`, `commit`, `agreement`, `manual`, which proposes each review and waits for your yes), with `review.rounds` capping its rounds; `review.model` defaults to `auto`.
+- Track Work's handoff reference is removed: a checkpoint and `task release` transfer the work to another session or device that shares the store; the name is gone, with no alias.
 
 ### Added
 
@@ -134,7 +135,6 @@
 
 ### Removed
 
-- Track Work's handoff reference is removed: a checkpoint and `task release` transfer the work; the name is gone, with no alias.
 - Pi's `compact_context` tool, its result index (`r12`), the carried copies of your latest messages, and the compaction capability skill with its summary format: on Pi the agent checkpoints with Track Work instead, and `/freeflow compact` asks it to checkpoint with `--compact`.
 - Pi's context reuse: tool results are no longer carried across a compaction; the bundle carries the files the agent names in its record's Recovery list. The Context reuse switch goes from `/freeflow settings`, and `compaction.carry` in a config still loads and does nothing.
 - Cognitive Routing, Pi's Coordinator, Helper and Executor profiles: their context projection, the `delegate_work`, `return_work`, `routing_unit` and `select_evidence` tools, `/freeflow profile`, `/freeflow resume`, the `Ctrl+Shift+R` and `Ctrl+Shift+A` shortcuts, the settings rows and footer states, the routing prompt and its capability skill. A config that still sets `cognitiveRouting` is refused, saying the feature was removed and the key to delete, on Pi and the hook hosts. Pi now claims `forget` and `route` as possible. Routing entries already in a Pi session stay and nothing reads them. Handing work to other agents stays with Execute Work's delegation reference.
