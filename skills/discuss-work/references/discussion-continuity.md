@@ -35,7 +35,6 @@ Use a durable destination only when losing the state could cause later misalignm
 - **Spec:** stable accepted behavior, boundaries, or content needs a tracked source.
 - **Plan:** an accepted ordered execution strategy must survive independently.
 - **ADR:** a surprising and hard-to-reverse repository decision needs durable rationale.
-- **Handoff:** a point-in-time continuation package must transfer to another context or owner.
 - **Domain documentation:** stable terminology or domain meaning belongs in an existing repository source.
 
 Do not create an artifact merely because discussion occurred. Prefer an existing repository convention. Ask before inventing a tracked destination whose authority or ownership matters.
@@ -64,7 +63,7 @@ After preservation, return to the discussion unless the user chose another route
 
 ## Carry Return Points On The Route
 
-A commit, publication, review, user decision, or planned handoff that the discussion anticipates is a return point on the route, not a Slice. While it is only anticipated, keep it in the conversation, or with a record as a `Proposed:` item in Open at the next checkpoint. Once the user agrees it, it goes in the work agreement: with a record, a `Back at` line through Track Work.
+A commit, publication, review, user decision, or planned pause that the discussion anticipates is a return point on the route, not a Slice. While it is only anticipated, keep it in the conversation, or with a record as a `Proposed:` item in Open at the next checkpoint. Once the user agrees it, it goes in the work agreement: with a record, a `Back at` line through Track Work.
 
 Keep local commit authority separate from push or publication, and keep migration, release, and launch separately controlled.
 

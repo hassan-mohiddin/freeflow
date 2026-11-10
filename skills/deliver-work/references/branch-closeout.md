@@ -119,7 +119,7 @@ A pull-request URL proves creation, not readiness or merge.
 
 ### Keep For Later
 
-Fits when the work is valid but integration is deferred, feedback is expected, or environment ownership prevents cleanup. Report the trunk's lines plus why the branch is kept and what would end the wait. Read Track Work's [handoff](../../track-work/references/handoff.md) only when continuing needs durable transfer context.
+Fits when the work is valid but integration is deferred, feedback is expected, or environment ownership prevents cleanup. Report the trunk's lines plus why the branch is kept and what would end the wait. Checkpoint the Working Record through [Track Work](../../track-work/SKILL.md) only when continuing needs durable transfer context.
 
 ### Discard
 

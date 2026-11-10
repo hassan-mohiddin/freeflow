@@ -291,7 +291,7 @@ For a consequential choice, identify the presented option, its disclosed consequ
 
 ### Preserve Authority And History
 
-Name who made or owns the decision when that matters. A reviewer can challenge a decision but cannot silently replace it. A Working Record, Plan, or Handoff cannot supersede a durable decision merely by describing a different path.
+Name who made or owns the decision when that matters. A reviewer can challenge a decision but cannot silently replace it. A Working Record or Plan cannot supersede a durable decision merely by describing a different path.
 
 When a decision changes:
 

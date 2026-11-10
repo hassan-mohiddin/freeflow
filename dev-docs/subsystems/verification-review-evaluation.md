@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `.skill-eval/freeflow-vs-plain/`, `.skill-eval/freeflow-routing/`, `.skill-eval/freeflow-tool-use/`, `scripts/validation/check-eval-definitions.mjs`, `skills/research-work/scripts/lib/stats.mjs`
 > **Tests:** `.skill-eval/evaluate-behavior/tests/`, `.skill-eval/verify-work/tests/`, `.skill-eval/review-work/tests/`
-> **Verified at:** `f1f29ece` (2026-11-07)
+> **Verified at:** `eda09a1c` (2026-11-10)
 
 For contributors changing how Freeflow reviews work, evaluates agent behavior, or verifies claims: what each part does, how they depend on each other, why they are shaped this way, and which of their behaviors are deliberate. It also covers the evaluator's code, the evidence it stores, and the contributor gate that measures Freeflow's own changes.
 

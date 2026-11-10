@@ -132,6 +132,7 @@
 
 ### Removed
 
+- Track Work's handoff reference is removed: a checkpoint and `task release` transfer the work; the name is gone, with no alias.
 - Pi's `compact_context` tool, its result index (`r12`), the carried copies of your latest messages, and the compaction capability skill with its summary format: on Pi the agent checkpoints with Track Work instead, and `/freeflow compact` asks it to checkpoint with `--compact`.
 - Pi's context reuse: tool results are no longer carried across a compaction; the bundle carries the files the agent names in its record's Recovery list. The Context reuse switch goes from `/freeflow settings`, and `compaction.carry` in a config still loads and does nothing.
 - Cognitive Routing, Pi's Coordinator, Helper and Executor profiles: their context projection, the `delegate_work`, `return_work`, `routing_unit` and `select_evidence` tools, `/freeflow profile`, `/freeflow resume`, the `Ctrl+Shift+R` and `Ctrl+Shift+A` shortcuts, the settings rows and footer states, the routing prompt and its capability skill. A config that still sets `cognitiveRouting` is refused, saying the feature was removed and the key to delete, on Pi and the hook hosts. Pi now claims `forget` and `route` as possible. Routing entries already in a Pi session stay and nothing reads them. Handing work to other agents stays with Execute Work's delegation reference.

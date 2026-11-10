@@ -1,6 +1,6 @@
 ---
 name: track-work
-description: "Use when a task needs memory beyond the conversation: starting, updating, checkpointing or recovering its Working Record; choosing, taking, switching or releasing a task from Freeflow's task menu, or one another session holds; moving a task into or out of a project; when work may not fit in what is left of the context, or will outlast this context cycle; when Freeflow says compaction is near, after a compaction, a summary, a clear or a move into a new session; before pausing, handing off or transferring work; when a task ID, a project, the Freeflow store or its sync, or parallel sessions are involved; when a record says Schema 4; and when editing a record or running its working-record script. It decides what the record says, and every lifecycle change goes through its script."
+description: "Use when a task needs memory beyond the conversation: starting, updating, checkpointing or recovering its Working Record; choosing, taking, switching or releasing a task from Freeflow's task menu, or one another session holds; moving a task into or out of a project; when work may not fit in what is left of the context, or will outlast this context cycle; when Freeflow says compaction is near, after a compaction, a summary, a clear or a move into a new session; before pausing or transferring work; when a task ID, a project, the Freeflow store or its sync, or parallel sessions are involved; when a record says Schema 4; and when editing a record or running its working-record script. It decides what the record says, and every lifecycle change goes through its script."
 ---
 
 # Track Work
@@ -29,7 +29,6 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | A session starts with Freeflow's task menu; the user points to a task, asks for a new one, or to switch or close one; a task another session holds | Choose And Hold The Task, below |
 | Freeflow says compaction is near, the context limit is near, or a switch, pause or transfer is coming | Checkpoint Before A Compaction Or A Transfer, below |
 | Context loss: after a compaction, a summary that replaces the conversation, a clear, a transfer into another context | Recover After Context Loss, below |
-| Handing the work to a later session or someone else as a document | Checkpoint first, then [handoff](references/handoff.md) |
 | Setting up the store, local only or local + cloud, or moving older records into it, such as a record whose header says `Schema: 4` | Setup Freeflow's [store setup](../setup-freeflow/references/store-setup.md) |
 | The store and its sync, a sync that fails; projects, holds and other tasks; removing a task or a project | [working record format](references/working-record-format.md), its first part |
 | Editing record structure, preparing a command's input, or any file of the task folder | [working record format](references/working-record-format.md) |
@@ -173,7 +172,7 @@ Goal: at a compaction, a switch or a transfer, the task folder holds everything 
    - `Dropped:` an approach and why it failed, so it is not tried again; `Pending:` what runs or waits, and on what;
 
    A result that closes a claim goes on the Slice instead, and a narrower instruction from the user in the agreement. The command checks the task folder's structure and the budget, writes Space for the repository you work in, adds to the current Slice's measure, sets the record's "State as of", then commits and pushes the store. It prints each Recovery line with the size of what it names and an `always` line's share of the budget, and names an `always, not counted` line the new list dropped: put it back if the work still rests on it.
-6. After `--compact`, end the turn. For a switch, `task switch`; for a pause or a transfer, `task release`, and write a [handoff](references/handoff.md) when someone needs a document.
+6. After `--compact`, end the turn. For a switch, `task switch`; for a pause or a transfer, `task release`.
 
 A session that holds no task writes a session summary instead, `checkpoint --session --input -` with its Goal, Settled, Open, Agreement, In flight, Recovery and Next action, its Recovery lines as a record's: it is the next context cycle's only memory. A compaction never creates a task.
 
@@ -194,7 +193,6 @@ Then reconcile before acting:
 - Compare the record with the live state the next action depends on: the checks name where each repository in Space stands and the store's unpushed commits. If they disagree, resolve it from sources; do not follow whichever version lets work continue.
 - If the record conflicts with a Spec or Plan its Recovery list names, the record does not win. Return the conflict to that artifact's owner before dependent work.
 - Check an important completion, verification, review, or commit claim, and the identity of what it examined, before repeating it; a run that happened may not apply to the current state. Reuse evidence that still applies instead of repeating the investigation, and reopen a source only when its exact content or freshness changes the next action.
-- A next action a handoff names authorizes nothing by itself. Without a record, as when resuming from a handoff alone, reconstruct from it and the exact sources it names, and report a missing boundary instead of inventing it.
 
 ## Maintain The Record
 

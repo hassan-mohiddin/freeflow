@@ -134,7 +134,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with the body before the 2026-10-22 restructure (the description is not what the suite delivers or measures; the restructure moves and deduplicates that text and has not been rerun), 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified. The review gate rewritten for SPEC-007 (2026-11-03: a plan from the diff and the base's policy at every review unit, Quick, Standard and Deep, records bound to a commit) has not been measured, nor the reviewer model from the routing table (SPEC-010, 2026-11-04).",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "9c93835c3f60bea5e3556e08f17ede8466819326121ff3979a35465883a73f0e",
+      "source_sha256": "d809d8ca1c0ef8930e581acd2efd4b715a396bbc37753c39d5e4f2500698caa5",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -180,7 +180,7 @@
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current Track Work skill, rewritten for Schema 5 in task-004 (Phase 7.1), has not been behaviorally evaluated at this snapshot; Unverified. Earlier, Schema 4's Work Agreement guidance measured on 2026-10-13 (.skill-eval/work-agreement, baseline 5a7db0e6, candidate 522903b7, anthropic/claude-haiku-5-5 medium, 3 trials; aggregates 20261012212234-b38e8191 natural and 20261012212240-5af3ab7e explicit): agreement updated on a change of direction 3/3 vs 0/3; next step proposed at the agreement's edge 3/3 vs 1/3 and scope proposed 3/3 vs 2/3 (advisory Haiku judge); ask-first, unanswered-proposal and no-push/PR checks equal on both arms. Workflow's body was read in no natural run. This entry's own claim is not what that suite measures and stays unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "b61b588eebfaf88d98b857b67d49a8f3179274d042ec172fc6bd81a1b0e32abe",
+      "source_sha256": "f07c4b803bf2a2eaee679d04d9096167670ecffb8f4f5e838bc7f9881648e9bc",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -226,7 +226,7 @@
       "case_concept": "After a behavior change, the stale subsystem doc is corrected in the same change and an intended-but-surprising behavior is recorded rather than 'fixed'; a spec preserves settled invitation behavior but marks unresolved billing semantics blocked.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-docs/SKILL.md",
-      "source_sha256": "ea284594294aa57a56d667b3cf12ec0e927883c84a0e1e08f5f5d5f6028ed73d",
+      "source_sha256": "2fe010d3697e1389af381cf1c28d277a5b657cfad9521bcf4692c03550a4bafe",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
