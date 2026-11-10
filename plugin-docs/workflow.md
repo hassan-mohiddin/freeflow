@@ -5,7 +5,7 @@ Freeflow is guidance for the agent you already use, not a new agent. The agent o
 - **Core guidance** carries the cycle below, what authorizes work, and how to recover after context loss.
 - **The Interaction Contract** tells a question or an idea apart from a request to act.
 - **The Working Method** holds the rules every task keeps, a one-line habit for each step that names the skill, reference or script holding its method, and how to keep output small.
-- **Skills** hold the methods. Each step of the cycle names the skill to read, and each skill's description says when it applies: the agent reads Discuss Work at a task's first request and Execute Work before its first tool call, even on a read-only task, and the others when their step comes. A skill's reference or script is read or run only when its situation arises.
+- **Skills** hold the methods. Each step of the cycle names the skill to read, and each skill's description says when it applies: the agent reads Discuss Work at a session's first message, before it replies, and Execute Work before its first tool call, even on a read-only task, and the others when their step comes. A skill's reference or script is read or run only when its situation arises.
 
 ## The Cycle
 
@@ -50,7 +50,7 @@ The work agreement is what you and the agent agreed it may do: the outcome, what
 - Ask a question or raise a doubt: the agent answers. A doubt about the step in progress is answered before that step goes on.
 - Say stop: it starts nothing new, finishes or reverts only what is already running, and reports.
 - Narrow it for now ("just diagnose first", "don't edit yet"): that holds until you lift it, also after a compaction, even when a broader agreement is written down.
-- Change direction: the agent updates the written agreement in your words, then continues under the new one.
+- Change direction: a stop or a limit is written into the agreement at once, in your words; a change to its terms is written when it settles, and a different outcome opens a new agreement.
 
 Your latest message always wins over a stored agreement.
 
