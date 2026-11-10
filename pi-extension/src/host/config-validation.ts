@@ -469,10 +469,11 @@ function validateVersion(value: ConfigObject) {
   return value.v === undefined || value.v === CONFIG_VERSION ? null : `v must be ${CONFIG_VERSION}`;
 }
 
+// Freeflow's removed context settings: refused by name in a file, and ignored (with the same reason) by the sanitizer.
+const REMOVED_CONTEXT_KEYS = ["contextVirtualization", "conversationHistory"];
+
 function removedContextConfigError(value: ConfigObject, filePath: string) {
-  const removedKeys = ["contextVirtualization", "conversationHistory"].filter((key) =>
-    Object.prototype.hasOwnProperty.call(value, key),
-  );
+  const removedKeys = REMOVED_CONTEXT_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(value, key));
   return removedKeys.length > 0
     ? `Removed Freeflow context setting(s) in ${filePath}: ${removedKeys.join(", ")}. Delete those keys before using Freeflow.`
     : null;
@@ -513,6 +514,26 @@ export const CONFIG_SECTIONS = [
 // outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
 // ignored so existing configs keep loading, and /freeflow status says Task Memory is gone (P6).
 const RETIRED_SECTIONS = ["outputRouter", "observedRouting", "scriptTransform", "taskMemory"];
+
+// The personal file's top-level keys. processing and taskMemory belong to retired features; they are accepted and
+// ignored so existing local configs keep loading.
+const LOCAL_KEYS = [
+  "v",
+  "enabled",
+  "processing",
+  "toolExecution",
+  "compaction",
+  "taskMemory",
+  "messaging",
+  "prompts",
+  "review",
+  "skills",
+  "events",
+  "gates",
+  "delegation",
+  "governor",
+  "pane",
+] as const;
 
 export function validateRepositoryConfig(value: unknown): string | null {
   if (!isRecord(value)) {
@@ -590,25 +611,7 @@ export function validateLocalConfig(value: unknown): string | null {
   const removedContextError = removedContextConfigError(value, ".freeflow/local.json");
   if (removedContextError) return removedContextError;
 
-  // processing and taskMemory belong to retired features; they are accepted and ignored so existing local configs keep
-  // loading.
-  const allowedKeys = new Set([
-    "v",
-    "enabled",
-    "processing",
-    "toolExecution",
-    "compaction",
-    "taskMemory",
-    "messaging",
-    "prompts",
-    "review",
-    "skills",
-    "events",
-    "gates",
-    "delegation",
-    "governor",
-    "pane",
-  ]);
+  const allowedKeys = new Set<string>(LOCAL_KEYS);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return removedFeatureError(key, ".freeflow/local.json") ?? `unsupported top-level local config key: ${key}`;
@@ -659,4 +662,120 @@ export function validateLocalConfig(value: unknown): string | null {
   }
   if (value.review !== undefined) return validateReviewConfig(value.review, "personal");
   return null;
+}
+
+/**
+ * A setting a config layer ignores, and why: the key (dotted, or null for the whole file) and the reason. Every host
+ * keeps the default for an ignored key, or the value the next scope gives it, and says so (SPEC-016, D-045).
+ */
+export type IgnoredSetting = { key: string | null; reason: string };
+
+/** The validator of each top-level section, for one scope; a section's leaves are checked one by one. */
+function sectionValidator(
+  section: string,
+  scope: "repository" | "personal",
+): ((value: unknown) => string | null) | null {
+  switch (section) {
+    case "toolExecution":
+      return validateToolExecutionConfig;
+    case "compaction":
+      return validateCompactionConfig;
+    case "messaging":
+      return validateMessagingConfig;
+    case "prompts":
+      return validatePromptsConfig;
+    case "skills":
+      return validateSkillsConfig;
+    case "events":
+      return validateEventsConfig;
+    case "gates":
+      return validateGatesConfig;
+    case "delegation":
+      return validateDelegationConfig;
+    case "pane":
+      return validatePaneConfig;
+    case "governor":
+      return validateGovernorConfig;
+    case "review":
+      return (value) => validateReviewConfig(value, scope);
+    default:
+      return null;
+  }
+}
+
+/**
+ * One section of a config file, checked leaf by leaf: a leaf its validator refuses is ignored and named; a section
+ * that is still invalid without those leaves is ignored whole and named.
+ */
+function sanitizeSection(
+  section: string,
+  value: unknown,
+  validate: (value: unknown) => string | null,
+): { value?: unknown; ignored: IgnoredSetting[] } {
+  const whole = validate(value);
+  if (whole === null) return { value, ignored: [] };
+  if (!isRecord(value)) return { ignored: [{ key: section, reason: whole }] };
+  const kept: ConfigObject = {};
+  const ignored: IgnoredSetting[] = [];
+  for (const [leaf, leafValue] of Object.entries(value)) {
+    const reason = validate({ [leaf]: leafValue });
+    if (reason === null) kept[leaf] = leafValue;
+    else ignored.push({ key: `${section}.${leaf}`, reason });
+  }
+  const left = validate(kept);
+  if (left !== null) return { ignored: [{ key: section, reason: left }] };
+  return { value: kept, ignored };
+}
+
+/**
+ * The settings a config file keeps, and the ones it ignores, for one scope. A key unknown to the scope, a removed
+ * key, and a value wrong for a known key are ignored and named; what is left is valid. Used by every host and by
+ * settings.mjs, so one file gives one answer everywhere.
+ */
+export function sanitizeConfigFile(
+  value: unknown,
+  scope: "repository" | "personal",
+): { config: ConfigObject; ignored: IgnoredSetting[] } {
+  if (!isRecord(value)) return { config: {}, ignored: [{ key: null, reason: "the file must hold a JSON object" }] };
+  const allowed = new Set<string>(scope === "repository" ? ["v", ...CONFIG_SECTIONS, ...RETIRED_SECTIONS] : LOCAL_KEYS);
+  const config: ConfigObject = {};
+  const ignored: IgnoredSetting[] = [];
+  for (const [key, entry] of Object.entries(value)) {
+    if (REMOVED_CONTEXT_KEYS.includes(key)) {
+      ignored.push({ key, reason: `removed Freeflow context setting: delete this key` });
+    } else if (REMOVED_FEATURES[key]) {
+      ignored.push({ key, reason: `${REMOVED_FEATURES[key]} was removed from Freeflow` });
+    } else if (!allowed.has(key)) {
+      ignored.push({ key, reason: "unsupported key" });
+    } else if (key === "v") {
+      if (entry === undefined || entry === CONFIG_VERSION) config.v = entry;
+      else ignored.push({ key, reason: `v must be ${CONFIG_VERSION}` });
+    } else if (key === "enabled") {
+      if (typeof entry === "boolean") config.enabled = entry;
+      else ignored.push({ key, reason: "enabled must be a boolean" });
+    } else if (RETIRED_SECTIONS.includes(key) || key === "processing") {
+      config[key] = entry;
+    } else {
+      const validate = sectionValidator(key, scope);
+      if (!validate) {
+        config[key] = entry;
+        continue;
+      }
+      const section = sanitizeSection(key, entry, validate);
+      if (section.value !== undefined) config[key] = section.value;
+      ignored.push(...section.ignored);
+    }
+  }
+  return { config, ignored };
+}
+
+/** The Runtime State line for ignored settings, or null when none. Every host shows this one line. */
+export function ignoredStateLine(
+  ignored: readonly { file?: string; key: string | null; reason: string }[],
+): string | null {
+  if (ignored.length === 0) return null;
+  const items = ignored.map(
+    (item) => `${item.file ? `${item.file} ` : ""}${item.key ?? "(whole file)"}: ${item.reason}`,
+  );
+  return `Settings ignored: ${items.join("; ")}. Run \`settings.mjs doctor\` to see the fix.`;
 }

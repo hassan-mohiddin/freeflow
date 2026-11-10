@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/host/request-history.ts`, `pi-extension/src/host/section-keeper.ts`, `pi-extension/src/host/runtime-state.ts`, `pi-extension/src/host/projection-tags.ts`, `pi-extension/src/host/read-only-session.ts`, `pi-extension/src/provider-support/`
 > **Tests:** `pi-extension/tests/cache-reuse/`, `pi-extension/tests/provider-support/`, `pi-extension/tests/host/persisted-branch.test.js`, `pi-extension/tests/host/section-keeper.test.js`
-> **Verified at:** `e2a0ad14` (2026-10-30)
+> **Verified at:** `f1f29ece` (2026-11-07)
 > **User docs:** `plugin-docs/prompt-caching.md`
 
 For contributors changing how Freeflow assembles requests or touches provider payloads. This doc explains the mechanisms: how generated messages keep their positions, where cache breakpoints are added, when a cache is kept warm, and how regressions are detected. The rules every change must follow, and how to verify one, are in [Prompt cache rules](../guides/prompt-cache.md); this doc does not repeat them.
@@ -68,7 +68,7 @@ To add a new generated message kind: give it its own `customType`, add the type 
 
 ### Runtime State placement
 
-`withFreeflowRuntimeState()` places the Runtime State before the first user message the first time. Unchanged, it keeps its position (`runtimeStateAnchor`); changed, it moves to just before the latest user message. Request history normally overrides this placement: it strips transient messages and re-inserts them from frames. The anchor matters on the paths that bypass request history, when it is unavailable or fails. Feature Runtime State types older versions produced (`freeflow-<feature>-runtime-state`) are still recognized, and dropped, so sessions that contain them assemble correctly. Every change to the state's text costs a new copy at the end, so its sources keep it stable within a run: the line naming the Freeflow skills already read is taken only where the state refreshes anyway ([Tool Execution](tool-execution.md#skills-read)), and the `Review:` and `Skills off:` lines come from the settings (files, or a session override), so they change only when the user changes `review` or `skills`.
+`withFreeflowRuntimeState()` places the Runtime State before the first user message the first time. The setup-needed instruction on Pi (D-045, round 3) is part of that same message, so it follows the same placement. Unchanged, it keeps its position (`runtimeStateAnchor`); changed, it moves to just before the latest user message. Request history normally overrides this placement: it strips transient messages and re-inserts them from frames. The anchor matters on the paths that bypass request history, when it is unavailable or fails. Feature Runtime State types older versions produced (`freeflow-<feature>-runtime-state`) are still recognized, and dropped, so sessions that contain them assemble correctly. Every change to the state's text costs a new copy at the end, so its sources keep it stable within a run: the line naming the Freeflow skills already read is taken only where the state refreshes anyway ([Tool Execution](tool-execution.md#skills-read)), and the `Review:` and `Skills off:` lines come from the settings (files, or a session override), so they change only when the user changes `review` or `skills`.
 
 ### Freeflow's sections on runs Pi starts
 

@@ -155,8 +155,8 @@ assert_not_contains "$pi_only_output" "Tool Execution" "non-Pi capability isolat
 assert_not_contains "$pi_only_output" "Messaging" "non-Pi capability isolation"
 rm -rf "$pi_only_dir"
 
-# Old mode and core-toggle configuration is a breaking invalidation, not a compatibility path. `skills.enabled` is
-# valid again, as the master switch over the skills.
+# Old mode and core-toggle configuration is ignored and named; Freeflow stays on (D-045). `skills.enabled` is valid
+# again, as the master switch over the skills; a wrong value for it is ignored the same way.
 for obsolete_config in \
   '{"defaultMode":"workflow"}' \
   '{"interactionContract":false}' \
@@ -165,8 +165,9 @@ for obsolete_config in \
   mkdir -p "$obsolete_dir/.freeflow"
   printf '%s\n' "$obsolete_config" >"$obsolete_dir/.freeflow/config.json"
   obsolete_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$obsolete_dir" | node "$HOOK_PATH" SessionStart)"
-  assert_contains "$obsolete_output" "# Freeflow Configuration Error" "obsolete config: $obsolete_config"
-  assert_not_contains "$obsolete_output" "# Freeflow Stable Guidance" "obsolete config: $obsolete_config"
+  assert_contains "$obsolete_output" "# Freeflow Stable Guidance" "obsolete config: $obsolete_config"
+  assert_contains "$obsolete_output" "Settings ignored: .freeflow/config.json " "obsolete config: $obsolete_config"
+  assert_contains "$obsolete_output" "settings.mjs doctor" "obsolete config: $obsolete_config"
   rm -rf "$obsolete_dir"
 done
 
@@ -179,7 +180,7 @@ printf '{"hook_event_name":"SessionEnd","reason":"clear","session_id":"old-sessi
 [[ ! -e "$state_dir/session-modes" ]] || fail "legacy session-mode state directory was created"
 rm -rf "$state_dir"
 
-# Missing, invalid, disabled, and invalid-local activation remain inert; an existing invalid file is reported.
+# A missing repository config stays inert; an existing file that is not JSON reads as empty, stays on, and is named.
 missing_dir="$(mktemp -d)"
 invalid_dir="$(mktemp -d)"
 mkdir -p "$invalid_dir/.freeflow"
@@ -187,21 +188,17 @@ printf '{invalid\n' >"$invalid_dir/.freeflow/config.json"
 missing_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$missing_dir" | node "$HOOK_PATH" SessionStart)"
 invalid_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$invalid_dir" | node "$HOOK_PATH" SessionStart)"
 [[ -z "$missing_output" ]] || fail "missing config should not activate runtime context"
-assert_contains "$invalid_output" "# Freeflow Configuration Error" "invalid config"
-assert_contains "$invalid_output" ".freeflow/config.json is invalid" "invalid config"
-assert_not_contains "$invalid_output" "# Freeflow Stable Guidance" "invalid config"
+assert_contains "$invalid_output" "# Freeflow Stable Guidance" "invalid config"
+assert_contains "$invalid_output" "Settings ignored: .freeflow/config.json (whole file): not JSON" "invalid config"
 rm -rf "$missing_dir" "$invalid_dir"
 
 legacy_repo_dir="$(mktemp -d)"
 mkdir -p "$legacy_repo_dir/.freeflow"
 printf '{"contextVirtualization":false,"conversationHistory":true}\n' >"$legacy_repo_dir/.freeflow/config.json"
 legacy_repo_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$legacy_repo_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$legacy_repo_output" "# Freeflow Configuration Error" "removed repository context settings"
-assert_contains "$legacy_repo_output" "contextVirtualization, conversationHistory" "removed repository context settings"
-assert_contains "$legacy_repo_output" ".freeflow/config.json" "removed repository context settings"
-if [[ "$legacy_repo_output" == *"# Freeflow Stable Guidance"* ]]; then
-  fail "removed repository context settings must not activate Freeflow core"
-fi
+assert_contains "$legacy_repo_output" "# Freeflow Stable Guidance" "removed repository context settings"
+assert_contains "$legacy_repo_output" ".freeflow/config.json contextVirtualization: " "removed repository context settings"
+assert_contains "$legacy_repo_output" ".freeflow/config.json conversationHistory: " "removed repository context settings"
 rm -rf "$legacy_repo_dir"
 
 legacy_local_dir="$(mktemp -d)"
@@ -209,12 +206,8 @@ mkdir -p "$legacy_local_dir/.freeflow"
 printf '{}\n' >"$legacy_local_dir/.freeflow/config.json"
 printf '{"conversationHistory":false}\n' >"$legacy_local_dir/.freeflow/local.json"
 legacy_local_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$legacy_local_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$legacy_local_output" "# Freeflow Configuration Error" "removed local context setting"
-assert_contains "$legacy_local_output" "conversationHistory" "removed local context setting"
-assert_contains "$legacy_local_output" ".freeflow/local.json" "removed local context setting"
-if [[ "$legacy_local_output" == *"# Freeflow Stable Guidance"* ]]; then
-  fail "removed local context setting must not activate Freeflow core"
-fi
+assert_contains "$legacy_local_output" "# Freeflow Stable Guidance" "removed local context setting"
+assert_contains "$legacy_local_output" ".freeflow/local.json conversationHistory: " "removed local context setting"
 rm -rf "$legacy_local_dir"
 
 disabled_dir="$(mktemp -d)"
@@ -229,8 +222,8 @@ mkdir -p "$invalid_local_dir/.freeflow"
 printf '{}\n' >"$invalid_local_dir/.freeflow/config.json"
 printf '{"enabled":"no"}\n' >"$invalid_local_dir/.freeflow/local.json"
 invalid_local_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$invalid_local_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$invalid_local_output" ".freeflow/local.json is invalid: enabled must be a boolean" "invalid local config"
-assert_not_contains "$invalid_local_output" "# Freeflow Stable Guidance" "invalid local config should fail closed"
+assert_contains "$invalid_local_output" "# Freeflow Stable Guidance" "invalid local config stays on"
+assert_contains "$invalid_local_output" "Settings ignored: .freeflow/local.json enabled: enabled must be a boolean" "invalid local config"
 rm -rf "$invalid_local_dir"
 
 # Personal disablement remains separate from shared activation.

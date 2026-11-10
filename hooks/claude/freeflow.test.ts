@@ -1990,7 +1990,10 @@ const gateLines = (w: any) =>
     .events()
     .filter((line: any) => line.kind === "gate")
     .map((line: any) => `${line.gate}:${line.decision}:${line.tool}`);
-const gateSettings = (modes: Record<string, string>) => ({
+const gateSettings = (
+  modes: Record<string, string>,
+  ignored: { file: string; key: string | null; reason: string }[] = [],
+) => ({
   stdout: JSON.stringify({
     root: "/work/widget",
     settings: Object.entries(modes).map(([gate, value]) => ({
@@ -2000,6 +2003,7 @@ const gateSettings = (modes: Record<string, string>) => ({
       scope: "repository",
       hosts: "all",
     })),
+    ignored,
   }),
 });
 
@@ -2090,6 +2094,34 @@ test("the gates under block: refused with the gate's text, a delivery step put t
   ).toBe("deny");
   await $.turn.complete(turnEnd("answer"));
   expect(gateLines(w)).toEqual(["slice:block:Write", "delivery:ask:Bash", "delivery:block:Bash"]);
+});
+
+// R1 B1: a gate whose value the listing ignores keeps the mode the mod last read in this process; a config problem
+// never drops a block to warn (D-045). Three session starts in one process: block, an ignored value, block.
+test("a gate's ignored value keeps the mode the mod last read: block, an ignored value, block stay block (D-045, R1 B1)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  w.verdict = { decision: "allow" };
+  const pushDecision = async () =>
+    (await $.tool.check({ tool: "Bash", input: { command: "git push" } } as any)).decision;
+  const ignoredValue = [
+    { file: ".freeflow/config.json", key: "gates.delivery", reason: "gates.delivery must be one of off, warn, block" },
+  ];
+  const starts: [Record<string, string>, typeof ignoredValue][] = [
+    [{ delivery: "block" }, []],
+    [{ delivery: "warn" }, ignoredValue],
+    [{ delivery: "block" }, []],
+  ];
+  const decisions: string[] = [];
+  for (const [modes, ignored] of starts) {
+    w.settingsAnswers["list "] = gateSettings(modes, ignored);
+    await start($);
+    await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+    decisions.push(await pushDecision());
+    await $.turn.complete(turnEnd("answer"));
+  }
+  expect(decisions).toEqual(["deny", "deny", "deny"]);
 });
 
 test("the delegation gate: a worker's write outside its brief's May write, or to the task's record, warns the worker (SPEC-008 4.2)", async ($, on) => {

@@ -1,4 +1,5 @@
 import type { readCapabilityState } from "./config.js";
+import { ignoredStateLine } from "./config-validation.js";
 import { hasUsableMandatoryPrompts } from "./prompts.js";
 
 /**
@@ -14,8 +15,9 @@ export function setFreeflowStatus(
     task?: string;
   } = {},
 ) {
-  if (capabilityState && !capabilityState.configured) {
-    ctx.ui.setStatus("freeflow", capabilityState.configExists ? "freeflow: config error" : "freeflow: setup needed");
+  // Setup needed (D-045, round 3): no shared config file, so Freeflow is not running in this folder.
+  if (capabilityState?.setupNeeded) {
+    ctx.ui.setStatus("freeflow", "freeflow: setup needed");
     return;
   }
   if (capabilityState && !capabilityState.enabled) {
@@ -28,17 +30,16 @@ export function setFreeflowStatus(
     return;
   }
 
-  const active: string[] = [];
   // The footer shows state that changes while you work: the task this session holds; capabilities are settings
-  // (Task 005). With every capability off it says so.
-  if (options.task) active.push(`task ${options.task}`);
+  // (Task 005). With every capability off it says so. Settings a config file ignores keep their defaults, and the
+  // footer says how many and where to look (D-045).
   const anyOn = ["compaction", "toolExecution", "messaging"].some(
     (name) => capabilityState?.[name]?.effective === true || capabilityState?.[name]?.enabled === true,
   );
-  ctx.ui.setStatus(
-    "freeflow",
-    `freeflow: ${active.length > 0 ? active.join(" · ") : anyOn || !capabilityState ? "on" : "on (all capabilities off)"}`,
-  );
+  const base = options.task ? `task ${options.task}` : anyOn || !capabilityState ? "on" : "on (all capabilities off)";
+  const ignored = capabilityState?.ignored?.length ?? 0;
+  const notice = ignored > 0 ? `${ignored} setting${ignored === 1 ? "" : "s"} ignored (settings.mjs doctor)` : null;
+  ctx.ui.setStatus("freeflow", `freeflow: ${[base, notice].filter(Boolean).join(" · ")}`);
 }
 
 /** The /freeflow status report: capability state and diagnostics, including prompt-cache health. */
@@ -52,15 +53,11 @@ export function freeflowStatusText(
     messaging?: string;
   },
 ): string {
-  if (!state.configured) {
-    if (!state.configExists) return "Freeflow: inactive (repo not set up); run /setup-freeflow";
-    const configPath =
-      state.localConfigExists && !state.localConfigValid ? ".freeflow/local.json" : ".freeflow/config.json";
-    return `Freeflow: inactive (invalid config: ${state.parseError ?? "unknown parse error"}); fix ${configPath} or run /setup-freeflow`;
-  }
+  if (state.setupNeeded) return "Freeflow: inactive (repo not set up); run /setup-freeflow";
   const sessionSuffix = (source: string) => (source === "session" ? " (session override)" : "");
   return [
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled)}`,
+    ...(ignoredStateLine(state.ignored ?? []) ? [ignoredStateLine(state.ignored ?? [])!] : []),
     `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"}`,
     ...(diagnostics?.backgroundRunning ? [`background commands: ${diagnostics.backgroundRunning} running`] : []),
     `compaction: ${state.compaction?.effective ? `enabled${diagnostics?.compaction ? ` (${diagnostics.compaction})` : ""}` : "disabled"}`,

@@ -224,20 +224,78 @@ test("the Session scope is refused without a session ID", async (t) => {
   assert.match(result.stderr, /the Session scope needs a host that names its session/);
 });
 
-test("an invalid file stops every write and is named by list and get", async (t) => {
+test("an ignored setting is named by list, and stops writes to its file until doctor fixes it", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
   await mkdir(join(f.root, ".freeflow"));
   await writeFile(join(f.root, ".freeflow/config.json"), `{"review":{"unit":"sometimes"}}\n`);
-  for (const args of [["list"], ["get", "review.unit"]]) {
-    const result = f.run(...args);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /\.freeflow\/config\.json is invalid/);
-  }
-  const write = f.run("set", "review.unit", "manual", "--scope", "personal");
+  const list = f.run("list");
+  assert.equal(list.status, 0, list.stderr);
+  assert.match(list.stdout, /Settings ignored: \.freeflow\/config\.json review\.unit: review\.unit must be one of/);
+  // The ignored value is not used: the default is.
+  assert.equal(f.json("get", "review.unit").value, "pr");
+  const write = f.run("set", "review.unit", "manual", "--scope", "repository");
   assert.equal(write.status, 1);
-  assert.match(write.stderr, /fix it before changing a setting/);
-  assert.equal(existsSync(join(f.root, ".freeflow/local.json")), false);
+  assert.match(write.stderr, /has settings Freeflow ignores; run settings\.mjs doctor/);
+  assert.deepEqual(await f.file(".freeflow/config.json"), { review: { unit: "sometimes" } });
+  // The personal file is its own: a write there is not held up by the repository's ignored value.
+  f.json("set", "review.unit", "manual", "--scope", "personal");
+  assert.deepEqual(await f.file(".freeflow/local.json"), { review: { unit: "manual" } });
+});
+
+test("doctor names each problem with its fix, and changes nothing without --fix", async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+  await mkdir(join(f.root, ".freeflow"));
+  const shared = `{"toolExecution":{"bogus":true},"cognitiveRouting":{"enabled":true},"review":{"mode":"off"},"gates":{"slice":"blok"},"foo":1}\n`;
+  await writeFile(join(f.root, ".freeflow/config.json"), shared);
+  const result = f.run("doctor");
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /\.freeflow\/config\.json \(Repository\): 5 problems\./);
+  assert.match(result.stdout, /- review\.mode: "off"\n\s+\+ review\.unit: "manual"/);
+  assert.match(result.stdout, /- cognitiveRouting: \{"enabled":true\}\n\s+\+ \(removed/);
+  assert.match(result.stdout, /doctor --fix/);
+  assert.equal(await readFile(join(f.root, ".freeflow/config.json"), "utf8"), shared);
+});
+
+test("doctor --fix writes Personal and Session, the Repository only with --scope repository, and a fixed folder reads clean", async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+  await mkdir(join(f.root, ".freeflow"));
+  const shared = `{"cognitiveRouting":{"enabled":true},"review":{"mode":"off"}}\n`;
+  await writeFile(join(f.root, ".freeflow/config.json"), shared);
+  await writeFile(join(f.root, ".freeflow/local.json"), `{"review":{"mode":"always"},"skills":{"nope":true}}\n`);
+  await mkdir(join(f.home, "sessions", "s-1"), { recursive: true });
+  await writeFile(join(f.home, "sessions", "s-1", "settings.json"), `{"review.depth":"quick","review.model":"opus"}\n`);
+  // Without --scope the shared file is refused: named, and not written.
+  const partial = f.run("doctor", "--fix");
+  assert.equal(partial.status, 1);
+  assert.match(partial.stdout, /not written: the repository file is shared/);
+  assert.equal(await readFile(join(f.root, ".freeflow/config.json"), "utf8"), shared);
+  assert.deepEqual(await f.file(".freeflow/local.json"), { review: { unit: "pr" } });
+  assert.deepEqual(JSON.parse(await readFile(join(f.home, "sessions", "s-1", "settings.json"), "utf8")), {
+    "review.model": "opus",
+  });
+  // With --scope repository the shared file is written, and the whole folder then reads clean.
+  const shared1 = f.run("doctor", "--fix", "--scope", "repository");
+  assert.equal(shared1.status, 0, shared1.stdout);
+  assert.deepEqual(await f.file(".freeflow/config.json"), { review: { unit: "manual" } });
+  const clean = f.run("doctor");
+  assert.equal(clean.status, 0);
+  assert.match(clean.stdout, /Nothing to fix\./);
+});
+
+test("doctor leaves a file that is not JSON as it is, and a missing file has nothing to fix", async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+  await mkdir(join(f.root, ".freeflow"));
+  await writeFile(join(f.root, ".freeflow/config.json"), "{ not json\n");
+  const result = f.run("doctor", "--fix", "--scope", "repository");
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /not JSON .*not rewritten: fix it by hand/);
+  assert.equal(await readFile(join(f.root, ".freeflow/config.json"), "utf8"), "{ not json\n");
+  const all = f.run("doctor");
+  assert.match(all.stdout, /\.freeflow\/local\.json \(Personal\): no file; nothing to fix\./);
 });
 
 test("a personal file Git tracks is refused", async (t) => {

@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/track-work/scripts/lib/gates5.mjs`, `skills/track-work/scripts/lib/gate-state5.mjs`, `pi-extension/src/gates/`, `hooks/claude/freeflow.mjs`
 > **Tests:** `.skill-eval/track-work/tests/gates5.test.mjs`, `pi-extension/tests/gates/`, `hooks/claude/freeflow.test.ts`
-> **Verified at:** `dcf316ff` (2026-11-04)
+> **Verified at:** `f1f29ece` (2026-11-07)
 > **User docs:** `plugin-docs/capabilities/gates.md`
 
 For anyone changing Freeflow's gates: the four rules each driver checks before a tool call, the state Track Work keeps for them, how Claude Code's mod and Pi's extension run them, and why they only warn for now.
@@ -59,6 +59,7 @@ Some rules must always hold: no change before the user's agreement, no effect ou
 ## Surface
 
 - Settings: `gates.agreement`, `gates.slice`, `gates.delivery`, `gates.delegation`: `off`, `warn` (default), `block`, in every scope (`SETTINGS` in `config-validation.ts`).
+- A gate's mode is read from the settings listing at each session start. A gate whose own value or whole file the listing ignores (D-045) reads its default, `warn`, at a fresh start; Claude Code's mod keeps the mode it last read for that gate within a running session, so a config problem never drops a block to warn there (review 1 B1). A valid `block` keeps its block when a sibling key is ignored.
 - Commands: `working-record.mjs agree --outcome <text> [--exact-spec <reason>]`; `delegate open --writes <glob>` (repeatable); `events summary`'s Gates line; `estimate --store`'s gates line.
 - Text the agent reads: `Freeflow gate (<warn|ask|block>, <gate>): <what>` then `Why:` and `Way through:`; under warn it ends "This gate only warns for now."
 - Event kinds `gate` and `agreement`, additive to schema v1; a `freeflow` line of what `gates` when the state is missing.
