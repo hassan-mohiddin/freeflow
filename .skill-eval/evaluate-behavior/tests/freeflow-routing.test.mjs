@@ -37,7 +37,8 @@ test("every skill has three requests and at least one near miss, and the skill l
   // The merged build is Freeflow's current skill list: every owner ships, and nothing else does.
   assert.deepEqual([...OWNERS].sort(), [...listed].sort());
   for (const skill of SKILLS) {
-    assert.equal(CASES.filter((entry) => entry.hit === skill).length, 3, skill);
+    // Track Work also takes the three transfer requests that Handoff had, now that Track Work owns that job.
+    assert.equal(CASES.filter((entry) => entry.hit === skill).length, skill === "track-work" ? 6 : 3, skill);
     assert.ok(
       CASES.some((entry) => entry.not.includes(skill)),
       `${skill} has no near miss`,
@@ -299,8 +300,15 @@ test("the report counts a reference read or named, a script run with node, and a
         ["bash", { command: `node ${file("execute-work/scripts/self-review.mjs")}` }, true],
       ],
     ]),
-    // A reference read with cat counts; one read with read counts.
-    run("ho-stop-today", [[["bash", { command: `cat ${file("track-work/references/handoff.md")} | head -80` }]]]),
+    // A Track Work script run with node counts toward its part, which tw-recover declares.
+    run("tw-recover", [
+      [
+        [
+          "bash",
+          { command: `node ${file("track-work/scripts/working-record.mjs")} view recover --record /x/record.md` },
+        ],
+      ],
+    ]),
     run("rv-plan", [[["read", { path: file("review-work/references/artifact.md") }]]]),
     // An earlier build's push reference counts as branch closeout, which holds its text now.
     run("fb-done", [[["read", { path: file("deliver-work/references/push.md") }]]]),
@@ -319,13 +327,13 @@ test("the report counts a reference read or named, a script run with node, and a
   assert.equal(runs[1].used.size, 0);
   const { parts, overall } = summarize(runs);
   assert.deepEqual(parts["execute-work/scripts/touch-map.mjs"], { count: 1, total: 2, rate: 1 / 2 });
-  assert.deepEqual(parts["track-work/references/handoff.md"], { count: 1, total: 1, rate: 1 });
+  assert.deepEqual(parts["track-work/scripts/working-record.mjs"], { count: 1, total: 1, rate: 1 });
   assert.deepEqual(parts["review-work/references/artifact.md"], { count: 1, total: 1, rate: 1 });
   assert.deepEqual(parts["deliver-work/references/branch-closeout.md"], { count: 1, total: 1, rate: 1 });
   assert.deepEqual(parts["verify-work/references/feature-map.md"], { count: 1, total: 1, rate: 1 });
   assert.deepEqual(overall.parts, { count: 6, total: 8, rate: 6 / 8 });
-  assert.equal(overall.runsReadingAReference, 5);
-  assert.equal(overall.runsRunningAScript, 1);
+  assert.equal(overall.runsReadingAReference, 4);
+  assert.equal(overall.runsRunningAScript, 2);
 });
 
 test("a near miss counts an open on its first turn only", () => {

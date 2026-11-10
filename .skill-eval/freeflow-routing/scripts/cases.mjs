@@ -22,7 +22,6 @@ export const MERGED = {
   "diagnose-failure": "execute-work",
   discuss: "discuss-work",
   "finish-branch": "deliver-work",
-  handoff: "track-work",
   "launch-work": "deliver-work",
   "map-features": "verify-work",
   "migration-work": "execute-work",
@@ -62,7 +61,6 @@ export const SKILLS = [
   "evaluate-behavior",
   "execute-work",
   "finish-branch",
-  "handoff",
   "launch-work",
   "map-features",
   "migration-work",
@@ -414,37 +412,34 @@ export const CASES = [
     prompt: "I don't think the tag-rename branch is worth finishing. Should we throw it away or park it somewhere?",
   },
 
-  // Handoff: work continued later or by someone else.
+  // Transfer: work continued later or by someone else, which Track Work's checkpoint and task release carry.
   {
     id: "ho-stop-today",
-    hit: "handoff",
-    expect: ["handoff"],
+    hit: "track-work",
+    expect: ["track-work"],
     not: [],
-    parts: ["track-work/references/handoff.md"],
     prompt:
       "I have to stop for today. Write things up so I, or someone else, can pick up the tag-rename work tomorrow.",
   },
   {
     id: "ho-colleague",
-    hit: "handoff",
-    expect: ["handoff"],
+    hit: "track-work",
+    expect: ["track-work"],
     not: [],
-    parts: ["track-work/references/handoff.md"],
     prompt: "My colleague Priya is taking over the tag-rename work from here. Prepare what she needs to continue.",
   },
   {
     id: "ho-new-session",
-    hit: "handoff",
-    expect: ["handoff"],
+    hit: "track-work",
+    expect: ["track-work"],
     not: [],
-    parts: ["track-work/references/handoff.md"],
     prompt: "This session is getting long. Let's move the tag-rename work to a fresh session; prepare the handover.",
   },
   {
     id: "nm-ho-summary",
     hit: null,
     expect: [],
-    not: ["handoff", "track-work"],
+    not: ["track-work"],
     prompt: "Summarize what changed on this branch compared to main.",
   },
 

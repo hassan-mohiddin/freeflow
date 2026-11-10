@@ -50,7 +50,6 @@ Work; a deployment must not open Release Work).
 | evaluate-behavior | `eb-agents-rule`, `eb-compare-models`, `eb-wording` | `vw-tests` |
 | execute-work | `ew-plan-step-2`, `ew-agreed-json`, `ew-lint-script` | `nm-ew-explain`, `nm-aw-question` |
 | finish-branch | `fb-done`, `fb-pull-request`, `fb-abandon` | `cw-commit-tsv` |
-| handoff | `ho-stop-today`, `ho-colleague`, `ho-new-session` | `nm-ho-summary` |
 | launch-work | `lw-deploy`, `lw-rollback`, `lw-restore` | `rw-cut` |
 | map-features | `mf-setup`, `mf-before-releases`, `mf-live-checks` | `vw-serve` |
 | migration-work | `mg-sqlite`, `mg-tags-array`, `mg-hosting` | `nm-mg-notes`, `dd-backends` |
@@ -59,7 +58,7 @@ Work; a deployment must not open Release Work).
 | review-work | `rv-branch`, `rv-plan`, `rv-tsv-change` | `vw-claim` |
 | setup-freeflow | `sf-activate`, `sf-loaded`, `sf-repair` | `nm-sf-app-setting` |
 | simplify-code | `sc-format`, `sc-duplicate`, `sc-cli-args` | `nm-sc-feature`, `aw-limit-flag` |
-| track-work | `tw-start`, `tw-recover`, `tw-update` | `nm-tw-todo`, `nm-ho-summary` |
+| track-work | `tw-start`, `tw-recover`, `tw-update`, `ho-stop-today`, `ho-colleague`, `ho-new-session` | `nm-tw-todo`, `nm-ho-summary` |
 | verify-work | `vw-tests`, `vw-claim`, `vw-serve` | `rv-branch`, `rv-plan` |
 | workflow | `wf-fix-and-test`, `wf-import`, `wf-rename-data` | `nm-wf-question` |
 | write-docs | `wd-architecture`, `wd-stale-readme`, `wd-none` | `ws-sync` |
@@ -75,7 +74,7 @@ the build, and its row reads 0% `self` by construction.
 **Merged skills (v0.9.0).** v0.9.0 ships 11 skills: it merged 15 of the base's into others and dropped Action
 Selection. `MERGED` in `scripts/cases.mjs` names each removed skill's owner (Commit Work, Finish Branch, Launch Work and
 Release Work into Deliver Work; Agree Work, Bypass and Discuss into Discuss Work; Design for Depth, Diagnose Failure,
-Migration Work, Simplify Code and Workflow into Execute Work; Handoff into Track Work; Write Plan and Write Spec into
+Migration Work, Simplify Code and Workflow into Execute Work; Write Plan and Write Spec into
 Write Docs). The cases stay as written, and each run is measured on its own build (`routeCase`), which the report reads
 from the Freeflow package the evaluator built for the group. On the base nothing changes. On a build without a skill,
 Workflow's rule applies to every merged skill:
@@ -91,10 +90,10 @@ Workflow's rule applies to every merged skill:
 
 **Added skills.** Research Work was added after the base. On a build that lacks it, no skill does its requests' job:
 they count toward no hit rate there, like Action Selection's after the merge, and its near misses (`di-tags-or-folders`,
-`vw-claim`) are dropped. On the base the suite therefore measures 75 requests and 35 near-miss checks, as before;
-on a build with Research Work, 78 requests and 37 checks.
+`vw-claim`) are dropped. On the base the suite therefore measures 75 requests and 34 near-miss checks;
+on a build with Research Work, 78 requests and 36 checks.
 
-Near misses dropped on the merged build (Freeflow's current skill list), so its false-trigger total is 18 checks, not 37:
+Near misses dropped on the merged build (Freeflow's current skill list), so its false-trigger total is 18 checks, not 36:
 
 | Case | Near miss | Why |
 | --- | --- | --- |
@@ -105,7 +104,6 @@ Near misses dropped on the merged build (Freeflow's current skill list), so its 
 | `aw-limit-flag`, `nm-sc-feature`, `nm-dd-local`, `nm-df-known-cause`, `nm-mg-notes` | Simplify Code, Simplify Code, Design for Depth, Diagnose Failure, Migration Work | the request is a code change, Execute Work's job (`route`) |
 | `nm-by-urgent`, `nm-di-decided` | Bypass, Discuss | a change to agree before building, Discuss Work's job (`route`) |
 | `nm-as-obvious` | Action Selection | no owner |
-| `nm-ho-summary` | Handoff | repeats its Track Work check |
 
 Near misses that move: Agree Work's (`nm-aw-question`, `nm-aw-exact`, `nm-wf-question`) to Discuss Work, Workflow's
 (`nm-wf-question`) to Execute Work, Write Plan's (`ew-plan-step-2`, `rv-plan`) to Write Docs.

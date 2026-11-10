@@ -45,6 +45,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - After context loss, recover before any task action, as Recover After Context Loss says. If anything it lists cannot be read completely, report that and stop affected work.
 - Never record a requested, reported, or expected result as observed. Keep unverified work, failures, and contradictions visible.
 - Never claim that state will survive context loss unless it is written in the task folder or in a source the record points to.
+- Never write secrets, credentials or private payloads the work does not need into the task folder or a brief: the store syncs to a remote, and a later context or another person reads it.
 
 ## Choose And Hold The Task
 
