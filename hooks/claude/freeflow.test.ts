@@ -439,7 +439,8 @@ test("a request ends: one notice a cycle, a lead of 20,000 tokens before Claude'
   expect(notices().length).toBe(1);
   expect(w.commands()).toEqual([]);
 
-  // Two requests whose notices are made at once still give the cycle one.
+  // Two requests whose notices are made at once still give the cycle one. A fresh session has no cycle file yet.
+  w.stored.delete("/store/sessions/sess-1/cycle.json");
   await start($);
   let overlapping: Promise<unknown> | null = null;
   w.beforeRun = (key: string) => {
@@ -453,6 +454,7 @@ test("a request ends: one notice a cycle, a lead of 20,000 tokens before Claude'
 
   // A compaction while the notice is being made starts a new cycle, which the request's figures no longer describe:
   // the notice is dropped, and the new cycle still has its own.
+  w.stored.delete("/store/sessions/sess-1/cycle.json");
   await start($);
   w.answers["view bundle --record"] = { stdout: "THE BUNDLE\n" };
   let compacting: Promise<unknown> | null = null;
@@ -470,6 +472,7 @@ test("a request ends: one notice a cycle, a lead of 20,000 tokens before Claude'
   // With Claude's automatic compaction off there is no threshold: the notice comes at 75%.
   w.threshold = undefined;
   w.status = store();
+  w.stored.delete("/store/sessions/sess-1/cycle.json");
   await start($);
   await step($, w, 149_000);
   expect(notices().length).toBe(3);
@@ -483,6 +486,7 @@ test("a request ends: one notice a cycle, a lead of 20,000 tokens before Claude'
   w.threshold = 67_000;
   w.compactionWindow = 100_000;
   w.status = held(at(-30));
+  w.stored.delete("/store/sessions/sess-1/cycle.json");
   await start($);
   expect(w.env.FREEFLOW_CONTEXT_WINDOW).toBe("100000");
   expect(w.env.FREEFLOW_NOTICE_POINT).toBe("47000");
@@ -533,7 +537,7 @@ test("a request ends: the context shown at 50, 60 and 70% below the notice, once
   // A compaction moves the count on in the store, and the new cycle has its rows and notice again, naming it.
   const compacted = await $.session.compact({ trigger: "auto", messages: CONVERSATION });
   expect(compacted.skip).toBeUndefined();
-  expect(w.stored.get(cycleFile)).toBe('{"cycle":2}\n');
+  expect(w.stored.get(cycleFile)).toBe('{"cycle":2,"row":0,"notice":null}\n');
   await step($, w, 30_000);
   await step($, w, 145_000);
   expect(rowsOf(w).length).toBe(3);
@@ -541,26 +545,27 @@ test("a request ends: the context shown at 50, 60 and 70% below the notice, once
   await step($, w, 147_000);
   expect(noticesOf(w)[1]).toContain("Freeflow, context cycle 2:");
 
-  // A resumed session keeps its count, read again from the store; another session starts its own at 1.
+  // A resumed session keeps its count and what its cycle showed, read again from the store: the 70% row it showed is
+  // not shown again. Another session starts its own at 1.
   await start($, { source: "resume" });
   await step($, w, 100_000);
-  expect(rowsOf(w)[3]).toContain("Freeflow, context cycle 2:");
+  expect(rowsOf(w).length).toBe(3);
   w.status = held(at(-30), { session: "sess-2" });
   await start($, { session_id: "sess-2" });
   await step($, w, 100_000);
-  expect(rowsOf(w)[4]).toContain("Freeflow, context cycle 1:");
+  expect(rowsOf(w)[3]).toContain("Freeflow, context cycle 1:");
 
   // Claude's own compaction in a session with no task and no summary is a new cycle too: the count moves on, and the
-  // next notice comes.
+  // next notice comes. A start within cycle 2 keeps the notice cycle 2 made, so none comes again there.
   w.status = store();
   await start($);
   await step($, w, 150_000);
-  expect(noticesOf(w).length).toBe(3);
+  expect(noticesOf(w).length).toBe(2);
   await $.session.compact({ trigger: "auto", messages: CONVERSATION });
-  expect(w.stored.get(cycleFile)).toBe('{"cycle":3}\n');
+  expect(w.stored.get(cycleFile)).toBe('{"cycle":3,"row":0,"notice":null}\n');
   await step($, w, 150_000);
-  expect(noticesOf(w).length).toBe(4);
-  expect(noticesOf(w)[3]).toContain("Freeflow, context cycle 3:");
+  expect(noticesOf(w).length).toBe(3);
+  expect(noticesOf(w)[2]).toContain("Freeflow, context cycle 3:");
 
   // Without a store, no row, and the store is asked once a mark, not on every request.
   w.status = null;
@@ -2199,4 +2204,56 @@ test("with no gate state under block, a change is refused with how to write one 
   const refused = await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any);
   expect(refused.decision).toBe("deny");
   expect(refused.reason).toContain("Freeflow cannot read its gate state; run `task here` or `agree`");
+});
+
+// The store's cycle file of the notice test's session, carried from one test to the next: a test starts with a module
+// that has no state of its own, and a reload is the same start with the store's copy of the cycle, which is what this
+// carries (P80, T12).
+let carriedCycle: string | undefined;
+
+test("the event log: a row and the notice name the context that crossed them and the notice point, a compaction the cycle it ended", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  await start($);
+  await step($, w, 100_000);
+  await step($, w, 148_000);
+  await $.turn.complete(turnEnd("answer"));
+  const shown = () =>
+    w
+      .events()
+      .filter((line: any) => line.kind === "freeflow" && (line.what === "row" || line.what === "notice"))
+      .map(({ what, detail, context, point }: any) => ({ what, detail, context, point }));
+  expect(shown()).toEqual([
+    { what: "row", detail: "cycle 1, 50%", context: 100_000, point: 147_000 },
+    { what: "notice", detail: "cycle 1", context: 148_000, point: 147_000 },
+  ]);
+  await $.session.compact({ trigger: "auto", messages: CONVERSATION });
+  const compactions = w.events().filter((line: any) => line.kind === "compaction");
+  expect(compactions.map((line: any) => line.cycle)).toEqual([1]);
+});
+
+test("a row and the notice a cycle showed are kept in the store, so the copy names them", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  await start($);
+  await step($, w, 100_000);
+  expect(rowsOf(w).length).toBe(1);
+  await step($, w, 148_000);
+  expect(noticesOf(w).length).toBe(1);
+  carriedCycle = w.stored.get("/store/sessions/sess-1/cycle.json");
+  const kept = JSON.parse(carriedCycle ?? "null");
+  expect([kept?.cycle, kept?.row, typeof kept?.notice]).toEqual([1, 0.5, "number"]);
+});
+
+test("a reloaded mod mid-cycle shows neither the rows nor the notice its cycle already showed", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  if (carriedCycle !== undefined) w.stored.set("/store/sessions/sess-1/cycle.json", carriedCycle);
+  // No start: the module loads into the session as it was. The 50% row and the notice were shown in this cycle, so
+  // neither is sent again, and nothing comes after the notice, as in the cycle before the reload.
+  await step($, w, 100_000);
+  await step($, w, 120_000);
+  expect(rowsOf(w).length).toBe(0);
+  await step($, w, 148_000);
+  expect(noticesOf(w).length).toBe(0);
 });

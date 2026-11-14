@@ -36,6 +36,10 @@ export interface CompactionHost {
   background(): readonly { id: string; label: string; outputPath: string }[];
   /** Context size that the next request receiving the full history would carry, and the thresholds to judge it. */
   measure(ctx: any, turn?: TurnEnd): { tokens: number; thresholds: Thresholds } | undefined;
+  /** The cycle's rows and notice as the store keeps them for this session (cycle.json), read once a module load. */
+  kept(ctx: any): { cycle: number; row: number; notice: number | null } | undefined;
+  /** Keeps the cycle's rows and notice, written when one of them is shown, so a reload does not show them again. */
+  keep(ctx: any, state: { cycle: number; row: number; notice: number | null }): void;
   /** Freeflow's notice tag around a notice's text (freeflowNotice in host/inbound.ts). */
   notice(text: string): string;
   /** Pi's own summarizer over Pi's preparation, with extra instructions; throws on failure. */
@@ -48,7 +52,8 @@ export interface Compacted {
   carriedFiles: string[];
 }
 
-export type Notice = { level: "row" | "notice"; text: string };
+/** A row or the notice, with the share a row shows, the context of the request that crossed it and the notice point. */
+export type Notice = { level: "row" | "notice"; text: string; share?: number; context: number; point: number };
 /** The turn that just ended, as Pi's turn_end reports it: its assistant message and tool results. */
 export type TurnEnd = { message?: any; toolResults?: readonly any[] };
 
@@ -66,6 +71,8 @@ const SAFE_POINT =
 export class CompactionController {
   /** What this cycle has shown: the highest row, and when its one notice came. */
   private sent: { cycle: number; row: number; noticeAt?: number } = { cycle: 0, row: 0 };
+  /** Whether the store's copy of this cycle was read since the module loaded. */
+  private restored = false;
   /** When this session started, the start of its first cycle. */
   private startedAt = Date.now();
   private compacted?: Compacted;
@@ -75,6 +82,7 @@ export class CompactionController {
   /** Session start or shutdown: nothing shown, nothing waiting to reset. */
   reset(): void {
     this.sent = { cycle: 0, row: 0 };
+    this.restored = false;
     this.startedAt = Date.now();
     this.compacted = undefined;
   }
@@ -101,10 +109,26 @@ export class CompactionController {
     return parts.join(", ");
   }
 
+  /** The context cycle the branch is in now: the one a compaction on this branch would end. */
+  cycleNow(ctx: any): number {
+    return cycleOf(branchOf(ctx));
+  }
+
+  /** The cycle's highest row and notice, kept with the store so a reload shows neither again (P80, T12). */
+  private keepSent(ctx: any, cycle: number): void {
+    this.host.keep(ctx, { cycle, row: this.sent.row, notice: this.sent.noticeAt ?? null });
+  }
+
   /** After a turn: a row as the context crosses 50, 60 and 70%, or the cycle's one notice; never both, never again. */
   observe(ctx: any, turn?: TurnEnd): Notice | undefined {
     if (!this.host.effective()) return undefined;
     const cycle = cycleOf(branchOf(ctx));
+    // What this cycle showed before a reload (the store's copy), read the first time after a module load.
+    if (!this.restored) {
+      this.restored = true;
+      const kept = this.host.kept(ctx);
+      if (kept && kept.cycle === cycle) this.sent = { cycle, row: kept.row, noticeAt: kept.notice ?? undefined };
+    }
     if (this.sent.cycle !== cycle) this.sent = { cycle, row: 0 };
     if (this.sent.noticeAt !== undefined) return undefined;
     const measured = this.host.measure(ctx, turn);
@@ -114,15 +138,25 @@ export class CompactionController {
       const row = rowAt(tokens, thresholds);
       if (row === undefined || row <= this.sent.row) return undefined;
       this.sent.row = row;
+      this.keepSent(ctx, cycle);
       return {
         level: "row",
+        share: row,
+        context: tokens,
+        point: thresholds.notice,
         text: this.host.notice(
           `Context cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}; the checkpoint notice comes at about ${thresholds.notice} tokens.`,
         ),
       };
     }
     this.sent.noticeAt = Date.now();
-    return { level: "notice", text: this.host.notice(this.noticeText(cycle, tokens, thresholds)) };
+    this.keepSent(ctx, cycle);
+    return {
+      level: "notice",
+      context: tokens,
+      point: thresholds.notice,
+      text: this.host.notice(this.noticeText(cycle, tokens, thresholds)),
+    };
   }
 
   private noticeText(cycle: number, tokens: number, thresholds: Thresholds): string {

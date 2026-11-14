@@ -28,6 +28,8 @@ export class CompactionController {
   host;
   /** What this cycle has shown: the highest row, and when its one notice came. */
   sent = { cycle: 0, row: 0 };
+  /** Whether the store's copy of this cycle was read since the module loaded. */
+  restored = false;
   /** When this session started, the start of its first cycle. */
   startedAt = Date.now();
   compacted;
@@ -37,6 +39,7 @@ export class CompactionController {
   /** Session start or shutdown: nothing shown, nothing waiting to reset. */
   reset() {
     this.sent = { cycle: 0, row: 0 };
+    this.restored = false;
     this.startedAt = Date.now();
     this.compacted = undefined;
   }
@@ -61,10 +64,24 @@ export class CompactionController {
     }
     return parts.join(", ");
   }
+  /** The context cycle the branch is in now: the one a compaction on this branch would end. */
+  cycleNow(ctx) {
+    return cycleOf(branchOf(ctx));
+  }
+  /** The cycle's highest row and notice, kept with the store so a reload shows neither again (P80, T12). */
+  keepSent(ctx, cycle) {
+    this.host.keep(ctx, { cycle, row: this.sent.row, notice: this.sent.noticeAt ?? null });
+  }
   /** After a turn: a row as the context crosses 50, 60 and 70%, or the cycle's one notice; never both, never again. */
   observe(ctx, turn) {
     if (!this.host.effective()) return undefined;
     const cycle = cycleOf(branchOf(ctx));
+    // What this cycle showed before a reload (the store's copy), read the first time after a module load.
+    if (!this.restored) {
+      this.restored = true;
+      const kept = this.host.kept(ctx);
+      if (kept && kept.cycle === cycle) this.sent = { cycle, row: kept.row, noticeAt: kept.notice ?? undefined };
+    }
     if (this.sent.cycle !== cycle) this.sent = { cycle, row: 0 };
     if (this.sent.noticeAt !== undefined) return undefined;
     const measured = this.host.measure(ctx, turn);
@@ -74,15 +91,25 @@ export class CompactionController {
       const row = rowAt(tokens, thresholds);
       if (row === undefined || row <= this.sent.row) return undefined;
       this.sent.row = row;
+      this.keepSent(ctx, cycle);
       return {
         level: "row",
+        share: row,
+        context: tokens,
+        point: thresholds.notice,
         text: this.host.notice(
           `Context cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}; the checkpoint notice comes at about ${thresholds.notice} tokens.`,
         ),
       };
     }
     this.sent.noticeAt = Date.now();
-    return { level: "notice", text: this.host.notice(this.noticeText(cycle, tokens, thresholds)) };
+    this.keepSent(ctx, cycle);
+    return {
+      level: "notice",
+      context: tokens,
+      point: thresholds.notice,
+      text: this.host.notice(this.noticeText(cycle, tokens, thresholds)),
+    };
   }
   noticeText(cycle, tokens, thresholds) {
     const head = `Context cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}, and Pi compacts on its own at about ${thresholds.trigger} tokens.`;

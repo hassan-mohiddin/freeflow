@@ -449,3 +449,100 @@ test("summarize counts dropped lines and leaves out what came before since", () 
   assert.equal(summary.dropped, 4);
   assert.equal(summary.until, "2026-11-03T11:30:00.000Z");
 });
+
+test("the schema takes a notice's and a row's context and point, a checkpoint kind, and a compaction's cycle", () => {
+  const at = { ...base(), kind: "freeflow", what: "notice", detail: "cycle 1", context: 148_000, point: 147_000 };
+  assert.equal(lineProblem(at), null);
+  assert.equal(lineProblem({ ...base(), kind: "freeflow", what: "checkpoint", detail: "compact, session" }), null);
+  assert.equal(
+    lineProblem({ ...base(), kind: "compaction", trigger: "auto", by: "freeflow", before: 150_000, cycle: 2 }),
+    null,
+  );
+  assert.match(lineProblem({ ...base(), kind: "freeflow", what: "notice", context: "148000" }), /context/);
+  assert.match(lineProblem({ ...base(), kind: "freeflow", what: "notice", point: -1 }), /point/);
+});
+
+test("the summary measures the tokens from a cycle's notice (or, with none, its last row) to the checkpoint that answered it", () => {
+  const freeflow = (what, fields = {}) => ({ ...base(), kind: "freeflow", what, ...fields });
+  const lines = [
+    freeflow("row", { detail: "cycle 1, 70%", context: 100_000, point: 147_000 }),
+    freeflow("notice", { detail: "cycle 1", context: 148_000, point: 147_000 }),
+    freeflow("checkpoint", { detail: "compact, session", context: 160_000 }),
+    { ...base(), kind: "compaction", trigger: "auto", by: "freeflow", before: 161_000, cycle: 1 },
+    freeflow("row", { detail: "cycle 2, 50%", context: 100_000, point: 147_000 }),
+    freeflow("checkpoint", { detail: "plain", context: 110_000 }),
+    { ...base(), kind: "compaction", trigger: "auto", by: "harness", before: 150_000, cycle: 2 },
+    freeflow("checkpoint", { detail: "plain" }),
+  ];
+  const summary = summarize(lines, { session: "sess-1" });
+  assert.deepEqual(summary.toCheckpoint, [
+    { from: "notice", cycles: 1, median: 12_000, largest: 12_000 },
+    { from: "row", cycles: 1, median: 10_000, largest: 10_000 },
+  ]);
+  const text = renderSummary(summary);
+  assert.match(text, /^Notice to checkpoint: 1 cycle\(s\), median 12,000, largest 12,000$/m);
+  assert.match(
+    text,
+    /^Row to checkpoint \(no notice came, from a row\): 1 cycle\(s\), median 10,000, largest 10,000$/m,
+  );
+  // A session with no checkpoint measured says nothing about it.
+  assert.equal(summarize([freeflow("row", { context: 1 })], { session: "s" }).toCheckpoint, undefined);
+});
+
+test("a checkpoint writes its own freeflow line, with what it was and the context its transcript shows, and says nothing when the log is off", async () => {
+  await withFolder(async ({ folder, home, cli }) => {
+    const transcript = join(folder, "session.jsonl");
+    const entry = (usage) => JSON.stringify({ type: "assistant", message: { usage } });
+    await writeFile(
+      transcript,
+      [
+        entry({ input_tokens: 5, cache_read_input_tokens: 100_000, cache_creation_input_tokens: 0, output_tokens: 10 }),
+        entry({
+          input_tokens: 3,
+          cache_read_input_tokens: 140_000,
+          cache_creation_input_tokens: 0,
+          output_tokens: 100,
+        }),
+      ].join("\n") + "\n",
+    );
+    const summary = [
+      "## Goal",
+      "- Probe the checkpoint line.",
+      "## Settled",
+      "(none)",
+      "## Open",
+      "(none)",
+      "## Agreement",
+      "(none)",
+      "## In flight",
+      "(none)",
+      "## Recovery",
+      "(none)",
+      "## Next action",
+      "- Read the log.",
+    ].join("\n");
+    const claude = {
+      CLAUDE_CODE_SESSION_ID: "cafe0000-1111",
+      FREEFLOW_HARNESS: "Claude Code",
+      FREEFLOW_TRANSCRIPT: transcript,
+    };
+    ok(cli(["checkpoint", "--session", "--compact", "--input", "-"], { input: summary, env: claude }));
+    const log = join(home, "events", "cafe0000-1111.jsonl");
+    const lines = (await readLines(log)).filter((line) => line.what === "checkpoint");
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].detail, "compact, session");
+    assert.equal(lines[0].context, 140_103);
+    assert.equal(lines[0].harness, "claude-code");
+
+    // With the log off (events.enabled off, which the claims file says), the checkpoint still works and writes nothing.
+    await mkdir(join(home, "sessions", "beef0000-2222"), { recursive: true });
+    await writeFile(
+      join(home, "sessions", "beef0000-2222", "capabilities.json"),
+      JSON.stringify({ v: 1, events: false }),
+    );
+    const off = { FREEFLOW_SESSION: "beef0000-2222", FREEFLOW_HARNESS: "Pi" };
+    const out = cli(["checkpoint", "--session", "--input", "-"], { input: summary, env: off });
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(existsSync(join(home, "events", "beef0000-2222.jsonl")), false);
+  });
+});

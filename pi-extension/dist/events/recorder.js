@@ -187,11 +187,13 @@ export class EventRecorder {
       source: ours ? "freeflow" : "agent",
     });
   }
-  compaction(by, trigger) {
-    this.emit("compaction", { by, trigger });
+  /** A compaction; `cycle` is the context cycle it ended. */
+  compaction(by, trigger, cycle) {
+    this.emit("compaction", { by, trigger, cycle });
   }
-  freeflow(what, detail) {
-    this.emit("freeflow", { what, detail });
+  /** A row or notice carries the context of the request that crossed it and the notice point, in tokens. */
+  freeflow(what, detail, fields = {}) {
+    this.emit("freeflow", { what, detail, ...fields });
   }
   sessionEnded(reason) {
     this.emit("session.end", { reason: typeof reason === "string" && reason ? reason : undefined });

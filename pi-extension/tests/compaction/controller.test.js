@@ -16,9 +16,11 @@ const WINDOW = 200_000;
 const limits = { window: WINDOW, trigger: 183_616, notice: 163_616 };
 const notice = (text) => `<freeflow-notice type="compaction">\n${text}\n</freeflow-notice>`;
 
-function setup({ state, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" } } = {}) {
+function setup({ state, kept, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" } } = {}) {
   let tokens = 0;
   const calls = { answered: 0, bundle: [], summarize: [] };
+  // The store's copy of the cycle (cycle.json): what a reload reads back.
+  const copies = { value: kept, writes: [] };
   let current = state;
   const branch = [];
   const ctx = { cwd: "/work", sessionManager: { getBranch: () => branch, getLeafId: () => String(branch.length) } };
@@ -26,6 +28,11 @@ function setup({ state, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" 
     effective: () => true,
     background: () => [],
     measure: () => ({ tokens, thresholds: limits }),
+    kept: () => copies.value,
+    keep: (_ctx, state) => {
+      copies.value = { ...state };
+      copies.writes.push({ ...state });
+    },
     notice,
     summarize: async (preparation, instructions) => {
       calls.summarize.push(instructions);
@@ -50,6 +57,7 @@ function setup({ state, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" 
     ctx,
     branch,
     calls,
+    copies,
     at: (value) => (tokens = value),
     set: (next) => (current = next),
   };
@@ -189,4 +197,22 @@ test("Pi's own compaction: the bundle once checkpointed, else Pi's summary with 
   const plain = (await none.controller.fallback(event, none.ctx)).compaction;
   assert.match(none.calls.summarize[0], /^Write state, not a story/);
   assert.doesNotMatch(plain.summary, /BUNDLE/);
+});
+
+test("a controller after a reload shows neither the row nor the notice its cycle showed, read from the store's copy", () => {
+  const first = setup({ state: task("2026-10-30T10:00:00Z") });
+  first.at(105_000);
+  assert.equal(first.controller.observe(first.ctx).level, "row");
+  assert.deepEqual([first.copies.value.cycle, first.copies.value.row, first.copies.value.notice], [1, 0.5, null]);
+  // The reload: a new controller that reads the copy the first one kept.
+  const reloaded = setup({ state: task("2026-10-30T10:00:00Z"), kept: first.copies.value });
+  reloaded.at(105_000);
+  assert.equal(reloaded.controller.observe(reloaded.ctx), undefined, "the 50% row is not shown again");
+  reloaded.at(163_616);
+  assert.equal(reloaded.controller.observe(reloaded.ctx).level, "notice");
+  assert.equal(typeof reloaded.copies.value.notice, "number");
+  // A second reload after the notice: nothing comes in the same cycle.
+  const again = setup({ state: task("2026-10-30T10:00:00Z"), kept: reloaded.copies.value });
+  again.at(170_000);
+  assert.equal(again.controller.observe(again.ctx), undefined);
 });

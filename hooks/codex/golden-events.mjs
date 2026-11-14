@@ -77,6 +77,8 @@ export default [
     kind: "freeflow",
     what: "row",
     detail: "cycle 1, 50%",
+    context: 140000,
+    point: 204000,
   },
   {
     v: 1,
@@ -181,6 +183,7 @@ export default [
     kind: "compaction",
     trigger: "auto",
     by: "harness",
+    cycle: 1,
   },
   {
     v: 1,

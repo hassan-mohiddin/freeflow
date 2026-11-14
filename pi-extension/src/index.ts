@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import { calculateContextTokens, compact as piCompact, estimateTokens } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RequestHistory } from "./host/request-history.js";
@@ -69,6 +70,39 @@ import { setFreeflowStatus } from "./host/status.js";
 import { cachedBranch } from "./host/branch.js";
 type FreeflowAPI = ExtensionAPI;
 const COMPACTION_NOTICE_TYPE = "freeflow-compaction-notice";
+
+/**
+ * The file that keeps a session's context cycle in the Freeflow home, beside its claims: the cycle, its highest row and its
+ * notice's time, the same copy the Claude Code mod keeps (cycle.json), so a reload of the extension shows neither again.
+ */
+function cycleFile(ctx: any): string | undefined {
+  const id = ctx.sessionManager?.getSessionId?.();
+  return id ? join(resolve(freeflowHome()), "sessions", id, "cycle.json") : undefined;
+}
+
+function keptCycle(ctx: any): { cycle: number; row: number; notice: number | null } | undefined {
+  const path = cycleFile(ctx);
+  if (!path) return undefined;
+  try {
+    const kept = JSON.parse(readFileSync(path, "utf8"));
+    return {
+      cycle: Number(kept.cycle),
+      row: Number(kept.row) || 0,
+      notice: typeof kept.notice === "number" ? kept.notice : null,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function keepCycle(ctx: any, state: { cycle: number; row: number; notice: number | null }): void {
+  const path = cycleFile(ctx);
+  if (!path) return;
+  // Written when a row or the notice is shown, which is a few times a cycle; a failed write loses only the copy.
+  mkdir(dirname(path), { recursive: true })
+    .then(() => writeFile(path, `${JSON.stringify(state)}\n`))
+    .catch(() => {});
+}
 // The user's /freeflow compact, delivered as Freeflow's message.
 const COMPACT_REQUEST_TYPE = "freeflow-compaction-request";
 // The Freeflow store's menu and rules at session start, or what keeps the session from a store.
@@ -346,6 +380,8 @@ export default function freeflow(pi: FreeflowAPI) {
         auth.env,
       );
     },
+    kept: (ctx: any) => keptCycle(ctx),
+    keep: (ctx: any, state: { cycle: number; row: number; notice: number | null }) => keepCycle(ctx, state),
     measure: (ctx: any, turn?: TurnEnd) => {
       const limits = strictest([ctx.model], api.getSettings?.());
       if (!limits) return undefined;
@@ -775,17 +811,26 @@ export default function freeflow(pi: FreeflowAPI) {
     // synced, and a checkpoint --compact that waits is answered by compacting with the bundle and continuing the run.
     const midRun = ((event.message as any)?.content ?? []).some((block: any) => block?.type === "toolCall");
     if (!midRun) {
+      // The cycle a compaction now would end, read before the entry it writes is on the branch.
+      const ended = compaction.cycleNow(ctx);
       const compacting = await compaction.settle(event, ctx);
       // After the store was read at the run's end: a delegation the Slice waits on that came back gives its row.
       if (!compacting && capability?.enabled === true) await waits.runEnded().catch(() => {});
       if (compacting) {
-        if (compacting.entries.some((entry: any) => entry?.type === "compaction")) events.compaction("freeflow");
+        if (compacting.entries.some((entry: any) => entry?.type === "compaction"))
+          events.compaction("freeflow", undefined, ended);
         return compacting;
       }
     }
     const notice = compaction.observe(ctx, event);
     if (notice) {
-      events.freeflow("notice", notice.level);
+      // A row's detail says row and its share; the notice's says notice (the event log, SPEC-006).
+      if (notice.level === "row")
+        events.freeflow("row", `row, ${Math.round((notice.share ?? 0) * 100)}%`, {
+          context: notice.context,
+          point: notice.point,
+        });
+      else events.freeflow("notice", "notice", { context: notice.context, point: notice.point });
       // Mid-run the notice joins the next request; when the run is ending it waits for the next prompt rather than
       // starting work nobody asked for.
       await Promise.resolve(
@@ -909,7 +954,8 @@ export default function freeflow(pi: FreeflowAPI) {
   // Pi compacting on its own (threshold, overflow, /compact) keeps its summarizer and kept tail, with Freeflow's additions.
   pi.on("session_before_compact", async (event, ctx) => compaction.fallback(event, ctx));
   pi.on("session_compact", async (_event, ctx) => {
-    events.compaction("harness");
+    // The entry this compaction wrote is on the branch now, so the cycle it ended is one before the branch's.
+    events.compaction("harness", undefined, compaction.cycleNow(ctx) - 1);
     files.piCompacted();
     await restore(ctx, false);
     background.restate();

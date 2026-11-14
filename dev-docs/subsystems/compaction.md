@@ -25,7 +25,7 @@ It deliberately does not:
 | --- | --- | --- |
 | Cycle | The stretch of a session between two compactions; cycle 1 runs from session start to the first. Pi's compactions count too. | `nextCycle()`, `currentCycle()` in `harness.ts` |
 | Notice | The one soft notice a cycle: keep working to a safe point, checkpoint with `--compact`, end the turn. | `Thresholds.notice`, notice level `"notice"` |
-| Row | One line at 50, 60 or 70% of the window, below the notice, once each a cycle. | `ROWS_AT`, notice level `"row"` |
+| Row | One line at 50, 60 or 70% of the window, below the notice, once each a cycle, the highest crossed (kept in cycle.json across a reload). | `rowAt()` in `notice5.mjs`, notice level `"row"` |
 | Trigger | Where Pi compacts on its own: window minus Pi's reserve. | `Thresholds.trigger` |
 | Checkpoint done | The held task's State as of, a worker session's `progress.md` time (`checkpoint --delegation`), or the session summary's time, is later than this cycle's notice, or its start when no notice came (P68). | `checkpointDone()` |
 | Bundle | Track Work's `view bundle`: the record and everything recovery reads, whole, with the files In flight carries (P60). | `StoreLayer.bundle()` |
@@ -116,7 +116,7 @@ Pi's file lists from an earlier Freeflow compaction are added back into Pi's pre
 
 - **Session entries:** the `compaction` entry above; a fallback keeps Pi's details and adds `freeflow: { version: 2, cycle, fallback: true }`.
 - **The Freeflow home:** `sessions/<session>/compact.json` and `summary.md`, written by Track Work's script, answered and removed here; the request only where `capabilities.json` claims `compact`.
-- **Memory only:** `CompactionController.sent` (the cycle's highest row and its notice time), `startedAt`, `compacted`; `StoreLayer`'s state and whether this run touched the store. Cleared at session start and shutdown; a reload can show a row again.
+- **Memory only:** `CompactionController.sent` (the cycle's highest row and its notice time, also kept in `sessions/<session>/cycle.json` beside the cycle number, the copy a reload reads once; the Claude Code mod keeps the same file), `startedAt`, `compacted`; `StoreLayer`'s state and whether this run touched the store. Cleared at session start and shutdown; a reload shows no row or notice its cycle already showed.
 
 ## Invariants
 

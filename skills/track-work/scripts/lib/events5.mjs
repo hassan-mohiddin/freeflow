@@ -73,7 +73,14 @@ export const KINDS = {
     command: [(value) => typeof value === "string"],
     source: [oneOf(["freeflow", "agent"]), true],
   },
-  compaction: { trigger: [text], by: [oneOf(["freeflow", "harness"]), true], before: [count], after: [count] },
+  // `cycle` (additive, schema v1): the context cycle that ended.
+  compaction: {
+    trigger: [text],
+    by: [oneOf(["freeflow", "harness"]), true],
+    before: [count],
+    after: [count],
+    cycle: [count],
+  },
   "agent.spawn": { delegation: [(value) => /^D-\d{3,}(\.\d+)?$/.test(value)], model: [text] },
   "agent.stop": { blocked: [boolean] },
   // SPEC-008, additive to v1 (T3): a gate that did not allow a call, and an agreement `agree` recorded.
@@ -84,10 +91,17 @@ export const KINDS = {
     rule: [text],
   },
   agreement: { outcome: [(value) => typeof value === "string" && value.trim() !== "", true], exactSpec: [text] },
+  // Additive to schema v1: `context` is the tokens of the request that crossed a notice or row (or that the checkpoint
+  // was made in), `point` the notice point in tokens. `checkpoint` is Track Work's own line when a checkpoint is written.
   freeflow: {
-    what: [oneOf(["notice", "row", "menu", "compact", "sync", "capabilities", "dropped", "error", "gates"]), true],
+    what: [
+      oneOf(["notice", "row", "menu", "compact", "sync", "capabilities", "dropped", "error", "gates", "checkpoint"]),
+      true,
+    ],
     detail: [(value) => typeof value === "string"],
     dropped: [count],
+    context: [count],
+    point: [count],
   },
   // The cost governor: a cap, the use measured against it (both in percent of a window or in dollars), and its response.
   governor: {
@@ -368,8 +382,23 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
   const gates = Object.fromEntries(GATES.map((gate) => [gate, 0]));
   let gatesBlocked = 0;
   let agreements = 0;
+  // The tokens from a cycle's notice (or, where no notice came, its last row) to the checkpoint that answered it.
+  const toCheckpoint = { notice: [], row: [] };
+  let noticeAt = null;
+  let rowAt = null;
   for (const line of chosen) {
     harness ??= line.harness ?? null;
+    if (line.kind === "freeflow" && line.what === "notice" && Number.isInteger(line.context)) noticeAt = line.context;
+    else if (line.kind === "freeflow" && line.what === "row" && Number.isInteger(line.context)) rowAt = line.context;
+    else if (line.kind === "freeflow" && line.what === "checkpoint") {
+      if (Number.isInteger(line.context) && noticeAt !== null) toCheckpoint.notice.push(line.context - noticeAt);
+      else if (Number.isInteger(line.context) && rowAt !== null) toCheckpoint.row.push(line.context - rowAt);
+      noticeAt = null;
+      rowAt = null;
+    } else if (line.kind === "compaction") {
+      noticeAt = null;
+      rowAt = null;
+    }
     if (line.kind === "model.request") {
       requests += 1;
       const key = `${line.model}\u0000${line.effort ?? ""}`;
@@ -407,6 +436,16 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       if (line.decision !== "warn") gatesBlocked += 1;
     } else if (line.kind === "agreement") agreements += 1;
   }
+  const spread = (values) => {
+    const sorted = [...values].sort((x, y) => x - y);
+    const middle = sorted.length / 2;
+    const median = sorted.length % 2 ? sorted[Math.floor(middle)] : (sorted[middle - 1] + sorted[middle]) / 2;
+    return { cycles: sorted.length, median: Math.round(median), largest: sorted.at(-1) };
+  };
+  const checkpoints = [
+    ...(toCheckpoint.notice.length ? [{ from: "notice", ...spread(toCheckpoint.notice) }] : []),
+    ...(toCheckpoint.row.length ? [{ from: "row", ...spread(toCheckpoint.row) }] : []),
+  ];
   const byName = (x, y) =>
     (x.model ?? x.tool).localeCompare(y.model ?? y.tool) || (x.effort ?? "").localeCompare(y.effort ?? "");
   return {
@@ -432,6 +471,7 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
     ...(governor.length ? { governor } : {}),
     gates: { ...gates, blocked: gatesBlocked },
     agreements,
+    ...(checkpoints.length ? { toCheckpoint: checkpoints } : {}),
   };
 }
 
@@ -459,6 +499,11 @@ export function renderSummary(summary) {
       (each) => `  ${each.tool}: ${n(each.calls)}${each.failed ? `, ${n(each.failed)} failed` : ""}`,
     ),
     `Compactions: ${summary.compactions.freeflow} by Freeflow, ${summary.compactions.harness} by the harness`,
+    ...(summary.toCheckpoint ?? []).map((each) =>
+      each.from === "notice"
+        ? `Notice to checkpoint: ${n(each.cycles)} cycle(s), median ${n(each.median)}, largest ${n(each.largest)}`
+        : `Row to checkpoint (no notice came, from a row): ${n(each.cycles)} cycle(s), median ${n(each.median)}, largest ${n(each.largest)}`,
+    ),
     `Workers: ${summary.workers.spawned} started, ${summary.workers.stopped} stopped${summary.workers.blocked ? `, ${summary.workers.blocked} sent back` : ""}`,
     ...(summary.gates
       ? [

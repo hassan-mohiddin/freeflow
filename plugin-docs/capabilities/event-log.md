@@ -10,9 +10,11 @@ One line per event, in `events/<session ID>.jsonl` in the Freeflow home (`FREEFL
 - each model request: the model, its effort, and its tokens (input, cache read and written, output);
 - each tool call: the tool, whether it failed, the exit code where the host gives one (Pi does, Claude Code and Codex do not), how long it took, the paths a file tool named, and a shell command's text;
 - compactions, and whether Freeflow or the host ran them; workers started and stopped;
-- Freeflow's own actions: a notice, a context row, the task menu, a compaction it ran, a store sync, its claims;
+- Freeflow's own actions: a notice, a context row (each with the context of the request that crossed it and the notice point, in tokens), the task menu, a compaction it ran (with the context cycle it ended), a store sync, its claims, and each checkpoint the agent wrote (compact or plain, for the session or a worker's delegation, with the context when the transcript shows it);
 - each time a [gate](gates.md) warned, asked or refused (the gate, the tool and the rule), and an agreement recorded with `agree`.
 - on Claude Code, each row or notice of the cost governor: the cap, the use against it, and the response (see [Settings](../settings.md), Cost governor); `events summary` lists them.
+
+`events summary` also says how many tokens the context grew from a cycle's notice to the checkpoint that answered it (or, where no notice came, from its last row): `Notice to checkpoint: n cycle(s), median …, largest …`.
 
 A line never holds a prompt, an answer, a file's content or a tool's output. In a command, keys and tokens (`sk-…`, `ghp_…`, `github_pat_…`, `xox…-`, `AKIA…`, `Bearer …`, and any `…key=`, `…token=`, `…secret=` or `…password=` value) are replaced with `[redacted]` before it is written, and the command is cut to 200 characters.
 

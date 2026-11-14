@@ -439,6 +439,8 @@ function watch(ctx, tokens) {
     writeJson(fileOf(ctx, "due.json"), {
       what: "row",
       detail: `cycle ${cycle.cycle}, ${Math.round(row * 100)}%`,
+      context: tokens,
+      point: Math.round(point),
       text: `Freeflow, context cycle ${cycle.cycle}: the context is at ${share(tokens, window)}; the checkpoint notice comes at about ${Math.round(point)} tokens.`,
     });
     return;
@@ -448,6 +450,8 @@ function watch(ctx, tokens) {
   writeJson(fileOf(ctx, "due.json"), {
     what: "notice",
     detail: `cycle ${cycle.cycle}`,
+    context: tokens,
+    point: Math.round(point),
     text: noticeText(found, tokens, window, state.limit ?? null, cycle.cycle),
   });
 }
@@ -469,7 +473,12 @@ function takeDue(ctx) {
   const due = readJson(taken, null);
   rmSync(taken, { force: true });
   if (!due?.text) return null;
-  emit(ctx, "freeflow", { what: due.what === "notice" ? "notice" : "row", detail: due.detail });
+  emit(ctx, "freeflow", {
+    what: due.what === "notice" ? "notice" : "row",
+    detail: due.detail,
+    context: Number.isInteger(due.context) ? due.context : undefined,
+    point: Number.isInteger(due.point) ? due.point : undefined,
+  });
   return due.text;
 }
 
@@ -651,6 +660,7 @@ function bundleAfterCompaction(ctx, parts) {
   emit(ctx, "compaction", {
     trigger: typeof compacting?.trigger === "string" && compacting.trigger ? compacting.trigger : undefined,
     by: "harness",
+    cycle: cycle.cycle,
   });
   ctx.state = updateState(ctx, { compacting: null });
   writeCycle(ctx, { cycle: cycle.cycle + 1, startedAt: Date.now(), notice: null, row: 0 });
