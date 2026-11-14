@@ -62,7 +62,7 @@ On Claude Code, Codex and other hosts, Working Records are created and read thro
 - `tw5-governor`: `events append` takes the cost governor's `governor` line and refuses one whose cap it does not know; `events summary` lists each response.
 - `tw5-drift`: Discuss Work's `drift.mjs` lists the hunks of a change that no decision item's `Shows at` covers, and `choices.mjs return --base` prints their count.
 - `tw5-route`: a new store writes no rules file, so Freeflow's default applies; `delegate open` without `--agent` takes the model and effort from its first matching row, prints the Route line and writes Route in the brief, with Settled and Check when given, refuses an Ask-first row and no match, refuses a model above the `Worker:` line without `--named-by-user`, and opens an Ask-first row an agreement's `Workers:` line grants (granted by A-NNN), and a later `Update: Workers:` line replaces that grant; `delegate close --outcome "sent back"` needs `--reason`, which History keeps; `estimate --plan` prints the sent-back rate by kind, check and model.
-- `tw5-cites`: `delegate status --cites` lists only the open delegations whose brief's Settled cites the decision; Discuss Work's `choices.mjs validate` refuses a `changed` item with no reason, and `choices.mjs agreement --workers` adds the agreement's `Workers:` line.
+- `tw5-cites`: `delegate status --cites` lists only the open delegations whose brief's Settled cites the decision; Discuss Work's `choices.mjs validate` refuses a `changed` item with no reason, and `choices.mjs agreement --workers` prints the `Workers:` line in the agreement reply, which Track Work then keeps in the agreement.
 
 ## How to get to it (user POV)
 

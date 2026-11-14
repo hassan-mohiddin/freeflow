@@ -148,15 +148,15 @@ Answer first, as Answer The Message says. Then sort what the user said:
 
 - **A question:** the answer is all it needs.
 - **A new decision,** on a choice the agreement left open: it applies at once.
-- **A change to an agreed decision:** before it applies, reply with its consequence, not a question about why: the work it throws away and what else it changes. Then do what the user says.
-- **New scope:** a new part with its own brief, never an addition to a running one; the agreement gets an update first.
+- **A change to an agreed decision:** in the same reply, state its consequence, not a question about why: the work it throws away and what else it changes. Then make the change; it needs no further yes.
+- **New scope:** a new part with its own brief, never an addition to a running one; the agreement gets an update, or a new agreement if the outcome differs.
 
 When the discussion settles a change to the work, say in one line what changes, then make it in one go through Track Work, the open Slice first:
 
 - **The open Slice:** it continues when its result still serves the agreement; otherwise close it as abandoned, with the reason, so its partial state is on record.
 - **The agreement:** the same outcome with different terms (scope, a limit, where you stop, the workers) is an update; a different outcome ends the agreement and opens a new one, once no Slice works under it.
 - **The decision list:** an item the change answers becomes `agreed`; one it overturns becomes `changed`, with a one-line reason.
-- **Running workers:** `delegate status --cites P3` lists those whose brief's Settled cites the decision. Amend or stop a worker whose work so far would be wrong or thrown away, and append a change that only refines to its brief's Changes, as Execute Work's [delegation](../execute-work/references/delegation.md#work-while-workers-run) reference says.
+- **Running workers:** `delegate status --cites P3` lists those whose brief's Settled cites the decision; Execute Work's [delegation](../execute-work/references/delegation.md#work-while-workers-run) reference, Work While Workers Run, says what to do with each.
 
 A discussion that settles nothing changes nothing; the messages open work rests on are saved at the next checkpoint.
 
