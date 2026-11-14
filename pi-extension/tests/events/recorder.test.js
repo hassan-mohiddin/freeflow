@@ -34,17 +34,25 @@ async function withHome(run) {
 /** The session's log, once the flush that agent_settled started has written it. */
 async function logLines(home, session, kinds) {
   const path = join(home, "events", `${session}.jsonl`);
+  let unread;
   for (let i = 0; i < 400; i++) {
     if (existsSync(path)) {
-      const lines = readFileSync(path, "utf8")
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line));
-      if (kinds.every((kind) => lines.some((line) => line.kind === kind))) return lines;
+      // A read can land while the flush is still writing: an empty file or a half-written last line means "not yet".
+      // A line that never parses still fails below, with its error.
+      try {
+        const lines = readFileSync(path, "utf8")
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+        unread = undefined;
+        if (kinds.every((kind) => lines.some((line) => line.kind === kind))) return lines;
+      } catch (error) {
+        unread = error;
+      }
     }
     await new Promise((done) => setTimeout(done, 25));
   }
-  assert.fail(`${path} never held ${kinds.join(", ")}`);
+  assert.fail(`${path} never held ${kinds.join(", ")}${unread ? ` (last read: ${unread.message})` : ""}`);
 }
 
 test("Pi's claims follow its capabilities: compaction, messaging and the event log; off, every request is no", () => {
