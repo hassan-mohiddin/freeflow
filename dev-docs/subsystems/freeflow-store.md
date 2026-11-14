@@ -127,7 +127,7 @@ The P and T numbers name choices in the design that built this, task-004's Spec 
 - `skills/track-work/scripts/lib/views5.mjs`: `view recover`, `view bundle` (with `--fallback` and `--session`), `entry`, `index`.
 - `skills/track-work/scripts/lib/projects5.mjs`: projects, tasks, holds, the menu, `task move`, `session status`.
 - `skills/track-work/scripts/lib/delegations5.mjs`: the delegate commands, worker recovery's section, the worker's measure at close, join, the worker's checkpoint, Waits on and Left open.
-- `skills/track-work/scripts/lib/routing5.mjs`: the delegation rules: the parse of `Cheap:`, `Worker:` and the table, the files that apply in order with the shipped default last, the Worker: ceiling and the family ranks, the `Workers:` grants of an agreement, the first matching row, and the Route line.
+- `skills/track-work/scripts/lib/routing5.mjs`: the delegation rules: the parse of `Cheap:`, `Worker:` and the table, the files that apply in order with the shipped default last (whose `## Models` section of notes on each model is prose for the coordinator, which the parser ignores), the Worker: ceiling and the family ranks, the `Workers:` grants of an agreement, the first matching row, and the Route line.
 - `skills/track-work/scripts/lib/channel5.mjs`: the delegation log. `skills/track-work/scripts/lib/claims5.mjs`: claims on paths.
 - `skills/track-work/scripts/lib/discussion5.mjs`: transcript readers, discussion blocks.
 - `skills/track-work/scripts/lib/pi-session.mjs`: Pi's session file read along its active branch, for the user's messages.
