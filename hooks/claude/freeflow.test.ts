@@ -2311,3 +2311,20 @@ test("the text Freeflow sent the model is kept whole: a notice and each gate row
   );
   expect((await freeflow($, "sent 2")).text).toBe("THE NOTICE, WHOLE");
 });
+
+test("the pinned guidance every request carries is kept as a sent line once per session, not with each request (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  await start($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  // Three requests compose the same section: each carries it, and the log keeps its text once.
+  const sections = [] as string[];
+  for (let request = 0; request < 3; request += 1)
+    sections.push((await $.prompt.compose(COMPOSE)).sections.at(-1)!.text);
+  expect(new Set(sections).size).toBe(1);
+  await $.turn.complete(turnEnd("answer"));
+  const pinned = w.events().filter((line: any) => line.kind === "sent" && line.what === "pinned-guidance");
+  expect(pinned.map((line: any) => line.text)).toEqual([sections[0]]);
+  expect(pinned[0].text).toContain("CORE GUIDANCE");
+});

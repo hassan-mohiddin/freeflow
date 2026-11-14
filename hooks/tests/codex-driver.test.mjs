@@ -670,6 +670,27 @@ test("with the event log off, the menu and the notice still come and no line is 
   }
 });
 
+test("with the event log off, no sent line is kept: the guidance, the menu, a gate's row and the notice still reach the model", () => {
+  const { hook, log, done } = setUp({ config: { events: { enabled: false } } });
+  try {
+    const start = contextOf(hook("SessionStart"));
+    assert.match(start, /^# Freeflow/);
+    assert.match(start, /Freeflow task memory:/);
+    // A file write with no agreement and no Slice: the gates warn, and the warning reaches the model.
+    assert.match(contextOf(hook("PreToolUse", patchCall())), /Freeflow gate/);
+    hook("PostModelRequest", usage(210_000));
+    assert.match(contextOf(hook("PostToolUse")), /context cycle 1: compaction is near/);
+    hook("Stop");
+    assert.deepEqual(
+      log().filter((line) => line.kind === "sent"),
+      [],
+    );
+    assert.deepEqual(log(), []);
+  } finally {
+    done();
+  }
+});
+
 test("without a store: the guidance and what is missing, the event log still kept, no notice", () => {
   const { hook, log, done } = setUp({ store: false });
   try {
