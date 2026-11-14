@@ -1,7 +1,7 @@
 # Review plan and review status
 
 > **Covers:** `skills/review-work/scripts/review-plan.mjs`, `skills/review-work/scripts/review-status.mjs`, `skills/review-work/scripts/lib/plan.mjs`, `skills/review-work/scripts/lib/triggers.mjs`, `skills/review-work/scripts/lib/records.mjs`, `skills/review-work/scripts/lib/review-rules.mjs`, `skills/review-work/scripts/check-adjudication.mjs`, `skills/deliver-work/scripts/delivery-state.mjs`
-> **Verified at:** `0d98b19f` (2026-11-14: every step driven on D-054's change, uncommitted over this commit)
+> **Verified at:** `37f67003` (2026-11-14)
 > **User docs:** `plugin-docs/workflow.md`, `plugin-docs/settings.md`
 
 Review has no settings. Before a pull request opens, and before a push or a commit when the review rules say so, the agent runs Review Work's `review-status.mjs` (or Deliver Work's `delivery-state.mjs`, which prints the same lines) and the user sees in its report when a review is due and where that rule comes from: the project's `Review at:` line, else the user's `rules/review.md` in the Freeflow home, else Freeflow's default, every pull request. When one is due and none is on record, `review-plan.mjs` prints the floor every change gets, one reviewer and one round, and the flags the diff raises, each with its reason; above the floor is the agent's proposal to the user. After the review is adjudicated, `check-adjudication.mjs --record` binds it to the commit it reviewed. Every command here reads files and Git only, with no model call. How it works: [Verification, review and evaluation](../subsystems/verification-review-evaluation.md#the-review-plan-and-the-review-record).

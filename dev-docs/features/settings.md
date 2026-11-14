@@ -1,7 +1,7 @@
 # Settings
 
 > **Covers:** `pi-extension/src/host/settings/`, `pi-extension/src/host/config-validation.ts`, `pi-extension/src/host/config-store.ts`, `skills/setup-freeflow/scripts/settings.mjs`, `hooks/claude/freeflow.mjs`, `pi-extension/src/tool-execution/config.ts`, `pi-extension/src/compaction/config.ts`, `pi-extension/src/messaging/config.ts`
-> **Verified at:** `0d98b19f` (2026-11-14: the steps D-054 changed driven on its change, uncommitted over this commit: No Review rows, Skills and prompts in the Session scope, and the script and Claude Code steps; the rest unchanged and not driven)
+> **Verified at:** `37f67003` (2026-11-14: the steps D-054 changed driven, No Review rows, Skills and prompts in the Session scope, and the script and Claude Code steps; the rest unchanged by it and not driven)
 > **User docs:** `plugin-docs/settings.md`
 
 `/freeflow settings` opens one screen with three scopes: Session (this Pi session only), Personal (`.freeflow/local.json`) and Repository (`.freeflow/config.json`). Changing a row writes that scope's file at once (Session writes none), and a capability switch reloads the Pi session when the screen closes, so the new skills and tools take effect. Which layer wins and why: the overview's [Cross-Cutting Concerns](../README.md#cross-cutting-concerns); the screen's code: `pi-extension/src/host/settings/README.md`.
