@@ -1,7 +1,7 @@
 # Settings
 
 > **Covers:** `pi-extension/src/host/settings/`, `pi-extension/src/host/config-validation.ts`, `pi-extension/src/host/config-store.ts`, `pi-extension/src/host/config.ts`, `skills/setup-freeflow/scripts/settings.mjs`, `hooks/claude/freeflow.mjs`, `hooks/shared/runtime-context.mjs`, `hooks/codex/driver.mjs`, `pi-extension/src/compaction/config.ts`, `pi-extension/src/tool-execution/config.ts`, `pi-extension/src/messaging/config.ts`
-> **Verified at:** `51dec29f` (2026-11-14: driven at `51dec29f`, the Pi screen steps and the script and Claude Code steps listed under Driving it; the Codex steps are not driven, since no Codex runs here)
+> **Verified at:** `4e888630` (2026-11-14: driven at `4e888630`: the Pi screen steps, the script steps (the list, the harness tick, precedence, the refusal, the one-harness off, the doctor), as listed under Driving it; the Codex steps are not driven, and the two Claude Code steps are unverified here, see Driving it)
 > **User docs:** `plugin-docs/settings.md`
 
 Settings live in the Freeflow home (`FREEFLOW_HOME`, `~/.freeflow`), never in the repository (D-060). Three layers, with precedence session, then this folder, then everywhere, then the default: `settings.json` (everywhere, the default for a change), `folders.json` (this folder, one entry per repository), and the session's own file. A setting can be ticked "only on this harness", and the harness value wins within its layer. The repository's own `.freeflow/config.json` and `.freeflow/local.json` are no longer read: `settings.mjs doctor --fix` moves their settings into this folder.
@@ -36,7 +36,7 @@ Every key is one row of the settings table, `SETTINGS` in `config-validation.ts`
 
 Preconditions: a fresh `scripts/verify-live.sh launch` (the run's Freeflow home holds `settings.json` `{}`) for the Pi steps; a scratch folder holding a Git repository, and an empty folder for `FREEFLOW_HOME`, for the script and Claude Code steps. The script is `node <plugin>/skills/setup-freeflow/scripts/settings.mjs`.
 
-Driven at `51dec29f`:
+Driven at `4e888630`, each step as written, except the two Claude Code steps, which are unverified here: a managed `freeflow` plugin loads ahead of this checkout's hooks module in this environment (`freeflow: hooks module not loaded: another plugin of that name loads first`).
 
 - **Open and tabs.** Run `scripts/verify-live.sh cmd "/freeflow settings"`. The header reads `Freeflow settings    Session  [This folder]  Everywhere`, the line under it reads `Freeflow home, folders.json: this repository's folder only. Overrides everywhere.`, and the cursor is on `› Freeflow  on (inherited)`, with `Task memory  on, this machine (inherited)` under it. Run `scripts/verify-live.sh keys Tab`: the header reads `[Everywhere]` and the line reads `Freeflow home, settings.json: every folder, this machine. The default for a change.`
 - **Nested screen.** On This folder, run `scripts/verify-live.sh keys Down Down Down Down Down Enter`. The title reads `Freeflow settings › This folder › Each skill`, with `Deliver Work  on (inherited)` first.
@@ -48,10 +48,10 @@ Driven at `51dec29f`:
 - **Refusal.** Run `settings.mjs set delegation.claimHours 3 --scope folder`: exit code `1`; the first line reads `delegation.claimHours takes 1, 2, 4, 8, 24, not 3`; the usage follows; nothing is written.
 - **Off for one harness.** Run `settings.mjs set enabled off --scope everywhere --harness-only --harness claude-code`: output `enabled: off (Everywhere, only on claude-code)` and `Freeflow is off here. Freeflow never disables its own plugin: to stop it on this harness, run claude plugin disable freeflow.` `get enabled --harness codex` reads `on (default)`.
 - **Doctor.** Run `settings.mjs doctor` in a repository holding `.freeflow/config.json` `{"enabled": false}` (the run's folder, after the legacy file was written): exit code `1`; the output reads `.freeflow/config.json (committed, shared): 1 to move to This folder`, then `enabled: moved to This folder (false)`, and `Run settings.mjs doctor --fix to write these fixes (the committed file: with --committed).` `doctor --fix` writes the folder entry and keeps the committed file, with `not rewritten: the committed file is shared`; `doctor --fix --committed` then removes it, and exits `0`.
-- **Claude Code lists.** With `FREEFLOW_HOME` set to an empty folder and `ANTHROPIC_BASE_URL=http://127.0.0.1:9` (no model call can be made), run `claude -p "/freeflow settings" --plugin-dir <plugin>`: exit code `0`, and the output starts `freeflow: Freeflow settings for <folder> (Claude Code), normal view`. `claude -p "/freeflow settings --all" ...` starts `... Developer settings`.
-- **Claude Code changes one.** The same way, run `claude -p "/freeflow settings prompts.workingMethod off --harness-only" --plugin-dir <plugin>`: output `freeflow: Working Method: off, from Everywhere, only on Claude Code. The agent sees it now.`, and `settings.json` holds the value under `harness.claude-code`.
+- **Claude Code lists (unverified here).** With `FREEFLOW_HOME` set to an empty folder and `ANTHROPIC_BASE_URL=http://127.0.0.1:9` (no model call can be made), run `claude -p "/freeflow settings" --plugin-dir <plugin>`: exit code `0`, and the output starts `freeflow: Freeflow settings for <folder> (Claude Code), normal view`. `claude -p "/freeflow settings --all" ...` starts `... Developer settings`.
+- **Claude Code changes one (unverified here).** The same way, run `claude -p "/freeflow settings prompts.workingMethod off --harness-only" --plugin-dir <plugin>`: output `freeflow: Working Method: off, from Everywhere, only on Claude Code. The agent sees it now.`, and `settings.json` holds the value under `harness.claude-code`.
 
-Not driven at `51dec29f`, with the reason: the Codex steps (no Codex runs here); the Pi Session tab's rows and the Pi gate rows (unchanged in this round, and their steps are the same as before); the Pi "Ignored" banner (driven through `/freeflow status`, see Activation and status); the governor rows (Claude Code only, unchanged in this round).
+Not driven at `4e888630`, with the reason: the Codex steps (no Codex runs here); the Claude Code steps, marked unverified above; the Pi "Ignored" banner (driven through `/freeflow status`, see Activation and status); the governor rows (Claude Code only).
 
 ## Gotchas
 
