@@ -375,6 +375,7 @@ function nestedGroup(id, label, description, children) {
 /** Sections from everyday to experimental (Task 005): Freeflow, then the capabilities, then session tools. */
 const SECTION_ORDER = [
   "freeflow.enabled",
+  "freeflow.memory.mode",
   "freeflow.prompts",
   "freeflow.skills",
   "freeflow.compaction",
