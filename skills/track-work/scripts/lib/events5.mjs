@@ -122,7 +122,7 @@ export const KINDS = {
   },
   "agent.spawn": { delegation: [(value) => /^D-\d{3,}(\.\d+)?$/.test(value)], model: [text] },
   "agent.stop": { blocked: [boolean] },
-  // SPEC-008, additive to v1 (T3): a gate that did not allow a call, and an agreement `agree` recorded.
+  // SPEC-008, additive to v1 (T3): a gate that did not allow a call. The agreement line is kept for older logs (D-058).
   gate: {
     gate: [oneOf(GATE_LINE_NAMES), true],
     decision: [oneOf(["warn", "ask", "block"]), true],
@@ -576,10 +576,10 @@ export function renderSummary(summary) {
       : []),
     ...(summary.gates
       ? [
-          `Gates: ${GATES.map((gate) => `${gate} ${summary.gates[gate] ?? 0}`).join(", ")} would-fire${summary.gates.blocked ? `, ${summary.gates.blocked} of them asked or refused` : ""}`,
+          `Gates: ${GATES.map((gate) => `${gate} ${summary.gates[gate] ?? 0}`).join(", ")} would-fire${summary.gates.blocked ? `, ${summary.gates.blocked} of them refused` : ""}`,
         ]
       : []),
-    ...(summary.agreements ? [`Agreements recorded with agree: ${summary.agreements}`] : []),
+    ...(summary.agreements ? [`Agreement lines in the log: ${summary.agreements}`] : []),
     ...(summary.dropped ? [`Dropped: ${summary.dropped} line(s) were not written`] : []),
   ];
   return `${lines.join("\n")}\n`;

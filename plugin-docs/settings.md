@@ -12,9 +12,9 @@ With nothing configured, Freeflow on Pi runs with these capabilities; each one's
 | [Compaction](capabilities/compaction.md) | on | After the agent's checkpoint, the task's bundle replaces the conversation; Pi's compaction stays the fallback |
 | [Tool Execution](capabilities/tool-execution.md) | on | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors, and skill guidance at the tool call that needs it |
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
-| [Gates](capabilities/gates.md) | warn | Four rules checked before each tool call (agreement, Slice, delivery, delegation scope), warning only; also on Claude Code |
+| [Gates](capabilities/gates.md) | warn | The delegation-scope rule, checked before each tool call, warning only; on Claude Code, Codex and Pi |
 
-On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts`, `skills` and `review` apply, on Claude Code `events` and `gates` too, and on Codex `events`; the capabilities above are Pi only. OpenCode reads no settings.
+On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts`, `skills` and `review` apply, on Claude Code `events` and `gates` too, and on Codex `events` and `gates`; the capabilities above are Pi only. OpenCode reads no settings.
 
 ## Where a setting lives
 

@@ -189,6 +189,27 @@ test("classifyCommand: chains, quotes, redirections and here-documents, and Trac
   // A syntax check reads the script (D-058: the coordinator's warning on this exact check).
   assert.equal(classifyCommand("node --check /x/working-record.mjs && echo syntax-ok").changing, false);
   assert.equal(classifyCommand("node --check /x/working-record.mjs").trackWorkWrites, false);
+  // node's own options only: a `--check` after the script is the script's, so a command naming the record is still changing.
+  assert.equal(classifyCommand("node -c /x/working-record.mjs").changing, false);
+  assert.equal(classifyCommand(`node tool.mjs --check ${TASK_DIR}/record.md`).changing, true);
+  assert.deepEqual(
+    gates(
+      decide(
+        held({
+          delegations: {
+            "D-004": {
+              writes: ["/wt/d-004/**"],
+              line: true,
+              worktree: "/wt/d-004",
+              folder: `${TASK_DIR}/delegations/D-004-x`,
+            },
+          },
+        }),
+        bash(`node tool.mjs --check ${TASK_DIR}/record.md`, { delegation: "D-004" }),
+      ),
+    ),
+    ["delegation:warn"],
+  );
 });
 
 test("matchesGlob: ** across folders, * within one, a bare path as a folder", () => {
@@ -439,61 +460,6 @@ test("each lifecycle command writes the session's gate state for the delegation 
   });
 });
 
-test("agree records a session's agreement and an exact spec as an agreement line; no gate reads it; refused while a task is held", async () => {
-  await withStore(async ({ home, cli, state }) => {
-    const agreed = ok(
-      cli(["agree", "--outcome", "Fix the README typo.", "--exact-spec", "the issue names the line and the fix"]),
-    );
-    assert.match(
-      agreed,
-      /^Agreed for this session: Fix the README typo\.\nExact spec declared: the issue names the line and the fix; a reviewer audits it\nRecorded: an agreement line in the event log\.\n$/,
-    );
-    // No gate state is written for it any more.
-    assert.equal(existsSync(join(home, "sessions", "aaaaaaaa-1111", "gates.json")), false);
-    const lines = (await readFile(join(home, "events", "aaaaaaaa-1111.jsonl"), "utf8"))
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line));
-    assert.deepEqual(
-      lines.map(({ kind, harness, outcome, exactSpec }) => ({ kind, harness, outcome, exactSpec })),
-      [
-        {
-          kind: "agreement",
-          harness: "claude-code",
-          outcome: "Fix the README typo.",
-          exactSpec: "the issue names the line and the fix",
-        },
-      ],
-    );
-    ok(cli(["project", "new", "--name", "widget"]));
-    ok(
-      cli([
-        "task",
-        "create",
-        "--project",
-        "widget",
-        "--title",
-        "Demo",
-        "--goal",
-        "A demo.",
-        "--cue",
-        "read when the demo matters",
-      ]),
-    );
-    assert.match(
-      cli(["agree", "--outcome", "x"]).stderr,
-      /This session holds widget\/task-001: record the agreement in its record with agreement open/,
-    );
-    // No session, nothing to record.
-    const none = spawnSync(process.execPath, [scriptPath, "agree", "--outcome", "x"], {
-      encoding: "utf8",
-      env: { ...process.env, FREEFLOW_HOME: home, FREEFLOW_SESSION: "", CLAUDE_CODE_SESSION_ID: "" },
-    });
-    assert.match(none.stderr, /No session ID/);
-    assert.equal((await state()).task, "widget/task-001");
-  });
-});
-
 test("events summary counts the delegation gate's lines; an older log's removed-gate lines still read and are not counted", async () => {
   await withStore(async ({ home, cli }) => {
     const line = (gate, decision, ms) => ({
@@ -552,10 +518,12 @@ test("estimate --store totals the delegation gate's would-fire counts across the
       join(events, "s-2.json"),
       summary({ agreement: 0, slice: 1, delivery: 3, delegation: 1, blocked: 2 }),
     );
-    await writeFile(join(events, "s-3.json"), JSON.stringify({ v: 1, session: "old" }));
+    // A summary with the delegation gate only: its refusals count. The removed gates' summaries above do not (D-058).
+    await writeFile(join(events, "s-3.json"), summary({ delegation: 2, blocked: 1 }));
+    await writeFile(join(events, "s-4.json"), JSON.stringify({ v: 1, session: "old" }));
     assert.match(
       ok(cli(["estimate", "--store"])),
-      /\nGates, would-fire in the sessions' summaries: delegation 1; 2 asked or refused\n$/,
+      /\nGates, would-fire in the sessions' summaries: delegation 3; 1 refused\n$/,
     );
   });
 });

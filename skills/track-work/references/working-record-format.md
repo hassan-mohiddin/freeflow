@@ -410,7 +410,6 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Hold a task, give it up, move to another | `task take --id <ID> [--takeover]`, `task release`, `task switch --id <ID>` |
 | Move a task into a project, or out of one | `task move --id <ID> (--project <p> \| --no-project)`, on the user's word |
 | Open, change, close the agreement | `agreement open`, `agreement update`, `agreement close --state <completed\|ended\|replaced>` |
-| Record the agreement of a session that holds no task, in the event log | `agree --outcome <text> [--exact-spec "<reason>"]`, `--exact-spec` when the user's request fixes every choice |
 | Propose a Slice | `slice propose` |
 | Start a proposed Slice, or one never proposed | `slice start --title <proposal title>`, `slice start-direct` |
 | `in_progress` ↔ `paused` | `slice pause`, `slice resume` |

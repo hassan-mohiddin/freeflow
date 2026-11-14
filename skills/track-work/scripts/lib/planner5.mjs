@@ -818,11 +818,16 @@ function gateCounts(taskDir) {
     try {
       const gates = JSON.parse(readFileSync(join(folder, name), "utf8"))?.gates;
       if (!gates || typeof gates !== "object") continue;
-      found ??= {};
-      // The gates still in Freeflow, and the asked-or-refused count; the three removed gates' counts (D-058) are not summed.
+      found ??= Object.fromEntries(GATES.map((gate) => [gate, 0]));
+      // The delegation gate's would-fire counts. Its refusals (`blocked`) are counted only from a summary with no removed
+      // gate in it: the summary keeps one blocked total for all gates, so a summary that names a removed gate (D-058)
+      // may have refused under it, and its blocks cannot be told apart.
+      const removed = Object.entries(gates).some(
+        ([gate, value]) => !GATES.includes(gate) && gate !== "blocked" && Number.isInteger(value) && value > 0,
+      );
       for (const [gate, value] of Object.entries(gates))
-        if (Number.isInteger(value) && (GATES.includes(gate) || gate === "blocked"))
-          found[gate] = (found[gate] ?? 0) + value;
+        if (Number.isInteger(value) && GATES.includes(gate)) found[gate] = (found[gate] ?? 0) + value;
+      if (!removed && Number.isInteger(gates.blocked)) found.blocked = (found.blocked ?? 0) + gates.blocked;
     } catch {
       // A summary that cannot be read counts nothing.
     }
@@ -889,7 +894,7 @@ export function storeView(home) {
     lines.push(
       `Gates, would-fire in the sessions' summaries: ${Object.entries(each)
         .map(([gate, value]) => `${gate} ${value}`)
-        .join(", ")}${blocked ? `; ${blocked} asked or refused` : ""}`,
+        .join(", ")}${blocked ? `; ${blocked} refused` : ""}`,
     );
   }
   return `${lines.join("\n")}\n`;

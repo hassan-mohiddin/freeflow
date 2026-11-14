@@ -165,11 +165,6 @@ export class GateRuntime {
     return rows;
   }
 
-  /** The text of one gate that fired, for a question to the person. */
-  text(fired: Fired): string {
-    return this.module?.gateText(fired) ?? fired.reason;
-  }
-
   /** A gate's event line fields. */
   eventFields(fired: Fired, tool: string): Record<string, unknown> {
     return this.module?.gateEvent(fired, tool) ?? { gate: fired.gate, decision: fired.decision, tool };

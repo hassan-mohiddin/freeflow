@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import {
+  REMOVED_SETTINGS,
   SETTINGS,
   SWITCHABLE_SKILLS,
   ignoredStateLine,
@@ -262,13 +263,16 @@ function fileProblems(raw, scope) {
 function sessionProblems(raw) {
   return Object.entries(raw).flatMap(([key, value]) => {
     const spec = settingSpec(key);
-    const problem = !spec
-      ? "unknown setting"
-      : !spec.session
-        ? "not a Session setting"
-        : !validSettingValue(spec, value)
-          ? `takes ${takes(spec)}`
-          : null;
+    // A removed key is named with its reason, as a file names it (D-058).
+    const problem = REMOVED_SETTINGS[key]
+      ? REMOVED_SETTINGS[key]
+      : !spec
+        ? "unknown setting"
+        : !spec.session
+          ? "not a Session setting"
+          : !validSettingValue(spec, value)
+            ? `takes ${takes(spec)}`
+            : null;
     return problem ? [{ key, reason: problem, fix: { kind: "remove", path: [key], old: value } }] : [];
   });
 }

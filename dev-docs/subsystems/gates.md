@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/track-work/scripts/lib/gates5.mjs`, `skills/track-work/scripts/lib/gate-state5.mjs`, `pi-extension/src/gates/`, `hooks/claude/freeflow.mjs`, `hooks/codex/driver.mjs`
 > **Tests:** `.skill-eval/track-work/tests/gates5.test.mjs`, `pi-extension/tests/gates/`, `hooks/claude/freeflow.test.ts`, `hooks/tests/codex-driver.test.mjs`
-> **Verified at:** `c1702c8a` (2026-11-14)
+> **Verified at:** `f7c8450c` (2026-11-14)
 > **User docs:** `plugin-docs/capabilities/gates.md`
 
 For anyone changing Freeflow's gate: the one rule each driver checks before a tool call, the state Track Work keeps for it, how Claude Code's mod, Codex's driver and Pi's extension run it, and why it only warns for now.
@@ -86,14 +86,14 @@ Each rule that fires gives `{ gate, decision, reason, way, rule }`; the stronges
 
 - `skills/track-work/scripts/lib/gates5.mjs`: `decide`, the shell classifier, paths and globs, `gateText`, `gateEvent`.
 - `skills/track-work/scripts/lib/gate-state5.mjs`: `gateState`, `refreshGates`, `readGateState`, `delegationScope`.
-- `skills/track-work/scripts/working-record.mjs`: `gatesAfter`, `session status`'s first write, `agree` (its event line only).
+- `skills/track-work/scripts/working-record.mjs`: `gatesAfter`, `session status`'s first write.
 - `hooks/claude/freeflow.mjs`: `readGates`, `gated`, the `tool.check` hook and its `.catch`, the mode in `resolveEnabled`.
 - `hooks/codex/driver.mjs`: `gateModes`, `readGates`, `gated`, `firstWarnings`.
 - `pi-extension/src/gates/runtime.ts`, wired in `pi-extension/src/index.ts` (`tool_call`, `tool_result`, `turn_start`, session start).
 
 ## Tests
 
-- `.skill-eval/track-work/tests/gates5.test.mjs`: the one gate's decisions on a table of states and calls, the classifier, globs, the state each lifecycle command writes, `agree`, the summary's and `estimate --store`'s counts.
+- `.skill-eval/track-work/tests/gates5.test.mjs`: the one gate's decisions on a table of states and calls, the classifier, globs, the state each lifecycle command writes, the summary's and `estimate --store`'s counts.
 - `hooks/claude/freeflow.test.ts`: warn, block, the worker's scope, a missing state, the sent log's gate rows, the golden log.
 - `pi-extension/tests/gates/runtime.test.js`: the runtime, the handlers, and a real Pi session where the removed gates stay silent.
 - `hooks/tests/codex-driver.test.mjs`: Codex's `PreToolUse` with recorded inputs: warn once per turn and loop, block in the shape Codex's parser accepts, a missing state and an error open under warn and closed under block, the gate lines.

@@ -336,9 +336,12 @@ function classifySegment(words) {
     return result(true);
   }
   if (program === "node") {
-    // A syntax check (node --check) reads the script; only a run of it with a Track Work command can write.
-    if (args.includes("--check") || args.includes("-c")) return result(false);
-    const script = args.find((arg) => !arg.startsWith("-"));
+    // The script is the first word that is not an option; only node's own options before it count, so `--check`
+    // after the script belongs to the script. A syntax check (node --check) reads the script.
+    const at = args.findIndex((arg) => !arg.startsWith("-"));
+    const nodeOptions = at === -1 ? args : args.slice(0, at);
+    if (nodeOptions.includes("--check") || nodeOptions.includes("-c")) return result(false);
+    const script = at === -1 ? undefined : args[at];
     if (script && basename(script) === "working-record.mjs") {
       const after = args.slice(args.indexOf(script) + 1);
       return result(false, trackWorkReads(after) ? "read" : trackWorkWorkerOwn(after) ? "own" : "write");

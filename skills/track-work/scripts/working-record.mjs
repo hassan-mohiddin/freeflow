@@ -83,7 +83,6 @@ function usage() {
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|task> <operation> ...",
     "  working-record.mjs agreement <open|update|close> ...",
-    '  working-record.mjs agree --outcome <text> [--exact-spec "<reason>"] (a session holding no task)',
     "  working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] [--compact]",
     "  working-record.mjs checkpoint --session --input <file|-> [--compact] (a session holding no task)",
     "  working-record.mjs budget [--record <record.md>] [--window <tokens>] [--mode normal|expanded]",
@@ -108,10 +107,6 @@ function usage() {
 }
 
 const COMMAND_HELP = new Map([
-  [
-    "agree",
-    "Usage: agree --outcome <text> [--exact-spec \"<reason>\"] [--home <folder>]\nRecords the user's agreement for a session that holds no task (a task's agreement is agreement open): as an agreement line in its event log. --exact-spec declares that the request fixes every choice, with the reason; the declaration is logged, for a reviewer to audit. Refused while the session holds a task.",
-  ],
   [
     "events append",
     "Usage: events append --input <file|-> [--home <folder>]\nAppends a Freeflow driver's event lines (JSON Lines, schema v1) to each line's session log in <FREEFLOW_HOME>/events/<session>.jsonl, on this machine only: it sets seq under a lock on the file, redacts and cuts a shell command to 200 characters, refuses a line that is not schema v1 and writes the rest, with a freeflow line saying how many it dropped.",
@@ -371,7 +366,7 @@ const COMMAND_HELP = new Map([
 function commandHelp(command, operation) {
   const help = COMMAND_HELP.get([command, operation].filter(Boolean).join(" ")) ?? COMMAND_HELP.get(command);
   if (!help) return `${usage()}\n`;
-  return ["init", "store", "session", "events", "agree", "claim", "release"].includes(command)
+  return ["init", "store", "session", "events", "claim", "release"].includes(command)
     ? `${help}\n`
     : `${help}\n${ROOT_HELP}\n`;
 }
@@ -517,7 +512,6 @@ function allowedOptions(command, operation) {
       ]);
   }
   if (command === "validate") return new Set(["--root", "--record", "--strict", "--help"]);
-  if (command === "agree" && operation === undefined) return new Set(["--outcome", "--exact-spec", "--home", "--help"]);
   if (command === "slice") {
     if (operation === "propose") return new Set([...common, "--title"]);
     if (operation === "start" || operation === "start-direct")
@@ -808,7 +802,6 @@ const WORKER_REFUSED = new Set([
   "task set-budget",
   "project new",
   "project remove",
-  "agree ",
   "migrate ",
   "discussion save",
   "discussion drop",
@@ -865,10 +858,6 @@ async function runCore(command, rest) {
     } catch (error) {
       throw new CliError(error.message);
     }
-  }
-  if (command === "agree") {
-    if (positionals.length) throw new CliError("agree takes no operation");
-    return agree(options);
   }
   if (command === "claim" || command === "release") {
     if (positionals.length) throw new CliError(`${command} takes no operation`);
@@ -1132,44 +1121,6 @@ function readJsonOrNull(path) {
   } catch {
     return null;
   }
-}
-
-/**
- * `agree` (SPEC-008 4.1): the user's agreement for a session that holds no task, as an agreement line in its event log;
- * with --exact-spec, the declaration that the request fixes every choice, logged. No gate reads it (D-058).
- */
-async function agree(options) {
-  const identity = sessionIdentity();
-  if (!identity)
-    throw new CliError("No session ID: Claude Code sets CLAUDE_CODE_SESSION_ID; other harnesses set FREEFLOW_SESSION.");
-  const home = storeHome(options["--home"]);
-  const outcome = String(requireOption(options, "--outcome")).replace(/\s+/g, " ").trim();
-  const reason =
-    options["--exact-spec"] === undefined ? null : String(options["--exact-spec"]).replace(/\s+/g, " ").trim();
-  if (reason === "") throw new CliError("--exact-spec gives the reason the request fixes every choice");
-  const held = isFreeflowStore(home) ? heldTask(home, identity) : null;
-  if (held)
-    throw new CliError(
-      `This session holds ${held.id}: record the agreement in its record with agreement open --record ${held.id}.`,
-    );
-  const at = new Date().toISOString();
-  const harness = eventHarness(identity);
-  let logged = "no event line: this harness has no name in the event log's schema";
-  if (harness) {
-    const line = { v: 1, ts: at, session: identity.id, harness, agent: "main", kind: "agreement", outcome };
-    if (reason) line.exactSpec = reason;
-    try {
-      const { written, refused } = await appendEvents(home, JSON.stringify(line));
-      logged = refused.length
-        ? `no event line (${refused[0].problem})`
-        : written.length
-          ? "an agreement line in the event log"
-          : "no event line";
-    } catch (error) {
-      logged = `no event line (${error.message})`;
-    }
-  }
-  return `Agreed for this session: ${outcome}${reason ? `\nExact spec declared: ${reason}; a reviewer audits it` : ""}\nRecorded: ${logged}.\n`;
 }
 
 /** The commands after which this session's gate state is written again (SPEC-008 4.1). */

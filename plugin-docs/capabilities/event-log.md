@@ -11,7 +11,7 @@ One line per event, in `events/<session ID>.jsonl` in the Freeflow home (`FREEFL
 - each tool call: the tool, whether it failed, the exit code where the host gives one (Pi does, Claude Code and Codex do not), how long it took, the paths a file tool named, and a shell command's text;
 - compactions, and whether Freeflow or the host ran them; workers started and stopped;
 - Freeflow's own actions: a notice (with the context of the request that crossed it and the notice point, in tokens), the task menu, a compaction it ran (with the context cycle it ended), a store sync, its claims, and each checkpoint the agent wrote (compact or plain, for the session or a worker's delegation, with the context when the transcript shows it);
-- each time a [gate](gates.md) warned or refused (the gate, the tool and the rule), and an agreement recorded with `agree`;
+- each time a [gate](gates.md) warned or refused (the gate, the tool and the rule), and an agreement line an older version wrote;
 - the text Freeflow itself sent the model, each whole, with what sent it (see [What Freeflow sent the model](#what-freeflow-sent-the-model)).
 
 `events summary` also says how many tokens the context grew from a cycle's notice to the checkpoint that answered it: `Notice to checkpoint: n cycle(s), median …, largest …`. Two limits for now: the measure reads Claude Code's transcript only, so it is Claude Code only (extending it to Pi and Codex is future work); and its two ends differ by about one reply's output, since the notice's context leaves out the last reply's output and the checkpoint's includes it.
