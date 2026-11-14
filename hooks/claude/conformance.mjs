@@ -4,7 +4,7 @@
 export default {
   pin: "the guidance pinned: one section of the system prompt, the hooks' own text, their copies left out while it is there, still there after a compaction, and rendered again once at a settings change (SPEC-013)",
   inject:
-    "a request ends: one notice a cycle, at the lower of 75% and a tenth before Claude's threshold, asking for a checkpoint at a safe point",
+    "a request ends: one notice a cycle, a lead of 20,000 tokens before Claude's threshold, asking for a checkpoint at a safe point",
   compact:
     "a compaction: after a checkpoint, the bundle alone; before it, Claude's with the bundle after its summary; without a task, the summary",
   checkpoint: "checkpoint --compact compacts before any notice: the agent decides when (P102)",

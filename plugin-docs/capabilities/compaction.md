@@ -21,12 +21,12 @@ Freeflow never turns Pi's own compaction off: Pi's switch also disables its reco
 
 ## When Freeflow says compaction is near
 
-Freeflow measures the context after each turn. As it grows it shows one row at 50%, 60% and 70% of the window, then one notice a context cycle, before Pi's own trigger (the model's window minus Pi's reserve, `compaction.reserveTokens` in Pi's settings, 16,384 by default):
+Freeflow measures the context after each turn. It gives one notice a context cycle, when the context nears compaction and before Pi's own trigger (the model's window minus Pi's reserve, `compaction.reserveTokens` in Pi's settings, 16,384 by default):
 
 | Window | Notice | Pi compacts |
 | --- | --- | --- |
-| 128k | 96k | 112k |
-| 200k | 150k | 184k |
+| 128k | 92k | 112k |
+| 200k | 164k | 184k |
 | 1M | 750k | 984k |
 
 The notice is soft: keep working to a safe point, then checkpoint and end the turn. A safe point is a finished step whose result the agent knows: a check it ran and read, a complete set of edits, a written report. If its work ends within a step or two, the agent finishes first. The notice comes once a cycle and does not repeat.
@@ -53,7 +53,7 @@ Any compaction replaces the conversation, so the next request is written to the 
 
 ## Evidence limits
 
-Native Pi tests cover the notice and rows, Freeflow's compaction with a task and with a session summary on a real Pi session running Track Work's real script, Pi's own compaction with the bundle, and the request after compaction extending into the next. A live run on a real model has not been made on Pi with this design.
+Native Pi tests cover the notice, which is the only signal before compaction, and Freeflow's compaction with a task and with a session summary on a real Pi session running Track Work's real script, Pi's own compaction with the bundle, and the request after compaction extending into the next. A live run on a real model has not been made on Pi with this design.
 
 ## Related documentation
 
