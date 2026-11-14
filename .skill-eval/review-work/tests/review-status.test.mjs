@@ -208,11 +208,33 @@ test("a project rule Review at: push wins over the home's rule and the default, 
     assert.equal(at("--step", "pull-request").lines.at(-1), "This step (pull request): a review is due");
     // The rule is read at --base: the base before the rules were committed has none, so the home's rule holds.
     assert.equal(at("--base", c0).reviewAt.from, "home");
+    // Without --base the rule is read at the merge-base with the default branch, never at the head.
     const text = node(h.root, status, ["--task", h.task, "--step", "push"], { FREEFLOW_HOME: home });
     assert.match(
       text.stdout,
-      /\nReview at: push \(dev-docs\/README\.md#review-rules at HEAD\)\nThis step \(push\): a review is due\n/,
+      /\nReview at: push \(dev-docs\/README\.md#review-rules at the merge-base with main \([0-9a-f]{8}\)\)\nThis step \(push\): a review is due\n/,
     );
+    // A branch that changes its own rules is still checked under the base's: lowering it to pull request leaves a
+    // push due, and raising it to commit makes nothing due at a commit.
+    for (const [line, step, due] of [
+      ["Review at: pull request", "push", true],
+      ["Review at: commit", "commit", false],
+    ]) {
+      git(h.root, "checkout", "--quiet", "-B", "own-rule", "main");
+      await write(h.root, { "dev-docs/README.md": `# Dev\n\n## Review Rules\n\n- ${line}\n` });
+      git(h.root, "commit", "--quiet", "-am", "own rule");
+      const own = at("--step", step);
+      assert.equal(own.reviewAt.value, "push", line);
+      assert.equal(own.due, due, line);
+      assert.equal(at("--base", "main", "--step", step).reviewAt.value, "push", line);
+    }
+    git(h.root, "checkout", "--quiet", "main");
+    // With no base and no default branch, the project's rules are not read, and the output says so.
+    git(h.root, "branch", "--quiet", "-m", "main", "trunk");
+    const none = at("--step", "push");
+    assert.equal(none.reviewAt.from, "home");
+    assert.match(none.reviewAt.ignored[0].reason, /^not read: no base was given and there is no default branch/);
+    git(h.root, "branch", "--quiet", "-m", "trunk", "main");
     assert.equal(node(h.root, status, ["--step", "merge"]).status, 2);
   } finally {
     await h.cleanup();
@@ -285,12 +307,17 @@ test("three reviewers above the floor: a brief each with its lens, one adjudicat
       "R1-adjudication.md":
         "## Adjudication\n\n- a.B1: Rejected. The check runs in the caller.\n- b.N1: Accepted. Reworded.\n- c.Q1: Rejected, out of scope for this change.\n\nAdjudicated judgment: Non-blocking\n",
     });
-    const done = node(h.root, adjudication, [...reports, "--record", "--json"]);
+    // The record names the reviewer's model: --record refuses without --model.
+    const noModel = node(h.root, adjudication, [...reports, "--record", "--json"]);
+    assert.equal(noModel.status, 2);
+    assert.match(noModel.stderr, /^--record needs --model <name>, the reviewer's model/);
+    const done = node(h.root, adjudication, [...reports, "--record", "--model", "test/reviewer", "--json"]);
     assert.equal(done.status, 0, done.stdout + done.stderr);
     const recorded = JSON.parse(done.stdout).record;
     assert.equal(recorded.depth, undefined);
     assert.deepEqual(recorded.flags, ["security"]);
     assert.equal(recorded.reviewers, 3);
+    assert.equal(recorded.model, "test/reviewer");
     assert.equal(recorded.round, 1);
     assert.equal(recorded.judgment, "Non-blocking");
     assert.equal(recorded.report, "R1-adjudication.md");
@@ -299,6 +326,59 @@ test("three reviewers above the floor: a brief each with its lens, one adjudicat
     const covered = h.run("--head", head);
     assert.equal(covered.state, "covered");
     assert.equal(covered.line, `Review: on record for ${head.slice(0, 12)} (Non-blocking after Review 1)`);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a Blocking floor review whose Blocking items were accepted, fixed and checked covers the commit holding the fixes", async () => {
+  const h = await history();
+  try {
+    const [c0, , , c3] = h.commits;
+    const reviews = join(h.task, "reviews");
+    const brief = node(h.root, packet, [
+      ...["--review", "1", "--base", c0, "--task", h.task, "--boundary", "merge"],
+      ...["--agreement", join(h.root, "src/a.js")],
+    ]);
+    assert.equal(brief.status, 0, brief.stdout + brief.stderr);
+    const adjudicated = (dispositions, judgment) =>
+      write(reviews, {
+        "R1-report.md": `Judgment: Blocking\n\n### Review Items\n\n#### Issues — Blocking\n\nB1. It crashes.\n\n#### Issues — Non-blocking\n\nN1. A name is unclear.\n\n## Adjudication\n\n${dispositions}\n\nAdjudicated judgment: ${judgment}\n`,
+      });
+    const report = join(reviews, "R1-report.md");
+    const record = (...args) => node(h.root, adjudication, [report, "--record", "--model", "test/reviewer", ...args]);
+    await adjudicated("- B1: Accepted. Reproduced.\n- N1: Accepted. Renamed.", "Blocking");
+    assert.equal(record().status, 0);
+    assert.equal(h.run().state, "none", "a Blocking review covers nothing by itself");
+    // The fixes, in a commit after the reviewed head, checked by the initiator: no second review by rule.
+    await write(h.root, { "src/a.js": "fixed\n" });
+    git(h.root, "commit", "--quiet", "-am", "fix B1");
+    const fixed = git(h.root, "rev-parse", "HEAD");
+    assert.match(
+      node(h.root, adjudication, [report, "--fixed", fixed]).stderr,
+      /^--fixed records a check of the fixes: give it with --record/,
+    );
+    assert.match(record("--fixed", c3).stderr, /is not a descendant of the reviewed head/);
+    const done = record("--fixed", fixed);
+    assert.equal(done.status, 0, done.stdout + done.stderr);
+    assert.match(done.stdout, /the fixes of Review 1 of [0-9a-f]{12} \(Blocking\) checked at [0-9a-f]{12}/);
+    const covered = h.run("--step", "pull-request");
+    assert.equal(covered.status, 0);
+    assert.equal(covered.state, "covered");
+    assert.equal(
+      covered.line,
+      `Review: on record for ${fixed.slice(0, 12)} (Review 1 of ${c3.slice(0, 12)} was Blocking; its fixes checked at ${fixed.slice(0, 12)})`,
+    );
+    // A later commit is stale against the checked fixes, as against any covering review.
+    await write(h.root, { "src/a.js": "later\n" });
+    git(h.root, "commit", "--quiet", "-am", "later");
+    assert.equal(h.run().state, "stale");
+    assert.equal(h.run().rereview.split("..")[0], fixed.slice(0, 12));
+    // Refused: a Blocking item left Open, and a review that is not Blocking.
+    await adjudicated("- B1: Open, not reproduced yet.\n- N1: Accepted. Renamed.", "Blocking");
+    assert.match(record("--fixed", fixed).stderr, /^--fixed needs every Blocking item Accepted; B1 is Open/);
+    await adjudicated("- B1: Rejected, the caller checks it.\n- N1: Accepted. Renamed.", "Non-blocking");
+    assert.match(record("--fixed", fixed).stderr, /^--fixed is for a Blocking review; this one is Non-blocking/);
   } finally {
     await h.cleanup();
   }

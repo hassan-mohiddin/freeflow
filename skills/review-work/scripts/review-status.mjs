@@ -4,21 +4,23 @@
 // commit, or a diff-only re-review that completes an earlier one), stale (a covering review of an ancestor, with the
 // commits since and the range a diff-only re-review would cover), or none. A Blocking or Inconclusive review covers
 // nothing; records of commits outside the head's history are ignored. It also prints when a review is due, from the
-// review rules (lib/review-rules.mjs): the project's "Review at:" line at --base (or the head without it), else the
-// Freeflow home's rules/review.md, else the default, a pull request. With --step it says whether that step needs a
+// review rules (lib/review-rules.mjs): the project's "Review at:" line at --base (without it, at the head's merge-base
+// with the default branch, origin's HEAD or else main, never at the head), else the Freeflow home's rules/review.md,
+// else the default, a pull request. With --step it says whether that step needs a
 // review on record: a rule's step and every later one do (commit, then push, then pull request), so every pull request
 // needs one. With --base it also names the floor and the flags the plan gives the change. Deliver Work runs it
 // (through delivery-state.mjs) before the step; until Freeflow's gates arrive, that check is the skill's, not the host's.
 // Usage: review-status.mjs [--head <ref>] [--task <task folder>] [--base <ref>] [--step <commit|push|pull-request>]
 //                          [--root <repository>] [--json]
-// Exit code 0 when a review covers the head, or --step names a step no review is due at; 1 when a review is needed
-// and none covers the head (none or stale); 2 on a usage or Git error.
+// Exit code 0 when a review covers the head, or --step names a step no review is due at; 1 when no review covers the
+// head (none or stale), and with --step only when that step needs one; 2 on a usage or Git error. Without --step it
+// says nothing of whether a review is due: 1 means only that none covers the head.
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { PlanError, commitOf, flagNames, planReview } from "./lib/plan.mjs";
 import { coverage, coverageLine, readRecords, reviewsDir } from "./lib/records.mjs";
-import { REVIEW_AT, dueAt, reviewAt, reviewAtText } from "./lib/review-rules.mjs";
+import { REVIEW_AT, defaultBase, dueAt, reviewAt, reviewAtText } from "./lib/review-rules.mjs";
 
 const USAGE =
   "Usage: review-status.mjs [--head <ref>] [--task <task folder>] [--base <ref>] [--step <commit|push|pull-request>] [--root <repository>] [--json]";
@@ -84,9 +86,16 @@ if (values.base) {
     throw error;
   }
 }
-// The rule is read where the plan reads it: at the base when one is given, so a change never relaxes its own rule.
-const rulesRef = values.base ?? values.head;
-const rule = reviewAt({ root, commit: planned?.base.commit ?? commitOf(root, rulesRef) });
+// The project's rule is read at the base, never at the change under review, so a change never relaxes its own rule:
+// --base when given, else the head's merge-base with the default branch; with neither, the project's rules are not
+// read and the line says so.
+const fallback = values.base ? null : defaultBase(root, status.head);
+const rulesRef =
+  values.base ?? (fallback ? `the merge-base with ${fallback.ref} (${fallback.commit.slice(0, 8)})` : null);
+const rule = reviewAt({
+  root,
+  commit: planned?.base.commit ?? (values.base ? commitOf(root, values.base) : fallback?.commit),
+});
 const due = step ? dueAt(rule.value, step) : null;
 const line = coverageLine(status, planned ? { flags: flagNames(planned) } : null);
 const stepLine = step

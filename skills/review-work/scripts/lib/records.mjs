@@ -62,8 +62,10 @@ const distance = (root, from, to) => Number(git(root, ["rev-list", "--count", `$
  * What the records say about `head`: `covered` when a covering record's head is the head, `stale` when the nearest
  * covering record is an ancestor (with the commits since and the re-review range that would cover them), else `none`.
  * A covering record is a Pass or Non-blocking review that is Review 1, or a later round whose base is the head of an
- * earlier review on record, so the diff-only re-review completes it. Records of commits not in head's history are
- * ignored.
+ * earlier review on record, so the diff-only re-review completes it; or the initiator's check of a Blocking review's
+ * fixes (`kind: "fixes-checked"`, written by check-adjudication.mjs --fixed, which refuses it unless every Blocking item
+ * was Accepted), which completes the floor's one round at the commit it names. Records of commits not in head's
+ * history are ignored.
  */
 export function coverage(root, headRef, records) {
   const head = commitOf(root, headRef);
@@ -73,8 +75,10 @@ export function coverage(root, headRef, records) {
     .filter((record) => record.headCommit && isAncestor(root, record.headCommit, head));
   const reviewedHeads = new Set(resolved.map((record) => record.headCommit));
   const covers = (record) =>
-    COVERING.has(record.judgment) &&
-    (Number(record.round ?? 1) <= 1 || (record.baseCommit && reviewedHeads.has(record.baseCommit)));
+    record.kind === "fixes-checked"
+      ? Boolean(record.baseCommit && isAncestor(root, record.baseCommit, record.headCommit))
+      : COVERING.has(record.judgment) &&
+        (Number(record.round ?? 1) <= 1 || (record.baseCommit && reviewedHeads.has(record.baseCommit)));
   const latest = (list) => list.at(-1);
   const atHead = resolved.filter((record) => record.headCommit === head);
   const coveringAtHead = latest(atHead.filter(covers));
@@ -103,7 +107,9 @@ export function coverageLine(result, planned) {
   if (!result.head) return `Review: ${result.reason}`;
   if (result.state === "covered") {
     const { record } = result;
-    return `Review: on record for ${short(result.head)} (${record.judgment} after Review ${record.round ?? 1})`;
+    return record.kind === "fixes-checked"
+      ? `Review: on record for ${short(result.head)} (Review ${record.round ?? 1} of ${short(record.baseCommit)} was ${record.judgment}; its fixes checked at ${short(result.head)})`
+      : `Review: on record for ${short(result.head)} (${record.judgment} after Review ${record.round ?? 1})`;
   }
   const blocked = result.blocked
     ? `; the review of ${short(result.head)} on record is ${result.blocked.judgment}, which covers nothing`

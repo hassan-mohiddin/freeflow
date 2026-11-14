@@ -14,6 +14,7 @@ import {
   SETTINGS,
   SWITCHABLE_SKILLS,
   ignoredStateLine,
+  removedSettingReason,
   sanitizeConfigFile,
   settingSpec,
   skillsStateLine,
@@ -225,17 +226,20 @@ function fileProblems(raw, scope) {
   return sanitizeConfigFile(raw, scope).ignored.map((item) => planFix(raw, item));
 }
 
-/** The Session scope's problems: a key the table does not know, one not held per session, or a wrong value. */
+/** The Session scope's problems: a removed key, a key the table does not know, one not held per session, or a wrong value. */
 function sessionProblems(raw) {
   return Object.entries(raw).flatMap(([key, value]) => {
     const spec = settingSpec(key);
-    const problem = !spec
-      ? "unknown setting"
-      : !spec.session
-        ? "not a Session setting"
-        : !validSettingValue(spec, value)
-          ? `takes ${takes(spec)}`
-          : null;
+    // A key of a removed section, as the file scopes name it; then the table's own checks.
+    const problem =
+      removedSettingReason(key) ??
+      (!spec
+        ? "unknown setting"
+        : !spec.session
+          ? "not a Session setting"
+          : !validSettingValue(spec, value)
+            ? `takes ${takes(spec)}`
+            : null);
     return problem ? [{ key, reason: problem, fix: { kind: "remove", path: [key], old: value } }] : [];
   });
 }

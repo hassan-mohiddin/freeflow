@@ -305,6 +305,11 @@ test("doctor --fix writes Personal and Session, the Repository only with --scope
     join(f.home, "sessions", "s-1", "settings.json"),
     `{"review.depth":"quick","review.model":"opus","delegation.claimHours":"24"}\n`,
   );
+  // A removed key in the Session scope gets the removed key's reason, as in the files, not "unknown setting".
+  const named = f.run("doctor");
+  assert.match(named.stdout, /\n {2}review\.depth: removed: review has no settings \(a "Review at:" line/);
+  assert.match(named.stdout, /\n {2}review\.model: removed: review has no settings/);
+  assert.doesNotMatch(named.stdout, /review\.\w+: unknown setting/);
   // Without --scope the shared file is refused: named, and not written.
   const partial = f.run("doctor", "--fix");
   assert.equal(partial.status, 1);

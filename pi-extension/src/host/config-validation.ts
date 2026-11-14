@@ -354,6 +354,11 @@ const REMOVED_SECTIONS: Record<string, string> = {
     'removed: review has no settings (a "Review at:" line in the project\'s Review Rules or in rules/review.md in the Freeflow home says when a review runs)',
 };
 
+/** Why a dotted key is ignored when its section was removed (`review.depth`), or null; the Session scope's check. */
+export function removedSettingReason(key: string): string | null {
+  return REMOVED_SECTIONS[key.split(".")[0]!] ?? null;
+}
+
 /** A removed section's keys as ignored settings: each key it holds, or the section itself when it holds none. */
 function removedSectionIgnored(section: string, value: unknown): IgnoredSetting[] {
   const reason = REMOVED_SECTIONS[section]!;

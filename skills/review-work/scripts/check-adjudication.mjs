@@ -10,20 +10,27 @@
 // the first report), each item named by its report's letter, "a.B1: Accepted. <reason>".
 // With --record, a complete adjudication appends one line to records.jsonl in the reports' folder (lib/records.mjs):
 // the round, base and head from the brief beside the first report, the reviewers and flags from its Plan line, the
-// reviewer's model (--model), the judgment and the counts, so review-status.mjs can tell which commit the review covers.
-// Usage: check-adjudication.mjs <report>... [--adjudication <file>] [--record] [--model <name>] [--json]
+// reviewer's model (--model, required with --record), the judgment and the counts, so review-status.mjs can tell
+// which commit the review covers. With --fixed <commit> it records instead that the initiator checked the fixes of a
+// Blocking review whose Blocking items are all Accepted, at that commit, a descendant of the reviewed head: the floor's
+// one round is then complete, and review-status counts that commit as covered. --root names the repository the commit
+// is in (default: the current folder's).
+// Usage: check-adjudication.mjs <report>... [--adjudication <file>] [--record --model <name> [--fixed <commit>]]
+//                               [--root <repository>] [--json]
 // An item is named by the ID the report gives it (B1, N-2, Q1, NE1); a numbered or bulleted item without one is named by
 // its class letter and position in its section: B, N, Q, NE or I, then 1, 2, ... (so N3 is the third Non-blocking
 // Issue). In a section whose items carry IDs or numbers, a bullet after an item is part of it (its location, evidence);
 // a bullet before the first is an item. A repeated ID is refused. A disposition line reads "B1: Accepted. <reason>", optionally as a list item, in bold, or naming several items
 // ("B2, B3: Rejected, <reason>"). Pre-existing items are reported to the user and need no disposition.
 // Exit code 0 when every item is disposed of and the judgment agrees, 1 when not, 2 on a usage error.
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { appendRecord } from "./lib/records.mjs";
 
-const USAGE = "Usage: check-adjudication.mjs <report>... [--adjudication <file>] [--record] [--model <name>] [--json]";
+const USAGE =
+  "Usage: check-adjudication.mjs <report>... [--adjudication <file>] [--record --model <name> [--fixed <commit>]] [--root <repository>] [--json]";
 const CLASSES = [
   { name: "Blocking", prefix: "B", heading: /issues\s*[—–-]+\s*blocking/i },
   { name: "Non-blocking", prefix: "N", heading: /issues\s*[—–-]+\s*non-blocking/i },
@@ -50,6 +57,8 @@ try {
       adjudication: { type: "string" },
       record: { type: "boolean", default: false },
       model: { type: "string" },
+      fixed: { type: "string" },
+      root: { type: "string" },
     },
   });
 } catch (error) {
@@ -57,6 +66,12 @@ try {
 }
 const { values, positionals } = parsed;
 if (positionals.length < 1) fail(USAGE);
+if (values.fixed !== undefined && !values.record)
+  fail(`--fixed records a check of the fixes: give it with --record\n${USAGE}`);
+if (values.record && !values.model?.trim())
+  fail(
+    `--record needs --model <name>, the reviewer's model, so the record says who judged (the Judge Contract's identity)\n${USAGE}`,
+  );
 for (const path of positionals) if (!existsSync(path)) fail(`no such report: ${path}`);
 const several = positionals.length > 1;
 // Several reviewers' reports are R<n>a, R<n>b and so on; any other names take a, b, c in the order given.
@@ -229,13 +244,42 @@ if (values.record && ok) {
   const plan = field("Plan") ?? "";
   const flags = /\bflags: (.+)$/.exec(plan)?.[1].trim();
   const reviewers = Number(/\bof (\d+)\b/.exec(plan)?.[1] ?? /(\d+) reviewers?/.exec(plan)?.[1] ?? positionals.length);
-  const model = values.model ?? /\bmodel ([^\s;,]+)/.exec(plan)?.[1] ?? null;
+  const model = values.model.trim();
   const folder = dirname(positionals[0]);
+  let fixed = null;
+  if (values.fixed !== undefined) {
+    const blocking = items.filter((item) => item.class === "Blocking");
+    if (judgment !== "Blocking")
+      fail(
+        `--fixed is for a Blocking review; this one is ${judgment ?? "not judged"}, and a ${judgment} review records as it is`,
+      );
+    if (!blocking.length || blocking.some((item) => item.disposition !== "Accepted"))
+      fail(
+        `--fixed needs every Blocking item Accepted; ${blocking
+          .filter((item) => item.disposition !== "Accepted")
+          .map((item) => `${item.id} is ${item.disposition ?? "not disposed"}`)
+          .join(", ")}: a Blocking finding left Open or Rejected is not fixed`,
+      );
+    const run = (args) =>
+      spawnSync("git", args, { cwd: resolve(values.root ?? "."), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    const full = (ref) => {
+      const result = run(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
+      return result.status === 0 ? result.stdout.trim() : null;
+    };
+    const [reviewed, at] = [full(diff[2]), full(values.fixed)];
+    if (!at) fail(`--fixed: no such commit: ${values.fixed}`);
+    if (!reviewed) fail(`--fixed: the reviewed head ${diff[2]} is not in this repository (give --root)`);
+    if (at === reviewed || run(["merge-base", "--is-ancestor", reviewed, at]).status !== 0)
+      fail(`--fixed: ${values.fixed} is not a descendant of the reviewed head ${diff[2]}: the fixes come after it`);
+    fixed = at;
+  }
   record = {
     ts: new Date().toISOString(),
+    ...(fixed ? { kind: "fixes-checked" } : {}),
     round,
-    base: diff[1],
-    head: diff[2],
+    base: fixed ? diff[2] : diff[1],
+    head: fixed ?? diff[2],
+    ...(fixed ? { reviewed: diff[2] } : {}),
     reviewers,
     flags: !flags || flags === "none" ? [] : flags.split(/,\s*/),
     model,
@@ -280,7 +324,9 @@ else {
   for (const each of problems) console.log(`- ${each.item}: ${each.problem}`);
   if (record)
     console.log(
-      `Recorded in ${join(dirname(positionals[0]), "records.jsonl")}: Review ${record.round} of ${record.head.slice(0, 12)}, ${record.judgment}`,
+      record.kind === "fixes-checked"
+        ? `Recorded in ${join(dirname(positionals[0]), "records.jsonl")}: the fixes of Review ${record.round} of ${record.reviewed.slice(0, 12)} (${record.judgment}) checked at ${record.head.slice(0, 12)}`
+        : `Recorded in ${join(dirname(positionals[0]), "records.jsonl")}: Review ${record.round} of ${record.head.slice(0, 12)}, ${record.judgment}`,
     );
   else if (values.record) console.log("Not recorded: the adjudication is incomplete.");
 }

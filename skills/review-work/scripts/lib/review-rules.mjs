@@ -91,6 +91,12 @@ const show = (root, commit, path) =>
  */
 export function reviewAt({ root, commit, env = process.env }) {
   const ignored = [];
+  if (!commit)
+    ignored.push({
+      source: "the project's Review Rules",
+      line: "",
+      reason: "not read: no base was given and there is no default branch (origin's HEAD or main) to take one from",
+    });
   const pick = (from, found) => {
     let chosen = null;
     for (const { source, lines } of found)
@@ -132,6 +138,25 @@ export function reviewAt({ root, commit, env = process.env }) {
     if (own) return { ...own, ignored };
   }
   return { value: DEFAULT_REVIEW_AT, from: "default", source: null, ignored };
+}
+
+/**
+ * The commit the project's rule is read at when no base is given: the merge-base of <head> with the default branch
+ * (origin's HEAD, else main), so a change never supplies the rule it is checked under; null when there is neither.
+ * @returns {{ ref: string, commit: string } | null}
+ */
+export function defaultBase(root, head) {
+  const git = (args) => spawnSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  const origin = git(["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]);
+  const ref =
+    origin.status === 0 && origin.stdout.trim()
+      ? origin.stdout.trim()
+      : git(["rev-parse", "--verify", "--quiet", "refs/heads/main"]).status === 0
+        ? "main"
+        : null;
+  if (!ref) return null;
+  const base = git(["merge-base", head, ref]);
+  return base.status === 0 && base.stdout.trim() ? { ref, commit: base.stdout.trim() } : null;
 }
 
 /** Whether a review is due at <step> under the rule: at the step it names and every later one. */

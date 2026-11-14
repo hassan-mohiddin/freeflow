@@ -19,7 +19,7 @@
       "case_concept": "Commit only an owned fix while preserving unrelated staged work, then refuse to push or release until each is approved; hold a rollout when metrics ingestion is broken.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/deliver-work/SKILL.md",
-      "source_sha256": "40bacdab59f795b38f633ebd48ba35c64e1a3862b038847de6c1b7c6876ab1b8",
+      "source_sha256": "0b9de9d74ad6989730bcbf192d4abf4b3ba71563e9c18813dfe0e8fcb845e5bc",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -134,7 +134,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with the body before the 2026-10-22 restructure (the description is not what the suite delivers or measures; the restructure moves and deduplicates that text and has not been rerun), 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified. The review gate rewritten for SPEC-007 (2026-11-03: a plan from the diff and the base's policy at every review unit, Quick, Standard and Deep, records bound to a commit) has not been measured, nor the reviewer model from the routing table (SPEC-010, 2026-11-04). The gate rewritten again for review without settings (2026-11-14: the floor of one reviewer and one round at every pull request, a Review at: rule in the review rules, flags in place of depths, more reviewers or a stronger model only with the user) has not been measured.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "b51e379bde22a2647e1e6de76ea51c0237c71ad1d7ee419aa00e5871783181f6",
+      "source_sha256": "d5a832772da7918f362e193d33d2717fb7f4ed3e62bf8879aee9ab6c40c2926c",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
