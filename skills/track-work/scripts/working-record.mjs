@@ -97,6 +97,8 @@ function memoryOffRefusal(command, operation, options) {
   const records = RECORDS_WHEN_MEMORY_OFF.some(
     (name) => key === name || (!name.includes(" ") && key.split(" ")[0] === name),
   );
+  // A scratch delegation's brief lives in the caller's scratch folder, not the store, so it records no task memory.
+  if (key === "delegate open" && options["--scratch"]) return null;
   if (!records || memoryModeFor({ home: storeHome(options["--home"]) }) !== "off") return null;
   const script = resolve(dirname(new URL(import.meta.url).pathname), "../../setup-freeflow/scripts/settings.mjs");
   return `Task memory is off here (memory.mode), so ${key} records nothing. Turn it on with: node ${script} set memory.mode local (or sync), or /freeflow settings on Claude Code and Pi.`;

@@ -126,6 +126,26 @@ test("with memory.mode off, task create, task take and checkpoint refuse and nam
       assert.match(refused.stderr, /Task memory is off here \(memory\.mode\)/, label);
       assert.match(refused.stderr, /settings\.mjs set memory\.mode local/, label);
     }
+    // A scratch delegation records nothing in the store, so it is not refused.
+    const scratch = join(folder, "scratch");
+    const brief = run(
+      [
+        "delegate",
+        "open",
+        "--scratch",
+        scratch,
+        "--title",
+        "Probe worker",
+        "--agent",
+        "claude-haiku-5-5, low",
+        "--kind",
+        "gather",
+        "--input",
+        "-",
+      ],
+      { input: "## Result wanted\n- r\n" },
+    );
+    assert.doesNotMatch(brief.stderr, /Task memory is off here/, brief.stderr);
     // Reads keep working: the held task's recovery view.
     const read = run(["view", "recover", "--record", "widget/task-001"]);
     assert.equal(read.status, 0, read.stderr);
