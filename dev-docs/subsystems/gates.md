@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/track-work/scripts/lib/gates5.mjs`, `skills/track-work/scripts/lib/gate-state5.mjs`, `pi-extension/src/gates/`, `hooks/claude/freeflow.mjs`, `hooks/codex/driver.mjs`
 > **Tests:** `.skill-eval/track-work/tests/gates5.test.mjs`, `pi-extension/tests/gates/`, `hooks/claude/freeflow.test.ts`, `hooks/tests/codex-driver.test.mjs`
-> **Verified at:** `f7c8450c` (2026-11-14)
+> **Verified at:** `be0f39cb` (2026-11-14)
 > **User docs:** `plugin-docs/capabilities/gates.md`
 
 For anyone changing Freeflow's gate: the one rule each driver checks before a tool call, the state Track Work keeps for it, how Claude Code's mod, Codex's driver and Pi's extension run it, and why it only warns for now.
