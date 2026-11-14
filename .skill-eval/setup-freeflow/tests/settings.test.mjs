@@ -53,6 +53,18 @@ function otherValue(spec) {
 const settable = SETTINGS;
 const readRows = (listed) => listed.settings.filter((row) => !row.readOnly);
 
+test("the normal view names where Workers' and Review's rules come from (N4): the default, your rules, or the project's", async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+  const rowOf = (view, label) => f.json("list", "--view", view).settings.find((row) => row.label === label);
+  assert.equal(rowOf("normal", "Workers").source, "Freeflow's default");
+  await mkdir(join(f.home, "rules"), { recursive: true });
+  await writeFile(join(f.home, "rules", "delegation.md"), "Workers use the cheap tier.\n");
+  assert.equal(rowOf("normal", "Workers").source, "your rules (rules/delegation.md)");
+  assert.match(rowOf("normal", "Workers").value, /^from your rules/);
+  assert.equal(rowOf("normal", "Review").source, "Freeflow's default");
+});
+
 test("the developer view is the whole table at its defaults, with the two read-only rows; the normal view has the rows a person changes", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
@@ -70,7 +82,7 @@ test("the developer view is the whole table at its defaults, with the two read-o
   const text = f.run("list", "--view", "developer");
   assert.equal(text.status, 0, text.stderr);
   assert.match(text.stdout, /Claim hours\s+4\s+default\s+\(delegation\.claimHours\)/);
-  assert.match(text.stdout, /Review\s+One reviewer and one round, from your rules or Freeflow's default/);
+  assert.match(text.stdout, /Review\s+One reviewer and one round, at pull request\s+Freeflow's default/);
   // The normal view: Freeflow, Task memory, Review, Workers, then Claude Code's status line and pane.
   const normal = f.json("list", "--view", "normal", "--host", "claude-code");
   assert.deepEqual(
@@ -457,7 +469,7 @@ test("off for one harness names the harness's own command to disable the plugin,
   );
   assert.match(
     listed.stdout,
-    /Freeflow is off here\. Freeflow never disables its own plugin: to stop it on this harness, run \/plugin disable freeflow\./,
+    /Freeflow is off here\. Freeflow never disables its own plugin: to stop it on this harness, run claude plugin disable freeflow\./,
   );
   assert.equal(f.json("get", "enabled", "--harness", "codex").value, true, "Codex is not ticked");
 });

@@ -358,21 +358,21 @@ Freeflow is on once it is installed. It works in every folder, on every host, wi
 
 ### Settings that Freeflow cannot use
 
-A setting Freeflow cannot use is ignored and named (the footer and `/freeflow status` say which), and its default applies. A repository's own `.freeflow/config.json` or `.freeflow/local.json` is no longer read: `settings.mjs doctor --fix` moves its settings into this folder, and removes `.freeflow/local.json`; the committed `config.json` is rewritten only with `--committed`. A file in the Freeflow home that is not JSON is never rewritten: fix it by hand.
+A setting Freeflow cannot use is ignored and named (the footer and `/freeflow status` say which), and its default applies. A repository's own `.freeflow/config.json` or `.freeflow/local.json` is no longer read: `settings.mjs doctor --fix` moves its settings into This folder (the Freeflow home's `folders.json`), and removes `.freeflow/local.json`; the committed `config.json` is rewritten only with `--committed`. A file in the Freeflow home that is not JSON is never rewritten: fix it by hand.
 
 On Pi:
 
 ```text
 /freeflow settings
-/freeflow settings local
+/freeflow settings folder
 ```
 
-edit personal settings.
+edit This folder's settings.
 
-### Shared settings
+### Everywhere settings
 
 ```text
-/freeflow settings repo
+/freeflow settings everywhere
 ```
 
 edits shared repository configuration. Treat shared changes as team-facing behavior and review them accordingly.
@@ -383,11 +383,11 @@ edits shared repository configuration. Treat shared changes as team-facing behav
 /freeflow settings session
 ```
 
-manages temporary session enablement and optional-context settings. Session overrides take precedence over personal and repository settings without mutating either file; reset or inherit restores the configured values. The footer shows the task the session holds.
+manages temporary session enablement and optional-context settings. Session overrides take precedence over This folder and Everywhere settings without mutating either file; reset or inherit restores the configured values. The footer shows the task the session holds.
 
 ### Runtime prompts and skills
 
-On every host Freeflow delivers three runtime prompts: the core guidance, the Interaction Contract, and the Working Method. Each is on unless you turn it off, in `.freeflow/config.json` for everyone or `.freeflow/local.json` for yourself:
+On every host Freeflow delivers three runtime prompts: the core guidance, the Interaction Contract, and the Working Method. Each is on unless you turn it off, for Everywhere, for This folder, or for one session:
 
 ```json
 {
@@ -395,7 +395,7 @@ On every host Freeflow delivers three runtime prompts: the core guidance, the In
 }
 ```
 
-The personal file overrides the shared one prompt by prompt. With all three off, Freeflow delivers none of them; its skills stay available. On Pi, `/freeflow settings` has the same switches: Runtime prompts and Skills are each a switch for the whole set, with one row under each opening a switch per item, in the Session, Personal and Repository scopes.
+This folder's setting overrides Everywhere's prompt by prompt, and a session's overrides both. With all three off, Freeflow delivers none of them; its skills stay available. On Pi, `/freeflow settings` has the same switches: Runtime prompts and Skills are each a switch for the whole set, with one row under each opening a switch per item, in the Session, This folder and Everywhere scopes.
 
 `skills` turns a skill off the same way, such as `{ "skills": { "write-skill": false } }`, and `"enabled": false` in either object turns all of them off; Setup Freeflow always stays. On Pi an off skill is not loaded. Other hosts load plugin skills themselves, so there the agent is told not to use it. See [Settings](settings.md#all-settings).
 
@@ -405,8 +405,8 @@ For core and capability settings:
 
 ```text
 host session enablement
--> personal override
--> repository value
+-> this folder
+-> everywhere
 -> built-in default
 ```
 

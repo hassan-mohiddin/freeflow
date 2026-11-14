@@ -45,7 +45,7 @@ Task memory is `memory.mode`: `local` (on, this machine, the default), `sync` (o
 
 ### Turning Freeflow off
 
-`enabled` is Freeflow's switch, in any layer or ticked for one harness. Off means Freeflow was never there: it sends nothing, does nothing and writes nothing. Freeflow never disables its own plugin. When the script reports an off value on Claude Code or Codex, give the user the one line it prints, with the harness's own command to disable the plugin (`/plugin disable freeflow` on Claude Code; Codex's plugin command on Codex).
+`enabled` is Freeflow's switch, in any layer or ticked for one harness. Off means Freeflow was never there: it sends nothing, does nothing and writes nothing. Freeflow never disables its own plugin. When the script reports an off value on Claude Code or Codex, give the user the one line it prints, with the harness's own command to disable the plugin (`claude plugin disable freeflow` on Claude Code; on Codex, the uninstall step in `plugin-docs/getting-started.md`, unverified there).
 
 ## Repair Settings
 

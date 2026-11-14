@@ -142,12 +142,12 @@ Freeflow 0.9.0 has ten skills instead of twenty-five. The removed names have no 
 Freeflow runs in every folder once it is installed, with no config file: its settings live in the Freeflow home, for everywhere, this folder or this session. A setting Freeflow cannot use is ignored and named, and the default applies to it. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Tool Execution, Compaction and Messaging are optional capabilities. The former context settings `contextVirtualization` and `conversationHistory` are unsupported: each is ignored and named until removed.
 
 ```text
-host session enablement -> personal override -> repository value -> built-in default
+host session enablement -> this folder -> everywhere -> built-in default
 ```
 
 Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid. An invalid existing local config fails closed instead of silently inheriting shared settings. Session state cannot bypass missing or invalid repository activation.
 
-Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` edits temporary enablement and optional-context overrides; `/freeflow settings repo` edits shared configuration. [Settings](settings.md) lists every key.
+Pi `/freeflow settings` opens one screen with the Session, This folder and Everywhere tabs; `/freeflow settings session`, `folder` and `everywhere` open one of them directly. Session overrides last only as long as the session. [Settings](settings.md) lists every key.
 
 ## Authority And Effects
 

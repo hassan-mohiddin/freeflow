@@ -407,7 +407,8 @@ async function appendRow($, text) {
  * has crossed, once each a cycle (P80, T28); at it, the cycle's one checkpoint notice, appended so a long turn has it
  * (P50, T13). Appending leaves what the model already received, and the prompt cache, as it was. */
 async function watchMain($) {
-  if (cycle.notice !== null) return;
+  // Task memory off: no context row or notice about a task (D-060, Setting 2).
+  if (memoryOff || cycle.notice !== null) return;
   const current = cycle;
   const { tokens } = (await $.session.usage()).context;
   if (!tokens) return;
@@ -435,6 +436,8 @@ async function watchMain($) {
   // another request made meanwhile is the cycle's one.
   if (cycle !== current || cycle.notice !== null) return;
   if (!state) return;
+  // With no task held, the checkpoint notice comes only while compaction.withoutTask is on (N2).
+  if (!state.task && !state.delegation && !compactWithoutTask) return;
   cycle.notice = await $.clock.now();
   const number = await cycleNumber($, state);
   await appendRow($, noticeText($, context, state, number));
@@ -754,6 +757,8 @@ async function storeArrived($, state, session, cwd) {
 }
 
 async function turnEnded($, e) {
+  // Task memory off: no task is read, synced, waited on or compacted here (D-060, Setting 2).
+  if (memoryOff) return;
   const state = await status($);
   if (!state) return;
   if (awaitingStore) {
@@ -1053,6 +1058,7 @@ async function settingsCommand($, args) {
   const data = result.data;
   await guidanceChanged($);
   const wasOn = enabled;
+  const wasMemoryOff = memoryOff;
   if (
     data.key === "enabled" ||
     data.key === "events.enabled" ||
@@ -1060,6 +1066,11 @@ async function settingsCommand($, args) {
     data.key === "compaction.withoutTask"
   ) {
     await resolveEnabled($);
+    // Memory on again: the task steps run at the next turn's start, as session start's would have (D-060).
+    if (wasMemoryOff && !memoryOff && started) {
+      for (const step of TASK_STEPS) delete started.steps[step];
+      await keepLedger($);
+    }
     // The claims follow the switch: off, every request is no; the event log's own off, sensors is only possible.
     await writeCapabilities($, freeflowHome);
   }
@@ -1314,6 +1325,8 @@ const SECTION_SCRIPT = "hooks/shared/runtime-context.mjs";
 const SECTION_ID = "freeflow:guidance";
 /** Session start's steps, in the order a catch-up runs them. */
 const START_STEPS = ["window", "cycle", "capabilities", "sync", "menu", "guidance"];
+/** The steps that are the task store's: none runs while memory.mode is off, and each runs again once it is on (D-060). */
+const TASK_STEPS = ["cycle", "sync", "menu"];
 /** Tries a failed step gets, at most one a turn: the first, then one more at the next turn (section 4). */
 const STEP_TRIES = 2;
 const MID_SESSION =
@@ -1420,7 +1433,11 @@ async function readLedger($, home, session) {
 
 /** Whether every step ran or has had its tries. */
 const settled = () =>
-  started !== null && START_STEPS.every((step) => started?.steps[step] || (stepFailures.get(step) ?? 0) >= STEP_TRIES);
+  started !== null &&
+  START_STEPS.every(
+    (step) =>
+      (memoryOff && TASK_STEPS.includes(step)) || started?.steps[step] || (stepFailures.get(step) ?? 0) >= STEP_TRIES,
+  );
 
 /**
  * The classic SessionStart's chain beneath the mod, with the hooks' copies of the guidance left out where the section
@@ -1521,7 +1538,10 @@ async function catchUp($) {
   }
   started ??= { session, steps: {}, pinned: false };
   const ledger = started;
-  const due = START_STEPS.filter((step) => !ledger.steps[step] && (stepFailures.get(step) ?? 0) < STEP_TRIES);
+  const due = START_STEPS.filter(
+    (step) =>
+      !ledger.steps[step] && (stepFailures.get(step) ?? 0) < STEP_TRIES && !(memoryOff && TASK_STEPS.includes(step)),
+  );
   if (!due.length) return;
   const cwd = await $.session.cwd();
   const now = new Date(await $.clock.now()).toISOString();
@@ -1835,7 +1855,8 @@ export function register(on) {
       return compacted;
     }
     const before = (await $.session.usage()).context.tokens;
-    const state = await status($);
+    // Task memory off: the task and the session summary are the store's, so Claude's own compaction only.
+    const state = memoryOff ? null : await status($);
     const result =
       !state || (!state.task && !state.summary && !state.delegation)
         ? await next(e)
@@ -1894,10 +1915,13 @@ export function register(on) {
   // The session ends: release its hold as ended, so a resume of this session takes it back (F36), and push, within
   // the short time an exit allows; the event log's last lines go first, so the release's summary counts them.
   on("session.end", async ($, e, next) => {
+    // Off, nothing runs (D-060, Setting 1); with task memory off, only the event log's last lines go.
+    if (!enabled) return next(e);
     try {
       const options = { session: e.sessionId, timeoutMs: Math.min(60_000, Math.max(1, next.budget.remainingMs - 500)) };
       await emit($, "session.end", { reason: typeof e.reason === "string" && e.reason ? e.reason : undefined });
       await flush($, { session: e.sessionId, timeoutMs: Math.min(EVENT_FLUSH_MS, options.timeoutMs) });
+      if (memoryOff) return next(e);
       const state = await status($, options);
       if (state?.task) await script($, ["task", "release", "--ended"], options);
       // A worker session's end, or one holding claims, releases them, and the worker's log says it ended (SPEC-009 5).

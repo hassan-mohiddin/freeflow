@@ -21,11 +21,17 @@ async function withFolder(run) {
 /** Runs the script with a Git configuration of the folder's own, so the developer's identity never leaks in. */
 function store(folder, args, extraEnv = {}) {
   const gitConfig = join(folder, "gitconfig");
-  return spawnSync(process.execPath, [scriptPath, "store", ...args], {
-    cwd: folder,
-    encoding: "utf8",
-    env: { ...process.env, GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: "1", FREEFLOW_HOME: "", ...extraEnv },
-  });
+  // A GIT_AUTHOR or GIT_COMMITTER variable in the environment would name the author over --git-name.
+  const env = {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: gitConfig,
+    GIT_CONFIG_NOSYSTEM: "1",
+    FREEFLOW_HOME: "",
+    ...extraEnv,
+  };
+  for (const name of ["GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"])
+    delete env[name];
+  return spawnSync(process.execPath, [scriptPath, "store", ...args], { cwd: folder, encoding: "utf8", env });
 }
 
 function git(cwd, args) {
@@ -58,7 +64,7 @@ test("store init lays an empty remote out as the store and pushes its first comm
     });
     assert.equal(
       await readFile(join(home, ".gitignore"), "utf8"),
-      "scratch/\nevidence/**/raw/\nlocal/\nsessions/\n/events/\n/settings.json\n/folders.json\n/first-session.json\n",
+      "scratch/\nevidence/**/raw/\nlocal/\nsessions/\n/events/\n",
     );
     assert.equal(
       await readFile(join(home, ".gitattributes"), "utf8"),
@@ -462,6 +468,9 @@ test("session status names what keeps the session from a working store, and who 
           FREEFLOW_HOME: home,
           CLAUDE_CODE_REMOTE: "",
           CLAUDE_CODE_REMOTE_SESSION_ID: "",
+          // A session the environment names would get a folder in the home, and an empty clone would not be empty.
+          CLAUDE_CODE_SESSION_ID: "",
+          FREEFLOW_SESSION: "",
           ...env,
         },
       });

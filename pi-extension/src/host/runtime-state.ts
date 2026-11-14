@@ -8,8 +8,6 @@ import { hasUsableMandatoryPrompts } from "./prompts.js";
  */
 const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
 
-/** The Runtime State line for a folder with no shared config file, word for word (D-045, round 3). */
-
 // Runtime State and bootstrap messages that older Freeflow versions sent or saved in sessions, under a feature's own
 // type (`freeflow-<feature>-runtime-state`, `freeflow-<feature>-bootstrap`) or as one `freeflow-bootstrap` naming its
 // components; they are never sent again.
@@ -54,6 +52,8 @@ export function freeflowRuntimeStateMessage(
   options: {
     /** Freeflow skills already read in this context, by name. */
     skills?: readonly string[];
+    /** The first-session line, when this session is the user's first (N1); null otherwise. */
+    firstSession?: string | null;
   } = {},
 ) {
   const mandatoryPromptAvailable = capabilityState?.enabled !== true || hasUsableMandatoryPrompts(freeflowContext);
@@ -72,6 +72,7 @@ export function freeflowRuntimeStateMessage(
       "This is extension-generated runtime state. Use it to interpret the stable Freeflow guidance.",
       "",
       `Freeflow: ${freeflowStatus}`,
+      ...(options.firstSession ? [options.firstSession] : []),
       ...(skillsOff ? [skillsOff] : []),
       ...(ignored ? [ignored] : []),
       "",
@@ -87,7 +88,7 @@ export function freeflowRuntimeStateMessage(
   };
 }
 
-function withoutFreeflowRuntimeState(messages: readonly FreeflowContextMessage[] | undefined) {
+export function withoutFreeflowRuntimeState(messages: readonly FreeflowContextMessage[] | undefined) {
   return (Array.isArray(messages) ? messages : []).filter((message) => !isRuntimeState(message));
 }
 
@@ -115,10 +116,14 @@ export function withFreeflowRuntimeState(
     force?: boolean;
     anchor?: RuntimeStateAnchor;
     skills?: readonly string[];
+    firstSession?: string | null;
   } = {},
 ) {
   const source = Array.isArray(messages) ? messages : [];
-  const runtimeState = freeflowRuntimeStateMessage(capabilityState, freeflowContext, { skills: options.skills });
+  const runtimeState = freeflowRuntimeStateMessage(capabilityState, freeflowContext, {
+    skills: options.skills,
+    firstSession: options.firstSession,
+  });
   const runtimeStateMessages = source.filter(isRuntimeState);
   const withoutRuntimeState = withoutFreeflowRuntimeState(source);
   const expectedRuntimeStateIndex = firstUserMessageIndex(withoutRuntimeState);

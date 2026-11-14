@@ -39,7 +39,7 @@ A command that fails shows its error in a small box and changes nothing. A value
 /freeflow settings pane.statusLine off    the status line
 ```
 
-Both are on by default, in every scope (Session, Personal, Repository); see [Settings](../settings.md). With Freeflow itself off (`enabled`), neither shows.
+Both are on by default, in every scope (Session, This folder, Everywhere); see [Settings](../settings.md). With Freeflow itself off (`enabled`), neither shows.
 
 ## What it reads
 

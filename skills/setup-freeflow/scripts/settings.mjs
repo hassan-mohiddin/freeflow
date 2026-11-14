@@ -27,6 +27,7 @@ import {
 import {
   HOME_FILES,
   LEGACY_FILES,
+  folderKey,
   freeflowHome,
   getPath,
   deletePath,
@@ -41,6 +42,8 @@ import {
   writeLayer,
   writeSessionValue,
 } from "../../../pi-extension/dist/host/config-store.js";
+import { reviewAt } from "../../review-work/scripts/lib/review-rules.mjs";
+import { projectsOfFolder } from "../../track-work/scripts/lib/projects5.mjs";
 
 // The scopes as a person names them, and the layer names the code keeps (`repository` is the everywhere file).
 const SCOPES = ["everywhere", "folder", "session"];
@@ -54,18 +57,19 @@ const NORMAL_KEYS = ["enabled", "memory.mode", "pane.statusLine", "pane.enabled"
 const NORMAL_ORDER = ["enabled", "memory.mode", "review", "workers", "pane.statusLine", "pane.enabled"];
 /** The read-only rows: what a user cannot change here, and where it comes from. */
 const READ_ONLY_ROWS = ["review", "workers"];
-const REVIEW_TEXT = "One reviewer and one round, from your rules or Freeflow's default";
 const WORKERS_TEXT = "Haiku by default · Opus when the agreement names it";
 /** The harness's own command that stops its plugin: Freeflow never disables its own plugin (D-060, Setting 1). */
+// The harness's own command to stop its plugin. Claude Code's is checked against `claude plugin disable --help`; Codex's
+// is not installed here, so its line points to the install guide's step, marked unverified there (N5).
 const PLUGIN_OFF = {
-  "claude-code": "/plugin disable freeflow",
-  codex: "Codex's own plugin command to disable freeflow (see the install guide)",
+  "claude-code": "claude plugin disable freeflow",
+  codex: "codex plugin remove freeflow@freeflow (unverified: see the uninstall step in plugin-docs/getting-started.md)",
 };
 /** Task memory's value as a person reads it. */
 const MEMORY_TEXT = { local: "On, this machine", sync: "On, with sync", off: "Off" };
 
 const USAGE = `Usage:
-  settings.mjs list [--view normal|developer] [--host all|pi|claude-code] [--harness <name>] [--root <folder>] [--json]
+  settings.mjs list [--view normal|developer] [--host all|claude-code|codex|pi] [--harness <name>] [--root <folder>] [--json]
   settings.mjs get <key> [--harness <name>] [--root <folder>] [--json]
   settings.mjs set <key> <value> [--scope everywhere|folder|session] [--harness-only] [--harness <name>] [--root <folder>] [--json]
   settings.mjs unset <key> [--scope everywhere|folder|session] [--harness-only] [--harness <name>] [--root <folder>] [--json]
@@ -176,19 +180,38 @@ function choicesOf(spec) {
 }
 
 /** The rule source a read-only row names: the person's own rule file in the home, else Freeflow's default. */
-function ruleSource(home, file) {
-  return existsSync(join(home, "rules", file)) ? "your rules" : "Freeflow's default";
+/**
+ * Where Workers' rule comes from, and it names it (N4): the project's rules/delegation.md for the project whose tasks
+ * name this folder's repository (the lookup `task here` makes), then the home's rules/delegation.md, then the default.
+ */
+function workersRuleSource(home, root) {
+  const project = projectsOfFolder(home, root).find((slug) =>
+    existsSync(join(home, "projects", slug, "rules", "delegation.md")),
+  );
+  if (project) return { source: `project ${project}'s rules (projects/${project}/rules/delegation.md)`, own: true };
+  if (existsSync(join(home, "rules", "delegation.md")))
+    return { source: "your rules (rules/delegation.md)", own: true };
+  return { source: "Freeflow's default", own: false };
 }
 
-function readOnlyRow(home, key) {
-  if (key === "review")
+function readOnlyRow(home, key, root) {
+  if (key === "review") {
+    // Review's rule is read by the review scripts' own lookup: the repository's Review Rules, then the home's, then the
+    // default; the row names which one applies (N4).
+    const review = reviewAt({ root, commit: "HEAD" });
+    const value = `One reviewer and one round, at ${review.value}`;
+    const names = {
+      project: "the repository's Review Rules",
+      home: "your rules (rules/review.md)",
+      default: "Freeflow's default",
+    };
     return {
       key,
       label: "Review",
-      value: REVIEW_TEXT,
-      displayed: REVIEW_TEXT,
+      value,
+      displayed: value,
       scope: null,
-      source: ruleSource(home, "review.md"),
+      source: names[review.from] ?? "Freeflow's default",
       ticked: false,
       readOnly: true,
       tickable: false,
@@ -196,15 +219,16 @@ function readOnlyRow(home, key) {
       view: "normal",
       hosts: "all",
     };
-  const fromRules = ruleSource(home, "delegation.md") === "your rules";
-  const value = fromRules ? "from your rules (rules/delegation.md)" : WORKERS_TEXT;
+  }
+  const rule = workersRuleSource(home, root);
+  const value = rule.own ? `from ${rule.source}` : WORKERS_TEXT;
   return {
     key,
     label: "Workers",
     value,
     displayed: value,
     scope: null,
-    source: fromRules ? "your rules" : "Freeflow's default",
+    source: rule.source,
     ticked: false,
     readOnly: true,
     tickable: false,
@@ -237,9 +261,15 @@ function row(item) {
  * The rows of one view for a host: the table's rows the host acts on (the normal view keeps the rows a person changes,
  * and adds the read-only rows; the developer view is the whole table with the read-only rows).
  */
-function viewRows(state, harness, view, host) {
+function viewRows(state, harness, view, host, root) {
   const resolved = resolveAll(state, harness);
-  const acts = (spec) => (host === "pi" ? spec.hosts !== "claude-code" : spec.hosts !== "pi");
+  // Each host lists the rows it acts on: a Pi-only or Claude Code-only row is left out of the others' views (N3).
+  const acts = (spec) => {
+    if (host === "pi") return spec.hosts !== "claude-code";
+    if (host === "claude-code") return spec.hosts !== "pi";
+    if (host === "codex") return spec.hosts === "all";
+    return spec.hosts !== "pi";
+  };
   const table = resolved.filter((item) => acts(item.spec));
   const shownRows = table
     .filter((item) => view === "developer" || NORMAL_KEYS.includes(item.spec.key))
@@ -247,10 +277,10 @@ function viewRows(state, harness, view, host) {
   // The normal view's order is the settled one: Freeflow, Task memory, Review, Workers, Status line, Pane.
   const ordered =
     view === "developer"
-      ? [...shownRows, ...READ_ONLY_ROWS.map((key) => readOnlyRow(state.home, key))]
+      ? [...shownRows, ...READ_ONLY_ROWS.map((key) => readOnlyRow(state.home, key, root))]
       : NORMAL_ORDER.flatMap((key) =>
           key === "review" || key === "workers"
-            ? [readOnlyRow(state.home, key)]
+            ? [readOnlyRow(state.home, key, root)]
             : shownRows.filter((item) => item.key === key),
         );
   return { rows: ordered, resolved };
@@ -270,17 +300,19 @@ function list(state, root, options, env, json) {
   const view = options["--view"] ?? "developer";
   if (!["normal", "developer"].includes(view)) throw new UsageError("--view must be normal or developer");
   const host = options["--host"] ?? "all";
-  if (!["all", "pi", "claude-code"].includes(host)) throw new UsageError("--host must be all, pi or claude-code");
-  const { rows, resolved } = viewRows(state, harness, view, host);
+  if (!["all", "claude-code", "codex", "pi"].includes(host))
+    throw new UsageError("--host must be all, claude-code, codex or pi");
+  const { rows, resolved } = viewRows(state, harness, view, host, root);
   const runtimeLines = stateLines(resolved, state.ignored);
   const notes = offNote(resolved, harness);
   if (json)
     return `${JSON.stringify({ root, view, harness, settings: rows, state: runtimeLines, ignored: state.ignored, notes }, null, 2)}\n`;
   const width = Math.max(...rows.map((item) => item.label.length));
   const lines = rows.map((item) => {
+    // The tick is named in the developer view only; the normal view shows the value and its layer (N3).
     const scope = item.readOnly
       ? item.source
-      : `${SCOPE_NAMES[item.scope]}${item.ticked ? ` (only on ${harness})` : ""}`;
+      : `${SCOPE_NAMES[item.scope]}${item.ticked && view === "developer" ? ` (only on ${harness})` : ""}`;
     return `  ${item.label.padEnd(width)}  ${String(item.displayed).padEnd(8)}  ${scope}${view === "developer" && !item.readOnly ? `  (${item.key})` : ""}`;
   });
   const ignoredLine = ignoredStateLine(state.ignored);
@@ -290,7 +322,7 @@ function list(state, root, options, env, json) {
     ...(ignoredLine ? ["", ignoredLine] : []),
     ...notes,
     "Change one: settings.mjs set <key> <value> [--scope everywhere|folder|session] [--harness-only]; inherit removes it.",
-    ...(host === "pi" ? [] : view === "developer" ? [] : ["Developer settings: settings.mjs list --view developer."]),
+    ...(view === "developer" ? [] : ["Developer settings: settings.mjs list --view developer."]),
     "",
   ].join("\n");
 }
@@ -490,7 +522,7 @@ async function doctor(root, env, options) {
       remaining += 1;
       continue;
     }
-    const raw = scope === "personal" ? (file.raw[resolve(root)] ?? {}) : file.raw;
+    const raw = scope === "personal" ? (file.raw[folderKey(root)] ?? file.raw[resolve(root)] ?? {}) : file.raw;
     const problems = fileProblems(raw, scope);
     if (problems.length === 0) {
       out.push(`${label}: no problems.`);

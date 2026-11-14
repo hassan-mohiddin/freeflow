@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -101,6 +102,56 @@ export function repositoryRoot(folder: string): string {
   }
 }
 
+/**
+ * A repository's remote URL in the portable form the folder layer is keyed by (D-060, Q4): the host lowercased, with no
+ * scheme, no user, no port and no trailing `.git`, e.g. `github.com/owner/repo`. A scp-style `user@host:path` is read
+ * as `host/path`. Worktrees of one repository share the key.
+ */
+export function portableRemoteKey(url: string): string {
+  let s = url.trim();
+  const scheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(s);
+  s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/^[^@/]+@/, "");
+  if (!scheme) {
+    const scp = /^([^/:]+):(.*)$/.exec(s);
+    if (scp) s = `${scp[1]}/${scp[2]}`;
+  }
+  s = s.replace(/\/+$/, "").replace(/\.git$/i, "");
+  const slash = s.indexOf("/");
+  const host = (slash < 0 ? s : s.slice(0, slash)).replace(/:\d+$/, "").toLowerCase();
+  return host + (slash < 0 ? "" : s.slice(slash));
+}
+
+const originCache = new Map<string, string | null>();
+
+/** A repository's `origin` remote URL, read once per process; null when it has none or is not a Git repository. */
+function originOf(repo: string): string | null {
+  if (originCache.has(repo)) return originCache.get(repo) ?? null;
+  let origin: string | null = null;
+  if (existsSync(join(repo, ".git"))) {
+    try {
+      origin =
+        execFileSync("git", ["-C", repo, "config", "--get", "remote.origin.url"], {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "ignore"],
+        }).trim() || null;
+    } catch {
+      origin = null;
+    }
+  }
+  originCache.set(repo, origin);
+  return origin;
+}
+
+/**
+ * The key a repository's folder layer is stored under: its portable remote key when it has an `origin`, else its
+ * absolute root (D-060, Q4).
+ */
+export function folderKey(root: string): string {
+  const repo = repositoryRoot(root);
+  const origin = originOf(repo);
+  return origin ? portableRemoteKey(origin) : repo;
+}
+
 /** The path of a layer's file in the Freeflow home. */
 export function layerPath(home: string, scope: "repository" | "personal"): string {
   return join(home, HOME_FILES[scope]);
@@ -143,7 +194,8 @@ export function readConfigFile(root: string, scope: "repository" | "personal", h
   const folders = readFolders(home);
   if (folders.error !== null)
     return { exists: true, value: {}, error: folders.error, ignored: [{ key: null, reason: folders.error }] };
-  const entry = folders.entries[repositoryRoot(root)];
+  // A folder written under the absolute root before the portable key (D-060, Q4) is read as before.
+  const entry = folders.entries[folderKey(root)] ?? folders.entries[repositoryRoot(root)];
   if (entry === undefined) return { exists: false, value: {}, error: null, ignored: [] };
   const { config, ignored } = sanitizeConfigFile(entry, "personal");
   return { exists: true, value: config, error: null, ignored };
@@ -166,8 +218,10 @@ export async function writeLayer(root: string, scope: "repository" | "personal",
     return;
   }
   const folders = readFolders(home);
-  if (Object.keys(next).length === 0) delete folders.entries[repositoryRoot(root)];
-  else folders.entries[repositoryRoot(root)] = next;
+  // Written under the portable key; an entry under the absolute root is moved there.
+  delete folders.entries[repositoryRoot(root)];
+  if (Object.keys(next).length === 0) delete folders.entries[folderKey(root)];
+  else folders.entries[folderKey(root)] = next;
   if (Object.keys(folders.entries).length === 0) {
     await rm(layerPath(home, "personal"), { force: true });
     return;

@@ -10,13 +10,14 @@
 
 import { execFile as execFileCallback } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { FREEFLOW_STORE_KIND, isFreeflowStore, STORE_MARKER, StoreError } from "./store.mjs";
 import { DEFAULT_TABLE, ROUTING_FILE } from "./routing5.mjs";
+import { memoryModeFor } from "./memory5.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -24,17 +25,11 @@ const execFile = promisify(execFileCallback);
  * What Git never syncs: temporary work, raw evidence, this machine's paths and sync state, live sessions, and the
  * event log at the store's root (a task folder's events/ holds the summaries a checkpoint commits).
  */
-export const STORE_IGNORE = [
-  "scratch/",
-  "evidence/**/raw/",
-  "local/",
-  "sessions/",
-  "/events/",
-  // The user's settings and the first-session marker are kept on this machine, not committed (D-060).
-  "/settings.json",
-  "/folders.json",
-  "/first-session.json",
-];
+export const STORE_IGNORE = ["scratch/", "evidence/**/raw/", "local/", "sessions/", "/events/"];
+/** The user's settings and the first-session marker in the home (D-060): the store commits them, so they sync. */
+const SETTINGS_FILES = ["settings.json", "folders.json", "first-session.json"];
+/** Lines an earlier build of the store wrote to .gitignore to keep the settings files out of the store's commits. */
+const RETIRED_SETTINGS_IGNORES = ["/settings.json", "/folders.json", "/first-session.json"];
 /** Files that only append merge by keeping both sides' lines. */
 export const STORE_ATTRIBUTES = [
   "history.md merge=union",
@@ -69,14 +64,14 @@ export function storeHome(explicit) {
 
 /**
  * What Freeflow keeps in its home before there is a store: live sessions (Messaging's registry) and session
- * summaries, the event log, and the settings (D-060). A store ignores them, so a home that holds only these has no store yet.
+ * summaries, and the event log. A store ignores them, so a home that holds only these has no store yet.
  */
-const BEFORE_STORE = ["sessions", "events", "settings.json", "folders.json", "first-session.json"];
+const BEFORE_STORE = ["sessions", "events"];
 
-/** Whether a home holds nothing, or nothing but Freeflow's own `sessions/` and `events/`. */
+/** Whether a home holds nothing, or nothing but Freeflow's own `sessions/`, `events/` and settings files. */
 async function isEmptyHome(path) {
   try {
-    return (await readdir(path)).every((entry) => BEFORE_STORE.includes(entry));
+    return (await readdir(path)).every((entry) => BEFORE_STORE.includes(entry) || SETTINGS_FILES.includes(entry));
   } catch (error) {
     if (error?.code === "ENOENT") return true;
     throw error;
@@ -94,15 +89,7 @@ async function setSessionsAside(home) {
     const folder = join(home, name);
     if (!existsSync(folder)) continue;
     const aside = `${home}.${name}-${process.pid}`;
-    // A file (the settings, D-060) moves whole; a folder moves with its entries, put back beside anything written meanwhile.
-    const folderIsDirectory = (await stat(folder)).isDirectory();
     await rename(folder, aside);
-    if (!folderIsDirectory) {
-      restores.push(async () => {
-        if (!existsSync(folder)) await rename(aside, folder);
-      });
-      continue;
-    }
     restores.push(async () => {
       await mkdir(folder, { recursive: true });
       for (const entry of await readdir(aside))
@@ -113,6 +100,23 @@ async function setSessionsAside(home) {
   return async () => {
     for (const restore of restores) await restore();
   };
+}
+
+/**
+ * Removes the lines an earlier build wrote to .gitignore to keep the settings files out of commits (D-060): the settings
+ * sync with the store now. A store that never had them is left as it is.
+ */
+async function dropRetiredSettingsIgnores(home) {
+  const path = join(home, ".gitignore");
+  let text;
+  try {
+    text = await readFile(path, "utf8");
+  } catch {
+    return;
+  }
+  const lines = text.split("\n");
+  const kept = lines.filter((line) => !RETIRED_SETTINGS_IGNORES.includes(line.trim()));
+  if (kept.length !== lines.length) await writeFile(path, kept.join("\n"));
 }
 
 /** Whether path holds only a clone of remote with no commits on either side yet. */
@@ -198,6 +202,27 @@ async function hasRemote(home) {
  *
  * @param {{ home?: string, url: string }} options
  */
+/**
+ * Turns task memory's sync on in this home (D-060, Setting 2) when the store is given a remote: the setup's "local +
+ * cloud" choice, which the user can reverse with memory.mode. Keeps the home's other settings; a settings file that is
+ * not a JSON object is left as it is, and the store stays local.
+ */
+async function turnSyncOn(home) {
+  const path = join(home, "settings.json");
+  let raw = {};
+  try {
+    raw = existsSync(path) ? JSON.parse(await readFile(path, "utf8")) : {};
+  } catch {
+    return false;
+  }
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const memory = raw.memory && typeof raw.memory === "object" && !Array.isArray(raw.memory) ? raw.memory : {};
+  raw.memory = { ...memory, mode: "sync" };
+  await mkdir(home, { recursive: true });
+  await writeFile(path, `${JSON.stringify(raw, null, 2)}\n`);
+  return true;
+}
+
 export async function addStoreRemote({ home: explicit, url }) {
   const home = storeHome(explicit);
   requireStore(home);
@@ -217,6 +242,8 @@ export async function addStoreRemote({ home: explicit, url }) {
       `${url} already holds commits; a local store moves only into an empty repository. To use a store already there, run store init --remote ${url} --home <another folder>`,
     );
   }
+  // Sync is on for a store that goes cloud (D-060): the setting is committed with the first push.
+  await turnSyncOn(home);
   const outcome = await push(home);
   if (!outcome.pushed) {
     await drop();
@@ -305,8 +332,11 @@ async function layOutOrJoin({ home, remote, name, email, adopted }) {
           `${remote} holds a repository that is not a Freeflow store (no ${STORE_MARKER} at its root)`,
         );
       await recordSync(home, { pushed: true, result: "joined" });
+      await turnSyncOn(home);
       return { home, remote, joined: true, author, pushed: true };
     }
+    // Written before the layout's own commit, so the first commit carries it.
+    await turnSyncOn(home);
     await layOut(home);
     const outcome = await push(home);
     await recordSync(home, { ...outcome, result: "created" });
@@ -345,6 +375,8 @@ export async function storeStatus({ home: explicit }) {
     home,
     remote,
     branch,
+    // The task memory mode (D-060, Setting 2): a local store with a remote stays unsynced, and says so.
+    memory: memoryModeFor({ home }),
     uncommitted,
     // As of the last fetch: status itself never reaches the network.
     unpushed: await count("@{upstream}..HEAD"),
@@ -580,6 +612,22 @@ async function rebaseOntoRemote(home, { resolved = false } = {}) {
 export async function syncStore({ home: explicit, message, pull = false, resolved = false, push = true }) {
   const home = storeHome(explicit);
   requireStore(home);
+  // Task memory's mode (D-060, Setting 2): off syncs nothing; local keeps the store on this machine (no push, no pull),
+  // and only sync takes the remote's changes and sends this store's.
+  const mode = memoryModeFor({ home });
+  if (mode === "off")
+    return {
+      home,
+      committed: false,
+      local: true,
+      pulled: false,
+      pushed: false,
+      reason: "task memory is off: nothing synced",
+    };
+  if (mode === "local") {
+    const committed = await commitChanges(home, message);
+    return { home, committed, local: true, pulled: false, pushed: false, reason: "task memory is local: not synced" };
+  }
   const conflict = await pendingConflict(home);
   if (conflict && !resolved)
     fail(
@@ -587,6 +635,7 @@ export async function syncStore({ home: explicit, message, pull = false, resolve
       `A conflict waits in ${conflict.paths.join(", ")}, with the remote's copies under ${CONFLICT_COPIES}/: merge what should stay into this store's files, then run store sync --resolved`,
     );
   if (resolved && !conflict) fail("no-conflict", "No conflict waits; run store sync");
+  await dropRetiredSettingsIgnores(home);
   const committed = await commitChanges(home, message);
   // Committed here only, as a harness layer does where the session's end leaves no time for the network (Codex's
   // SessionEnd); the next sync pushes it.

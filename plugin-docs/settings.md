@@ -29,7 +29,7 @@ Precedence is **session, then this folder, then everywhere, then the default**. 
 
 **Only on this harness** is a tick on any setting, not a layer. A ticked value is kept with the setting, naming the harness it is for (`claude-code`, `codex` or `pi`), and it wins over the layer's general value on that harness only. The other harnesses keep the general value. The ticks show in Developer settings.
 
-The repository's own `.freeflow/config.json` and `.freeflow/local.json` are no longer read. A setting still in one of them is named as ignored, with the reason, until `settings.mjs doctor --fix` moves it to This folder; a committed `config.json` is rewritten only with `doctor --fix --committed`, since it is shared.
+The repository's own `.freeflow/config.json` and `.freeflow/local.json` are no longer read. A setting still in one of them is named as ignored, with the reason, until `settings.mjs doctor --fix` moves it to This folder (the Freeflow home's `folders.json`); a committed `config.json` is rewritten only with `doctor --fix --committed`, since it is shared.
 
 ## Two views
 
@@ -39,8 +39,8 @@ Settings have two views over one table. The **normal view** has the rows a perso
 | --- | --- |
 | Freeflow | on or off: off, Freeflow was never there |
 | Task memory | On, this machine; On, with sync; Off |
-| Review (read only) | One reviewer and one round, from your rules or Freeflow's default |
-| Workers (read only) | Haiku by default, Opus when the agreement names it, from your rules or Freeflow's default |
+| Review (read only) | One reviewer and one round, at the rule's step (default: pull request); the row names the rule's source |
+| Workers (read only) | Haiku by default, Opus when the agreement names it; a project's or your delegation rules replace it, and the row names the source |
 | Status line | Claude Code only: the status line under the prompt |
 | Pane | Claude Code only: `/freeflow pane` |
 
@@ -65,7 +65,7 @@ With nothing changed, the normal view looks like this:
 Freeflow settings for /home/you/project (Claude Code), normal view
   Freeflow     on        default
   Task memory  On, this machine  default
-  Review       One reviewer and one round, from your rules or Freeflow's default  Freeflow's default
+  Review       One reviewer and one round, at pull request  Freeflow's default
   Workers      Haiku by default · Opus when the agreement names it  Freeflow's default
   Status line  on        default
   Pane         on        default
@@ -74,7 +74,7 @@ Change one: /freeflow settings <key> <value> [--folder | --session] [--harness-o
 
 The agent sees a change from its next step: a changed Runtime State line is given to it at once. Prompt text the agent already has stays until the next session start or compaction, and the command says so when you change a prompt. `/freeflow settings enabled off` stops the mod's task menu, notices, context rows, compaction, hold and store sync in this session, and turning it on again brings them back from the next event. A file you edit by hand counts from the next session start. The command runs without a model call, and shows in a cloud session too.
 
-**Off** means Freeflow was never there: it sends nothing, does nothing and writes nothing. On Claude Code and Codex, Freeflow cannot disable its own plugin, so an off row shows one line with the harness's own command to disable it: `/plugin disable freeflow` on Claude Code, and Codex's plugin command on Codex.
+**Off** means Freeflow was never there: it sends nothing, does nothing and writes nothing. On Claude Code and Codex, Freeflow cannot disable its own plugin, so an off row shows one line with the harness's own command to disable it: `claude plugin disable freeflow` on Claude Code, and on Codex the uninstall step in the install guide (`plugin-docs/getting-started.md`, unverified there).
 
 On Pi, `/freeflow settings` opens a screen with the same rows. Its tabs are **Session**, **This folder** and **Everywhere**, and `Tab` switches between them. A value a tab does not set reads `(inherited)`, with the line under the list saying which tab it comes from. Each change is written at once, and closing the screen after a change reloads the session so it applies. Codex has no settings command: the user asks the agent, which runs the settings script.
 
@@ -177,7 +177,7 @@ What some of them mean:
 - **Cost governor** (`governor.mode`) and **Cost cap** (`governor.cap`), on Claude Code: Freeflow's mod watches what the session spends against two caps and tells the agent before a limit surprises you. On a Claude subscription the cap is a daily pace for your seven-day window: what is left of it divided by the days until it resets, against what you used since this day of the window began. With a Working Record whose plan predicts its cost (Track Work's `estimate --plan`), the task's cap is the plan's high end, against the session's cost at API list price; with an API key, dollars are the only measure. At 80% of a cap the agent gets one row naming the cap, the use and when it resets; at 100%, under `warn` it gets one more, and under `stop` it is asked to stop at its next safe point, checkpoint and ask you how to go on. `governor.cap` sets one number in their place: on a subscription a percent of the seven-day window, in place of the daily pace; with an API key, dollars of the session's cost, in place of the task's cap. Each row is also written to the event log, and `events summary` lists them. Pi's screen has no row for these: Pi has no cost governor yet.
 - **Pane** (`pane.enabled`) and **Status line** (`pane.statusLine`) are Claude Code's own: Freeflow's mod keeps a status line under the prompt and a pane `/freeflow pane` opens, showing your tasks, the agents working on the held task, what the work costs and the decisions waiting on you (see [the pane](capabilities/pane.md)). Pi's screen has no row for them, since Pi's footer already shows the held task; change them with `/freeflow settings pane.enabled off` on Claude Code.
 
-A settings file with a key Freeflow does not know, or a value wrong for a key it knows, does not turn Freeflow off: the key or value is ignored, its default is used, and the footer and `/freeflow status` name it with its file. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting`, `scriptTransform` and `taskMemory` (with `processing` in the personal file). Pi's old Task Memory is gone, so a `taskMemory` key does nothing, and `/freeflow status` says so. `contextVirtualization` and `conversationHistory` belong to removed context features: a file that still has either ignores it, names it, and Freeflow stays on; delete the key, or let `doctor --fix` remove it.
+A settings file with a key Freeflow does not know, or a value wrong for a key it knows, does not turn Freeflow off: the key or value is ignored, its default is used, and the footer and `/freeflow status` name it with its file. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting`, `scriptTransform` and `taskMemory` (with `processing` in the Everywhere file). Pi's old Task Memory is gone, so a `taskMemory` key does nothing, and `/freeflow status` says so. `contextVirtualization` and `conversationHistory` belong to removed context features: a file that still has either ignores it, names it, and Freeflow stays on; delete the key, or let `doctor --fix` remove it.
 
 ## Example
 

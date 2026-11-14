@@ -74,6 +74,13 @@ import { PlanError } from "./lib/planner5.mjs";
 const ROOT_HELP =
   "--record is resolved against --root, which defaults to the current directory; an absolute --record path finds its own root.";
 
+/** What the status line says about task memory: the mode, and that a local store is not synced (D-060, Setting 2). */
+function memoryText(status) {
+  if (status.memory === "off") return "off, so nothing is synced";
+  if (status.memory === "local") return status.remote ? "local, not synced with its remote" : "local";
+  return "sync";
+}
+
 function usage() {
   return [
     "Usage:",
@@ -698,6 +705,7 @@ async function runStore(operation, options) {
       status.remote
         ? `Remote: ${status.remote} · branch ${status.branch ?? "none"}`
         : `Remote: none, a local store (store remote --url <url> makes it a cloud store) · branch ${status.branch ?? "none"}`,
+      `Task memory: ${memoryText(status)}`,
       `Not committed: ${status.uncommitted} path(s)`,
       `Not pushed: ${count(status.unpushed)} commit(s); not yet taken: ${count(status.behind)}, as of the last sync`,
       `Last sync: ${last}`,

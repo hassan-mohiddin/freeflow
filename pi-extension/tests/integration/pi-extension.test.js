@@ -722,7 +722,7 @@ test("Pi describes the mode-free Freeflow argument surface", () => {
     {
       value: "settings",
       label: "settings",
-      description: "Open settings; Tab switches Session, Personal and Repository",
+      description: "Open settings; Tab switches Session, This folder and Everywhere",
     },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
     {
@@ -731,8 +731,8 @@ test("Pi describes the mode-free Freeflow argument surface", () => {
       description: "What Freeflow can do in this session, and the event log",
     },
     { value: "compact", label: "compact", description: "Prepare, compact and recover now" },
-    { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
-    { value: "disable", label: "disable", description: "Disable Freeflow for this repository" },
+    { value: "enable", label: "enable", description: "Turn Freeflow on in every folder (Everywhere)" },
+    { value: "disable", label: "disable", description: "Turn Freeflow off in every folder (Everywhere)" },
   ]);
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("profile "), []);
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("efficiency "), []);
@@ -862,7 +862,11 @@ test("Pi leaves out a skill and a runtime prompt the user turned off, and tells 
     const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     const state = lastRuntimeState(providerContext.messages).content;
     // Turned off is not missing: Freeflow stays active.
-    assert.match(state, /Freeflow: active\nSkills off: `write-skill`; do not open or follow them\.\n/);
+    // A fresh home also gives the first-session line, which sits between the status and the skills line (N1).
+    assert.match(
+      state,
+      /Freeflow: active\n(?:Freeflow is installed[^\n]*\n)?Skills off: `write-skill`; do not open or follow them\.\n/,
+    );
     const run = context(cwd);
     await commands.find((command) => command.name === "write-skill").definition.handler("", run);
     assert.match(run.notifications.at(-1).message, /write-skill is turned off in \/freeflow settings/);
@@ -1181,7 +1185,7 @@ test("Pi local enablement overrides the repository master switch", async () => {
   }
 });
 
-test("Pi master Freeflow toggle makes features inactive and sends only Setup Freeflow", async () => {
+test("Pi master Freeflow toggle off sends no Runtime State and lists only Setup Freeflow (settled Setting 1)", async () => {
   const cwd = await configuredRepo({ enabled: false });
   try {
     const { handlers, activeToolNames } = loadExtension();
@@ -1193,12 +1197,30 @@ test("Pi master Freeflow toggle makes features inactive and sends only Setup Fre
     assert.equal(result.systemPrompt, "base prompt");
     assert.equal(result.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
     const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
-    assert.match(lastRuntimeState(providerContext.messages).content, /Freeflow: inactive/);
-    assert.doesNotMatch(
-      lastRuntimeState(providerContext.messages).content,
-      /Default mode|Active mode|Interaction Contract|Skills/,
-    );
+    // Off sends nothing (settled Setting 1): no Runtime State reaches the request, not even an "inactive" one.
+    assert.equal(lastRuntimeState(providerContext.messages), undefined);
     assert.ok(!activeToolNames().includes("freeflow_context"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi's first session gives the first-session line once, in the Runtime State, naming /freeflow settings (N1)", async () => {
+  const cwd = await configuredRepo({});
+  try {
+    const first = loadExtension();
+    const firstCtx = context(cwd);
+    await first.handlers.get("session_start")({ type: "session_start", reason: "startup" }, firstCtx);
+    const seen = await contextHandler(first.handlers)({ messages: [] }, firstCtx);
+    assert.match(JSON.stringify(lastRuntimeState(seen.messages)), /on Pi\./);
+    assert.match(JSON.stringify(lastRuntimeState(seen.messages)), /settings are `\/freeflow settings` on Pi/);
+
+    // A later session of the same user gets no first-session line: the marker says it was given.
+    const later = loadExtension();
+    const laterCtx = context(cwd);
+    await later.handlers.get("session_start")({ type: "session_start", reason: "startup" }, laterCtx);
+    const again = await contextHandler(later.handlers)({ messages: [] }, laterCtx);
+    assert.doesNotMatch(JSON.stringify(lastRuntimeState(again.messages) ?? {}), /first-session|settings are `/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -1253,6 +1275,24 @@ test("Pi enable and disable commands mutate only the master switch", async () =>
       false,
     );
     assert.equal(enableCtx.reloads.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi's write keeps the other harnesses' ticks in the layer it edits, and touches only the general value (D-060)", async () => {
+  await useFreeflowHome({
+    harness: { "claude-code": { prompts: { core: false } }, codex: { enabled: false } },
+  });
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-ticks-"));
+  try {
+    const { commands } = loadExtension();
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    await command.definition.handler("disable", context(cwd));
+    assert.deepEqual(JSON.parse(await readFile(everywhereFile(), "utf8")), {
+      enabled: false,
+      harness: { "claude-code": { prompts: { core: false } }, codex: { enabled: false } },
+    });
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

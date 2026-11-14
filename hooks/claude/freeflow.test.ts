@@ -1198,6 +1198,64 @@ test("enabled off: the mod does nothing but serve /freeflow, and turning it on b
   w.runs.length = 0;
   await $.turn.complete(turnEnd("answer"));
   expect(w.commands()).toEqual([]);
+  // Off writes nothing at the session's end either: no release, no sync (D-060, Setting 1).
+  w.status = held(at(-30), { changed: true });
+  w.eventRuns.length = 0;
+  await $.session.end({ reason: "clear", sessionId: SESSION, resume: { id: SESSION } });
+  expect(w.commands()).toEqual([]);
+  expect(w.eventRuns).toEqual([]);
+});
+
+// The settings list the mod reads for memory.mode and the other switches it acts on.
+const memoryList = (mode: string) => JSON.stringify({ settings: [{ key: "memory.mode", value: mode }], ignored: [] });
+
+test("task memory off: no menu, no task row or notice, no store sync or task release, and Claude's own compaction; the event log's last lines still go (D-060, Setting 2)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30), { changed: true });
+  w.answers["task here"] = { stdout: MENU };
+  w.settingsAnswers["list"] = { stdout: memoryList("off") };
+  await ready($);
+  expect(JSON.stringify((await start($)).additionalContext ?? [])).not.toContain("Freeflow task memory");
+  expect(w.commands()).toEqual([]);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  expect(appended(w).join("\n")).not.toContain("Freeflow task memory");
+  // The turn's start reads the session's status to find the home, and nothing else.
+  expect(w.commands()).toEqual(["session status"]);
+  w.runs.length = 0;
+  await step($, w, 190_000);
+  await $.turn.complete(turnEnd("answer"));
+  expect(noticesOf(w)).toEqual([]);
+  expect(rowsOf(w)).toEqual([]);
+  expect(w.commands()).toEqual([]);
+  const compacted = await $.session.compact({ trigger: "manual", messages: CONVERSATION } as any);
+  expect(compacted.messages[0].text).toBe("Claude's summary.");
+  await $.session.end({ reason: "clear", sessionId: SESSION, resume: { id: SESSION } });
+  expect(w.commands()).toEqual([]);
+  expect(w.events().map((line: any) => line.kind)).toContain("session.end");
+
+  // Memory on again with the command: the next turn's start brings the menu, once, as session start would have.
+  w.settingsAnswers["list"] = { stdout: memoryList("local") };
+  w.settingsAnswers["set memory.mode local --scope session "] = {
+    stdout: JSON.stringify({
+      key: "memory.mode",
+      label: "Task memory",
+      value: "local",
+      scope: "session",
+      hosts: "all",
+      state: [],
+      changed: [],
+      cleared: [],
+      notes: [],
+    }),
+  };
+  await freeflow($, "settings memory.mode local --session");
+  w.runs.length = 0;
+  await $.turn.start({ text: "again", turnId: "turn-2" } as any);
+  expect(
+    w
+      .commands()
+      .some((c: string) => c.startsWith("task here --cwd /work/widget") && c.endsWith(" --rules --take-back")),
+  ).toBe(true);
 });
 
 test("a settings script that fails leaves enabled as it was", async ($, on) => {

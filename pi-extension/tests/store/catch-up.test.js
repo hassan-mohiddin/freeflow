@@ -86,3 +86,20 @@ test("a session that started with Freeflow gets the menu from its start and no c
     },
   );
 });
+
+test("task memory off: no menu at the start or in a later run, mid-session or not (D-060, Setting 2)", async () => {
+  await fixture(
+    async () => [],
+    true,
+    async ({ session, requests }) => {
+      assert.equal(count(requests[0], MENU), 0);
+      assert.equal(count(requests[0], MID_SESSION), 0);
+      await session.prompt("Go on.");
+      await session.waitForIdle();
+      assert.equal(count(requests[1], MENU), 0);
+      assert.equal(count(requests[1], MID_SESSION), 0);
+    },
+    true,
+    { home, freeflowConfig: { memory: { mode: "off" } } },
+  );
+});

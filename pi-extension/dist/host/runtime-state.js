@@ -6,7 +6,6 @@ import { hasUsableMandatoryPrompts } from "./prompts.js";
  * versions saved in sessions.
  */
 const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
-/** The Runtime State line for a folder with no shared config file, word for word (D-045, round 3). */
 // Runtime State and bootstrap messages that older Freeflow versions sent or saved in sessions, under a feature's own
 // type (`freeflow-<feature>-runtime-state`, `freeflow-<feature>-bootstrap`) or as one `freeflow-bootstrap` naming its
 // components; they are never sent again.
@@ -51,6 +50,7 @@ export function freeflowRuntimeStateMessage(capabilityState, freeflowContext = u
       "This is extension-generated runtime state. Use it to interpret the stable Freeflow guidance.",
       "",
       `Freeflow: ${freeflowStatus}`,
+      ...(options.firstSession ? [options.firstSession] : []),
       ...(skillsOff ? [skillsOff] : []),
       ...(ignored ? [ignored] : []),
       "",
@@ -65,7 +65,7 @@ export function freeflowRuntimeStateMessage(capabilityState, freeflowContext = u
     details: { source: "provider-request-runtime-state" },
   };
 }
-function withoutFreeflowRuntimeState(messages) {
+export function withoutFreeflowRuntimeState(messages) {
   return (Array.isArray(messages) ? messages : []).filter((message) => !isRuntimeState(message));
 }
 function firstUserMessageIndex(messages) {
@@ -81,7 +81,10 @@ function insertRuntimeStateBeforeFirstUser(messages, runtimeState) {
 }
 export function withFreeflowRuntimeState(messages, capabilityState, freeflowContext = undefined, options = {}) {
   const source = Array.isArray(messages) ? messages : [];
-  const runtimeState = freeflowRuntimeStateMessage(capabilityState, freeflowContext, { skills: options.skills });
+  const runtimeState = freeflowRuntimeStateMessage(capabilityState, freeflowContext, {
+    skills: options.skills,
+    firstSession: options.firstSession,
+  });
   const runtimeStateMessages = source.filter(isRuntimeState);
   const withoutRuntimeState = withoutFreeflowRuntimeState(source);
   const expectedRuntimeStateIndex = firstUserMessageIndex(withoutRuntimeState);

@@ -146,18 +146,18 @@
       }
     },
     "setup-freeflow": {
-      "job": "Install or repair config-only repo activation, set defaults, and verify host runtime delivery separately.",
-      "positive_trigger": "Missing/invalid config, installation, cleanup of removed configuration keys, or host-loading diagnosis.",
+      "job": "Install or repair Freeflow's settings in the Freeflow home, with no file in the repository, set defaults, and verify host runtime delivery separately.",
+      "positive_trigger": "Installation, changing or repairing Freeflow's settings (Everywhere, This folder or a session), cleaning up removed configuration keys and legacy repository files, setting up the Freeflow store, or host-loading diagnosis.",
       "near_miss": "Host-specific capability tuning after valid setup.",
       "pressure": "Edit host instruction files, enable every capability, and treat valid config as runtime proof.",
-      "observable": "Minimal config-only diff, file-specific rejection of removed context keys without automatic rewriting, and separate activation/delivery status.",
+      "observable": "A settings change made through settings.mjs with its scope named, a doctor report that moves a legacy repository file's settings into This folder without rewriting the home's files, and separate activation/delivery status.",
       "stop_edge": "Invalid config or instruction conflict routes to Discuss Work; unavailable host adapter remains unconfirmed.",
       "neighbours": ["discuss-work"],
       "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Refuse activation with a removed context key in either config layer, tell the user which key/file to delete without rewriting config, and preserve the valid empty-config activation path.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/setup-freeflow/SKILL.md",
-      "source_sha256": "aeb42f8d8842377c4106d19203b59d28d9501cc510eee45d92a1a0f7d725f7d6",
+      "source_sha256": "f0e9e85828914c28019c0df7017b74a3b41db28a74ca329bd57ea6a755934fc7",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

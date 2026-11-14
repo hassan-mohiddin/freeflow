@@ -619,17 +619,18 @@ test("capabilities.mjs lists Codex's claims from the file the driver writes", ()
   }
 });
 
-test("with Freeflow off for the session's folder, only the claims are written, every one no, and nothing else runs", () => {
+test("with Freeflow off for the session's folder, nothing is written and nothing runs (D-060, Setting 1)", () => {
   const { hook, sessionFile, log, done } = setUp({ config: { enabled: false } });
   try {
     assert.equal(hook("SessionStart"), null);
-    const file = JSON.parse(readFileSync(sessionFile("capabilities.json"), "utf8"));
-    assert.equal(file.enabled, false);
-    assert.ok(Object.values(file.claims).every((claim) => claim.claim === "no"));
+    // Off is silent before the enabled check: no state, no claims, no cycle (B3).
+    for (const name of ["codex.json", "capabilities.json", "cycle.json"])
+      assert.equal(existsSync(sessionFile(name)), false, `${name} is not written`);
     hook("PostModelRequest", usage(210_000));
     assert.equal(hook("PostToolUse"), null);
     hook("Stop");
     assert.deepEqual(log(), []);
+    assert.equal(existsSync(sessionFile("codex.json")), false, "a later hook writes no state either");
   } finally {
     done();
   }

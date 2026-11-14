@@ -90,10 +90,16 @@ export async function keepStartLedger(home, session, at = new Date()) {
 }
 export class StoreLayer {
   run;
+  memory;
   state;
   touched = false;
-  constructor(run) {
+  /**
+   * `memory`: task memory as the session has it now. Off writes nothing and reads no task; `local` keeps the store on
+   * this machine, never pushed or pulled; `sync` pushes and pulls (D-060, Setting 2).
+   */
+  constructor(run, memory = () => "sync") {
     this.run = run;
+    this.memory = memory;
   }
   /** The session's state as last read; undefined before the first read. */
   current() {
@@ -110,7 +116,7 @@ export class StoreLayer {
   }
   /** A tool call this run may have changed the store with; the run's end reads the store again. */
   note(toolName, input, cwd) {
-    if (touchesStore(toolName, input, cwd, this.state?.home)) this.touched = true;
+    if (this.memory() !== "off" && touchesStore(toolName, input, cwd, this.state?.home)) this.touched = true;
   }
   /** Whether this run touched the store. */
   touchedThisRun() {
@@ -133,13 +139,15 @@ export class StoreLayer {
    * what is missing, if anything; undefined when there is nothing to say.
    */
   async start(cwd, scan) {
+    // Task memory off: no menu, no take-back, no pull (D-060, Setting 2).
+    if (this.memory() === "off") return undefined;
     const state = await this.refresh();
     if (!state) return undefined;
     const missing = (state.missing ?? []).map(
       (part) => `- Missing: ${part.what}. Fix (${part.by === "user" ? "the user" : "the agent"}): ${part.fix}.`,
     );
     if (!state.store) return missing.length ? `The store is not ready.\n${missing.join("\n")}` : undefined;
-    await this.run(["store", "sync", "--pull"]);
+    if (this.memory() === "sync") await this.run(["store", "sync", "--pull"]);
     const menu = await this.run([
       "task",
       "here",
@@ -159,10 +167,10 @@ export class StoreLayer {
    * undefined when this run did not touch the store.
    */
   async runEnded() {
-    if (!this.touched) return undefined;
+    if (!this.touched || this.memory() === "off") return undefined;
     this.touched = false;
     const state = await this.refresh();
-    if (state?.store && state.changed) await this.run(["store", "sync"]);
+    if (state?.store && state.changed && this.memory() === "sync") await this.run(["store", "sync"]);
     return state;
   }
   /** The text Freeflow's compaction installs: the held task's bundle, or the session summary's. */
@@ -191,12 +199,14 @@ export class StoreLayer {
    */
   async shutdown(options = {}) {
     const state = this.state;
-    if (!state?.store) return;
+    // Task memory off: nothing is released or synced (D-060, Setting 2); local releases but never pushes.
+    if (!state?.store || this.memory() === "off") return;
+    const sync = this.memory() === "sync";
     if (state.task && !options.reload) await this.run(["task", "release", "--ended"], { timeoutMs: 10_000 });
     // A worker session's end, or one holding claims, releases them and logs that it ended, then pushes (SPEC-009 5).
     else if (!options.reload && (state.delegation || state.claims)) {
       await this.run(["release", "--ended"], { timeoutMs: 10_000 });
-      await this.run(["store", "sync"], { timeoutMs: 10_000 });
-    } else if (state.changed || this.touched) await this.run(["store", "sync"], { timeoutMs: 10_000 });
+      if (sync) await this.run(["store", "sync"], { timeoutMs: 10_000 });
+    } else if ((state.changed || this.touched) && sync) await this.run(["store", "sync"], { timeoutMs: 10_000 });
   }
 }

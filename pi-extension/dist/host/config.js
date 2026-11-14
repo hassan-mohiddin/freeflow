@@ -148,6 +148,18 @@ function withSessionLayer(local, session) {
     merged[key] = isRecord(value) && isRecord(local[key]) ? withSessionLayer(local[key], value) : value;
   return merged;
 }
+/**
+ * A setting as the layers give it: the session's first, then this folder's, then everywhere's (D-060, the settled
+ * precedence). Undefined when no layer sets it.
+ */
+function layeredSetting(session, repository, personal, path) {
+  for (const layer of [session, repository, personal]) {
+    let at = layer;
+    for (const key of path) at = isRecord(at) ? at[key] : undefined;
+    if (at !== undefined) return at;
+  }
+  return undefined;
+}
 function resolveSessionCoreConfig(layers) {
   const configured = layers.coreConfig;
   const sources = layers.sources;
@@ -186,6 +198,13 @@ export async function readCapabilityState(cwd, host = undefined) {
   const sessionLocalConfig = withSessionLayer(localConfig, sessionLayer);
   const toolExecution = resolveToolExecutionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const compaction = resolveCompactionConfig(repositoryConfig, sessionLocalConfig, enabled);
+  // compaction.withoutTask (D-060): Freeflow's compaction with no task held; on unless set to false.
+  const withoutTask =
+    layeredSetting(sessionLayer, repositoryConfig, localConfig, ["compaction", "withoutTask"]) !== false;
+  // memory.mode (D-060, Setting 2): off covers the task store only; sync pushes and pulls, local never does.
+  const memoryValue = layeredSetting(sessionLayer, repositoryConfig, localConfig, ["memory", "mode"]);
+  const memoryMode =
+    typeof memoryValue === "string" && ["local", "sync", "off"].includes(memoryValue) ? memoryValue : "local";
   const messaging = resolveMessagingConfig(repositoryConfig, sessionLocalConfig, enabled);
   // Not capabilities: the user's choices for the runtime prompts and the skills, on every host.
   const prompts = selectedRuntimePrompts(repositoryConfig, sessionLocalConfig);
@@ -213,7 +232,8 @@ export async function readCapabilityState(cwd, host = undefined) {
     configSources: effectiveCore.sources,
     enabled,
     toolExecution,
-    compaction,
+    compaction: { ...compaction, withoutTask },
+    memory: { mode: memoryMode, effective: enabled && memoryMode !== "off", sync: enabled && memoryMode === "sync" },
     // Pi's Task Memory is gone: a config that still sets it loads, and /freeflow status says so (P6).
     taskMemoryRetired: repositoryConfig.taskMemory !== undefined || localConfig.taskMemory !== undefined,
     messaging,

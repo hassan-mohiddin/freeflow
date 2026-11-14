@@ -413,10 +413,8 @@ test("Runtime State remains present while Freeflow is disabled without optional 
     assert.equal(before.message, undefined);
 
     const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
-    const runtimeState = lastRuntimeState(providerContext.messages);
-    assert.ok(runtimeState);
-    assert.match(runtimeState.content, /Freeflow: inactive/);
-    assert.doesNotMatch(runtimeState.content, /Default mode|Active mode|Interaction Contract|Skills/);
+    // Off sends nothing (settled Setting 1): no Runtime State reaches the request.
+    assert.equal(lastRuntimeState(providerContext.messages), undefined);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.equal(resources.skillPaths.length, 1, "only Setup Freeflow while inactive");

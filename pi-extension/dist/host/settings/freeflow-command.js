@@ -1,8 +1,6 @@
 import {
   readCapabilityState,
-  readFreeflowConfig,
   readFreeflowConfigLayers,
-  readFreeflowLocalConfig,
   resetSessionOverrides,
   setSessionCoreOverride,
 } from "../config.js";
@@ -18,7 +16,7 @@ import {
   sectionEnabled,
 } from "../config-validation.js";
 import { freeflowStatusText } from "../status.js";
-import { freeflowHome, writeLayer } from "../config-store.js";
+import { freeflowHome, readConfigFile, writeLayer } from "../config-store.js";
 import { PiSettingsComponent } from "./settings-view.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG } from "../../tool-execution/config.js";
 import { DEFAULT_COMPACTION_ENABLED } from "../../compaction/config.js";
@@ -33,8 +31,8 @@ const LOCAL_INHERIT = "inherit";
 /** How a value's source reads in the settings screen. */
 const SOURCE_LABELS = {
   builtin: "default",
-  local: "personal",
-  repository: "repository",
+  local: "This folder",
+  repository: "Everywhere",
   session: "session",
 };
 function isRecord(value) {
@@ -320,7 +318,7 @@ const GATE_DESCRIPTIONS = {
   warn: "The agent reads a warning with the rule and the way through, and the event log counts it.",
   block: "The call is refused with the same text; a delivery step becomes a question where you can answer.",
 };
-/** A choice among fixed values in the Session scope; inherit follows the personal and repository settings. */
+/** A choice among fixed values in the Session scope; inherit follows This folder and Everywhere. */
 function createSessionChoiceItem(options) {
   const override = options.sessionOverrides[options.key];
   const set = typeof override === "string" && options.values.includes(override);
@@ -640,8 +638,7 @@ function sessionFreeflowItems(state, rawConfig, localConfig) {
       {
         id: "freeflow.session.reset",
         label: "Reset overrides",
-        description:
-          "Clear every session override above, so the session follows personal and repository settings again.",
+        description: "Clear every session override above, so the session follows This folder and Everywhere again.",
         kind: "enum",
         value: "available",
         values: ["reset"],
@@ -1049,7 +1046,8 @@ async function updateConfig(cwd, item, value, scope = item.configScope ?? "repos
     if (!item.path?.length) {
       throw new Error(`${item.label} is a settings group, not a writable setting.`);
     }
-    const current = await readFreeflowLocalConfig(cwd);
+    // The raw layer, so the other harnesses' ticks (`harness`) survive the write; only the general value changes (D-060).
+    const current = readConfigFile(cwd, "personal", freeflowHome(process.env)).value;
     const next = cloneJson(current);
     const configValue = configValueForChoice(item, value);
     const previousValue = getPath(current, item.path);
@@ -1062,7 +1060,7 @@ async function updateConfig(cwd, item, value, scope = item.configScope ?? "repos
     await writeLayer(cwd, "personal", next, freeflowHome(process.env));
     return;
   }
-  const current = await readFreeflowConfig(cwd);
+  const current = readConfigFile(cwd, "repository", freeflowHome(process.env)).value;
   const next = cloneJson(current);
   setConfigValue(next, item, configValueForChoice(item, value));
   await writeLayer(cwd, "repository", next, freeflowHome(process.env));
@@ -1375,7 +1373,7 @@ const SCOPES = [
   {
     id: "session",
     label: "Session",
-    summary: "This Pi session only, not saved to a file. Overrides personal and repository values.",
+    summary: "This Pi session only, not saved to a file. Overrides This folder and Everywhere.",
   },
   {
     id: "local",
@@ -1495,13 +1493,14 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, diagnost
     return { changed: false, reloaded: false, error: "invalid_action" };
   }
   let initialScope = "local";
+  // The words a person types are folder and everywhere; the older words stay as aliases (N-item: no published names).
   if (actionValue === "session") {
     initialScope = "session";
-  } else if (["repo", "repository", "shared"].includes(actionValue)) {
+  } else if (["everywhere", "repo", "repository", "shared"].includes(actionValue)) {
     initialScope = "repository";
-  } else if (actionValue && !["local", "personal"].includes(actionValue)) {
+  } else if (actionValue && !["folder", "local", "personal"].includes(actionValue)) {
     ctx.ui.notify(
-      "Usage: /freeflow settings, /freeflow settings session, /freeflow settings local, or /freeflow settings repo",
+      "Usage: /freeflow settings, /freeflow settings session, /freeflow settings folder, or /freeflow settings everywhere",
       "warning",
     );
     return { changed: false, reloaded: false, error: "invalid_scope" };

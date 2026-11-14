@@ -134,7 +134,6 @@ export function readConfig(root, { session = null, env = process.env, harness = 
     home,
     enabled: core.enabled,
     ignored,
-    memoryMode: resolveLayeredValue(repositoryValues.memory ?? {}, local.memory ?? {}, "mode", "local"),
     prompts: selectedRuntimePrompts(repositoryValues, local),
     skillsOff: skillsOff(repositoryValues, local),
   };

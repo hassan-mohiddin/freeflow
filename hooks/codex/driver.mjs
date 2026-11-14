@@ -570,15 +570,17 @@ async function sessionStart(ctx) {
  */
 async function taskMemoryAtStart(ctx, root, parts) {
   const switches = await resolveSwitches(root, ctx);
+  // Off writes nothing, not even the state or the claims, before this check (D-060, Setting 1).
+  if (!switches.enabled) return;
   const { window, limit } = codexWindow(ctx.cwd, ctx.input.model, ctx.env);
   ctx.window = window;
   ctx.state = updateState(ctx, { ...switches, window, limit, model: ctx.input.model ?? null, store: false });
-  // Off, no line is kept (emit asks the state) and every claim is no.
   emit(ctx, "session.start", {
     source: ["startup", "resume", "clear", "fork"].includes(ctx.input.source) ? ctx.input.source : "startup",
   });
   writeCapabilities(ctx, switches);
-  if (!switches.enabled || switches.memory === "off") return;
+  // Task memory off: no cycle, no store, no menu (D-060, Setting 2).
+  if (switches.memory === "off") return;
   const kept = readCycle(ctx);
   writeCycle(ctx, { cycle: kept.cycle, startedAt: Date.now(), notice: null, row: 0 });
   rmSync(fileOf(ctx, "due.json"), { force: true });
@@ -1020,11 +1022,10 @@ export async function handle(event, input, env = process.env) {
     // No session start ran (its hook not trusted, say): the switches are read once here.
     if (!ctx.state && event !== "SessionStart") {
       const shared = await import(pathToFileURL(join(PLUGIN_ROOT, "hooks/shared/runtime-context.mjs")).href);
-      ctx.state = updateState(ctx, {
-        ...(await resolveSwitches(shared.findWorkspaceRoot(ctx.cwd), ctx)),
-        store: false,
-      });
-      if (ctx.state.enabled === false) return null;
+      const switches = await resolveSwitches(shared.findWorkspaceRoot(ctx.cwd), ctx);
+      // Off writes nothing, not even this session's state (D-060, Setting 1): the hook stops here.
+      if (!switches.enabled) return null;
+      ctx.state = updateState(ctx, { ...switches, store: false });
     }
     ctx.window = ctx.state?.window ?? null;
     return await handler(ctx);
