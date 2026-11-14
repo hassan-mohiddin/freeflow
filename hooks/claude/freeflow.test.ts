@@ -83,6 +83,8 @@ function world(on: any) {
     registered: [] as any[],
     env: {} as Record<string, string | undefined>,
     sent: [] as any[],
+    // Claude's own compaction is skipped when this is set: the mod's result then takes no message.
+    skipCompaction: false as boolean,
     submitted: [] as string[],
     commandsRun: [] as string[],
     compactions: [] as any[],
@@ -259,6 +261,7 @@ function world(on: any) {
   });
   on("session.compact", (_: any, e: any) => {
     w.compactions.push(e);
+    if (w.skipCompaction) return { skip: "the test skips this compaction" };
     return { messages: [{ role: "user", text: "Claude's summary.", toolUses: [] }] };
   });
   on("session.start", (_: any, e: any) => ({ cwd: e.cwd }));
@@ -325,6 +328,8 @@ const start = ($: any, fields: object = {}) =>
 const appended = (w: any) => w.session.appended().map((row: any) => row.message.content[0].text as string);
 const noticesOf = (w: any) => appended(w).filter((text) => text.includes("Keep working until a safe point"));
 const rowsOf = (w: any) => appended(w).filter((text) => text.includes("the checkpoint notice comes at"));
+/** The sent lines of one source, as the session flushed them (the text Freeflow sent the model). */
+const sentOf = (w: any, what: string) => w.events().filter((line: any) => line.kind === "sent" && line.what === what);
 
 test("session start: with a store, pull it, give the scripts the window and the agent the menu; otherwise only what is missing", async ($, on) => {
   const w = world(on);
@@ -1040,6 +1045,9 @@ test("the store is the agent's to keep: file tools inside it are allowed where t
   // A deny stands, inside the store too.
   w.verdict = { decision: "deny", rule: "Edit(/store/**)" };
   expect((await check("Edit", { file_path: record })).decision).toBe("deny");
+  // The allow's reason is the user's to read, not the model's: no sent line keeps it (SPEC-006, sent).
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "store-allow")).toEqual([]);
 });
 
 const ready = ($: any) => $.session.start({ cwd: "/work/widget", surface: null, isInteractive: false });
@@ -2149,4 +2157,54 @@ test("the pinned guidance every request carries is kept as a sent line once per 
   const pinned = w.events().filter((line: any) => line.kind === "sent" && line.what === "pinned-guidance");
   expect(pinned.map((line: any) => line.text)).toEqual([sections[0]]);
   expect(pinned[0].text).toContain("CORE GUIDANCE");
+});
+
+test("the classic session start's guidance is kept as one sent line with its full text, and none while the guidance is pinned (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  w.answers["task here"] = { stdout: MENU };
+  w.parts = [SECTION];
+  w.hookContext = [SECTION];
+  // Pinned at a fresh start: the hooks' copy is left out of the conversation, so no line keeps it.
+  await start($);
+  // A thread the ledger does not show pinned: the hooks' copy is what the model reads, and its text is the line.
+  w.stored.delete(LEDGER);
+  w.ledgers.clear();
+  expect((await start($, { source: "resume" })).additionalContext).toEqual([SECTION, `Freeflow task memory:\n${MENU}`]);
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "session-start").map((line: any) => line.text)).toEqual([SECTION]);
+});
+
+test("a renderer that fails at a session start leaves the hooks' texts in the conversation, and each is kept as a session-start line (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  w.answers["task here"] = { stdout: MENU };
+  w.hookContext = ["CORE GUIDANCE", "THE CONTRACT"];
+  w.sectionAnswer = { exitCode: 1, stderr: "Error: no prompts\n" };
+  expect((await start($)).additionalContext).toEqual([
+    "CORE GUIDANCE",
+    "THE CONTRACT",
+    `Freeflow task memory:\n${MENU}`,
+  ]);
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "session-start").map((line: any) => line.text)).toEqual(["CORE GUIDANCE", "THE CONTRACT"]);
+});
+
+test("a compaction that skips takes no message, so its error is no sent line; one that takes the message keeps its error (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.answers["view bundle --record"] = { exitCode: 1, stderr: "Error: Future Work holds only proposed Slices.\n" };
+  w.status = store();
+  await start($);
+  await w.clock.advance(2 * 60_000);
+  w.status = held(at(1));
+  w.skipCompaction = true;
+  expect((await $.session.compact({ trigger: "manual", messages: CONVERSATION })).skip).toBe(
+    "the test skips this compaction",
+  );
+  w.skipCompaction = false;
+  const kept = await $.session.compact({ trigger: "manual", messages: CONVERSATION });
+  const error = kept.messages?.[1]?.text as string;
+  expect(error).toContain("Freeflow could not make widget/task-001's bundle: Future Work holds only proposed Slices.");
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "compaction-error").map((line: any) => line.text)).toEqual([error]);
 });

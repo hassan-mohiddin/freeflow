@@ -128,10 +128,13 @@ export function withFreeflowRuntimeState(
     force?: boolean;
     anchor?: RuntimeStateAnchor;
     skills?: readonly string[];
+    // The message the caller built for this request, so the caller can log the same text it placed.
+    runtimeState?: ReturnType<typeof freeflowRuntimeStateMessage>;
   } = {},
 ) {
   const source = Array.isArray(messages) ? messages : [];
-  const runtimeState = freeflowRuntimeStateMessage(capabilityState, freeflowContext, { skills: options.skills });
+  const runtimeState =
+    options.runtimeState ?? freeflowRuntimeStateMessage(capabilityState, freeflowContext, { skills: options.skills });
   const runtimeStateMessages = source.filter(isRuntimeState);
   const withoutRuntimeState = withoutFreeflowRuntimeState(source);
   const expectedRuntimeStateIndex = firstUserMessageIndex(withoutRuntimeState);

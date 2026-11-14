@@ -162,23 +162,31 @@ export class Inbound {
   }
 
   private send(notice: Notice): Promise<void> {
-    // Every notice the model reads is kept as its text, whatever wakes or waits for the run (the event log, `sent`).
-    this.host.logSent?.(sentWhatOf(notice.customType, notice.content), notice.content);
     const message = { customType: notice.customType, content: notice.content, display: true, details: notice.details };
     const wake = notice.wake && this.host.canWake?.() !== false;
-    // A send that throws at once is caught like one that rejects later: a notice never breaks its source.
+    // A send that throws at once is caught like one that rejects later: a notice never breaks its source. Its text is
+    // kept (the event log, `sent`) only once the send is accepted: a notice that did not reach the model is no line.
     const asMessage = () =>
       new Promise((resolve) =>
         resolve(
           this.host.sendMessage(message, wake ? { triggerTurn: true, deliverAs: "steer" } : { triggerTurn: false }),
         ),
       ).then(
-        () => {},
+        () => this.keep(notice),
         () => {},
       );
     // Always Freeflow's own message, never the user's: the run it starts keeps Freeflow's system sections
     // (host/section-keeper.ts); Pi #10267 once made idle notices go out as user messages.
     return asMessage();
+  }
+
+  /** The notice's text as the event log keeps it. A log that fails keeps nothing, and the notice stays sent. */
+  private keep(notice: Notice): void {
+    try {
+      this.host.logSent?.(sentWhatOf(notice.customType, notice.content), notice.content);
+    } catch {
+      // The log fails open, as every sensor does: the notice has reached the model already.
+    }
   }
 }
 
