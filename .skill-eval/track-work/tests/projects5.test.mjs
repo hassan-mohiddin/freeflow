@@ -752,10 +752,13 @@ test("task create --short names the task in project list --json and session stat
     assert.equal(tooLong.status, 1);
     assert.match(tooLong.stderr, /24 characters at most/);
     ok(cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001", "--short", "Q3"]));
-    ok(cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-002", "--short", "Draft"]));
+    // A task this session does not hold is not its to write: refused, and nothing changes.
+    const notHeld = cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-002", "--short", "Draft"]);
+    assert.equal(notHeld.status, 1);
+    assert.match(notHeld.stderr, /does not hold widget\/task-002/);
     const named = JSON.parse(ok(cli("aaaaaaaa-1", ["project", "list", "--json"]))).projects[0].tasks;
     assert.deepEqual(Object.fromEntries(named.map((task) => [task.id, task.short ?? null])), {
-      "widget/task-002": "Draft",
+      "widget/task-002": null,
       "widget/task-001": "Q3",
     });
     ok(cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001", "--short", ""]));

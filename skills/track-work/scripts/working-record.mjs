@@ -361,7 +361,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task set-short",
-    "Usage: task set-short --id <ID> --short <name>\nSets a task's short name, 24 characters at most, in the store's record header; --short \"\" removes it. Any session may set it, as it may read any task; the store's sync commits and pushes the change.",
+    "Usage: task set-short --id <ID> --short <name>\nSets a task's short name, 24 characters at most, in the store's record header; --short \"\" removes it. Only the session that holds the task sets it; the store's sync commits and pushes the change.",
   ],
   [
     "task set-budget",

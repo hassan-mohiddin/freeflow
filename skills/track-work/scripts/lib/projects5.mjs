@@ -561,6 +561,13 @@ export async function setTaskShort(home, id, short, identity) {
   const problem = short ? shortProblem(short) : null;
   if (problem) fail(`--short: ${problem}`);
   const task = findTask(home, id);
+  // A session writes only the task it holds (Track Work's Rules), the short name included.
+  if (task.hold?.short !== identity.short)
+    fail(
+      task.hold
+        ? `This session does not hold ${id}; it is ${holderText(task)}. Only its holder sets its short name.`
+        : `This session does not hold ${id}: take it with task take --id ${id}, then set its short name.`,
+    );
   const path = join(task.dir, "record.md");
   const text = readFileSync(path, "utf8");
   const lines = text.split("\n");
