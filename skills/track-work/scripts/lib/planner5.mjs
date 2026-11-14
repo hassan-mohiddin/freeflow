@@ -9,6 +9,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { HISTORY_FILE, fieldText, filesIn, parseHistory5, parseRecord5 } from "./record5.mjs";
 import { PRICES, parseMeasure } from "./measure5.mjs";
 import { noticePoint } from "./notice5.mjs";
+import { GATES } from "./gates5.mjs";
 import { freeflowStoreOf, isFreeflowStore } from "./store.mjs";
 
 /** A pool stands for a prediction only with at least this many measured Slices, or sized ones for a per-file rate. */
@@ -818,8 +819,10 @@ function gateCounts(taskDir) {
       const gates = JSON.parse(readFileSync(join(folder, name), "utf8"))?.gates;
       if (!gates || typeof gates !== "object") continue;
       found ??= {};
+      // The gates still in Freeflow, and the asked-or-refused count; the three removed gates' counts (D-058) are not summed.
       for (const [gate, value] of Object.entries(gates))
-        if (Number.isInteger(value)) found[gate] = (found[gate] ?? 0) + value;
+        if (Number.isInteger(value) && (GATES.includes(gate) || gate === "blocked"))
+          found[gate] = (found[gate] ?? 0) + value;
     } catch {
       // A summary that cannot be read counts nothing.
     }

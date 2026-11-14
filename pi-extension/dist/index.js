@@ -765,22 +765,14 @@ export default function freeflow(pi) {
       /working-record\.mjs\s+(checkpoint|task\s+(release|switch))\b/.test(String(event.input?.command ?? ""))
     )
       await events.flush();
-    // The gates (SPEC-008 4.3), before Freeflow's other checks: warn adds a row to the result, block refuses, and a
-    // delivery step under block asks the person where Pi has a screen.
+    // The gate (SPEC-008 4.3), before Freeflow's other checks: warn adds a row to the result, block refuses.
     if (capability?.gates) {
-      const gated = gates.check(event, ctx.cwd, capability.gates, ctx.hasUI === true);
+      const gated = gates.check(event, ctx.cwd, capability.gates);
       if (gates.missingOnce()) events.freeflow("gates", "no gate state for this session");
       for (const fired of gated.fired) events.emit("gate", gates.eventFields(fired, event.toolName));
       if (gated.kind === "block") {
         events.sent("gate", gated.reason);
         return { block: true, reason: gated.reason };
-      }
-      if (gated.kind === "ask") {
-        const yes = await Promise.resolve(ctx.ui.confirm("Freeflow gate", gated.reason)).catch(() => false);
-        if (!yes) {
-          events.sent("gate", gated.reason);
-          return { block: true, reason: gated.reason };
-        }
       }
     }
     if (!toolExecutionEffective()) return undefined;

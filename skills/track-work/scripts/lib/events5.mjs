@@ -36,12 +36,13 @@ const boolean = (value) => typeof value === "boolean";
 const nullable = (check) => (value) => value === null || check(value);
 const amount = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
 /**
- * The cost governor's caps (SPEC-014, section 2.3): the seven-day window's daily pace, the seven-day window at the
- * `governor.cap` percent, and the task's cost (its plan's high end, or `governor.cap` dollars). Its responses: a row at
- * 80% of a cap; at 100% a notice under `governor.mode` warn, the ask to stop under stop.
+ * The cost governor was removed (D-058). Its caps and responses stay in the schema so an older log's `governor` lines
+ * still read; nothing writes or summarizes them now.
  */
 export const GOVERNOR_CAPS = ["pace", "window", "task"];
 export const GOVERNOR_RESPONSES = ["row", "notice", "ask"];
+/** The gates a `gate` line may name: the three removed in D-058 (agreement, slice, delivery) stay readable in an older log. */
+export const GATE_LINE_NAMES = ["agreement", "slice", "delivery", "delegation"];
 /**
  * The text Freeflow itself put in front of the model, by the send point's source (a `sent` line's `what`). A driver
  * names the source; `events sent` lists them and the summary counts them. Added in schema v1 (additive).
@@ -65,6 +66,7 @@ export const SENT_WHATS = [
   "waits",
   "worker-notice",
   "stop-block",
+  // "governor" is read from an older log only: the cost governor was removed (D-058).
   "governor",
   "settings",
   "pane",
@@ -122,7 +124,7 @@ export const KINDS = {
   "agent.stop": { blocked: [boolean] },
   // SPEC-008, additive to v1 (T3): a gate that did not allow a call, and an agreement `agree` recorded.
   gate: {
-    gate: [oneOf(GATES), true],
+    gate: [oneOf(GATE_LINE_NAMES), true],
     decision: [oneOf(["warn", "ask", "block"]), true],
     tool: [text, true],
     rule: [text],
@@ -140,7 +142,7 @@ export const KINDS = {
     context: [count],
     point: [count],
   },
-  // The cost governor: a cap, the use measured against it (both in percent of a window or in dollars), and its response.
+  // The cost governor (removed in D-058): a line an older log holds stays valid; no driver writes one now.
   governor: {
     cap: [oneOf(GOVERNOR_CAPS), true],
     unit: [oneOf(["percent", "usd"]), true],
@@ -446,7 +448,6 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
   let toolCalls = 0;
   let freeflowCalls = 0;
   let dropped = 0;
-  const governor = [];
   let harness = null;
   const gates = Object.fromEntries(GATES.map((gate) => [gate, 0]));
   let gatesBlocked = 0;
@@ -493,10 +494,7 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       workers.stopped += 1;
       if (line.blocked) workers.blocked += 1;
     } else if (line.kind === "freeflow" && line.what === "dropped") dropped += line.dropped ?? 0;
-    else if (line.kind === "governor") {
-      const { ts, cap, unit, limit, use, response } = line;
-      governor.push({ ts, cap, unit, limit, use, response });
-    } else if (line.kind === "gate" && line.gate in gates) {
+    else if (line.kind === "gate" && line.gate in gates) {
       gates[line.gate] += 1;
       if (line.decision !== "warn") gatesBlocked += 1;
     } else if (line.kind === "agreement") agreements += 1;
@@ -534,7 +532,6 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       share: toolCalls ? Math.round((freeflowCalls / toolCalls) * 1000) / 1000 : 0,
     },
     dropped,
-    ...(governor.length ? { governor } : {}),
     gates: { ...gates, blocked: gatesBlocked },
     agreements,
     // The counts of the text Freeflow sent to the model, by source (the text itself is in the log, never here).
@@ -544,15 +541,6 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
     },
     ...(checkpoints.length ? { toCheckpoint: checkpoints } : {}),
   };
-}
-
-const CAP_NAMES = { pace: "the daily pace", window: "the seven-day window", task: "the task's cost" };
-const RESPONSE_NAMES = { row: "a row", notice: "a notice", ask: "the ask to stop" };
-
-/** One governor line as `events summary` prints it. */
-function governorLine(each) {
-  const figure = (value) => (each.unit === "usd" ? `$${value.toFixed(2)}` : `${Math.round(value * 10) / 10}%`);
-  return `  ${each.ts}: ${CAP_NAMES[each.cap] ?? each.cap} at ${figure(each.use)} of ${figure(each.limit)}, ${RESPONSE_NAMES[each.response] ?? each.response}`;
 }
 
 /** A summary as the few lines `events summary` prints. */
@@ -593,9 +581,6 @@ export function renderSummary(summary) {
       : []),
     ...(summary.agreements ? [`Agreements recorded with agree: ${summary.agreements}`] : []),
     ...(summary.dropped ? [`Dropped: ${summary.dropped} line(s) were not written`] : []),
-    ...(summary.governor?.length
-      ? [`Governor: ${summary.governor.length} response(s)`, ...summary.governor.map(governorLine)]
-      : []),
   ];
   return `${lines.join("\n")}\n`;
 }

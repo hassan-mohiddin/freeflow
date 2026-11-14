@@ -182,8 +182,10 @@ test("a change prints the Runtime State lines it changed, and the prompt note fo
   assert.match(prompt.stdout, /Prompt text already given in this session stays/);
   const pi = f.run("set", "compaction.enabled", "off", "--scope", "personal");
   assert.match(pi.stdout, /Only Pi acts on this setting\./);
+  // The cost governor and the agreement, Slice and delivery gates were removed (D-058): their keys are not settings.
   const governor = f.run("set", "governor.mode", "stop", "--scope", "personal");
-  assert.match(governor.stdout, /Only Claude Code's mod acts on this setting\./);
+  assert.equal(governor.status, 1);
+  assert.match(governor.stderr, /unknown setting governor\.mode/);
 });
 
 test("refusals name what is wrong and write nothing", async (t) => {
@@ -205,8 +207,8 @@ test("refusals name what is wrong and write nothing", async (t) => {
     [["set", "review.unit", "manual"], /set needs --scope/],
     [["set", "review.unit", "manual", "--scope", "global"], /--scope must be repository, personal or session/],
     [["set", "review.model", "two\nlines", "--scope", "personal"], /review\.model takes a name on one line/],
-    [["set", "governor.cap", "0", "--scope", "personal"], /governor\.cap takes a number above 0, not 0/],
-    [["set", "governor.cap", "lots", "--scope", "personal"], /governor\.cap takes a number above 0, not lots/],
+    [["set", "gates.slice", "block", "--scope", "personal"], /unknown setting gates\.slice/],
+    [["set", "gates.delegation", "blok", "--scope", "personal"], /gates\.delegation takes off, warn, block, not blok/],
   ];
   for (const [args, message] of cases) {
     const result = f.run(...args);
@@ -254,6 +256,7 @@ test("doctor names each problem with its fix, and changes nothing without --fix"
   assert.match(result.stdout, /\.freeflow\/config\.json \(Repository\): 5 problems\./);
   assert.match(result.stdout, /- review\.mode: "off"\n\s+\+ review\.unit: "manual"/);
   assert.match(result.stdout, /- cognitiveRouting: \{"enabled":true\}\n\s+\+ \(removed/);
+  assert.match(result.stdout, /gates\.slice: the Slice gate was removed from Freeflow/);
   assert.match(result.stdout, /doctor --fix/);
   assert.equal(await readFile(join(f.root, ".freeflow/config.json"), "utf8"), shared);
 });

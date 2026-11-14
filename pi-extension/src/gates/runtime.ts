@@ -5,17 +5,16 @@ import { freeflowHome } from "../messaging/registry.js";
 import type { GateSettings } from "../host/config-validation.js";
 
 /**
- * Freeflow's gates on Pi (SPEC-008 4.3), as Claude Code's mod runs them: before a tool call, Track Work's
- * `lib/gates5.mjs` decides it against the agreement, Slice, delivery and delegation gates, from the session's gate
- * state (`<FREEFLOW_HOME>/sessions/<session>/gates.json`), which this keeps in memory: read at session start and after
- * the agent runs Track Work's script, never per call (performance rule R-1). Under warn the call runs and its result
- * gains one row per gate per turn, as Tool Execution's notices do; under block it is refused with the same text, and a
- * delivery step asks the person where Pi has a screen.
+ * Freeflow's gate on Pi (SPEC-008 4.3), as Claude Code's mod runs it: before a tool call, Track Work's `lib/gates5.mjs`
+ * decides it against the delegation gate, from the session's gate state (`<FREEFLOW_HOME>/sessions/<session>/gates.json`),
+ * which this keeps in memory: read at session start and after the agent runs Track Work's script, never per call
+ * (performance rule R-1). Under warn the call runs and its result gains one row per gate per turn, as Tool Execution's
+ * notices do; under block it is refused with the same text. The agreement, Slice and delivery gates were removed (D-058).
  */
 
 export interface Fired {
   gate: string;
-  decision: "warn" | "ask" | "block";
+  decision: "warn" | "block";
   reason: string;
   way: string;
   rule: string;
@@ -23,7 +22,7 @@ export interface Fired {
 
 interface Decision {
   gate: string | null;
-  decision: "allow" | "warn" | "ask" | "block";
+  decision: "allow" | "warn" | "block";
   fired: Fired[];
 }
 
@@ -53,7 +52,7 @@ function writtenPaths(toolName: string, input: any, cwd: string): string[] {
 export type GateOutcome =
   | { kind: "allow"; fired: Fired[] }
   | { kind: "warn"; fired: Fired[]; rows: string[] }
-  | { kind: "ask" | "block"; fired: Fired[]; reason: string };
+  | { kind: "block"; fired: Fired[]; reason: string };
 
 export class GateRuntime {
   private module: GatesModule | undefined;
@@ -126,13 +125,12 @@ export class GateRuntime {
 
   /**
    * Decides one tool call. Pure apart from this turn's warned gates; no file is read. Pi has no workers, so the
-   * delegation gate never fires here.
+   * delegation gate fires here only for another session's claim.
    */
   check(
     event: { toolName: string; input: any; toolCallId?: string },
     cwd: string,
     settings: GateSettings,
-    canAsk: boolean,
   ): GateOutcome {
     const module = this.module;
     // Until the module has loaded and the state has been read once at session start, every call is allowed.
@@ -140,11 +138,11 @@ export class GateRuntime {
     const command = event.toolName === "bash" ? String(event.input?.command ?? "") : undefined;
     const result = module.decide(
       this.state,
-      { tool: event.toolName, paths: writtenPaths(event.toolName, event.input, cwd), command, cwd, canAsk },
+      { tool: event.toolName, paths: writtenPaths(event.toolName, event.input, cwd), command, cwd },
       settings,
     );
     if (result.decision === "allow") return { kind: "allow", fired: [] };
-    if (result.decision === "block" || result.decision === "ask") {
+    if (result.decision === "block") {
       const refused = result.fired.filter((each) => each.decision !== "warn");
       const reason = refused.map((each) => module.gateText(each)).join("\n\n");
       return { kind: result.decision, fired: result.fired, reason };

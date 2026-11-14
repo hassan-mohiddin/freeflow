@@ -1,9 +1,9 @@
-// The gate state (SPEC-008, section 4.1): `<FREEFLOW_HOME>/sessions/<session>/gates.json`, the few facts the gates need
-// (the held task, its open agreement and Slice, an exact-spec declaration, the open delegations' write scopes), so a
-// driver reads one small file instead of a record. Only Track Work's commands write it: those that change what it
-// holds (task take, release, switch, create and here's take-back; agreement open and close; slice start, start-direct,
-// pause, resume and close; delegate open, close and join; agree; claim, release and store sync, which bring other
-// sessions' claims), each write whole, through a temporary file and a rename.
+// The gate state (SPEC-008, section 4.1): `<FREEFLOW_HOME>/sessions/<session>/gates.json`, the few facts the gate needs
+// (the held task's folder, the open delegations' write scopes, the worker's own delegation, the claims other sessions
+// hold), so a driver reads one small file instead of a record. Only Track Work's commands write it: those that change
+// what it holds (task take, release, switch, create and here's take-back; delegate open, close and join; claim, release
+// and store sync, which bring other sessions' claims), each write whole, through a temporary file and a rename. The
+// agreement and Slice fields an older version wrote are no longer read or written (D-058).
 // Each write is derived again from the record, so a lifecycle change made by hand is set right by the next command.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -11,7 +11,7 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
 import { GATE_STATE_VERSION, normalPath, resolvePath, validGateState } from "./gates5.mjs";
-import { fieldText, parseRecord5 } from "./record5.mjs";
+import { parseRecord5 } from "./record5.mjs";
 import { heldTask } from "./projects5.mjs";
 import { isFreeflowStore, storeOf } from "./store.mjs";
 import { claimsForGates, repositoryOf } from "./claims5.mjs";
@@ -66,8 +66,9 @@ function readBrief(path) {
 }
 
 /**
- * One delegation's scope for the gates: its `May write:` globs, resolved against its worktree, else the worktree when
- * one was made, else nothing (a reader); and its own folder, where its progress.md and return.md go.
+ * One delegation's scope for the gate: its `May write:` globs, resolved against its worktree, else the worktree when
+ * one was made, else nothing (a reader); `line` says whether the brief's May write line gave them; and its own folder,
+ * where its progress.md and return.md go.
  */
 export function delegationScope(folder) {
   const brief = readBrief(join(folder, "brief.md"));
@@ -77,7 +78,7 @@ export function delegationScope(folder) {
     : brief.worktree
       ? [`${normalPath(brief.worktree)}/**`]
       : [];
-  return { writes, worktree: brief.worktree, folder: normalPath(folder), handle: brief.handle };
+  return { writes, line: globs !== null, worktree: brief.worktree, folder: normalPath(folder), handle: brief.handle };
 }
 
 /** The open delegations of a task folder, with their sub-workers': every one its record's Delegations lists. */
@@ -112,12 +113,6 @@ function taskIdOf(taskDir) {
   return project ? `${project}/${number}` : number;
 }
 
-/**
- * The state for this session now: the task it holds in the store, or else the task whose record the command named,
- * with that record's open agreement, Slice and delegations; without a task, the agreement `agree` recorded. An
- * exact-spec declaration lasts the session.
- * @param {{ home: string, identity: { id: string, short: string }, recordPath?: string | null, agreed?: object | null }} options
- */
 /** The delegation a worker session joined (delegate join), read from the Freeflow home, or null (SPEC-009 4.1). */
 function joinedOf(home, identity) {
   try {
@@ -128,10 +123,14 @@ function joinedOf(home, identity) {
   }
 }
 
-export function gateState({ home, identity, recordPath = null, agreed = null, cwd = process.cwd() }) {
+/**
+ * The state for this session now: the task it holds in the store, or else the task whose record the command named, with
+ * that record's open delegations; a worker session's, with the delegation it joined and the task's folder.
+ */
+export function gateState({ home, identity, recordPath = null, cwd = process.cwd() }) {
   const previous = readGateState(home, identity.id);
   const held = isFreeflowStore(home) ? heldTask(home, identity) : null;
-  // A worker session holds no task: its state is its delegation's task, its scope and the coordinator's agreement.
+  // A worker session holds no task: its state is its delegation's task and scope.
   const joined = held ? null : joinedOf(home, identity);
   const named = recordPath && !held && !joined && !storeOf(recordPath) ? resolve(recordPath) : null;
   const taskDir = held?.dir ?? joined?.taskDir ?? (named ? dirname(named) : null);
@@ -143,12 +142,6 @@ export function gateState({ home, identity, recordPath = null, agreed = null, cw
       record = null;
     }
   }
-  const session = agreed
-    ? { outcome: agreed.outcome, at: agreed.at }
-    : !previous?.task
-      ? (previous?.session ?? null)
-      : null;
-  const slice = joined ? null : record?.work.slice;
   // Other sessions' live claims (SPEC-009 4.5), with the folders this machine has their repositories in.
   let claims = [];
   try {
@@ -161,11 +154,6 @@ export function gateState({ home, identity, recordPath = null, agreed = null, cw
     v: GATE_STATE_VERSION,
     task: taskDir ? (held?.id ?? joined?.task ?? taskIdOf(taskDir)) : null,
     taskDir: taskDir ? normalPath(taskDir) : null,
-    store: isFreeflowStore(home) ? normalPath(resolve(home)) : null,
-    agreement: taskDir ? (record?.work.agreement?.id ?? null) : session ? "session" : null,
-    session: taskDir ? null : session,
-    exactSpec: agreed?.exactSpec ?? previous?.exactSpec ?? null,
-    slice: slice ? { id: slice.id, state: fieldText(slice, "State") } : null,
     delegations:
       taskDir && record ? openDelegations(taskDir, record) : previous?.task ? {} : (previous?.delegations ?? {}),
     worker: joined?.id ?? null,
@@ -178,26 +166,13 @@ export function gateState({ home, identity, recordPath = null, agreed = null, cw
  * Writes this session's gate state after a command that changed what it holds; never fails that command. Returns the
  * path written, or null where there is no session ID or the write failed.
  */
-export async function refreshGates({ home, identity, recordPath = null, agreed = null, extra = null }) {
+export async function refreshGates({ home, identity, recordPath = null, extra = null }) {
   if (!identity) return null;
   try {
-    const state = gateState({ home, identity, recordPath, agreed });
+    const state = gateState({ home, identity, recordPath });
     if (extra && !state.task) state.delegations = { ...state.delegations, ...extra };
     return await writeGateState(home, identity.id, state);
   } catch {
     return null;
   }
-}
-
-/** What the state says that the record does not, for validate (section 5), or an empty list. */
-export function gateDrift(state, record, recordPath) {
-  if (!state || !state.taskDir || normalPath(dirname(resolve(recordPath))) !== state.taskDir) return [];
-  const notes = [];
-  const agreement = record.work.agreement?.id ?? null;
-  if ((state.agreement ?? null) !== agreement)
-    notes.push(`agreement ${state.agreement ?? "none"} in gates.json, ${agreement ?? "none"} in the record`);
-  const slice = record.work.slice ? `${record.work.slice.id} ${fieldText(record.work.slice, "State")}` : "none";
-  const kept = state.slice ? `${state.slice.id} ${state.slice.state ?? ""}`.trim() : "none";
-  if (slice !== kept) notes.push(`Slice ${kept} in gates.json, ${slice} in the record`);
-  return notes;
 }

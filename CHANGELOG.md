@@ -142,6 +142,7 @@
 
 ### Removed
 
+- The agreement, Slice and delivery gates are removed, and so is the cost cap (`governor.mode`, `governor.cap`) with the cost governor's 80% rows and its event lines. The delegation-scope gate stays: it reads the brief's `May write:` line, and each of its warnings is logged as a `sent` line. Delivery is left to each harness's own permission prompts. A settings file that still holds a removed key loads and names it as ignored with its reason; `settings.mjs doctor --fix` removes it. Kept as information: the week's share in the status line, the cost by model in the pane, and the cost estimate in the agreement.
 - Freeflow's context rows at 50, 60 and 70% of the window are gone: the compaction notice is the only signal before compaction. Nothing is sent, logged or kept for a row; older event logs still read, and `events summary` measures the notice alone.
 - Pi's `compact_context` tool, its result index (`r12`), the carried copies of your latest messages, and the compaction capability skill with its summary format: on Pi the agent checkpoints with Track Work instead, and `/freeflow compact` asks it to checkpoint with `--compact`.
 - Pi's context reuse: tool results are no longer carried across a compaction; the bundle carries the files the agent names in its record's Recovery list. The Context reuse switch goes from `/freeflow settings`, and `compaction.carry` in a config still loads and does nothing.

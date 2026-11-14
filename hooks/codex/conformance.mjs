@@ -9,7 +9,7 @@ export default {
   checkpoint:
     "a checkpoint after the notice, through Track Work's script, makes the bundle after Codex's next compaction current; checkpoint --compact is refused, naming Codex's thresholds",
   block:
-    "a gate under block: PreToolUse denies the call in Codex's deny shape with the gate's text as the reason, a delivery step too (Codex has no ask), and with no gate state the call is refused",
+    "the delegation gate under block: PreToolUse denies a call it fires on in Codex's deny shape with the gate's text as the reason, a removed gate's step runs, and with no gate state a main-loop call still runs",
   sensors:
     "the event log: a scripted Codex session's lines are schema v1, in order, kept until the turn ends and written in one run, never contents",
 };

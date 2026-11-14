@@ -68,7 +68,7 @@ import {
 import { EstimateError, claudeCodeContext, estimate } from "./lib/estimate5.mjs";
 import { runEvents } from "./lib/events-cli.mjs";
 import { appendEvents, HARNESSES } from "./lib/events5.mjs";
-import { delegationScope, gateDrift, gatesPath, readGateState, refreshGates } from "./lib/gate-state5.mjs";
+import { delegationScope, gatesPath, refreshGates } from "./lib/gate-state5.mjs";
 import { PlanError } from "./lib/planner5.mjs";
 
 const ROOT_HELP =
@@ -110,7 +110,7 @@ function usage() {
 const COMMAND_HELP = new Map([
   [
     "agree",
-    "Usage: agree --outcome <text> [--exact-spec \"<reason>\"] [--home <folder>]\nRecords the user's agreement for a session that holds no task (a task's agreement is agreement open): in this session's gate state, <FREEFLOW_HOME>/sessions/<session>/gates.json, which the gates read, and as an agreement line in its event log. --exact-spec declares that the request fixes every choice, with the reason; the declaration lasts the session and is logged, for a reviewer to audit. Refused while the session holds a task.",
+    "Usage: agree --outcome <text> [--exact-spec \"<reason>\"] [--home <folder>]\nRecords the user's agreement for a session that holds no task (a task's agreement is agreement open): as an agreement line in its event log. --exact-spec declares that the request fixes every choice, with the reason; the declaration is logged, for a reviewer to audit. Refused while the session holds a task.",
   ],
   [
     "events append",
@@ -126,7 +126,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "events sent",
-    "Usage: events sent [--session <ID>] [--what <name>] [--show <n>] [--home <folder>]\nLists the text Freeflow sent to the model in a session, newest first: its number, time, what sent it, its length in characters and the first line cut to 80 characters. --what keeps one source (session-start, menu, catch-up, pinned-guidance, system-prompt, runtime-state, notice, compact-request, compaction-note, bundle, continue, compaction-error, gate, store-allow, took-back, waits, worker-notice, stop-block, governor, settings, pane, guidance, files, background, monitor, message, skill, keep-alive). --show <n> prints the whole text of entry n of that list. The text is what was sent, with keys and tokens redacted; the log is on this machine only.",
+    "Usage: events sent [--session <ID>] [--what <name>] [--show <n>] [--home <folder>]\nLists the text Freeflow sent to the model in a session, newest first: its number, time, what sent it, its length in characters and the first line cut to 80 characters. --what keeps one source (session-start, menu, catch-up, pinned-guidance, system-prompt, runtime-state, notice, compact-request, compaction-note, bundle, continue, compaction-error, gate, store-allow, took-back, waits, worker-notice, stop-block, settings, pane, guidance, files, background, monitor, message, skill, keep-alive). --show <n> prints the whole text of entry n of that list. The text is what was sent, with keys and tokens redacted; the log is on this machine only.",
   ],
   [
     "slice",
@@ -652,16 +652,8 @@ async function validate5(loaded, options) {
   });
   const pointers = checkLinePointers(updates, { root: loaded.root, recordPath: loaded.path });
   const unresolved = options["--strict"] ? pointers.warnings : [...pointers.problems, ...pointers.warnings];
-  const identity = sessionIdentity();
-  const drift = identity
-    ? gateDrift(readGateState(storeHome(), identity.id), task.record, loaded.path).map(
-        (each) =>
-          `warning: this session's gate state differs from the record (${each}); the next lifecycle command rewrites it`,
-      )
-    : [];
   const notes = [
     ...warnings5(task).map((warning) => `warning: ${warning}`),
-    ...drift,
     ...unresolved.map((each) => `warning: a pointer in the Slice's updates does not resolve here: ${each}`),
     ...pointers.outside.map((each) => `outside the repository, not checked: ${each}`),
   ];
@@ -1143,8 +1135,8 @@ function readJsonOrNull(path) {
 }
 
 /**
- * `agree` (SPEC-008 4.1): the user's agreement for a session that holds no task, in the session's gate state and as an
- * agreement line in its event log; with --exact-spec, the declaration that the request fixes every choice, logged.
+ * `agree` (SPEC-008 4.1): the user's agreement for a session that holds no task, as an agreement line in its event log;
+ * with --exact-spec, the declaration that the request fixes every choice, logged. No gate reads it (D-058).
  */
 async function agree(options) {
   const identity = sessionIdentity();
@@ -1161,12 +1153,6 @@ async function agree(options) {
       `This session holds ${held.id}: record the agreement in its record with agreement open --record ${held.id}.`,
     );
   const at = new Date().toISOString();
-  const path = await refreshGates({
-    home,
-    identity,
-    agreed: { outcome, at, ...(reason ? { exactSpec: { reason, at } } : {}) },
-  });
-  if (!path) throw new CliError(`Could not write this session's gate state in ${join(home, "sessions", identity.id)}`);
   const harness = eventHarness(identity);
   let logged = "no event line: this harness has no name in the event log's schema";
   if (harness) {
@@ -1183,7 +1169,7 @@ async function agree(options) {
       logged = `no event line (${error.message})`;
     }
   }
-  return `Agreed for this session: ${outcome}${reason ? `\nExact spec declared: ${reason}; a reviewer audits it` : ""}\nRecorded in ${path} and ${logged}.\n`;
+  return `Agreed for this session: ${outcome}${reason ? `\nExact spec declared: ${reason}; a reviewer audits it` : ""}\nRecorded: ${logged}.\n`;
 }
 
 /** The commands after which this session's gate state is written again (SPEC-008 4.1). */
@@ -1193,13 +1179,6 @@ const GATE_COMMANDS = new Set([
   "task switch",
   "task create",
   "task here",
-  "agreement open",
-  "agreement close",
-  "slice start",
-  "slice start-direct",
-  "slice pause",
-  "slice resume",
-  "slice close",
   "delegate open",
   "delegate close",
   "delegate join",

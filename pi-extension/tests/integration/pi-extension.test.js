@@ -543,7 +543,6 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     EVENTS_KEYS,
     GATE_KEYS,
     DELEGATION_KEYS,
-    GOVERNOR_KEYS,
     PANE_KEYS,
   } = await import("../../dist/host/config-validation.js");
   const { TOOL_EXECUTION_KEYS } = await import("../../dist/tool-execution/config.js");
@@ -559,7 +558,6 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     events: EVENTS_KEYS,
     gates: GATE_KEYS,
     delegation: DELEGATION_KEYS,
-    governor: GOVERNOR_KEYS,
     pane: PANE_KEYS,
   };
   const nested = {};
@@ -1122,7 +1120,7 @@ test("Pi restores remaining session overrides from the active branch and ignores
 
 test("Pi stays on when an existing local override cannot be read: it reads as empty and is named", async () => {
   // The repository's block gate still applies when the personal file is unreadable (the file reads as empty).
-  const cwd = await configuredRepo({ enabled: true, gates: { slice: "block" } });
+  const cwd = await configuredRepo({ enabled: true, gates: { delegation: "block" } });
   try {
     await writeFile(join(cwd, ".freeflow/local.json"), "{ invalid\n", "utf8");
     const layers = await readFreeflowConfigLayers(cwd);
@@ -1133,7 +1131,7 @@ test("Pi stays on when an existing local override cannot be read: it reads as em
     assert.match(layers.local.parseError, /./);
     const state = await readCapabilityState(cwd);
     assert.equal(state.enabled, true);
-    assert.equal(state.gates.slice, "block");
+    assert.equal(state.gates.delegation, "block");
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
     assert.ok(resources.skillPaths.length > 1);

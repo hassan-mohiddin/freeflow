@@ -90,7 +90,7 @@ export function piClaims(inputs: ClaimInputs): Claims {
     ask: inputs.askUser ? claim("yes", "the ask_user tool") : claim("no", "no person to ask in a subagent"),
     block: claim(
       "yes",
-      "tool_call returns a block with its reason: the gates under block (gates.*), Tool Execution's guards",
+      "tool_call returns a block with its reason: the delegation gate under block (gates.delegation), Tool Execution's guards",
     ),
     sensors: inputs.events
       ? claim("yes", "runs, turns, model requests, tool calls and compactions, written to the event log")

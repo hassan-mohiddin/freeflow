@@ -1,23 +1,22 @@
-// The gates (SPEC-008): four rules that must always hold, checked by each Freeflow driver before a tool call runs, from
+// The gate (SPEC-008): the rule that a worker's writes stay in its brief's `May write:` scope and off the task's record,
+// and that a file another session claims is warned of. Checked by each Freeflow driver before a tool call runs, from
 // the small state Track Work's lifecycle commands keep in `<FREEFLOW_HOME>/sessions/<session>/gates.json` (lib/
 // gate-state5.mjs). One module decides for every driver (T1): Claude Code's mod imports this file, Pi's extension loads
 // it from Freeflow's package, and Codex's driver calls it. It is pure and synchronous, and imports nothing, so a mod
 // may import it and a call costs no file read: the driver hands it the state it holds, the call and the settings.
+// The agreement, Slice and delivery gates were removed (D-058): their records stay in the event log, readable.
 //
-// Each gate answers allow, warn, ask or block. Every gate ships at `warn` (P2): the agent reads a warning with the rule,
-// the reason and the way through, and the event log counts each would-fire, so the user can decide from data when a
-// gate blocks. `block` is built and tested, and off until a setting turns it on.
+// The gate answers allow, warn or block. It ships at `warn` (P2): the agent reads a warning with the rule, the reason
+// and the way through, and the event log counts each would-fire, so the user can decide from data. `block` is built and
+// tested, and off until the `gates.delegation` setting turns it on.
 
-export const GATES = ["agreement", "slice", "delivery", "delegation"];
+export const GATES = ["delegation"];
 export const GATE_MODES = ["off", "warn", "block"];
-export const GATE_DECISIONS = ["allow", "warn", "ask", "block"];
-/** gates.json's version; a driver reads only this one. */
+export const GATE_DECISIONS = ["allow", "warn", "block"];
+/** gates.json's version; a driver reads only this one. Older files keep the fields this module no longer reads. */
 export const GATE_STATE_VERSION = 1;
-/** Every gate warns until a setting says otherwise (P2). */
+/** The gate warns until a setting says otherwise (P2). */
 export const DEFAULT_GATE_SETTINGS = Object.freeze({
-  agreement: "warn",
-  slice: "warn",
-  delivery: "warn",
   delegation: "warn",
 });
 
@@ -27,8 +26,8 @@ export const FILE_WRITE_TOOLS = new Set(["Edit", "Write", "MultiEdit", "Notebook
 export const SHELL_TOOLS = new Set(["Bash", "bash", "shell", "exec_command", "local_shell"]);
 /** The task folder's files only the coordinator writes. */
 const RECORD_FILES = ["record.md", "decisions.md", "history.md"];
-const SEVERITY = { allow: 0, warn: 1, ask: 2, block: 3 };
-const STATE_MISSING = "Freeflow cannot read its gate state; run `task here` or `agree`, then go on.";
+const SEVERITY = { allow: 0, warn: 1, block: 2 };
+const STATE_MISSING = "Freeflow cannot read its gate state; run `task here`, then go on.";
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Shell commands: a small lexer that splits a command into the simple commands it runs (at &&, ||, ;, |, &, a newline,
@@ -312,51 +311,37 @@ function trackWorkWorkerOwn(args) {
 }
 
 /**
- * What one simple command does, as the gates read it: whether it may change something, the delivery step it is, if
- * any, and whether it runs Track Work's script (the gates' own way through) and writes with it.
+ * What one simple command does, as the gate reads it: whether it may change something, and whether it runs Track
+ * Work's script and what that script does (read, its worker's own files, or a write to the record).
  * @param {string[]} words
  */
 function classifySegment(words) {
   const rest = programWords(words);
   const program = basename(rest[0] ?? "");
   const args = rest.slice(1);
-  const result = (changing, delivery = null, trackWork = null) => ({ changing, delivery, trackWork, program });
+  const result = (changing, trackWork = null) => ({ changing, trackWork, program });
   if (!program) return result(false);
-  if (["bash", "sh", "zsh", "dash"].includes(program)) {
-    const at = args.indexOf("-c");
-    if (at !== -1 && args[at + 1] !== undefined) {
-      // The command it runs is read for a delivery step; what it changes is not followed, so it counts as changing.
-      const inner = classifyCommand(args[at + 1]);
-      return { ...result(true), delivery: inner.delivery };
-    }
-    return result(true);
-  }
+  if (["bash", "sh", "zsh", "dash"].includes(program)) return result(true);
   if (program === "git") {
     const { sub, args: gitArgs } = gitParts(args);
-    if (sub === "commit" || sub === "push") return result(true, `git ${sub}`);
-    if (sub === "tag") return isTagListing(gitArgs) ? result(false) : result(true, "git tag");
-    if (sub === "merge") return gitArgs.includes("--abort") ? result(true) : result(true, "git merge");
+    if (sub === "tag") return result(!isTagListing(gitArgs));
     return result(!gitReads(sub, gitArgs));
   }
-  if (program === "gh") {
-    if (args[0] === "pr" && (args[1] === "create" || args[1] === "merge")) return result(true, `gh pr ${args[1]}`);
-    return result(true);
-  }
+  if (program === "gh") return result(true);
   if (["npm", "pnpm", "yarn"].includes(program)) {
     const [first, second] = args.filter((arg) => !arg.startsWith("-"));
-    if (first === "publish" || first === "version") return result(true, `${program} ${first}`);
-    if (first === "run" && /^release(:|$)/.test(second ?? "")) return result(true, `${program} run ${second}`);
     if (["test", "t"].includes(first)) return result(false);
     if (first === "run" && CHECK_SCRIPT.test(second ?? "")) return result(false);
     if (program === "yarn" && CHECK_SCRIPT.test(first ?? "")) return result(false);
     return result(true);
   }
   if (program === "node") {
+    // A syntax check (node --check) reads the script; only a run of it with a Track Work command can write.
+    if (args.includes("--check") || args.includes("-c")) return result(false);
     const script = args.find((arg) => !arg.startsWith("-"));
-    if (script && /(^|[\\/])scripts[\\/]release\.mjs$/.test(script)) return result(true, "node scripts/release.mjs");
     if (script && basename(script) === "working-record.mjs") {
       const after = args.slice(args.indexOf(script) + 1);
-      return result(false, null, trackWorkReads(after) ? "read" : trackWorkWorkerOwn(after) ? "own" : "write");
+      return result(false, trackWorkReads(after) ? "read" : trackWorkWorkerOwn(after) ? "own" : "write");
     }
     if (args.includes("--help") || args[0] === "--test") return result(false);
     return result(true);
@@ -388,22 +373,18 @@ function classifySegment(words) {
 }
 
 /**
- * A shell command as the gates read it: whether it may change something, its delivery steps, the files it redirects
- * output to, and whether it runs Track Work's script, and only that (then it is the gates' own way through, not a
- * change they guard). A line the lexer cannot follow counts as changing (section 5).
+ * A shell command as the gate reads it: whether it may change something, the files it redirects output to, and whether
+ * one of its parts runs Track Work's script to write the record or a worker's own files. A line the lexer cannot follow
+ * counts as changing (section 5).
  * @param {string} command
  */
 export function classifyCommand(command) {
   const { segments, dynamic } = splitCommand(command);
   const parts = segments.map((segment) => ({ ...classifySegment(segment.words), writes: segment.writes }));
   const writes = parts.flatMap((part) => part.writes).filter((path) => !NOT_WRITTEN.has(path));
-  const programs = parts.filter((part) => part.program);
-  const trackWork = programs.length > 0 && programs.every((part) => part.trackWork) && !writes.length;
   return {
     changing: dynamic || writes.length > 0 || parts.some((part) => part.changing),
-    delivery: [...new Set(parts.flatMap((part) => part.delivery ?? []))],
     writes,
-    trackWork,
     trackWorkWrites: parts.some((part) => part.trackWork === "write"),
   };
 }
@@ -476,12 +457,7 @@ export function gateSettings(settings = {}) {
 
 /** Whether `state` is a gates.json this module reads. */
 export function validGateState(state) {
-  return (
-    typeof state === "object" &&
-    state !== null &&
-    state.v === GATE_STATE_VERSION &&
-    (state.slice === null || state.slice === undefined || typeof state.slice?.id === "string")
-  );
+  return typeof state === "object" && state !== null && state.v === GATE_STATE_VERSION;
 }
 
 const ALLOW = Object.freeze({ gate: null, decision: "allow", reason: "", way: "", rule: null, fired: [] });
@@ -490,6 +466,17 @@ function shown(path, cwd) {
   const full = normalPath(path);
   const base = cwd ? normalPath(cwd) : null;
   return base && full.startsWith(`${base}/`) ? full.slice(base.length + 1) : full;
+}
+
+/**
+ * A worker's scope as the warning names it: the brief's May write line, else its worktree (the brief names no May write,
+ * so the worktree is what it may write), else nothing, a reader.
+ */
+function scopeOf(scope) {
+  if (!scope.writes?.length) return "no May write, no worktree: a reader";
+  return scope.line
+    ? `May write: ${scope.writes.join(", ")}`
+    : `no May write line; its worktree is its scope: ${scope.writes.join(", ")}`;
 }
 
 /** What the call touches, in a few words, for the warning's first line. */
@@ -501,24 +488,19 @@ function callText(call, paths) {
   return `${call.tool} \`${command.length > 60 ? `${command.slice(0, 59)}…` : command}\``;
 }
 
-/** The decision a gate's mode gives a call it fires on: delivery asks where a person can answer (P4). */
-function verdict(mode, gate, call) {
-  if (mode === "warn") return "warn";
-  if (gate === "delivery" && call.canAsk) return "ask";
-  return "block";
-}
+/** The decision the gate's mode gives a call it fires on: warn, or block where the setting says block. */
+const verdict = (mode) => (mode === "warn" ? "warn" : "block");
 
 /**
- * Decides one tool call against the gates: the strongest decision of every gate that fires, with each that fired in
+ * Decides one tool call against the gate: the strongest decision of the gate's rules that fire, with each that fired in
  * `fired`, for the driver to warn or refuse once and to log each one. Pure and synchronous (section 4.2).
  *
  * `state` is gates.json as the driver read it, or null when it is missing or unreadable (section 5: quiet under warn,
- * closed under block for the gates that need it). `call` is `{ tool, paths?, command?, cwd?, readOnly?, delegation?,
- * canAsk?, now? }`: paths absolute; `readOnly` where the tool says its input only reads; `delegation` the D-NNN of the
- * worker making the call, absent on the main loop (a worker session's state names its own, `worker`); `canAsk` whether a
- * person can answer a question now; `now` the time other sessions' claims are read at (default the clock's).
- * `settings` maps each gate to off, warn or block.
- * @returns {{ gate: string | null, decision: "allow" | "warn" | "ask" | "block", reason: string, way: string, rule: string | null, fired: { gate: string, decision: string, reason: string, way: string, rule: string }[] }}
+ * closed under block). `call` is `{ tool, paths?, command?, cwd?, readOnly?, delegation?, now? }`: paths absolute;
+ * `readOnly` where the tool says its input only reads; `delegation` the D-NNN of the worker making the call, absent on
+ * the main loop (a worker session's state names its own, `worker`); `now` the time other sessions' claims are read at
+ * (default the clock's). `settings` maps the gate to off, warn or block.
+ * @returns {{ gate: string | null, decision: "allow" | "warn" | "block", reason: string, way: string, rule: string | null, fired: { gate: string, decision: string, reason: string, way: string, rule: string }[] }}
  */
 export function decide(state, call, settings = DEFAULT_GATE_SETTINGS) {
   const modes = gateSettings(settings);
@@ -532,15 +514,11 @@ export function decide(state, call, settings = DEFAULT_GATE_SETTINGS) {
     ? (call.paths ?? []).filter((path) => typeof path === "string" && path).map((path) => resolvePath(call.cwd, path))
     : (shell?.writes ?? []).map((path) => resolvePath(call.cwd, path));
   const changing = call.readOnly === true ? false : isFile || Boolean(shell?.changing);
-  const store = readable?.store ?? null;
-  const inStore = isFile ? paths.length > 0 && paths.every((path) => inside(path, store)) : false;
-  // Track Work's own commands are how the agent records an agreement or a Slice: never what those gates guard.
-  const guarded = changing && !inStore && !shell?.trackWork;
   const fired = [];
   const fire = (gate, rule, what, why, way) => {
     const mode = modes[gate];
     if (mode === "off") return;
-    fired.push({ gate, decision: verdict(mode, gate, call), reason: `${what}\nWhy: ${why}`, way, rule });
+    fired.push({ gate, decision: verdict(mode), reason: `${what}\nWhy: ${why}`, way, rule });
   };
   const missing = (gate, rule) => {
     if (modes[gate] === "block")
@@ -580,7 +558,7 @@ export function decide(state, call, settings = DEFAULT_GATE_SETTINGS) {
         fire(
           "delegation",
           "outside the worker's scope",
-          `${what} by ${worker}, outside its scope (May write: ${(scope.writes ?? []).length ? scope.writes.join(", ") : "nothing; a reader"}).`,
+          `${what} by ${worker}, outside its scope (${scopeOf(scope)}).`,
           "a worker writes only what its brief's Scope allows, so workers never write the same file.",
           "keep to the brief's May write; if the work needs more, say so in return.md and return.",
         );
@@ -605,41 +583,6 @@ export function decide(state, call, settings = DEFAULT_GATE_SETTINGS) {
     }
   }
 
-  if (guarded) {
-    if (!readable) missing("agreement", "no agreement");
-    else if (!readable.agreement && !readable.exactSpec)
-      fire(
-        "agreement",
-        "no agreement",
-        `${what} before an agreement${readable.task ? ` in ${readable.task}` : " in this session"}.`,
-        "a change needs the user's agreement first (the outcome, the scope and where you stop), so nothing is built that they did not ask for.",
-        readable.task
-          ? "agree with the user, then agreement open records it; then go on."
-          : 'agree with the user, then working-record.mjs agree --outcome "<what they agreed>" records it (or --exact-spec "<reason>" when the request fixes every choice); then go on.',
-      );
-  }
-
-  if (guarded && !worker) {
-    if (!readable) missing("slice", "no Slice");
-    else if (readable.task && readable.slice?.state !== "in_progress")
-      fire(
-        "slice",
-        "no open Slice",
-        `${what} with no open Slice in ${readable.task}${readable.slice ? ` (${readable.slice.id} is ${readable.slice.state})` : ""}.`,
-        "an effect outside the record needs a Slice first, so a lost context can tell what was half done.",
-        readable.slice ? "slice resume, then go on." : "slice start-direct (or slice start), then go on.",
-      );
-  }
-
-  for (const step of shell?.delivery ?? [])
-    fire(
-      "delivery",
-      step,
-      `${step} is a delivery step.`,
-      "a commit, push, tag, merge, pull request, publish or release goes ahead only on the user's own yes for this route.",
-      "go on only if the user said yes to this step in this task; otherwise ask them first.",
-    );
-
   if (!fired.length) return ALLOW;
   const top = fired.reduce((best, each) => (SEVERITY[each.decision] > SEVERITY[best.decision] ? each : best));
   return { gate: top.gate, decision: top.decision, reason: top.reason, way: top.way, rule: top.rule, fired };
@@ -651,7 +594,7 @@ export function decide(state, call, settings = DEFAULT_GATE_SETTINGS) {
  * @param {{ gate: string, decision: string, reason: string, way: string }} fired
  */
 export function gateText(fired) {
-  const label = fired.decision === "warn" ? "warn" : fired.decision === "ask" ? "ask" : "block";
+  const label = fired.decision === "warn" ? "warn" : "block";
   const tail = fired.decision === "warn" ? " This gate only warns for now." : "";
   if (fired.reason === STATE_MISSING) return `Freeflow gate (${label}, ${fired.gate}): ${STATE_MISSING}`;
   const [first, ...rest] = fired.reason.split("\n");

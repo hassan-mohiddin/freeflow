@@ -271,7 +271,7 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
   // The gates (SPEC-008 4.5): each gate's mode; with Freeflow off, every gate is off.
   const gates = enabled
     ? resolveGateSettings(repositoryConfig, sessionLocalConfig)
-    : resolveGateSettings({ gates: { agreement: "off", slice: "off", delivery: "off", delegation: "off" } }, {});
+    : resolveGateSettings({ gates: { delegation: "off" } }, {});
   // Delegation across sessions (SPEC-009 4.7): claim hours and whether a return wakes the session.
   const delegation = resolveDelegationSettings(repositoryConfig, sessionLocalConfig);
   const capabilityState = {

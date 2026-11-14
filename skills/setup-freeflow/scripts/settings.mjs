@@ -52,7 +52,7 @@ const USAGE = `Usage:
   settings.mjs doctor [--fix] [--scope repository|personal|session] [--root <folder>]
 --root names a folder in the repository (default: the current folder); the settings are its repository's.
 The value "inherit" unsets the key in that scope. --host all (the default) lists the settings every host acts on and
-Claude Code's own (its cost governor, pane and status line), as does --host claude-code; --host pi lists Pi's instead of Claude Code's. The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
+Claude Code's own (its pane and status line), as does --host claude-code; --host pi lists Pi's instead of Claude Code's. The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
 FREEFLOW_SESSION).
 doctor reads each scope against the settings table and prints each problem with its fix, changing nothing (exit 1 when
 there is a problem). --fix writes the Personal and Session scopes; the Repository file is shared, so it is written only

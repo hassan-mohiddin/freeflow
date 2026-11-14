@@ -9,16 +9,20 @@ import {
   classifyCommand,
   decide,
   DEFAULT_GATE_SETTINGS,
+  GATE_STATE_VERSION,
+  GATES,
   gateEvent,
   gateText,
   matchesGlob,
+  validGateState,
 } from "../../../skills/track-work/scripts/lib/gates5.mjs";
 import { lineProblem } from "../../../skills/track-work/scripts/lib/events5.mjs";
 
 const scriptPath = resolve("skills/track-work/scripts/working-record.mjs");
 
 // ---------------------------------------------------------------------------------------------------------------------
-// gates5.decide on fixture states and calls (SPEC-008 section 7, first item).
+// gates5.decide on fixture states and calls (SPEC-008 section 7, first item). One gate is left, the delegation gate:
+// the agreement, Slice and delivery gates were removed (D-058), and the first tests hold that they never fire.
 
 const STORE = "/home/u/.freeflow";
 const TASK_DIR = `${STORE}/projects/demo/tasks/task-001-demo`;
@@ -26,107 +30,29 @@ const held = (extra = {}) => ({
   v: 1,
   task: "demo/task-001",
   taskDir: TASK_DIR,
-  store: STORE,
-  agreement: "A-001",
-  session: null,
-  exactSpec: null,
-  slice: { id: "S-001", state: "in_progress" },
   delegations: {},
   updated: "2026-11-03T10:00:00.000Z",
   ...extra,
 });
-const noTask = (extra = {}) => held({ task: null, taskDir: null, agreement: null, slice: null, ...extra });
+const noTask = (extra = {}) => held({ task: null, taskDir: null, ...extra });
 const edit = (path, extra = {}) => ({ tool: "Edit", paths: [path], cwd: "/work/app", ...extra });
 const bash = (command, extra = {}) => ({ tool: "Bash", command, cwd: "/work/app", ...extra });
 const gates = (result) => result.fired.map((each) => `${each.gate}:${each.decision}`).sort();
-const block = { agreement: "block", slice: "block", delivery: "block", delegation: "block" };
+const block = { delegation: "block" };
 
-test("decide: the agreement gate fires on a change outside the store until an agreement or an exact spec is recorded", () => {
-  assert.deepEqual(gates(decide(noTask(), edit("/work/app/src/a.ts"))), ["agreement:warn"]);
-  assert.deepEqual(gates(decide(noTask(), bash("npm install left-pad"))), ["agreement:warn"]);
-  assert.deepEqual(gates(decide(noTask({ agreement: "session" }), edit("/work/app/src/a.ts"))), []);
-  assert.deepEqual(gates(decide(noTask({ exactSpec: { reason: "the issue names every line" } }), edit("/x/a"))), []);
-  // The store holds the task memory: writing it needs no agreement, and Track Work's commands are the way through.
-  assert.deepEqual(gates(decide(noTask(), edit(`${STORE}/projects/demo/tasks/task-001-demo/notes.md`))), []);
-  assert.deepEqual(
-    gates(decide(noTask(), bash("node /opt/ff/skills/track-work/scripts/working-record.mjs agree --outcome x"))),
-    [],
-  );
-  // Reads are not changes.
-  for (const command of [
-    "ls -la",
-    "git status && git diff",
-    "cat a | grep b",
-    "npm test",
-    "npm run check:docs",
-    "node --test x.test.mjs",
-    "rg -n foo src",
-  ])
-    assert.deepEqual(gates(decide(noTask(), bash(command))), [], command);
-  assert.deepEqual(gates(decide(noTask(), { tool: "Read", paths: ["/work/app/a"] })), []);
-  // A tool that says its input only reads is taken at its word.
-  assert.deepEqual(gates(decide(noTask(), bash("make lint", { readOnly: true }))), []);
-  const result = decide(noTask(), edit("/work/app/src/a.ts"));
-  assert.equal(result.decision, "warn");
-  assert.match(result.reason, /^Edit on src\/a\.ts before an agreement in this session\.\nWhy: /);
-  assert.match(result.way, /agree --outcome/);
-  assert.match(decide(held({ agreement: null }), edit("/w/a")).way, /agreement open/);
-});
-
-test("decide: the Slice gate fires while a task is held and no Slice is in progress", () => {
-  assert.deepEqual(gates(decide(held(), edit("/work/app/src/a.ts"))), []);
-  assert.deepEqual(gates(decide(held({ slice: null }), edit("/work/app/src/a.ts"))), ["slice:warn"]);
-  const paused = decide(held({ slice: { id: "S-002", state: "paused" } }), edit("/work/app/src/a.ts"));
-  assert.deepEqual(gates(paused), ["slice:warn"]);
-  assert.match(paused.reason, /with no open Slice in demo\/task-001 \(S-002 is paused\)/);
-  assert.match(paused.way, /^slice resume/);
-  assert.equal(
-    gateText(decide(held({ slice: null }), edit("/work/app/src/http/client.ts")).fired[0]),
-    [
-      "Freeflow gate (warn, slice): Edit on src/http/client.ts with no open Slice in demo/task-001.",
-      "Why: an effect outside the record needs a Slice first, so a lost context can tell what was half done.",
-      "Way through: slice start-direct (or slice start), then go on. This gate only warns for now.",
-    ].join("\n"),
-  );
-  // No task held: no Slice gate, only the agreement's.
-  assert.deepEqual(gates(decide(noTask({ agreement: "session" }), edit("/w/a"))), []);
-});
-
-test("decide: the delivery gate fires on every delivery command, in a chain too, and asks under block only where someone can answer", () => {
-  const steps = {
-    "git commit -m 'x'": "git commit",
-    "git -C /repo push origin main": "git push",
-    "git -c user.name=H tag v1.0.0": "git tag",
-    "git merge feature": "git merge",
-    "gh pr create --fill": "gh pr create",
-    "gh pr merge 12 --squash": "gh pr merge",
-    "npm publish": "npm publish",
-    "npm version patch": "npm version",
-    "node scripts/release.mjs --version 1.0.0": "node scripts/release.mjs",
-    "env GIT_TRACE=1 git push": "git push",
-    "npm test && git push": "git push",
-    "cd /repo; git add -A && git commit -m done": "git commit",
-  };
-  for (const [command, step] of Object.entries(steps)) {
-    const result = decide(held(), bash(command));
-    assert.deepEqual(gates(result), ["delivery:warn"], command);
-    assert.equal(result.rule, step, command);
-  }
-  for (const command of [
-    "git log --oneline",
-    "git tag -l",
-    "git merge-base main HEAD",
-    "echo 'git push'",
-    "git commit-graph verify",
-  ])
-    assert.equal(decide(held(), bash(command)).fired.filter((each) => each.gate === "delivery").length, 0, command);
-  assert.match(
-    decide(held(), bash("git push")).reason,
-    /^Bash `git push` is a delivery step\.|^git push is a delivery step\./,
-  );
-  assert.equal(decide(held(), bash("git push", { canAsk: true }), block).decision, "ask");
-  assert.equal(decide(held(), bash("git push", { canAsk: false }), block).decision, "block");
-  assert.equal(decide(held(), bash("git push"), { ...DEFAULT_GATE_SETTINGS, delivery: "off" }).decision, "allow");
+test("only the delegation gate is left: the agreement, Slice and delivery gates never fire (D-058)", () => {
+  assert.deepEqual(GATES, ["delegation"]);
+  assert.deepEqual(DEFAULT_GATE_SETTINGS, { delegation: "warn" });
+  // Calls the removed gates warned about, with a task held or not, now pass.
+  assert.deepEqual(gates(decide(noTask(), edit("/work/app/src/a.ts"))), []);
+  assert.deepEqual(gates(decide(held({ slice: null }), edit("/work/app/src/a.ts"))), []);
+  assert.deepEqual(gates(decide(noTask(), bash("npm install left-pad"))), []);
+  assert.deepEqual(gates(decide(null, bash("git push"))), []);
+  assert.deepEqual(gates(decide(held(), bash("git commit -m 'x' && git push"))), []);
+  for (const command of ["gh pr create --fill", "npm publish", "node scripts/release.mjs --version 1.0.0"])
+    assert.deepEqual(gates(decide(held(), bash(command))), [], command);
+  // Settings for the removed gates are not read: the delegation gate alone decides.
+  assert.equal(decide(noTask(), bash("npm install"), { delegation: "warn", agreement: "block" }).decision, "allow");
 });
 
 test("decide: the delegation gate keeps a worker to its scope and off the task's record", () => {
@@ -134,53 +60,92 @@ test("decide: the delegation gate keeps a worker to its scope and off the task's
     delegations: {
       "D-004": {
         writes: ["/wt/d-004/skills/review-work/**"],
+        line: true,
         worktree: "/wt/d-004",
         folder: `${TASK_DIR}/delegations/D-004-x`,
       },
-      "D-005": { writes: [], worktree: null, folder: `${TASK_DIR}/delegations/D-005-y` },
+      "D-005": { writes: [], line: false, worktree: null, folder: `${TASK_DIR}/delegations/D-005-y` },
+      "D-006": {
+        writes: ["/wt/d-006/**"],
+        line: false,
+        worktree: "/wt/d-006",
+        folder: `${TASK_DIR}/delegations/D-006-z`,
+      },
     },
   });
   const worker = (call, id = "D-004") => decide(state, { ...call, delegation: id });
   assert.deepEqual(gates(worker(edit("/wt/d-004/skills/review-work/SKILL.md"))), []);
   assert.deepEqual(gates(worker(edit(`${TASK_DIR}/delegations/D-004-x/progress.md`))), []);
   assert.deepEqual(gates(worker(edit("/wt/d-004/hooks/claude/freeflow.mjs"))), ["delegation:warn"]);
+  assert.match(
+    worker(edit("/wt/d-004/hooks/claude/freeflow.mjs")).reason,
+    /\(May write: \/wt\/d-004\/skills\/review-work\/\*\*\)\./,
+  );
   assert.deepEqual(gates(worker(edit(`${TASK_DIR}/record.md`))), ["delegation:warn"]);
   assert.match(worker(edit(`${TASK_DIR}/decisions.md`)).reason, /on the task's decisions\.md/);
   assert.deepEqual(gates(worker(bash(`echo x >> ${TASK_DIR}/history.md`))), ["delegation:warn"]);
   assert.deepEqual(gates(worker(bash("node /ff/working-record.mjs slice close --record x"))), ["delegation:warn"]);
   assert.deepEqual(gates(worker(bash("node /ff/working-record.mjs view recover --record x --delegation D-004"))), []);
-  // A reader writes only its own folder.
+  // A reader writes only its own folder; a brief with no May write line and a worktree is scoped to the worktree.
   assert.deepEqual(gates(worker(edit("/work/app/a.ts"), "D-005")), ["delegation:warn"]);
-  assert.match(worker(edit("/work/app/a.ts"), "D-005").reason, /May write: nothing; a reader/);
-  // The main loop is not a worker, and a worker has no Slice gate of its own.
+  assert.match(worker(edit("/work/app/a.ts"), "D-005").reason, /no May write, no worktree: a reader/);
+  assert.match(
+    worker(edit("/work/app/a.ts"), "D-006").reason,
+    /no May write line; its worktree is its scope: \/wt\/d-006\/\*\*/,
+  );
+  assert.deepEqual(gates(worker(edit("/wt/d-006/x.md"), "D-006")), []);
+  // The main loop is not a worker; a worker inside its scope is allowed; a block refuses.
   assert.deepEqual(gates(decide(state, edit("/wt/d-004/hooks/claude/freeflow.mjs"))), []);
   assert.deepEqual(gates(worker(edit("/wt/d-004/skills/review-work/x"), "D-004")), []);
   assert.equal(decide(state, { ...edit("/wt/d-004/hooks/x"), delegation: "D-004" }, block).decision, "block");
 });
 
-test("decide: a missing gate state is quiet under warn and closed under block for the gates that need it", () => {
+test("decide: a missing gate state is quiet under warn, and closed under block for a worker", () => {
   assert.equal(decide(null, edit("/work/app/a.ts")).decision, "allow");
   assert.equal(decide({ v: 2 }, edit("/work/app/a.ts")).decision, "allow");
-  const closed = decide(null, edit("/work/app/a.ts"), block);
+  // Without a worker there is no scope to read: a missing state is no refusal.
+  assert.equal(decide(null, edit("/work/app/a.ts"), block).decision, "allow");
+  const worker = edit("/work/app/a.ts", { delegation: "D-004" });
+  assert.equal(decide(null, worker).decision, "allow");
+  const closed = decide(null, worker, block);
   assert.equal(closed.decision, "block");
-  assert.match(gateText(closed.fired[0]), /Freeflow cannot read its gate state; run `task here` or `agree`/);
-  // The delivery gate needs no state: it still reminds.
-  assert.deepEqual(gates(decide(null, bash("git push"))), ["delivery:warn"]);
+  assert.match(gateText(closed.fired[0]), /Freeflow cannot read its gate state; run `task here`, then go on\./);
   // Off is off.
-  const off = Object.fromEntries(Object.keys(block).map((gate) => [gate, "off"]));
-  assert.equal(decide(null, edit("/work/app/a.ts"), off).decision, "allow");
-  assert.equal(decide(noTask(), bash("git push"), off).decision, "allow");
+  assert.equal(decide(null, worker, { delegation: "off" }).decision, "allow");
 });
 
 test("decide: the strongest decision leads, and every gate that fired is listed for the log", () => {
-  const result = decide(held({ agreement: null, slice: null }), bash("git commit -am x"), {
-    ...DEFAULT_GATE_SETTINGS,
-    delivery: "block",
+  const state = held({
+    delegations: {
+      "D-004": {
+        writes: ["/wt/d-004/**"],
+        line: true,
+        worktree: "/wt/d-004",
+        folder: `${TASK_DIR}/delegations/D-004-x`,
+      },
+    },
+    claims: [
+      {
+        writes: ["/work/app/src/**"],
+        until: "2026-11-03T12:00:00.000Z",
+        task: "other/task-002",
+        delegation: "D-009",
+        session: "cccccccc-3333",
+      },
+    ],
   });
-  assert.deepEqual(gates(result), ["agreement:warn", "delivery:block", "slice:warn"]);
+  // The worker writes its record (block refuses) and a file another session claims (a warning in the same list).
+  const result = decide(
+    state,
+    { ...edit(`${TASK_DIR}/record.md`, { delegation: "D-004" }), now: Date.parse("2026-11-03T10:30:00.000Z") },
+    block,
+  );
   assert.equal(result.decision, "block");
-  assert.equal(result.gate, "delivery");
-  for (const fired of result.fired)
+  assert.equal(result.gate, "delegation");
+  const claimed = decide(state, { ...edit("/work/app/src/a.ts"), now: Date.parse("2026-11-03T10:30:00.000Z") });
+  assert.deepEqual(gates(claimed), ["delegation:warn"]);
+  assert.match(claimed.reason, /is claimed by other\/task-002 D-009 \(session cccccccc…, until 12:00 UTC\)/);
+  for (const fired of [...result.fired, ...claimed.fired])
     assert.equal(
       lineProblem({
         v: 1,
@@ -189,13 +154,20 @@ test("decide: the strongest decision leads, and every gate that fired is listed 
         harness: "pi",
         agent: "main",
         kind: "gate",
-        ...gateEvent(fired, "bash"),
+        ...gateEvent(fired, "Edit"),
       }),
       null,
     );
 });
 
-test("classifyCommand: chains, quotes, redirections and here-documents", () => {
+test("gates.json: a version-1 file holding an older run's agreement and Slice fields is still read", () => {
+  assert.equal(GATE_STATE_VERSION, 1);
+  assert.equal(validGateState({ v: 1, agreement: "A-001", slice: { id: "S-001", state: "in_progress" } }), true);
+  assert.equal(validGateState({ v: 2 }), false);
+  assert.equal(validGateState(null), false);
+});
+
+test("classifyCommand: chains, quotes, redirections and here-documents, and Track Work's writes", () => {
   const read = (command) => classifyCommand(command).changing;
   assert.equal(read("ls && git status | head -3"), false);
   assert.equal(read("cat a > b"), true);
@@ -207,11 +179,16 @@ test("classifyCommand: chains, quotes, redirections and here-documents", () => {
   assert.equal(read("find . -name x -delete"), true);
   assert.equal(read("grep x $(ls)"), true);
   assert.equal(read("bash -c 'ls'"), true);
-  assert.deepEqual(classifyCommand("bash -c 'git push origin'").delivery, ["git push"]);
-  assert.deepEqual(classifyCommand("cat <<'EOF' > notes.md\ngit push\nEOF\n").delivery, []);
-  assert.deepEqual(classifyCommand('git commit -m "a && git push"').delivery, ["git commit"]);
-  assert.equal(classifyCommand("node /x/working-record.mjs view recover --record y").trackWork, true);
-  assert.equal(classifyCommand("node /x/working-record.mjs view recover && rm -rf y").trackWork, false);
+  assert.equal(read("cat <<'EOF' > notes.md\ngit push\nEOF\n"), true);
+  assert.deepEqual(classifyCommand("cat <<'EOF' > notes.md\ngit push\nEOF\n").writes, ["notes.md"]);
+  assert.equal(read('git commit -m "a && git push"'), true);
+  assert.equal(classifyCommand("node /x/working-record.mjs view recover --record y").trackWorkWrites, false);
+  assert.equal(classifyCommand("node /x/working-record.mjs slice close --record y").trackWorkWrites, true);
+  assert.equal(classifyCommand("node /x/working-record.mjs view recover && rm -rf y").changing, true);
+  assert.equal(classifyCommand("node /x/working-record.mjs view recover && rm -rf y").trackWorkWrites, false);
+  // A syntax check reads the script (D-058: the coordinator's warning on this exact check).
+  assert.equal(classifyCommand("node --check /x/working-record.mjs && echo syntax-ok").changing, false);
+  assert.equal(classifyCommand("node --check /x/working-record.mjs").trackWorkWrites, false);
 });
 
 test("matchesGlob: ** across folders, * within one, a bare path as a folder", () => {
@@ -286,13 +263,13 @@ function ok(result) {
 
 const SLICE = "- Result wanted: r.\n- Under: A-001.\n- Scope: s.\n- Done when: d.\n- Stop if: x.\n- Started from: y.\n";
 
-test("each lifecycle command writes the session's gate state, derived from the record it changed", async () => {
+test("each lifecycle command writes the session's gate state for the delegation gate (D-058: no agreement or Slice)", async () => {
   await withStore(async ({ home, repo, cli, state }) => {
-    // Session status at session start writes a state where none is, so the gates read what holds.
+    // Session status at session start writes a state where none is, so the gate reads what holds.
     ok(cli(["session", "status"]));
     assert.deepEqual(
-      { task: (await state()).task, agreement: (await state()).agreement, store: (await state()).store },
-      { task: null, agreement: null, store: realpathSync(home) },
+      { task: (await state()).task, delegations: (await state()).delegations },
+      { task: null, delegations: {} },
     );
     ok(cli(["project", "new", "--name", "widget"]));
     ok(
@@ -312,14 +289,13 @@ test("each lifecycle command writes the session's gate state, derived from the r
     let now = await state();
     assert.equal(now.task, "widget/task-001");
     assert.match(now.taskDir, /\/projects\/widget\/tasks\/task-001-demo$/);
-    assert.equal(now.agreement, null);
-    assert.equal(now.slice, null);
+    assert.equal("agreement" in now, false);
+    assert.equal("slice" in now, false);
     ok(
       cli(["agreement", "open", "--record", "widget/task-001", "--title", "Demo", "--input", "-"], {
         input: "- Build the demo.\n",
       }),
     );
-    assert.equal((await state()).agreement, "A-001");
     ok(
       cli(
         [
@@ -337,24 +313,6 @@ test("each lifecycle command writes the session's gate state, derived from the r
         { input: SLICE },
       ),
     );
-    assert.deepEqual((await state()).slice, { id: "S-001", state: "in_progress" });
-    ok(
-      cli([
-        "slice",
-        "pause",
-        "--record",
-        "widget/task-001",
-        "--reason",
-        "waiting",
-        "--resume-when",
-        "later",
-        "--next-action",
-        "Wait.",
-      ]),
-    );
-    assert.deepEqual((await state()).slice, { id: "S-001", state: "paused" });
-    ok(cli(["slice", "resume", "--record", "widget/task-001", "--resolution", "ready", "--next-action", "Go."]));
-    assert.deepEqual((await state()).slice, { id: "S-001", state: "in_progress" });
 
     // A worker's scope: --writes puts a May write line in the brief, and the state reads it back, resolved.
     const worktree = join(dirname(repo), "wt-review");
@@ -392,8 +350,9 @@ test("each lifecycle command writes the session's gate state, derived from the r
       `${worktree}/skills/review-work/**`,
       `${worktree}/CHANGELOG.md`,
     ]);
+    assert.equal(now.delegations["D-001"].line, true);
     assert.equal(now.delegations["D-001"].worktree, worktree);
-    // Without --writes, a reader: nothing but its own folder.
+    // Without --writes, a reader: nothing but its own folder, and no May write line.
     ok(
       cli(
         [
@@ -410,12 +369,11 @@ test("each lifecycle command writes the session's gate state, derived from the r
           "--input",
           "-",
         ],
-        {
-          input: "## Result wanted\nr\n## Scope\nRead.\n## Done when\nd\n",
-        },
+        { input: "## Result wanted\nr\n## Scope\nRead.\n## Done when\nd\n" },
       ),
     );
     assert.deepEqual((await state()).delegations["D-002"].writes, []);
+    assert.equal((await state()).delegations["D-002"].line, false);
     ok(
       cli(
         ["delegate", "close", "--record", "widget/task-001", "--id", "D-002", "--outcome", "stopped", "--input", "-"],
@@ -426,6 +384,7 @@ test("each lifecycle command writes the session's gate state, derived from the r
     );
     assert.deepEqual(Object.keys((await state()).delegations), ["D-001"]);
 
+    // The record's Slice and agreement close as before; the state no longer holds either.
     ok(
       cli(
         [
@@ -445,7 +404,6 @@ test("each lifecycle command writes the session's gate state, derived from the r
         },
       ),
     );
-    assert.equal((await state()).slice, null);
     ok(
       cli(
         [
@@ -463,20 +421,16 @@ test("each lifecycle command writes the session's gate state, derived from the r
         { input: "- Cue: read when the demo matters\n- Result: done.\n- Task effect: A demo.\n" },
       ),
     );
-    assert.equal((await state()).agreement, null);
+    assert.equal("agreement" in (await state()), false);
 
-    // A stale state (a change made by hand) is named by validate and set right by the next command.
+    // A stale agreement field left in the state by an older version is not a drift any more: validate says nothing.
     const path = join(home, "sessions", "aaaaaaaa-1111", "gates.json");
     await writeFile(path, JSON.stringify({ ...(await state()), agreement: "A-009" }));
-    assert.match(
-      ok(cli(["validate", "--record", "widget/task-001"])),
-      /gate state differs from the record \(agreement A-009 in gates\.json, none in the record\)/,
-    );
+    assert.doesNotMatch(ok(cli(["validate", "--record", "widget/task-001"])), /gate state differs/);
 
     ok(cli(["task", "release"]));
     now = await state();
     assert.equal(now.task, null);
-    assert.equal(now.agreement, null);
     assert.deepEqual(now.delegations, {});
     ok(cli(["task", "take", "--id", "widget/task-001"]));
     assert.equal((await state()).task, "widget/task-001");
@@ -485,19 +439,17 @@ test("each lifecycle command writes the session's gate state, derived from the r
   });
 });
 
-test("agree records a session's agreement and an exact spec in the state and as an agreement line; refused while a task is held", async () => {
+test("agree records a session's agreement and an exact spec as an agreement line; no gate reads it; refused while a task is held", async () => {
   await withStore(async ({ home, cli, state }) => {
     const agreed = ok(
       cli(["agree", "--outcome", "Fix the README typo.", "--exact-spec", "the issue names the line and the fix"]),
     );
     assert.match(
       agreed,
-      /^Agreed for this session: Fix the README typo\.\nExact spec declared: the issue names the line and the fix; a reviewer audits it\n/,
+      /^Agreed for this session: Fix the README typo\.\nExact spec declared: the issue names the line and the fix; a reviewer audits it\nRecorded: an agreement line in the event log\.\n$/,
     );
-    const now = await state();
-    assert.equal(now.agreement, "session");
-    assert.equal(now.session.outcome, "Fix the README typo.");
-    assert.equal(now.exactSpec.reason, "the issue names the line and the fix");
+    // No gate state is written for it any more.
+    assert.equal(existsSync(join(home, "sessions", "aaaaaaaa-1111", "gates.json")), false);
     const lines = (await readFile(join(home, "events", "aaaaaaaa-1111.jsonl"), "utf8"))
       .trim()
       .split("\n")
@@ -513,7 +465,6 @@ test("agree records a session's agreement and an exact spec in the state and as 
         },
       ],
     );
-    // An exact spec lasts the session; a session agreement gives way to a task's.
     ok(cli(["project", "new", "--name", "widget"]));
     ok(
       cli([
@@ -529,8 +480,6 @@ test("agree records a session's agreement and an exact spec in the state and as 
         "read when the demo matters",
       ]),
     );
-    assert.equal((await state()).agreement, null);
-    assert.equal((await state()).exactSpec.reason, "the issue names the line and the fix");
     assert.match(
       cli(["agree", "--outcome", "x"]).stderr,
       /This session holds widget\/task-001: record the agreement in its record with agreement open/,
@@ -541,10 +490,11 @@ test("agree records a session's agreement and an exact spec in the state and as 
       env: { ...process.env, FREEFLOW_HOME: home, FREEFLOW_SESSION: "", CLAUDE_CODE_SESSION_ID: "" },
     });
     assert.match(none.stderr, /No session ID/);
+    assert.equal((await state()).task, "widget/task-001");
   });
 });
 
-test("events summary counts the gate lines by gate, and the ones asked or refused", async () => {
+test("events summary counts the delegation gate's lines; an older log's removed-gate lines still read and are not counted", async () => {
   await withStore(async ({ home, cli }) => {
     const line = (gate, decision, ms) => ({
       v: 1,
@@ -560,23 +510,20 @@ test("events summary counts the gate lines by gate, and the ones asked or refuse
     });
     ok(
       cli(["events", "append", "--input", "-"], {
-        input: [line("slice", "warn", 1), line("slice", "warn", 2), line("delivery", "block", 3)]
+        input: [line("delegation", "warn", 1), line("slice", "warn", 2), line("delivery", "block", 3)]
           .map((each) => JSON.stringify(each))
           .join("\n"),
       }),
     );
     const printed = ok(cli(["events", "summary"]));
-    assert.match(
-      printed,
-      /\nGates: agreement 0, slice 2, delivery 1, delegation 0 would-fire, 1 of them asked or refused\n/,
-    );
+    assert.match(printed, /\nGates: delegation 1 would-fire\n/);
     const summary = JSON.parse(ok(cli(["events", "summary", "--json"])));
-    assert.deepEqual(summary.gates, { agreement: 0, slice: 2, delivery: 1, delegation: 0, blocked: 1 });
+    assert.deepEqual(summary.gates, { delegation: 1, blocked: 0 });
     assert.ok(existsSync(join(home, "events", "aaaaaaaa-1111.jsonl")));
   });
 });
 
-test("estimate --store totals the gates' would-fire counts across the task folders' event summaries", async () => {
+test("estimate --store totals the delegation gate's would-fire counts across the task folders' event summaries", async () => {
   await withStore(async ({ home, cli }) => {
     ok(cli(["project", "new", "--name", "widget"]));
     ok(
@@ -608,13 +555,13 @@ test("estimate --store totals the gates' would-fire counts across the task folde
     await writeFile(join(events, "s-3.json"), JSON.stringify({ v: 1, session: "old" }));
     assert.match(
       ok(cli(["estimate", "--store"])),
-      /\nGates, would-fire in the sessions' summaries: agreement 1, slice 3, delivery 3, delegation 1; 2 asked or refused\n$/,
+      /\nGates, would-fire in the sessions' summaries: delegation 1; 2 asked or refused\n$/,
     );
   });
 });
 
-test("slice start from a proposal, task switch and task here's take-back write the gate state too", async () => {
-  await withStore(async ({ home, cli, state }) => {
+test("task switch and task here's take-back write the gate state too", async () => {
+  await withStore(async ({ cli, state }) => {
     ok(cli(["project", "new", "--name", "widget"]));
     for (const title of ["One", "Two"])
       ok(
@@ -635,41 +582,10 @@ test("slice start from a proposal, task switch and task here's take-back write t
         ),
       );
     ok(cli(["task", "release"], { session: "cccccccc-3333" }));
-    ok(
-      cli(["agreement", "open", "--record", "widget/task-001", "--title", "One", "--input", "-"], {
-        input: "- Build one.\n",
-      }),
-    );
-    ok(
-      cli(["slice", "propose", "--record", "widget/task-001", "--title", "Proposed", "--input", "-"], {
-        input: "- Result wanted: r.\n- Size: 1 files\n- Done when: d.\n",
-      }),
-    );
-    ok(
-      cli(
-        [
-          "slice",
-          "start",
-          "--record",
-          "widget/task-001",
-          "--title",
-          "Proposed",
-          "--next-action",
-          "Go.",
-          "--input",
-          "-",
-        ],
-        {
-          input: "- Under: A-001.\n- Scope: s.\n- Stop if: x.\n- Started from: y.\n",
-        },
-      ),
-    );
-    assert.deepEqual((await state()).slice, { id: "S-001", state: "in_progress" });
     ok(cli(["task", "switch", "--id", "widget/task-002"]));
     const switched = await state();
     assert.equal(switched.task, "widget/task-002");
-    assert.equal(switched.agreement, null);
-    assert.equal(switched.slice, null);
+    assert.deepEqual(switched.delegations, {});
     // A session's end closes its hold as ended; its resume takes the task back, and the state follows.
     const d = { session: "dddddddd-4444" };
     ok(
