@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/compaction/`, `pi-extension/src/store/`
 > **Tests:** `pi-extension/tests/compaction/`, `pi-extension/tests/store/`, `pi-extension/tests/integration/request-path-budget.test.js`
-> **Verified at:** `ecfd0788` (2026-11-10)
+> **Verified at:** `cbbaf549` (2026-11-14)
 > **User docs:** `plugin-docs/capabilities/compaction.md`
 
 For contributors changing Freeflow compaction on Pi and Pi's layer for the Freeflow store: when Freeflow tells the agent compaction is near, what it writes into the session, how Pi's own compaction works with it, and which behaviors are deliberate.
@@ -102,7 +102,7 @@ Pi's file lists from an earlier Freeflow compaction are added back into Pi's pre
 
 ## Surface
 
-**Configuration:** `compaction.enabled` (default on; off: no notices, no Freeflow compaction, Pi's compaction unchanged). `compaction.carry` (context reuse) is retired: tool results are not carried, so a config that sets it still loads and it does nothing. Pi settings read, never written: `compaction.reserveTokens` and its per-model overrides.
+**Configuration:** `compaction.enabled` (default on; off: no notices, no Freeflow compaction, Pi's compaction unchanged) and `compaction.withoutTask` (default on; with no task held, off: Freeflow's compaction does not run; with a task held it always applies, D-060). `compaction.carry` (context reuse) is retired: tool results are not carried, so a config that sets it still loads and it does nothing. Pi settings read, never written: `compaction.reserveTokens` and its per-model overrides.
 
 **Environment set:** `FREEFLOW_SESSION`, `FREEFLOW_HARNESS`, `FREEFLOW_TRANSCRIPT`, `FREEFLOW_RESUME`, `FREEFLOW_CONTEXT_WINDOW` (also on `model_select`). Read: `FREEFLOW_HOME`, through the script.
 

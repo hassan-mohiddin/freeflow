@@ -1073,7 +1073,7 @@ function formatSettingValue(item, value) {
   return item.valueLabels?.[key] && key !== LOCAL_INHERIT ? item.valueLabels[key] : formatCoreValue(value);
 }
 const ORIGINS = {
-  builtin: "Inherited: not set in any file, so Freeflow's default applies.",
+  builtin: "Inherited: not set in any layer, so Freeflow's default applies.",
   repository: "Inherited from Everywhere: the Freeflow home's settings.json.",
   local: "Inherited from This folder: the Freeflow home's folders.json.",
   session: "Inherited from this session.",

@@ -1274,7 +1274,7 @@ function formatSettingValue(item: SettingsItem, value: unknown): string {
 type ValueParts = { value: string; note?: string; tone?: "on" | "off"; origin?: string };
 
 const ORIGINS: Record<ConfigSource, string> = {
-  builtin: "Inherited: not set in any file, so Freeflow's default applies.",
+  builtin: "Inherited: not set in any layer, so Freeflow's default applies.",
   repository: "Inherited from Everywhere: the Freeflow home's settings.json.",
   local: "Inherited from This folder: the Freeflow home's folders.json.",
   session: "Inherited from this session.",

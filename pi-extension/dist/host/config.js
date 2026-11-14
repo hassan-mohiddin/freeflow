@@ -85,7 +85,7 @@ function legacyIgnored(cwd) {
           {
             file: LEGACY_FILES[scope],
             key: null,
-            reason: "moved to Only this folder: run settings.mjs doctor to move it",
+            reason: "moved to This folder: run settings.mjs doctor --fix to move it",
           },
         ]
       : [],

@@ -85,7 +85,7 @@ export type IgnoredEntry = IgnoredSetting & { file: string };
 /**
  * One settings layer as read: whether it exists, its settings as Pi applies them (with Pi's ticks over the general
  * values), and the ignored settings. The layers live in the Freeflow home (D-060): `settings.json` (Everywhere, the
- * layer the code names `repository`) and `folders.json` (Only this folder, `personal`).
+ * layer the code names `repository`) and `folders.json` (This folder, `personal`).
  */
 type ConfigFileState = {
   file: string;
@@ -121,7 +121,7 @@ function legacyIgnored(cwd: string): IgnoredEntry[] {
           {
             file: LEGACY_FILES[scope],
             key: null,
-            reason: "moved to Only this folder: run settings.mjs doctor to move it",
+            reason: "moved to This folder: run settings.mjs doctor --fix to move it",
           },
         ]
       : [],
