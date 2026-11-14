@@ -85,19 +85,23 @@ async function build(ref, root, groupDirectory, index) {
 }
 
 /**
- * Writes an arm's Freeflow settings into its workspace before the subject starts. A fixture that already
- * carries either file is refused: the settings belong to the configuration, where the comparison declares them.
+ * Writes an arm's Freeflow settings into its own Freeflow home (D-060): the repository's values are the everywhere
+ * layer (`settings.json`), the checkout's personal values are the folder layer (`folders.json`, keyed by the workspace).
+ * The subject runs with that home as FREEFLOW_HOME. A fixture that already carries a legacy `.freeflow` settings file
+ * is refused: the settings belong to the configuration, where the comparison declares them.
  */
-export async function writeFreeflowSettings(workspace, freeflow) {
-  const directory = path.join(workspace, ".freeflow");
+export async function writeFreeflowSettings(home, workspace, freeflow) {
   for (const file of ["config.json", "local.json"]) {
-    if (await stat(path.join(directory, file)).catch(() => null)) {
+    if (await stat(path.join(workspace, ".freeflow", file)).catch(() => null)) {
       throw new Error(`the fixture already has .freeflow/${file}; declare Freeflow settings in configuration.freeflow`);
     }
   }
-  await mkdir(directory, { recursive: true });
-  await writeFile(path.join(directory, "config.json"), `${JSON.stringify(freeflow.repository, null, 2)}\n`);
-  if (Object.keys(freeflow.personal).length > 0) {
-    await writeFile(path.join(directory, "local.json"), `${JSON.stringify(freeflow.personal, null, 2)}\n`);
-  }
+  await mkdir(home, { recursive: true });
+  if (Object.keys(freeflow.repository).length > 0)
+    await writeFile(path.join(home, "settings.json"), `${JSON.stringify(freeflow.repository, null, 2)}\n`);
+  if (Object.keys(freeflow.personal).length > 0)
+    await writeFile(
+      path.join(home, "folders.json"),
+      `${JSON.stringify({ [path.resolve(workspace)]: freeflow.personal }, null, 2)}\n`,
+    );
 }

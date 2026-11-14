@@ -59,7 +59,8 @@ async function installRecordingPi(root) {
     executable,
     `#!/usr/bin/env node
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
-const config = existsSync(".freeflow/config.json") ? JSON.parse(readFileSync(".freeflow/config.json", "utf8")) : null;
+const settingsFile = process.env.FREEFLOW_HOME ? process.env.FREEFLOW_HOME + "/settings.json" : "";
+const config = settingsFile && existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, "utf8")) : null;
 appendFileSync(${JSON.stringify(path.join(root, "pi.jsonl"))}, JSON.stringify({
   args: process.argv.slice(2),
   allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS),

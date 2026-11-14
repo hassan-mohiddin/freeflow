@@ -48,6 +48,7 @@ test("Freeflow switched on after the session started: the next run's start bring
     },
     true,
     {
+      home,
       freeflowConfig: { enabled: false },
       // Freeflow is switched on in the repository after the session started.
       beforePrompt: async ({ cwd }) => writeFile(everywhereFile(), JSON.stringify({})),
@@ -71,6 +72,7 @@ test("a session that started with Freeflow gets the menu from its start and no c
     },
     true,
     {
+      home,
       // Session start does not wait for the store (activation-status's Gotchas): the prompt waits until the start has
       // recorded its steps, which it does once the menu is made, so the menu reaches the first prompt.
       beforePrompt: async ({ manager }) => {

@@ -239,7 +239,7 @@ test(
           assert.equal(claims.claims.route.claim, "possible");
         },
         true,
-        noRouting,
+        { ...noRouting, home },
       );
     });
   },
@@ -262,7 +262,7 @@ test(
           assert.deepEqual(claims.claims.sensors, { claim: "possible", how: "the event log is off (events.enabled)" });
         },
         true,
-        { ...noRouting, freeflowConfig: { ...noRouting.freeflowConfig, events: { enabled: false } } },
+        { ...noRouting, freeflowConfig: { ...noRouting.freeflowConfig, events: { enabled: false } }, home },
       );
     });
   },
@@ -282,7 +282,7 @@ test("/freeflow capabilities on Pi prints the listing for this session", { timeo
         assert.match(listing, /\nEvent log: on, .*events\/.*\.jsonl \(\d+ line\(s\)\)$/);
       },
       true,
-      noRouting,
+      { ...noRouting, home: process.env.FREEFLOW_HOME },
     );
   });
 });

@@ -284,6 +284,7 @@ test(
         true,
         {
           freeflowConfig: { toolExecution: { enabled: true }, gates: { slice: "warn", agreement: "warn" } },
+          home,
         },
       );
     } finally {

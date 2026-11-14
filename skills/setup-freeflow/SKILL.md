@@ -7,10 +7,10 @@ description: "Use when Freeflow is installed and the user asks to turn it on or 
 
 Freeflow works the moment it is installed: in every folder, on every host, with its defaults, and no config file. Setup is for the user's choices, not for activation. Keep three facts separate: the settings the user chose (kept in the Freeflow home, never in the repository), the store that keeps task memory, and what the host delivers at runtime.
 
-- Settings live in the Freeflow home (`FREEFLOW_HOME`, default `~/.freeflow`): `settings.json` (everywhere, the default for a change), `folders.json` (this folder, one entry per repository), and the session's own file. Precedence is session, then this folder, then everywhere, then the default.
+- The settings are in the Freeflow home, not in the repository (`FREEFLOW_HOME`, default `~/.freeflow`): `settings.json` (everywhere, the default for a change), `folders.json` (this folder, one entry per repository), and the session's own file. Precedence is session, then this folder, then everywhere, then the default.
 - A setting can also be ticked "only on this harness" (`claude-code`, `codex` or `pi`); the harness value wins within its layer.
-- Freeflow writes nothing into a repository except the project's own review rules. Do not create `.freeflow/config.json` or `.freeflow/local.json`; they are no longer read, and `settings.mjs doctor` moves their settings to this folder.
-- Runtime delivery depends on the host's installed and trusted adapter. Configuration does not prove delivery.
+- `.freeflow/config.json` and `.freeflow/local.json` are no longer read; `settings.mjs doctor` moves their settings to this folder. Freeflow writes nothing into a repository except the project's own review rules. Do not create or append Freeflow instructions in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/` or another host-owned instruction surface.
+- Configuration does not prove runtime delivery. Delivery depends on the host's installed and trusted adapter.
 
 Answer setting questions and delivery checks read-only. An explicit request authorizes the smallest selected change. Freeflow runs without setup, so a session never needs a setup step before work.
 
@@ -25,7 +25,7 @@ Answer setting questions and delivery checks read-only. An explicit request auth
 
 ## Change A Setting
 
-Run the settings script; never edit a settings file by hand:
+Run [the settings script](scripts/settings.mjs); never edit a settings file by hand:
 
 ```text
 node <setup-freeflow>/scripts/settings.mjs list [--view normal|developer] [--harness <name>]
@@ -59,7 +59,7 @@ node <setup-freeflow>/scripts/settings.mjs doctor --fix --committed
 
 `doctor --fix` removes a removed key (such as `review.mode`), drops an unknown key, resets a wrong value to its default, and moves a repository's `.freeflow/config.json` or `.freeflow/local.json` settings into this folder, naming each. The committed `.freeflow/config.json` is shared, so it is rewritten only with `--committed`, and only after the user agrees. A file that is not JSON is never rewritten: ask the user before replacing it, and name the file. Never discard a setting silently.
 
-Unsupported keys (`defaultMode`, `interactionContract`, `contextVirtualization`, `conversationHistory`, the removed `review` block, `cognitiveRouting`, `taskMemory`) are ignored and named until the user deletes them; `doctor` shows each.
+A setting Freeflow cannot use is ignored and named; its default applies, and the rest of the file is used. Unsupported keys (`defaultMode`, `interactionContract`, `contextVirtualization`, `conversationHistory`, the removed `review` block, `cognitiveRouting`, `taskMemory`) are ignored and named until the user deletes them; `doctor` shows each.
 
 ## Set Up The Store
 
@@ -88,6 +88,10 @@ After a first install or a setting change, tell the user to trigger the least di
 ### What Freeflow Can Do Here
 
 Freeflow's driver for the host writes, at session start, its claims for each request Freeflow knows: `yes` for what it does here today, `possible` for what the host offers and Freeflow does not use yet, `no` for what the host cannot do. Before relying on one, such as Freeflow compacting the session or keeping its event log, run [capabilities](scripts/capabilities.mjs) and use only what it reports as `yes`.
+
+## Establish Same-Turn Context
+
+After a first install or a setting change, apply the guidance for the rest of the turn: read the [Interaction Contract](../../runtime/prompts/interaction-contract.md), the [core guidance](../../runtime/prompts/core.md) and the [Working Method](../../runtime/prompts/working-method.md) when Freeflow is on. These reads do not prove that a host adapter ran at a lifecycle boundary; Hosts, above, says which boundary refreshes it.
 
 ## Verify And Report
 

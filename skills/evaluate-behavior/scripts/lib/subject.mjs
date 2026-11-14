@@ -337,6 +337,7 @@ async function prepareSubject(
   let fixture;
   let materializedRuntime;
   let adapter;
+  let freeflowHome;
   let isolation;
   try {
     environment = await materializeEnvironment({
@@ -352,7 +353,9 @@ async function prepareSubject(
     if (literal !== undefined) materializedRuntime.environment = { ...materializedRuntime.environment, literal };
     fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
     // Written before the workspace's starting state is taken, so they never count as the subject's changes.
-    if (freeflow !== null) await writeFreeflowSettings(workspace, freeflow);
+    // The arm's Freeflow home (D-060): its settings, and the subject's FREEFLOW_HOME.
+    freeflowHome = path.join(variantDirectory, "freeflow-home");
+    if (freeflow !== null) await writeFreeflowSettings(freeflowHome, workspace, freeflow);
     adapter = hostAdapter(materializedRuntime.host);
     isolation = await adapter.prepareIsolation(variantDirectory, group.variants[variant].model?.model ?? null, {
       settings: adapter.effectiveSettings(group.variants[variant].hostSettings ?? {}),
@@ -444,6 +447,7 @@ async function prepareSubject(
         contextObservationPath,
         requiresContextObservation,
         hostEnvironment: launch.environment,
+        freeflowHome,
       }),
       // A declared shell lets the guard allow bash; its isolation extension runs it.
       ...(group.variants[variant].shell ? { SKILL_EVAL_SHELL: JSON.stringify(group.variants[variant].shell) } : {}),
@@ -462,11 +466,14 @@ function createProcessEnvironment({
   contextObservationPath,
   requiresContextObservation,
   hostEnvironment,
+  freeflowHome,
 }) {
   const processEnvironment = baseProcessEnvironment();
   Object.assign(processEnvironment, {
     PWD: workspace,
     ...runtime.environment.literal,
+    // The arm's Freeflow home, where its settings are written (D-060).
+    FREEFLOW_HOME: freeflowHome,
     // The host's own variables, such as Pi's version check and telemetry switches, after declared literals.
     ...hostEnvironment,
     SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify(allowedRoots),

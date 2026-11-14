@@ -541,7 +541,7 @@ function validateHostExtensions(value, label, definitionPath) {
 
 /**
  * Freeflow as part of the configuration: the package built from an exact commit, and the settings written to
- * the workspace's `.freeflow/config.json` (repository) and `.freeflow/local.json` (personal). The settings are
+ * the arm's Freeflow home: `settings.json` (the repository values, everywhere) and `folders.json` (the personal values, this folder). The settings are
  * checked later with the validator from that same build, so the check matches the version under test.
  */
 function validateFreeflow(value, label, definitionPath) {

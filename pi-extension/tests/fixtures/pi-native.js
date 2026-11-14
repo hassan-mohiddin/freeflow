@@ -229,8 +229,13 @@ export async function fixture(script, _unused, after, withUI = true, options = {
     agentDir = join(root, "agent");
   // Settings live in the Freeflow home (D-060). A home a test set under the temporary folder is the test's own, and
   // the fixture writes its settings there; otherwise the fixture's own home, so a user's real home is never touched.
+  // A test that keeps its own home passes it as options.home; otherwise the fixture's home is its own, so parallel test
+  // files never share one (and an inherited FREEFLOW_HOME is never written to).
   const preset = process.env.FREEFLOW_HOME;
-  const home = preset && preset.startsWith(tmpdir()) ? preset : join(root, "home");
+  // The fixture's own home sits beside the folder, not inside it: a session writes to its home after the run, and the
+  // folder's removal must not race those writes.
+  const ownHome = options.home === undefined;
+  const home = options.home ?? (await mkdtemp(join(tmpdir(), "freeflow-v2-home-")));
   await mkdir(home, { recursive: true });
   await mkdir(cwd, { recursive: true });
   await mkdir(agentDir);
@@ -399,6 +404,7 @@ export async function fixture(script, _unused, after, withUI = true, options = {
     if (freeflowHome === undefined) delete process.env.FREEFLOW_HOME;
     else process.env.FREEFLOW_HOME = freeflowHome;
     await capture(root, requests);
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    if (ownHome) await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
