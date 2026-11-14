@@ -364,7 +364,7 @@ The open agreement's decision list, one line per item in Discuss Work's format, 
 - 4b1e90c2 · Pi · laptop · 2026-10-28 21:10 – 23:02 · released · <Pi's resume command>
 ```
 
-One line per session and task: the session, the harness, where it ran, when it first held the task, when it last held it, when it last released it (or `now` while it holds it), how it ended (`holding`, `released` on purpose, `ended` with its session, `taken over`), and the way back to it. A session that takes, releases and takes the task again updates its one line in place: `10:00, last held 11:00 – 11:30` is first held, last held and last released. A line with one hold reads `10:00 – 10:30`, and a file with several lines for one session, written before this, stays readable: taking the task again updates that session's last line. The last line that says `holding` is the hold, and `checkpoint` refuses a task this session does not hold. Only `task create`, `task take`, `task release` and `task switch` write it; Git merges it by keeping both sides' lines.
+One line per session and task: the session, the harness, where it ran, when it first held the task, when it last held it, when it last released it (or `now` while it holds it), how it ended (`holding`, `released` on purpose, `ended` with its session, `taken over`), and the way back to it. A session that takes, releases and takes the task again updates its one line in place: `10:00, last held 11:00 – 11:30` is first held, last held and last released. A line with one hold reads `10:00 – 10:30`, and a file with several lines for one session, written before this, stays readable: taking the task again updates that session's last line. The last line that says `holding` is the hold, and `checkpoint` refuses a task this session does not hold. Only `task create`, `task take`, `task release` and `task switch` write it; Git merges it by keeping both sides' lines, so the one line holds per clone: two clones that each update one session's line keep both.
 
 ## sources/discussion.md
 
@@ -409,7 +409,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Create a task | `task create --title <title> --goal <goal> --cue <cue> [--project <p> \| --no-project]` in the store (this session holds it) |
 | Hold a task, give it up, move to another | `task take --id <ID> [--takeover]`, `task release`, `task switch --id <ID>` |
 | Move a task into a project, or out of one | `task move --id <ID> (--project <p> \| --no-project)`, on the user's word |
-| Open, change, close the agreement | `agreement open`, `agreement update`, `agreement close --state <completed\|ended\|replaced>` (with `--state replaced --next-input <file\|->`: closes it, opens the next from those lines and moves the running Slice under it) |
+| Open, change, close the agreement | `agreement open`, `agreement update`, `agreement close --state <completed\|ended\|replaced>` (with `--state replaced --next-input <file\|-> --next-title <title>`: closes it, opens the next from those lines under that title and moves the running Slice under it) |
 | Record the agreement of a session that holds no task, for Freeflow's gates | `agree --outcome <text> [--exact-spec "<reason>"]`, `--exact-spec` when the user's request fixes every choice |
 | Propose a Slice | `slice propose` |
 | Start a proposed Slice, or one never proposed | `slice start --title <proposal title>`, `slice start-direct` |

@@ -13,7 +13,7 @@ Pi: cd <worktree> && pi --session-name D-031 "…"
 
 You or the agent start it; Freeflow does not start sessions itself. In the new session, `delegate join` makes it the worker and prints what it must read first.
 
-A worker's worktree sits in one folder beside its repository, `<repo>.worktrees/D-031-<slug>`, and `delegate close` removes it once the delegation is accepted or stopped, if it has no uncommitted or untracked changes; the branch stays. A worktree with changes is left in place, and the close says why.
+A worker's worktree sits in one folder beside its repository, `<repo>.worktrees/D-031-<slug>`, and `delegate close` removes it once the delegation is accepted or stopped, if nothing in it would be lost: no uncommitted or untracked change, no ignored file outside `node_modules/` (removing a worktree deletes its ignored files, and `node_modules/` is reinstalled), and no commit on a detached HEAD that its branch does not hold. The branch stays. A worktree that holds any of these is left in place, and the close says what kept it.
 
 ## What a worker session may do
 

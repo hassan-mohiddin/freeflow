@@ -179,9 +179,11 @@ async function publish(task, { record = null, history = null, decisions = null }
   const { root, path } = task.loaded;
   if (history !== null && history !== task.historyText)
     await writeTaskFile(root, path, HISTORY_FILE, task.historyText, history);
-  if (record !== null) await writeAtomically(root, path, task.record.text, recordText);
+  // decisions.md before record.md: a record that names a new agreement never sits beside the closed one's list. A
+  // close stopped between the writes is finished by running it again (its History entry says it was interrupted).
   if (decisions !== null && decisions !== task.decisionsText)
     await writeTaskFile(root, path, DECISIONS_FILE, task.decisionsText, decisions);
+  if (record !== null) await writeAtomically(root, path, task.record.text, recordText);
   return candidate;
 }
 
@@ -554,6 +556,11 @@ async function closeAgreement(options, text, loaded) {
   if (nextInput === "-" && options["--input"] === "-")
     fail("invalid-option", "--input and --next-input cannot both read stdin");
   const nextLines = nextInput === undefined ? null : agreedLines(await readInput(nextInput), "agreement close");
+  const nextTitle = oneLine(options["--next-title"]);
+  if (nextLines && !nextTitle)
+    fail("missing-option", "agreement close --next-input needs --next-title: the next agreement's title");
+  if (nextTitle && !nextLines)
+    fail("invalid-option", "--next-title goes with --next-input: it titles the next agreement");
   const moving = Boolean(record.work.slice && fieldText(record.work.slice, "Under") === agreement.id);
   if (moving && !nextLines)
     fail("slice-under-agreement", `${record.work.slice.id} works under ${agreement.id}; close it first`);
@@ -581,7 +588,7 @@ async function closeAgreement(options, text, loaded) {
       start: agreement.index,
       end: agreement.end,
       lines: nextLines
-        ? [`### Agreement ${nextId} — ${agreement.title}`, "", `- Opened: ${localDate()}`, ...nextLines, ""]
+        ? [`### Agreement ${nextId} — ${nextTitle}`, "", `- Opened: ${localDate()}`, ...nextLines, ""]
         : [],
     },
   ];
@@ -611,7 +618,7 @@ async function closeAgreement(options, text, loaded) {
     record: edit(record, replacements),
     decisions: task.decisionsText === null ? null : EMPTY_DECISIONS,
   });
-  const opened = nextLines ? `\nOpened agreement: ${nextId} — ${agreement.title}` : "";
+  const opened = nextLines ? `\nOpened agreement: ${nextId} — ${nextTitle}` : "";
   const moved = moving ? `\nMoved ${record.work.slice.id} under ${agreement.id} to ${nextId}.` : "";
   return `Closed agreement: ${agreement.id} — ${state}${opened}${moved}\n${await syncAfter(task, `close ${agreement.id}`)}\n`;
 }

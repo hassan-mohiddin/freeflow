@@ -902,3 +902,84 @@ test("delegate open puts a worktree in <repo>.worktrees; close removes a clean o
     assert.equal(existsSync(explicit), false);
   });
 });
+
+test("delegate close keeps a worktree holding an ignored file outside node_modules/, removes one holding only node_modules/, and says which file kept it", async () => {
+  await withTask(async ({ folder, record, repo, taskDir, cli }) => {
+    await writeFile(join(repo, ".gitignore"), ".tmp/\nnode_modules/\n");
+    git(repo, ["add", ".gitignore"]);
+    git(repo, ["commit", "--quiet", "-m", "ignore"]);
+    const open = (title) =>
+      ok(
+        cli(
+          [
+            "delegate",
+            "open",
+            "--record",
+            record,
+            "--title",
+            title,
+            "--kind",
+            "build",
+            "--agent",
+            "Haiku, xhigh",
+            "--repo",
+            repo,
+            "--input",
+            "-",
+          ],
+          BRIEF,
+        ),
+      );
+    open("Build the evidence");
+    open("Build the modules");
+    const evidence = join(folder, "repo.worktrees", "D-001-build-the-evidence");
+    const modules = join(folder, "repo.worktrees", "D-002-build-the-modules");
+    await mkdir(join(evidence, ".tmp"), { recursive: true });
+    await writeFile(join(evidence, ".tmp", "verdicts.json"), "{}\n");
+    await mkdir(join(modules, "node_modules", "pkg"), { recursive: true });
+    await writeFile(join(modules, "node_modules", "pkg", "index.js"), "x\n");
+    await writeFile(join(taskDir, "delegations", "D-001-build-the-evidence", "return.md"), NO_COMMITS_RETURN("D-001"));
+    await writeFile(join(taskDir, "delegations", "D-002-build-the-modules", "return.md"), NO_COMMITS_RETURN("D-002"));
+    const close = (id) =>
+      cli(["delegate", "close", "--record", record, "--id", id, "--outcome", "accepted", "--input", "-"], CLOSE_INPUT);
+    const kept = ok(close("D-001"));
+    assert.match(
+      kept,
+      /Left the worktree .+D-001-build-the-evidence: it holds ignored files outside node_modules\/, which removing it would delete \(\.tmp\/verdicts\.json\)\./,
+    );
+    assert.equal(existsSync(join(evidence, ".tmp", "verdicts.json")), true);
+    assert.match(
+      ok(close("D-002")),
+      /Removed the worktree .+D-002-build-the-modules; branch d-002-build-the-modules is kept\./,
+    );
+    assert.equal(existsSync(modules), false);
+  });
+});
+
+test("delegate close counts commits on a detached HEAD: accepting without --merge is refused, and a worktree whose HEAD its branch does not hold is left", async () => {
+  await withTask(async ({ folder, record, repo, taskDir, cli }) => {
+    openBuild(cli, record, repo);
+    const worktree = join(folder, "repo.worktrees", "D-001-build-the-thing");
+    git(worktree, ["checkout", "--quiet", "--detach"]);
+    await writeFile(join(worktree, "thing.txt"), "t\n");
+    git(worktree, ["add", "thing.txt"]);
+    git(worktree, ["commit", "--quiet", "-m", "thing"]);
+    await writeFile(join(taskDir, "delegations", "D-001-build-the-thing", "return.md"), NO_COMMITS_RETURN("D-001"));
+    const close = (args) =>
+      cli(["delegate", "close", "--record", record, "--id", "D-001", ...args, "--input", "-"], CLOSE_INPUT);
+    const refused = close(["--outcome", "accepted"]);
+    assert.equal(refused.status, 1);
+    assert.match(
+      refused.stderr,
+      /D-001 has branch d-001-build-the-thing with 1 commit\(s\) beyond .+: accepting it records the commit that merged it, --merge <commit>/,
+    );
+    git(repo, ["merge", "--quiet", "--ff-only", git(worktree, ["rev-parse", "HEAD"])]);
+    const out = ok(close(["--outcome", "accepted", "--merge", git(repo, ["rev-parse", "--short=8", "HEAD"])]));
+    assert.match(out, /^Closed D-001 — accepted\n/);
+    assert.match(
+      out,
+      /Left the worktree .+D-001-build-the-thing: its HEAD holds 1 commit\(s\) that branch d-001-build-the-thing does not/,
+    );
+    assert.equal(existsSync(worktree), true);
+  });
+});

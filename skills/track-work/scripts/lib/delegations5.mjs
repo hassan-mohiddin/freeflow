@@ -808,24 +808,50 @@ function workerMeasured(taskDir, id, brief, options, env = process.env) {
   return measure ? renderMeasure(measure) : "not measured";
 }
 
-/** Commits the delegation's branch holds beyond its base; null when git cannot count them. */
-function commitsBeyondBase(brief) {
-  const count = git(brief.repo, ["rev-list", "--count", `${brief.base}..${brief.branch}`]);
+/** The commits in a range, counted in a directory; null when git cannot count them. */
+function countCommits(directory, range) {
+  const count = git(directory, ["rev-list", "--count", range]);
   return ok(count) && /^\d+$/.test(count) ? Number(count) : null;
 }
 
 /**
+ * The commits beyond the base that the branch holds or the worktree's HEAD holds, a detached HEAD's included; null
+ * when git cannot count them. A worker that commits on a detached HEAD moves HEAD, not the branch.
+ */
+function commitsBeyondBase(brief) {
+  const branch = countCommits(brief.repo, `${brief.base}..${brief.branch}`);
+  const head = brief.worktree && existsSync(brief.worktree) ? countCommits(brief.worktree, `${brief.base}..HEAD`) : 0;
+  return branch === null || head === null ? null : Math.max(branch, head);
+}
+
+/** The commits the worktree's HEAD holds that its branch does not; null when git cannot count them. */
+function commitsOffBranch(brief) {
+  if (!brief.worktree || !existsSync(brief.worktree)) return 0;
+  return countCommits(brief.worktree, `${brief.branch}..HEAD`);
+}
+
+/**
  * Removes the delegation's worktree when its outcome is accepted or stopped (a sent back one runs again, so it stays),
- * and only when it holds no uncommitted or untracked change; never with --force. Its branch is kept. Returns the line
- * that says what it did, or why it left the worktree.
+ * and only when it holds nothing that removing it would lose: no uncommitted or untracked change, no ignored file
+ * outside node_modules/ (git deletes ignored files with the worktree; node_modules/ is reinstalled), and no commit its
+ * HEAD holds and its branch does not. Never with --force. Its branch is kept. Returns the line that says what it did,
+ * or why it left the worktree.
  */
 function removeWorktree(brief, outcome) {
   const path = brief.worktree;
   if (!path || !brief.repo || outcome === "sent back") return "";
   if (!existsSync(path)) return `\nThe worktree ${path} is already gone; branch ${brief.branch} is kept.`;
-  const status = git(path, ["status", "--porcelain", "--untracked-files=all"]);
+  const status = git(path, ["status", "--porcelain", "--ignored", "--untracked-files=all"]);
   if (!ok(status)) return `\nLeft the worktree ${path}: git could not read its status.`;
-  if (status) return `\nLeft the worktree ${path}: it has uncommitted or untracked changes.`;
+  const entries = status ? status.split("\n") : [];
+  if (entries.some((line) => !line.startsWith("!! ")))
+    return `\nLeft the worktree ${path}: it has uncommitted or untracked changes.`;
+  const kept = entries.map((line) => line.slice(3)).filter((file) => !file.startsWith("node_modules/"));
+  if (kept.length)
+    return `\nLeft the worktree ${path}: it holds ignored files outside node_modules/, which removing it would delete (${kept.slice(0, 3).join(", ")}${kept.length > 3 ? `, and ${kept.length - 3} more` : ""}).`;
+  const off = commitsOffBranch(brief);
+  if (off !== 0)
+    return `\nLeft the worktree ${path}: its HEAD holds ${off === null ? "commits git cannot count" : `${off} commit(s)`} that branch ${brief.branch} does not, and removing it would leave them unreachable.`;
   const removed = git(brief.repo, ["worktree", "remove", path]);
   if (!ok(removed)) return `\nLeft the worktree ${path}: ${removed.message}.`;
   return `\nRemoved the worktree ${path}; branch ${brief.branch} is kept.`;
@@ -876,6 +902,14 @@ export async function closeDelegation(loaded, options, text) {
         );
       if (merge && !ok(git(brief.repo, ["merge-base", "--is-ancestor", brief.branch, merge])))
         fail(`Branch ${brief.branch} is not merged in ${merge} in ${brief.repo}.`);
+      // A detached HEAD's own commits must be in the merge too, or the worktree's removal would be refused and they stay.
+      if (merge && brief.worktree && existsSync(brief.worktree) && commitsOffBranch(brief) !== 0) {
+        const head = git(brief.worktree, ["rev-parse", "--verify", "HEAD"]);
+        if (!ok(head) || !ok(git(brief.repo, ["merge-base", "--is-ancestor", head, merge])))
+          fail(
+            `${id}'s worktree HEAD holds commits that branch ${brief.branch} does not, and ${merge} does not hold them: merge them, then close with that commit.`,
+          );
+      }
     }
     const number = (name) => {
       const value = oneLine(options[name]);

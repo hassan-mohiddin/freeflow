@@ -724,7 +724,7 @@ test("take, release, take again gives the session one sessions.md line (first he
     );
     assert.match(
       all[1],
-      /^- cccccccc · Test harness · .+ · 2026-01-02 09:00, last held \d{4}-\d{2}-\d{2} \d{2}:\d{2} – now · holding · resume cccccccc-3$/,
+      /^- cccccccc · Test harness · .+ · 2026-01-01 09:00, last held \d{4}-\d{2}-\d{2} \d{2}:\d{2} – now · holding · resume cccccccc-3$/,
     );
   });
 });

@@ -148,11 +148,15 @@ function closeHold(sessions, hold, state) {
  */
 function openHold(sessions, identity) {
   const now = minute();
-  const own = sessions.holds.filter((hold) => hold.short === identity.short).at(-1);
+  const mine = sessions.holds.filter((hold) => hold.short === identity.short);
+  const own = mine.at(-1);
   if (own) {
+    // First held is the earliest start among the session's lines, whichever line of a legacy file it is on.
+    const first = mine.map((hold) => hold.first).sort()[0];
     const lines = [...sessions.lines];
     lines[own.index] = holdLine({
       ...own,
+      first,
       harness: identity.harness,
       where: identity.where,
       from: now,
