@@ -11,7 +11,7 @@ On Codex, Freeflow's driver runs on Codex's hook events once the user has approv
 - `codex-start`: session start gives the guidance, then the task menu saying which task this session holds, and writes Codex's claims.
 - `codex-rows`: a model request below the notice point puts nothing in the context; past it, the notice naming the task comes at the next prompt, once a cycle.
 - `codex-compact`: after Codex compacts, the guidance and the task's record follow, as of its last checkpoint and saying what it lacks when the checkpoint came first.
-- `codex-log`: the turn's end writes the session's lines to the event log in one run, never contents.
+- `codex-log`: the turn's end writes the session's lines to the event log in one run; the loop events hold no contents, and the sent lines hold the texts Freeflow sent the model.
 - `codex-end`: the session's end releases the hold as ended, committed here only, and a resume takes the task back.
 
 ## How to get to it (user POV)
