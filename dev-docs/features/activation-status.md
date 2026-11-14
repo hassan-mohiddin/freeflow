@@ -1,7 +1,7 @@
 # Activation and Status
 
 > **Covers:** `pi-extension/src/host/status.ts`, `pi-extension/src/host/config.ts`, `pi-extension/src/host/config-validation.ts`, `pi-extension/src/host/runtime-state.ts`, `pi-extension/src/store/layer.ts`
-> **Verified at:** `31e21dee` (2026-11-14)
+> **Verified at:** `a1eb3e88` (2026-11-14)
 > **User docs:** `plugin-docs/settings.md`
 
 On Pi, Freeflow runs in a folder that has a `.freeflow/config.json`. Without one the setup is needed: the footer reads `freeflow: setup needed`, nothing of Freeflow runs there, and the Runtime State tells the agent to set Freeflow up with the Setup Freeflow skill, or to work without it if the user declines (D-045, round 3). With the file present Freeflow is on, unless a setting turns it off: `enabled: false` in a file, or in the Session scope. A config file that cannot be used never turns it off. A setting the file ignores (a key no scope knows, a removed key, a value wrong for a known key, or a file that is not JSON, read as empty) keeps its default, and Freeflow says so: the footer reads `freeflow: on · N setting(s) ignored (settings.mjs doctor)`, and `/freeflow status` names each ignored setting, its file and why (D-045). Pi's footer shows the effective state on every screen, and `/freeflow status` prints the effective capabilities. How configuration is read and validated: [Prompt assembly](../subsystems/prompt-assembly.md) and the overview's [Cross-Cutting Concerns](../README.md#cross-cutting-concerns). Neither the footer nor `/freeflow status` shows the `review`, `prompts` or `skills` settings, and prompts turned off, one or all with `prompts.enabled`, leave Freeflow active; the agent gets it in the Runtime State.

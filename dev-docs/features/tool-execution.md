@@ -1,7 +1,7 @@
 # Tool Execution
 
 > **Covers:** `pi-extension/src/tool-execution/`, `runtime/prompts/tool-execution.md`
-> **Verified at:** `2b69286a` (2026-11-03)
+> **Verified at:** `a1eb3e88` (2026-11-14)
 > **User docs:** `plugin-docs/capabilities/tool-execution.md`
 
 Tool Execution is on whenever Freeflow is. The user sees it in `/freeflow status` and on the settings screen, where it has its own switch and a Guidance notices row; the model sees its guidance, file tracking, edit errors, `apply_patch`, background commands, monitors and guidance notices, which only a model's tool calls reach. How the code works: [Tool Execution](../subsystems/tool-execution.md).
