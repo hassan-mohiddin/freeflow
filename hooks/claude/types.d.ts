@@ -16,9 +16,7 @@ export type FreeflowPaneSelected = { project?: string; task?: string; worker?: s
 
 /** The question the pane's field asks: a new task's title, then its goal, for the project picked (null: none). */
 export type FreeflowPaneInput =
-  | { kind: "title"; project: string | null }
-  | { kind: "goal"; title: string; project: string | null }
-  | null;
+  { kind: "title"; project: string | null } | { kind: "goal"; title: string; project: string | null } | null;
 
 /** What the reading view shows in place of the tab: a brief, a return, a sent text, decisions, the guide. */
 export type FreeflowPaneReading = { title: string; text: string; path?: string; markdown?: boolean } | null;
