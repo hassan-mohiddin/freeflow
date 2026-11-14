@@ -98,7 +98,10 @@ function world(on: any) {
     logs: [] as any[],
     clock: mock.clock(on, { now: T0 }),
     session: mock.session(on),
-    commands: () => w.runs.map((run) => run.args.join(" ")),
+    // A turn's end runs `discussion capture` with a store (its own test below checks it), so the lists of the other calls
+    // leave it out.
+    commands: () =>
+      w.runs.map((run) => run.args.join(" ")).filter((command) => !command.startsWith("discussion capture")),
     beforeRun: (_key: string): unknown => undefined,
     // What a slash command the mod runs comes to; a test throws here for a run the engine drops.
     commandResult: (_e: any): object => ({ text: "Compacted" }),
@@ -372,6 +375,28 @@ test("session start: with a store, pull it, give the scripts the window and the 
     "Freeflow task memory: the store is not ready.\n- Missing: the store is not at /h. Fix (the user): select its repository when starting a session.",
   ]);
   expect(w.commands()).toEqual(["session status"]);
+});
+
+test("a turn's end captures the user's messages with a store, before its store sync, and not without one", async ($, on) => {
+  const w = world(on);
+  w.answers["task here"] = { stdout: MENU };
+  await start($);
+  w.status = held(at(0.5), { changed: true });
+  w.runs.length = 0;
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(1);
+  const ran = w.runs.map((run) => run.args.join(" "));
+  expect(ran.findIndex((command) => command.startsWith("discussion capture"))).toBeGreaterThan(-1);
+  expect(ran.findIndex((command) => command.startsWith("discussion capture"))).toBeLessThan(ran.indexOf("store sync"));
+  expect(w.runs.find((run) => run.args.join(" ").startsWith("discussion capture"))?.session).toBe(SESSION);
+
+  w.status = store({ store: false });
+  w.runs.length = 0;
+  await $.turn.complete(turnEnd("answer"));
+  await w.clock.advance(1);
+  expect(w.runs.map((run) => run.args.join(" ")).filter((command) => command.startsWith("discussion capture"))).toEqual(
+    [],
+  );
 });
 
 test("a store attached after session start: the turn that ends with it does what session start does with a store, once", async ($, on) => {

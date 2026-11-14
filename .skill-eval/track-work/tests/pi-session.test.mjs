@@ -4,6 +4,7 @@ import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { userMessages } from "../../../skills/track-work/scripts/lib/discussion5.mjs";
 
 const scriptPath = resolve("skills/track-work/scripts/working-record.mjs");
 const long = (word) => `${word} `.repeat(40).trim();
@@ -46,40 +47,19 @@ function piSession() {
   return `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`;
 }
 
-test("a Pi session is read along its active branch: discussion list numbers its user's messages, not a branch /tree left", async () => {
+test("a Pi session is read along its active branch: the reader takes its user's messages, not a branch /tree left", async () => {
   const folder = await realpath(await mkdtemp(join(tmpdir(), "track-work-pi-session-")));
   try {
     const session = join(folder, "2026-10-30T10-00-00_session-1.jsonl");
     await writeFile(session, piSession());
-    const run = (...args) => spawnSync(process.execPath, [scriptPath, ...args], { encoding: "utf8" });
-    execFileSync("git", ["init", "--quiet", "--initial-branch=main"], { cwd: folder });
-    await writeFile(join(folder, ".gitignore"), ".freeflow/\n*.jsonl\n");
-    const init = spawnSync(
-      process.execPath,
-      [scriptPath, "init", "--root", folder, "--name", "Pi", "--cue", "read when Pi matters", "--input", "-"],
-      { encoding: "utf8", input: "### Goal\n\n- Read Pi.\n\n### Next action\n\n- Go.\n" },
-    );
-    assert.equal(init.status, 0, init.stderr);
-    const record = init.stdout.trim().split("\n")[0];
-    const messages = run(
-      "discussion",
-      "list",
-      "--record",
-      record,
-      "--since",
-      "2026-10-30T09:00:00Z",
-      "--transcript",
-      session,
-    );
-    assert.equal(messages.status, 0, messages.stderr);
-    assert.equal(
-      messages.stdout,
+    const messages = userMessages({ transcript: session, since: "2026-10-30T09:00:00Z" });
+    assert.deepEqual(
+      messages.map((message) => [message.number, message.text]),
       [
-        "1. 2026-10-30 10:01 · List the files.",
-        "2. 2026-10-30 10:03 · Fix the parser.",
-        "3. 2026-10-30 10:08 · Now the docs.",
-        "",
-      ].join("\n"),
+        [1, "List the files."],
+        [2, "Fix the parser."],
+        [3, "Now the docs."],
+      ],
     );
   } finally {
     await rm(folder, { recursive: true, force: true });

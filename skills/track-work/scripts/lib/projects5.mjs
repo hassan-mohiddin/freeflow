@@ -10,7 +10,7 @@ import { hostname } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { releaseClaims } from "./claims5.mjs";
 import { slugify } from "./format.mjs";
-import { claudeCodeLog } from "./discussion5.mjs";
+import { DISCUSSIONS_DIR, SESSION_DISCUSSION, claudeCodeLog, moveSessionMessages } from "./discussion5.mjs";
 import { missingParts, storeStatus, syncStore } from "./freeflow-store.mjs";
 import {
   DECISIONS_FILE,
@@ -23,12 +23,14 @@ import {
 } from "./record5.mjs";
 import { holdStart, summaryForTask } from "./events5.mjs";
 import { decisionItem, orderedDecisions, rules } from "./budget5.mjs";
+import { applyTidy, checkTidyRecord, makeTaskFolders, planTidy, writeReadme } from "./task-folder5.mjs";
 import { searchRecords } from "./search.mjs";
 import {
   LAST_TASK_NUMBER,
   createRecordPath,
   isFreeflowStore,
   nextTaskNumber,
+  writeAtomically,
   writeInitialAtomically,
   writeTaskFile,
 } from "./store.mjs";
@@ -132,7 +134,7 @@ function git(home, args) {
   }
 }
 
-async function sync(home, message, { push = true } = {}) {
+export async function sync(home, message, { push = true } = {}) {
   try {
     const synced = await syncStore({ home, message, push });
     if (synced.local) return "Store: committed; a local store, nothing to push.";
@@ -534,6 +536,9 @@ export async function createTask(
     },
   });
   if (repository) await rememberRepository(home, repository);
+  // The task's folders that always exist, and the messages this session sent before it held a task (renumbered).
+  makeTaskFolders(dirname(record), title);
+  moveSessionMessages(join(home, "sessions", identity.id, SESSION_DISCUSSION), dirname(record));
   const number = /^task-\d{3,}/.exec(basename(dirname(record)))[0];
   const task = findTask(home, slug ? `${slug}/${number}` : number);
   await writeHold(home, task, identity);
@@ -548,6 +553,8 @@ export async function takeTask(home, id, identity, { takeover = false } = {}) {
   if (held && held.id !== id) fail(`This session holds ${held.id}; checkpoint it and use task switch --id ${id}.`);
   if (held?.id === id) return `This session already holds ${id}.\n`;
   const previous = await writeHold(home, task, identity, { takeover });
+  // The pre-task messages this session sent go into the task it takes, as task create moves them (numbered on).
+  moveSessionMessages(join(home, "sessions", identity.id, SESSION_DISCUSSION), task.dir);
   const note = pulled ? "" : " (could not take the remote's commits first)";
   return `This session holds ${id}${previous ? `, taken over from ${previous.short}` : ""}${note}.\n${await sync(home, `Take ${id} (${identity.short})`)}\n`;
 }
@@ -650,6 +657,37 @@ export async function switchTask(home, id, identity, options) {
   if (held?.id === id) return `This session already holds ${id}.\n`;
   const released = held ? await releaseTask(home, identity, held.id) : "";
   return `${released}${await takeTask(home, id, identity, options)}`;
+}
+
+/**
+ * `task tidy --id`: the task's folder brought to its fixed structure, a move of sources/discussion*.md into discussions/
+ * and the Recovery lines that named them rewritten, then the README (task-folder5.mjs). The record is checked and
+ * written before anything moves, so a failure leaves the folder as it was.
+ */
+export async function tidyTask(home, id, identity) {
+  const recordPath = storeRecordPath(home, id);
+  requireHold(recordPath, identity);
+  const taskDir = dirname(recordPath);
+  const text = await readFile(recordPath, "utf8");
+  const name = parseRecord5(text).header.name;
+  const plan = planTidy(taskDir, text);
+  if (plan.recordText !== null) checkTidyRecord(plan.recordText);
+  // The files move first, then the record is published whole as checkpoint publishes it, then the README follows.
+  applyTidy(taskDir, plan);
+  // The record's root is its project folder (or the store, for a task in no project): two levels above its task folder.
+  if (plan.recordText !== null) await writeAtomically(dirname(dirname(taskDir)), recordPath, text, plan.recordText);
+  const readmeChanged = writeReadme(taskDir, name);
+  const moved = plan.moved.map((file) => `- sources/${file} → ${DISCUSSIONS_DIR}/${file}`);
+  const lines = [
+    ...(moved.length
+      ? [`Moved ${plan.moved.length} file(s) unchanged, from sources/ to ${DISCUSSIONS_DIR}/:`, ...moved]
+      : ["Nothing to move: sources/ holds no discussion file."]),
+    plan.rewritten
+      ? `Recovery: rewrote ${plan.rewritten} line(s) to the new place.`
+      : "Recovery: no line named a moved file.",
+    readmeChanged ? "README.md written." : "README.md is current.",
+  ];
+  return `${lines.join("\n")}\n${await sync(home, `Tidy ${id}`)}\n`;
 }
 
 export async function removeTask(home, id) {

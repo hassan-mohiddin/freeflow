@@ -22,7 +22,15 @@ import {
 } from "./budget5.mjs";
 import { storeHome, storeStatus } from "./freeflow-store.mjs";
 import { delegationChecks, workerSection } from "./delegations5.mjs";
-import { OPENING_LINE, SESSION_OPENING, claudeCodeLog, userMessages } from "./discussion5.mjs";
+import {
+  OPENING_LINE,
+  SESSION_DISCUSSION,
+  SESSION_OPENING,
+  claudeCodeLog,
+  messageFiles,
+  sessionMessages,
+  taskMessages,
+} from "./discussion5.mjs";
 import { readSessions, sessionIdentity } from "./projects5.mjs";
 import { loadTask5, recoveryItem, warnings5 } from "./record5.mjs";
 import { recoveryEntries } from "./recover.mjs";
@@ -171,6 +179,7 @@ function numbered(file) {
 
 /** A file a Recovery line names, whole, or for the lines it gives, numbered by file line (T2). */
 function recoveredBlock(file, label) {
+  if (file.messages) return fileBlock(`messages ${file.pointer}`, file.text);
   if (file.text === null) return [];
   return file.ranged
     ? fileBlock(`${label(file.path)} lines ${file.from}–${file.to}`, numbered(file))
@@ -182,24 +191,23 @@ const RECOVERY_LINE =
 
 /**
  * What follows the bundle when a compaction came before the checkpoint (P16): the user's messages since the record's
- * State as of, word for word, and a closing line in place of the recovery line, since the record is older than the
- * harness's summary that comes before it.
+ * State as of, word for word, as Freeflow captured them into the task's discussions/, and a closing line in place of
+ * the recovery line, since the record is older than the harness's summary that comes before it.
  */
-function sinceCheckpoint(stateAsOf) {
-  let messages = [];
-  let transcript = null;
-  try {
-    messages = userMessages({ since: stateAsOf });
-    transcript = process.env.FREEFLOW_TRANSCRIPT || claudeCodeLog();
-  } catch {
-    // No transcript this harness layer can find: the closing line says so.
-  }
+function sinceCheckpoint(stateAsOf, taskDir) {
+  const since = Date.parse(stateAsOf);
+  const messages = taskMessages(taskDir).filter((message) => {
+    if (message.removed) return false;
+    const at = Date.parse(`${message.day}T${message.time === "--:--" ? "00:00" : message.time}:00Z`);
+    return Number.isNaN(since) || at >= since;
+  });
+  const transcript = process.env.FREEFLOW_TRANSCRIPT || claudeCodeLog();
   return [
     `## The user's messages since ${stateAsOf}`,
     "",
     ...(messages.length
       ? messages.flatMap((message) => [
-          `### ${message.number}. ${message.at ?? "time not recorded"}`,
+          `### M-${message.number} · ${message.day} ${message.time}`,
           "",
           message.text,
           "",
@@ -268,7 +276,7 @@ export async function renderBundle5(
     `- core skills: ${number(skillWords)} words, not counted`,
     `- Counted: ${number(measured.total)} of about ${number(measured.budget.total)} words; not counted: ${number(measured.uncounted.reduce((sum, part) => sum + part.words, 0) + skillWords)} words.`,
     "",
-    ...(fallback ? sinceCheckpoint(task.record.header.stateAsOf) : [RECOVERY_LINE]),
+    ...(fallback ? sinceCheckpoint(task.record.header.stateAsOf, dirname(path)) : [RECOVERY_LINE]),
   ];
   return `${out.join("\n")}\n`;
 }
@@ -289,9 +297,13 @@ export function renderSessionBundle({ home: explicit = null, identity = sessionI
   const items = (from < 0 ? [] : lines.slice(from + 1, to < 0 ? lines.length : to))
     .map((line) => ({ text: line.slice(2).trim(), ...recoveryItem(line) }))
     .filter((item) => item.kind && item.kind !== "when");
-  const context = { root: process.cwd(), taskDir: process.cwd() };
+  const context = {
+    root: process.cwd(),
+    taskDir: process.cwd(),
+    messages: sessionMessages(join(home, "sessions", identity.id, SESSION_DISCUSSION)),
+  };
   const entries = recoveryEntries(items, context);
-  const files = sourceFiles(entries, context);
+  const files = [...sourceFiles(entries, context), ...messageFiles(entries, context.messages)];
   const unreadable = entries.flatMap((entry) =>
     entry.pointers.filter((pointer) => pointer.problem).map((pointer) => `- Not read: ${pointer.problem}`),
   );

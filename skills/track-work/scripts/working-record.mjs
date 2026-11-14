@@ -23,7 +23,21 @@ import {
   migrateTask,
   readCues,
 } from "./lib/migrate5.mjs";
-import { claudeCodeLog, dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
+import {
+  SESSION_DISCUSSION,
+  captureList,
+  captureMessages,
+  claudeCodeLog,
+  distinct,
+  listText,
+  parseMessageNumbers,
+  readPlain,
+  removeMessage,
+  sessionMessages,
+  showText,
+  taskMessages,
+  userMessages,
+} from "./lib/discussion5.mjs";
 import { renderBundle5, renderEntries5, renderIndex5, renderRecover5, renderSessionBundle } from "./lib/views5.mjs";
 import {
   amendDelegation,
@@ -54,6 +68,8 @@ import {
   removeProject,
   requireHold,
   removeTask,
+  sync,
+  tidyTask,
   searchTasks,
   sessionIdentity,
   sessionFiles,
@@ -93,11 +109,11 @@ function usage() {
     "  working-record.mjs delegate <open|amend|status|check-return|close|join|log> ...",
     "  working-record.mjs checkpoint --delegation <D-NNN> --record <record.md> --input <file|-> [--compact] (a worker)",
     "  working-record.mjs claim --paths <glob> ... [--for <hours>] | claim --list; release [--paths <glob> ...] [--ended]",
-    "  working-record.mjs discussion <list|save|drop> --record <record.md> ...",
+    "  working-record.mjs discussion <capture|list|show|remove> ... (the user's messages, kept by Freeflow)",
     "  working-record.mjs carry <list|show> ...",
     "  working-record.mjs migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name>] (Schema 4 to 5)",
     "  working-record.mjs project <new|show|list|remove> ... (in a Freeflow store)",
-    "  working-record.mjs task <create|take|release|switch|move|here|search|remove> ... (in a Freeflow store)",
+    "  working-record.mjs task <create|take|release|switch|move|here|search|remove|tidy> ... (in a Freeflow store)",
     "  working-record.mjs store <init|remote|status|sync> ...",
     "  working-record.mjs session status [--home <folder>] (for a harness layer)",
     "  working-record.mjs events <append|summary|show> ... (the event log; append is for a harness layer)",
@@ -149,7 +165,7 @@ const COMMAND_HELP = new Map([
     "task",
     [
       "Usage: working-record.mjs task <operation> ...",
-      "Operations: task set-state and task set-budget on a record; in a Freeflow store, task create, take, release, switch, move, here, search and remove. A task belongs to a project (<project>/task-NNN) or to none (task-NNN). A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
+      "Operations: task set-state and task set-budget on a record; in a Freeflow store, task create, take, release, switch, move, here, search, remove and tidy. A task belongs to a project (<project>/task-NNN) or to none (task-NNN). A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
     ].join("\n"),
   ],
@@ -159,19 +175,27 @@ const COMMAND_HELP = new Map([
   ],
   [
     "discussion",
-    'Usage: working-record.mjs discussion <list|save|drop> --record <record.md> ...\nThe user\'s messages that shaped the work, kept word for word as blocks in sources/discussion.md, each message with the agent\'s line saying what it answered; blocks are added or dropped, never edited. The transcript is --transcript <path> (--format claude-code, pi or plain; a Pi session file is known by its header), else FREEFLOW_TRANSCRIPT, else this Claude Code session\'s log; --transcript - reads a plain export (lines starting "User:" or "Assistant:") from standard input.',
+    "Usage: working-record.mjs discussion <capture|list|show|remove> ...\nThe user's messages, kept by Freeflow: every message word for word (a secret redacted), numbered M-n per task in the held task's discussions/<day>.md (or, before a task, in the session's own file, which task create moves in). capture runs at each turn's end (a driver's); list prints numbers, times and first words; show prints the named messages whole; remove deletes one message's text and keeps its number. The transcript is --transcript <path> (--format claude-code, codex, pi or plain; a Pi session file and a Codex rollout are known by their entries), else FREEFLOW_TRANSCRIPT, else this Claude Code session's log; --transcript - reads a plain export (lines starting \"User:\" or \"Assistant:\") from standard input.",
+  ],
+  [
+    "discussion capture",
+    "Usage: discussion capture [--transcript <path>] [--format <claude-code|codex|pi|plain>] [--home <folder>]\nCaptures the user's messages of the transcript that are new since the last capture, word for word, into the task this session holds (discussions/<day>.md, numbered M-n), or into the session's own file while it holds no task (`task create` moves those in). The transcript is --transcript, else FREEFLOW_TRANSCRIPT, else this Claude Code session's log. A capture already made is not made again, across a compaction or a resumed session. Commits the store and pushes it, unless --no-push (a driver whose turn-end budget is short pushes with its own sync). Drivers run it at each turn's end.",
   ],
   [
     "discussion list",
-    "Usage: discussion list --record <record.md> [--since <time>] [--until <time>] [--transcript <path>] [--format <claude-code|pi|plain>]\nNumbers the user's messages since the record's State as of (or --since), each with its time and first words; messages sent while a turn ran are included, and resent duplicates and cut-off copies left out.",
+    "Usage: discussion list [--record <record.md>] [--date <YYYY-MM-DD>] [--home <folder>]\nNumbers the held task's messages (or --record's, or the session's own before a task) with their day, time and first words; --date lists one day's.",
   ],
   [
-    "discussion save",
-    'Usage: discussion save --record <record.md> --messages <4-7,11> --title <topic> --shapes <A-NNN, S-NNN> [--replaces B-NNN] [--since <time>] [--transcript <path>] --input <file|->\nAppends one block B-NNN to sources/discussion.md: the chosen messages, numbered as discussion list numbers them, word for word, each followed by the agent\'s line. --shapes names the agreement or Slices the discussion shaped; --replaces drops the block this one replaces. Input: one "N: <what the message answered, specifically enough that it reads alone>" line per chosen message.',
+    "discussion show",
+    "Usage: discussion show <M-3–M-9,M-14> [--record <record.md>] [--home <folder>]\nPrints the named messages whole, word for word, each under its heading; a removed one says so.",
   ],
   [
-    "discussion drop",
-    "Usage: discussion drop --record <record.md> --block <B-NNN>\nRemoves a block, once the work it shaped is closed and nothing open rests on it; Git keeps it. checkpoint lists the blocks whose shaped work is closed.",
+    "discussion remove",
+    "Usage: discussion remove --message M-<n> [--record <record.md>] [--home <folder>]\nDeletes one message's text, the user's word; its number stays, so no later message takes it, and Git keeps the text. Refused unless this session holds the task.",
+  ],
+  [
+    "task tidy",
+    "Usage: task tidy --id <task ID>\nBrings a task folder to its fixed structure: moves sources/discussion*.md unchanged into discussions/, rewrites the Recovery lines that named them, writes the README, and commits and pushes. It moves nothing else and leaves History as stored. Only when the user asked.",
   ],
   [
     "migrate",
@@ -462,11 +486,11 @@ function allowedOptions(command, operation) {
     ]);
   if (command === "migrate") return new Set(["--root", "--record", "--cue", "--cues", "--project", "--home", "--help"]);
   if (command === "discussion") {
-    const reading = ["--root", "--record", "--since", "--until", "--transcript", "--format", "--help"];
-    if (operation === "list") return new Set(reading);
-    if (operation === "save")
-      return new Set([...reading, "--messages", "--title", "--shapes", "--replaces", "--input"]);
-    if (operation === "drop") return new Set(["--root", "--record", "--block", "--help"]);
+    if (operation === "capture")
+      return new Set(["--transcript", "--format", "--session", "--no-push", "--home", "--help"]);
+    if (operation === "list") return new Set(["--record", "--date", "--home", "--help"]);
+    if (operation === "show") return new Set(["--record", "--home", "--help"]);
+    if (operation === "remove") return new Set(["--record", "--message", "--home", "--help"]);
   }
   if (command === "delegate") {
     const record = ["--root", "--record", "--help"];
@@ -741,6 +765,7 @@ const STORE_OPTIONS = new Map([
   ["task here", ["--cwd", "--scan", "--rules", "--take-back"]],
   ["task search", ["--query", "--project"]],
   ["task remove", ["--id"]],
+  ["task tidy", ["--id"]],
 ]);
 
 async function runProjects5(command, operation, options, home) {
@@ -790,6 +815,7 @@ async function runProjects5(command, operation, options, home) {
   }
   if (key === "task search") return searchTasks(home, requireOption(options, "--query"), options["--project"] ?? null);
   if (key === "task remove") return removeTask(home, requireOption(options, "--id"));
+  if (key === "task tidy") return tidyTask(home, requireOption(options, "--id"), identity);
   if (key === "task move")
     return moveTask(
       home,
@@ -813,8 +839,7 @@ const WORKER_REFUSED = new Set([
   "project remove",
   "agree ",
   "migrate ",
-  "discussion save",
-  "discussion drop",
+  "discussion remove",
   "delegate close",
 ]);
 
@@ -836,8 +861,122 @@ function workerRefusal(command, operation, options, joined) {
   return `This session works for ${joined.id} of ${joined.task}; it writes its progress.md (checkpoint --delegation ${joined.id}) and return.md, and only the coordinator writes the record${key === "delegate open" ? ". It may hand parts to its own subagents (delegate open --parent), never to another session" : ""}.`;
 }
 
+/**
+ * `discussion`: the user's messages Freeflow captured, read and removed. `capture` (each driver runs it at a turn's end)
+ * writes the turn's new messages to the held task's discussions/, or to the session's own file while it holds none,
+ * and commits and pushes the store. list, show and remove read the held task's messages (or --record's), or the
+ * session's own; remove deletes one message's text and keeps its number.
+ */
+async function runDiscussion(operation, positionals, options) {
+  const home = storeHome(options["--home"]);
+  const identity = sessionIdentity();
+  if (operation === "capture") {
+    if (!isFreeflowStore(home)) throw new CliError(`discussion capture works in a Freeflow store; ${home} is not one`);
+    const source = await captureSource(options);
+    return captureDiscussion(home, source, { push: options["--no-push"] !== true });
+  }
+  if (!["list", "show", "remove"].includes(operation))
+    throw new CliError("discussion takes capture, list, show or remove");
+  const place = await discussionPlace(options, home, identity);
+  const messages = place.taskDir ? taskMessages(place.taskDir) : sessionMessages(place.file);
+  if (operation === "list") return listText(messages, { date: options["--date"] ?? null });
+  if (operation === "show") {
+    if (positionals.length !== 2) throw new CliError("discussion show takes the messages to print, as M-3–M-9,M-14");
+    return showText(messages, parseMessageNumbers(positionals[1]));
+  }
+  const numbers = parseMessageNumbers(requireOption(options, "--message"));
+  if (numbers.length !== 1) throw new CliError("discussion remove takes one message: --message M-<n>");
+  if (place.record) requireHold(place.record, identity);
+  return removeMessage(messages, numbers[0]);
+}
+
+/** Where a discussion command reads: --record's task, the task this session holds, or the session's own file. */
+async function discussionPlace(options, home, identity) {
+  if (options["--record"]) {
+    const loaded = requireSchema5(await readExisting(options));
+    return { taskDir: dirname(loaded.path), record: loaded.path, file: null };
+  }
+  if (!identity)
+    throw new CliError("No session ID: Claude Code sets CLAUDE_CODE_SESSION_ID; other harnesses set FREEFLOW_SESSION.");
+  const held = heldTask(home, identity);
+  if (held) return { taskDir: held.dir, record: join(held.dir, "record.md"), file: null };
+  return { taskDir: null, record: null, file: join(home, "sessions", identity.id, SESSION_DISCUSSION) };
+}
+
+/**
+ * Which session a capture is for, and what it reads. Each driver names its own session with --session and its own
+ * transcript with --transcript; without them, the identity is FREEFLOW_SESSION (a harness layer sets it, as Pi does),
+ * else Claude Code's session ID. A transcript not named is the session's own Claude Code log when the identity is that
+ * Claude Code session, else FREEFLOW_TRANSCRIPT. An inherited variable never picks another session's transcript.
+ */
+async function captureSource(options) {
+  const env = process.env;
+  const id = options["--session"] || env.FREEFLOW_SESSION || env.CLAUDE_CODE_SESSION_ID;
+  if (!id) throw new CliError("No session ID: pass --session, or set FREEFLOW_SESSION or CLAUDE_CODE_SESSION_ID.");
+  const identity = sessionIdentity({ ...env, FREEFLOW_SESSION: id });
+  if (options["--transcript"] === "-") {
+    // A plain export on standard input: read whole, captured without a cursor.
+    const text = await readInput("-", cwd());
+    return { identity, list: distinct(readPlain(text)).map((message) => ({ ...message, turn: 0 })) };
+  }
+  let transcript = options["--transcript"];
+  if (transcript === undefined && env.CLAUDE_CODE_SESSION_ID === id) {
+    transcript = claudeCodeLog(env);
+    if (!transcript)
+      throw new CliError(
+        "No log for this Claude Code session was found beside its session ID; pass --transcript <path>.",
+      );
+  }
+  if (transcript === undefined) transcript = env.FREEFLOW_TRANSCRIPT;
+  if (!transcript)
+    throw new CliError(
+      "No transcript found: pass --transcript <path> (or --transcript - for a plain export on standard input).",
+    );
+  return { identity, transcript, format: options["--format"] };
+}
+
+async function captureDiscussion(home, source, { push = true } = {}) {
+  const identity = source.identity;
+  // A worker session captures nothing: the words it is given are the coordinator's, already in the brief.
+  if (joinedDelegation(home, identity))
+    return "A worker session captures nothing: its words are the coordinator's, already in the brief.\n";
+  const held = heldTask(home, identity);
+  const sessionDir = join(home, "sessions", identity.id);
+  const taskDir = held ? held.dir : null;
+  const result = source.list
+    ? captureList({ sessionDir, taskDir, messages: source.list })
+    : captureMessages({ sessionDir, taskDir, transcript: source.transcript, format: source.format });
+  if (!result.captured) return "No new messages.\n";
+  const [first, last] = [result.numbers[0], result.numbers.at(-1)];
+  const range = first === last ? `M-${first}` : `M-${first}–M-${last}`;
+  const synced = await sync(home, `Capture ${range} (${identity.short})`, { push });
+  return `Captured ${result.captured} message(s), ${range}, into ${result.path}.\n${synced}\n`;
+}
+
+/**
+ * The capture a checkpoint and a fallback bundle run first (N-3, N-4): the turn in progress is in the task before the
+ * record is written or the bundle is read. Best effort: a capture that cannot run never stops the checkpoint or bundle.
+ */
+async function captureBeforeCheckpoint(options) {
+  try {
+    const home = storeHome(options["--home"]);
+    if (!isFreeflowStore(home)) return;
+    const source = await captureSource({
+      "--session": undefined,
+      "--transcript": options["--transcript"],
+      "--format": undefined,
+    });
+    if (joinedDelegation(home, source.identity)) return;
+    await captureDiscussion(home, source, { push: false });
+  } catch {
+    // The checkpoint or the bundle goes on without it: the next capture reads the same transcript from its cursor.
+  }
+}
+
 async function runCore(command, rest) {
-  const { options, positionals } = parseOptions(rest, { valued: command === "events" ? ["--session"] : [] });
+  const { options, positionals } = parseOptions(rest, {
+    valued: command === "events" || command === "discussion" ? ["--session"] : [],
+  });
   const operation = positionals[0];
   if (options["--help"]) return commandHelp(command, operation);
   const joined = joinedDelegation(storeHome(options["--home"]), sessionIdentity());
@@ -945,35 +1084,7 @@ async function runCore(command, rest) {
       text: await readInput(requireOption(options, "--input"), cwd()),
     });
   }
-  if (command === "discussion") {
-    const loaded = requireSchema5(await readExisting(options));
-    if (operation === "drop") return dropBlock(loaded, requireOption(options, "--block"));
-    const task = await loadTask5(loaded.path, loaded.text);
-    // List and save number the same messages: by default, those since the record's last checkpoint.
-    const since = options["--since"] ?? task.record.header.stateAsOf;
-    if (options["--transcript"] === "-" && options["--input"] === "-")
-      throw new CliError("--transcript - reads standard input; give the notes with --input <file>");
-    const stdin = options["--transcript"] === "-" ? await readInput("-", cwd()) : null;
-    const messages = userMessages({
-      transcript: options["--transcript"],
-      format: options["--format"],
-      since,
-      until: options["--until"],
-      stdin,
-    });
-    if (operation === "list") return listText(messages, since);
-    if (operation === "save") {
-      if (!messages.length) throw new CliError(`No messages from the user since ${since} to save.`);
-      return saveBlock(loaded, {
-        messages,
-        numbers: parseNumbers(requireOption(options, "--messages"), messages.length),
-        title: options["--title"],
-        shapes: options["--shapes"],
-        replaces: options["--replaces"],
-        notesText: await readInput(options["--input"], cwd()),
-      });
-    }
-  }
+  if (command === "discussion") return runDiscussion(operation, positionals, options);
   if (command === "migrate") {
     const loaded = await readExisting(options);
     if (schemaOf(loaded.text) === 5 && (hasOldRecoveryHeadings(loaded.text) || /^- Carry:/m.test(loaded.text)))
@@ -1062,6 +1173,7 @@ async function runCore(command, rest) {
     if (view === "full") return loaded.text;
     requireSchema5(loaded);
     if (view === "recover") return renderRecover5(loaded, { delegation: options["--delegation"] ?? null });
+    if (view === "bundle" && options["--fallback"] === true) await captureBeforeCheckpoint(options);
     if (view === "bundle")
       return renderBundle5(loaded, {
         fallback: options["--fallback"] === true,
@@ -1080,7 +1192,10 @@ async function runCore(command, rest) {
     );
   const loaded = requireSchema5(await readExisting(options));
   // A checkpoint writes only the task this session holds (F36).
-  if (command === "checkpoint") requireHold(loaded.path, sessionIdentity());
+  if (command === "checkpoint") {
+    requireHold(loaded.path, sessionIdentity());
+    await captureBeforeCheckpoint(options);
+  }
   const input = await readInput(options["--input"], cwd());
   return runTransition5(command, positionals, options, input, loaded);
 }
@@ -1207,7 +1322,7 @@ const GATE_COMMANDS = new Set([
 async function gatesAfter(command, rest, output) {
   let parsed;
   try {
-    parsed = parseOptions(rest, { valued: command === "events" ? ["--session"] : [] });
+    parsed = parseOptions(rest, { valued: command === "events" || command === "discussion" ? ["--session"] : [] });
   } catch {
     return;
   }

@@ -60,6 +60,8 @@ const CONTINUE_AFTER_MS = 2_000;
 // that fails drops its lines and the next one says how many (section 5): the log is a sensor, and a sensor fails open.
 const EVENT_HARNESS = "claude-code";
 const EVENT_FLUSH_MS = 5_000;
+/** How long a turn's discussion capture may take: it commits and pushes the store, at a turn's end. */
+const DISCUSSION_CAPTURE_MS = 30_000;
 const COMMAND_TOOLS = new Set(["Bash"]);
 /** @type {Record<string, unknown>[]} */
 let buffered = [];
@@ -414,7 +416,7 @@ function noticeText($, context, state, number) {
   const checkpoint = state.delegation
     ? `This session is the worker for ${state.delegation.id} of ${state.delegation.task}: at that point, rewrite its progress.md with ${command} checkpoint --delegation ${state.delegation.id} --record ${state.delegation.task} --compact --input - (## Done, ## Half done, ## Didn't work, ## Next).`
     : state.task
-      ? `At that point, checkpoint ${state.task.id}: bring ${state.task.id}'s Current Context up to date, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work and is not saved yet (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${state.task.id} --compact --input - with In flight's lines.`
+      ? `At that point, checkpoint ${state.task.id}: bring ${state.task.id}'s Current Context up to date, adjust the rest of Current Work and Future Work, name in Recovery the messages of this cycle that the next cycle must read (messages M-n, as discussion list numbers them; skip it when none did), then run ${command} checkpoint --record ${state.task.id} --compact --input - with In flight's lines.`
       : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
   return `Freeflow, context cycle ${number}: the context is at ${share(context)}${limit}. Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: on that request, Freeflow compacts the session with the record in place of the conversation, and starts the next turn where it can. This is the only notice this context cycle; if Claude Code compacts before the checkpoint, the record as of its last checkpoint follows Claude's summary.`;
 }
@@ -768,6 +770,27 @@ async function storeArrived($, state, session, cwd) {
 async function turnEnded($, e) {
   const state = await status($);
   if (!state) return;
+  // The turn's user messages, kept word for word in the store (Track Work's discussion capture reads this session's
+  // log, and captures each message once). Freeflow keeps them whether or not the agent wrote anything down.
+  // The capture names this session (--session) and commits without pushing; the sync below pushes once, when it
+  // captured something, and so does a sync the state already asked for.
+  let captured = false;
+  try {
+    const session = await $.session.id();
+    const run = await script($, ["discussion", "capture", "--no-push", "--session", session], {
+      timeoutMs: DISCUSSION_CAPTURE_MS,
+    });
+    captured = run.exitCode === 0 && String(run.stdout ?? "").startsWith("Captured");
+    if (run.exitCode !== 0)
+      $.ui.log(
+        `Freeflow: this turn's messages were not captured: ${(run.stderr.split("\n")[0] || `exit code ${run.exitCode}`).trim()}`,
+      );
+  } catch (error) {
+    // A capture that cannot run must not cut the turn's end short: the store sync and the rest still follow.
+    $.ui.log(
+      `Freeflow: this turn's messages were not captured: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   if (awaitingStore) {
     // A store attached after the session started, as a repository added to a running cloud session is: what session
     // start does with a store, done now, so its transcript, sync, repositories and permission are not lost.
@@ -779,7 +802,7 @@ async function turnEnded($, e) {
     const tookBack = menu.exitCode === 0 ? /^Took .+ back: .+$/m.exec(menu.stdout)?.[0] : undefined;
     if (tookBack) await appendRow($, `Freeflow: ${tookBack}`);
   }
-  if (state.changed) {
+  if (state.changed || captured) {
     await script($, ["store", "sync"]);
     await emit($, "freeflow", { what: "sync" });
   }

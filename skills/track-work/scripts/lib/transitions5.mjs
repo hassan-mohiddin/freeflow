@@ -36,7 +36,8 @@ import {
   stateLine5,
   warnings5,
 } from "./record5.mjs";
-import { closedBlocks } from "./discussion5.mjs";
+import { messageFiles } from "./discussion5.mjs";
+import { writeReadme } from "./task-folder5.mjs";
 import {
   addEvents,
   addUsed,
@@ -688,7 +689,10 @@ function recoveryReport(measure, before, replaced) {
     entry.kind === "when" ? `when ${entry.trigger}` : entry.kind === "always" ? "always" : "always, not counted";
   const counted = (size) => `${size.toLocaleString("en-US")} word${size === 1 ? "" : "s"}`;
   const lines = recovery.map((entry) => {
-    const size = sourceFiles([entry], context).reduce((sum, file) => sum + file.words, 0);
+    const size = [...sourceFiles([entry], context), ...messageFiles([entry], context.messages)].reduce(
+      (sum, file) => sum + file.words,
+      0,
+    );
     const what = entry.text.slice(label(entry).length + 1).trim();
     const share =
       entry.kind === "always"
@@ -794,10 +798,6 @@ async function checkpoint(options, text, loaded) {
       entry.pointers.filter((pointer) => pointer.problem).map((pointer) => `Warning: Recovery: ${pointer.problem}`),
     ),
     ...warnings5(after).map((warning) => `Warning: ${warning}`),
-    ...closedBlocks(loaded.path, task.history).map(
-      (block) =>
-        `Discussion block ${block.id} shaped ${block.shapes.join(", ")}, now closed: drop it (discussion drop --block ${block.id}) once nothing open rests on it.`,
-    ),
   ];
   // This session's event summary since it took the task, committed with the checkpoint (P7).
   if (home) {
@@ -810,6 +810,8 @@ async function checkpoint(options, text, loaded) {
     });
     if (events) lines.push(events);
   }
+  // The README lists the folders that exist now: a folder made since the last checkpoint is listed here.
+  writeReadme(dirname(loaded.path), record.header.name);
   lines.push(await syncAfter(task, "checkpoint"));
   return `${lines.join("\n")}\n`;
 }

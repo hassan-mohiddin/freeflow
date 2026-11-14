@@ -433,7 +433,7 @@ function noticeText(found, tokens, window, limit, number) {
   const command = `node ${SCRIPT}`;
   const at = limit ? `; Codex compacts on its own at about ${limit} tokens` : "";
   const checkpoint = found?.task
-    ? `At that point, checkpoint ${found.task.id}: bring ${found.task.id}'s Current Context up to date, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work and is not saved yet (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${found.task.id} --input - with In flight's lines.`
+    ? `At that point, checkpoint ${found.task.id}: bring ${found.task.id}'s Current Context up to date, adjust the rest of Current Work and Future Work, name in Recovery the messages of this cycle that the next cycle must read (messages M-n, as discussion list numbers them; skip it when none did), then run ${command} checkpoint --record ${found.task.id} --input - with In flight's lines.`
     : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
   return `Freeflow, context cycle ${number}: compaction is near. The context is at ${share(tokens, window)}${at}. Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn. When Codex compacts, Freeflow adds the record as of that checkpoint after Codex's summary. This is the only notice this context cycle.`;
 }
@@ -936,10 +936,37 @@ function subagent(ctx) {
   return null;
 }
 
-/** Stop: the turn's end; the store synced when it changed; the turn's lines written in one run. @param {any} ctx */
+/**
+ * Discussion capture (Track Work's `discussion capture`): the turn's new user messages, read from the transcript Stop
+ * names (transcript_path), and committed to the store; the push is left to the store sync below, which Stop's budget
+ * allows for. A failure is said in the event log, and the next turn captures what this one missed.
+ * @param {any} ctx
+ */
+function discussionCapture(ctx) {
+  // Codex names no transcript for some sessions (its Stop input says null): then there is nothing to capture from.
+  if (typeof ctx.input.transcript_path !== "string" || !ctx.input.transcript_path) return;
+  const args = [
+    "discussion",
+    "capture",
+    "--no-push",
+    "--session",
+    ctx.session,
+    "--transcript",
+    ctx.input.transcript_path,
+  ];
+  const run = script(ctx, args, { timeoutMs: 4_000 });
+  if (run.status !== 0)
+    emit(ctx, "freeflow", {
+      what: "error",
+      detail: `discussion capture: ${(run.stderr.split("\n")[0] || `exit code ${run.status}`).trim()}`.slice(0, 200),
+    });
+}
+
+/** Stop: the turn's end; the turn's messages captured and the store synced when it changed; the lines written in one run. @param {any} ctx */
 function stop(ctx) {
   if (agentOf(ctx) !== "main") return null;
   emit(ctx, "turn.end", { turn: ctx.state?.turn ?? undefined });
+  if (ctx.state?.store) discussionCapture(ctx);
   if (ctx.state?.store) {
     const found = sessionStatus(ctx, 2_000);
     if (found?.store && found.changed) {

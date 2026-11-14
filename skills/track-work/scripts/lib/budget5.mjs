@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { messageFiles, taskMessages } from "./discussion5.mjs";
 import { contextFor, gitRoot, recoveryEntries, resolvePointer } from "./recover.mjs";
 import { FIXED_BUDGETS, budgets5, parseRecord5 } from "./record5.mjs";
 import { REPOSITORIES_FILE, freeflowStoreOf, isFreeflowStore, projectOf } from "./store.mjs";
@@ -233,7 +234,10 @@ export function spaceRepositories(space, home) {
 export function measureTask(task, { root, path, window = contextWindow() }) {
   const home = freeflowStoreOf(dirname(path));
   const project = projectOf(path);
-  const context = contextFor(pointerRoot(root), path, spaceRepositories(task.record.work.space, home));
+  const context = {
+    ...contextFor(pointerRoot(root), path, spaceRepositories(task.record.work.space, home)),
+    messages: taskMessages(dirname(path)),
+  };
   const { work } = task.record;
   const budget = budgetFor({ window: window.tokens, mode: task.record.header.budget });
   const ruleFiles = rules(home, project);
@@ -247,10 +251,10 @@ export function measureTask(task, { root, path, window = contextWindow() }) {
   // A file an "always, not counted" line names is a definition, read and not counted, even when an "always" line names
   // it too.
   const taken = new Set();
-  const uncountedFiles = sourceFiles(uncounted, context, taken);
+  const uncountedFiles = [...sourceFiles(uncounted, context, taken), ...messageFiles(uncounted, context.messages)];
   // A core skill is read whole and never counted, wherever the record names it.
   for (const skill of CORE_SKILLS) taken.add(real(skill));
-  const alwaysFiles = sourceFiles(always, context, taken);
+  const alwaysFiles = [...sourceFiles(always, context, taken), ...messageFiles(always, context.messages)];
   const sum = (items) => items.reduce((total, item) => total + item.words, 0);
   const counted = [
     ...budgets5(task.record).map((each) => ({ name: each.name, words: each.words, budget: each.budget })),
