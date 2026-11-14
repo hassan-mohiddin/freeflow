@@ -1,18 +1,23 @@
 // Discussion messages (the Spec's section 9; P38, T4): every message the user sent, word for word. After each turn
 // Freeflow captures the turn's new user messages into the held task's discussions/<day>.md, numbered M-1, M-2 ... per
 // task: continuous across days and never reused. While no task is held they go to the session's own
-// sessions/<session>/discussion.md, and `task create` moves them into the new task. A message is quoted line by line
-// ("> "), so a heading inside it cannot break the parse, and it is never edited: `discussion remove` deletes its text
-// and keeps its number, and Git keeps what was there. Reading a transcript goes through a reader per format, so any
-// harness can supply one.
+// sessions/<session>/discussion.md, and `task create` moves them into the new task (`task take` too). A message is
+// quoted line by line ("> "), so a heading inside it cannot break the parse, and it is never edited: `discussion
+// remove` deletes its text and keeps its number, and Git keeps what was there. A secret is redacted by the event log's
+// rule. Reading a transcript goes through a reader per format, so any harness can supply one; the cursor keeps the
+// byte offset of what was read, so a capture reads only what the transcript gained since.
 
 import { createHash } from "node:crypto";
 import {
   appendFileSync,
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   readFileSync,
   readdirSync,
+  readSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -25,6 +30,7 @@ import { isPiSession, piUserMessages } from "./pi-session.mjs";
 export const DISCUSSIONS_DIR = "discussions";
 export const SESSION_DISCUSSION = "discussion.md";
 export const CURSOR_FILE = "discussion-cursor.json";
+const CURSOR_VERSION = 2;
 const DAY_FILE = /^(\d{4}-\d{2}-\d{2})\.md$/;
 const DAY_HEADING = /^## (\d{4}-\d{2}-\d{2})$/;
 const MESSAGE_HEADING = /^### M-(\d+) · (\d{2}:\d{2}|--:--)( · removed)?$/;
@@ -68,43 +74,82 @@ export const OPENING_LINE =
 export const SESSION_OPENING =
   "This session holds no task: the summary below is its only memory, and the user's direction decides the work.";
 const INSTALLED = [OPENING_LINE, SESSION_OPENING];
+/**
+ * Freeflow's own submitted prompts: the wait rows Claude Code's mod submits, and the continue prompt after its
+ * compaction (hooks/claude/freeflow.mjs; a test checks the opening against that file). They are Freeflow's words.
+ */
+const FREEFLOW_OWN = [
+  "Freeflow: ",
+  "Freeflow compacted the session after your checkpoint: the conversation is now your task's bundle.",
+];
 
-/** Claude Code's session log: the messages the user typed, including those sent while a turn ran (queued commands). */
-export function readClaudeCode(text) {
-  const messages = [];
+/** Each line of a text with the byte offset its line starts at in the file it came from, for entry identities. */
+function eachLine(text, baseOffset, visit) {
+  let offset = baseOffset;
   for (const line of text.split("\n")) {
-    if (!line.trim()) continue;
+    visit(line, offset);
+    offset += Buffer.byteLength(line, "utf8") + 1;
+  }
+}
+
+/**
+ * Claude Code's session log: the messages the user typed, including those sent while a turn ran (queued commands).
+ * Each carries its entry's uuid as its identity, and `turn`, the count of agent entries (and tool results) before it:
+ * two user messages with no agent entry between them are a host resend, not two turns. `startTurn` and `baseOffset`
+ * read a part of a log (the bytes after a cursor).
+ */
+export function readClaudeCode(text, { startTurn = 0, baseOffset = 0 } = {}) {
+  const messages = [];
+  let turn = startTurn;
+  eachLine(text, baseOffset, (line, offset) => {
+    if (!line.trim()) return;
     let entry;
     try {
       entry = JSON.parse(line);
     } catch {
-      continue;
+      return;
+    }
+    if (entry.type === "assistant") {
+      turn += 1;
+      return;
     }
     let content = null;
     let origin;
     if (entry.type === "user" && !entry.isSidechain) {
-      if (entry.isMeta || entry.isCompactSummary) continue;
+      if (entry.isMeta || entry.isCompactSummary) return;
+      // A tool result is the harness's, never the user's, and it is agent activity for the turn count.
+      if (
+        Array.isArray(entry.message?.content) &&
+        entry.message.content.some((block) => block?.type === "tool_result")
+      ) {
+        turn += 1;
+        return;
+      }
       content = textOf(entry.message?.content);
       origin = entry.origin?.kind;
-      // A tool result is the harness's, never the user's.
-      if (Array.isArray(entry.message?.content) && entry.message.content.some((block) => block?.type === "tool_result"))
-        continue;
     } else if (entry.type === "attachment" && entry.attachment?.type === "queued_command") {
-      if (entry.attachment.isMeta) continue;
+      if (entry.attachment.isMeta) return;
       content = textOf(entry.attachment.prompt);
       origin = entry.attachment.origin?.kind;
-    } else continue;
+    } else return;
     // Newer logs mark who wrote each message; older ones are read by what the harness writes itself.
-    if (origin !== undefined ? origin !== "human" : NOT_TYPED.test(content.trim())) continue;
-    if (!content.trim() || INSTALLED.some((opening) => content.startsWith(opening))) continue;
-    messages.push({ at: entry.timestamp ?? null, text: content.replace(/\s+$/, "") });
-  }
+    if (origin !== undefined ? origin !== "human" : NOT_TYPED.test(content.trim())) return;
+    if (!content.trim() || INSTALLED.some((opening) => content.startsWith(opening))) return;
+    if (FREEFLOW_OWN.some((opening) => content.startsWith(opening))) return;
+    messages.push({
+      at: entry.timestamp ?? null,
+      text: content.replace(/\s+$/, ""),
+      id: entry.uuid ?? `offset:${offset}`,
+      turn,
+    });
+  });
+  messages.lastTurn = turn;
   return messages;
 }
 
 /**
  * A plain export: each message starts at a line "User:" or "Assistant:" (optionally "User [<time>]:"), and runs to the
- * next such line. Only the user's are returned.
+ * next such line. Only the user's are returned; an export is read whole, as it is never appended to.
  */
 export function readPlain(text) {
   const messages = [];
@@ -156,56 +201,83 @@ const codexText = (content) =>
       : "";
 
 /**
- * Codex's rollout (rollout-*.jsonl, named by Stop's transcript_path): the user's typed messages are its event_msg
+ * Codex's rollout (rollout-*.jsonl, named by Stop's transcript_path). The user's typed messages are its event_msg
  * user_message entries; a rollout without them (an older one) is read from its user response items, minus the context
- * Codex records beside them.
+ * Codex records beside them. The mode is decided on the first read and kept by the cursor (`mode`). Identities are the
+ * line's byte offset; `turn` counts agent messages as Claude Code's reader does.
  */
-export function readCodex(text) {
+export function readCodex(text, { startTurn = 0, baseOffset = 0, mode = null } = {}) {
   const typed = [];
   const responses = [];
-  for (const line of text.split("\n")) {
-    if (!line.trim()) continue;
+  let turn = startTurn;
+  eachLine(text, baseOffset, (line, offset) => {
+    if (!line.trim()) return;
     let entry;
     try {
       entry = JSON.parse(line);
     } catch {
-      continue;
+      return;
     }
     const at = entry?.timestamp ?? null;
-    if (entry?.type === "event_msg" && entry.payload?.type === "user_message")
-      typed.push({ at, text: String(entry.payload.message ?? "").replace(/\s+$/, "") });
+    if (entry?.type === "event_msg" && entry.payload?.type === "agent_message") turn += 1;
+    else if (entry?.type === "response_item" && entry.payload?.type === "message" && entry.payload.role === "assistant")
+      turn += 1;
+    else if (entry?.type === "event_msg" && entry.payload?.type === "user_message")
+      typed.push({ at, text: String(entry.payload.message ?? "").replace(/\s+$/, ""), id: `offset:${offset}`, turn });
     else if (entry?.type === "response_item" && entry.payload?.type === "message" && entry.payload.role === "user") {
       const message = codexText(entry.payload.content);
-      if (!CODEX_CONTEXT.test(message)) responses.push({ at, text: message.replace(/\s+$/, "") });
+      if (!CODEX_CONTEXT.test(message))
+        responses.push({ at, text: message.replace(/\s+$/, ""), id: `offset:${offset}`, turn });
     }
-  }
-  return (typed.length ? typed : responses).filter((message) => message.text.trim());
+  });
+  const chosen = (mode ?? (typed.length ? "typed" : "responses")) === "typed" ? typed : responses;
+  const out = chosen.filter((message) => message.text.trim());
+  out.lastTurn = turn;
+  out.mode = mode ?? (typed.length ? "typed" : "responses");
+  return out;
 }
 
-export const READERS = { "claude-code": readClaudeCode, codex: readCodex, pi: piUserMessages, plain: readPlain };
+/** Pi's session file: the branch's user messages, with each entry's id and the agent turns before them. */
+const readPi = (text) => piUserMessages(text);
 
-/** Drops resent duplicates and cut-off copies: a message the next one repeats, or begins with. */
-export function distinct(messages) {
+export const READERS = { "claude-code": readClaudeCode, codex: readCodex, pi: readPi, plain: readPlain };
+
+const plainText = (value) =>
+  value
+    .replace(/<!--\s*reply[^>]*-->/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/**
+ * Drops what the transcript itself repeats: an entry seen before (by its identity), and a message that repeats the one
+ * before it with no agent entry between (a host resend), or that begins with it, which keeps the longer copy. Two
+ * messages in different turns are both kept, however alike they are. `previous` is the last message a cursor read
+ * ({ turn, text }), so a resend across two reads is caught too.
+ */
+export function distinct(messages, previous = null) {
   const kept = [];
+  const seen = new Set();
+  let last = previous ? { turn: previous.turn, text: previous.text } : null;
   for (const message of messages) {
-    const previous = kept.at(-1);
-    // A resend may drop the reply markers a host wraps quoted replies in; compare without them.
-    const plain = (value) =>
-      value
-        .replace(/<!--\s*reply[^>]*-->/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-    const same = (left, right) => plain(left) === plain(right);
-    if (previous && same(previous.text, message.text)) continue;
-    if (
-      previous &&
-      plain(message.text).startsWith(plain(previous.text)) &&
-      plain(message.text).length > plain(previous.text).length
-    ) {
-      kept[kept.length - 1] = message;
-      continue;
+    if (message.id !== undefined) {
+      if (seen.has(message.id)) continue;
+      seen.add(message.id);
+    }
+    if (last && last.turn === message.turn) {
+      if (plainText(last.text) === plainText(message.text)) continue;
+      if (
+        plainText(message.text).startsWith(plainText(last.text)) &&
+        plainText(message.text).length > plainText(last.text).length
+      ) {
+        // The earlier copy is replaced only when this read kept it; a copy an earlier read stored stays as it is.
+        if (kept.length && kept.at(-1) === last.message) kept[kept.length - 1] = message;
+        else kept.push(message);
+        last = { turn: message.turn, text: message.text, message };
+        continue;
+      }
     }
     kept.push(message);
+    last = { turn: message.turn, text: message.text, message };
   }
   return kept;
 }
@@ -227,11 +299,19 @@ export function claudeCodeLog(env = process.env) {
   return newest?.path ?? null;
 }
 
+/** The format a transcript is read as: the --format, else by its first lines (Pi's header, a Codex rollout), else by name. */
+function formatOf(path, text, format, env = process.env) {
+  return (
+    format ??
+    env.FREEFLOW_TRANSCRIPT_FORMAT ??
+    (isPiSession(text) ? "pi" : isCodexRollout(text) ? "codex" : path.endsWith(".jsonl") ? "claude-code" : "plain")
+  );
+}
+
 /**
  * The user's messages from the transcript, numbered from 1 in the order read, at or after `since` and before `until`
  * when given. The transcript is --transcript, else FREEFLOW_TRANSCRIPT (which a harness layer sets, as it sets
- * FREEFLOW_SESSION), else this Claude Code session's log; "-" reads a plain export from standard input. A Pi session
- * file is known by its header line, a Codex rollout by its entries; any other .jsonl is Claude Code's log.
+ * FREEFLOW_SESSION), else this Claude Code session's log; "-" reads a plain export from standard input.
  */
 export function userMessages({ transcript, format, since = null, until = null, stdin = null, env = process.env } = {}) {
   const path = transcript ?? env.FREEFLOW_TRANSCRIPT ?? claudeCodeLog(env);
@@ -241,10 +321,7 @@ export function userMessages({ transcript, format, since = null, until = null, s
     );
   const text =
     path === "-" ? (stdin ?? fail("--transcript - reads standard input, which is empty.")) : readFileSync(path, "utf8");
-  const chosen =
-    format ??
-    env.FREEFLOW_TRANSCRIPT_FORMAT ??
-    (isPiSession(text) ? "pi" : isCodexRollout(text) ? "codex" : path.endsWith(".jsonl") ? "claude-code" : "plain");
+  const chosen = formatOf(path, text, format, env);
   const reader = READERS[chosen];
   if (!reader) fail(`--format is one of ${Object.keys(READERS).join(", ")}.`);
   const inRange = (message) =>
@@ -326,7 +403,7 @@ function tombstone(message) {
   return `${[`### M-${message.number} · ${message.time} · removed`, "", `<!-- removed ${message.hash} -->`, ""].join("\n")}\n`;
 }
 
-/** The messages of a held task, every day file in discussions/, in number order. */
+/** The messages of a held task, every day file in discussions/, in number order (for list, show and remove). */
 export function taskMessages(taskDir) {
   const folder = join(taskDir, DISCUSSIONS_DIR);
   if (!existsSync(folder)) return [];
@@ -343,6 +420,26 @@ export function taskMessages(taskDir) {
     .sort((left, right) => left.number - right.number);
 }
 
+/**
+ * The newest day file's messages only: numbers increase with the days, so the next number is one past the highest in
+ * that file. Walks back a file only when the newest holds none (a day file always holds at least one message).
+ */
+export function newestTaskMessages(taskDir) {
+  const folder = join(taskDir, DISCUSSIONS_DIR);
+  if (!existsSync(folder)) return [];
+  const days = readdirSync(folder)
+    .filter((name) => DAY_FILE.test(name))
+    .sort();
+  for (const name of days.reverse().slice(0, 3)) {
+    const messages = parseMessages(readFileSync(join(folder, name), "utf8"), DAY_FILE.exec(name)[1]).map((message) => ({
+      ...message,
+      file: join(folder, name),
+    }));
+    if (messages.length) return messages;
+  }
+  return [];
+}
+
 /** A session's own messages, from its file before a task holds them. */
 export function sessionMessages(file) {
   if (!existsSync(file)) return [];
@@ -356,67 +453,176 @@ export function nextNumber(messages) {
 
 const storedKey = (message) => `${message.day}|${message.time}|${message.hash}`;
 
-/**
- * The transcript's messages not yet captured. The cursor says how many messages the last capture read and the hash of
- * the last one, so a message is captured once, across a compaction, a resumed session, or a transcript that another
- * folder's copy holds. Failing those, the time of the last one; with no cursor, whatever is not stored already.
- */
-export function freshMessages(messages, cursor, stored, now = new Date()) {
-  if (!messages.length) return [];
-  if (cursor && Number.isInteger(cursor.count) && cursor.count > 0) {
-    if (messages[cursor.count - 1] && hashOf(messages[cursor.count - 1].text) === cursor.hash)
-      return messages.slice(cursor.count);
-    const found = messages.findLastIndex((message) => hashOf(message.text) === cursor.hash);
-    if (found >= 0 && (messages[found].at ?? null) === (cursor.at ?? null)) return messages.slice(found + 1);
+/** The bytes of a file from `start` to `end`, as a Buffer; reads only that range. */
+function readRange(path, start, end) {
+  const length = end - start;
+  const buffer = Buffer.alloc(length);
+  if (length <= 0) return buffer;
+  const fd = openSync(path, "r");
+  try {
+    readSync(fd, buffer, 0, length, start);
+  } finally {
+    closeSync(fd);
   }
-  if (cursor?.at) return messages.filter((message) => message.at && Date.parse(message.at) > Date.parse(cursor.at));
-  const seen = new Set(stored.map(storedKey));
-  return messages.filter((message) => {
-    const { day, time } = stampOf(message.at, now);
-    return !seen.has(`${day}|${time}|${hashOf(redact(message.text))}`);
-  });
+  return buffer;
+}
+
+/** The hash of the bytes just before `offset`: the cursor's check that the file still holds what it read. */
+const TAIL_BYTES = 256;
+function tailHash(path, offset) {
+  if (offset <= 0) return null;
+  return hashOf(readRange(path, Math.max(0, offset - TAIL_BYTES), offset).toString("utf8"));
+}
+
+/**
+ * What a transcript holds that a cursor has not read: the new user messages, the byte offset read to (the last complete
+ * line), the agent turn count and the last message read. A file the cursor still describes is read from its offset
+ * only; a shorter file, another file, or a changed tail is read whole. Pi's branch is read whole, since its entries
+ * form a tree; a plain export is read whole, since it is never appended to.
+ */
+export function readTranscriptSince({ path, format = null, cursor = null }) {
+  const size = statSync(path).size;
+  const head = readRange(path, 0, Math.min(size, 65536)).toString("utf8");
+  const kind = formatOf(path, head, format);
+  const reader = READERS[kind];
+  if (!reader) fail(`--format is one of ${Object.keys(READERS).join(", ")}.`);
+  const sameFile =
+    cursor &&
+    cursor.transcript === path &&
+    cursor.kind === kind &&
+    Number.isInteger(cursor.offset) &&
+    cursor.offset <= size &&
+    cursor.tail === tailHash(path, cursor.offset);
+  const incremental = sameFile && (kind === "claude-code" || kind === "codex");
+  const from = incremental ? cursor.offset : 0;
+  if (incremental && size === cursor.offset)
+    return {
+      kind,
+      messages: [],
+      offset: cursor.offset,
+      turn: cursor.turn ?? 0,
+      last: cursor.last ?? null,
+      mode: cursor.mode,
+    };
+  const bytes = readRange(path, from, size);
+  const lastNewline = bytes.lastIndexOf(0x0a);
+  // Only complete lines are read: a line still being written waits for the next capture.
+  const complete = lastNewline < 0 ? "" : bytes.subarray(0, lastNewline + 1).toString("utf8");
+  const offset = lastNewline < 0 ? from : from + lastNewline + 1;
+  if (!complete && !(kind === "pi" || kind === "plain")) {
+    return { kind, messages: [], offset, turn: cursor?.turn ?? 0, last: cursor?.last ?? null, mode: cursor?.mode };
+  }
+  const text = kind === "pi" || kind === "plain" ? readFileSync(path, "utf8") : complete;
+  const options = incremental
+    ? { startTurn: cursor.turn ?? 0, baseOffset: from, mode: cursor.mode ?? null }
+    : kind === "codex"
+      ? { mode: null }
+      : {};
+  const raw = reader(text, options);
+  const previous = incremental && cursor.last ? { turn: cursor.last.turn, text: cursor.last.text } : null;
+  const messages = distinct(raw, previous);
+  const rawLast = raw.at(-1);
+  const last = rawLast ? { turn: rawLast.turn, text: rawLast.text, at: rawLast.at ?? null } : (cursor?.last ?? null);
+  const finalOffset = kind === "pi" || kind === "plain" ? size : offset;
+  return {
+    kind,
+    messages,
+    offset: finalOffset,
+    turn: raw.lastTurn ?? cursor?.turn ?? 0,
+    last,
+    mode: raw.mode ?? cursor?.mode,
+  };
 }
 
 function readCursor(path) {
   try {
-    return JSON.parse(readFileSync(path, "utf8"));
+    const cursor = JSON.parse(readFileSync(path, "utf8"));
+    return cursor?.v === CURSOR_VERSION ? cursor : null;
   } catch {
     return null;
   }
 }
 
+/** The cursor, written whole to a temporary file and renamed over the old one: a failed write leaves the old cursor. */
+function writeCursorAtomic(path, cursor) {
+  mkdirSync(dirname(path), { recursive: true });
+  const temporary = `${path}.${process.pid}.tmp`;
+  writeFileSync(temporary, `${JSON.stringify({ v: CURSOR_VERSION, ...cursor }, null, 2)}\n`);
+  renameSync(temporary, path);
+}
+
 /**
- * Captures the messages of a turn into the held task's discussions/ (`taskDir`), or else into the session's own file
- * (`sessionDir`/discussion.md). `messages` are the transcript's, as userMessages numbers them. Writes the cursor after
- * the messages, so a failed write captures them again next time rather than skipping them.
+ * Captures the messages a transcript gained since the cursor into the held task's discussions/ (`taskDir`), or into
+ * the session's own file (`sessionDir`/discussion.md) while it holds none. A message whose key is already stored is
+ * not appended again, whatever the cursor says (checked before the write); the cursor is written after the messages,
+ * atomically, so a failed write captures them again next time rather than skipping them.
  */
-export function captureMessages({ sessionDir, taskDir = null, messages, now = new Date() }) {
+export function captureMessages({ sessionDir, taskDir = null, transcript, format = null, now = new Date() }) {
   const cursorPath = join(sessionDir, CURSOR_FILE);
   const file = join(sessionDir, SESSION_DISCUSSION);
-  const stored = taskDir ? taskMessages(taskDir) : sessionMessages(file);
-  const fresh = freshMessages(messages, readCursor(cursorPath), stored, now);
+  const target = taskDir ? join(taskDir, DISCUSSIONS_DIR) : file;
+  const read = readTranscriptSince({ path: transcript, format, cursor: readCursor(cursorPath) });
+  const cursor = {
+    transcript,
+    kind: read.kind,
+    offset: read.offset,
+    turn: read.turn,
+    last: read.last,
+    tail: tailHash(transcript, read.offset),
+    mode: read.mode ?? null,
+  };
+  if (!read.messages.length) {
+    if (read.offset !== (readCursor(cursorPath)?.offset ?? -1) || read.turn !== (readCursor(cursorPath)?.turn ?? -1)) {
+      writeCursorAtomic(cursorPath, cursor);
+    }
+    return { captured: 0, numbers: [], path: target };
+  }
+  const stored = taskDir ? newestTaskMessages(taskDir) : sessionMessages(file);
+  const keys = new Set(stored.map(storedKey));
+  const fresh = read.messages.filter((message) => {
+    const { day, time } = stampOf(message.at, now);
+    return !keys.has(`${day}|${time}|${hashOf(redact(message.text))}`);
+  });
   const first = nextNumber(stored);
-  if (fresh.length) {
-    // The secrets redaction the event log uses applies to what is stored; the cursor keeps the transcript's own text.
-    const numbered = fresh.map((message, index) => ({
-      ...message,
-      ...stampOf(message.at, now),
-      text: redact(message.text),
-      number: first + index,
-    }));
+  const numbered = fresh.map((message, index) => ({
+    ...message,
+    ...stampOf(message.at, now),
+    text: redact(message.text),
+    number: first + index,
+  }));
+  if (numbered.length) {
     if (taskDir) appendToTask(taskDir, numbered);
     else appendToSession(file, numbered);
   }
-  if (messages.length) {
-    const last = messages.at(-1);
-    mkdirSync(sessionDir, { recursive: true });
-    writeFileSync(
-      cursorPath,
-      `${JSON.stringify({ count: messages.length, hash: hashOf(last.text), at: last.at ?? null }, null, 2)}\n`,
-    );
+  writeCursorAtomic(cursorPath, cursor);
+  return { captured: numbered.length, numbers: numbered.map((message) => message.number), path: target };
+}
+
+/**
+ * Captures messages given as a list, with no cursor (a plain export on standard input): the same stored-key check and
+ * numbering as captureMessages.
+ */
+export function captureList({ sessionDir, taskDir = null, messages, now = new Date() }) {
+  const file = join(sessionDir, SESSION_DISCUSSION);
+  const target = taskDir ? join(taskDir, DISCUSSIONS_DIR) : file;
+  const stored = taskDir ? newestTaskMessages(taskDir) : sessionMessages(file);
+  const keys = new Set(stored.map(storedKey));
+  const fresh = messages.filter((message) => {
+    const { day, time } = stampOf(message.at, now);
+    return !keys.has(`${day}|${time}|${hashOf(redact(message.text))}`);
+  });
+  const first = nextNumber(stored);
+  const numbered = fresh.map((message, index) => ({
+    ...message,
+    ...stampOf(message.at, now),
+    text: redact(message.text),
+    number: first + index,
+  }));
+  if (numbered.length) {
+    if (taskDir) appendToTask(taskDir, numbered);
+    else appendToSession(file, numbered);
   }
-  const numbers = fresh.map((_, index) => first + index);
-  return { captured: fresh.length, numbers, path: taskDir ? join(taskDir, DISCUSSIONS_DIR) : file };
+  return { captured: numbered.length, numbers: numbered.map((message) => message.number), path: target };
 }
 
 function appendToTask(taskDir, numbered) {
@@ -457,8 +663,8 @@ function appendToSession(file, numbered) {
 }
 
 /**
- * Moves a session's messages into a new task: renumbered from M-1 in the task's day files, in their order, and the
- * session's file removed. Returns how many moved.
+ * Moves a session's messages into a task (`task create` and `task take`): numbered on from the task's last number, in
+ * their order, and the session's file removed. A new task starts at M-1. Returns how many moved.
  */
 export function moveSessionMessages(file, taskDir) {
   const live = sessionMessages(file).filter((message) => !message.removed);
@@ -466,7 +672,8 @@ export function moveSessionMessages(file, taskDir) {
     if (existsSync(file)) rmSync(file, { force: true });
     return 0;
   }
-  const numbered = live.map((message, index) => ({ ...message, number: index + 1 }));
+  const first = nextNumber(taskMessages(taskDir));
+  const numbered = live.map((message, index) => ({ ...message, number: first + index }));
   appendToTask(taskDir, numbered);
   rmSync(file, { force: true });
   return numbered.length;

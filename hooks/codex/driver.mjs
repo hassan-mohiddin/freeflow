@@ -924,7 +924,15 @@ function subagent(ctx) {
 function discussionCapture(ctx) {
   // Codex names no transcript for some sessions (its Stop input says null): then there is nothing to capture from.
   if (typeof ctx.input.transcript_path !== "string" || !ctx.input.transcript_path) return;
-  const args = ["discussion", "capture", "--no-push", "--transcript", ctx.input.transcript_path];
+  const args = [
+    "discussion",
+    "capture",
+    "--no-push",
+    "--session",
+    ctx.session,
+    "--transcript",
+    ctx.input.transcript_path,
+  ];
   const run = script(ctx, args, { timeoutMs: 4_000 });
   if (run.status !== 0)
     emit(ctx, "freeflow", {

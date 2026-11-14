@@ -23,13 +23,14 @@ import {
 } from "./record5.mjs";
 import { holdStart, summaryForTask } from "./events5.mjs";
 import { decisionItem, orderedDecisions, rules } from "./budget5.mjs";
-import { applyTidy, checkTidyRecord, makeTaskFolders, planTidy } from "./task-folder5.mjs";
+import { applyTidy, checkTidyRecord, makeTaskFolders, planTidy, writeReadme } from "./task-folder5.mjs";
 import { searchRecords } from "./search.mjs";
 import {
   LAST_TASK_NUMBER,
   createRecordPath,
   isFreeflowStore,
   nextTaskNumber,
+  writeAtomically,
   writeInitialAtomically,
   writeTaskFile,
 } from "./store.mjs";
@@ -552,6 +553,8 @@ export async function takeTask(home, id, identity, { takeover = false } = {}) {
   if (held && held.id !== id) fail(`This session holds ${held.id}; checkpoint it and use task switch --id ${id}.`);
   if (held?.id === id) return `This session already holds ${id}.\n`;
   const previous = await writeHold(home, task, identity, { takeover });
+  // The pre-task messages this session sent go into the task it takes, as task create moves them (numbered on).
+  moveSessionMessages(join(home, "sessions", identity.id, SESSION_DISCUSSION), task.dir);
   const note = pulled ? "" : " (could not take the remote's commits first)";
   return `This session holds ${id}${previous ? `, taken over from ${previous.short}` : ""}${note}.\n${await sync(home, `Take ${id} (${identity.short})`)}\n`;
 }
@@ -661,17 +664,19 @@ export async function switchTask(home, id, identity, options) {
  * and the Recovery lines that named them rewritten, then the README (task-folder5.mjs). The record is checked and
  * written before anything moves, so a failure leaves the folder as it was.
  */
-export async function tidyTask(home, id) {
+export async function tidyTask(home, id, identity) {
   const recordPath = storeRecordPath(home, id);
+  requireHold(recordPath, identity);
   const taskDir = dirname(recordPath);
   const text = await readFile(recordPath, "utf8");
   const name = parseRecord5(text).header.name;
   const plan = planTidy(taskDir, text);
-  if (plan.recordText !== null) {
-    checkTidyRecord(plan.recordText);
-    await writeFile(recordPath, plan.recordText);
-  }
-  const readmeChanged = applyTidy(taskDir, plan, name);
+  if (plan.recordText !== null) checkTidyRecord(plan.recordText);
+  // The files move first, then the record is published whole as checkpoint publishes it, then the README follows.
+  applyTidy(taskDir, plan);
+  // The record's root is its project folder (or the store, for a task in no project): two levels above its task folder.
+  if (plan.recordText !== null) await writeAtomically(dirname(dirname(taskDir)), recordPath, text, plan.recordText);
+  const readmeChanged = writeReadme(taskDir, name);
   const moved = plan.moved.map((file) => `- sources/${file} → ${DISCUSSIONS_DIR}/${file}`);
   const lines = [
     ...(moved.length

@@ -25,10 +25,13 @@ import {
 } from "./lib/migrate5.mjs";
 import {
   SESSION_DISCUSSION,
+  captureList,
   captureMessages,
   claudeCodeLog,
+  distinct,
   listText,
   parseMessageNumbers,
+  readPlain,
   removeMessage,
   sessionMessages,
   showText,
@@ -172,7 +175,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "discussion",
-    "Usage: working-record.mjs discussion <capture|list|show|remove> ...\nThe user's messages, kept by Freeflow: every message word for word, numbered M-n per task in the held task's discussions/<day>.md (or, before a task, in the session's own file, which task create moves in). capture runs at each turn's end (a driver's); list prints numbers, times and first words; show prints the named messages whole; remove deletes one message's text and keeps its number. The transcript is --transcript <path> (--format claude-code, codex, pi or plain; a Pi session file and a Codex rollout are known by their entries), else FREEFLOW_TRANSCRIPT, else this Claude Code session's log; --transcript - reads a plain export (lines starting \"User:\" or \"Assistant:\") from standard input.",
+    "Usage: working-record.mjs discussion <capture|list|show|remove> ...\nThe user's messages, kept by Freeflow: every message word for word (a secret redacted), numbered M-n per task in the held task's discussions/<day>.md (or, before a task, in the session's own file, which task create moves in). capture runs at each turn's end (a driver's); list prints numbers, times and first words; show prints the named messages whole; remove deletes one message's text and keeps its number. The transcript is --transcript <path> (--format claude-code, codex, pi or plain; a Pi session file and a Codex rollout are known by their entries), else FREEFLOW_TRANSCRIPT, else this Claude Code session's log; --transcript - reads a plain export (lines starting \"User:\" or \"Assistant:\") from standard input.",
   ],
   [
     "discussion capture",
@@ -483,7 +486,8 @@ function allowedOptions(command, operation) {
     ]);
   if (command === "migrate") return new Set(["--root", "--record", "--cue", "--cues", "--project", "--home", "--help"]);
   if (command === "discussion") {
-    if (operation === "capture") return new Set(["--transcript", "--format", "--no-push", "--home", "--help"]);
+    if (operation === "capture")
+      return new Set(["--transcript", "--format", "--session", "--no-push", "--home", "--help"]);
     if (operation === "list") return new Set(["--record", "--date", "--home", "--help"]);
     if (operation === "show") return new Set(["--record", "--home", "--help"]);
     if (operation === "remove") return new Set(["--record", "--message", "--home", "--help"]);
@@ -811,7 +815,7 @@ async function runProjects5(command, operation, options, home) {
   }
   if (key === "task search") return searchTasks(home, requireOption(options, "--query"), options["--project"] ?? null);
   if (key === "task remove") return removeTask(home, requireOption(options, "--id"));
-  if (key === "task tidy") return tidyTask(home, requireOption(options, "--id"));
+  if (key === "task tidy") return tidyTask(home, requireOption(options, "--id"), identity);
   if (key === "task move")
     return moveTask(
       home,
@@ -868,26 +872,8 @@ async function runDiscussion(operation, positionals, options) {
   const identity = sessionIdentity();
   if (operation === "capture") {
     if (!isFreeflowStore(home)) throw new CliError(`discussion capture works in a Freeflow store; ${home} is not one`);
-    if (!identity)
-      throw new CliError(
-        "No session ID: Claude Code sets CLAUDE_CODE_SESSION_ID; other harnesses set FREEFLOW_SESSION.",
-      );
-    let messages;
-    try {
-      // A Claude Code session reads its own log: an inherited FREEFLOW_TRANSCRIPT may name another session's transcript.
-      // The identity is FREEFLOW_SESSION when a harness layer sets it (Pi does), else Claude Code's session ID.
-      const claudeSession =
-        !process.env.FREEFLOW_SESSION && Boolean(process.env.CLAUDE_CODE_SESSION_ID) && !options["--transcript"];
-      const own = claudeSession ? claudeCodeLog() : null;
-      if (claudeSession && !own)
-        throw new CliError(
-          "No log for this Claude Code session was found beside its session ID; pass --transcript <path>.",
-        );
-      messages = userMessages({ transcript: options["--transcript"] ?? own ?? undefined, format: options["--format"] });
-    } catch (error) {
-      throw new CliError(error.message);
-    }
-    return captureDiscussion(home, identity, messages, { push: options["--no-push"] !== true });
+    const source = await captureSource(options);
+    return captureDiscussion(home, source, { push: options["--no-push"] !== true });
   }
   if (!["list", "show", "remove"].includes(operation))
     throw new CliError("discussion takes capture, list, show or remove");
@@ -917,13 +903,49 @@ async function discussionPlace(options, home, identity) {
   return { taskDir: null, record: null, file: join(home, "sessions", identity.id, SESSION_DISCUSSION) };
 }
 
-async function captureDiscussion(home, identity, messages, { push = true } = {}) {
+/**
+ * Which session a capture is for, and what it reads. Each driver names its own session with --session and its own
+ * transcript with --transcript; without them, the identity is FREEFLOW_SESSION (a harness layer sets it, as Pi does),
+ * else Claude Code's session ID. A transcript not named is the session's own Claude Code log when the identity is that
+ * Claude Code session, else FREEFLOW_TRANSCRIPT. An inherited variable never picks another session's transcript.
+ */
+async function captureSource(options) {
+  const env = process.env;
+  const id = options["--session"] || env.FREEFLOW_SESSION || env.CLAUDE_CODE_SESSION_ID;
+  if (!id) throw new CliError("No session ID: pass --session, or set FREEFLOW_SESSION or CLAUDE_CODE_SESSION_ID.");
+  const identity = sessionIdentity({ ...env, FREEFLOW_SESSION: id });
+  if (options["--transcript"] === "-") {
+    // A plain export on standard input: read whole, captured without a cursor.
+    const text = await readInput("-", cwd());
+    return { identity, list: distinct(readPlain(text)).map((message) => ({ ...message, turn: 0 })) };
+  }
+  let transcript = options["--transcript"];
+  if (transcript === undefined && env.CLAUDE_CODE_SESSION_ID === id) {
+    transcript = claudeCodeLog(env);
+    if (!transcript)
+      throw new CliError(
+        "No log for this Claude Code session was found beside its session ID; pass --transcript <path>.",
+      );
+  }
+  if (transcript === undefined) transcript = env.FREEFLOW_TRANSCRIPT;
+  if (!transcript)
+    throw new CliError(
+      "No transcript found: pass --transcript <path> (or --transcript - for a plain export on standard input).",
+    );
+  return { identity, transcript, format: options["--format"] };
+}
+
+async function captureDiscussion(home, source, { push = true } = {}) {
+  const identity = source.identity;
+  // A worker session captures nothing: the words it is given are the coordinator's, already in the brief.
+  if (joinedDelegation(home, identity))
+    return "A worker session captures nothing: its words are the coordinator's, already in the brief.\n";
   const held = heldTask(home, identity);
-  const result = captureMessages({
-    sessionDir: join(home, "sessions", identity.id),
-    taskDir: held ? held.dir : null,
-    messages,
-  });
+  const sessionDir = join(home, "sessions", identity.id);
+  const taskDir = held ? held.dir : null;
+  const result = source.list
+    ? captureList({ sessionDir, taskDir, messages: source.list })
+    : captureMessages({ sessionDir, taskDir, transcript: source.transcript, format: source.format });
   if (!result.captured) return "No new messages.\n";
   const [first, last] = [result.numbers[0], result.numbers.at(-1)];
   const range = first === last ? `M-${first}` : `M-${first}–M-${last}`;
@@ -931,8 +953,30 @@ async function captureDiscussion(home, identity, messages, { push = true } = {})
   return `Captured ${result.captured} message(s), ${range}, into ${result.path}.\n${synced}\n`;
 }
 
+/**
+ * The capture a checkpoint and a fallback bundle run first (N-3, N-4): the turn in progress is in the task before the
+ * record is written or the bundle is read. Best effort: a capture that cannot run never stops the checkpoint or bundle.
+ */
+async function captureBeforeCheckpoint(options) {
+  try {
+    const home = storeHome(options["--home"]);
+    if (!isFreeflowStore(home)) return;
+    const source = await captureSource({
+      "--session": undefined,
+      "--transcript": options["--transcript"],
+      "--format": undefined,
+    });
+    if (joinedDelegation(home, source.identity)) return;
+    await captureDiscussion(home, source, { push: false });
+  } catch {
+    // The checkpoint or the bundle goes on without it: the next capture reads the same transcript from its cursor.
+  }
+}
+
 async function runCore(command, rest) {
-  const { options, positionals } = parseOptions(rest, { valued: command === "events" ? ["--session"] : [] });
+  const { options, positionals } = parseOptions(rest, {
+    valued: command === "events" || command === "discussion" ? ["--session"] : [],
+  });
   const operation = positionals[0];
   if (options["--help"]) return commandHelp(command, operation);
   const joined = joinedDelegation(storeHome(options["--home"]), sessionIdentity());
@@ -1129,6 +1173,7 @@ async function runCore(command, rest) {
     if (view === "full") return loaded.text;
     requireSchema5(loaded);
     if (view === "recover") return renderRecover5(loaded, { delegation: options["--delegation"] ?? null });
+    if (view === "bundle" && options["--fallback"] === true) await captureBeforeCheckpoint(options);
     if (view === "bundle")
       return renderBundle5(loaded, {
         fallback: options["--fallback"] === true,
@@ -1147,7 +1192,10 @@ async function runCore(command, rest) {
     );
   const loaded = requireSchema5(await readExisting(options));
   // A checkpoint writes only the task this session holds (F36).
-  if (command === "checkpoint") requireHold(loaded.path, sessionIdentity());
+  if (command === "checkpoint") {
+    requireHold(loaded.path, sessionIdentity());
+    await captureBeforeCheckpoint(options);
+  }
   const input = await readInput(options["--input"], cwd());
   return runTransition5(command, positionals, options, input, loaded);
 }
@@ -1231,7 +1279,7 @@ const GATE_COMMANDS = new Set([
 async function gatesAfter(command, rest, output) {
   let parsed;
   try {
-    parsed = parseOptions(rest, { valued: command === "events" ? ["--session"] : [] });
+    parsed = parseOptions(rest, { valued: command === "events" || command === "discussion" ? ["--session"] : [] });
   } catch {
     return;
   }

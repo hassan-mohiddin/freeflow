@@ -51,8 +51,25 @@ const textOf = (content) =>
 
 /** The messages the user typed on the active branch; Freeflow's notices, sent in the user's turn, are left out. */
 export function piUserMessages(text) {
-  return piBranch(text)
-    .filter((entry) => entry.type === "message" && entry.message?.role === "user")
-    .map((entry) => ({ at: entry.timestamp ?? null, text: textOf(entry.message.content).replace(/\s+$/, "") }))
-    .filter((message) => message.text.trim() && !NOTICE.test(message.text));
+  // Each message carries its entry's id as its identity, and the agent's messages before it as its turn (a host
+  // resend has no agent message between it and the one it repeats).
+  let turn = 0;
+  const messages = [];
+  for (const entry of piBranch(text)) {
+    if (entry.type !== "message") continue;
+    if (entry.message?.role === "assistant") {
+      turn += 1;
+      continue;
+    }
+    if (entry.message?.role !== "user") continue;
+    const message = {
+      at: entry.timestamp ?? null,
+      text: textOf(entry.message.content).replace(/\s+$/, ""),
+      id: entry.id,
+      turn,
+    };
+    if (message.text.trim() && !NOTICE.test(message.text)) messages.push(message);
+  }
+  messages.lastTurn = turn;
+  return messages;
 }

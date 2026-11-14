@@ -100,7 +100,8 @@ function world(on: any) {
     session: mock.session(on),
     // A turn's end runs `discussion capture` with a store (its own test below checks it), so the lists of the other calls
     // leave it out.
-    commands: () => w.runs.map((run) => run.args.join(" ")).filter((command) => command !== "discussion capture"),
+    commands: () =>
+      w.runs.map((run) => run.args.join(" ")).filter((command) => !command.startsWith("discussion capture")),
     beforeRun: (_key: string): unknown => undefined,
     // What a slash command the mod runs comes to; a test throws here for a run the engine drops.
     commandResult: (_e: any): object => ({ text: "Compacted" }),
@@ -385,15 +386,17 @@ test("a turn's end captures the user's messages with a store, before its store s
   await $.turn.complete(turnEnd("answer"));
   await w.clock.advance(1);
   const ran = w.runs.map((run) => run.args.join(" "));
-  expect(ran.indexOf("discussion capture")).toBeGreaterThan(-1);
-  expect(ran.indexOf("discussion capture")).toBeLessThan(ran.indexOf("store sync"));
-  expect(w.runs.find((run) => run.args.join(" ") === "discussion capture")?.session).toBe(SESSION);
+  expect(ran.findIndex((command) => command.startsWith("discussion capture"))).toBeGreaterThan(-1);
+  expect(ran.findIndex((command) => command.startsWith("discussion capture"))).toBeLessThan(ran.indexOf("store sync"));
+  expect(w.runs.find((run) => run.args.join(" ").startsWith("discussion capture"))?.session).toBe(SESSION);
 
   w.status = store({ store: false });
   w.runs.length = 0;
   await $.turn.complete(turnEnd("answer"));
   await w.clock.advance(1);
-  expect(w.runs.map((run) => run.args.join(" ")).filter((command) => command === "discussion capture")).toEqual([]);
+  expect(w.runs.map((run) => run.args.join(" ")).filter((command) => command.startsWith("discussion capture"))).toEqual(
+    [],
+  );
 });
 
 test("a store attached after session start: the turn that ends with it does what session start does with a store, once", async ($, on) => {

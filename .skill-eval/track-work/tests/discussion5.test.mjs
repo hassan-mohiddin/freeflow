@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { utimesSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { readFileSync, utimesSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import {
   claudeCodeLog,
   distinct,
-  freshMessages,
+  readTranscriptSince,
   isCodexRollout,
   parseMessageNumbers,
   parseMessages,
@@ -542,26 +542,104 @@ test("a Claude Code log is found beside its session, and a session with no log h
   }
 });
 
-test("freshMessages takes what the cursor has not read, by its count and last hash, or by time, or else what is not stored", () => {
-  const messages = [
-    { at: "2026-10-29T12:00:00.000Z", text: "one", number: 1 },
-    { at: "2026-10-29T12:01:00.000Z", text: "two", number: 2 },
-    { at: "2026-10-29T12:02:00.000Z", text: "three", number: 3 },
-  ];
-  const now = new Date("2026-11-14T00:00:00.000Z");
-  const texts = (list) => list.map((message) => message.text);
-  // By the count and the hash of the last one read.
-  assert.deepEqual(texts(freshMessages(messages, { count: 2, hash: messageHash("two"), at: null }, [], now)), [
-    "three",
-  ]);
-  // A transcript that changed under the cursor: by the time of the last one read.
+test("identity and turns: a message repeated with no agent entry between is a resend; the same words in two turns are two messages; an entry seen twice counts once", () => {
+  const user = (id, turn, text) => ({ at: null, text, id, turn });
+  const repeated = distinct([user("a", 0, "continue"), user("b", 1, "continue")]);
   assert.deepEqual(
-    texts(freshMessages(messages, { count: 9, hash: "0000000000000000", at: "2026-10-29T12:01:00.000Z" }, [], now)),
-    ["three"],
+    repeated.map((message) => message.id),
+    ["a", "b"],
+    "two turns, both kept",
   );
-  // No cursor: what the task does not store already, by its day, time and hash.
-  const stored = [{ day: "2026-10-29", time: "12:00", hash: messageHash("one") }];
-  assert.deepEqual(texts(freshMessages(messages, null, stored, now)), ["two", "three"]);
+  const resend = distinct([user("a", 0, "Fix the parser"), user("b", 0, "Fix the parser and the lexer")]);
+  assert.deepEqual(
+    resend.map((message) => message.text),
+    ["Fix the parser and the lexer"],
+    "a resend keeps the longer copy",
+  );
+  const twice = distinct([user("a", 0, "once"), user("a", 0, "once")]);
+  assert.equal(twice.length, 1, "the same entry is counted once");
+  // A cursor's last message is the one before the read: a resend across two reads is caught, a new turn is not.
+  assert.deepEqual(distinct([user("c", 0, "same")], { turn: 0, text: "same" }), []);
+  assert.equal(distinct([user("c", 1, "same")], { turn: 0, text: "same" }).length, 1);
+});
+
+test("a Claude Code log's agent entries separate turns: 'continue' twice across turns are both captured", () => {
+  const log = [
+    human("2026-10-29T12:00:00.000Z", "continue"),
+    entry({
+      type: "assistant",
+      timestamp: "2026-10-29T12:00:05.000Z",
+      message: { content: [{ type: "text", text: "On it." }] },
+    }),
+    human("2026-10-29T12:01:00.000Z", "continue"),
+  ].join("\n");
+  assert.deepEqual(
+    distinct(readClaudeCode(log)).map((message) => message.text),
+    ["continue", "continue"],
+  );
+});
+
+test("the Freeflow's own submitted prompts are not the user's: the wait rows and the continue prompt are left out", () => {
+  const log = [
+    human("2026-10-29T12:00:00.000Z", "Freeflow: a wait row"),
+    human(
+      "2026-10-29T12:01:00.000Z",
+      "Freeflow compacted the session after your checkpoint: the conversation is now your task's bundle. Continue from In flight and the Next action.",
+    ),
+    human("2026-10-29T12:02:00.000Z", "My own words."),
+  ].join("\n");
+  assert.deepEqual(
+    readClaudeCode(log).map((message) => message.text),
+    ["My own words."],
+  );
+  // The opening the reader leaves out is the one Freeflow's mod submits (a test against the source).
+  const mod = readFileSync(resolve("hooks/claude/freeflow.mjs"), "utf8");
+  assert.ok(
+    mod.includes("Freeflow compacted the session after your checkpoint: the conversation is now your task's bundle."),
+  );
+});
+
+test("an incremental read takes only the complete lines the transcript gained since the cursor; a shorter file or a changed tail is read whole", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "track-work-incremental-"));
+  try {
+    const path = join(folder, "log.jsonl");
+    const first = `${human("2026-10-29T12:00:00.000Z", "One.")}\n`;
+    await writeFile(path, first);
+    const read = readTranscriptSince({ path });
+    assert.deepEqual(
+      read.messages.map((message) => message.text),
+      ["One."],
+    );
+    const cursor = {
+      transcript: path,
+      kind: read.kind,
+      offset: read.offset,
+      turn: read.turn,
+      last: read.last,
+      tail: null,
+      mode: read.mode,
+    };
+    cursor.tail = (await import("node:crypto"))
+      .createHash("sha256")
+      .update(
+        Buffer.from(first)
+          .subarray(Math.max(0, first.length - 256))
+          .toString("utf8"),
+      )
+      .digest("hex")
+      .slice(0, 16);
+    // A growing file: only the new line is read, and a partial line waits.
+    await writeFile(path, `${first}${human("2026-10-29T12:01:00.000Z", "Two.")}\n{"type":"user","timest`);
+    const more = readTranscriptSince({ path, cursor });
+    assert.deepEqual(
+      more.messages.map((message) => message.text),
+      ["Two."],
+      "the partial line waits for its newline",
+    );
+    assert.ok(more.offset > read.offset && more.offset < (await stat(path)).size);
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
 });
 
 test("userMessages reads a Codex rollout by its entries, not by its file name", async () => {
@@ -630,5 +708,117 @@ test("a Pi session in a Claude Code container captures its own transcript: FREEF
     });
     ok(result);
     assert.match(await readFile(join(home, "sessions", "pi-session-1", "discussion.md"), "utf8"), /> A Pi message\./);
+  });
+});
+
+test("a plain export on standard input is captured (--transcript -), and a removed message is never taken again", async () => {
+  await withStore(async ({ work, cli }) => {
+    const { record } = createTask(cli);
+    const out = cli(["discussion", "capture", "--transcript", "-"], {
+      cwd: work,
+      input: "User: From standard input.\nAssistant: Noted.\nUser: And a second one.\n",
+    });
+    ok(out);
+    assert.match(out.stdout, /^Captured 2 message\(s\), M-1–M-2/);
+    assert.match(ok(cli(["discussion", "list", "--record", record])), /M-1 · .* · From standard input\.\n/);
+  });
+});
+
+test("task tidy is refused unless the session holds the task; the record is published whole", async () => {
+  await withStore(async ({ cli, log }) => {
+    const { record, taskDir } = createTask(cli);
+    const block = "## B-001 — Old\n\n### You, 2026-10-29 12:00\n\n> Old words.\n";
+    await mkdir(join(taskDir, "sources"), { recursive: true });
+    await writeFile(join(taskDir, "sources", "discussion.md"), block);
+    const refused = cli(["task", "tidy", "--id", "widget/task-001"], { session: "bbbbbbbb-2" });
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stderr, /holds it|does not hold/);
+    assert.equal(await readFile(join(taskDir, "sources", "discussion.md"), "utf8"), block, "nothing moved");
+    ok(cli(["task", "tidy", "--id", "widget/task-001"]));
+    assert.equal(await readFile(join(taskDir, "discussions", "discussion.md"), "utf8"), block);
+    assert.match(await readFile(record, "utf8"), /^# First task/m);
+  });
+});
+
+test("task take moves the session's pre-task messages into the task it takes, numbered on from its last message", async () => {
+  await withStore(async ({ work, cli, log }) => {
+    const { taskDir } = createTask(cli);
+    const first = await log("a.jsonl", [human("2026-10-29T12:00:00.000Z", "Held by A.")]);
+    ok(cli(["discussion", "capture", "--transcript", first], { cwd: work }));
+    ok(cli(["task", "release", "--id", "widget/task-001"]));
+    const second = await log("b.jsonl", [human("2026-10-29T13:00:00.000Z", "Before B takes it.")]);
+    // B holds no task: its message lands in B's own session file.
+    ok(cli(["discussion", "capture", "--transcript", second], { session: "bbbbbbbb-2", cwd: work }));
+    ok(cli(["task", "take", "--id", "widget/task-001"], { session: "bbbbbbbb-2", cwd: work }));
+    const text = await readFile(join(taskDir, "discussions", "2026-10-29.md"), "utf8");
+    assert.match(text, /### M-2 · 13:00\n\n> Before B takes it\.\n/);
+  });
+});
+
+test("a Claude Code process under a Pi shell captures its own log: --session names it, and the inherited Pi transcript is not read", async () => {
+  await withStore(async ({ work, log, folder, home }) => {
+    const config = join(folder, "claude-config-nested");
+    const claudeId = "d5d6ba82-0000-4000-8000-00000000000a";
+    await mkdir(join(config, "projects", "-work"), { recursive: true });
+    await writeFile(
+      join(config, "projects", "-work", `${claudeId}.jsonl`),
+      `${human("2026-10-29T12:00:00.000Z", "The Claude process's own words.")}\n`,
+    );
+    const piLog = await log("pi.jsonl", [human("2026-10-29T12:30:00.000Z", "Pi's words.")]);
+    const result = spawnSync(
+      process.execPath,
+      [scriptPath, "discussion", "capture", "--session", claudeId, "--no-push"],
+      {
+        cwd: work,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          FREEFLOW_HOME: home,
+          FREEFLOW_SESSION: "pi-session-9",
+          FREEFLOW_HARNESS: "Test",
+          FREEFLOW_TRANSCRIPT: piLog,
+          CLAUDE_CODE_SESSION_ID: claudeId,
+          CLAUDE_CONFIG_DIR: config,
+          CLAUDECODE: "",
+          CLAUDE_CODE_REMOTE: "",
+          CLAUDE_CODE_REMOTE_SESSION_ID: "",
+        },
+      },
+    );
+    ok(result);
+    const captured = await readFile(join(home, "sessions", claudeId, "discussion.md"), "utf8");
+    assert.match(captured, /> The Claude process's own words\./);
+    assert.doesNotMatch(captured, /Pi's words/);
+  });
+});
+
+test("a checkpoint captures the turn in progress before it writes the record, so its Recovery line can name that message", async () => {
+  await withStore(async ({ work, log, home, cli, folder }) => {
+    const { record, taskDir } = createTask(cli);
+    const transcript = await log("turn.jsonl", [
+      human("2026-10-29T12:00:00.000Z", "The message that started this turn."),
+    ]);
+    const result = spawnSync(process.execPath, [scriptPath, "checkpoint", "--record", record], {
+      cwd: work,
+      encoding: "utf8",
+      input: "- Now: working.\n",
+      env: {
+        ...process.env,
+        FREEFLOW_HOME: home,
+        FREEFLOW_SESSION: "aaaaaaaa-1",
+        FREEFLOW_HARNESS: "Test",
+        FREEFLOW_TRANSCRIPT: transcript,
+        CLAUDECODE: "",
+        CLAUDE_CODE_SESSION_ID: "",
+        CLAUDE_CODE_REMOTE: "",
+        CLAUDE_CODE_REMOTE_SESSION_ID: "",
+      },
+    });
+    ok(result);
+    assert.match(
+      await readFile(join(taskDir, "discussions", "2026-10-29.md"), "utf8"),
+      /> The message that started this turn\./,
+    );
+    void folder;
   });
 });

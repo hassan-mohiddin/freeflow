@@ -125,12 +125,11 @@ export function planTidy(taskDir, recordText) {
  * `task tidy`, applied after its record is written: the moves, then the README. A sources/ folder the moves leave empty
  * is removed, since folders are made when first written. Returns whether the README changed.
  */
-export function applyTidy(taskDir, plan, name) {
+export function applyTidy(taskDir, plan) {
   if (plan.moved.length) mkdirSync(join(taskDir, DISCUSSIONS_DIR), { recursive: true });
   for (const file of plan.moved) renameSync(join(taskDir, "sources", file), join(taskDir, DISCUSSIONS_DIR, file));
   const sources = join(taskDir, "sources");
   if (plan.moved.length && existsSync(sources) && readdirSync(sources).length === 0) rmdirSync(sources);
-  return writeReadme(taskDir, name);
 }
 
 /** The record text a tidy writes must still parse as Schema 5. */

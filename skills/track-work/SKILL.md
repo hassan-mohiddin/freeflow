@@ -14,7 +14,7 @@ A task is a folder, normally in the Freeflow store: one private Git repository a
   - **Current Work:** the open agreement (`A-NNN`), the current Slice (`S-NNN`), Delegations, Space, In flight, Recovery (what the next context cycle reads to recover) and the Next action; it changes as the work moves.
   - **Future Work:** proposed Slices.
 - `history.md`, one entry per closed Slice, agreement or delegation; `decisions.md`, the open agreement's decision list; `sessions.md`, every session that held the task, its last open line the hold.
-- `discussions/` (the user's messages, word for word, kept by Freeflow), `sources/` (outside material only), `delegations/`, `reviews/`, `notes/`, `evidence/`, `specs/`, `plans/` and `scratch/`; the task's README lists the ones that exist.
+- `discussions/` (the user's messages, word for word but for a redacted secret, kept by Freeflow), `sources/` (outside material only), `delegations/`, `reviews/`, `notes/`, `evidence/`, `specs/`, `plans/` and `scratch/`; the task's README lists the ones that exist.
 
 This is Schema 5. A record whose header says `Schema: 4` was written by an earlier Freeflow, in a repository or by Pi's former Task Memory: only `migrate` reads it, and every other command refuses it. On the user's word, move it into the store as the Routes say.
 
@@ -172,7 +172,7 @@ Goal: at a compaction, a switch or a transfer, the task folder holds everything 
 
    Give a file `(lines <a>–<b>)` when only those lines matter. The list stays as it is unless you change it, and it can be empty: drop what the work no longer needs.
 3. Adjust the rest of Current Work and Future Work: one Next action a fresh context can act on, and the route. Close nothing to make room. Do not rush a Slice to completion, claim an unfinished check passed, or guess the outcome of a running operation.
-4. If the user's messages in this context cycle shaped the work and the next cycle must read them, name them in Recovery: `always: messages M-12–M-18, M-24 — <what they settled>` (or `when <trigger>: messages …`); skip this when none did. Freeflow keeps every message word for word already: `discussion list` numbers them, `discussion show M-12–M-18` prints them, and `view recover` checks the numbers exist.
+4. If the user's messages in this context cycle shaped the work and the next cycle must read them, name them in Recovery: `always: messages M-12–M-18, M-24 — <what they settled>` (or `when <trigger>: messages …`); skip this when none did. Freeflow keeps every message word for word already (a secret redacted): `discussion list` numbers them, `discussion show M-12–M-18` prints them, and `view recover` checks the numbers exist.
 5. `checkpoint --record <ID> --input -` with In flight's lines, which replace the old ones whole, then, when Recovery changes, a line `Recovery:` and the whole new list under it (`Recovery: none` empties it); add `--compact` when Freeflow should compact. In flight is the record's part of the compaction: write state, not a story, and keep exact paths, identifiers, commands, error text, numbers, and the user's words where wording matters.
    - `Now:` the step in progress and exactly how far it got;
    - `Observed:` a result the next step rests on, with its evidence; `Hypothesis:` what is being tested, unverified;

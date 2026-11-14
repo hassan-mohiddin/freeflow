@@ -756,11 +756,18 @@ async function turnEnded($, e) {
   if (!state) return;
   // The turn's user messages, kept word for word in the store (Track Work's discussion capture reads this session's
   // log, and captures each message once). Freeflow keeps them whether or not the agent wrote anything down.
+  // The capture names this session (--session) and commits without pushing; the sync below pushes once, when it
+  // captured something, and so does a sync the state already asked for.
+  let captured = false;
   try {
-    const captured = await script($, ["discussion", "capture"], { timeoutMs: DISCUSSION_CAPTURE_MS });
-    if (captured.exitCode !== 0)
+    const session = await $.session.id();
+    const run = await script($, ["discussion", "capture", "--no-push", "--session", session], {
+      timeoutMs: DISCUSSION_CAPTURE_MS,
+    });
+    captured = run.exitCode === 0 && String(run.stdout ?? "").startsWith("Captured");
+    if (run.exitCode !== 0)
       $.ui.log(
-        `Freeflow: this turn's messages were not captured: ${(captured.stderr.split("\n")[0] || `exit code ${captured.exitCode}`).trim()}`,
+        `Freeflow: this turn's messages were not captured: ${(run.stderr.split("\n")[0] || `exit code ${run.exitCode}`).trim()}`,
       );
   } catch (error) {
     // A capture that cannot run must not cut the turn's end short: the store sync and the rest still follow.
@@ -779,7 +786,7 @@ async function turnEnded($, e) {
     const tookBack = menu.exitCode === 0 ? /^Took .+ back: .+$/m.exec(menu.stdout)?.[0] : undefined;
     if (tookBack) await appendRow($, `Freeflow: ${tookBack}`);
   }
-  if (state.changed) {
+  if (state.changed || captured) {
     await script($, ["store", "sync"]);
     await emit($, "freeflow", { what: "sync" });
   }

@@ -157,7 +157,7 @@ function world(on: any) {
     session: mock.session(on),
     /** What the pane reads, without the event log's flushes and the settings script. */
     // The pane's reads: not the event log's writes, nor a turn end's discussion capture (freeflow.test.ts checks that).
-    reads: () => w.runs.filter((run) => !run.startsWith("events append") && run !== "discussion capture"),
+    reads: () => w.runs.filter((run) => !run.startsWith("events append") && !run.startsWith("discussion capture")),
   };
   on("process.run", (_: any, e: any) => {
     const value = (answer: Answer) => ({
