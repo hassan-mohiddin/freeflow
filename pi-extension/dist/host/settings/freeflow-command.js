@@ -12,14 +12,10 @@ import {
   CLAIM_HOURS,
   GATE_KEYS,
   GATE_MODES,
-  REVIEW_DEFAULTS,
-  REVIEW_ROUNDS,
-  REVIEW_UNITS,
   RUNTIME_PROMPTS,
   SWITCHABLE_SKILLS,
   resolveDelegationSettings,
   resolveGateSettings,
-  resolveReviewSettings,
   sectionEnabled,
 } from "../config-validation.js";
 import { freeflowStatusText } from "../status.js";
@@ -220,12 +216,10 @@ function createScopedBooleanItem(options) {
 }
 /** A choice among fixed values, in the Personal or Repository scope; Personal can inherit the repository's value. */
 function createScopedChoiceItem(options) {
-  const choice = (value) => (options.numeric && typeof value === "number" ? String(value) : value);
-  const stored = (value) => (options.numeric ? Number(value) : value);
-  const repositoryValue = choice(getPath(options.rawConfig, options.path));
+  const repositoryValue = getPath(options.rawConfig, options.path);
   const inheritedValue = options.values.includes(repositoryValue) ? repositoryValue : options.defaultValue;
   const inheritedSource = repositoryValue === undefined ? "builtin" : "repository";
-  const localValue = choice(getPath(options.localConfig, options.path));
+  const localValue = getPath(options.localConfig, options.path);
   const common = {
     id: options.id,
     label: options.label,
@@ -246,10 +240,7 @@ function createScopedChoiceItem(options) {
           ...options.valueDescriptions,
         },
         configScope: "local",
-        configValues: Object.fromEntries([
-          ["inherit", undefined],
-          ...options.values.map((value) => [value, stored(value)]),
-        ]),
+        configValues: Object.fromEntries([["inherit", undefined], ...options.values.map((value) => [value, value])]),
         inheritedValue,
         inheritedSource,
       }
@@ -262,9 +253,6 @@ function createScopedChoiceItem(options) {
         valueDescriptions: options.valueDescriptions,
         defaultValue: options.defaultValue,
         configScope: "repository",
-        ...(options.numeric
-          ? { configValues: Object.fromEntries(options.values.map((value) => [value, stored(value)])) }
-          : {}),
         repositoryUnset: repositoryValue === undefined,
         localOverrideValue: options.values.includes(localValue) ? localValue : undefined,
       };
@@ -333,31 +321,9 @@ const GATE_DESCRIPTIONS = {
   warn: "The agent reads a warning with the rule and the way through, and the event log counts it.",
   block: "The call is refused with the same text; a delivery step becomes a question where you can answer.",
 };
-const REVIEW_UNIT_LABELS = {
-  pr: "pull request",
-  push: "push",
-  commit: "commit",
-  agreement: "agreement",
-  manual: "manual",
-};
-const REVIEW_UNIT_DESCRIPTIONS = {
-  pr: "Review before each pull request opens.",
-  push: "Review before each push.",
-  commit: "Review before each commit.",
-  agreement: "Review at each agreement's Return.",
-  manual: "The agent proposes each review, with its plan and cost, and waits for your yes.",
-};
-const REVIEW_ROUND_KEYS = REVIEW_ROUNDS.map(String);
-const REVIEW_ROUND_LABELS = { 1: "Review 1", 2: "up to Review 2", 3: "up to Review 3" };
-const REVIEW_ROUND_DESCRIPTIONS = {
-  1: "One review; no follow-up review of the corrections.",
-  2: "A focused Review 2 of the corrections when it is needed.",
-  3: "Up to an exceptional, final Review 3 (the most a depth allows).",
-};
 /** A choice among fixed values in the Session scope; inherit follows the personal and repository settings. */
 function createSessionChoiceItem(options) {
-  const raw = options.sessionOverrides[options.key];
-  const override = options.numeric && typeof raw === "number" ? String(raw) : raw;
+  const override = options.sessionOverrides[options.key];
   const set = typeof override === "string" && options.values.includes(override);
   return {
     id: options.id,
@@ -376,10 +342,7 @@ function createSessionChoiceItem(options) {
       ...options.valueDescriptions,
     },
     configScope: "session",
-    configValues: Object.fromEntries([
-      ["inherit", undefined],
-      ...options.values.map((value) => [value, options.numeric ? Number(value) : value]),
-    ]),
+    configValues: Object.fromEntries([["inherit", undefined], ...options.values.map((value) => [value, value])]),
     effectiveValue: options.effectiveValue,
     effectiveSource: set ? "session" : options.inheritedSource,
     inheritedValue: options.inheritedValue,
@@ -421,7 +384,6 @@ const SECTION_ORDER = [
   "freeflow.events",
   "freeflow.gates",
   "freeflow.delegation",
-  "freeflow.review",
   "freeflow.session",
 ];
 function inSectionOrder(items) {
@@ -437,7 +399,7 @@ function sectionItem(id, label, description, status, children) {
 function capabilityStatus(state) {
   return state?.effective ? "active" : state?.enabled ? "inactive" : "disabled";
 }
-function sessionFreeflowItems(state, ctx, rawConfig, localConfig) {
+function sessionFreeflowItems(state, rawConfig, localConfig) {
   const sessionOverrides = state.sessionOverrides;
   const configured = state.configuredCoreConfig;
   const configuredSources = state.configuredSources;
@@ -566,48 +528,6 @@ function sessionFreeflowItems(state, ctx, rawConfig, localConfig) {
     sessionOverrides,
   });
   inboundItem.inactive = freeflowInactive;
-  const unitInherited = configuredSetting(rawConfig, localConfig, ["review", "unit"], REVIEW_DEFAULTS.unit);
-  const reviewUnitItem = createSessionChoiceItem({
-    id: "freeflow.review.unit",
-    label: "Review unit",
-    description: "When finished work gets its independent review, in this session.",
-    key: "review.unit",
-    values: REVIEW_UNITS,
-    valueLabels: REVIEW_UNIT_LABELS,
-    valueDescriptions: REVIEW_UNIT_DESCRIPTIONS,
-    inheritedValue: unitInherited.value,
-    inheritedSource: unitInherited.source,
-    effectiveValue: state.review?.unit ?? REVIEW_DEFAULTS.unit,
-    sessionOverrides,
-  });
-  reviewUnitItem.inactive = freeflowInactive;
-  reviewUnitItem.heading = true;
-  const roundsInherited = configuredSetting(rawConfig, localConfig, ["review", "rounds"], REVIEW_DEFAULTS.rounds);
-  const reviewRoundsItem = createSessionChoiceItem({
-    id: "freeflow.review.rounds",
-    label: "Review rounds",
-    description: "The most review rounds of one change, in this session.",
-    key: "review.rounds",
-    values: REVIEW_ROUND_KEYS,
-    valueLabels: REVIEW_ROUND_LABELS,
-    valueDescriptions: REVIEW_ROUND_DESCRIPTIONS,
-    inheritedValue: String(roundsInherited.value),
-    inheritedSource: roundsInherited.source,
-    effectiveValue: String(state.review?.rounds ?? REVIEW_DEFAULTS.rounds),
-    sessionOverrides,
-    numeric: true,
-  });
-  reviewRoundsItem.inactive = freeflowInactive;
-  const reviewModelItem = reviewerModelItem({
-    scope: "session",
-    rawConfig,
-    localConfig,
-    effectiveValue: state.review?.model,
-    effectiveSource: typeof sessionOverrides["review.model"] === "string" ? "session" : "builtin",
-    ctx,
-    sessionValue: typeof sessionOverrides["review.model"] === "string" ? sessionOverrides["review.model"] : undefined,
-  });
-  reviewModelItem.inactive = freeflowInactive;
   const promptsMaster = sessionSwitch(
     "freeflow.prompts.enabled",
     "Enabled",
@@ -688,11 +608,6 @@ function sessionFreeflowItems(state, ctx, rawConfig, localConfig) {
       claimItem,
       wakeItem,
     ]),
-    sectionItem("freeflow.review", "Review", "Review Work for this session.", "", [
-      reviewUnitItem,
-      reviewModelItem,
-      reviewRoundsItem,
-    ]),
     sectionItem("freeflow.session", "Session", "Session overrides.", "", [
       {
         id: "freeflow.session.reset",
@@ -724,100 +639,6 @@ function sessionFreeflowItems(state, ctx, rawConfig, localConfig) {
     ]),
   ];
   return inSectionOrder(items);
-}
-const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-/**
- * The thinking levels a model supports, by Pi's own rule (pi-ai's getSupportedThinkingLevels): a model without
- * reasoning has only off; a level its thinkingLevelMap maps to null is unsupported; xhigh and max need a mapping.
- * Pi's model registry has no such method, so the rule reads the model's data directly.
- */
-function supportedThinkingLevels(model) {
-  if (model?.reasoning !== true) return ["off"];
-  return THINKING_LEVELS.filter((level) => {
-    const mapped = model.thinkingLevelMap?.[level];
-    if (mapped === null) return false;
-    return level === "xhigh" || level === "max" ? mapped !== undefined : true;
-  });
-}
-/** This host's authenticated models that support a thinking level, by `provider/id`, sorted. */
-function availableModelKeys(ctx) {
-  const registry = ctx?.modelRegistry;
-  if (typeof registry?.getAvailable !== "function") return [];
-  let models;
-  try {
-    models = registry.getAvailable();
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(models)) return [];
-  return models
-    .filter((model) => typeof model?.provider === "string" && typeof model?.id === "string")
-    .filter((model) => supportedThinkingLevels(model).length > 0)
-    .map((model) => `${model.provider}/${model.id}`)
-    .sort((a, b) => a.localeCompare(b));
-}
-/**
- * The reviewer model: Freeflow passes the name on as written (Review Work), so the picker offers this host's
- * authenticated models by `provider/id`, keeps a name set elsewhere, and clears the setting with None or inherit.
- */
-function reviewerModelItem(options) {
-  const path = ["review", "model"];
-  const name = (value) => (typeof value === "string" ? value : undefined);
-  const repositoryModel = name(getPath(options.rawConfig, path));
-  const configuredModel = name(getPath(options.localConfig, path)) ?? repositoryModel;
-  const session = options.scope === "session";
-  const local = options.scope === "local";
-  const value = session ? options.sessionValue : local ? name(getPath(options.localConfig, path)) : repositoryModel;
-  const inherited = session ? configuredModel : repositoryModel;
-  const clear = session
-    ? { label: "Inherit configured setting", description: "Remove this session's reviewer model." }
-    : local
-      ? { label: "Inherit repository setting", description: "Remove your personal reviewer model." }
-      : { label: "auto", description: "The cheapest capable model; a stronger one for the security tier." };
-  const models = availableModelKeys(options.ctx);
-  const names = value && !models.includes(value) ? [value, ...models] : models;
-  return {
-    id: "freeflow.review.model",
-    label: "Reviewer model",
-    description: session
-      ? "The model a reviewer runs on, in this Pi session only."
-      : local
-        ? "The model a reviewer runs on, for you in this checkout."
-        : "The model a reviewer runs on, where the host lets the agent choose one. This edits shared .freeflow/config.json.",
-    path,
-    kind: "string",
-    // The Repository tab shows the default, auto, when the file sets no model.
-    value: session || local ? value : (value ?? REVIEW_DEFAULTS.model),
-    ...(session || local ? {} : { repositoryUnset: value === undefined }),
-    format: (current) => (typeof current === "string" ? current : REVIEW_DEFAULTS.model),
-    configScope: options.scope,
-    effectiveValue: options.effectiveValue,
-    effectiveSource: options.effectiveSource,
-    inheritedValue: session || local ? (inherited ?? REVIEW_DEFAULTS.model) : undefined,
-    inheritedSource:
-      session && name(getPath(options.localConfig, path))
-        ? "local"
-        : (session || local) && repositoryModel
-          ? "repository"
-          : "builtin",
-    wizard: () => ({
-      firstStep: () => ({
-        title: "Choose reviewer model",
-        choices: [
-          { key: LOCAL_INHERIT, value: LOCAL_INHERIT, label: clear.label, description: clear.description },
-          ...names.map((key) => ({
-            key,
-            value: key,
-            label: key,
-            description: models.includes(key) ? "" : "Set in the file; not an authenticated model here.",
-          })),
-        ],
-        selectedKey: value ?? LOCAL_INHERIT,
-      }),
-      nextStep: () => undefined,
-      valueFromSelections: (selected) => (selected[0] === LOCAL_INHERIT ? undefined : selected[0]),
-    }),
-  };
 }
 function freeflowItems(rawConfig, options = {}) {
   const scope = options.scope === "local" ? "local" : "repository";
@@ -1131,62 +952,6 @@ function freeflowItems(rawConfig, options = {}) {
     displaySuffix: "",
     children: [claimHoursItem, wakeOnReturnItem],
   };
-  // Review Work's choice on every host (config-validation.ts).
-  const review = resolveReviewSettings(rawConfig, localConfig);
-  const reviewUnitItem = createScopedChoiceItem({
-    scope,
-    rawConfig,
-    localConfig,
-    id: "freeflow.review.unit",
-    label: "Review unit",
-    description:
-      "When finished work gets its independent review; how deep it goes is the repository's review.depth, read from the base.",
-    path: ["review", "unit"],
-    values: REVIEW_UNITS,
-    valueLabels: REVIEW_UNIT_LABELS,
-    valueDescriptions: REVIEW_UNIT_DESCRIPTIONS,
-    defaultValue: REVIEW_DEFAULTS.unit,
-    effectiveValue: review.unit,
-    effectiveSource: toolSource(["review", "unit"]),
-  });
-  reviewUnitItem.inactive = freeflowInactive;
-  reviewUnitItem.heading = true;
-  const reviewRoundsItem = createScopedChoiceItem({
-    scope,
-    rawConfig,
-    localConfig,
-    id: "freeflow.review.rounds",
-    label: "Review rounds",
-    description: "The most review rounds of one change; a depth's own limit still applies.",
-    path: ["review", "rounds"],
-    values: REVIEW_ROUND_KEYS,
-    valueLabels: REVIEW_ROUND_LABELS,
-    valueDescriptions: REVIEW_ROUND_DESCRIPTIONS,
-    defaultValue: String(REVIEW_DEFAULTS.rounds),
-    effectiveValue: String(review.rounds),
-    effectiveSource: toolSource(["review", "rounds"]),
-    numeric: true,
-  });
-  reviewRoundsItem.inactive = freeflowInactive;
-  const reviewModelItem = reviewerModelItem({
-    scope,
-    rawConfig,
-    localConfig,
-    effectiveValue: review.model,
-    effectiveSource: toolSource(["review", "model"]),
-    ctx: options.ctx,
-  });
-  reviewModelItem.inactive = freeflowInactive;
-  const reviewGroup = {
-    id: "freeflow.review",
-    label: "Review",
-    description: "Configure Review Work's independent review, on every host that reads these files.",
-    kind: "group",
-    value: true,
-    inactive: freeflowInactive,
-    displaySuffix: "",
-    children: [reviewUnitItem, reviewModelItem, reviewRoundsItem],
-  };
   return inSectionOrder([
     freeflowItem,
     toolExecutionGroup,
@@ -1195,7 +960,6 @@ function freeflowItems(rawConfig, options = {}) {
     eventsGroup,
     gatesGroup,
     delegationGroup,
-    reviewGroup,
     promptsGroup,
     skillsGroup,
   ]);
@@ -1234,7 +998,6 @@ async function updateConfig(cwd, item, value, scope = item.configScope ?? "repos
   }
   const current = await readFreeflowConfig(cwd);
   const next = cloneJson(current);
-  // A choice whose file value is not its key (review.rounds' numbers) is written as the file value.
   setConfigValue(next, item, configValueForChoice(item, value));
   pruneDefaults(next);
   await mkdir(join(cwd, ".freeflow"), { recursive: true });
@@ -1639,7 +1402,6 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, diagnost
       toolExecution: state.toolExecution,
       compaction: state.compaction,
       messaging: state.messaging,
-      ctx,
     }).find((candidate) => candidate.id === "freeflow.enabled");
     try {
       await updateConfig(ctx.cwd, item, enabled, "repository");
@@ -1696,7 +1458,7 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, diagnost
     const rawNow = layersNow.repository.parsed;
     if (scope === "session") {
       const localNow = layersNow.local.parsed;
-      return sessionFreeflowItems(stateNow, ctx, rawNow, localNow);
+      return sessionFreeflowItems(stateNow, rawNow, localNow);
     }
     return freeflowItems(rawNow, {
       scope,
@@ -1704,7 +1466,6 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, diagnost
       toolExecution: stateNow.toolExecution,
       compaction: stateNow.compaction,
       messaging: stateNow.messaging,
-      ctx,
     });
   };
   const scopes = SCOPES.map((scope) => ({

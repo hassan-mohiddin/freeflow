@@ -1,5 +1,6 @@
-// The built-in review triggers (SPEC-007 4.2), read by review-plan.mjs and review-packet.mjs, so the plan and the brief
-// cannot disagree. Each fires on a changed file by its path or by what its diff changes, and says why:
+// The built-in review flags, read by review-plan.mjs and review-packet.mjs, so the plan and the brief cannot disagree.
+// A flag is a reason the agent weighs a review above the floor with the user; it never changes the floor (one
+// reviewer, one round). Each fires on a changed file by its path or by what its diff changes, and says why:
 // - security: an auth, permission, secret or credential folder or file name (a doc's name does not count), a .env or
 //   key file, or a changed line with a permission decision, a credential read or a crypto call;
 // - data: a migration, a schema file or a database script;
@@ -10,13 +11,9 @@
 // A file whose content cannot be read (binary, or larger than MAX_BYTES) is judged by its path alone, and named.
 import { spawnSync } from "node:child_process";
 
-/** Each built-in with its default depth and tier; a project changes a depth only through its base's builtins. */
-export const BUILTINS = [
-  { name: "security", depth: "deep", tier: "security" },
-  { name: "data", depth: "deep", tier: "standard" },
-  { name: "ci", depth: "deep", tier: "standard" },
-  { name: "public interface", depth: "deep", tier: "standard" },
-];
+/** The built-in flags, by name. */
+export const BUILTINS = [{ name: "security" }, { name: "data" }, { name: "ci" }, { name: "public interface" }];
+export const BUILTIN_NAMES = BUILTINS.map((builtin) => builtin.name);
 
 export const MAX_BYTES = 1024 * 1024;
 const DOC = /\.(md|mdx|markdown|txt|rst|adoc)$/i;

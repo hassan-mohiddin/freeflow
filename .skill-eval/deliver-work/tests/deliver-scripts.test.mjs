@@ -6,7 +6,13 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 
 const scripts = resolve("skills/deliver-work/scripts");
-const gitEnv = { ...process.env, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" };
+const gitEnv = {
+  ...process.env,
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  // No user review rule from the machine running the tests.
+  FREEFLOW_HOME: join(tmpdir(), "freeflow-review-no-home"),
+};
 const git = (cwd, ...args) =>
   execFileSync(
     "git",
@@ -88,7 +94,7 @@ test("delivery-state reports branch, upstream counts, dirt, operations, worktree
   }
 });
 
-test("delivery-state prints Review Work's line for HEAD: none with the plan's depth, then covered by a record", async () => {
+test("delivery-state prints Review Work's lines for HEAD: none with the floor, when a review is due, then covered by a record", async () => {
   const { top, root } = await clone();
   try {
     const base = git(root, "rev-parse", "HEAD");
@@ -96,17 +102,26 @@ test("delivery-state prints Review Work's line for HEAD: none with the plan's de
     git(root, "commit", "--quiet", "-am", "change");
     const head = git(root, "rev-parse", "HEAD");
     const task = join(top, "task");
-    const none = run("delivery-state.mjs", root, ["--task", task, "--base", base, "--json"]).json;
+    const none = run("delivery-state.mjs", root, [
+      "--task",
+      task,
+      "--base",
+      base,
+      "--step",
+      "pull-request",
+      "--json",
+    ]).json;
     assert.equal(none.review.state, "none");
-    assert.equal(none.review.line, `Review: none for ${head.slice(0, 12)}; the plan says standard`);
+    assert.equal(none.review.line, `Review: none for ${head.slice(0, 12)}; the floor: 1 reviewer, 1 round`);
+    assert.equal(none.review.reviewAt.value, "pull request");
+    assert.equal(none.review.due, true);
+    const push = run("delivery-state.mjs", root, ["--task", task, "--step", "push"]).stdout;
+    assert.match(push, /\nReview at: pull request \(Freeflow's default\)\nThis step \(push\): no review is due/);
     await write(task, {
       "reviews/records.jsonl": `${JSON.stringify({ v: 1, round: 1, base, head, depth: "standard", judgment: "Pass" })}\n`,
     });
     const text = run("delivery-state.mjs", root, ["--task", task]).stdout;
-    assert.match(
-      text,
-      new RegExp(`^Review: on record for ${head.slice(0, 12)} \\(standard, Pass after Review 1\\)$`, "m"),
-    );
+    assert.match(text, new RegExp(`^Review: on record for ${head.slice(0, 12)} \\(Pass after Review 1\\)$`, "m"));
   } finally {
     await rm(top, { recursive: true, force: true });
   }

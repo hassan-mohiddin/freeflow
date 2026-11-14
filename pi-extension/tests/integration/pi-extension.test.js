@@ -472,15 +472,11 @@ test("plugin-docs/settings.md documents every row the settings screen shows and 
   const sample = (spec) =>
     spec.values === "boolean"
       ? true
-      : spec.values === "name"
-        ? "a-model"
-        : spec.values === "number"
-          ? 5
-          : Array.isArray(spec.values)
-            ? spec.values[0]
-            : spec.values === "policy"
-              ? {}
-              : null;
+      : spec.values === "number"
+        ? 5
+        : Array.isArray(spec.values)
+          ? spec.values[0]
+          : null;
   for (const [, key] of doc.matchAll(/^\| [^|]+ \| `([a-zA-Z.-]+)` \|/gm)) {
     const spec = SETTINGS.find((each) => each.key === key);
     assert.ok(spec, `the settings table has a row for ${key}, which settings.md lists`);
@@ -527,8 +523,6 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
   // here with its reason, with the user's agreement, and its row in plugin-docs/settings.md names no screen row.
   // Every setting has a row in all three scopes: Session, Personal and Repository.
   const FILE_ONLY = {
-    // SPEC-007: a policy object of rules, read by review-plan.mjs from the base commit's .freeflow/config.json only.
-    "review.depth": "review-plan reads the depth rules from the repository's file at the base commit",
     "pane.enabled":
       "Claude Code's pane (SPEC-015): only Claude Code's mod acts on it, through its own /freeflow settings",
     "pane.statusLine":
@@ -537,7 +531,6 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
   const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
   const {
     CONFIG_SECTIONS,
-    REVIEW_KEYS,
     PROMPTS_KEYS,
     SKILLS_KEYS,
     EVENTS_KEYS,
@@ -554,7 +547,6 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     compaction: COMPACTION_KEYS,
     messaging: MESSAGING_KEYS,
     prompts: PROMPTS_KEYS,
-    review: REVIEW_KEYS,
     skills: SKILLS_KEYS,
     events: EVENTS_KEYS,
     gates: GATE_KEYS,
@@ -896,27 +888,26 @@ test("Pi leaves out a skill and a runtime prompt the user turned off, and tells 
   }
 });
 
-test("Pi applies a session value over the files for a choice, a model name and a nested switch", async () => {
-  const cwd = await configuredRepo({ review: { unit: "manual" }, skills: { "deliver-work": false } });
+test("Pi applies a session value over the files for a choice and a nested switch", async () => {
+  const cwd = await configuredRepo({ delegation: { claimHours: "8" }, skills: { "deliver-work": false } });
   try {
     const { setSessionCoreOverride, resetSessionOverrides } = await import("../../dist/host/config.js");
     const ctx = context(cwd);
     const pi = { appendEntry() {} };
-    await setSessionCoreOverride("review.unit", "push", ctx, pi);
-    await setSessionCoreOverride("review.model", "test/model-b", ctx, pi);
-    await setSessionCoreOverride("review.rounds", 2, ctx, pi);
+    await setSessionCoreOverride("delegation.claimHours", "24", ctx, pi);
+    await setSessionCoreOverride("delegation.wakeOnReturn", false, ctx, pi);
     await setSessionCoreOverride("skills.write-docs", false, ctx, pi);
     const state = await readCapabilityState(cwd, ctx);
-    assert.deepEqual(state.review, { unit: "push", model: "test/model-b", rounds: 2 });
+    assert.deepEqual(state.delegation, { claimHours: "24", wakeOnReturn: false });
     // The file's other switches stay.
     assert.deepEqual(state.skills.off, ["deliver-work", "write-docs"]);
     await assert.rejects(
-      setSessionCoreOverride("review.unit", "sometimes", ctx, pi),
+      setSessionCoreOverride("delegation.claimHours", "3", ctx, pi),
       /Invalid Freeflow session override value/,
     );
     await resetSessionOverrides(ctx, pi);
     const after = await readCapabilityState(cwd, ctx);
-    assert.deepEqual(after.review, { unit: "manual", model: "auto", rounds: 3 });
+    assert.deepEqual(after.delegation, { claimHours: "8", wakeOnReturn: true });
     assert.deepEqual(after.skills.off, ["deliver-work"]);
     // The master switch turns every skill but Setup Freeflow off.
     await setSessionCoreOverride("skills.enabled", false, ctx, pi);
@@ -1340,8 +1331,8 @@ test("Pi personal settings refuse to write a tracked local override", async () =
   }
 });
 
-test("Pi settings set Review Work's review unit, reviewer model and rounds in the files", async () => {
-  const cwd = await configuredRepo({ review: { model: "claude-opus-4-5" } });
+test("Pi's settings screen has no Review section, and a removed review key in the file is named, not shown", async () => {
+  const cwd = await configuredRepo({ review: { unit: "manual", model: "claude-opus-4-5" } });
   try {
     const { commands } = loadExtension(freeflowExtension, {
       appendEntry() {},
@@ -1351,40 +1342,23 @@ test("Pi settings set Review Work's review unit, reviewer model and rounds in th
       setThinkingLevel() {},
     });
     const freeflowCommand = commands.find((command) => command.name === "freeflow");
-    const settingsCtx = context(cwd);
-    settingsCtx.isIdle = () => true;
-    settingsCtx.modelRegistry = modelRegistry();
-    settingsCtx.ui.custom = async (factory) => {
-      let result;
-      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
-        result = value;
-      });
-      choose(component, "Review");
-      const text = renderText(component, 200);
-      assert.match(text, /Review\s+pull request \(inherited\)\n/);
-      assert.match(text, /Review rounds\s+up to Review 3 \(inherited\)/);
-      // The unit is the section's row: pr, push, commit, agreement, manual.
-      await press(component, "Review");
-      await press(component, "Review");
-      // Rounds are stored as numbers: from the default 3 the next choice is 1.
-      await press(component, "Review rounds", "Review");
-      // A name set in the file stays offered beside this host's models; the picker starts on it.
-      choose(component, "Reviewer model", "Review");
-      component.handleInput(KEY.enter);
-      const picker = renderText(component, 200);
-      assert.match(picker, /auto\s+The cheapest capable model/);
-      assert.match(picker, /→ claude-opus-4-5\s+Set in the file; not an authenticated model here\./);
-      assert.match(picker, /test\/model-a[\s\S]*test\/model-b/);
-      component.handleInput(KEY.down);
-      component.handleInput(KEY.down);
-      component.handleInput(KEY.enter);
-      await component.waitForWrites();
-      return result;
-    };
-    await freeflowCommand.definition.handler("settings repo", settingsCtx);
-    const saved = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
-    assert.deepEqual(saved.review, { unit: "commit", model: "test/model-b", rounds: 1 });
-    assert.equal(settingsCtx.reloads.length, 1);
+    for (const scope of ["session", "local", "repo"]) {
+      const settingsCtx = context(cwd);
+      settingsCtx.isIdle = () => true;
+      settingsCtx.ui.custom = async (factory) => {
+        const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+        const text = renderText(component, 200);
+        assert.match(text, /Delegation/, scope);
+        assert.doesNotMatch(text, /Review|Reviewer/, scope);
+        return undefined;
+      };
+      await freeflowCommand.definition.handler(`settings ${scope}`, settingsCtx);
+    }
+    const state = await readCapabilityState(cwd);
+    assert.deepEqual(
+      state.ignored.map((item) => item.key),
+      ["review.unit", "review.model"],
+    );
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -1443,36 +1417,3 @@ test("Pi preserves the host prompt and sends no Freeflow guidance when a mandato
     await rm(root, { recursive: true, force: true });
   }
 });
-
-function modelRegistry() {
-  // Levels as Pi's model data states them: null rules a level out, and xhigh and max need a mapping.
-  const models = [
-    {
-      provider: "test",
-      id: "model-a",
-      name: "Model A",
-      reasoning: true,
-      contextWindow: 128000,
-      thinkingLevelMap: { minimal: null },
-    },
-    {
-      provider: "test",
-      id: "model-b",
-      name: "Model B",
-      reasoning: true,
-      contextWindow: 128000,
-      thinkingLevelMap: { minimal: null, max: "max" },
-    },
-  ];
-  return {
-    getAvailable() {
-      return models;
-    },
-    find(provider, id) {
-      return models.find((model) => model.provider === provider && model.id === id);
-    },
-    async getApiKeyAndHeaders() {
-      return { ok: true };
-    },
-  };
-}

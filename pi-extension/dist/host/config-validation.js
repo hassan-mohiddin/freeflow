@@ -4,7 +4,7 @@ import { validateToolExecutionConfig } from "../tool-execution/config.js";
 import { FREEFLOW_MODEL_SKILL_NAMES } from "./catalog.js";
 /**
  * Whether a Freeflow config file is valid: one answer for Pi and for the session-start hooks of the other hosts, which
- * import the built file. Also how the settings every host reads, `prompts`, `review` and `skills`, layer. Keep this module and its
+ * import the built file. Also how the settings every host reads, `prompts` and `skills`, layer. Keep this module and its
  * imports free of Pi packages; the hooks run in plain Node.
  */
 function isRecord(value) {
@@ -145,110 +145,6 @@ export function resolveDelegationSettings(repository, local) {
   };
 }
 /**
- * How Review Work reviews finished work (SPEC-007). `unit` says when a review runs: at every pull request by default,
- * at a push, a commit or an agreement's Return, or `manual` (proposed with its plan and cost, run after a yes). `model`
- * is the reviewer's model, `auto` choosing the cheapest capable one; `rounds` caps Review 1, 2, 3. `depth` holds the
- * project's rules for how deep a review goes; it is Repository scope only, read from the base commit by
- * `review-plan.mjs`, so a change never supplies the policy that reviews it.
- */
-export const REVIEW_UNITS = ["pr", "push", "commit", "agreement", "manual"];
-export const REVIEW_ROUNDS = [1, 2, 3];
-export const REVIEW_DEPTHS = ["quick", "standard", "deep"];
-export const REVIEW_TIERS = ["standard", "security"];
-/** The built-in triggers `review-plan.mjs` evaluates (skills/review-work/scripts/lib/triggers.mjs). */
-export const REVIEW_BUILTINS = ["security", "data", "ci", "public interface"];
-export const REVIEW_KEYS = ["unit", "model", "rounds", "depth"];
-export const REVIEW_DEFAULTS = { unit: "pr", model: "auto", rounds: 3 };
-const DEPTH_KEYS = ["default", "rules", "builtins"];
-const RULE_KEYS = ["paths", "linesOver", "trigger", "depth", "tier", "humans"];
-const oneOf = (values) => values.map(String).join(", ");
-function validateReviewRule(rule, at) {
-  if (!isRecord(rule)) return `${at} must be an object`;
-  const unknown = Object.keys(rule).find((key) => !RULE_KEYS.includes(key));
-  if (unknown) return `${at} has unsupported key: ${unknown}`;
-  const matchers = ["paths", "linesOver", "trigger"].filter((key) => rule[key] !== undefined);
-  if (matchers.length !== 1) return `${at} must match by exactly one of paths, linesOver or trigger`;
-  if (
-    rule.paths !== undefined &&
-    (!Array.isArray(rule.paths) ||
-      rule.paths.length === 0 ||
-      rule.paths.some((path) => typeof path !== "string" || !path.trim()))
-  )
-    return `${at}.paths must be a non-empty list of path globs`;
-  if (rule.linesOver !== undefined && !(Number.isInteger(rule.linesOver) && rule.linesOver >= 0))
-    return `${at}.linesOver must be a whole number of changed lines`;
-  if (rule.trigger !== undefined && !REVIEW_BUILTINS.includes(rule.trigger))
-    return `${at}.trigger must be one of ${oneOf(REVIEW_BUILTINS)}`;
-  if (!REVIEW_DEPTHS.includes(rule.depth)) return `${at}.depth must be one of ${oneOf(REVIEW_DEPTHS)}`;
-  if (rule.tier !== undefined && !REVIEW_TIERS.includes(rule.tier))
-    return `${at}.tier must be one of ${oneOf(REVIEW_TIERS)}`;
-  if (rule.humans !== undefined && !(Number.isInteger(rule.humans) && rule.humans >= 0))
-    return `${at}.humans must be a whole number`;
-  return null;
-}
-/** The repository's depth rules, `review.depth`; null when valid, else the key and the reason. */
-export function validateReviewDepth(value) {
-  if (!isRecord(value)) return "review.depth must be an object";
-  const unknown = Object.keys(value).find((key) => !DEPTH_KEYS.includes(key));
-  if (unknown) return `review.depth has unsupported key: ${unknown}`;
-  if (value.default !== undefined && !REVIEW_DEPTHS.includes(value.default))
-    return `review.depth.default must be one of ${oneOf(REVIEW_DEPTHS)}`;
-  if (value.rules !== undefined) {
-    if (!Array.isArray(value.rules)) return "review.depth.rules must be a list";
-    for (const [index, rule] of value.rules.entries()) {
-      const error = validateReviewRule(rule, `review.depth.rules[${index}]`);
-      if (error) return error;
-    }
-  }
-  if (value.builtins !== undefined) {
-    if (!isRecord(value.builtins)) return "review.depth.builtins must be an object";
-    for (const [name, depth] of Object.entries(value.builtins)) {
-      if (!REVIEW_BUILTINS.includes(name))
-        return `review.depth.builtins has unknown trigger: ${name}; the built-ins are ${oneOf(REVIEW_BUILTINS)}`;
-      if (![...REVIEW_DEPTHS, "off"].includes(depth))
-        return `review.depth.builtins.${name} must be one of ${oneOf([...REVIEW_DEPTHS, "off"])}`;
-    }
-  }
-  return null;
-}
-/**
- * The `review` block in one scope. `depth` is accepted only in the repository's file; `review.mode`, replaced by
- * `review.unit` with no migration (nothing using it was released), is refused with a message naming its replacement.
- */
-export function validateReviewConfig(value, scope = "repository") {
-  if (!isRecord(value)) return "review must be an object";
-  if (value.mode !== undefined)
-    return `review.mode is replaced by review.unit (${oneOf(REVIEW_UNITS)}): a review runs at every unit, and "manual" proposes it and waits for a yes`;
-  const unknown = Object.keys(value).find((key) => !REVIEW_KEYS.includes(key));
-  if (unknown) return `review has unsupported key: ${unknown}`;
-  if (value.unit !== undefined && !REVIEW_UNITS.includes(value.unit))
-    return `review.unit must be one of ${oneOf(REVIEW_UNITS)}`;
-  // The model is shown to the agent in the Runtime State, so it must fit on one line in a code span.
-  if (
-    value.model !== undefined &&
-    (typeof value.model !== "string" || !value.model.trim() || /[\p{Cc}`]/u.test(value.model))
-  )
-    return "review.model must be auto or a non-empty model name on one line";
-  if (value.rounds !== undefined && !REVIEW_ROUNDS.includes(value.rounds))
-    return `review.rounds must be one of ${oneOf(REVIEW_ROUNDS)}`;
-  if (value.depth !== undefined) {
-    if (scope !== "repository")
-      return "review.depth is Repository scope only: review-plan reads it from .freeflow/config.json at the base commit, so a change never supplies the policy that reviews it";
-    return validateReviewDepth(value.depth);
-  }
-  return null;
-}
-/** Review settings for two valid config layers: the personal layer overrides the repository's, field by field. */
-export function resolveReviewSettings(repository, local) {
-  const layer = (config) => (isRecord(config?.review) ? config.review : {});
-  const [shared, personal] = [layer(repository), layer(local)];
-  return {
-    unit: personal.unit ?? shared.unit ?? REVIEW_DEFAULTS.unit,
-    model: personal.model ?? shared.model ?? REVIEW_DEFAULTS.model,
-    rounds: personal.rounds ?? shared.rounds ?? REVIEW_DEFAULTS.rounds,
-  };
-}
-/**
  * The cost governor (SPEC-014, section 2.3), on Claude Code: `mode` warn (the default) only notifies at a cap, stop
  * also asks the agent to stop at the next safe point, checkpoint and ask the user; `cap` replaces the governor's own
  * caps with one number, a percent of the seven-day window on a subscription or dollars of the task's cost elsewhere.
@@ -265,15 +161,6 @@ function validateGovernorConfig(value) {
   return null;
 }
 const positiveNumber = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
-/** The Runtime State line for the user's review choice; none for the defaults (unit `pr`, model `auto`, 3 rounds). */
-export function reviewStateLine(review) {
-  const unit = review?.unit ?? REVIEW_DEFAULTS.unit;
-  const model = review?.model ?? REVIEW_DEFAULTS.model;
-  const rounds = review?.rounds ?? REVIEW_DEFAULTS.rounds;
-  if (unit === REVIEW_DEFAULTS.unit && model === REVIEW_DEFAULTS.model && rounds === REVIEW_DEFAULTS.rounds)
-    return null;
-  return `Review: unit \`${unit}\`, model \`${model}\`${rounds === REVIEW_DEFAULTS.rounds ? "" : `, up to Review ${rounds}`}`;
-}
 const PROMPT_LABELS = {
   core: "Core prompt",
   interactionContract: "Interaction Contract",
@@ -334,10 +221,6 @@ export const SETTINGS = [
     hosts: "all",
     session: true,
   },
-  { key: "review.unit", label: "Review unit", values: REVIEW_UNITS, default: "pr", hosts: "all", session: true },
-  { key: "review.model", label: "Reviewer model", values: "name", default: "auto", hosts: "all", session: true },
-  { key: "review.rounds", label: "Review rounds", values: REVIEW_ROUNDS, default: 3, hosts: "all", session: true },
-  { key: "review.depth", label: "Review depth rules", values: "policy", default: null, hosts: "all", session: false },
   {
     key: "governor.mode",
     label: "Cost governor",
@@ -390,9 +273,7 @@ export function settingSpec(key) {
 /** Whether `value` is one `spec` accepts. */
 export function validSettingValue(spec, value) {
   if (spec.values === "boolean") return typeof value === "boolean";
-  if (spec.values === "name") return typeof value === "string" && value.trim() !== "" && !/[\p{Cc}`]/u.test(value);
   if (spec.values === "number") return positiveNumber(value);
-  if (spec.values === "policy") return false;
   return spec.values.includes(value);
 }
 /** The schema version a file may name as `"v"`; nothing writes it yet, so an older Freeflow still reads the file. */
@@ -407,6 +288,19 @@ function removedContextConfigError(value, filePath) {
   return removedKeys.length > 0
     ? `Removed Freeflow context setting(s) in ${filePath}: ${removedKeys.join(", ")}. Delete those keys before using Freeflow.`
     : null;
+}
+// Removed settings sections: accepted so the file still loads, never acted on, and each key in them named as ignored
+// with the reason, so the Runtime State and settings.mjs doctor say what replaced it (a removed key never makes config
+// fail, #164).
+const REMOVED_SECTIONS = {
+  review:
+    'removed: review has no settings (a "Review at:" line in the project\'s Review Rules or in rules/review.md in the Freeflow home says when a review runs)',
+};
+/** A removed section's keys as ignored settings: each key it holds, or the section itself when it holds none. */
+function removedSectionIgnored(section, value) {
+  const reason = REMOVED_SECTIONS[section];
+  const keys = isRecord(value) ? Object.keys(value) : [];
+  return keys.length ? keys.map((key) => ({ key: `${section}.${key}`, reason })) : [{ key: section, reason }];
 }
 // Removed features whose key is refused, saying what to do, rather than accepted and ignored as RETIRED_SECTIONS are.
 const REMOVED_FEATURES = { cognitiveRouting: "Cognitive Routing" };
@@ -427,7 +321,6 @@ export const CONFIG_SECTIONS = [
   "compaction",
   "messaging",
   "prompts",
-  "review",
   "skills",
   "events",
   "gates",
@@ -449,7 +342,6 @@ const LOCAL_KEYS = [
   "taskMemory",
   "messaging",
   "prompts",
-  "review",
   "skills",
   "events",
   "gates",
@@ -463,7 +355,7 @@ export function validateRepositoryConfig(value) {
   }
   const removedContextError = removedContextConfigError(value, ".freeflow/config.json");
   if (removedContextError) return removedContextError;
-  const allowedKeys = new Set(["v", ...CONFIG_SECTIONS, ...RETIRED_SECTIONS]);
+  const allowedKeys = new Set(["v", ...CONFIG_SECTIONS, ...RETIRED_SECTIONS, ...Object.keys(REMOVED_SECTIONS)]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return removedFeatureError(key, ".freeflow/config.json") ?? `unsupported top-level config key: ${key}`;
@@ -516,7 +408,6 @@ export function validateRepositoryConfig(value) {
     const error = validateGovernorConfig(value.governor);
     if (error) return error;
   }
-  if (value.review !== undefined) return validateReviewConfig(value.review, "repository");
   return null;
 }
 export function validateLocalConfig(value) {
@@ -525,7 +416,7 @@ export function validateLocalConfig(value) {
   }
   const removedContextError = removedContextConfigError(value, ".freeflow/local.json");
   if (removedContextError) return removedContextError;
-  const allowedKeys = new Set(LOCAL_KEYS);
+  const allowedKeys = new Set([...LOCAL_KEYS, ...Object.keys(REMOVED_SECTIONS)]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return removedFeatureError(key, ".freeflow/local.json") ?? `unsupported top-level local config key: ${key}`;
@@ -573,7 +464,6 @@ export function validateLocalConfig(value) {
     const error = validateGovernorConfig(value.governor);
     if (error) return error;
   }
-  if (value.review !== undefined) return validateReviewConfig(value.review, "personal");
   return null;
 }
 /** The validator of each top-level section, for one scope; a section's leaves are checked one by one. */
@@ -599,8 +489,6 @@ function sectionValidator(section, scope) {
       return validatePaneConfig;
     case "governor":
       return validateGovernorConfig;
-    case "review":
-      return (value) => validateReviewConfig(value, scope);
     default:
       return null;
   }
@@ -639,6 +527,8 @@ export function sanitizeConfigFile(value, scope) {
       ignored.push({ key, reason: `removed Freeflow context setting: delete this key` });
     } else if (REMOVED_FEATURES[key]) {
       ignored.push({ key, reason: `${REMOVED_FEATURES[key]} was removed from Freeflow` });
+    } else if (REMOVED_SECTIONS[key]) {
+      ignored.push(...removedSectionIgnored(key, entry));
     } else if (!allowed.has(key)) {
       ignored.push({ key, reason: "unsupported key" });
     } else if (key === "v") {

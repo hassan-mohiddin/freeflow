@@ -14,6 +14,8 @@ const gitEnv = {
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_CONFIG_GLOBAL: "/dev/null",
   CLAUDE_CODE_SESSION_ID: "",
+  // No user rule unless a test writes one: the home's rules/review.md would change when a review is due.
+  FREEFLOW_HOME: join(tmpdir(), "freeflow-review-no-home"),
   FREEFLOW_SESSION: "",
 };
 const git = (cwd, ...args) =>
@@ -89,7 +91,9 @@ test("review-status reports none, covered, and covered-but-stale with the re-rev
     const none = h.run("--base", c0);
     assert.equal(none.status, 1);
     assert.equal(none.state, "none");
-    assert.equal(none.line, `Review: none for ${c3.slice(0, 12)}; the plan says standard`);
+    assert.equal(none.line, `Review: none for ${c3.slice(0, 12)}; the floor: 1 reviewer, 1 round`);
+    assert.deepEqual(none.floor, { reviewers: 1, rounds: 1 });
+    assert.deepEqual(none.flags, []);
 
     await h.records(review(c0, c1, "Pass"));
     const stale = h.run();
@@ -102,17 +106,18 @@ test("review-status reports none, covered, and covered-but-stale with the re-rev
     );
     const atOne = h.run("--head", c1);
     assert.equal(atOne.status, 0);
-    assert.equal(atOne.line, `Review: on record for ${c1.slice(0, 12)} (standard, Pass after Review 1)`);
+    assert.equal(atOne.line, `Review: on record for ${c1.slice(0, 12)} (Pass after Review 1)`);
 
-    // A diff-only Review 2 of c1..c3 completes the first review.
+    // A diff-only Review 2 of c1..c3 completes the first review; records written before review had no settings still
+    // carry a depth, which changes nothing.
     await h.records(review(c0, c1, "Blocking", 1, "deep"), review(c1, c3, "Pass", 2, "deep"));
     const covered = h.run();
     assert.equal(covered.status, 0);
     assert.equal(covered.state, "covered");
-    assert.equal(covered.line, `Review: on record for ${c3.slice(0, 12)} (deep, Pass after Review 2)`);
+    assert.equal(covered.line, `Review: on record for ${c3.slice(0, 12)} (Pass after Review 2)`);
     const text = node(h.root, status, ["--task", h.task]);
     assert.equal(text.status, 0);
-    assert.equal(text.stdout.trim(), covered.line);
+    assert.equal(text.stdout, `${covered.line}\nReview at: pull request (Freeflow's default)\n`);
   } finally {
     await h.cleanup();
   }
@@ -163,7 +168,59 @@ test("without a task the records live in this session's reviews folder in the Fr
   }
 });
 
-test("a Deep review: three briefs pass check-brief, one adjudication over the three reports, recorded against its head", async () => {
+test("a project rule Review at: push wins over the home's rule and the default, and says which steps need a review", async () => {
+  const h = await history();
+  const home = await realpath(await mkdtemp(join(tmpdir(), "review-status-home-")));
+  try {
+    const [c0] = h.commits;
+    const at = (...args) => {
+      const result = node(h.root, status, ["--task", h.task, ...args, "--json"], { FREEFLOW_HOME: home });
+      return { status: result.status, ...JSON.parse(result.stdout) };
+    };
+    // The default: a review at every pull request.
+    assert.deepEqual(at().reviewAt, { value: "pull request", from: "default", source: null, ignored: [] });
+    // The user's own rule in the Freeflow home.
+    await write(home, { "rules/review.md": "# Review\n\n- Review at: commit\n" });
+    const own = at("--step", "commit");
+    assert.equal(own.reviewAt.from, "home");
+    assert.equal(own.reviewAt.value, "commit");
+    assert.equal(own.due, true);
+    assert.equal(own.status, 1, "a commit needs a review on record under the home's rule");
+    // The project's rule, committed on main, wins.
+    await write(h.root, { "dev-docs/README.md": "# Dev\n\n## Review Rules\n\n- **Review at:** `push`\n" });
+    git(h.root, "add", "--all");
+    git(h.root, "commit", "--quiet", "-m", "review rules");
+    const project = at("--step", "commit");
+    assert.deepEqual(project.reviewAt, {
+      value: "push",
+      from: "project",
+      source: "dev-docs/README.md#review-rules",
+      ignored: [],
+    });
+    assert.equal(project.due, false);
+    assert.equal(project.status, 0, "no review is due at a commit under Review at: push");
+    assert.equal(project.lines.at(-1), "This step (commit): no review is due (one is due at: push, pull request)");
+    for (const step of ["push", "pull-request"]) {
+      const due = at("--step", step);
+      assert.equal(due.due, true, step);
+      assert.equal(due.status, 1, step);
+    }
+    assert.equal(at("--step", "pull-request").lines.at(-1), "This step (pull request): a review is due");
+    // The rule is read at --base: the base before the rules were committed has none, so the home's rule holds.
+    assert.equal(at("--base", c0).reviewAt.from, "home");
+    const text = node(h.root, status, ["--task", h.task, "--step", "push"], { FREEFLOW_HOME: home });
+    assert.match(
+      text.stdout,
+      /\nReview at: push \(dev-docs\/README\.md#review-rules at HEAD\)\nThis step \(push\): a review is due\n/,
+    );
+    assert.equal(node(h.root, status, ["--step", "merge"]).status, 2);
+  } finally {
+    await h.cleanup();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("three reviewers above the floor: a brief each with its lens, one adjudication over the three reports, recorded against its head", async () => {
   const h = await history();
   try {
     const [c0, , , c3] = h.commits;
@@ -174,19 +231,31 @@ test("a Deep review: three briefs pass check-brief, one adjudication over the th
     const reviews = join(h.task, "reviews");
     for (const letter of ["a", "b", "c"]) {
       const result = node(h.root, packet, [
-        ...["--review", "1", "--base", c0, "--task", h.task, "--reviewer", letter],
+        ...["--review", "1", "--base", c0, "--task", h.task, "--reviewers", "3", "--reviewer", letter],
+        ...["--lens", `lens ${letter}`],
         ...["--boundary", "merge", "--agreement", join(h.root, "src/a.js"), "--json"],
       ]);
       assert.equal(result.status, 0, result.stdout + result.stderr);
       assert.match(JSON.parse(result.stdout).brief, new RegExp(`R1${letter}-brief\\.md$`));
       const brief = await readFile(join(reviews, `R1${letter}-brief.md`), "utf8");
-      assert.match(brief, new RegExp(`\\nPlan: deep, tier security, reviewer ${letter} of 3, up to Review 3`));
+      assert.match(
+        brief,
+        new RegExp(
+          `\\nPlan: reviewer ${letter} of 3, Review 1, above the floor \\(1 reviewer, Review 1\\); flags: security\\nLenses: lens ${letter}\\n`,
+        ),
+      );
       assert.match(brief, new RegExp(`\\nReport: \`[^\`]*R1${letter}-report\\.md\`\\n`));
       assert.equal(node(h.root, checkBrief, [join(reviews, `R1${letter}-brief.md`)]).status, 0);
     }
-    // A Standard plan has one reviewer: --reviewer is refused.
+    // --reviewer names one of several reviewers: without --reviewers, or past its count, it is refused.
     assert.equal(
       node(h.root, packet, ["--review", "1", "--base", c3, "--head", c3, "--task", h.task, "--reviewer", "a"]).status,
+      2,
+    );
+    assert.equal(
+      node(h.root, packet, [
+        ...["--review", "1", "--base", c3, "--head", c3, "--task", h.task, "--reviewers", "2", "--reviewer", "c"],
+      ]).status,
       2,
     );
 
@@ -219,8 +288,8 @@ test("a Deep review: three briefs pass check-brief, one adjudication over the th
     const done = node(h.root, adjudication, [...reports, "--record", "--json"]);
     assert.equal(done.status, 0, done.stdout + done.stderr);
     const recorded = JSON.parse(done.stdout).record;
-    assert.equal(recorded.depth, "deep");
-    assert.equal(recorded.tier, "security");
+    assert.equal(recorded.depth, undefined);
+    assert.deepEqual(recorded.flags, ["security"]);
     assert.equal(recorded.reviewers, 3);
     assert.equal(recorded.round, 1);
     assert.equal(recorded.judgment, "Non-blocking");
@@ -229,7 +298,7 @@ test("a Deep review: three briefs pass check-brief, one adjudication over the th
     assert.ok(head.startsWith(recorded.head));
     const covered = h.run("--head", head);
     assert.equal(covered.state, "covered");
-    assert.equal(covered.line, `Review: on record for ${head.slice(0, 12)} (deep, Non-blocking after Review 1)`);
+    assert.equal(covered.line, `Review: on record for ${head.slice(0, 12)} (Non-blocking after Review 1)`);
   } finally {
     await h.cleanup();
   }

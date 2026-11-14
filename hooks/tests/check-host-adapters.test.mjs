@@ -124,12 +124,11 @@ test("the hooks and Pi agree on every config's validity", async () => {
     ['{"prompts":{"workingMethod":"no"}}', undefined],
     ["{}", '{"prompts":{"skills":false}}'],
     ["{}", '{"prompts":[]}'],
+    // The removed review settings: ignored and named the same way everywhere.
     ['{"review":{"unit":"manual","model":"opus","rounds":2}}', '{"review":{"unit":"pr"}}'],
     ['{"review":{"depth":{"default":"deep","rules":[{"paths":["src/**"],"depth":"quick"}]}}}', undefined],
-    ["{}", '{"review":{"depth":{"default":"deep"}}}'],
-    ['{"review":{"mode":"always"}}', undefined],
-    ['{"review":{"unit":"never"}}', undefined],
-    ["{}", '{"review":{"effort":"high"}}'],
+    ['{"review":{"mode":"always"}}', '{"review":{}}'],
+    ['{"review":"on"}', undefined],
     ["{invalid", undefined],
     ["[]", undefined],
     // A removed feature's key is ignored and named on every host, as on Pi.
@@ -150,39 +149,26 @@ test("the hooks and Pi agree on every config's validity", async () => {
   }
 });
 
-// The user's review choice reaches the agent in the Runtime State, as on Pi; the default adds nothing.
-test("a hook host's Runtime State names the user's review choice, and only a choice", () => {
+// Review has no settings: a config that still holds them loads, Freeflow stays on, and the Runtime State names each
+// review key as ignored rather than acting on it (#164); with none, no review line appears.
+test("a hook host's Runtime State has no review line, and names a removed review setting as ignored", () => {
   const runtimeState = (config, local) => {
     const workspace = createWorkspace(`${JSON.stringify(config)}\n`, local && `${JSON.stringify(local)}\n`);
     const context = contextOf(runAdapter(adapters.claude[0], workspace, inputFor("claude", workspace)));
     return context.slice(context.indexOf("# Freeflow Runtime State"));
   };
   assert.equal(runtimeState({}), "# Freeflow Runtime State\n\nFreeflow: active");
-  assert.equal(runtimeState({ review: { unit: "pr" } }), "# Freeflow Runtime State\n\nFreeflow: active");
-  assert.equal(
-    runtimeState({ review: { unit: "manual" } }),
-    "# Freeflow Runtime State\n\nFreeflow: active\nReview: unit `manual`, model `auto`",
-  );
-  // The personal file overrides the shared one field by field.
+  const old = runtimeState({ review: { mode: "always", unit: "manual" } }, { review: { rounds: 1 } });
+  assert.match(old, /^Freeflow: active$/m);
+  assert.doesNotMatch(old, /^Review:/m);
   assert.match(
-    runtimeState({ review: { unit: "push", model: "shared-model" } }, { review: { unit: "manual", rounds: 1 } }),
-    /\nReview: unit `manual`, model `shared-model`, up to Review 1$/,
+    old,
+    /Settings ignored: \.freeflow\/config\.json review\.mode: removed: review has no settings \(a "Review at:" line in the project's Review Rules or in rules\/review\.md in the Freeflow home says when a review runs\); \.freeflow\/config\.json review\.unit: removed: [^;]+; \.freeflow\/local\.json review\.rounds: removed: /,
   );
-  assert.doesNotMatch(runtimeState({ review: { unit: "manual" } }, { review: { unit: "pr" } }), /Review:/);
-  // A value the host cannot use is ignored and named; Freeflow stays on (D-045).
-  const workspace = createWorkspace('{"review":{"unit":"sometimes"}}\n');
+  const workspace = createWorkspace('{"review":"on"}\n');
   const invalid = contextOf(runAdapter(adapters.codex[0], workspace, inputFor("codex", workspace)));
   assert.match(invalid, /^Freeflow: active$/m);
-  assert.match(
-    invalid,
-    /Settings ignored: \.freeflow\/config\.json review\.unit: review\.unit must be one of pr, push, commit, agreement, manual/,
-  );
-  // review.mode is gone: the message names its replacement.
-  const old = createWorkspace('{"review":{"mode":"always"}}\n');
-  assert.match(
-    contextOf(runAdapter(adapters.codex[0], old, inputFor("codex", old))),
-    /Settings ignored: \.freeflow\/config\.json review\.mode: review\.mode is replaced by review\.unit/,
-  );
+  assert.match(invalid, /Settings ignored: \.freeflow\/config\.json review: removed: review has no settings/);
   const removed = createWorkspace('{"cognitiveRouting":{"enabled":true}}\n');
   assert.match(
     contextOf(runAdapter(adapters.codex[0], removed, inputFor("codex", removed))),
@@ -223,11 +209,8 @@ test("a hook host's Runtime State names the skills the user turned off, and drop
 test("a hook host reads the session's own settings over the files, for that session only", () => {
   const home = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-home-"));
   mkdirSync(join(home, "sessions", "s-1"), { recursive: true });
-  writeFileSync(
-    join(home, "sessions", "s-1", "settings.json"),
-    `${JSON.stringify({ "review.unit": "manual", "skills.write-skill": false })}\n`,
-  );
-  const workspace = createWorkspace('{"review":{"unit":"push"}}\n', '{"skills":{"write-skill":true}}\n');
+  writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ "skills.write-skill": false })}\n`);
+  const workspace = createWorkspace('{"skills":{"research-work":false}}\n', '{"skills":{"write-skill":true}}\n');
   const state = (env, input = inputFor("claude", workspace)) => {
     const context = contextOf(runAdapter(adapters.claude[0], workspace, input, "SessionStart", env));
     return context.slice(context.indexOf("# Freeflow Runtime State"));
@@ -235,14 +218,17 @@ test("a hook host reads the session's own settings over the files, for that sess
   const env = { ...isolatedEnv, FREEFLOW_HOME: home };
   assert.equal(
     state({ ...env, CLAUDE_CODE_SESSION_ID: "s-1" }),
-    "# Freeflow Runtime State\n\nFreeflow: active\nReview: unit `manual`, model `auto`\nSkills off: `write-skill`; do not open or follow them.",
+    "# Freeflow Runtime State\n\nFreeflow: active\nSkills off: `research-work`, `write-skill`; do not open or follow them.",
   );
   assert.equal(
     state({ ...env, CLAUDE_CODE_SESSION_ID: "s-2" }),
-    "# Freeflow Runtime State\n\nFreeflow: active\nReview: unit `push`, model `auto`",
+    "# Freeflow Runtime State\n\nFreeflow: active\nSkills off: `research-work`; do not open or follow them.",
   );
   // A host that names its session only in the hook's input.
-  assert.match(state(env, { ...inputFor("codex", workspace), session_id: "s-1" }), /\nReview: unit `manual`/);
+  assert.match(
+    state(env, { ...inputFor("codex", workspace), session_id: "s-1" }),
+    /\nSkills off: `research-work`, `write-skill`/,
+  );
   // A Session enabled: false turns Freeflow off for that session alone.
   writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ enabled: false })}\n`);
   assert.equal(readConfig(workspace, { session: "s-1", env }).enabled, false);
@@ -358,7 +344,7 @@ test("each Claude Code hook stays under Claude Code's context cap and together t
 test("the mod's section is the Claude Code hooks' texts, in their order, for each configuration and session", () => {
   const home = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-home-"));
   mkdirSync(join(home, "sessions", "s-1"), { recursive: true });
-  writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ "review.unit": "manual" })}\n`);
+  writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ "skills.write-skill": false })}\n`);
   const section = (workspace, env) => {
     const result = spawnSync(
       process.execPath,
@@ -389,11 +375,8 @@ test("the mod's section is the Claude Code hooks' texts, in their order, for eac
   // The session's own settings reach the section as they reach the hooks.
   const workspace = createWorkspace();
   const env = { ...isolatedEnv, FREEFLOW_HOME: home };
-  assert.match(
-    section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-1" }).parts[0],
-    /\nReview: unit `manual`, model `auto`/,
-  );
-  assert.doesNotMatch(section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-2" }).parts[0], /Review:/);
+  assert.match(section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-1" }).parts[0], /\nSkills off: `write-skill`/);
+  assert.doesNotMatch(section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-2" }).parts[0], /Skills off:/);
   // With the runtime context switched off, as the hooks are, the section is empty.
   assert.deepEqual(section(workspace, { ...env, FREEFLOW_DISABLE_RUNTIME_CONTEXT: "1" }).parts, ["", "", ""]);
 });

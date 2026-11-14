@@ -14,7 +14,6 @@ import {
   SETTINGS,
   SWITCHABLE_SKILLS,
   ignoredStateLine,
-  reviewStateLine,
   sanitizeConfigFile,
   settingSpec,
   skillsStateLine,
@@ -31,18 +30,12 @@ import {
   resolveSetting,
   sessionId,
   sessionSettingsPath,
-  setPath,
   writeConfigValue,
   writeSessionValue,
 } from "../../../pi-extension/dist/host/config-store.js";
 
 const SCOPES = ["repository", "personal", "session"];
 const SCOPE_NAMES = { repository: "Repository", personal: "Personal", session: "Session", default: "default" };
-
-// A removed key with a successor: doctor renames it. Values the successor cannot take are dropped, so the default applies.
-const RENAMED_KEYS = {
-  "review.mode": { to: "review.unit", values: { auto: "pr", always: "pr", off: "manual" } },
-};
 
 const USAGE = `Usage:
   settings.mjs list [--host all|pi|claude-code] [--root <folder>] [--json]
@@ -105,31 +98,17 @@ function resolveAll(state) {
   return SETTINGS.map((spec) => resolveSetting(spec, values));
 }
 
-/** The Runtime State lines the resolved settings give: the review line, the off-skills line and the ignored settings. */
+/** The Runtime State lines the resolved settings give: the off-skills line and the ignored settings. */
 function stateLines(resolved, ignored) {
   const value = (key) => resolved.find((item) => item.spec.key === key)?.value;
-  const review = reviewStateLine({
-    unit: value("review.unit"),
-    model: value("review.model"),
-    rounds: value("review.rounds"),
-  });
   const off =
     value("skills.enabled") === false
       ? [...SWITCHABLE_SKILLS]
       : SWITCHABLE_SKILLS.filter((skill) => value(`skills.${skill}`) === false);
-  return [review, skillsStateLine(off), ignoredStateLine(ignored)].filter(Boolean);
+  return [skillsStateLine(off), ignoredStateLine(ignored)].filter(Boolean);
 }
 
-const shown = (value) =>
-  value === null
-    ? "none"
-    : value === true
-      ? "on"
-      : value === false
-        ? "off"
-        : typeof value === "object"
-          ? "set"
-          : String(value);
+const shown = (value) => (value === null ? "none" : value === true ? "on" : value === false ? "off" : String(value));
 
 function row(item) {
   return { key: item.spec.key, label: item.spec.label, value: item.value, scope: item.scope, hosts: item.spec.hosts };
@@ -163,8 +142,7 @@ function parseValue(spec, text) {
   if (spec.values === "boolean") {
     if (["on", "true"].includes(text)) value = true;
     else if (["off", "false"].includes(text)) value = false;
-  } else if (Array.isArray(spec.values) && typeof spec.values[0] === "number" && /^\d+$/.test(text))
-    value = Number(text);
+  }
   if (spec.values === "number" && /^\d+(\.\d+)?$/.test(text)) value = Number(text);
   if (!validSettingValue(spec, value)) throw new UsageError(`${spec.key} takes ${takes(spec)}, not ${text}`);
   return value;
@@ -173,11 +151,9 @@ function parseValue(spec, text) {
 function takes(spec) {
   return spec.values === "boolean"
     ? "on or off"
-    : spec.values === "name"
-      ? "a name on one line"
-      : spec.values === "number"
-        ? "a number above 0"
-        : spec.values.join(", ");
+    : spec.values === "number"
+      ? "a number above 0"
+      : spec.values.join(", ");
 }
 
 function requireSpec(key) {
@@ -197,10 +173,6 @@ function notes(spec) {
 
 async function change(state, root, env, key, text, scopeName, json) {
   const spec = requireSpec(key);
-  if (spec.values === "policy")
-    throw new UsageError(
-      `${spec.key} is a policy object, Repository scope only: edit it in .freeflow/config.json (review-plan reads it from the base commit)`,
-    );
   if (!SCOPES.includes(scopeName)) throw new UsageError("--scope must be repository, personal or session");
   if (scopeName === "session" && !spec.session)
     throw new UsageError(`${spec.key} has no Session scope here; set it on Pi's screen`);
@@ -239,18 +211,13 @@ async function change(state, root, env, key, text, scopeName, json) {
 const json1 = (value) => (value === undefined ? "none" : JSON.stringify(value));
 
 /**
- * The fix for one ignored setting of a file: a rename to the successor, or a removal, which leaves the default (or the
- * value of the other scope) in force. A file that is not JSON has no automatic fix.
+ * The fix for one ignored setting of a file: its removal, which leaves the default (or the value of the other scope)
+ * in force. A file that is not JSON has no automatic fix.
  */
 function planFix(raw, item) {
   if (item.key === null) return { ...item, fix: null };
   const path = item.key.split(".");
-  const old = getPath(raw, path);
-  const rename = RENAMED_KEYS[item.key];
-  if (rename && Object.hasOwn(rename.values, old) && getPath(raw, rename.to.split(".")) === undefined) {
-    return { ...item, fix: { kind: "rename", from: path, to: rename.to.split("."), value: rename.values[old], old } };
-  }
-  return { ...item, fix: { kind: "remove", path, old } };
+  return { ...item, fix: { kind: "remove", path, old: getPath(raw, path) } };
 }
 
 /** A file scope's problems, from its parsed JSON, with a fix for each. */
@@ -277,25 +244,19 @@ function sessionProblems(raw) {
 function applyFixes(raw, problems, scope) {
   const next = structuredClone(raw);
   for (const problem of problems) {
-    if (problem.fix.kind === "rename") {
-      setPath(next, problem.fix.to, problem.fix.value);
-      deletePath(next, problem.fix.from);
-    } else if (scope !== "session") deletePath(next, problem.fix.path);
+    if (scope !== "session") deletePath(next, problem.fix.path);
     else delete next[problem.key];
   }
   return next;
 }
 
-/** One problem as the diff shows it: its reason, then what is removed or renamed. */
+/** One problem as the diff shows it: its reason, then what is removed. */
 function describe(problem) {
-  const lines = [`  ${problem.key ?? "(whole file)"}: ${problem.reason}`];
-  if (problem.fix.kind === "rename")
-    lines.push(
-      `    - ${problem.fix.from.join(".")}: ${json1(problem.fix.old)}`,
-      `    + ${problem.fix.to.join(".")}: ${json1(problem.fix.value)}`,
-    );
-  else lines.push(`    - ${problem.key}: ${json1(problem.fix.old)}`, "    + (removed: the default applies)");
-  return lines;
+  return [
+    `  ${problem.key ?? "(whole file)"}: ${problem.reason}`,
+    `    - ${problem.key}: ${json1(problem.fix.old)}`,
+    "    + (removed: the default applies)",
+  ];
 }
 
 function readRawFile(path) {

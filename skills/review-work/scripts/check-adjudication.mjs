@@ -5,12 +5,12 @@
 // adjudicated judgment is stated there and agrees with the dispositions: an Accepted Blocking item refuses Pass and
 // Non-blocking. It prints the counts by class and the counts Track Work's Review line takes. It checks that each item
 // is disposed of, not whether the disposition is right.
-// A Deep review's reports (R<n>a-report.md, R<n>b-report.md, R<n>c-report.md) are adjudicated once, over their union:
+// The reports of a review with several reviewers (R<n>a-report.md, R<n>b-report.md, ...) are adjudicated once, over their union:
 // give every report, and the dispositions go in their own file (--adjudication, by default R<n>-adjudication.md beside
 // the first report), each item named by its report's letter, "a.B1: Accepted. <reason>".
 // With --record, a complete adjudication appends one line to records.jsonl in the reports' folder (lib/records.mjs):
-// the round, base and head from the brief beside the first report, the depth, tier, reviewers and model from its Plan
-// line (or --model), the judgment and the counts, so review-status.mjs can tell which commit the review covers.
+// the round, base and head from the brief beside the first report, the reviewers and flags from its Plan line, the
+// reviewer's model (--model), the judgment and the counts, so review-status.mjs can tell which commit the review covers.
 // Usage: check-adjudication.mjs <report>... [--adjudication <file>] [--record] [--model <name>] [--json]
 // An item is named by the ID the report gives it (B1, N-2, Q1, NE1); a numbered or bulleted item without one is named by
 // its class letter and position in its section: B, N, Q, NE or I, then 1, 2, ... (so N3 is the third Non-blocking
@@ -33,7 +33,7 @@ const CLASSES = [
 ];
 const DISPOSITIONS = ["Accepted", "Rejected", "Open"];
 const JUDGMENTS = ["Pass", "Non-blocking", "Inconclusive", "Blocking"];
-// An item's ID, with its report's letter in a Deep review's union ("a.B1").
+// An item's ID, with its report's letter in the union of several reviewers' reports ("a.B1").
 const ID = "(?:[a-z]\\.)?[A-Z]{1,3}-?\\d+";
 
 function fail(message) {
@@ -59,7 +59,7 @@ const { values, positionals } = parsed;
 if (positionals.length < 1) fail(USAGE);
 for (const path of positionals) if (!existsSync(path)) fail(`no such report: ${path}`);
 const several = positionals.length > 1;
-// A Deep review's reports are R<n>a, R<n>b, R<n>c; any other names take a, b, c in the order given.
+// Several reviewers' reports are R<n>a, R<n>b and so on; any other names take a, b, c in the order given.
 const letters = positionals.map((path, index) =>
   several ? (/^R\d+([a-z])-report\.md$/.exec(basename(path))?.[1] ?? String.fromCharCode(97 + index)) : "",
 );
@@ -227,7 +227,7 @@ if (values.record && ok) {
   const round = Number(/\d/.exec(field("Review") ?? "")?.[0]);
   if (!diff || !round) fail(`--record: the brief ${briefPath} names no Review number or Diff <base>..<head>`);
   const plan = field("Plan") ?? "";
-  const planned = /^(quick|standard|deep), tier (standard|security)/.exec(plan);
+  const flags = /\bflags: (.+)$/.exec(plan)?.[1].trim();
   const reviewers = Number(/\bof (\d+)\b/.exec(plan)?.[1] ?? /(\d+) reviewers?/.exec(plan)?.[1] ?? positionals.length);
   const model = values.model ?? /\bmodel ([^\s;,]+)/.exec(plan)?.[1] ?? null;
   const folder = dirname(positionals[0]);
@@ -236,9 +236,8 @@ if (values.record && ok) {
     round,
     base: diff[1],
     head: diff[2],
-    depth: planned?.[1] ?? null,
-    tier: planned?.[2] ?? null,
     reviewers,
+    flags: !flags || flags === "none" ? [] : flags.split(/,\s*/),
     model,
     judgment,
     items: { accepted: total("Accepted"), rejected: total("Rejected"), open: total("Open") },
@@ -281,7 +280,7 @@ else {
   for (const each of problems) console.log(`- ${each.item}: ${each.problem}`);
   if (record)
     console.log(
-      `Recorded in ${join(dirname(positionals[0]), "records.jsonl")}: ${record.depth ?? "?"} review of ${record.head.slice(0, 12)}, ${record.judgment}`,
+      `Recorded in ${join(dirname(positionals[0]), "records.jsonl")}: Review ${record.round} of ${record.head.slice(0, 12)}, ${record.judgment}`,
     );
   else if (values.record) console.log("Not recorded: the adjudication is incomplete.");
 }

@@ -40,13 +40,12 @@ async function fixture({ git = true, session = "s-1" } = {}) {
 /** A value other than the default that the key takes, as typed on the command line, and as stored. */
 function otherValue(spec) {
   if (spec.values === "boolean") return spec.default === false ? ["on", true] : ["off", false];
-  if (spec.values === "name") return ["claude-haiku-5-5", "claude-haiku-5-5"];
   if (spec.values === "number") return ["12.5", 12.5];
   const value = spec.values.find((each) => each !== spec.default);
   return [String(value), value];
 }
 
-const settable = SETTINGS.filter((spec) => spec.values !== "policy");
+const settable = SETTINGS;
 
 test("list with nothing set shows every setting all hosts and Claude Code act on at its default, and names the Pi-only ones", async (t) => {
   const f = await fixture();
@@ -60,9 +59,10 @@ test("list with nothing set shows every setting all hosts and Claude Code act on
   assert.deepEqual(listed.state, []);
   const text = f.run("list");
   assert.equal(text.status, 0, text.stderr);
-  assert.match(text.stdout, /review\.unit\s+pr\s+default/);
-  assert.match(text.stdout, /review\.rounds\s+3\s+default/);
-  assert.match(text.stdout, /review\.depth\s+none\s+default/);
+  assert.match(text.stdout, /delegation\.claimHours\s+4\s+default/);
+  assert.match(text.stdout, /governor\.cap\s+none\s+default/);
+  // Review has no settings: when a review runs is in the review rules (Review Work), not here.
+  assert.doesNotMatch(text.stdout, /review\./);
   assert.match(text.stdout, /Pi-only settings are not listed \(--host pi lists them\)/);
   assert.deepEqual(
     f.json("list", "--host", "pi").settings.map((row) => row.key),
@@ -105,27 +105,27 @@ test("every settable key can be set, read back and unset in each of its scopes",
 test("inherit unsets a key in that scope", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
-  f.json("set", "review.unit", "manual", "--scope", "personal");
-  const result = f.json("set", "review.unit", "inherit", "--scope", "personal");
+  f.json("set", "delegation.claimHours", "24", "--scope", "personal");
+  const result = f.json("set", "delegation.claimHours", "inherit", "--scope", "personal");
   assert.equal(result.scope, "default");
-  assert.equal(result.value, "pr");
+  assert.equal(result.value, "4");
 });
 
 test("a repository write drops a value equal to its default; a personal write keeps it and overrides the repository", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
-  f.json("set", "review.unit", "push", "--scope", "repository");
-  assert.deepEqual(await f.file(".freeflow/config.json"), { review: { unit: "push" } });
-  f.json("set", "review.unit", "pr", "--scope", "personal");
-  assert.deepEqual(await f.file(".freeflow/local.json"), { review: { unit: "pr" } });
-  assert.deepEqual(f.json("get", "review.unit"), {
-    key: "review.unit",
-    label: "Review unit",
-    value: "pr",
+  f.json("set", "delegation.claimHours", "8", "--scope", "repository");
+  assert.deepEqual(await f.file(".freeflow/config.json"), { delegation: { claimHours: "8" } });
+  f.json("set", "delegation.claimHours", "4", "--scope", "personal");
+  assert.deepEqual(await f.file(".freeflow/local.json"), { delegation: { claimHours: "4" } });
+  assert.deepEqual(f.json("get", "delegation.claimHours"), {
+    key: "delegation.claimHours",
+    label: "Claim hours",
+    value: "4",
     scope: "personal",
     hosts: "all",
   });
-  f.json("set", "review.unit", "pr", "--scope", "repository");
+  f.json("set", "delegation.claimHours", "4", "--scope", "repository");
   assert.deepEqual(await f.file(".freeflow/config.json"), {}, "the repository's default value is pruned");
 });
 
@@ -145,18 +145,18 @@ test("a personal write adds .freeflow/local.json to Git's exclude first", async 
 test("a Session value wins over the files, lives in the Freeflow home and is gone in another session", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
-  f.json("set", "review.unit", "push", "--scope", "repository");
-  f.json("set", "review.unit", "manual", "--scope", "session");
+  f.json("set", "delegation.claimHours", "8", "--scope", "repository");
+  f.json("set", "delegation.claimHours", "24", "--scope", "session");
   assert.deepEqual(JSON.parse(await readFile(join(f.home, "sessions/s-1/settings.json"), "utf8")), {
-    "review.unit": "manual",
+    "delegation.claimHours": "24",
   });
-  assert.equal(f.json("get", "review.unit").scope, "session");
-  const other = spawnSync(process.execPath, [scriptPath, "get", "review.unit", "--root", f.root, "--json"], {
+  assert.equal(f.json("get", "delegation.claimHours").scope, "session");
+  const other = spawnSync(process.execPath, [scriptPath, "get", "delegation.claimHours", "--root", f.root, "--json"], {
     env: { ...f.env, FREEFLOW_SESSION: "s-2" },
     encoding: "utf8",
   });
   assert.equal(JSON.parse(other.stdout).scope, "repository");
-  const claude = spawnSync(process.execPath, [scriptPath, "get", "review.unit", "--root", f.root, "--json"], {
+  const claude = spawnSync(process.execPath, [scriptPath, "get", "delegation.claimHours", "--root", f.root, "--json"], {
     env: { ...f.env, FREEFLOW_SESSION: "", CLAUDE_CODE_SESSION_ID: "s-1" },
     encoding: "utf8",
   });
@@ -166,16 +166,21 @@ test("a Session value wins over the files, lives in the Freeflow home and is gon
 test("a change prints the Runtime State lines it changed, and the prompt note for a prompt", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
-  const review = f.run("set", "review.unit", "manual", "--scope", "personal");
-  assert.equal(review.status, 0, review.stderr);
-  assert.match(review.stdout, /^review\.unit: manual \(Personal, \.freeflow\/local\.json\)$/m);
-  assert.match(review.stdout, /^Runtime State: Review: unit `manual`, model `auto`$/m);
-  const rounds = f.run("set", "review.rounds", "2", "--scope", "personal");
-  assert.equal(rounds.status, 0, rounds.stderr);
-  assert.match(rounds.stdout, /^Runtime State: Review: unit `manual`, model `auto`, up to Review 2$/m);
-  assert.deepEqual(await f.file(".freeflow/local.json"), { review: { unit: "manual", rounds: 2 } });
-  f.json("unset", "review.rounds", "--scope", "personal");
-  const cleared = f.json("unset", "review.unit", "--scope", "personal");
+  const skill = f.run("set", "skills.research-work", "off", "--scope", "personal");
+  assert.equal(skill.status, 0, skill.stderr);
+  assert.match(skill.stdout, /^skills\.research-work: off \(Personal, \.freeflow\/local\.json\)$/m);
+  assert.match(skill.stdout, /^Runtime State: Skills off: `research-work`; do not open or follow them\.$/m);
+  const other = f.run("set", "skills.write-docs", "off", "--scope", "personal");
+  assert.equal(other.status, 0, other.stderr);
+  assert.match(
+    other.stdout,
+    /^Runtime State: Skills off: `research-work`, `write-docs`; do not open or follow them\.$/m,
+  );
+  assert.deepEqual(await f.file(".freeflow/local.json"), {
+    skills: { "research-work": false, "write-docs": false },
+  });
+  f.json("unset", "skills.write-docs", "--scope", "personal");
+  const cleared = f.json("unset", "skills.research-work", "--scope", "personal");
   assert.equal(cleared.changed.length, 0);
   assert.equal(cleared.cleared.length, 1);
   const prompt = f.run("set", "prompts.core", "off", "--scope", "personal");
@@ -191,20 +196,17 @@ test("refusals name what is wrong and write nothing", async (t) => {
   t.after(f.cleanup);
   const cases = [
     [["get", "review.mode"], /unknown setting review\.mode/],
+    [["set", "review.unit", "push", "--scope", "personal"], /unknown setting review\.unit/],
+    [["set", "review.rounds", "1", "--scope", "personal"], /unknown setting review\.rounds/],
+    [["set", "review.model", "opus", "--scope", "session"], /unknown setting review\.model/],
+    [["set", "review.depth", "deep", "--scope", "repository"], /unknown setting review\.depth/],
     [
-      ["set", "review.unit", "sometimes", "--scope", "personal"],
-      /review\.unit takes pr, push, commit, agreement, manual, not sometimes/,
+      ["set", "delegation.claimHours", "3", "--scope", "personal"],
+      /delegation\.claimHours takes 1, 2, 4, 8, 24, not 3/,
     ],
-    [["set", "review.rounds", "4", "--scope", "personal"], /review\.rounds takes 1, 2, 3, not 4/],
-    [
-      ["set", "review.depth", "deep", "--scope", "repository"],
-      /review\.depth is a policy object, Repository scope only/,
-    ],
-    [["set", "review.depth", "deep", "--scope", "session"], /review\.depth is a policy object/],
     [["set", "enabled", "maybe", "--scope", "personal"], /enabled takes on or off, not maybe/],
-    [["set", "review.unit", "manual"], /set needs --scope/],
-    [["set", "review.unit", "manual", "--scope", "global"], /--scope must be repository, personal or session/],
-    [["set", "review.model", "two\nlines", "--scope", "personal"], /review\.model takes a name on one line/],
+    [["set", "delegation.claimHours", "8"], /set needs --scope/],
+    [["set", "delegation.claimHours", "8", "--scope", "global"], /--scope must be repository, personal or session/],
     [["set", "governor.cap", "0", "--scope", "personal"], /governor\.cap takes a number above 0, not 0/],
     [["set", "governor.cap", "lots", "--scope", "personal"], /governor\.cap takes a number above 0, not lots/],
   ];
@@ -219,7 +221,7 @@ test("refusals name what is wrong and write nothing", async (t) => {
 test("the Session scope is refused without a session ID", async (t) => {
   const f = await fixture({ session: null });
   t.after(f.cleanup);
-  const result = f.run("set", "review.unit", "manual", "--scope", "session");
+  const result = f.run("set", "delegation.claimHours", "8", "--scope", "session");
   assert.equal(result.status, 1);
   assert.match(result.stderr, /the Session scope needs a host that names its session/);
 });
@@ -228,31 +230,61 @@ test("an ignored setting is named by list, and stops writes to its file until do
   const f = await fixture();
   t.after(f.cleanup);
   await mkdir(join(f.root, ".freeflow"));
-  await writeFile(join(f.root, ".freeflow/config.json"), `{"review":{"unit":"sometimes"}}\n`);
+  await writeFile(join(f.root, ".freeflow/config.json"), `{"delegation":{"claimHours":"3"}}\n`);
   const list = f.run("list");
   assert.equal(list.status, 0, list.stderr);
-  assert.match(list.stdout, /Settings ignored: \.freeflow\/config\.json review\.unit: review\.unit must be one of/);
+  assert.match(
+    list.stdout,
+    /Settings ignored: \.freeflow\/config\.json delegation\.claimHours: delegation\.claimHours must be one of/,
+  );
   // The ignored value is not used: the default is.
-  assert.equal(f.json("get", "review.unit").value, "pr");
-  const write = f.run("set", "review.unit", "manual", "--scope", "repository");
+  assert.equal(f.json("get", "delegation.claimHours").value, "4");
+  const write = f.run("set", "delegation.claimHours", "8", "--scope", "repository");
   assert.equal(write.status, 1);
   assert.match(write.stderr, /has settings Freeflow ignores; run settings\.mjs doctor/);
-  assert.deepEqual(await f.file(".freeflow/config.json"), { review: { unit: "sometimes" } });
+  assert.deepEqual(await f.file(".freeflow/config.json"), { delegation: { claimHours: "3" } });
   // The personal file is its own: a write there is not held up by the repository's ignored value.
-  f.json("set", "review.unit", "manual", "--scope", "personal");
-  assert.deepEqual(await f.file(".freeflow/local.json"), { review: { unit: "manual" } });
+  f.json("set", "delegation.claimHours", "8", "--scope", "personal");
+  assert.deepEqual(await f.file(".freeflow/local.json"), { delegation: { claimHours: "8" } });
+});
+
+test("a config file holding the removed review settings loads with them ignored, and doctor names each and removes it", async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+  await mkdir(join(f.root, ".freeflow"));
+  const shared = `{"review":{"mode":"auto","unit":"push","depth":{"default":"deep"}},"delegation":{"claimHours":"8"}}\n`;
+  await writeFile(join(f.root, ".freeflow/config.json"), shared);
+  // The file loads: the rest of it is in force, and each review key is named as ignored.
+  const listed = f.json("list");
+  assert.equal(listed.settings.find((row) => row.key === "delegation.claimHours").value, "8");
+  assert.deepEqual(
+    listed.ignored.map((item) => item.key),
+    ["review.mode", "review.unit", "review.depth"],
+  );
+  assert.match(listed.ignored[0].reason, /^removed: review has no settings \(a "Review at:" line/);
+  const doctor = f.run("doctor");
+  assert.equal(doctor.status, 1, doctor.stderr);
+  assert.match(doctor.stdout, /\.freeflow\/config\.json \(Repository\): 3 problems\./);
+  assert.match(
+    doctor.stdout,
+    /review\.mode: removed: review has no settings[^\n]*\n\s+- review\.mode: "auto"\n\s+\+ \(removed/,
+  );
+  assert.equal(await readFile(join(f.root, ".freeflow/config.json"), "utf8"), shared);
+  const fixed = f.run("doctor", "--fix", "--scope", "repository");
+  assert.equal(fixed.status, 0, fixed.stdout);
+  assert.deepEqual(await f.file(".freeflow/config.json"), { delegation: { claimHours: "8" } });
 });
 
 test("doctor names each problem with its fix, and changes nothing without --fix", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
   await mkdir(join(f.root, ".freeflow"));
-  const shared = `{"toolExecution":{"bogus":true},"cognitiveRouting":{"enabled":true},"review":{"mode":"off"},"gates":{"slice":"blok"},"foo":1}\n`;
+  const shared = `{"toolExecution":{"bogus":true},"cognitiveRouting":{"enabled":true},"review":{"mode":"off"},"delegation":{"claimHours":"3"},"foo":1}\n`;
   await writeFile(join(f.root, ".freeflow/config.json"), shared);
   const result = f.run("doctor");
   assert.equal(result.status, 1, result.stderr);
   assert.match(result.stdout, /\.freeflow\/config\.json \(Repository\): 5 problems\./);
-  assert.match(result.stdout, /- review\.mode: "off"\n\s+\+ review\.unit: "manual"/);
+  assert.match(result.stdout, /- review\.mode: "off"\n\s+\+ \(removed/);
   assert.match(result.stdout, /- cognitiveRouting: \{"enabled":true\}\n\s+\+ \(removed/);
   assert.match(result.stdout, /doctor --fix/);
   assert.equal(await readFile(join(f.root, ".freeflow/config.json"), "utf8"), shared);
@@ -264,22 +296,28 @@ test("doctor --fix writes Personal and Session, the Repository only with --scope
   await mkdir(join(f.root, ".freeflow"));
   const shared = `{"cognitiveRouting":{"enabled":true},"review":{"mode":"off"}}\n`;
   await writeFile(join(f.root, ".freeflow/config.json"), shared);
-  await writeFile(join(f.root, ".freeflow/local.json"), `{"review":{"mode":"always"},"skills":{"nope":true}}\n`);
+  await writeFile(
+    join(f.root, ".freeflow/local.json"),
+    `{"review":{"mode":"always"},"skills":{"nope":true},"delegation":{"claimHours":"8"}}\n`,
+  );
   await mkdir(join(f.home, "sessions", "s-1"), { recursive: true });
-  await writeFile(join(f.home, "sessions", "s-1", "settings.json"), `{"review.depth":"quick","review.model":"opus"}\n`);
+  await writeFile(
+    join(f.home, "sessions", "s-1", "settings.json"),
+    `{"review.depth":"quick","review.model":"opus","delegation.claimHours":"24"}\n`,
+  );
   // Without --scope the shared file is refused: named, and not written.
   const partial = f.run("doctor", "--fix");
   assert.equal(partial.status, 1);
   assert.match(partial.stdout, /not written: the repository file is shared/);
   assert.equal(await readFile(join(f.root, ".freeflow/config.json"), "utf8"), shared);
-  assert.deepEqual(await f.file(".freeflow/local.json"), { review: { unit: "pr" } });
+  assert.deepEqual(await f.file(".freeflow/local.json"), { delegation: { claimHours: "8" } });
   assert.deepEqual(JSON.parse(await readFile(join(f.home, "sessions", "s-1", "settings.json"), "utf8")), {
-    "review.model": "opus",
+    "delegation.claimHours": "24",
   });
   // With --scope repository the shared file is written, and the whole folder then reads clean.
   const shared1 = f.run("doctor", "--fix", "--scope", "repository");
   assert.equal(shared1.status, 0, shared1.stdout);
-  assert.deepEqual(await f.file(".freeflow/config.json"), { review: { unit: "manual" } });
+  assert.deepEqual(await f.file(".freeflow/config.json"), {});
   const clean = f.run("doctor");
   assert.equal(clean.status, 0);
   assert.match(clean.stdout, /Nothing to fix\./);
@@ -304,7 +342,7 @@ test("a personal file Git tracks is refused", async (t) => {
   await mkdir(join(f.root, ".freeflow"));
   await writeFile(join(f.root, ".freeflow/local.json"), "{}\n");
   execFileSync("git", ["-C", f.root, "add", "-f", ".freeflow/local.json"], { env: baseEnv });
-  const result = f.run("set", "review.unit", "manual", "--scope", "personal");
+  const result = f.run("set", "delegation.claimHours", "8", "--scope", "personal");
   assert.equal(result.status, 1);
   assert.match(result.stderr, /local\.json is tracked by git/);
 });
@@ -313,17 +351,17 @@ test("a file with v: 1 is read, and a write keeps it", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
   await mkdir(join(f.root, ".freeflow"));
-  await writeFile(join(f.root, ".freeflow/config.json"), `{"v":1,"review":{"unit":"push"}}\n`);
-  assert.equal(f.json("get", "review.unit").value, "push");
+  await writeFile(join(f.root, ".freeflow/config.json"), `{"v":1,"delegation":{"claimHours":"8"}}\n`);
+  assert.equal(f.json("get", "delegation.claimHours").value, "8");
   f.json("set", "enabled", "off", "--scope", "repository");
-  assert.deepEqual(await f.file(".freeflow/config.json"), { v: 1, review: { unit: "push" }, enabled: false });
+  assert.deepEqual(await f.file(".freeflow/config.json"), { v: 1, delegation: { claimHours: "8" }, enabled: false });
 });
 
 test("outside a Git repository a personal write still works", async (t) => {
   const f = await fixture({ git: false });
   t.after(f.cleanup);
-  f.json("set", "review.unit", "manual", "--scope", "personal");
-  assert.deepEqual(await f.file(".freeflow/local.json"), { review: { unit: "manual" } });
+  f.json("set", "delegation.claimHours", "8", "--scope", "personal");
+  assert.deepEqual(await f.file(".freeflow/local.json"), { delegation: { claimHours: "8" } });
 });
 
 test("a folder inside the repository reads and writes the repository's settings", async (t) => {
@@ -335,8 +373,8 @@ test("a folder inside the repository reads and writes the repository's settings"
     [
       scriptPath,
       "set",
-      "review.unit",
-      "manual",
+      "delegation.claimHours",
+      "8",
       "--scope",
       "repository",
       "--root",
@@ -346,6 +384,6 @@ test("a folder inside the repository reads and writes the repository's settings"
     { env: f.env, encoding: "utf8" },
   );
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(await f.file(".freeflow/config.json"), { review: { unit: "manual" } });
+  assert.deepEqual(await f.file(".freeflow/config.json"), { delegation: { claimHours: "8" } });
   assert.equal(f.json("list").root, f.root);
 });

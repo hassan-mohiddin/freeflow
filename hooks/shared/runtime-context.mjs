@@ -6,8 +6,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // ignored and named, and the rest stays (D-045).
 import {
   ignoredStateLine,
-  resolveReviewSettings,
-  reviewStateLine,
   selectedRuntimePrompts,
   skillsOff,
   skillsStateLine,
@@ -109,7 +107,6 @@ export function readConfig(root, { session = null, env = process.env } = {}) {
     enabled: core.enabled,
     ignored,
     prompts: selectedRuntimePrompts(repository.value, local),
-    review: resolveReviewSettings(repository.value, local),
     skillsOff: skillsOff(repository.value, local),
   };
 }
@@ -135,15 +132,11 @@ function loadRuntimeContext(selection, part) {
   return prompts;
 }
 
-// The review and skills lines are Pi's, and as on Pi only a choice the user made adds them. This host loads plugin
+// The skills line is Pi's, and as on Pi only a choice the user made adds it. This host loads plugin
 // skills itself, so the skills line is how an off skill reaches the agent here. With the core prompt off, which the
 // Runtime State belongs to, the lines still come when there are any: the rest of Freeflow stays on.
 function runtimeStateContext(config) {
-  const lines = [
-    reviewStateLine(config.review),
-    skillsStateLine(config.skillsOff),
-    ignoredStateLine(config.ignored),
-  ].filter(Boolean);
+  const lines = [skillsStateLine(config.skillsOff), ignoredStateLine(config.ignored)].filter(Boolean);
   if (!config.prompts.core && lines.length === 0) return null;
   return ["# Freeflow Runtime State", "", "Freeflow: active", ...lines].join("\n");
 }

@@ -1,4 +1,4 @@
-import { ignoredStateLine, reviewStateLine, skillsStateLine } from "./config-validation.js";
+import { ignoredStateLine, skillsStateLine } from "./config-validation.js";
 import { hasUsableMandatoryPrompts } from "./prompts.js";
 
 /**
@@ -69,7 +69,6 @@ export function freeflowRuntimeStateMessage(
   // With the setup needed, the agent is told to set Freeflow up here, and what to do if the user declines (D-045, round 3).
   const setupLine = capabilityState?.setupNeeded ? [SETUP_NEEDED_INSTRUCTION] : [];
   // Only a choice the user made: the default adds nothing, so most users' state stays as it was.
-  const review = freeflowStatus === "active" ? reviewStateLine(capabilityState?.review) : null;
   const skillsOff = freeflowStatus === "active" ? skillsStateLine(capabilityState?.skills?.off) : null;
   // A setting a config file ignores is named whatever the status, so the user sees it (D-045).
   const ignored = ignoredStateLine(capabilityState?.ignored ?? []);
@@ -84,7 +83,6 @@ export function freeflowRuntimeStateMessage(
       "",
       `Freeflow: ${freeflowStatus}`,
       ...setupLine,
-      ...(review ? [review] : []),
       ...(skillsOff ? [skillsOff] : []),
       ...(ignored ? [ignored] : []),
       "",

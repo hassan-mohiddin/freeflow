@@ -97,18 +97,21 @@ export function coverage(root, headRef, records) {
   return { state: "none", head, ...(blockedAtHead ? { blocked: blockedAtHead } : {}) };
 }
 
-/** The one line Deliver Work and the plan print. */
-export function coverageLine(result, plannedDepth) {
+/** The one line Deliver Work and the plan print; with the plan, what a review of the head would be. */
+export function coverageLine(result, planned) {
   const short = (commit) => commit.slice(0, 12);
   if (!result.head) return `Review: ${result.reason}`;
   if (result.state === "covered") {
     const { record } = result;
-    return `Review: on record for ${short(result.head)} (${record.depth ?? "?"}, ${record.judgment} after Review ${record.round ?? 1})`;
+    return `Review: on record for ${short(result.head)} (${record.judgment} after Review ${record.round ?? 1})`;
   }
   const blocked = result.blocked
     ? `; the review of ${short(result.head)} on record is ${result.blocked.judgment}, which covers nothing`
     : "";
   if (result.state === "stale")
     return `Review: on record for ${short(result.record.headCommit)}; ${result.since} commit${result.since === 1 ? "" : "s"} since: a diff-only re-review covers ${result.rereview}${blocked}`;
-  return `Review: none for ${short(result.head)}${plannedDepth ? `; the plan says ${plannedDepth}` : ""}${blocked}`;
+  const plan = planned
+    ? `; the floor: 1 reviewer, 1 round${planned.flags.length ? `; flags: ${planned.flags.join(", ")}` : ""}`
+    : "";
+  return `Review: none for ${short(result.head)}${plan}${blocked}`;
 }
