@@ -154,7 +154,7 @@ const kinds = (taskDir) => readChannel(taskDir).lines.map((line) => `${line.dele
 test("delegate open --session writes the brief, worktree and claims, and prints the start command for Claude Code and Pi", async () => {
   await withTask(async ({ folder, repo, taskDir, cli }) => {
     const out = openSession(cli, repo, ["--writes", "src/**"]);
-    const worktree = join(folder, "widget-d-001-build-the-gates");
+    const worktree = join(folder, "widget.worktrees", "D-001-build-the-gates");
     assert.match(out, /^Opened D-001 — Build the gates \(a separate session\)\n/);
     assert.match(out, /Claimed: src\/\*\* for widget\/task-001 D-001\n/);
     const prompt = `"You are the worker for D-001 of widget/task-001. Run: node ${scriptPath} delegate join --record widget/task-001 --id D-001"`;
@@ -395,7 +395,7 @@ test("every delegation command appends its line to channel.jsonl; the lines vali
         input: "## Next\n- go\n",
       }),
     );
-    const worktree = join(dirname(repo), "widget-d-001-build-the-gates");
+    const worktree = join(dirname(repo), "widget.worktrees", "D-001-build-the-gates");
     git(worktree, ["commit", "--quiet", "--allow-empty", "-m", "work"]);
     const head = git(worktree, ["rev-parse", "--short", "HEAD"]);
     const returnPath = join(taskDir, "delegations", "D-001-build-the-gates", "return.md");
@@ -514,7 +514,7 @@ test("delegate close adds the return's Left open choices to decisions.md with th
       '# Decisions\n- P1 [agreed] Which store -> the cloud one. You: "yes" (2026-11-03)\n',
     );
     openSession(cli, repo);
-    const worktree = join(dirname(repo), "widget-d-001-build-the-gates");
+    const worktree = join(dirname(repo), "widget.worktrees", "D-001-build-the-gates");
     git(worktree, ["commit", "--quiet", "--allow-empty", "-m", "work"]);
     const head = git(worktree, ["rev-parse", "--short", "HEAD"]);
     await writeFile(

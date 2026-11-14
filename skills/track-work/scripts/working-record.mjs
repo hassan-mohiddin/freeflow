@@ -231,7 +231,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "agreement close",
-    "Usage: agreement close --record <record.md> --state <completed|ended|replaced> [--next-action <text>] --input <file|->\nAppends the agreement's History entry (its lines, updates and decisions.md's list), removes it from Current Work, empties decisions.md, then syncs the Freeflow store holding the task. Refused while the current Slice works under it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required; Settled optional: choices that still govern the task, added to Current Context's Settled.",
+    "Usage: agreement close --record <record.md> --state <completed|ended|replaced> [--next-action <text>] [--next-input <file|->] --input <file|->\nAppends the agreement's History entry (its lines, updates and decisions.md's list), removes it from Current Work, empties decisions.md, then syncs the Freeflow store holding the task. Refused while the current Slice works under it, unless --state replaced with --next-input: that closes it and opens the next agreement in its place (A-NNN after every ID used, titled as this one, Opened today, from --next-input's bullets), and moves the Slice under it to the next agreement (its Under field, with a Moved update). --next-input goes only with --state replaced.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required; Settled optional: choices that still govern the task, added to Current Context's Settled.",
   ],
   [
     "estimate",
@@ -547,7 +547,7 @@ function allowedOptions(command, operation) {
   if (command === "agreement") {
     if (operation === "open") return new Set([...withNextAction, "--title"]);
     if (operation === "update") return new Set([...common, "--text"]);
-    if (operation === "close") return new Set([...withNextAction, "--state"]);
+    if (operation === "close") return new Set([...withNextAction, "--state", "--next-input"]);
   }
   if (command === "events") {
     if (operation === "append") return new Set(["--input", "--home", "--help"]);

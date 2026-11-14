@@ -13,6 +13,8 @@ Pi: cd <worktree> && pi --session-name D-031 "…"
 
 You or the agent start it; Freeflow does not start sessions itself. In the new session, `delegate join` makes it the worker and prints what it must read first.
 
+A worker's worktree sits in one folder beside its repository, `<repo>.worktrees/D-031-<slug>`, and `delegate close` removes it once the delegation is accepted or stopped, if it has no uncommitted or untracked changes; the branch stays. A worktree with changes is left in place, and the close says why.
+
 ## What a worker session may do
 
 - It holds no task. Commands that write the task's record (`task take`, `checkpoint --record`, `slice …`, `agreement …`, `delegate close`) are refused with "this session works for D-031".

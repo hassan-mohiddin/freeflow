@@ -421,7 +421,10 @@ export async function openDelegation(loaded, options, text) {
     const commit = git(repo, ["rev-parse", "--short=8", `${base}^{commit}`]);
     if (!ok(commit)) fail(`--base ${base} is not a commit in ${repo}.`);
     const branch = options["--branch"] ?? slug;
-    worktree = resolve(options["--worktree"] ?? join(dirname(repo), `${basename(repo)}-${slug}`));
+    // One folder per repository, beside it: its delegations' worktrees sit in <repo>.worktrees/, never inside the repo.
+    worktree = resolve(
+      options["--worktree"] ?? join(dirname(repo), `${basename(repo)}.worktrees`, basename(directory)),
+    );
     const made = git(repo, ["worktree", "add", "-q", "-b", branch, worktree, commit]);
     if (!ok(made)) fail(`Could not make the worktree: ${made.message}`);
     space = `${repo} worktree ${worktree} at ${commit}, branch ${branch}`;
@@ -805,6 +808,29 @@ function workerMeasured(taskDir, id, brief, options, env = process.env) {
   return measure ? renderMeasure(measure) : "not measured";
 }
 
+/** Commits the delegation's branch holds beyond its base; null when git cannot count them. */
+function commitsBeyondBase(brief) {
+  const count = git(brief.repo, ["rev-list", "--count", `${brief.base}..${brief.branch}`]);
+  return ok(count) && /^\d+$/.test(count) ? Number(count) : null;
+}
+
+/**
+ * Removes the delegation's worktree when its outcome is accepted or stopped (a sent back one runs again, so it stays),
+ * and only when it holds no uncommitted or untracked change; never with --force. Its branch is kept. Returns the line
+ * that says what it did, or why it left the worktree.
+ */
+function removeWorktree(brief, outcome) {
+  const path = brief.worktree;
+  if (!path || !brief.repo || outcome === "sent back") return "";
+  if (!existsSync(path)) return `\nThe worktree ${path} is already gone; branch ${brief.branch} is kept.`;
+  const status = git(path, ["status", "--porcelain", "--untracked-files=all"]);
+  if (!ok(status)) return `\nLeft the worktree ${path}: git could not read its status.`;
+  if (status) return `\nLeft the worktree ${path}: it has uncommitted or untracked changes.`;
+  const removed = git(brief.repo, ["worktree", "remove", path]);
+  if (!ok(removed)) return `\nLeft the worktree ${path}: ${removed.message}.`;
+  return `\nRemoved the worktree ${path}; branch ${brief.branch} is kept.`;
+}
+
 /**
  * Closes one of the coordinator's delegations: records its outcome in one History entry (with the model, effort,
  * tokens, minutes, the merge commit and the return's path), removes its line, and syncs the store.
@@ -842,8 +868,12 @@ export async function closeDelegation(loaded, options, text) {
     const merge = oneLine(options["--merge"]);
     if (outcome === "accepted") {
       if (problems.length) fail(`${id} cannot be accepted: its return is not ready: ${problems.join("; ")}.`);
-      if (brief.branch && !merge)
-        fail(`${id} has branch ${brief.branch}: accepting it records the commit that merged it, --merge <commit>.`);
+      // A reader, a survey or a reviewer made no commits and has nothing to merge; a builder's commits must be merged.
+      const ahead = brief.branch ? commitsBeyondBase(brief) : 0;
+      if (ahead !== 0 && !merge)
+        fail(
+          `${id} has branch ${brief.branch}${ahead === null ? " whose commits cannot be counted" : ` with ${ahead} commit(s) beyond ${brief.base}`}: accepting it records the commit that merged it, --merge <commit>, since its commits must reach the repository. A delegation with no commits beyond its base needs no --merge.`,
+        );
       if (merge && !ok(git(brief.repo, ["merge-base", "--is-ancestor", brief.branch, merge])))
         fail(`Branch ${brief.branch} is not merged in ${merge} in ${brief.repo}.`);
     }
@@ -915,7 +945,8 @@ export async function closeDelegation(loaded, options, text) {
   const decided = added?.items.length
     ? `\nAdded to decisions.md from ${id}'s Left open: ${added.items.join(", ")}${added.linked.length ? ` (${added.linked.join("; ")})` : ""}.`
     : "";
-  return `Closed ${id} — ${outcome}${reason ? ` (${reason})` : ""}${decided}${released}${note}\n${await sync(taskDir, `close ${id}`)}\n`;
+  const removed = removeWorktree(brief, outcome);
+  return `Closed ${id} — ${outcome}${reason ? ` (${reason})` : ""}${decided}${released}${removed}${note}\n${await sync(taskDir, `close ${id}`)}\n`;
 }
 
 /**
