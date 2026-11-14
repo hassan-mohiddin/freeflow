@@ -54,6 +54,7 @@ Track Work keeps one task's memory so a fresh context, after a compaction, in an
 
 - **The record changes when something settles** (discussion block B-024, 2026-11-10). What happened is recorded when it happens: a stop or a limit, a Slice started, a worker started or its return accepted or sent back, a commit, a file or a sent message. None of it can be worked out again. What the agent currently understands is recorded once, at the checkpoint, since it keeps moving until then. Current Context is brought up to date only where a line no longer matches the state, because each rewrite of a true line risks changing what it means.
 - **The agreement holds terms only** (B-024). Its lines are what the agent may do, what it may not, where it stops and where it comes back; a message that changes none of them belongs in the discussion blocks, and a new outcome gets a new agreement rather than more lines.
+- **What the Claude Code pane reads from the event log** (2026-11-14, D-061). `events sent --json [--limit <n>]` lists the newest sent lines without their text (number, time, source, length, first line, and the total), so the pane's Sent tab shows twenty and opens one with `--show`; `events summary`'s `agents` gives each worker its delegation, model, effort, start, stop and tokens, so the Workers tab shows minutes and tokens, and its tool calls since the take tell the pane whether a switch must wait for a checkpoint. Both are read-only additions; the log's writer and schema are unchanged.
 
 ## Evidence
 

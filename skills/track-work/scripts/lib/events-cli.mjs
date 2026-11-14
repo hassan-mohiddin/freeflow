@@ -57,6 +57,9 @@ export async function runEvents(operation, options, { home, identity, input }) {
   if (operation === "sent") {
     if (!session) throw new Error("No session: give --session <ID>, or run it in a session that names its own");
     const what = options["--what"];
+    const limit = options["--limit"] === undefined ? null : Number(options["--limit"]);
+    if (limit !== null && (!Number.isInteger(limit) || limit < 1))
+      throw new Error("--limit takes a whole number above 0");
     if (what !== undefined && !SENT_WHATS.includes(what)) throw new Error(`--what is one of ${SENT_WHATS.join(", ")}`);
     const path = logPath(home, session);
     if (!existsSync(path)) throw new Error(`No event log for session ${session} (${path})`);
@@ -79,8 +82,25 @@ export async function runEvents(operation, options, { home, identity, input }) {
       const { text } = sent[number - 1];
       return text.endsWith("\n") ? text : `${text}\n`;
     }
+    const listed = limit === null ? sent : sent.slice(0, limit);
+    if (options["--json"])
+      return `${JSON.stringify(
+        {
+          session,
+          total: sent.length,
+          sent: listed.map((line, index) => ({
+            n: index + 1,
+            ts: line.ts,
+            what: line.what,
+            chars: line.chars ?? line.text.length,
+            first: line.text.split("\n")[0].trim(),
+          })),
+        },
+        null,
+        2,
+      )}\n`;
     if (!sent.length) return `No sent lines${what === undefined ? "" : ` (what ${what})`} in session ${session}.\n`;
-    return `${sent
+    return `${listed
       .map((line, index) => {
         const first = line.text.split("\n")[0].trim();
         const cut = first.length > SENT_LIST_WIDTH ? `${first.slice(0, SENT_LIST_WIDTH - 1)}…` : first;

@@ -126,7 +126,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "events sent",
-    "Usage: events sent [--session <ID>] [--what <name>] [--show <n>] [--home <folder>]\nLists the text Freeflow sent to the model in a session, newest first: its number, time, what sent it, its length in characters and the first line cut to 80 characters. --what keeps one source (session-start, menu, catch-up, pinned-guidance, system-prompt, runtime-state, notice, compact-request, compaction-note, bundle, continue, compaction-error, gate, store-allow, took-back, waits, worker-notice, stop-block, governor, settings, pane, guidance, files, background, monitor, message, skill, keep-alive). --show <n> prints the whole text of entry n of that list. The text is what was sent, with keys and tokens redacted; the log is on this machine only.",
+    "Usage: events sent [--session <ID>] [--what <name>] [--show <n>] [--limit <n>] [--json] [--home <folder>]\nLists the text Freeflow sent to the model in a session, newest first: its number, time, what sent it, its length in characters and the first line cut to 80 characters. --what keeps one source (session-start, menu, catch-up, pinned-guidance, system-prompt, runtime-state, notice, compact-request, compaction-note, bundle, continue, compaction-error, gate, store-allow, took-back, waits, worker-notice, stop-block, governor, settings, pane, guidance, files, background, monitor, message, skill, keep-alive). --show <n> prints the whole text of entry n of that list. --limit <n> lists the n newest only. With --json, for a harness layer such as Freeflow's Claude Code pane: session, total (every entry) and sent, each entry's n, ts, what, chars and first line, newest first. The text is what was sent, with keys and tokens redacted; the log is on this machine only.",
   ],
   [
     "slice",
@@ -555,7 +555,8 @@ function allowedOptions(command, operation) {
     if (operation === "append") return new Set(["--input", "--home", "--help"]);
     if (operation === "summary") return new Set(["--session", "--json", "--home", "--help"]);
     if (operation === "show") return new Set(["--session", "--kind", "--home", "--help"]);
-    if (operation === "sent") return new Set(["--session", "--what", "--show", "--home", "--help"]);
+    if (operation === "sent")
+      return new Set(["--session", "--what", "--show", "--limit", "--json", "--home", "--help"]);
   }
   if (command === "store" && operation === "init")
     return new Set(["--remote", "--home", "--git-name", "--git-email", "--help"]);
