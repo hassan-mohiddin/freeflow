@@ -1,11 +1,10 @@
 import { rm } from "node:fs/promises";
 import { skillsRead } from "../tool-execution/skill-reads.js";
 import { currentCycle, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
-import { rowAt } from "./thresholds.js";
 import { cachedBranch } from "../host/branch.js";
 /**
  * Freeflow compaction on Pi, on Track Work's bundle (task-004's Spec, section 9; P1, P5, P63). As the context grows,
- * one row each at 50, 60 and 70% of the window, then one soft notice a context cycle: keep working to a safe point,
+ * one soft notice a context cycle, at the notice point before Pi's own trigger: keep working to a safe point,
  * checkpoint with --compact, end the turn. When a run that asked so ends, and the checkpoint is done (P68), Freeflow
  * writes Pi's compaction entry with the task's bundle (or the session summary's) as its summary, keeping nothing
  * raw, and Pi continues the run. Pi's own compaction stays the fallback, with the bundle after its summary (P16).
@@ -26,8 +25,8 @@ const SAFE_POINT =
   "a finished step whose result you know (a check run and read, a set of edits complete, a report written), not mid-edit or with a command still running";
 export class CompactionController {
   host;
-  /** What this cycle has shown: the highest row, and when its one notice came. */
-  sent = { cycle: 0, row: 0 };
+  /** What this cycle has shown: when its one notice came. */
+  sent = { cycle: 0 };
   /** Whether the store's copy of this cycle was read since the module loaded. */
   restored = false;
   /** When this session started, the start of its first cycle. */
@@ -38,7 +37,7 @@ export class CompactionController {
   }
   /** Session start or shutdown: nothing shown, nothing waiting to reset. */
   reset() {
-    this.sent = { cycle: 0, row: 0 };
+    this.sent = { cycle: 0 };
     this.restored = false;
     this.startedAt = Date.now();
     this.compacted = undefined;
@@ -68,11 +67,11 @@ export class CompactionController {
   cycleNow(ctx) {
     return cycleOf(branchOf(ctx));
   }
-  /** The cycle's highest row and notice, kept with the store so a reload shows neither again (P80, T12). */
+  /** The cycle's notice, kept with the store so a reload does not show it again (T12). */
   keepSent(ctx, cycle) {
-    this.host.keep(ctx, { cycle, row: this.sent.row, notice: this.sent.noticeAt ?? null });
+    this.host.keep(ctx, { cycle, notice: this.sent.noticeAt ?? null });
   }
-  /** After a turn: a row as the context crosses 50, 60 and 70%, or the cycle's one notice; never both, never again. */
+  /** After a turn: the cycle's one notice, once the context reaches the notice point; never again in the cycle. */
   observe(ctx, turn) {
     if (!this.host.effective()) return undefined;
     const cycle = cycleOf(branchOf(ctx));
@@ -80,28 +79,14 @@ export class CompactionController {
     if (!this.restored) {
       this.restored = true;
       const kept = this.host.kept(ctx);
-      if (kept && kept.cycle === cycle) this.sent = { cycle, row: kept.row, noticeAt: kept.notice ?? undefined };
+      if (kept && kept.cycle === cycle) this.sent = { cycle, noticeAt: kept.notice ?? undefined };
     }
-    if (this.sent.cycle !== cycle) this.sent = { cycle, row: 0 };
+    if (this.sent.cycle !== cycle) this.sent = { cycle };
     if (this.sent.noticeAt !== undefined) return undefined;
     const measured = this.host.measure(ctx, turn);
     if (!measured) return undefined;
     const { tokens, thresholds } = measured;
-    if (tokens < thresholds.notice) {
-      const row = rowAt(tokens, thresholds);
-      if (row === undefined || row <= this.sent.row) return undefined;
-      this.sent.row = row;
-      this.keepSent(ctx, cycle);
-      return {
-        level: "row",
-        share: row,
-        context: tokens,
-        point: thresholds.notice,
-        text: this.host.notice(
-          `Context cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}; the checkpoint notice comes at about ${thresholds.notice} tokens.`,
-        ),
-      };
-    }
+    if (tokens < thresholds.notice) return undefined;
     this.sent.noticeAt = Date.now();
     this.keepSent(ctx, cycle);
     return {

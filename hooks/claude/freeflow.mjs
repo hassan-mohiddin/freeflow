@@ -4,7 +4,7 @@
 // log and claims (SPEC-006) need none, nor do its gates (SPEC-008). Elsewhere every hook passes its event on unchanged.
 
 import { decide, gateEvent, gateText, validGateState } from "../../skills/track-work/scripts/lib/gates5.mjs";
-import { noticePoint, rowAt } from "../../skills/track-work/scripts/lib/notice5.mjs";
+import { noticePoint } from "../../skills/track-work/scripts/lib/notice5.mjs";
 
 import { paneCommand, paneRead, registerPane, resolvePane } from "./pane.mjs";
 
@@ -19,11 +19,11 @@ const CONTINUE =
   "Freeflow compacted the session after your checkpoint: the conversation is now your task's bundle. Continue from In flight and the Next action.";
 
 // What the mod keeps between events. A cycle runs from the session's start or a compaction to the next compaction;
-// its notice is the time of its one checkpoint notice (T12), its number is counted in the store (T27), and row is the
-// highest share of the window a row has shown in it (P80). Number, row and notice are kept in the store's cycle.json,
+// its notice is the time of its one checkpoint notice (T12), and its number is counted in the store (T27). Number and
+// notice are kept in the store's cycle.json,
 // so a module reload mid-cycle keeps them: `restored` says whether that file was read for this cycle.
-/** @type {{ startedAt: number, notice: number | null, number: number | null, row: number, restored: boolean }} */
-let cycle = { startedAt: Date.now(), notice: null, number: null, row: 0, restored: false };
+/** @type {{ startedAt: number, notice: number | null, number: number | null, restored: boolean }} */
+let cycle = { startedAt: Date.now(), notice: null, number: null, restored: false };
 /** @type {number | null} the window the conversation compacts against, read once a cycle */
 let contextWindow = null;
 /** @type {number | null} where Claude's own compaction starts in it; null with automatic compaction off */
@@ -337,27 +337,24 @@ async function readWindow($) {
   contextWindow = size || null;
 }
 
-/** A new cycle: no notice or row yet, and the window read again; its number as given, null to read it from the store. */
+/** A new cycle: no notice yet, and the window read again; its number as given, null to read it from the store. */
 async function newCycle($, number = cycle.number) {
-  cycle = { startedAt: await $.clock.now(), notice: null, number, row: 0, restored: false };
+  cycle = { startedAt: await $.clock.now(), notice: null, number, restored: false };
   contextWindow = null;
 }
 
 /** Where the store counts this session's cycles, and what each cycle has shown: a resumed session keeps both. */
 const cyclePath = (state) => `${state.home}/sessions/${state.session}/cycle.json`;
 
-/** The cycle's number, its highest row and its notice's time, as the store keeps them (cycle.json), for a reload. */
+/** The cycle's number and its notice's time, as the store keeps them (cycle.json), for a reload. */
 async function keepCycle($, state) {
-  await $.fs.write(
-    cyclePath(state),
-    `${JSON.stringify({ cycle: cycle.number, row: cycle.row, notice: cycle.notice })}\n`,
-  );
+  await $.fs.write(cyclePath(state), `${JSON.stringify({ cycle: cycle.number, notice: cycle.notice })}\n`);
 }
 
 /**
- * What this cycle showed before a reload, read from the store the first time the module asks it in the cycle: the
- * highest row and the notice, when the file's cycle is this one (P80, T12). A module that loads with no state left this
- * cycle's rows to be shown again; the store's copy says what was.
+ * Whether this cycle's notice came before a reload, read from the store the first time the module asks it in the cycle,
+ * when the file's cycle is this one (T12). A module that loads with no state would ask for the notice again; the
+ * store's copy says it was made.
  */
 async function restoreCycle($, state) {
   cycle.restored = true;
@@ -370,7 +367,6 @@ async function restoreCycle($, state) {
     // none kept, or unreadable: this cycle shows what it has not shown
   }
   if (!kept || Number(kept.cycle) !== number) return;
-  cycle.row = Math.max(cycle.row, Number(kept.row) || 0);
   cycle.notice ??= typeof kept.notice === "number" ? kept.notice : null;
 }
 
@@ -429,9 +425,9 @@ async function appendRow($, text) {
   await $.session.append({ message: { type: "user", content: [{ type: "text", text }] } });
 }
 
-/** After each request of the main conversation: below the notice point, a row at the highest of ROWS_AT the context
- * has crossed, once each a cycle (P80, T28); at it, the cycle's one checkpoint notice, appended so a long turn has it
- * (P50, T13). Appending leaves what the model already received, and the prompt cache, as it was. */
+/** After each request of the main conversation: at the notice point, the cycle's one checkpoint notice, appended so a
+ * long turn has it (P50, T13). Below it nothing is sent: the notice is the only signal before compaction. Appending
+ * leaves what the model already received, and the prompt cache, as it was. */
 async function watchMain($) {
   if (cycle.notice !== null) return;
   const current = cycle;
@@ -440,33 +436,8 @@ async function watchMain($) {
   if (contextWindow === null) await readWindow($);
   if (!contextWindow) return;
   const point = pointOf(contextWindow);
+  if (tokens < point) return;
   const context = { tokens, window: contextWindow };
-  if (tokens < point) {
-    const row = rowAt(tokens, contextWindow, point);
-    if (!row || (cycle.restored && row <= cycle.row)) return;
-    // The store is asked once a mark is crossed, and this cycle's copy in it is read the first time: a reloaded module
-    // then shows no row it showed before the reload (P80).
-    const state = await status($);
-    if (cycle !== current) return;
-    if (!cycle.restored) await restoreCycle($, state);
-    if (cycle.notice !== null || row <= cycle.row) return;
-    // Set before a session with no store returns, so it asks the store once a mark, not on every request.
-    cycle.row = row;
-    if (!state) return;
-    await keepCycle($, state);
-    const number = await cycleNumber($, state);
-    await appendRow(
-      $,
-      `Freeflow, context cycle ${number}: the context is at ${share(context)}; the checkpoint notice comes at about ${Math.round(point)} tokens.`,
-    );
-    await emit($, "freeflow", {
-      what: "row",
-      detail: `cycle ${number}, ${Math.round(row * 100)}%`,
-      context: tokens,
-      point: Math.round(point),
-    });
-    return;
-  }
   const state = await status($);
   // A compaction that came meanwhile started a new cycle, which this request's figures no longer describe; a notice
   // another request made meanwhile, or the cycle's copy in the store says was made before a reload, is the cycle's one.
@@ -1113,7 +1084,7 @@ async function settingsCommand($, args) {
     notes.push(
       enabled
         ? "Freeflow's task menu, notices and compaction work in this session from its next event."
-        : "Freeflow's task memory layer stops in this session now: no menu, notices, context rows, compaction, hold or sync; the session-start context stops from the next session.",
+        : "Freeflow's task memory layer stops in this session now: no menu, notice, compaction, hold or sync; the session-start context stops from the next session.",
     );
   const line = `${data.label}: ${shown(data.value)}, from ${from(data.scope)}.`;
   return {

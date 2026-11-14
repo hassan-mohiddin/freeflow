@@ -465,7 +465,7 @@ test("the schema takes a notice's and a row's context and point, a checkpoint ki
   assert.match(lineProblem({ ...base(), kind: "freeflow", what: "notice", point: -1 }), /point/);
 });
 
-test("the summary measures the tokens from a cycle's notice (or, with none, its last row) to the checkpoint that answered it", () => {
+test("the summary measures the tokens from a cycle's notice to the checkpoint that answered it; old row lines are not measured", () => {
   const freeflow = (what, fields = {}) => ({ ...base(), kind: "freeflow", what, ...fields });
   const lines = [
     freeflow("row", { detail: "cycle 1, 70%", context: 100_000, point: 147_000 }),
@@ -475,23 +475,20 @@ test("the summary measures the tokens from a cycle's notice (or, with none, its 
     freeflow("row", { detail: "cycle 2, 50%", context: 100_000, point: 147_000 }),
     freeflow("checkpoint", { detail: "plain", context: 110_000 }),
     { ...base(), kind: "compaction", trigger: "auto", by: "harness", before: 150_000, cycle: 2 },
-    freeflow("checkpoint", { detail: "plain" }),
+    freeflow("notice", { detail: "cycle 3", context: 149_000, point: 147_000 }),
+    freeflow("checkpoint", { detail: "plain", context: 151_000 }),
   ];
   const summary = summarize(lines, { session: "sess-1" });
-  assert.deepEqual(summary.toCheckpoint, [
-    { from: "notice", cycles: 1, median: 12_000, largest: 12_000 },
-    { from: "row", cycles: 1, median: 10_000, largest: 10_000 },
-  ]);
+  assert.deepEqual(summary.toCheckpoint, [{ from: "notice", cycles: 2, median: 7_000, largest: 12_000 }]);
   const text = renderSummary(summary);
-  assert.match(text, /^Notice to checkpoint: 1 cycle\(s\), median 12,000, largest 12,000$/m);
-  assert.match(
-    text,
-    /^Row to checkpoint \(no notice came, from a row\): 1 cycle\(s\), median 10,000, largest 10,000$/m,
+  assert.match(text, /^Notice to checkpoint: 2 cycle\(s\), median 7,000, largest 12,000$/m);
+  assert.doesNotMatch(text, /Row to checkpoint/);
+  // A session with rows and no notice measures nothing: rows are no longer a signal before compaction.
+  assert.equal(
+    summarize([freeflow("row", { context: 1 }), freeflow("checkpoint", { context: 5 })], { session: "s" }).toCheckpoint,
+    undefined,
   );
-  // A session with no checkpoint measured says nothing about it.
-  assert.equal(summarize([freeflow("row", { context: 1 })], { session: "s" }).toCheckpoint, undefined);
 });
-
 test("a checkpoint writes its own freeflow line, with what it was and the context its transcript shows, and says nothing when the log is off", async () => {
   await withFolder(async ({ folder, home, cli }) => {
     const transcript = join(folder, "session.jsonl");

@@ -231,7 +231,7 @@ export class EventRecorder {
     this.emit("compaction", { by, trigger, cycle });
   }
 
-  /** A row or notice carries the context of the request that crossed it and the notice point, in tokens. */
+  /** The notice carries the context of the request that crossed it and the notice point, in tokens. */
   freeflow(what: string, detail?: string, fields: { context?: number; point?: number } = {}): void {
     this.emit("freeflow", { what, detail, ...fields });
   }

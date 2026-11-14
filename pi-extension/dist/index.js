@@ -69,8 +69,8 @@ import { setFreeflowStatus } from "./host/status.js";
 import { cachedBranch } from "./host/branch.js";
 const COMPACTION_NOTICE_TYPE = "freeflow-compaction-notice";
 /**
- * The file that keeps a session's context cycle in the Freeflow home, beside its claims: the cycle, its highest row and its
- * notice's time, the same copy the Claude Code mod keeps (cycle.json), so a reload of the extension shows neither again.
+ * The file that keeps a session's context cycle in the Freeflow home, beside its claims: the cycle and its notice's time,
+ * the same copy the Claude Code mod keeps (cycle.json), so a reload of the extension does not show the notice again.
  */
 function cycleFile(ctx) {
   const id = ctx.sessionManager?.getSessionId?.();
@@ -83,7 +83,6 @@ function keptCycle(ctx) {
     const kept = JSON.parse(readFileSync(path, "utf8"));
     return {
       cycle: Number(kept.cycle),
-      row: Number(kept.row) || 0,
       notice: typeof kept.notice === "number" ? kept.notice : null,
     };
   } catch {
@@ -93,7 +92,7 @@ function keptCycle(ctx) {
 function keepCycle(ctx, state) {
   const path = cycleFile(ctx);
   if (!path) return;
-  // Written when a row or the notice is shown, which is a few times a cycle; a failed write loses only the copy.
+  // Written when the notice is shown, once a cycle; a failed write loses only the copy.
   mkdir(dirname(path), { recursive: true })
     .then(() => writeFile(path, `${JSON.stringify(state)}\n`))
     .catch(() => {});
@@ -177,7 +176,7 @@ export default function freeflow(pi) {
   registerProviderSupport(pi, () => capability?.setupNeeded !== true && capability?.enabled !== false, cacheMonitor);
   const api = pi;
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-  // The notice point and the rows come from Track Work's notice5.mjs, loaded once; no notice is due until it has.
+  // The notice point comes from Track Work's notice5.mjs, loaded once; no notice is due until it has.
   void loadNotice(packageRoot);
   // The Freeflow store's layer: Track Work's script on Pi's events, as the Claude Code mod is on Claude Code's.
   const runScript = scriptRunner(packageRoot);
@@ -813,13 +812,7 @@ export default function freeflow(pi) {
     }
     const notice = compaction.observe(ctx, event);
     if (notice) {
-      // A row's detail says row and its share; the notice's says notice (the event log, SPEC-006).
-      if (notice.level === "row")
-        events.freeflow("row", `row, ${Math.round((notice.share ?? 0) * 100)}%`, {
-          context: notice.context,
-          point: notice.point,
-        });
-      else events.freeflow("notice", "notice", { context: notice.context, point: notice.point });
+      events.freeflow("notice", "notice", { context: notice.context, point: notice.point });
       // Mid-run the notice joins the next request; when the run is ending it waits for the next prompt rather than
       // starting work nobody asked for.
       await Promise.resolve(

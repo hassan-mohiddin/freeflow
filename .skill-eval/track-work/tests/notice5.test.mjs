@@ -4,18 +4,15 @@ import test from "node:test";
 import {
   CEILING_TOKENS,
   LEAD_TOKENS,
-  ROWS_AT,
   noticeFromEnv,
   noticePoint,
-  rowAt,
 } from "../../../skills/track-work/scripts/lib/notice5.mjs";
 
 const scriptPath = "skills/track-work/scripts/working-record.mjs";
 
-test("the constants are the decided ones: a 20,000-token lead, a 750,000-token ceiling, rows at 50, 60 and 70%", () => {
+test("the constants are the decided ones: a 20,000-token lead and a 750,000-token ceiling", () => {
   assert.equal(LEAD_TOKENS, 20_000);
   assert.equal(CEILING_TOKENS, 750_000);
-  assert.deepEqual(ROWS_AT, [0.5, 0.6, 0.7]);
 });
 
 test("a host's own point is known: the notice comes a lead before it, under the ceiling", () => {
@@ -37,17 +34,6 @@ test("a host's point is unknown: 75% of the window, under the ceiling, as before
   // Claude Code on 1,000,000 with no threshold: the ceiling is the 750,000 it was before.
   assert.equal(noticePoint({ window: 1_000_000 }), 750_000);
   assert.equal(noticePoint({ window: 1_000_000, hostPoint: null }), 750_000);
-});
-
-test("a row shows the highest share crossed, once the context is below the notice point", () => {
-  const point = 147_000;
-  assert.equal(rowAt(99_999, 200_000, point), null);
-  assert.equal(rowAt(100_000, 200_000, point), 0.5);
-  assert.equal(rowAt(119_999, 200_000, point), 0.5);
-  assert.equal(rowAt(120_000, 200_000, point), 0.6);
-  // Past two marks at once, the higher one only; at or past the point, no row.
-  assert.equal(rowAt(146_999, 200_000, point), 0.7);
-  assert.equal(rowAt(147_000, 200_000, point), null);
 });
 
 test("FREEFLOW_NOTICE_POINT is the point the scripts use; without it, the unknown-host point for the window", () => {

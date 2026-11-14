@@ -2,13 +2,12 @@
 
 // Freeflow's driver for Codex (SPEC-012): one script Codex runs on each hook event Freeflow uses, as
 // `driver.mjs <event>` with the hook's input on stdin. It does what Claude Code's mod does where a Codex hook can carry
-// it: the guidance and the task menu at session start, the task's bundle after Codex compacts, the context rows and the
-// checkpoint notice from each model request's token usage, the event log, the store's sync at a turn's end and the hold
+// it: the guidance and the task menu at session start, the task's bundle after Codex compacts, the checkpoint notice from each model request's token usage, the event log, the store's sync at a turn's end and the hold
 // released at the session's end. What happens to a task's memory stays Track Work's script's.
 //
 // Each run is its own process, so what lasts between events lives in the Freeflow home, beside the session's other
-// files (never synced): sessions/<session>/cycle.json (the context cycle, its notice and rows, the window), due.json (a
-// row or notice waiting for the next hook that can add context), events-buffer.jsonl (event lines until a turn ends)
+// files (never synced): sessions/<session>/cycle.json (the context cycle, its start, its notice and the window), due.json (a
+// notice waiting for the next hook that can add context), events-buffer.jsonl (event lines until a turn ends)
 // and calls/ (when each tool call started). Every handler fails open: on an error it prints nothing, Codex goes on, and
 // a `freeflow` line in the event log says what failed. The one exception is PreToolUse's gates under `block`, which
 // fail closed (SPEC-008, section 5).
@@ -40,7 +39,7 @@ import {
   gateText,
   validGateState,
 } from "../../skills/track-work/scripts/lib/gates5.mjs";
-import { noticePoint as hostNoticePoint, rowAt } from "../../skills/track-work/scripts/lib/notice5.mjs";
+import { noticePoint as hostNoticePoint } from "../../skills/track-work/scripts/lib/notice5.mjs";
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SCRIPT = join(PLUGIN_ROOT, "skills/track-work/scripts/working-record.mjs");
@@ -116,8 +115,8 @@ function updateState(ctx, changes) {
 }
 
 /**
- * The context cycle (as Claude Code's mod keeps it, in the same file): its number, when it started, its one notice and
- * the highest row shown in it; a resumed session keeps its number.
+ * The context cycle (as Claude Code's mod keeps its number and notice, in the same file): its number, when it started and
+ * its one notice; a resumed session keeps its number.
  * @param {any} ctx
  */
 function readCycle(ctx) {
@@ -126,10 +125,9 @@ function readCycle(ctx) {
     cycle: Number(kept?.cycle) || 1,
     startedAt: Number(kept?.startedAt) || Date.now(),
     notice: typeof kept?.notice === "number" ? kept.notice : null,
-    row: Number(kept?.row) || 0,
   };
 }
-/** @param {any} ctx @param {{ cycle: number, startedAt: number, notice: number | null, row: number }} cycle */
+/** @param {any} ctx @param {{ cycle: number, startedAt: number, notice: number | null }} cycle */
 const writeCycle = (ctx, cycle) => writeJson(fileOf(ctx, "cycle.json"), cycle);
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -420,8 +418,9 @@ function noticeText(found, tokens, window, limit, number) {
 }
 
 /**
- * After a model request of the main conversation: below the notice point, a row at the highest of ROWS_AT crossed,
- * once each a cycle; at it, the cycle's notice. Both wait in due.json for the next hook that can add context.
+ * After a model request of the main conversation: at the notice point, the cycle's notice, once a cycle; below it
+ * nothing is written, since the notice is the only signal before compaction. It waits in due.json for the next hook that
+ * can add context.
  * @param {any} ctx
  * @param {number} tokens
  */
@@ -432,19 +431,7 @@ function watch(ctx, tokens) {
   const cycle = readCycle(ctx);
   if (cycle.notice !== null) return;
   const point = noticePoint(window, state.limit ?? null);
-  if (tokens < point) {
-    const row = rowAt(tokens, window, point);
-    if (!row || row <= cycle.row) return;
-    writeCycle(ctx, { ...cycle, row });
-    writeJson(fileOf(ctx, "due.json"), {
-      what: "row",
-      detail: `cycle ${cycle.cycle}, ${Math.round(row * 100)}%`,
-      context: tokens,
-      point: Math.round(point),
-      text: `Freeflow, context cycle ${cycle.cycle}: the context is at ${share(tokens, window)}; the checkpoint notice comes at about ${Math.round(point)} tokens.`,
-    });
-    return;
-  }
+  if (tokens < point) return;
   const found = sessionStatus(ctx);
   writeCycle(ctx, { ...cycle, notice: Date.now() });
   writeJson(fileOf(ctx, "due.json"), {
@@ -457,7 +444,7 @@ function watch(ctx, tokens) {
 }
 
 /**
- * The row or notice waiting, taken by one hook only (a rename is atomic), or null.
+ * The notice waiting, taken by one hook only (a rename is atomic), or null.
  * @param {any} ctx
  * @returns {string | null}
  */
@@ -474,7 +461,7 @@ function takeDue(ctx) {
   rmSync(taken, { force: true });
   if (!due?.text) return null;
   emit(ctx, "freeflow", {
-    what: due.what === "notice" ? "notice" : "row",
+    what: "notice",
     detail: due.detail,
     context: Number.isInteger(due.context) ? due.context : undefined,
     point: Number.isInteger(due.point) ? due.point : undefined,
@@ -587,7 +574,7 @@ async function taskMemoryAtStart(ctx, root, parts) {
   writeCapabilities(ctx, switches);
   if (!switches.enabled) return;
   const kept = readCycle(ctx);
-  writeCycle(ctx, { cycle: kept.cycle, startedAt: Date.now(), notice: null, row: 0 });
+  writeCycle(ctx, { cycle: kept.cycle, startedAt: Date.now(), notice: null });
   rmSync(fileOf(ctx, "due.json"), { force: true });
 
   const found = sessionStatus(ctx, 1_200);
@@ -663,7 +650,7 @@ function bundleAfterCompaction(ctx, parts) {
     cycle: cycle.cycle,
   });
   ctx.state = updateState(ctx, { compacting: null });
-  writeCycle(ctx, { cycle: cycle.cycle + 1, startedAt: Date.now(), notice: null, row: 0 });
+  writeCycle(ctx, { cycle: cycle.cycle + 1, startedAt: Date.now(), notice: null });
   rmSync(fileOf(ctx, "due.json"), { force: true });
 
   const found = state?.store === false ? null : sessionStatus(ctx, 2_000);
@@ -694,7 +681,7 @@ function bundleAfterCompaction(ctx, parts) {
   }
 }
 
-/** UserPromptSubmit: a turn starts; a row or notice waiting reaches the model now. @param {any} ctx */
+/** UserPromptSubmit: a turn starts; a notice waiting reaches the model now. @param {any} ctx */
 function userPromptSubmit(ctx) {
   const turn = (ctx.state?.turn ?? 0) + 1;
   ctx.state = updateState(ctx, { turn });
@@ -816,7 +803,7 @@ function gated(ctx) {
 
 /**
  * PostToolUse: the call's line (its tool, whether it failed, its time, the paths it names and a shell command's text);
- * a row or notice waiting reaches the model after the call's result.
+ * a notice waiting reaches the model after the call's result.
  * @param {any} ctx
  */
 function postToolUse(ctx) {
@@ -855,7 +842,7 @@ function postToolUse(ctx) {
 
 /**
  * PostModelRequest: the request's line from its token usage, and for the main conversation the context's share
- * against the window: a row or the notice, waiting for the next hook that can add context.
+ * against the window: the notice, waiting for the next hook that can add context.
  * @param {any} ctx
  */
 function postModelRequest(ctx) {
@@ -883,7 +870,7 @@ function postModelRequest(ctx) {
   );
   if (agentOf(ctx) !== "main" || ctx.input.status !== "completed") return null;
   if (!valid) {
-    // No usage, or a shape this driver does not know: no row, no notice, and the log says so once a session.
+    // No usage, or a shape this driver does not know: no notice, and the log says so once a session.
     if (!ctx.state?.usageMissing) {
       ctx.state = updateState(ctx, { usageMissing: true });
       emit(ctx, "freeflow", { what: "error", detail: "PostModelRequest: no token_usage this driver reads" });

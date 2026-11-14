@@ -71,20 +71,14 @@ const task = (stateAsOf) => ({
   compact: { path: "/store/compact.json", requestedAt: stateAsOf, done: false },
 });
 
-test("rows at 50, 60 and 70% once each, then the cycle's one notice, naming the held task and the command", () => {
+test("nothing before the notice point, then the cycle's one notice, naming the held task and the command", () => {
   const { controller, ctx, at } = setup({ state: task("2026-10-30T10:00:00Z") });
   at(90_000);
   assert.equal(controller.observe(ctx), undefined);
   at(105_000);
-  const row = controller.observe(ctx);
-  assert.equal(row.level, "row");
-  assert.match(
-    row.text,
-    /Context cycle 1: the context is at 53% of its window \(105000 of 200000 tokens\); the checkpoint notice comes at about 163616 tokens\./,
-  );
-  assert.equal(controller.observe(ctx), undefined, "the 50% row is shown once");
+  assert.equal(controller.observe(ctx), undefined, "no row at 50%: the notice is the only signal");
   at(145_000);
-  assert.match(controller.observe(ctx).text, /at 73% of its window/, "the highest row crossed, 70%");
+  assert.equal(controller.observe(ctx), undefined, "no row at 70%");
   at(163_616);
   const once = controller.observe(ctx);
   assert.equal(once.level, "notice");
@@ -99,7 +93,6 @@ test("rows at 50, 60 and 70% once each, then the cycle's one notice, naming the 
   at(170_000);
   assert.equal(controller.observe(ctx), undefined, "no second notice and no repeat");
 });
-
 test("with no task the notice asks for the session summary", () => {
   const plain = setup({ state: { home: "/home", store: false, session: "s-1" } });
   plain.at(163_616);
@@ -199,20 +192,14 @@ test("Pi's own compaction: the bundle once checkpointed, else Pi's summary with 
   assert.doesNotMatch(plain.summary, /BUNDLE/);
 });
 
-test("a controller after a reload shows neither the row nor the notice its cycle showed, read from the store's copy", () => {
+test("a controller after a reload does not show the notice its cycle showed, read from the store's copy", () => {
   const first = setup({ state: task("2026-10-30T10:00:00Z") });
-  first.at(105_000);
-  assert.equal(first.controller.observe(first.ctx).level, "row");
-  assert.deepEqual([first.copies.value.cycle, first.copies.value.row, first.copies.value.notice], [1, 0.5, null]);
+  first.at(163_616);
+  assert.equal(first.controller.observe(first.ctx).level, "notice");
+  assert.deepEqual([first.copies.value.cycle, typeof first.copies.value.notice], [1, "number"]);
+  assert.equal(first.copies.value.row, undefined);
   // The reload: a new controller that reads the copy the first one kept.
   const reloaded = setup({ state: task("2026-10-30T10:00:00Z"), kept: first.copies.value });
-  reloaded.at(105_000);
-  assert.equal(reloaded.controller.observe(reloaded.ctx), undefined, "the 50% row is not shown again");
-  reloaded.at(163_616);
-  assert.equal(reloaded.controller.observe(reloaded.ctx).level, "notice");
-  assert.equal(typeof reloaded.copies.value.notice, "number");
-  // A second reload after the notice: nothing comes in the same cycle.
-  const again = setup({ state: task("2026-10-30T10:00:00Z"), kept: reloaded.copies.value });
-  again.at(170_000);
-  assert.equal(again.controller.observe(again.ctx), undefined);
+  reloaded.at(170_000);
+  assert.equal(reloaded.controller.observe(reloaded.ctx), undefined, "the notice is not sent again");
 });

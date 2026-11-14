@@ -186,13 +186,10 @@ test("each output is the shape Codex's output schema documents, and events that 
   try {
     const outputs = {
       SessionStart: hook("SessionStart"),
-      UserPromptSubmit: null,
       PostToolUse: null,
     };
-    // A row waiting reaches the model at the next prompt or tool call.
-    hook("PostModelRequest", usage(150_000));
-    outputs.UserPromptSubmit = hook("UserPromptSubmit");
-    hook("PostModelRequest", usage(170_000));
+    // The notice waiting reaches the model at the next tool call.
+    hook("PostModelRequest", usage(210_000));
     outputs.PostToolUse = hook("PostToolUse");
     for (const [event, output] of Object.entries(outputs)) {
       const schema = JSON.parse(readFileSync(join(FIXTURES, OUTPUT_SCHEMAS[event]), "utf8"));
@@ -254,19 +251,14 @@ test(CONFORMANCE.inject, () => {
   const { hook, sessionFile, done } = setUp();
   try {
     hook("SessionStart");
-    // Below 50% of gpt-5-codex's 272,000-token window: nothing.
+    // Below the notice point (204,000 of gpt-5-codex's 272,000-token window): nothing, at any share.
     hook("PostModelRequest", usage(100_000));
     assert.equal(hook("PostToolUse"), null);
-    // Past 50%: one row, at the next tool call, once.
     hook("PostModelRequest", usage(140_000));
-    assert.match(
-      contextOf(hook("PostToolUse")),
-      /^Freeflow, context cycle 1: the context is at 51% of its window \(140000 of 272000 tokens\); the checkpoint notice comes at about 204000 tokens\.$/,
-    );
-    assert.equal(hook("PostToolUse"), null);
+    assert.equal(hook("PostToolUse"), null, "no row at 51%: the notice is the only signal");
     hook("PostModelRequest", usage(150_000));
-    assert.equal(hook("UserPromptSubmit"), null, "the 50% row comes once a cycle");
-    // Past 75%: the notice, naming the task, at the next prompt; then nothing more this cycle.
+    assert.equal(hook("UserPromptSubmit"), null);
+    // Past the notice point: the notice, naming the task, at the next prompt; then nothing more this cycle.
     hook("PostModelRequest", usage(210_000));
     const notice = contextOf(hook("UserPromptSubmit"));
     assert.match(notice, /^Freeflow, context cycle 1: compaction is near\. The context is at 77% of its window/);
@@ -278,11 +270,13 @@ test(CONFORMANCE.inject, () => {
     // A worker's request moves nothing.
     hook("PostModelRequest", { ...usage(260_000), agent_id: "agent-1", agent_type: "default" });
     assert.equal(hook("PostToolUse"), null);
-    // After Codex compacts, a new cycle: its rows again.
+    // After Codex compacts, a new cycle: its notice again, and nothing before it.
     hook("SessionStart", { source: "compact" });
     assert.equal(JSON.parse(readFileSync(sessionFile("cycle.json"), "utf8")).cycle, 2);
     hook("PostModelRequest", usage(140_000));
-    assert.match(contextOf(hook("PostToolUse")), /^Freeflow, context cycle 2: the context is at 51%/);
+    assert.equal(hook("PostToolUse"), null);
+    hook("PostModelRequest", usage(210_000));
+    assert.match(contextOf(hook("UserPromptSubmit")), /^Freeflow, context cycle 2: compaction is near/);
   } finally {
     done();
   }
@@ -634,13 +628,13 @@ test("with Freeflow off for the session's folder, only the claims are written, e
   }
 });
 
-test("with the event log off, the menu and rows still come and no line is kept", () => {
+test("with the event log off, the menu and the notice still come and no line is kept", () => {
   const { hook, sessionFile, log, done } = setUp({ config: { events: { enabled: false } } });
   try {
     assert.match(contextOf(hook("SessionStart")), /Freeflow task memory:/);
     assert.equal(JSON.parse(readFileSync(sessionFile("capabilities.json"), "utf8")).claims.sensors.claim, "possible");
-    hook("PostModelRequest", usage(140_000));
-    assert.match(contextOf(hook("PostToolUse")), /context cycle 1/);
+    hook("PostModelRequest", usage(210_000));
+    assert.match(contextOf(hook("PostToolUse")), /context cycle 1: compaction is near/);
     hook("Stop");
     assert.deepEqual(log(), []);
   } finally {
@@ -648,7 +642,7 @@ test("with the event log off, the menu and rows still come and no line is kept",
   }
 });
 
-test("without a store: the guidance and what is missing, the event log still kept, no rows", () => {
+test("without a store: the guidance and what is missing, the event log still kept, no notice", () => {
   const { hook, log, done } = setUp({ store: false });
   try {
     const start = contextOf(hook("SessionStart"));

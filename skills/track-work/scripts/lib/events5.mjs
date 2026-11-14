@@ -394,23 +394,17 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
   const gates = Object.fromEntries(GATES.map((gate) => [gate, 0]));
   let gatesBlocked = 0;
   let agreements = 0;
-  // The tokens from a cycle's notice (or, where no notice came, its last row) to the checkpoint that answered it.
-  const toCheckpoint = { notice: [], row: [] };
+  // The tokens from a cycle's notice to the checkpoint that answered it. Rows (schema v1's older kind of line) are not
+  // measured: no driver writes one now, and the notice is the only signal before compaction.
+  const toCheckpoint = { notice: [] };
   let noticeAt = null;
-  let rowAt = null;
   for (const line of chosen) {
     harness ??= line.harness ?? null;
     if (line.kind === "freeflow" && line.what === "notice" && Number.isInteger(line.context)) noticeAt = line.context;
-    else if (line.kind === "freeflow" && line.what === "row" && Number.isInteger(line.context)) rowAt = line.context;
     else if (line.kind === "freeflow" && line.what === "checkpoint") {
       if (Number.isInteger(line.context) && noticeAt !== null) toCheckpoint.notice.push(line.context - noticeAt);
-      else if (Number.isInteger(line.context) && rowAt !== null) toCheckpoint.row.push(line.context - rowAt);
       noticeAt = null;
-      rowAt = null;
-    } else if (line.kind === "compaction") {
-      noticeAt = null;
-      rowAt = null;
-    }
+    } else if (line.kind === "compaction") noticeAt = null;
     if (line.kind === "model.request") {
       requests += 1;
       const key = `${line.model}\u0000${line.effort ?? ""}`;
@@ -454,10 +448,7 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
     const median = sorted.length % 2 ? sorted[Math.floor(middle)] : (sorted[middle - 1] + sorted[middle]) / 2;
     return { cycles: sorted.length, median: Math.round(median), largest: sorted.at(-1) };
   };
-  const checkpoints = [
-    ...(toCheckpoint.notice.length ? [{ from: "notice", ...spread(toCheckpoint.notice) }] : []),
-    ...(toCheckpoint.row.length ? [{ from: "row", ...spread(toCheckpoint.row) }] : []),
-  ];
+  const checkpoints = [...(toCheckpoint.notice.length ? [{ from: "notice", ...spread(toCheckpoint.notice) }] : [])];
   const byName = (x, y) =>
     (x.model ?? x.tool).localeCompare(y.model ?? y.tool) || (x.effort ?? "").localeCompare(y.effort ?? "");
   return {
@@ -511,10 +502,9 @@ export function renderSummary(summary) {
       (each) => `  ${each.tool}: ${n(each.calls)}${each.failed ? `, ${n(each.failed)} failed` : ""}`,
     ),
     `Compactions: ${summary.compactions.freeflow} by Freeflow, ${summary.compactions.harness} by the harness`,
-    ...(summary.toCheckpoint ?? []).map((each) =>
-      each.from === "notice"
-        ? `Notice to checkpoint: ${n(each.cycles)} cycle(s), median ${n(each.median)}, largest ${n(each.largest)}`
-        : `Row to checkpoint (no notice came, from a row): ${n(each.cycles)} cycle(s), median ${n(each.median)}, largest ${n(each.largest)}`,
+    ...(summary.toCheckpoint ?? []).map(
+      (each) =>
+        `Notice to checkpoint: ${n(each.cycles)} cycle(s), median ${n(each.median)}, largest ${n(each.largest)}`,
     ),
     `Workers: ${summary.workers.spawned} started, ${summary.workers.stopped} stopped${summary.workers.blocked ? `, ${summary.workers.blocked} sent back` : ""}`,
     ...(summary.gates

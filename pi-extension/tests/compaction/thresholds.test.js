@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { loadNotice, reserveTokens, rowAt, strictest, thresholds } from "../../dist/compaction/thresholds.js";
+import { loadNotice, reserveTokens, strictest, thresholds } from "../../dist/compaction/thresholds.js";
 
 // The formula is notice5.mjs's, which the scripts and the other drivers share: loaded from Freeflow's package first.
 await loadNotice(fileURLToPath(new URL("../../..", import.meta.url)));
@@ -17,14 +17,6 @@ test("the notice comes a lead of 20,000 tokens before Pi's trigger, under a ceil
   assert.deepEqual(at(1_000_000), [750_000, 983_616]);
   // A large reserve brings Pi's trigger close: the notice still comes a lead before it.
   assert.deepEqual(at(200_000, 60_000), [120_000, 140_000]);
-});
-
-test("a row shows the highest of 50, 60 and 70% the context has crossed, below the notice point", () => {
-  const limits = thresholds(200_000, 16_384);
-  assert.equal(rowAt(99_999, limits), undefined);
-  assert.equal(rowAt(100_000, limits), 0.5);
-  assert.equal(rowAt(160_000, limits), 0.7);
-  assert.equal(rowAt(163_616, limits), undefined);
 });
 
 test("a model's output limit does not move the notice", () => {
