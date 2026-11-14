@@ -1,13 +1,13 @@
 import { rm } from "node:fs/promises";
 import { skillsRead } from "../tool-execution/skill-reads.js";
 import { currentCycle, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
-import { ROWS_AT, type Thresholds } from "./thresholds.js";
+import type { Thresholds } from "./thresholds.js";
 import { cachedBranch } from "../host/branch.js";
 import type { Ran, StoreState } from "../store/layer.js";
 
 /**
  * Freeflow compaction on Pi, on Track Work's bundle (task-004's Spec, section 9; P1, P5, P63). As the context grows,
- * one row each at 50, 60 and 70% of the window, then one soft notice a context cycle: keep working to a safe point,
+ * one soft notice a context cycle, at the notice point before Pi's own trigger: keep working to a safe point,
  * checkpoint with --compact, end the turn. When a run that asked so ends, and the checkpoint is done (P68), Freeflow
  * writes Pi's compaction entry with the task's bundle (or the session summary's) as its summary, keeping nothing
  * raw, and Pi continues the run. Pi's own compaction stays the fallback, with the bundle after its summary (P16).
@@ -36,6 +36,10 @@ export interface CompactionHost {
   background(): readonly { id: string; label: string; outputPath: string }[];
   /** Context size that the next request receiving the full history would carry, and the thresholds to judge it. */
   measure(ctx: any, turn?: TurnEnd): { tokens: number; thresholds: Thresholds } | undefined;
+  /** The cycle's number and notice as the store keeps them for this session (cycle.json), read once a module load. */
+  kept(ctx: any): { cycle: number; notice: number | null } | undefined;
+  /** Keeps the cycle's number and notice, written when the notice is shown, so a reload does not show it again. */
+  keep(ctx: any, state: { cycle: number; notice: number | null }): void;
   /** Freeflow's notice tag around a notice's text (freeflowNotice in host/inbound.ts). */
   notice(text: string): string;
   /** Pi's own summarizer over Pi's preparation, with extra instructions; throws on failure. */
@@ -48,7 +52,8 @@ export interface Compacted {
   carriedFiles: string[];
 }
 
-export type Notice = { level: "row" | "notice"; text: string };
+/** The cycle's notice, with the context of the request that crossed the notice point and the point, in tokens. */
+export type Notice = { level: "notice"; text: string; context: number; point: number };
 /** The turn that just ended, as Pi's turn_end reports it: its assistant message and tool results. */
 export type TurnEnd = { message?: any; toolResults?: readonly any[] };
 
@@ -64,8 +69,10 @@ const SAFE_POINT =
   "a finished step whose result you know (a check run and read, a set of edits complete, a report written), not mid-edit or with a command still running";
 
 export class CompactionController {
-  /** What this cycle has shown: the highest row, and when its one notice came. */
-  private sent: { cycle: number; row: number; noticeAt?: number } = { cycle: 0, row: 0 };
+  /** What this cycle has shown: when its one notice came. */
+  private sent: { cycle: number; noticeAt?: number } = { cycle: 0 };
+  /** Whether the store's copy of this cycle was read since the module loaded. */
+  private restored = false;
   /** When this session started, the start of its first cycle. */
   private startedAt = Date.now();
   private compacted?: Compacted;
@@ -74,7 +81,8 @@ export class CompactionController {
 
   /** Session start or shutdown: nothing shown, nothing waiting to reset. */
   reset(): void {
-    this.sent = { cycle: 0, row: 0 };
+    this.sent = { cycle: 0 };
+    this.restored = false;
     this.startedAt = Date.now();
     this.compacted = undefined;
   }
@@ -101,28 +109,40 @@ export class CompactionController {
     return parts.join(", ");
   }
 
-  /** After a turn: a row as the context crosses 50, 60 and 70%, or the cycle's one notice; never both, never again. */
+  /** The context cycle the branch is in now: the one a compaction on this branch would end. */
+  cycleNow(ctx: any): number {
+    return cycleOf(branchOf(ctx));
+  }
+
+  /** The cycle's notice, kept with the store so a reload does not show it again (T12). */
+  private keepSent(ctx: any, cycle: number): void {
+    this.host.keep(ctx, { cycle, notice: this.sent.noticeAt ?? null });
+  }
+
+  /** After a turn: the cycle's one notice, once the context reaches the notice point; never again in the cycle. */
   observe(ctx: any, turn?: TurnEnd): Notice | undefined {
     if (!this.host.effective()) return undefined;
     const cycle = cycleOf(branchOf(ctx));
-    if (this.sent.cycle !== cycle) this.sent = { cycle, row: 0 };
+    // What this cycle showed before a reload (the store's copy), read the first time after a module load.
+    if (!this.restored) {
+      this.restored = true;
+      const kept = this.host.kept(ctx);
+      if (kept && kept.cycle === cycle) this.sent = { cycle, noticeAt: kept.notice ?? undefined };
+    }
+    if (this.sent.cycle !== cycle) this.sent = { cycle };
     if (this.sent.noticeAt !== undefined) return undefined;
     const measured = this.host.measure(ctx, turn);
     if (!measured) return undefined;
     const { tokens, thresholds } = measured;
-    if (tokens < thresholds.notice) {
-      const row = ROWS_AT.filter((at) => tokens >= at * thresholds.window).at(-1);
-      if (!row || row <= this.sent.row) return undefined;
-      this.sent.row = row;
-      return {
-        level: "row",
-        text: this.host.notice(
-          `Context cycle ${cycle}: the context is at ${share(tokens, thresholds.window)}; the checkpoint notice comes at about ${thresholds.notice} tokens.`,
-        ),
-      };
-    }
+    if (tokens < thresholds.notice) return undefined;
     this.sent.noticeAt = Date.now();
-    return { level: "notice", text: this.host.notice(this.noticeText(cycle, tokens, thresholds)) };
+    this.keepSent(ctx, cycle);
+    return {
+      level: "notice",
+      context: tokens,
+      point: thresholds.notice,
+      text: this.host.notice(this.noticeText(cycle, tokens, thresholds)),
+    };
   }
 
   private noticeText(cycle: number, tokens: number, thresholds: Thresholds): string {

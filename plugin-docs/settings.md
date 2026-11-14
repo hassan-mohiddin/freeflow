@@ -96,7 +96,7 @@ Review depth rules (review.depth) are edited in .freeflow/config.json; review-pl
 Pi-only settings (tool execution, compaction, messaging) are changed on Pi or in the files.
 ```
 
-A setting another scope sets is listed too, with its key. `/freeflow settings review.unit manual` answers `Review unit: manual, from .freeflow/local.json (Personal). The agent sees it now.`, and the agent works under the Runtime State line it changed from its next step. Prompt text the agent already has stays until the next session start or compaction, so the cached prompt is never rewritten; the command says so when you change a prompt. `/freeflow settings enabled off` also stops the mod's task menu, notices, context rows, compaction, hold and store sync in this session; turning it on again brings them back from the next event. A file you edit by hand counts from the next session start. The command runs without a model call, and shows in a cloud session too.
+A setting another scope sets is listed too, with its key. `/freeflow settings review.unit manual` answers `Review unit: manual, from .freeflow/local.json (Personal). The agent sees it now.`, and the agent works under the Runtime State line it changed from its next step. Prompt text the agent already has stays until the next session start or compaction, so the cached prompt is never rewritten; the command says so when you change a prompt. `/freeflow settings enabled off` also stops the mod's task menu, notices, compaction, hold and store sync in this session; turning it on again brings them back from the next event. A file you edit by hand counts from the next session start. The command runs without a model call, and shows in a cloud session too.
 
 ## The settings script
 

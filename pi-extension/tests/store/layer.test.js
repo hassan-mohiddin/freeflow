@@ -29,20 +29,21 @@ test("a command running Track Work's script, or a file tool on a path in the sto
   assert.equal(touchesStore("read", { path: "/s/x" }, "/w", undefined), false);
 });
 
-test("the session's environment names the session, Pi, its file, the way back and the window, and clears what it lacks", () => {
+test("the session's environment names the session, Pi, its file, the way back, the window and the notice point, and clears what it lacks", () => {
   const names = [
     "FREEFLOW_SESSION",
     "FREEFLOW_HARNESS",
     "FREEFLOW_TRANSCRIPT",
     "FREEFLOW_RESUME",
     "FREEFLOW_CONTEXT_WINDOW",
+    "FREEFLOW_NOTICE_POINT",
   ];
   const saved = Object.fromEntries(names.map((name) => [name, process.env[name]]));
   try {
-    sessionEnvironment({ id: "abc", file: "/sessions/abc.jsonl", window: 200_000 });
+    sessionEnvironment({ id: "abc", file: "/sessions/abc.jsonl", window: 200_000, notice: 147_000 });
     assert.deepEqual(
       names.map((name) => process.env[name]),
-      ["abc", "Pi", "/sessions/abc.jsonl", "pi --session /sessions/abc.jsonl", "200000"],
+      ["abc", "Pi", "/sessions/abc.jsonl", "pi --session /sessions/abc.jsonl", "200000", "147000"],
     );
     sessionEnvironment({});
     assert.deepEqual(

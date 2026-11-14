@@ -5,7 +5,7 @@
 export default {
   pin: "session start: the guidance, then the task menu; after Codex compacts, the guidance again and the task's bundle after Codex's summary",
   inject:
-    "a model request past 50, 60 or 70 percent or the notice point: its row or notice reaches the model at the next tool call or prompt, once a cycle",
+    "a model request past the notice point: its notice reaches the model at the next tool call or prompt, once a cycle",
   checkpoint:
     "a checkpoint after the notice, through Track Work's script, makes the bundle after Codex's next compaction current; checkpoint --compact is refused, naming Codex's thresholds",
   block:
