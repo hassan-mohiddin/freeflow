@@ -1,7 +1,7 @@
 # Pane and status line
 
 > **Covers:** `hooks/claude/pane.mjs`, `hooks/claude/types.d.ts`
-> **Verified at:** `bf4a6342` (2026-11-14)
+> **Verified at:** `bc6c443c` (2026-11-14)
 > **User docs:** `plugin-docs/capabilities/pane.md`
 
 On Claude Code, Freeflow's mod pins a status line under the prompt (`Freeflow › <project> › <task> · <agreement> · ctx N% (cycle N) · 7d N%`, the project's words within 16 characters and the task's within 24, or `Freeflow: no task held`) and opens one pane with `/freeflow pane`, laid out as layout B from the mock-ups Hassan chose on 2026-11-14: Needs you and Now fixed at the top, then five tabs switched by `1` to `5` (Projects and tasks, Workers, Sent, Settings, About). It asks for 50 columns docked and 24 rows inline; the terminal seats it. It is drawn from the scripts' JSON (`session status`, `project list --json`, `delegate status --json`, `estimate --spent --json`, `events summary --json`, `events sent --json`, the settings script's list). Its letter keys run Track Work's own commands (take, release, switch, create, check-return), stop a worker after asking, and change a setting through `/freeflow settings`; each that ran appends one row. `pane.enabled` and `pane.statusLine` turn them off. A `-p` run and a cloud session draw nothing.
