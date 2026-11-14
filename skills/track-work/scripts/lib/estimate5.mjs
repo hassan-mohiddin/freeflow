@@ -9,10 +9,9 @@ import { contextWindow } from "./budget5.mjs";
 import { claudeCodeLog } from "./discussion5.mjs";
 import { storeHome } from "./freeflow-store.mjs";
 import { cycleStart, modelNow, priceTable } from "./measure5.mjs";
+import { noticeFromEnv, noticePoint } from "./notice5.mjs";
 import { futureItems, listItems, planView, projectView, spentView, storeView } from "./planner5.mjs";
 
-/** Where Freeflow's notice comes, as a share of the window (the mod's own point, before Claude's threshold). */
-const NOTICE_AT = 0.75;
 /** How much of the end of a log is read to find its latest request; the whole file when that holds none. */
 const TAIL_BYTES = 4 * 1024 * 1024;
 
@@ -111,6 +110,8 @@ export function estimate(options, env = process.env, input = "") {
     return spentView(options["--record"], { json: Boolean(options["--json"]) });
   }
   const { used, source, window, transcript } = contextNow(options, env);
+  // A window given with --window is not the session's, so its point is the unknown-host point for that window.
+  const notice = options["--window"] ? noticePoint({ window: window.tokens }) : noticeFromEnv(window.tokens, env);
   if (options["--plan"]) {
     if (options["--left"] !== undefined)
       throw new EstimateError("estimate --plan counts the Slices left itself: give them with --input, or Future Work.");
@@ -132,16 +133,16 @@ export function estimate(options, env = process.env, input = "") {
       done: options["--done"] === undefined ? null : positiveInteger(options["--done"], "--done"),
       fanOut: options["--fan-out"] === undefined ? null : positiveInteger(options["--fan-out"], "--fan-out"),
       table: priceTable(env),
+      notice,
     });
   }
   const done = options["--done"] === undefined ? null : positiveInteger(options["--done"], "--done");
   const left = options["--left"] === undefined ? null : positiveInteger(options["--left"], "--left", { zero: true });
   if ((done === null) !== (left === null)) throw new EstimateError("--done and --left go together");
-  const notice = NOTICE_AT * window.tokens;
   const lines = [
     `Context: about ${count(used)} of ${count(window.tokens)} tokens (${Math.round((100 * used) / window.tokens)}%), from ${source}${window.source ? `; the window from ${window.source}` : "; the window assumed (FREEFLOW_CONTEXT_WINDOW is not set)"}.`,
     used < notice
-      ? `Freeflow's notice comes at about ${count(notice)} tokens (75% of the window): about ${count(notice - used)} left before it, for this context cycle's work and its checkpoint.`
+      ? `Freeflow's notice comes at about ${count(notice)} tokens: about ${count(notice - used)} left before it, for this context cycle's work and its checkpoint.`
       : `Past the notice point (about ${count(notice)} tokens): checkpoint at the next safe point.`,
   ];
   if (done !== null) {

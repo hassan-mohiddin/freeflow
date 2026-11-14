@@ -2,13 +2,12 @@
 
 // Freeflow's driver for Codex (SPEC-012): one script Codex runs on each hook event Freeflow uses, as
 // `driver.mjs <event>` with the hook's input on stdin. It does what Claude Code's mod does where a Codex hook can carry
-// it: the guidance and the task menu at session start, the task's bundle after Codex compacts, the context rows and the
-// checkpoint notice from each model request's token usage, the event log, the store's sync at a turn's end and the hold
+// it: the guidance and the task menu at session start, the task's bundle after Codex compacts, the checkpoint notice from each model request's token usage, the event log, the store's sync at a turn's end and the hold
 // released at the session's end. What happens to a task's memory stays Track Work's script's.
 //
 // Each run is its own process, so what lasts between events lives in the Freeflow home, beside the session's other
-// files (never synced): sessions/<session>/cycle.json (the context cycle, its notice and rows, the window), due.json (a
-// row or notice waiting for the next hook that can add context), events-buffer.jsonl (event lines until a turn ends)
+// files (never synced): sessions/<session>/cycle.json (the context cycle, its start, its notice and the window), due.json (a
+// notice waiting for the next hook that can add context), events-buffer.jsonl (event lines until a turn ends)
 // and calls/ (when each tool call started). Every handler fails open: on an error it prints nothing, Codex goes on, and
 // a `freeflow` line in the event log says what failed. The one exception is PreToolUse's gates under `block`, which
 // fail closed (SPEC-008, section 5).
@@ -40,15 +39,13 @@ import {
   gateText,
   validGateState,
 } from "../../skills/track-work/scripts/lib/gates5.mjs";
+import { noticePoint as hostNoticePoint } from "../../skills/track-work/scripts/lib/notice5.mjs";
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SCRIPT = join(PLUGIN_ROOT, "skills/track-work/scripts/working-record.mjs");
 export const DRIVER = "codex-driver";
 const HARNESS = "codex"; // the event log's name for Codex (schema v1)
 const HARNESS_NAME = "Codex"; // sessions.md's
-const NOTICE_AT = 0.75; // of the window, one notice a cycle, as on Claude Code (P50)
-const THRESHOLD_LEAD = 0.1; // and at least a tenth of the window before Codex's own compaction limit (T13)
-const ROWS_AT = [0.5, 0.6, 0.7]; // of the window, one row each a cycle below the notice point (P80)
 const SESSION_ID = /^[A-Za-z0-9._-]+$/;
 
 /**
@@ -118,8 +115,8 @@ function updateState(ctx, changes) {
 }
 
 /**
- * The context cycle (as Claude Code's mod keeps it, in the same file): its number, when it started, its one notice and
- * the highest row shown in it; a resumed session keeps its number.
+ * The context cycle (as Claude Code's mod keeps its number and notice, in the same file): its number, when it started and
+ * its one notice; a resumed session keeps its number.
  * @param {any} ctx
  */
 function readCycle(ctx) {
@@ -128,10 +125,9 @@ function readCycle(ctx) {
     cycle: Number(kept?.cycle) || 1,
     startedAt: Number(kept?.startedAt) || Date.now(),
     notice: typeof kept?.notice === "number" ? kept.notice : null,
-    row: Number(kept?.row) || 0,
   };
 }
-/** @param {any} ctx @param {{ cycle: number, startedAt: number, notice: number | null, row: number }} cycle */
+/** @param {any} ctx @param {{ cycle: number, startedAt: number, notice: number | null }} cycle */
 const writeCycle = (ctx, cycle) => writeJson(fileOf(ctx, "cycle.json"), cycle);
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -217,8 +213,14 @@ function flush(ctx, timeoutMs) {
  * @param {string[]} args
  * @param {{ input?: string, timeoutMs?: number }} [options]
  */
-function script(ctx, args, { input, timeoutMs } = {}) {
-  const env = { ...process.env };
+/**
+ * The environment a script run of this driver gets: the session, the harness, the home, the window and the notice point
+ * (notice5.mjs, from the host's compaction limit when it is known). Exported so a test reads what a run is given.
+ * @param {any} ctx
+ * @param {NodeJS.ProcessEnv} [base]
+ */
+export function scriptEnvironment(ctx, base = process.env) {
+  const env = { ...base };
   delete env.CLAUDE_CODE_SESSION_ID;
   delete env.CLAUDE_CODE_REMOTE_SESSION_ID;
   delete env.CLAUDECODE;
@@ -229,6 +231,23 @@ function script(ctx, args, { input, timeoutMs } = {}) {
     FREEFLOW_HOME: ctx.home,
   });
   if (ctx.window) env.FREEFLOW_CONTEXT_WINDOW = String(ctx.window);
+  if (ctx.window)
+    env.FREEFLOW_NOTICE_POINT = String(hostNoticePoint({ window: ctx.window, hostPoint: ctx.limit ?? null }));
+  return env;
+}
+
+/**
+ * The window and the compaction limit this session's state keeps, put back on the context each event: a script run
+ * after the session start gets the host's notice point, not the unknown-host point (the review's N4).
+ * @param {any} ctx
+ */
+export function restoreWindow(ctx) {
+  ctx.window = ctx.state?.window ?? null;
+  ctx.limit = ctx.state?.limit ?? null;
+}
+
+function script(ctx, args, { input, timeoutMs } = {}) {
+  const env = scriptEnvironment(ctx);
   const left = Math.max(1, ctx.deadline - Date.now());
   const run = spawnSync(process.execPath, [SCRIPT, ...args], {
     cwd: existsSync(ctx.cwd) ? ctx.cwd : undefined,
@@ -335,9 +354,9 @@ export function codexWindow(cwd, model, env = process.env) {
   return { window: window && window > 0 ? window : null, limit: limit && limit > 0 ? limit : null };
 }
 
-/** Where the notice comes, in tokens: 75% of the window, or a tenth of it before Codex's limit if lower (T13). */
+/** Where the notice comes, in tokens: a lead before Codex's compaction limit, or 75% of the window where it is not known. */
 export const noticePoint = (/** @type {number} */ window, /** @type {number | null} */ limit) =>
-  Math.min(NOTICE_AT * window, limit ? limit - THRESHOLD_LEAD * window : Infinity);
+  hostNoticePoint({ window, hostPoint: limit });
 
 const share = (/** @type {number} */ tokens, /** @type {number} */ window) =>
   `${Math.round((100 * tokens) / window)}% of its window (${tokens} of ${window} tokens)`;
@@ -420,8 +439,9 @@ function noticeText(found, tokens, window, limit, number) {
 }
 
 /**
- * After a model request of the main conversation: below the notice point, a row at the highest of ROWS_AT crossed,
- * once each a cycle; at it, the cycle's notice. Both wait in due.json for the next hook that can add context.
+ * After a model request of the main conversation: at the notice point, the cycle's notice, once a cycle; below it
+ * nothing is written, since the notice is the only signal before compaction. It waits in due.json for the next hook that
+ * can add context.
  * @param {any} ctx
  * @param {number} tokens
  */
@@ -432,28 +452,20 @@ function watch(ctx, tokens) {
   const cycle = readCycle(ctx);
   if (cycle.notice !== null) return;
   const point = noticePoint(window, state.limit ?? null);
-  if (tokens < point) {
-    const row = ROWS_AT.filter((at) => tokens >= at * window).at(-1);
-    if (!row || row <= cycle.row) return;
-    writeCycle(ctx, { ...cycle, row });
-    writeJson(fileOf(ctx, "due.json"), {
-      what: "row",
-      detail: `cycle ${cycle.cycle}, ${Math.round(row * 100)}%`,
-      text: `Freeflow, context cycle ${cycle.cycle}: the context is at ${share(tokens, window)}; the checkpoint notice comes at about ${Math.round(point)} tokens.`,
-    });
-    return;
-  }
+  if (tokens < point) return;
   const found = sessionStatus(ctx);
   writeCycle(ctx, { ...cycle, notice: Date.now() });
   writeJson(fileOf(ctx, "due.json"), {
     what: "notice",
     detail: `cycle ${cycle.cycle}`,
+    context: tokens,
+    point: Math.round(point),
     text: noticeText(found, tokens, window, state.limit ?? null, cycle.cycle),
   });
 }
 
 /**
- * The row or notice waiting, taken by one hook only (a rename is atomic), or null.
+ * The notice waiting, taken by one hook only (a rename is atomic), or null.
  * @param {any} ctx
  * @returns {string | null}
  */
@@ -469,7 +481,12 @@ function takeDue(ctx) {
   const due = readJson(taken, null);
   rmSync(taken, { force: true });
   if (!due?.text) return null;
-  emit(ctx, "freeflow", { what: due.what === "notice" ? "notice" : "row", detail: due.detail });
+  emit(ctx, "freeflow", {
+    what: "notice",
+    detail: due.detail,
+    context: Number.isInteger(due.context) ? due.context : undefined,
+    point: Number.isInteger(due.point) ? due.point : undefined,
+  });
   return due.text;
 }
 
@@ -569,6 +586,7 @@ async function taskMemoryAtStart(ctx, root, parts) {
   const switches = await resolveSwitches(root, ctx);
   const { window, limit } = codexWindow(ctx.cwd, ctx.input.model, ctx.env);
   ctx.window = window;
+  ctx.limit = limit;
   ctx.state = updateState(ctx, { ...switches, window, limit, model: ctx.input.model ?? null, store: false });
   // Off, no line is kept (emit asks the state) and every claim is no.
   emit(ctx, "session.start", {
@@ -577,7 +595,7 @@ async function taskMemoryAtStart(ctx, root, parts) {
   writeCapabilities(ctx, switches);
   if (!switches.enabled) return;
   const kept = readCycle(ctx);
-  writeCycle(ctx, { cycle: kept.cycle, startedAt: Date.now(), notice: null, row: 0 });
+  writeCycle(ctx, { cycle: kept.cycle, startedAt: Date.now(), notice: null });
   rmSync(fileOf(ctx, "due.json"), { force: true });
 
   const found = sessionStatus(ctx, 1_200);
@@ -650,9 +668,10 @@ function bundleAfterCompaction(ctx, parts) {
   emit(ctx, "compaction", {
     trigger: typeof compacting?.trigger === "string" && compacting.trigger ? compacting.trigger : undefined,
     by: "harness",
+    cycle: cycle.cycle,
   });
   ctx.state = updateState(ctx, { compacting: null });
-  writeCycle(ctx, { cycle: cycle.cycle + 1, startedAt: Date.now(), notice: null, row: 0 });
+  writeCycle(ctx, { cycle: cycle.cycle + 1, startedAt: Date.now(), notice: null });
   rmSync(fileOf(ctx, "due.json"), { force: true });
 
   const found = state?.store === false ? null : sessionStatus(ctx, 2_000);
@@ -683,7 +702,7 @@ function bundleAfterCompaction(ctx, parts) {
   }
 }
 
-/** UserPromptSubmit: a turn starts; a row or notice waiting reaches the model now. @param {any} ctx */
+/** UserPromptSubmit: a turn starts; a notice waiting reaches the model now. @param {any} ctx */
 function userPromptSubmit(ctx) {
   const turn = (ctx.state?.turn ?? 0) + 1;
   ctx.state = updateState(ctx, { turn });
@@ -805,7 +824,7 @@ function gated(ctx) {
 
 /**
  * PostToolUse: the call's line (its tool, whether it failed, its time, the paths it names and a shell command's text);
- * a row or notice waiting reaches the model after the call's result.
+ * a notice waiting reaches the model after the call's result.
  * @param {any} ctx
  */
 function postToolUse(ctx) {
@@ -844,7 +863,7 @@ function postToolUse(ctx) {
 
 /**
  * PostModelRequest: the request's line from its token usage, and for the main conversation the context's share
- * against the window: a row or the notice, waiting for the next hook that can add context.
+ * against the window: the notice, waiting for the next hook that can add context.
  * @param {any} ctx
  */
 function postModelRequest(ctx) {
@@ -872,7 +891,7 @@ function postModelRequest(ctx) {
   );
   if (agentOf(ctx) !== "main" || ctx.input.status !== "completed") return null;
   if (!valid) {
-    // No usage, or a shape this driver does not know: no row, no notice, and the log says so once a session.
+    // No usage, or a shape this driver does not know: no notice, and the log says so once a session.
     if (!ctx.state?.usageMissing) {
       ctx.state = updateState(ctx, { usageMissing: true });
       emit(ctx, "freeflow", { what: "error", detail: "PostModelRequest: no token_usage this driver reads" });
@@ -881,6 +900,8 @@ function postModelRequest(ctx) {
   }
   if (ctx.state && ctx.state.model !== model) {
     const { window, limit } = codexWindow(ctx.cwd, model, ctx.env);
+    ctx.window = window;
+    ctx.limit = limit;
     ctx.state = updateState(ctx, { model, window, limit });
   }
   watch(ctx, Number(usage.total_tokens));
@@ -1023,7 +1044,7 @@ export async function handle(event, input, env = process.env) {
       });
       if (ctx.state.enabled === false) return null;
     }
-    ctx.window = ctx.state?.window ?? null;
+    restoreWindow(ctx);
     return await handler(ctx);
   } catch (error) {
     note(ctx, error);

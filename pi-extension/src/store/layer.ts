@@ -65,7 +65,7 @@ export function scriptRunner(packageRoot: string): Run {
  * What the scripts read about this session (T6): who it is, the harness, its transcript, the window and the way back.
  * Set in Pi's process, so the agent's own commands, which run with Pi's environment, see the same.
  */
-export function sessionEnvironment(session: { id?: string; file?: string; window?: number }): void {
+export function sessionEnvironment(session: { id?: string; file?: string; window?: number; notice?: number }): void {
   const set = (name: string, value: string | undefined) => {
     if (value) process.env[name] = value;
     else delete process.env[name];
@@ -75,6 +75,7 @@ export function sessionEnvironment(session: { id?: string; file?: string; window
   set("FREEFLOW_TRANSCRIPT", session.file);
   set("FREEFLOW_RESUME", session.file ? `pi --session ${session.file}` : undefined);
   set("FREEFLOW_CONTEXT_WINDOW", session.window ? String(session.window) : undefined);
+  set("FREEFLOW_NOTICE_POINT", session.notice ? String(session.notice) : undefined);
 }
 
 /**

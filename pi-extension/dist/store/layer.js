@@ -42,6 +42,7 @@ export function sessionEnvironment(session) {
   set("FREEFLOW_TRANSCRIPT", session.file);
   set("FREEFLOW_RESUME", session.file ? `pi --session ${session.file}` : undefined);
   set("FREEFLOW_CONTEXT_WINDOW", session.window ? String(session.window) : undefined);
+  set("FREEFLOW_NOTICE_POINT", session.notice ? String(session.notice) : undefined);
 }
 /**
  * How long a claim on paths lasts (`delegation.claimHours`, SPEC-009 4.7), for Track Work's script: `claim` and
