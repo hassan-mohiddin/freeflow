@@ -754,7 +754,8 @@ function shortOption(options) {
   const value = options["--short"];
   if (value === undefined) return "";
   if (typeof value !== "string") throw new CliError('--short needs the task\'s short name, or "" for none');
-  return value;
+  // Spaces around a name are not part of it: the count and the stored line are the trimmed name.
+  return value.trim();
 }
 
 async function runProjects5(command, operation, options, home) {
@@ -787,8 +788,12 @@ async function runProjects5(command, operation, options, home) {
       },
       identity,
     );
-  if (key === "task set-short")
+  if (key === "task set-short") {
+    // set-short with no --short would remove the name by accident: removing takes --short "".
+    if (options["--short"] === undefined)
+      throw new CliError('task set-short needs --short <name>, or --short "" to remove it');
     return setTaskShort(home, requireOption(options, "--id"), shortOption(options), identity);
+  }
   if (key === "task take")
     return takeTask(home, requireOption(options, "--id"), identity, { takeover: options["--takeover"] === true });
   if (key === "task release")

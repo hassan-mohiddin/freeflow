@@ -751,7 +751,12 @@ test("task create --short names the task in project list --json and session stat
     const tooLong = cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001", "--short", long]);
     assert.equal(tooLong.status, 1);
     assert.match(tooLong.stderr, /24 characters at most/);
-    ok(cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001", "--short", "Q3"]));
+    // No --short is refused, not read as a removal; spaces around a name are trimmed.
+    const noValue = cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001"]);
+    assert.equal(noValue.status, 1);
+    assert.match(noValue.stderr, /needs --short <name>/);
+    assert.equal(JSON.parse(ok(cli("aaaaaaaa-1", ["session", "status"]))).task.short, "Q3 report");
+    ok(cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001", "--short", "  Q3  "]));
     // A task this session does not hold is not its to write: refused, and nothing changes.
     const notHeld = cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-002", "--short", "Draft"]);
     assert.equal(notHeld.status, 1);
