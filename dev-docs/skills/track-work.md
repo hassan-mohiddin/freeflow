@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/track-work/`
 > **Tests:** `.skill-eval/track-work/`
-> **Verified at:** `e750f6fa` (2026-11-14)
+> **Verified at:** `648998db` (2026-11-14)
 
 For anyone changing Track Work: what it is meant to change, why it is shaped the way it is, and what the evidence shows. The method itself is in [the skill](../../skills/track-work/SKILL.md); this record holds the reasons it does not. How its script keeps the store and the task folder is [Freeflow store and Schema 5 tasks](../subsystems/freeflow-store.md). It was started with the Schema 5 rewrite (task-004's Phase 7.1), so it records that rewrite's reasons in full and older choices only where they still shape the text. Task-004's design, with every choice and the owner's words, is its Spec (`memory-and-delegation.md` in that task's folder); the choices are cited here by its IDs (P1 to P81, T1 to T28).
 
@@ -77,6 +77,7 @@ Track Work keeps one task's memory so a fresh context, after a compaction, in an
 
 - **Accepting a plain bullet in Future Work.** The live run's agent wrote one and was refused; the refusal now names the shape instead, since Future Work holds only proposed Slices and the fixed budget counts them (T21).
 - **Repeating Pi's "compact now" notice on Claude Code.** Claude's own compaction, with the bundle after its summary, is the backstop, and a second notice would turn the soft one into a hard one (P50).
+- **A short name at creation, 24 characters at most** (2026-11-14, Setting 6, pane question 6). The agent names each task when it creates it, so the status line and the pane show a readable name instead of a cut title; a longer name is refused, never cut, and a task without one falls back to its title. It is the record header's `Short:` line, changed by `task set-short`; the SKILL.md asks for it in one line where task creation is described.
 
 ## Open Questions
 
