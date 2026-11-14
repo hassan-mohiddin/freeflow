@@ -1,8 +1,8 @@
 # Codex driver
 
 > **Covers:** `hooks/codex/`
-> **Verified at:** `f3aa117f` (2026-11-14)
-> **Driven:** 2026-11-14 (round 2), the steps listed here re-run with no model call and matching their output. Not re-run in round 2: the Pi terminal steps, whose output the round did not change. `codex-log` still lists the same fourteen lines; a Stop with a rollout captures the user's message into the session (`discussion capture --session`).
+> **Verified at:** `db629ec4` (2026-11-14)
+> **Driven:** 2026-11-14 (round 3, after the merge of main at 6d4cb93e), no model call: all five steps re-run and matching; `codex-rows` shows the notice only, and `codex-log` lists thirteen lines (no row line). A Stop with a rollout captures the user's message into the session (`discussion capture --session`). Not re-run: none.
 > **User docs:** `plugin-docs/getting-started.md`, `plugin-docs/capabilities/event-log.md`
 
 On Codex, Freeflow's driver runs on Codex's hook events once the user has approved its hooks in `/hooks`. At a session's start the agent gets Freeflow's guidance and, with a store, the task menu with the user's rules; as the context fills, one checkpoint notice near Codex's own compaction, after the next tool call or prompt, and nothing before it; after Codex compacts, the task's record after Codex's summary. The event log keeps each loop event, written at the turn's end, the store syncs at a turn's end, and the session's end releases its hold, pushed at the next start. `capabilities.mjs` lists Codex's claims.

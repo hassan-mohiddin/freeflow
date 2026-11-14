@@ -1,8 +1,8 @@
 # Gates
 
 > **Covers:** `skills/track-work/scripts/lib/gates5.mjs`, `skills/track-work/scripts/lib/gate-state5.mjs`, `pi-extension/src/gates/`, `hooks/claude/freeflow.mjs`, `hooks/codex/driver.mjs`
-> **Verified at:** `f3aa117f` (2026-11-14)
-> **Driven:** 2026-11-14 (round 2), the steps listed here re-run with no model call and matching their output. Not re-run in round 2: the Pi terminal steps, whose output the round did not change. The Claude Code and Codex gate steps match; the settings screen's Review unit reads Repository in this checkout, whose own `.freeflow/config.json` sets it.
+> **Verified at:** `db629ec4` (2026-11-14)
+> **Driven:** 2026-11-14 (round 3, after the merge of main at 6d4cb93e), no model call: the Claude Code and Codex gate steps re-run and matching. Not re-run: the Pi terminal steps. The settings screen's Review unit reads Repository in this checkout, whose own `.freeflow/config.json` sets it.
 > **User docs:** `plugin-docs/capabilities/gates.md`
 
 Before each tool call on Claude Code, Pi and Codex, Freeflow checks four rules: an agreement before a change, a Slice before a change while a task is held, a reminder that a delivery step needs the user's yes, and a worker writing only its scope. Every gate warns by default: the call runs, and the agent reads the rule, why and the way through, once per gate in a turn. Each gate is `off`, `warn` or `block` in every scope (`gates.*`); under `block` the call is refused, and a delivery step is put to the person where someone can answer (never on Codex, which has no ask). The state the gates read is `<FREEFLOW_HOME>/sessions/<session ID>/gates.json`, which Track Work's commands write. How it works: [Gates](../subsystems/gates.md).

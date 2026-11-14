@@ -1,8 +1,8 @@
 # Settings
 
 > **Covers:** `pi-extension/src/host/settings/`, `pi-extension/src/host/config-validation.ts`, `pi-extension/src/host/config-store.ts`, `skills/setup-freeflow/scripts/settings.mjs`, `hooks/claude/freeflow.mjs`, `pi-extension/src/tool-execution/config.ts`, `pi-extension/src/compaction/config.ts`, `pi-extension/src/messaging/config.ts`
-> **Verified at:** `f3aa117f` (2026-11-14)
-> **Driven:** 2026-11-14 (round 2), the steps listed here re-run with no model call and matching their output. Not re-run in round 2: the Pi terminal steps, whose output the round did not change. The CLI and Claude Code steps match. Differences: Review unit reads Repository in this checkout (its own config sets it); the Review rounds step expects `{}`, but the review unit set earlier on the same screen stays in the file.
+> **Verified at:** `db629ec4` (2026-11-14)
+> **Driven:** 2026-11-14 (round 3, after the merge of main at 6d4cb93e), no model call: the settings CLI and headless Claude steps re-run and matching. Not re-run: the Pi terminal steps (their screens are not on the merged path). Review unit reads Repository in this checkout, whose own config sets it.
 > **User docs:** `plugin-docs/settings.md`
 
 `/freeflow settings` opens one screen with three scopes: Session (this Pi session only), Personal (`.freeflow/local.json`) and Repository (`.freeflow/config.json`). Changing a row writes that scope's file at once (Session writes none), and a capability switch reloads the Pi session when the screen closes, so the new skills and tools take effect. Which layer wins and why: the overview's [Cross-Cutting Concerns](../README.md#cross-cutting-concerns); the screen's code: `pi-extension/src/host/settings/README.md`.
