@@ -100,7 +100,7 @@ function usage() {
     "  working-record.mjs task <create|take|release|switch|move|here|search|remove> ... (in a Freeflow store)",
     "  working-record.mjs store <init|remote|status|sync> ...",
     "  working-record.mjs session status [--home <folder>] (for a harness layer)",
-    "  working-record.mjs events <append|summary|show> ... (the event log; append is for a harness layer)",
+    "  working-record.mjs events <append|summary|show|sent> ... (the event log; append is for a harness layer)",
     "",
     ROOT_HELP,
     "In a Freeflow store, a task's ID (such as my-project/task-003, or task-004 in no project) may be given as --record.",
@@ -123,6 +123,10 @@ const COMMAND_HELP = new Map([
   [
     "events show",
     "Usage: events show [--session <ID>] [--kind <kind>] [--home <folder>]\nPrints a session's event log as stored, one JSON line each, only the lines of one kind with --kind; a line that cannot be read is named on standard error and skipped.",
+  ],
+  [
+    "events sent",
+    "Usage: events sent [--session <ID>] [--what <name>] [--show <n>] [--home <folder>]\nLists the text Freeflow sent to the model in a session, newest first: its number, time, what sent it, its length in characters and the first line cut to 80 characters. --what keeps one source (session-start, menu, catch-up, pinned-guidance, system-prompt, runtime-state, notice, compact-request, compaction-note, bundle, continue, compaction-error, gate, store-allow, took-back, waits, worker-notice, stop-block, governor, settings, pane, guidance, files, background, monitor, message, skill, keep-alive). --show <n> prints the whole text of entry n of that list. The text is what was sent, with keys and tokens redacted; the log is on this machine only.",
   ],
   [
     "slice",
@@ -551,6 +555,7 @@ function allowedOptions(command, operation) {
     if (operation === "append") return new Set(["--input", "--home", "--help"]);
     if (operation === "summary") return new Set(["--session", "--json", "--home", "--help"]);
     if (operation === "show") return new Set(["--session", "--kind", "--home", "--help"]);
+    if (operation === "sent") return new Set(["--session", "--what", "--show", "--home", "--help"]);
   }
   if (command === "store" && operation === "init")
     return new Set(["--remote", "--home", "--git-name", "--git-email", "--help"]);

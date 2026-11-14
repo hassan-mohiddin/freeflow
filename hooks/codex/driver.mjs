@@ -159,6 +159,22 @@ function emit(ctx, kind, fields, agent = "main") {
 }
 
 /**
+ * Keeps one `sent` line: the whole text Freeflow put in front of the model, by its source (`what`, one of Track Work's
+ * SENT_WHATS). Written with the event lines, so nothing is written while the event log is off.
+ * @param {any} ctx
+ * @param {string} what
+ * @param {string} text
+ */
+function sent(ctx, what, text) {
+  if (typeof text !== "string" || !text) return;
+  try {
+    emit(ctx, "sent", { what, text });
+  } catch {
+    // The log is a sensor, and a sensor fails open: a line that cannot be kept is let go, the call or the start goes on.
+  }
+}
+
+/**
  * Writes the waiting lines with one `events append` run; a run that fails drops them, and the next says how many.
  * @param {any} ctx
  * @param {number} [timeoutMs]
@@ -487,6 +503,7 @@ function takeDue(ctx) {
     context: Number.isInteger(due.context) ? due.context : undefined,
     point: Number.isInteger(due.point) ? due.point : undefined,
   });
+  sent(ctx, "notice", due.text);
   return due.text;
 }
 
@@ -560,19 +577,25 @@ async function guidance(ctx) {
 async function sessionStart(ctx) {
   if (ctx.input.source === "compact") return afterCompaction(ctx);
   const parts = [];
+  // What the start sends, as [what, text]: logged once the switches are read, so events off writes nothing.
+  const logged = [];
   let root = ctx.cwd;
   try {
     const rendered = await guidance(ctx);
     root = rendered.root;
-    if (rendered.text.trim()) parts.push(rendered.text);
+    if (rendered.text.trim()) {
+      parts.push(rendered.text);
+      logged.push(["session-start", rendered.text]);
+    }
   } catch (error) {
     note(ctx, error);
   }
   try {
-    await taskMemoryAtStart(ctx, root, parts);
+    await taskMemoryAtStart(ctx, root, parts, logged);
   } catch (error) {
     note(ctx, error);
   }
+  for (const [what, text] of logged) sent(ctx, what, text);
   return parts.length ? context("SessionStart", parts.join("\n\n")) : null;
 }
 
@@ -581,8 +604,9 @@ async function sessionStart(ctx) {
  * @param {any} ctx
  * @param {string} root
  * @param {string[]} parts
+ * @param {[string, string][]} logged what the start sends, as [what, text], for the caller to keep as `sent` lines
  */
-async function taskMemoryAtStart(ctx, root, parts) {
+async function taskMemoryAtStart(ctx, root, parts, logged) {
   const switches = await resolveSwitches(root, ctx);
   const { window, limit } = codexWindow(ctx.cwd, ctx.input.model, ctx.env);
   ctx.window = window;
@@ -617,9 +641,15 @@ async function taskMemoryAtStart(ctx, root, parts) {
     ]);
     if (menu.status === 0) {
       emit(ctx, "freeflow", { what: "menu" });
-      parts.push(`Freeflow task memory:\n${[menu.stdout.trimEnd(), ...missing].join("\n")}\n`);
+      const memory = `Freeflow task memory:\n${[menu.stdout.trimEnd(), ...missing].join("\n")}\n`;
+      parts.push(memory);
+      logged.push(["menu", memory]);
     }
-  } else if (missing.length) parts.push(`Freeflow task memory: the store is not ready.\n${missing.join("\n")}`);
+  } else if (missing.length) {
+    const notReady = `Freeflow task memory: the store is not ready.\n${missing.join("\n")}`;
+    parts.push(notReady);
+    logged.push(["menu", notReady]);
+  }
 }
 
 /**
@@ -641,17 +671,23 @@ function checkpointDone(found, cycle) {
  */
 async function afterCompaction(ctx) {
   const parts = [];
+  // What the start sends, as [what, text]: logged once the compaction's switches are read (see sessionStart).
+  const logged = [];
   try {
     const rendered = await guidance(ctx);
-    if (rendered.text.trim()) parts.push(rendered.text);
+    if (rendered.text.trim()) {
+      parts.push(rendered.text);
+      logged.push(["session-start", rendered.text]);
+    }
   } catch (error) {
     note(ctx, error);
   }
   try {
-    if (ctx.state?.enabled !== false) bundleAfterCompaction(ctx, parts);
+    if (ctx.state?.enabled !== false) bundleAfterCompaction(ctx, parts, logged);
   } catch (error) {
     note(ctx, error);
   }
+  for (const [what, text] of logged) sent(ctx, what, text);
   return parts.length ? context("SessionStart", parts.join("\n\n")) : null;
 }
 
@@ -659,8 +695,14 @@ async function afterCompaction(ctx) {
  * The cycle moved on, and the bundle that follows Codex's summary, added to `parts`.
  * @param {any} ctx
  * @param {string[]} parts
+ * @param {[string, string][]} logged what the compaction sends, as [what, text], for the caller to keep as `sent` lines
  */
-function bundleAfterCompaction(ctx, parts) {
+function bundleAfterCompaction(ctx, parts, logged) {
+  /** @param {string} what @param {string} text */
+  const add = (what, text) => {
+    parts.push(text);
+    logged.push([what, text]);
+  };
   const state = ctx.state;
   const cycle = readCycle(ctx);
   const compacting = state?.compacting ?? null;
@@ -680,13 +722,15 @@ function bundleAfterCompaction(ctx, parts) {
     if (found.task) {
       const made = script(ctx, ["view", "bundle", "--record", found.task.record, ...(done ? [] : ["--fallback"])]);
       if (made.status === 0)
-        parts.push(
+        add(
+          "bundle",
           done
             ? `Freeflow task memory, after Codex's compaction: ${found.task.id}'s record as of the checkpoint this cycle.\n\n${made.stdout.trimEnd()}`
             : `Freeflow task memory, after Codex's compaction: Codex compacted before a checkpoint in this cycle, so below is ${found.task.id}'s record as of its last checkpoint, ${found.task.stateAsOf}. Freeflow cannot read Codex's transcript: the user's messages since then are not in it ("None." below means not read). Read the record's In flight against what Codex's summary says; where they differ, the summary is later.\n\n${made.stdout.trimEnd()}`,
         );
       else
-        parts.push(
+        add(
+          "compaction-error",
           `Freeflow could not make ${found.task.id}'s bundle: ${
             made.stderr
               .replace(/^Error: /, "")
@@ -697,7 +741,7 @@ function bundleAfterCompaction(ctx, parts) {
     } else if (done) {
       const made = script(ctx, ["view", "bundle", "--session"]);
       if (made.status === 0)
-        parts.push(`Freeflow, after Codex's compaction: this session's summary.\n\n${made.stdout.trimEnd()}`);
+        add("bundle", `Freeflow, after Codex's compaction: this session's summary.\n\n${made.stdout.trimEnd()}`);
     }
   }
 }
@@ -806,19 +850,22 @@ function gated(ctx) {
     for (const fired of result.fired) emit(ctx, "gate", gateEvent(fired, tool), agent);
     if (result.decision === "warn") {
       const rows = firstWarnings(ctx, agent, result.fired).map((fired) => gateText(fired));
-      return rows.length ? context("PreToolUse", rows.join("\n\n")) : null;
+      if (!rows.length) return null;
+      sent(ctx, "gate", rows.join("\n\n"));
+      return context("PreToolUse", rows.join("\n\n"));
     }
-    return deny(
-      result.fired
-        .filter((fired) => fired.decision !== "warn")
-        .map((fired) => gateText(fired))
-        .join("\n\n"),
-    );
+    const reason = result.fired
+      .filter((fired) => fired.decision !== "warn")
+      .map((fired) => gateText(fired))
+      .join("\n\n");
+    sent(ctx, "gate", reason);
+    return deny(reason);
   } catch (error) {
     note(ctx, error);
-    return Object.values(modes).includes("block")
-      ? deny("Freeflow's gates could not decide this call; try again.")
-      : null;
+    if (!Object.values(modes).includes("block")) return null;
+    const reason = "Freeflow's gates could not decide this call; try again.";
+    sent(ctx, "gate", reason);
+    return deny(reason);
   }
 }
 

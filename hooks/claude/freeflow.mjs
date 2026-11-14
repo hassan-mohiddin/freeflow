@@ -6,7 +6,7 @@
 import { decide, gateEvent, gateText, validGateState } from "../../skills/track-work/scripts/lib/gates5.mjs";
 import { noticePoint } from "../../skills/track-work/scripts/lib/notice5.mjs";
 
-import { paneCommand, paneRead, registerPane, resolvePane } from "./pane.mjs";
+import { paneCommand, paneRead, registerPane, resolvePane, takePaneTexts } from "./pane.mjs";
 
 const SCRIPT = "skills/track-work/scripts/working-record.mjs";
 const SETTINGS_SCRIPT = "skills/setup-freeflow/scripts/settings.mjs";
@@ -122,11 +122,40 @@ async function emit($, kind, fields, agent = "main") {
 }
 
 /**
+ * The texts logged with `once`, keyed by session and text: a text a session already sent is not logged again (what every
+ * request carries). The text itself is the key, since this module imports nothing from Node, which a hash needs.
+ * @type {Set<string>}
+ */
+const sentOnce = new Set();
+
+/**
+ * Keeps one `sent` line for the next flush: the whole text Freeflow sent to the model, by its source (`what`, one of
+ * Track Work's SENT_WHATS). Nothing while Freeflow or its event log is off. With `once`, a text this session already
+ * logged is not logged again.
+ * @param {any} $
+ * @param {string} what
+ * @param {string} text
+ * @param {{ once?: boolean }} [options]
+ */
+async function sent($, what, text, { once = false } = {}) {
+  if (typeof text !== "string" || !text || !enabled || !eventsOn) return;
+  sessionId ??= await $.session.id();
+  if (once) {
+    const key = `${sessionId}\u0000${text}`;
+    if (sentOnce.has(key)) return;
+    sentOnce.add(key);
+  }
+  await emit($, "sent", { what, text });
+}
+
+/**
  * Writes the waiting lines with one script run; never fails the hook it runs in.
  * @param {any} $
  * @param {{ session?: string, timeoutMs?: number }} [options]
  */
 async function flush($, options = {}) {
+  // The texts the pane put in front of the model since the last flush: its own `sent` lines, in the order they went.
+  for (const text of takePaneTexts()) await sent($, "pane", text);
   if (!buffered.length) return;
   const lines = buffered;
   buffered = [];
@@ -420,10 +449,13 @@ function noticeText($, context, state, number) {
 }
 
 /**
+ * Appends one row the agent reads, and keeps it as a `sent` line under its source.
  * @param {any} $
  * @param {string} text
+ * @param {string} what the source, one of Track Work's SENT_WHATS
  */
-async function appendRow($, text) {
+async function appendRow($, text, what) {
+  await sent($, what, text);
   await $.session.append({ message: { type: "user", content: [{ type: "text", text }] } });
 }
 
@@ -449,7 +481,7 @@ async function watchMain($) {
   cycle.notice = await $.clock.now();
   await keepCycle($, state);
   const number = await cycleNumber($, state);
-  await appendRow($, noticeText($, context, state, number));
+  await appendRow($, noticeText($, context, state, number), "notice");
   await emit($, "freeflow", { what: "notice", detail: `cycle ${number}`, context: tokens, point: Math.round(point) });
 }
 
@@ -483,10 +515,9 @@ async function noticeWorker($, step, response) {
     `context at ${Math.round((100 * tokens) / size)}%: told to rewrite progress.md`,
     step.agentId,
   );
-  await $.session.send({
-    to: { agentId: step.agentId },
-    text: `Freeflow: your context is at ${Math.round((100 * tokens) / size)}% of its window and compaction is near. At your next safe point, rewrite ${worker.delegation}'s progress.md (Done, Half done, Didn't work, Next), so a compaction loses nothing, then go on.`,
-  });
+  const text = `Freeflow: your context is at ${Math.round((100 * tokens) / size)}% of its window and compaction is near. At your next safe point, rewrite ${worker.delegation}'s progress.md (Done, Half done, Didn't work, Next), so a compaction loses nothing, then go on.`;
+  await sent($, "worker-notice", text);
+  await $.session.send({ to: { agentId: step.agentId }, text });
 }
 
 /** Whether the checkpoint this cycle asked for is done: the record's State as of, or the summary's time, is later
@@ -541,7 +572,11 @@ function unmade($, state, made) {
 /** Freeflow's compaction (P63, T14): the bundle as the whole conversation, with no summarizer request. */
 async function ownCompaction($, e, next, state) {
   const made = await script($, bundleArgs(state));
-  if (made.exitCode !== 0) return withMessage(await next(e), unmade($, state, made));
+  if (made.exitCode !== 0) {
+    const error = unmade($, state, made);
+    await sent($, "compaction-error", error);
+    return withMessage(await next(e), error);
+  }
   // The bundle replaces the conversation: a checkpoint --compact waiting for this is answered, whoever compacted.
   if (state.compact && !state.compact.done) await answered($, state.compact);
   if (!state.task && !state.delegation)
@@ -551,6 +586,7 @@ async function ownCompaction($, e, next, state) {
       "require('node:fs').rmSync(process.argv[1], { force: true })",
       state.summary.path,
     ]);
+  await sent($, "bundle", made.stdout);
   return ownMessages(made.stdout);
 }
 
@@ -569,15 +605,16 @@ function bundleArgs(state) {
 async function workerSessionCompaction($, e, next, state) {
   const { id, task } = state.delegation;
   const note = `Freeflow: this session is the worker for ${id} of ${task}; its progress.md holds the work up to ${state.delegation.progressAsOf ?? "its last checkpoint --delegation"}. Say so in the summary, and keep what happened after that.`;
+  await sent($, "compaction-note", note);
   const compacted = await next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${note}` : note });
   if (compacted.skip) return compacted;
   const made = await script($, bundleArgs(state));
-  return withMessage(
-    compacted,
+  const text =
     made.exitCode === 0
       ? made.stdout
-      : `Freeflow could not make ${id}'s bundle: ${made.stderr.replace(/^Error: /, "").trim()}. Recover with node ${$.plugin.root}/${SCRIPT} view recover --record ${task} --delegation ${id}.`,
-  );
+      : `Freeflow could not make ${id}'s bundle: ${made.stderr.replace(/^Error: /, "").trim()}. Recover with node ${$.plugin.root}/${SCRIPT} view recover --record ${task} --delegation ${id}.`;
+  await sent($, made.exitCode === 0 ? "bundle" : "compaction-error", text);
+  return withMessage(compacted, text);
 }
 
 /**
@@ -643,10 +680,12 @@ async function waitsReturned($, state, { wake }) {
     $.clock.after(WAIT_BATCH_MS, async () => {
       const text = `Freeflow: ${pendingWaits.join(" ")}`;
       pendingWaits = [];
-      if (mainTurns === turns) await $.prompt.submit({ text });
-      else await appendRow($, text);
+      if (mainTurns === turns) {
+        await sent($, "waits", text);
+        await $.prompt.submit({ text });
+      } else await appendRow($, text, "waits");
     });
-  } else await appendRow($, `Freeflow: ${row}`);
+  } else await appendRow($, `Freeflow: ${row}`, "waits");
 }
 
 /**
@@ -673,10 +712,13 @@ function watchWaits($, state) {
  * checkpoint with the user's messages since and the transcript's path, as one message after its summary (T14). */
 async function fallbackCompaction($, e, next, state) {
   const note = `Freeflow: the task's Working Record (${state.task.id}) holds the work up to its last checkpoint, ${state.task.stateAsOf}; keep in the summary what happened after that.`;
+  await sent($, "compaction-note", note);
   const compacted = await next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${note}` : note });
   if (compacted.skip) return compacted;
   const made = await script($, ["view", "bundle", "--record", state.task.record, "--fallback"]);
-  return withMessage(compacted, made.exitCode === 0 ? made.stdout : unmade($, state, made));
+  const text = made.exitCode === 0 ? made.stdout : unmade($, state, made);
+  await sent($, made.exitCode === 0 ? "bundle" : "compaction-error", text);
+  return withMessage(compacted, text);
 }
 
 /** A worker's compaction: its summary names its delegation and how it recovers. */
@@ -687,6 +729,7 @@ async function workerCompaction($, e, next) {
   // Its compaction starts the worker's next cycle, with a notice of its own.
   worker.noticed = false;
   const note = `Freeflow: this agent is the worker for delegation ${worker.delegation}. Say so in the summary, and that after the compaction it recovers with node ${$.plugin.root}/${SCRIPT} view recover --record ${state.task.id} --delegation ${worker.delegation}, then continues from its progress.md.`;
+  await sent($, "compaction-note", note);
   return next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${note}` : note });
 }
 
@@ -719,7 +762,9 @@ async function compactAndContinue($, request) {
       // on from the bundle; a prompt submitted now would wait behind it and arrive out of date (F35).
       const turns = mainTurns;
       $.clock.after(CONTINUE_AFTER_MS, async () => {
-        if (mainTurns === turns) await $.prompt.submit({ text: CONTINUE });
+        if (mainTurns !== turns) return;
+        await sent($, "continue", CONTINUE);
+        await $.prompt.submit({ text: CONTINUE });
       });
     }
   } catch (error) {
@@ -736,6 +781,7 @@ async function compactAndContinue($, request) {
     await appendRow(
       $,
       `Freeflow: the compaction your checkpoint asked for did not run (${dropped}); it tries again when the next turn ends.`,
+      "compaction-error",
     );
     return;
   }
@@ -743,6 +789,7 @@ async function compactAndContinue($, request) {
   await appendRow(
     $,
     `Freeflow: the compaction your checkpoint asked for did not run (${dropped}), ${tries} times; it stops trying. Checkpoint with --compact again, or run /compact.`,
+    "compaction-error",
   );
 }
 
@@ -777,7 +824,7 @@ async function turnEnded($, e) {
     const menu = await storeArrived($, state, session, cwd);
     // The menu has no place to go now, but a task taken back does: the agent learns it holds the task (F36).
     const tookBack = menu.exitCode === 0 ? /^Took .+ back: .+$/m.exec(menu.stdout)?.[0] : undefined;
-    if (tookBack) await appendRow($, `Freeflow: ${tookBack}`);
+    if (tookBack) await appendRow($, `Freeflow: ${tookBack}`, "took-back");
   }
   if (state.changed) {
     await script($, ["store", "sync"]);
@@ -926,14 +973,18 @@ async function gated($, e, verdict) {
         return gateText(fired);
       });
     for (const row of rows)
-      if (e.agentId !== undefined) await $.session.send({ to: { agentId: e.agentId }, text: row });
-      else await appendRow($, row);
+      if (e.agentId !== undefined) {
+        await sent($, "gate", row);
+        await $.session.send({ to: { agentId: e.agentId }, text: row });
+      } else await appendRow($, row, "gate");
     return verdict;
   }
   const reason = result.fired
     .filter((/** @type {any} */ fired) => fired.decision !== "warn")
     .map((/** @type {any} */ fired) => gateText(fired))
     .join("\n\n");
+  // A refusal or a question: its text is what the agent reads as the call's result.
+  await sent($, "gate", reason);
   return { decision: /** @type {const} */ (result.decision === "ask" ? "ask" : "deny"), reason };
 }
 
@@ -1024,6 +1075,24 @@ async function capabilitiesCommand($) {
 }
 
 /**
+ * Serves `/freeflow sent [<n>]`: the text Freeflow sent to the model in this session, newest first, or entry n whole;
+ * Track Work's `events sent` reads the log. It is for the person, and the model does not read it.
+ * @param {any} $
+ * @param {string} args
+ * @returns {Promise<{ text: string }>}
+ */
+async function sentCommand($, args) {
+  const words = args.trim().split(/\s+/).filter(Boolean);
+  if (words.length > 2) return { text: "Freeflow sent: too many arguments.\nUsage: /freeflow sent [<n>]" };
+  const run = await script($, ["events", "sent", ...(words[1] === undefined ? [] : ["--show", words[1]])]);
+  if (run.exitCode !== 0)
+    return {
+      text: `Freeflow sent: ${(run.stderr.split("\n")[0] || `exit code ${run.exitCode}`).replace(/^Error: /, "").trim()}`,
+    };
+  return { text: run.stdout.trimEnd() };
+}
+
+/**
  * Serves `/freeflow settings [<key> [<value>] [--session | --personal | --repository]]` through the settings script:
  * the lines for the person, and for the model the setting and the Runtime State lines that changed (SPEC-005 4.4).
  * @param {any} $
@@ -1034,7 +1103,7 @@ async function settingsCommand($, args) {
   const words = args.trim().split(/\s+/).filter(Boolean);
   if (words[0] !== "settings")
     return {
-      text: "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session; /freeflow pane opens or closes Freeflow's pane.",
+      text: "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session; /freeflow pane opens or closes Freeflow's pane; /freeflow sent lists the text Freeflow sent to the model.",
     };
   const flags = words.slice(1).filter((word) => word.startsWith("--"));
   const [key, value, extra] = words.slice(1).filter((word) => !word.startsWith("--"));
@@ -1299,7 +1368,7 @@ async function governStep($) {
         : response === "notice"
           ? `Freeflow cost governor: a cap is reached: ${cap.what}${resets}. Say so to the user in your next answer; Freeflow only notifies (governor.mode warn).`
           : `Freeflow cost governor: a cap is reached: ${cap.what}${resets}. Stop at your next safe point: ${SAFE_POINT}. Checkpoint there (your task's record, or this session's summary), then end your turn asking the user whether to go on (governor.mode stop).`;
-    await appendRow($, text);
+    await appendRow($, text, "governor");
     await emit($, "governor", {
       cap: cap.cap,
       unit: cap.unit,
@@ -1399,6 +1468,19 @@ function withoutHookGuidance(result, parts) {
   return rest.length ? { ...others, additionalContext: rest } : others;
 }
 
+/**
+ * The hooks' copies of the guidance that a session start sends as they are, where the section does not carry them: each
+ * is a `sent` line. The hooks' texts are the parts the renderer gave.
+ * @param {any} $
+ * @param {any} result the session start's result, with the hooks' additional context
+ * @param {string[]} parts
+ */
+async function sentHookGuidance($, result, parts) {
+  const ours = new Set(parts.map((part) => part.trim()).filter(Boolean));
+  for (const each of result.additionalContext ?? [])
+    if (ours.has(String(each).trim())) await sent($, "session-start", each);
+}
+
 /** @param {any} $ */
 async function keepLedger($) {
   if (!freeflowHome || !started) return;
@@ -1457,6 +1539,7 @@ async function pinnedStart($, e, next) {
       : Boolean(home) && (await readLedger($, String(home), e.session_id))?.pinned === true;
     pinned = Boolean(rendered.text) && recorded;
     if (pinned) out = withoutHookGuidance(result, rendered.parts);
+    else await sentHookGuidance($, result, rendered.parts);
   } catch (error) {
     $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}; the session-start hooks keep it`);
   }
@@ -1596,6 +1679,7 @@ async function catchUp($) {
         ...(shown.guidance ? [shown.guidance] : []),
         ...(shown.menu ? [`Freeflow task memory:\n${shown.menu}`] : []),
       ].join("\n\n"),
+      "catch-up",
     );
   if (done.length) await emit($, "freeflow", { what: "menu", detail: `mid-session: ${done.join(", ")}` });
   await keepLedger($);
@@ -1613,6 +1697,8 @@ async function withGuidance($, e, composed) {
   try {
     const { text } = await renderGuidance($);
     if (!text) return composed;
+    // The section every request carries, unchanged: its text is logged once a session per distinct text.
+    await sent($, "pinned-guidance", text, { once: true });
     return {
       sections: [
         ...composed.sections.filter((/** @type {{ id: string }} */ section) => section.id !== SECTION_ID),
@@ -1632,8 +1718,9 @@ export function register(on) {
     await $.command.register({
       name: "freeflow",
       description:
-        "Freeflow's settings: list them, or change one for this session, you or the repository; what Freeflow can do here; and Freeflow's pane",
-      argumentHint: "settings [<key> <value|inherit> [--session | --personal | --repository]] | capabilities | pane",
+        "Freeflow's settings: list them, or change one for this session, you or the repository; what Freeflow can do here; Freeflow's pane; and the text Freeflow sent to the model",
+      argumentHint:
+        "settings [<key> <value|inherit> [--session | --personal | --repository]] | capabilities | pane | sent [<n>]",
     });
     // A -p run or the SDK has no one at the prompt, so nothing runs between its turns (section 4.5). Claims written
     // before this event came, at the classic SessionStart, are written again with what it says.
@@ -1646,13 +1733,18 @@ export function register(on) {
     return next(e);
   });
 
-  on("command.run", { command: "freeflow" }, ($, e) =>
-    /^\s*capabilities\b/.test(e.args ?? "")
-      ? capabilitiesCommand($)
+  on("command.run", { command: "freeflow" }, async ($, e) => {
+    const result = /^\s*capabilities\b/.test(e.args ?? "")
+      ? await capabilitiesCommand($)
       : /^\s*pane\b/.test(e.args ?? "")
-        ? paneCommand($)
-        : settingsCommand($, e.args),
-  );
+        ? await paneCommand($)
+        : /^\s*sent\b/.test(e.args ?? "")
+          ? await sentCommand($, e.args)
+          : await settingsCommand($, e.args);
+    // A setting's change, as the agent reads it in its context, is text Freeflow sent to the model.
+    for (const each of result.context ?? []) await sent($, "settings", each);
+    return result;
+  });
 
   // Session start, /clear and resume: pull the store, give the scripts the window, and give the agent the menu, which
   // says which task this session holds, taken back when a resume finds the task its end released (Spec section 4, F36).
@@ -1678,23 +1770,21 @@ export function register(on) {
     await storeRootOf($, state);
     const missing = missingText(found);
     awaitingStore = state ? null : { session: e.session_id, cwd: e.cwd };
-    if (!state)
-      return missing.length
-        ? {
-            ...result,
-            additionalContext: [
-              ...(result.additionalContext ?? []),
-              `Freeflow task memory: the store is not ready.\n${missing.join("\n")}`,
-            ],
-          }
-        : result;
+    if (!state) {
+      if (!missing.length) return result;
+      const notReady = `Freeflow task memory: the store is not ready.\n${missing.join("\n")}`;
+      await sent($, "menu", notReady);
+      return { ...result, additionalContext: [...(result.additionalContext ?? []), notReady] };
+    }
     const menu = await storeArrived($, state, e.session_id, e.cwd);
     if (menu.exitCode !== 0) return result;
     await emit($, "freeflow", { what: "menu" });
     const text = [menu.stdout.trimEnd(), ...missing].join("\n");
+    const memory = `Freeflow task memory:\n${text}\n`;
+    await sent($, "menu", memory);
     return {
       ...result,
-      additionalContext: [...(result.additionalContext ?? []), `Freeflow task memory:\n${text}\n`],
+      additionalContext: [...(result.additionalContext ?? []), memory],
     };
   });
 
@@ -1823,12 +1913,13 @@ export function register(on) {
     const verdict = await next(e);
     if (!enabled) return verdict;
     return gated($, e, await storeAllowed($, e, verdict));
-  }).catch(async ($, e, next) =>
+  }).catch(async ($, e, next) => {
     // A gate that fails is open under warn, as its sensor is, and closed under block (section 5).
-    Object.values(gateModes).includes("block")
-      ? { decision: /** @type {const} */ ("deny"), reason: "Freeflow's gates could not decide this call; try again." }
-      : next(e),
-  );
+    if (!Object.values(gateModes).includes("block")) return next(e);
+    const reason = "Freeflow's gates could not decide this call; try again.";
+    await sent($, "gate", reason);
+    return { decision: /** @type {const} */ ("deny"), reason };
+  });
 
   on("session.compact", async ($, e, next) => {
     if (e.trigger === "precompute" || !enabled) return next(e);
@@ -1931,7 +2022,9 @@ async function storeAllowed($, e, verdict) {
   if (!root) return verdict;
   const real = await placed($, input.file_path ?? input.notebook_path ?? input.path);
   const inside = real !== undefined && (real === root || real.startsWith(root + separatorOf(root)));
-  return inside ? { decision: /** @type {const} */ ("allow"), reason: STORE_REASON } : verdict;
+  if (!inside) return verdict;
+  await sent($, "store-allow", STORE_REASON, { once: true });
+  return { decision: /** @type {const} */ ("allow"), reason: STORE_REASON };
 }
 
 /**
@@ -1956,8 +2049,7 @@ async function stopChecked($, e, result) {
   if (checked.exitCode === 0 || !/return is not ready/.test(checked.stderr)) return result;
   const reason = checked.stderr.replace(/^Error: /, "").trim();
   await logDelegation($, worker.delegation, "blocked", `stop blocked: ${reason}`, e.agent_id, state);
-  return {
-    ...result,
-    block: `Freeflow: ${reason} Write return.md as your brief says, then hand back.`,
-  };
+  const block = `Freeflow: ${reason} Write return.md as your brief says, then hand back.`;
+  await sent($, "stop-block", block);
+  return { ...result, block };
 }

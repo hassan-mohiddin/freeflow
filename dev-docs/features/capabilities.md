@@ -13,6 +13,7 @@ What Freeflow can do in a session, for the requests of request set 1 (pin, injec
 - `caps-claude-code-pin`: on Claude Code, Freeflow's guidance is a section of the system prompt and its session-start hooks' copies are left out of the messages (`/context`), with no model call.
 - `caps-pi`: on Pi, `/freeflow capabilities` lists the extension's claims and the event log, with no model call.
 - `caps-compact-refused`: `checkpoint --compact` in a session with no claims writes the checkpoint and no request, and says so.
+- `caps-sent`: `/freeflow sent` on Claude Code and Pi lists the text Freeflow sent the model in the session, newest first, and `/freeflow sent <n>` prints entry n whole; with the event log off it keeps and lists nothing. Covered by the test `the text Freeflow sent the model is kept whole: a notice and each gate row as a sent line; /freeflow sent lists it and shows one whole` in `hooks/claude/freeflow.test.ts` (`claude plugin test .`, no model call), and by Pi's recorder tests in `pi-extension/tests/events/recorder.test.js`; a live check on Pi needs a model call only for the notice and the gate, not for `/freeflow sent`.
 - `caps-codex`: after Codex's driver ran its session start, `capabilities.mjs list` gives Codex's claims, and `checkpoint --compact` is refused naming what makes Codex compact.
 
 ## How to get to it (user POV)

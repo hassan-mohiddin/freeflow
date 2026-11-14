@@ -7,6 +7,7 @@
 // a prompt, an answer, a file's content or a tool's output (P4): the writer refuses any field schema v1 does not name.
 // Readers ignore a kind or field they do not know, so a later minor version may add both.
 
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { appendFile, mkdir, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -41,6 +42,42 @@ const amount = (value) => typeof value === "number" && Number.isFinite(value) &&
  */
 export const GOVERNOR_CAPS = ["pace", "window", "task"];
 export const GOVERNOR_RESPONSES = ["row", "notice", "ask"];
+/**
+ * The text Freeflow itself put in front of the model, by the send point's source (a `sent` line's `what`). A driver
+ * names the source; `events sent` lists them and the summary counts them. Added in schema v1 (additive).
+ */
+export const SENT_WHATS = [
+  "session-start",
+  "menu",
+  "catch-up",
+  "pinned-guidance",
+  "system-prompt",
+  "runtime-state",
+  "notice",
+  "compact-request",
+  "compaction-note",
+  "bundle",
+  "continue",
+  "compaction-error",
+  "gate",
+  "store-allow",
+  "took-back",
+  "waits",
+  "worker-notice",
+  "stop-block",
+  "governor",
+  "settings",
+  "pane",
+  "guidance",
+  "files",
+  "background",
+  "monitor",
+  "message",
+  "skill",
+  "keep-alive",
+];
+/** How many characters of a `sent` line's first line `events sent` lists before it is cut. */
+export const SENT_LIST_WIDTH = 80;
 
 /**
  * Schema v1's kinds and the fields each takes beyond the common ones (section 4.1): `true` marks a required field.
@@ -111,7 +148,20 @@ export const KINDS = {
     use: [amount, true],
     response: [oneOf(GOVERNOR_RESPONSES), true],
   },
+  // Added in schema v1: the text Freeflow sent to the model, in full. `text` is redacted and never cut (it is the
+  // whole text, newlines kept); the writer sets `chars` (its length) and `sha` (`digest`) from the text before redaction.
+  sent: {
+    what: [oneOf(SENT_WHATS), true],
+    text: [(value) => typeof value === "string" && value.trim() !== "", true],
+    chars: [count],
+    sha: [(value) => typeof value === "string" && /^[0-9a-f]{12}$/.test(value)],
+  },
 };
+
+/** The first 12 hex digits of the SHA-256 of a text: what a `sent` line's `sha` holds, and what drivers dedupe by. */
+export function digest(text) {
+  return createHash("sha256").update(text, "utf8").digest("hex").slice(0, 12);
+}
 
 function isPath(value) {
   return typeof value === "string" && value !== "" && value.length <= PATH_LIMIT && !/[\0\n\r]/.test(value);
@@ -193,10 +243,17 @@ function normalize(line, seq) {
   };
   for (const key of Object.keys(fields)) {
     if (line[key] === undefined) continue;
+    // A `sent` line's text is the whole text Freeflow sent: redacted, never cut.
+    if (key === "text" && line.kind === "sent") written.text = redact(line.text);
     // A command is cut at its heredoc before the length cut, so no body text is kept past its operator (P4).
-    written[key] = CUT.has(key)
-      ? redactAndCut(key === "command" ? cutHeredoc(line[key]) : line[key], COMMAND_LIMIT)
-      : line[key];
+    else if (CUT.has(key))
+      written[key] = redactAndCut(key === "command" ? cutHeredoc(line[key]) : line[key], COMMAND_LIMIT);
+    else written[key] = line[key];
+  }
+  // Measured from the text as sent, before redaction: `sha` identifies what was sent, and a driver's own is not kept.
+  if (line.kind === "sent") {
+    written.chars = line.text.length;
+    written.sha = digest(line.text);
   }
   return written;
 }
@@ -394,6 +451,8 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
   const gates = Object.fromEntries(GATES.map((gate) => [gate, 0]));
   let gatesBlocked = 0;
   let agreements = 0;
+  let sentLines = 0;
+  const sentBy = {};
   // The tokens from a cycle's notice to the checkpoint that answered it. Rows (schema v1's older kind of line) are not
   // measured: no driver writes one now, and the notice is the only signal before compaction.
   const toCheckpoint = { notice: [] };
@@ -441,6 +500,10 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       gates[line.gate] += 1;
       if (line.decision !== "warn") gatesBlocked += 1;
     } else if (line.kind === "agreement") agreements += 1;
+    else if (line.kind === "sent" && SENT_WHATS.includes(line.what)) {
+      sentLines += 1;
+      sentBy[line.what] = (sentBy[line.what] ?? 0) + 1;
+    }
   }
   const spread = (values) => {
     const sorted = [...values].sort((x, y) => x - y);
@@ -474,6 +537,11 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
     ...(governor.length ? { governor } : {}),
     gates: { ...gates, blocked: gatesBlocked },
     agreements,
+    // The counts of the text Freeflow sent to the model, by source (the text itself is in the log, never here).
+    sent: {
+      lines: sentLines,
+      by: Object.fromEntries(Object.entries(sentBy).sort(([x], [y]) => x.localeCompare(y))),
+    },
     ...(checkpoints.length ? { toCheckpoint: checkpoints } : {}),
   };
 }
@@ -507,6 +575,17 @@ export function renderSummary(summary) {
         `Notice to checkpoint: ${n(each.cycles)} cycle(s), median ${n(each.median)}, largest ${n(each.largest)}`,
     ),
     `Workers: ${summary.workers.spawned} started, ${summary.workers.stopped} stopped${summary.workers.blocked ? `, ${summary.workers.blocked} sent back` : ""}`,
+    ...(summary.sent
+      ? [
+          `Sent: ${n(summary.sent.lines)}${
+            summary.sent.lines
+              ? ` (by what: ${Object.entries(summary.sent.by)
+                  .map(([what, count]) => `${what} ${n(count)}`)
+                  .join(", ")})`
+              : ""
+          }`,
+        ]
+      : []),
     ...(summary.gates
       ? [
           `Gates: ${GATES.map((gate) => `${gate} ${summary.gates[gate] ?? 0}`).join(", ")} would-fire${summary.gates.blocked ? `, ${summary.gates.blocked} of them asked or refused` : ""}`,

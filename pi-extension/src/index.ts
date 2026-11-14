@@ -65,7 +65,12 @@ import {
   refreshRuntimeContext,
   stableRuntimeContext,
 } from "./host/prompts.js";
-import { filterBootstrapMessage, withFreeflowRuntimeState, type RuntimeStateAnchor } from "./host/runtime-state.js";
+import {
+  filterBootstrapMessage,
+  freeflowRuntimeStateMessage,
+  withFreeflowRuntimeState,
+  type RuntimeStateAnchor,
+} from "./host/runtime-state.js";
 import { setFreeflowStatus } from "./host/status.js";
 import { cachedBranch } from "./host/branch.js";
 type FreeflowAPI = ExtensionAPI;
@@ -131,14 +136,22 @@ const OWN_SECTION_NAMES = ["freeflow_guidance", "environment", "tool_execution",
  * the start of a run (before_agent_start); Pi then refuses a user message without `deliverAs`, so it is queued to
  * follow the current work instead.
  */
-function sendSkillPrompt(pi: FreeflowAPI, skill: string, args?: string) {
-  pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true, deliverAs: "followUp" });
+function sendSkillPrompt(pi: FreeflowAPI, skill: string, args: string | undefined, events: EventRecorder) {
+  const text = skillPrompt(skill, args);
+  events.sent("skill", text);
+  pi.sendUserMessage(text, { expandPromptTemplates: true, deliverAs: "followUp" });
 }
-async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, skill: string, args?: string) {
+async function sendSkillCommand(
+  pi: FreeflowAPI,
+  ctx: ExtensionCommandContext,
+  skill: string,
+  args: string | undefined,
+  events: EventRecorder,
+) {
   const state = await readCapabilityState(ctx.cwd, ctx);
   // Setup Freeflow always dispatches: it is how a missing or broken config is repaired, and Freeflow may be off.
   if (skill === "setup-freeflow") {
-    sendSkillPrompt(pi, skill, args);
+    sendSkillPrompt(pi, skill, args, events);
     return;
   }
   if (state.setupNeeded || !state.enabled) {
@@ -154,7 +167,7 @@ async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, s
     ctx.ui.notify("Freeflow core prompts are unavailable; the requested skill cannot be dispatched.", "warning");
     return;
   }
-  sendSkillPrompt(pi, skill, args);
+  sendSkillPrompt(pi, skill, args, events);
 }
 
 function freeflowCompletions(prefix: string | undefined) {
@@ -169,6 +182,7 @@ function freeflowCompletions(prefix: string | undefined) {
         ["settings", "settings", "Open settings; Tab switches Session, Personal and Repository"],
         ["status", "status", "Show effective Freeflow state"],
         ["capabilities", "capabilities", "What Freeflow can do in this session, and the event log"],
+        ["sent", "sent", "The text Freeflow sent the model in this session, newest first"],
         ["compact", "compact", "Prepare, compact and recover now"],
         ["enable", "enable", "Enable Freeflow for this repository"],
         ["disable", "disable", "Disable Freeflow for this repository"],
@@ -182,7 +196,12 @@ export default function freeflow(pi: FreeflowAPI) {
   // Cache diagnostics are reported to /freeflow status; the footer only shows current settings.
   const cacheMonitor = new CacheMonitor();
   // Provider support runs only where Freeflow runs: not while it is off, nor while its setup is needed (D-045, round 3).
-  registerProviderSupport(pi, () => capability?.setupNeeded !== true && capability?.enabled !== false, cacheMonitor);
+  registerProviderSupport(
+    pi,
+    () => capability?.setupNeeded !== true && capability?.enabled !== false,
+    cacheMonitor,
+    (what, text) => events.sent(what, text, { once: true }),
+  );
   const api = pi as any;
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   // The notice point comes from Track Work's notice5.mjs, loaded once; no notice is due until it has.
@@ -239,7 +258,7 @@ export default function freeflow(pi: FreeflowAPI) {
   // whose first message has not been seen yet (an extension's message on Pi before 1.2.0).
   let runPrepared = false;
   let runUnprepared = false;
-  const files = new FileTracking();
+  const files = new FileTracking((what, text) => events.sent(what, text));
   const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
   const guidance = new GuidanceNotices(packageRoot);
   const guidanceNoticesEffective = () =>
@@ -304,6 +323,7 @@ export default function freeflow(pi: FreeflowAPI) {
   const inbound = new Inbound({
     sendMessage: (message, options) => api.sendMessage(message, options),
     sendUserMessage: (content) => api.sendUserMessage(content),
+    logSent: (what, text) => events.sent(what, text),
     isIdle: () => liveHost?.isIdle?.(),
     canWake: () => prompted,
   });
@@ -355,6 +375,7 @@ export default function freeflow(pi: FreeflowAPI) {
     effective: compactionEffective,
     background: () => background.running().map(({ id, label, outputPath }) => ({ id, label, outputPath })),
     notice: (text: string) => freeflowNotice("compaction", text),
+    sent: (what: string, text: string) => events.sent(what, text),
     store: {
       current: () => store.current(),
       refresh: () => store.refresh(),
@@ -401,18 +422,13 @@ export default function freeflow(pi: FreeflowAPI) {
         const text = await store.start(ctx.cwd, [ctx.cwd, dirname(ctx.cwd), packageRoot]);
         if (generation !== surfaceGeneration) return;
         if (text) events.freeflow("menu");
-        if (text)
+        if (text) {
+          const content = freeflowNotice("store", `Freeflow task memory:\n${text}`);
+          events.sent("menu", content);
           await Promise.resolve(
-            api.sendMessage(
-              {
-                customType: STORE_TYPE,
-                content: freeflowNotice("store", `Freeflow task memory:\n${text}`),
-                display: true,
-                details: {},
-              },
-              { deliverAs: "nextTurn" },
-            ),
+            api.sendMessage({ customType: STORE_TYPE, content, display: true, details: {} }, { deliverAs: "nextTurn" }),
           );
+        }
         // The start's steps are done: a reload of this session reads that and gives the menu no second time.
         if (session) await keepStartLedger(freeflowHome(), session).catch(() => {});
       }
@@ -457,6 +473,21 @@ export default function freeflow(pi: FreeflowAPI) {
     }
   };
   /** `/freeflow capabilities`: Setup Freeflow's capabilities.mjs, the listing the agent reads too (section 4.6). */
+  /** `/freeflow sent [<n>]`: the text Freeflow sent to the model in this session, newest first, or entry n whole. */
+  const sentText = async (number: string | undefined): Promise<string> => {
+    const session = events.sessionId();
+    if (!session) return "Freeflow sent: no session yet.";
+    const ran = await runScript([
+      "events",
+      "sent",
+      "--session",
+      session,
+      ...(number === undefined ? [] : ["--show", number]),
+    ]);
+    return ran.code === 0
+      ? ran.stdout.trimEnd()
+      : `Freeflow sent: ${(ran.stderr.split("\n")[0] || `exit code ${ran.code}`).replace(/^Error: /, "").trim()}`;
+  };
   const capabilitiesText = async (): Promise<string> => {
     // The claims as they stand now, written before the script reads them.
     await events.writeClaims(claimInputs(), version);
@@ -561,6 +592,7 @@ export default function freeflow(pi: FreeflowAPI) {
     // Freeflow's message saying the user asked, not text in the user's name (Task 002 D-008); the run it starts keeps
     // Freeflow's system sections (host/section-keeper.ts).
     const text = freeflowNotice("compaction", USER_REQUEST);
+    events.sent("compact-request", text);
     await Promise.resolve(
       api.sendMessage(
         { customType: COMPACT_REQUEST_TYPE, content: text, display: true, details: {} },
@@ -682,20 +714,26 @@ export default function freeflow(pi: FreeflowAPI) {
     ownNames = OWN_SECTION_NAMES.filter(
       (name) => (toolExecution || (name !== "rules" && name !== "docs")) && typeof sections[name] === "string",
     );
+    // The sections every request of the session carries: each text is kept once, when first set.
+    for (const name of ownNames) events.sent("system-prompt", String(sections[name]), { once: true });
     promptRun = !fromMessage;
     messageRun = fromMessage;
     prompted = true;
     // Freeflow arrived after this session's start: what its start would have given, as this run's message; a files
     // notice waits for the next run.
     const caught = startState === "due" ? await catchUp(ctx) : undefined;
-    if (caught)
-      return {
-        message: { customType: STORE_TYPE, content: freeflowNotice("store", caught), display: true, details: {} },
-      };
+    if (caught) {
+      const content = freeflowNotice("store", caught);
+      events.sent("catch-up", content);
+      return { message: { customType: STORE_TYPE, content, display: true, details: {} } };
+    }
     // Like Claude Code's next-turn reminder: files the model read that changed while it was not running a tool.
     const changed = toolExecutionEffective() ? await files.changedNotice(ctx, false) : undefined;
-    if (changed)
-      return { message: { customType: "freeflow-files", content: freeflowNotice("files", changed), display: true } };
+    if (changed) {
+      const content = freeflowNotice("files", changed);
+      events.sent("files", content);
+      return { message: { customType: "freeflow-files", content, display: true } };
+    }
   });
   pi.on("agent_start", () => {
     waits.runStarted();
@@ -755,16 +793,27 @@ export default function freeflow(pi: FreeflowAPI) {
       const gated = gates.check(event as any, ctx.cwd, capability.gates, ctx.hasUI === true);
       if (gates.missingOnce()) events.freeflow("gates", "no gate state for this session");
       for (const fired of gated.fired) events.emit("gate", gates.eventFields(fired, event.toolName));
-      if (gated.kind === "block") return { block: true, reason: gated.reason };
+      if (gated.kind === "block") {
+        events.sent("gate", gated.reason);
+        return { block: true, reason: gated.reason };
+      }
       if (gated.kind === "ask") {
         const yes = await Promise.resolve(ctx.ui.confirm("Freeflow gate", gated.reason)).catch(() => false);
-        if (!yes) return { block: true, reason: gated.reason };
+        if (!yes) {
+          events.sent("gate", gated.reason);
+          return { block: true, reason: gated.reason };
+        }
       }
     }
     if (!toolExecutionEffective()) return undefined;
     const refusal = event.toolName === "bash" ? backgroundRefusal((event.input as any)?.command) : undefined;
-    if (refusal) return { block: true, reason: refusal };
-    return files.toolCall(event, ctx);
+    if (refusal) {
+      events.sent("guidance", refusal);
+      return { block: true, reason: refusal };
+    }
+    const refused = await files.toolCall(event, ctx);
+    if (refused) events.sent("files", refused.reason);
+    return refused;
   });
   pi.on("tool_result", async (event, ctx) => {
     // Freeflow's own: a command that runs a script from Freeflow's package, or a file tool in the store (Part 8).
@@ -790,16 +839,16 @@ export default function freeflow(pi: FreeflowAPI) {
     }
     // The gates' warning rows for this call, once per gate per turn (SPEC-008 4.3).
     const gateRows = gates.takeRows((event as any).toolCallId);
+    if (gateRows.length) events.sent("gate", gateRows.join("\n\n"));
     if (!toolExecutionEffective())
       return gateRows.length ? { content: withLines(event.content ?? [], gateRows) } : undefined;
     const shaped = await files.toolResult(event, ctx);
     // The push retriever's notice joins the result before it is delivered, after anything Tool Execution added.
     const executeWorkUnread = () =>
       !(capability?.skills?.off ?? []).includes("execute-work") && !files.loadedSkills(ctx).includes("execute-work");
-    const lines = [
-      ...(guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd, executeWorkUnread) : []),
-      ...gateRows,
-    ];
+    const guided = guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd, executeWorkUnread) : [];
+    for (const notice of guided) events.sent("guidance", notice);
+    const lines = [...guided, ...gateRows];
     return lines.length ? { content: withLines(shaped?.content ?? event.content ?? [], lines) } : shaped;
   });
   pi.on("turn_end", async (event, ctx) => {
@@ -824,6 +873,7 @@ export default function freeflow(pi: FreeflowAPI) {
     const notice = compaction.observe(ctx, event);
     if (notice) {
       events.freeflow("notice", "notice", { context: notice.context, point: notice.point });
+      events.sent("notice", notice.text);
       // Mid-run the notice joins the next request; when the run is ending it waits for the next prompt rather than
       // starting work nobody asked for.
       await Promise.resolve(
@@ -927,6 +977,10 @@ export default function freeflow(pi: FreeflowAPI) {
       anchor: runtimeStateAnchor,
       skills: stateSkills,
     });
+    // The Runtime State every request carries, built as the request built it: kept once per distinct text. Built here,
+    // not found in the messages, so the lookup does not grow with the session.
+    const runtimeState = freeflowRuntimeStateMessage(capability, prompts, { skills: stateSkills });
+    events.sent("runtime-state", runtimeState.content, { once: true });
     refreshState = false;
     return { messages: await requestHistory.assemble(messages, ctx) };
   });
@@ -961,12 +1015,12 @@ export default function freeflow(pi: FreeflowAPI) {
   for (const { command, skill } of WORKFLOW_COMMANDS)
     pi.registerCommand(command, {
       description: command === skill ? `Run Freeflow ${skill}` : `Run Freeflow ${skill} via ${command}`,
-      handler: (args, ctx) => sendSkillCommand(pi, ctx, skill, args),
+      handler: (args, ctx) => sendSkillCommand(pi, ctx, skill, args, events),
     });
   for (const skill of CONTRIBUTOR_COMMANDS)
     pi.registerCommand(skill, {
       description: `Run Freeflow ${skill}`,
-      handler: (args, ctx) => sendSkillCommand(pi, ctx, skill, args),
+      handler: (args, ctx) => sendSkillCommand(pi, ctx, skill, args, events),
     });
   pi.registerCommand("freeflow", {
     description: "Freeflow settings, status, capabilities and compaction",
@@ -974,6 +1028,11 @@ export default function freeflow(pi: FreeflowAPI) {
     handler: async (args, ctx) => {
       if ((args ?? "").trim().toLowerCase() === "capabilities") {
         ctx.ui.notify(await capabilitiesText(), "info");
+        return;
+      }
+      const sentArgs = /^sent(?:\s+(\S+))?$/.exec((args ?? "").trim());
+      if (sentArgs) {
+        ctx.ui.notify(await sentText(sentArgs[1]), "info");
         return;
       }
       if ((args ?? "").trim().toLowerCase() === "compact") {

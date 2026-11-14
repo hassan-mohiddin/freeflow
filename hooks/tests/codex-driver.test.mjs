@@ -123,7 +123,13 @@ const usage = (total) => ({
   },
 });
 /** A line as the golden log keeps it: no time, number or duration, which change from run to run. */
-const stable = ({ ts, seq, ms, ...line }) => line;
+// A sent line's text, length and digest change with the prompts and the repository, so the golden holds its kind and its
+// source; the test below checks each text in full (its length and digest, and the guidance it must carry).
+const stable = ({ ts, seq, ms, ...line }) => {
+  if (line.kind !== "sent") return line;
+  const { text: _text, chars: _chars, sha: _sha, ...rest } = line;
+  return rest;
+};
 
 /** The minimal JSON Schema reading the recorded inputs need: required keys, enums, and the types they use. */
 function schemaProblems(schema, value, at = "input") {
@@ -355,10 +361,24 @@ test(CONFORMANCE.sensors, () => {
     hook("SessionEnd");
     const all = log();
     assert.deepEqual(all.map(stable), GOLDEN.map(stable), JSON.stringify(all.map(stable), null, 2));
-    // Never contents: the redacted command, the patch's path and not its text, no prompt and no answer.
-    const text = JSON.stringify(all);
+    // Never contents: the redacted command, the patch's path and not its text, no prompt and no answer. The sent lines
+    // are the texts Freeflow itself sent, checked below, and are left out here.
+    const text = JSON.stringify(all.filter((line) => line.kind !== "sent"));
     assert.match(text, /npm test -- --token=\[redacted\]/);
     assert.doesNotMatch(text, /abc123|secret|Fix the failing test|Fixed it/);
+    // Each sent line keeps the whole text it sent, with its length and digest, and the start's guidance in full.
+    const sentLines = all.filter((line) => line.kind === "sent");
+    assert.deepEqual(
+      sentLines.map((line) => line.what),
+      ["session-start", "menu", "gate", "session-start", "bundle"],
+    );
+    for (const line of sentLines) {
+      assert.equal(line.chars, line.text.length);
+      assert.match(line.sha, /^[0-9a-f]{12}$/);
+      assert.equal(lineProblem(line), null, JSON.stringify(line).slice(0, 200));
+    }
+    assert.ok(sentLines[0].text.startsWith("# Freeflow Stable Guidance"));
+    assert.match(sentLines[1].text, /^Freeflow task memory:\n/);
     assert.ok(all.find((line) => line.tool === "Bash").ms >= 0);
     // The session's end released the hold as ended, committed here only; a resume takes it back.
     assert.equal(JSON.parse(cli(["session", "status"])).task, null);
@@ -659,10 +679,18 @@ test("without a store: the guidance and what is missing, the event log still kep
     hook("PostModelRequest", usage(210_000));
     assert.equal(hook("PostToolUse"), null);
     hook("Stop");
+    // The guidance and the store's missing lines are what the start sent: one sent line each, with their texts.
     assert.deepEqual(
       log().map((line) => line.kind),
-      ["session.start", "freeflow", "model.request", "tool.call", "turn.end"],
+      ["session.start", "freeflow", "sent", "sent", "model.request", "tool.call", "turn.end"],
     );
+    const sentTexts = log().filter((line) => line.kind === "sent");
+    assert.deepEqual(
+      sentTexts.map((line) => line.what),
+      ["session-start", "menu"],
+    );
+    assert.equal(start, sentTexts.map((line) => line.text).join("\n\n"));
+    assert.match(sentTexts[1].text, /^Freeflow task memory: the store is not ready\.\n- Missing: /);
   } finally {
     done();
   }

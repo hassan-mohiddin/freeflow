@@ -6,7 +6,7 @@ import { hasUsableMandatoryPrompts } from "./prompts.js";
  * position and changed state never rewrites earlier input. Also drops bootstrap messages that older Freeflow
  * versions saved in sessions.
  */
-const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
+export const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
 
 /** The Runtime State line for a folder with no shared config file, word for word (D-045, round 3). */
 const SETUP_NEEDED_INSTRUCTION =

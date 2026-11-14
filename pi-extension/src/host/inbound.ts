@@ -43,9 +43,29 @@ export function noticeBody(content: string): string {
     .trim();
 }
 
+/** A notice's `sent` source by its custom message type, for the notices whose type does not name it. */
+const SENT_BY_TYPE: Record<string, string> = {
+  "freeflow-background": "background",
+  "freeflow-monitor": "monitor",
+  "freeflow-store": "waits",
+  "freeflow-message": "message",
+};
+
+/**
+ * The `sent` source a notice's text is logged under (the event log's `what`): a background or monitor notice names itself
+ * in its type, else its custom message type says it.
+ */
+export function sentWhatOf(customType: string, content: string): string {
+  const type = /^\s*<freeflow-notice type="([a-z-]+)"/.exec(content)?.[1];
+  if (type === "background" || type === "monitor") return type;
+  return SENT_BY_TYPE[customType] ?? "notice";
+}
+
 export interface InboundHost {
   sendMessage(message: { customType: string; content: string; display: boolean; details: any }, options: any): any;
   sendUserMessage(content: string): any;
+  /** Keeps a delivered notice's text as a `sent` line, under its source (the event log's `what`). */
+  logSent?(what: string, text: string): void;
   /** Whether the agent is idle now; undefined when unknown. */
   isIdle(): boolean | undefined;
   /** Whether a turn started now carries a system prompt: false until the session's first prompt. */
@@ -142,6 +162,8 @@ export class Inbound {
   }
 
   private send(notice: Notice): Promise<void> {
+    // Every notice the model reads is kept as its text, whatever wakes or waits for the run (the event log, `sent`).
+    this.host.logSent?.(sentWhatOf(notice.customType, notice.content), notice.content);
     const message = { customType: notice.customType, content: notice.content, display: true, details: notice.details };
     const wake = notice.wake && this.host.canWake?.() !== false;
     // A send that throws at once is caught like one that rejects later: a notice never breaks its source.

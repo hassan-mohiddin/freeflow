@@ -143,14 +143,16 @@ export class CompactionController {
         .replace(/^Error: /, "")
         .trim()
         .split("\n");
+      const content = this.host.notice(
+        `Freeflow could not make the bundle, so it did not compact: ${error}. Mend what the error names, then checkpoint with --compact again.`,
+      );
+      this.host.sent?.("compaction-error", content);
       return {
         entries: [
           {
             type: "custom_message",
             customType: RECOVERY_TYPE,
-            content: this.host.notice(
-              `Freeflow could not make the bundle, so it did not compact: ${error}. Mend what the error names, then checkpoint with --compact again.`,
-            ),
+            content,
             display: true,
           },
         ],
@@ -162,11 +164,17 @@ export class CompactionController {
     if (!state.task && !state.delegation && state.summary?.path)
       await rm(state.summary.path, { force: true }).catch(() => {});
     this.compacted = { carriedFiles: [] };
+    const summary = `${made.stdout.trimEnd()}\n\n${this.harness(branch, ctx, cycle, "notice")}`;
+    this.host.sent?.("bundle", summary);
+    const content = this.host.notice(
+      `Freeflow compacted the session after your checkpoint: context cycle ${cycle} starts here, and the conversation is now the ${state.task ? `bundle of ${state.task.id}` : "session summary's bundle"}. Continue from In flight and the Next action.`,
+    );
+    this.host.sent?.("continue", content);
     return {
       entries: [
         {
           type: "compaction",
-          summary: `${made.stdout.trimEnd()}\n\n${this.harness(branch, ctx, cycle, "notice")}`,
+          summary,
           firstKeptEntryId: null,
           details: {
             // Pi's own details shape, so later compactions (Pi's or Freeflow's) carry the file lists forward.
@@ -177,9 +185,7 @@ export class CompactionController {
         {
           type: "custom_message",
           customType: RECOVERY_TYPE,
-          content: this.host.notice(
-            `Freeflow compacted the session after your checkpoint: context cycle ${cycle} starts here, and the conversation is now the ${state.task ? `bundle of ${state.task.id}` : "session summary's bundle"}. Continue from In flight and the Next action.`,
-          ),
+          content,
           display: true,
         },
       ],
@@ -221,9 +227,11 @@ export class CompactionController {
           await this.host.store.answered();
           if (!state.task && !state.delegation && state.summary?.path)
             await rm(state.summary.path, { force: true }).catch(() => {});
+          const summary = `${made.stdout.trimEnd()}\n\n${this.harness(branch, ctx, cycle)}`;
+          this.host.sent?.("bundle", summary);
           return {
             compaction: {
-              summary: `${made.stdout.trimEnd()}\n\n${this.harness(branch, ctx, cycle)}`,
+              summary,
               firstKeptEntryId: event.preparation.firstKeptEntryId,
               tokensBefore: event.preparation.tokensBefore,
               details: {
@@ -238,6 +246,7 @@ export class CompactionController {
       const note = task
         ? `Freeflow: the task's Working Record (${task.id}) holds the work up to its last checkpoint, ${task.stateAsOf}; keep in the summary what happened after that.`
         : FALLBACK_INSTRUCTIONS;
+      this.host.sent?.("compaction-note", note);
       const instructions = [note, event.customInstructions].filter(Boolean).join("\n\n");
       // Pi merges the previous compaction's file lists only when Pi wrote it; add them back for Freeflow's.
       const previousFiles = previousFileLists(branch);
@@ -249,13 +258,15 @@ export class CompactionController {
       const result = await this.host.summarize(event.preparation, instructions, event.signal, ctx);
       if (!result?.summary) return undefined;
       const after = task ? await this.host.store.bundle({ fallback: true }) : undefined;
-      const summary = [
-        result.summary,
+      // Pi's summary is the model's own; what Freeflow adds after it is what this keeps as a `sent` line.
+      const added = [
         this.harness(branch, ctx, cycle),
         after?.code === 0 ? after.stdout.trimEnd() : task ? FALLBACK_RECOVERY(task.id, this.host.store.command()) : "",
       ]
         .filter(Boolean)
         .join("\n\n");
+      this.host.sent?.("bundle", added);
+      const summary = [result.summary, added].filter(Boolean).join("\n\n");
       return {
         compaction: {
           ...result,
