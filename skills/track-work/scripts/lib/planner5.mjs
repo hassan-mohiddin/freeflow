@@ -8,6 +8,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { HISTORY_FILE, fieldText, filesIn, parseHistory5, parseRecord5 } from "./record5.mjs";
 import { PRICES, parseMeasure } from "./measure5.mjs";
+import { noticePoint } from "./notice5.mjs";
 import { freeflowStoreOf, isFreeflowStore } from "./store.mjs";
 
 /** A pool stands for a prediction only with at least this many measured Slices, or sized ones for a per-file rate. */
@@ -17,8 +18,6 @@ export const MIN_MEASURED = 3;
  * on-target Slices: one Slice 3× over scales the next prediction by 3^(1/3), about 1.44.
  */
 export const CORRECTION_PRIOR = 2;
-/** Where Freeflow's notice comes, as a share of the window. */
-const NOTICE_AT = 0.75;
 
 export class PlanError extends Error {}
 
@@ -457,6 +456,7 @@ export function planView({
   from,
   used,
   window,
+  notice = noticePoint({ window: window.tokens }),
   start,
   done,
   fanOut,
@@ -542,7 +542,6 @@ export function planView({
     lines.push(
       `Sizes are given but fewer than ${MIN_MEASURED} closed Slices have Files (slice size adds them), so every Slice is planned as the median one.`,
     );
-  const notice = NOTICE_AT * window.tokens;
   const startsAt = start?.tokens ?? 0;
   const capacity = notice - startsAt;
   if (capacity <= 0)

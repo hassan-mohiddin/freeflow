@@ -3,17 +3,24 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { CompactionController, RECOVERY_TYPE } from "../../dist/compaction/controller.js";
+import { loadNotice } from "../../dist/compaction/thresholds.js";
+
+// The notice point comes from notice5.mjs, which the controller reads as Freeflow's package loads it.
+await loadNotice(fileURLToPath(new URL("../../..", import.meta.url)));
 
 // The controller with a fake host: the store's state and bundle are given, the context is a number the test sets.
 const WINDOW = 200_000;
-const limits = { window: WINDOW, trigger: 183_616, notice: 150_000 };
+const limits = { window: WINDOW, trigger: 183_616, notice: 163_616 };
 const notice = (text) => `<freeflow-notice type="compaction">\n${text}\n</freeflow-notice>`;
 
-function setup({ state, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" } } = {}) {
+function setup({ state, kept, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" } } = {}) {
   let tokens = 0;
   const calls = { answered: 0, bundle: [], summarize: [] };
+  // The store's copy of the cycle (cycle.json): what a reload reads back.
+  const copies = { value: kept, writes: [] };
   let current = state;
   const branch = [];
   const ctx = { cwd: "/work", sessionManager: { getBranch: () => branch, getLeafId: () => String(branch.length) } };
@@ -21,6 +28,11 @@ function setup({ state, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" 
     effective: () => true,
     background: () => [],
     measure: () => ({ tokens, thresholds: limits }),
+    kept: () => copies.value,
+    keep: (_ctx, state) => {
+      copies.value = { ...state };
+      copies.writes.push({ ...state });
+    },
     notice,
     summarize: async (preparation, instructions) => {
       calls.summarize.push(instructions);
@@ -45,6 +57,7 @@ function setup({ state, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" 
     ctx,
     branch,
     calls,
+    copies,
     at: (value) => (tokens = value),
     set: (next) => (current = next),
   };
@@ -58,21 +71,15 @@ const task = (stateAsOf) => ({
   compact: { path: "/store/compact.json", requestedAt: stateAsOf, done: false },
 });
 
-test("rows at 50, 60 and 70% once each, then the cycle's one notice, naming the held task and the command", () => {
+test("nothing before the notice point, then the cycle's one notice, naming the held task and the command", () => {
   const { controller, ctx, at } = setup({ state: task("2026-10-30T10:00:00Z") });
   at(90_000);
   assert.equal(controller.observe(ctx), undefined);
   at(105_000);
-  const row = controller.observe(ctx);
-  assert.equal(row.level, "row");
-  assert.match(
-    row.text,
-    /Context cycle 1: the context is at 53% of its window \(105000 of 200000 tokens\); the checkpoint notice comes at about 150000 tokens\./,
-  );
-  assert.equal(controller.observe(ctx), undefined, "the 50% row is shown once");
+  assert.equal(controller.observe(ctx), undefined, "no row at 50%: the notice is the only signal");
   at(145_000);
-  assert.match(controller.observe(ctx).text, /at 73% of its window/, "the highest row crossed, 70%");
-  at(150_000);
+  assert.equal(controller.observe(ctx), undefined, "no row at 70%");
+  at(163_616);
   const once = controller.observe(ctx);
   assert.equal(once.level, "notice");
   assert.match(once.text, /Keep working until a safe point/);
@@ -86,10 +93,9 @@ test("rows at 50, 60 and 70% once each, then the cycle's one notice, naming the 
   at(170_000);
   assert.equal(controller.observe(ctx), undefined, "no second notice and no repeat");
 });
-
 test("with no task the notice asks for the session summary", () => {
   const plain = setup({ state: { home: "/home", store: false, session: "s-1" } });
-  plain.at(150_000);
+  plain.at(163_616);
   assert.match(plain.controller.observe(plain.ctx).text, /checkpoint --session --compact --input -/);
 });
 
@@ -184,4 +190,16 @@ test("Pi's own compaction: the bundle once checkpointed, else Pi's summary with 
   const plain = (await none.controller.fallback(event, none.ctx)).compaction;
   assert.match(none.calls.summarize[0], /^Write state, not a story/);
   assert.doesNotMatch(plain.summary, /BUNDLE/);
+});
+
+test("a controller after a reload does not show the notice its cycle showed, read from the store's copy", () => {
+  const first = setup({ state: task("2026-10-30T10:00:00Z") });
+  first.at(163_616);
+  assert.equal(first.controller.observe(first.ctx).level, "notice");
+  assert.deepEqual([first.copies.value.cycle, typeof first.copies.value.notice], [1, "number"]);
+  assert.equal(first.copies.value.row, undefined);
+  // The reload: a new controller that reads the copy the first one kept.
+  const reloaded = setup({ state: task("2026-10-30T10:00:00Z"), kept: first.copies.value });
+  reloaded.at(170_000);
+  assert.equal(reloaded.controller.observe(reloaded.ctx), undefined, "the notice is not sent again");
 });
