@@ -40,9 +40,10 @@ const RETURN_STATES = new Set(["done", "blocked", "stopped"]);
 const BRIEF_SECTIONS = ["Result wanted", "Scope", "Settled", "Read", "Done when", "Return when", "Changes"];
 /** What decides a return, by the brief's Check (SPEC-010 4.2): what check-return tells the coordinator to do next. */
 const CHECK_NEXT = {
-  scripted: "rerun the script that decides the result",
-  tests: "rerun the tests that decide the result",
-  judgement: "judge it against the brief's Result wanted and Done when, or have it judged, since no script decides it",
+  scripted: "rerun every command its brief's Done when names: a script decides the result",
+  tests: "rerun every command its brief's Done when names: tests decide the result",
+  judgement:
+    "rerun every command its brief's Done when names, then judge it against the brief's Result wanted and Done when, or have it judged, since no script decides it",
 };
 const RETURN_SECTIONS = ["Result", "Identities", "Checks", "Left open", "Not done"];
 const ID = /^D-(\d{3,})(?:\.(\d+))?$/;
@@ -771,7 +772,7 @@ export async function checkReturn(loaded, options, { readOnly = false } = {}) {
   const shape = brief.Kind === "review" ? "a reviewer's return" : "every heading is there";
   const next = readOnly
     ? "Now tell your coordinator, through the harness's message tool where there is one, that it is there."
-    : `Now read it and the diff, and ${CHECK_NEXT[brief.Check] ?? "rerun the check that decides the result"}.`;
+    : `Now read it and the diff, and ${CHECK_NEXT[brief.Check] ?? "rerun every command its brief's Done when names"}.`;
   // The route as the brief records it, for work opened with --settled or --check (SPEC-010 4.2).
   const routed =
     brief.Settled || brief.Check

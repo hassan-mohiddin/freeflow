@@ -544,7 +544,7 @@ test("check-return and close read Settled, Check and Route; a return sent back n
     );
     assert.match(
       ok(cli(["delegate", "check-return", "--record", "widget/task-001", "--id", "D-001"])),
-      /^D-001's return: State done \(build, settled yes, check tests, route Freeflow's default row 4\); every heading is there; it names no commit\. Its line now says returned\..* Now read it and the diff, and rerun the tests that decide the result\.\n$/,
+      /^D-001's return: State done \(build, settled yes, check tests, route Freeflow's default row 4\); every heading is there; it names no commit\. Its line now says returned\..* Now read it and the diff, and rerun every command its brief's Done when names: tests decide the result\.\n$/,
     );
     const close = (flags) =>
       cli(["delegate", "close", "--record", "widget/task-001", "--id", "D-001", ...flags, "--input", "-"], {

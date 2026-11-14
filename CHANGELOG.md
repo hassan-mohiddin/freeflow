@@ -78,7 +78,7 @@
 
 ### Changed
 
-- Execute Work's Check The Return reruns every command the brief's Done when names, not the one the coordinator judges decisive: a coordinator that chose which to rerun missed a failing suite.
+- Execute Work's Check The Return reruns every command the brief's Done when names, not the one the coordinator judges decisive: a coordinator that chose which to rerun missed a failing suite. Track Work's `delegate check-return` says the same when a return passes.
 - Execute Work's Decide Whether To Hand It Out weighs two inputs: the price gap between the coordinator and its worker, and how much of the task is left. A part done by hand keeps its trail in the coordinator's context until the next compaction and brings that compaction closer, so handing out is worth most early in a long task and least near its end.
 - Discuss Work's decision list: an item moved to `changed` without a one-line reason is now an error, not a warning, so `choices.mjs validate` fails and `delegate close` refuses to add to the list until the reason is there.
 - Track Work's `checkpoint --compact` asks for Freeflow's compaction only where the session's driver claims it can compact (Claude Code's mod and Pi's extension do). Elsewhere it writes the checkpoint, leaves no request that nothing would answer, and says so: "No Freeflow driver here compacts (no capabilities for this session). The harness compacts on its own; after it, recover with view recover."
