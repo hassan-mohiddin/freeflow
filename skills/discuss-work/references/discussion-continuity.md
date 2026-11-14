@@ -35,7 +35,6 @@ Use a durable destination only when losing the state could cause later misalignm
 - **Spec:** stable accepted behavior, boundaries, or content needs a tracked source.
 - **Plan:** an accepted ordered execution strategy must survive independently.
 - **ADR:** a surprising and hard-to-reverse repository decision needs durable rationale.
-- **Handoff:** a point-in-time continuation package must transfer to another context or owner.
 - **Domain documentation:** stable terminology or domain meaning belongs in an existing repository source.
 
 Do not create an artifact merely because discussion occurred. Prefer an existing repository convention. Ask before inventing a tracked destination whose authority or ownership matters.
@@ -54,7 +53,7 @@ A Working Record is appropriate when:
 
 Preserve only supported state that could affect later interpretation or action. Give each detailed fact one canonical owner. Track Work should store current meaning rather than append discussion chronology.
 
-When the initial record need arises from discussion, preserve the state that justified the record in the first authorized atomic update. Do not create an empty shell and lose the decisions, proposals, or uncertainty that made continuity necessary. Once a record exists, use it as working memory during the discussion, updating it at meaningful boundaries (accepted choices, open questions, options still considered, material the user supplies, the route as it emerges) as Track Work describes.
+When the initial record need arises from discussion, preserve the state that justified the record in the first authorized atomic update. Do not create an empty shell and lose the decisions, proposals, or uncertainty that made continuity necessary. Once a record exists, the discussion still lives in the conversation: record a change to the work when it settles, and what you currently understand at the checkpoint, as Track Work describes.
 
 When a rough route is useful, preserve provisional Slices, the return points between them, and their actual dependencies without pretending the later implementation is settled. Keep the current Slice concrete and later work directional. Use the existing Current Context, Current Work, Future Work, and History fields; do not add a second phase or context-cycle ledger.
 
@@ -64,7 +63,7 @@ After preservation, return to the discussion unless the user chose another route
 
 ## Carry Return Points On The Route
 
-A commit, publication, review, user decision, or planned handoff that the discussion anticipates is a return point on the route, not a Slice. While it is only anticipated, keep it in the conversation, or with a record as a `Proposed:` item in Open at the next checkpoint. Once the user agrees it, it goes in the work agreement: with a record, a `Back at` line through Track Work.
+A commit, publication, review, user decision, or planned pause that the discussion anticipates is a return point on the route, not a Slice. While it is only anticipated, keep it in the conversation, or with a record as a `Proposed:` item in Open at the next checkpoint. Once the user agrees it, it goes in the work agreement: with a record, a `Back at` line through Track Work.
 
 Keep local commit authority separate from push or publication, and keep migration, release, and launch separately controlled.
 

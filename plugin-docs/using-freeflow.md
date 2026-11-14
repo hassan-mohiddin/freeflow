@@ -182,7 +182,7 @@ Freeflow skills are focused methods. Each skill's description says when it appli
 | Establish what a check proves | `/verify-work` | Factual support at the required observer boundary, and changes to existing tests |
 | Judge work or a document | `/review-work` | Self-review, the review gate, and independent review when selected |
 | Commit, push, merge, release or deploy | `/deliver-work` | Each delivery step within its own yes, with one stop list and report |
-| Preserve long-running task state | `/track-work` | Working Record creation, recovery, Slices, decisions, checkpoints and handoffs |
+| Preserve long-running task state | `/track-work` | Working Record creation, recovery, Slices, decisions and checkpoints |
 | Write a spec, plan, decision record or docs | `/write-docs` | Specs and Plans that decide work, decision records, and user and developer docs kept true as the code changes |
 
 [How Freeflow Works](workflow.md#skills) lists all eleven skills, including the contributor ones, and the scripts they run. The 0.9.0 skills replaced twenty-five earlier ones; [What changed in 0.9.0](workflow.md#what-changed-in-090) says where each removed name went.
@@ -334,7 +334,7 @@ current branch and my latest direction.
 ```
 
 ```text
-Pause safely and prepare a handoff. Preserve partial effects and the exact
+Pause safely and checkpoint the task. Preserve partial effects and the exact
 condition for resuming.
 ```
 

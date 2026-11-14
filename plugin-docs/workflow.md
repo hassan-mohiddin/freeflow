@@ -5,7 +5,7 @@ Freeflow is guidance for the agent you already use, not a new agent. The agent o
 - **Core guidance** carries the cycle below, what authorizes work, and how to recover after context loss.
 - **The Interaction Contract** tells a question or an idea apart from a request to act.
 - **The Working Method** holds the rules every task keeps, a one-line habit for each step that names the skill, reference or script holding its method, and how to keep output small.
-- **Skills** hold the methods. Each step of the cycle names the skill to read, and each skill's description says when it applies: the agent reads Discuss Work at a task's first request and Execute Work before its first tool call, even on a read-only task, and the others when their step comes. A skill's reference or script is read or run only when its situation arises.
+- **Skills** hold the methods. Each step of the cycle names the skill to read, and each skill's description says when it applies: the agent reads Discuss Work at a session's first message, before it replies, and Execute Work before its first tool call, even on a read-only task, and the others when their step comes. A skill's reference or script is read or run only when its situation arises.
 
 ## The Cycle
 
@@ -50,7 +50,7 @@ The work agreement is what you and the agent agreed it may do: the outcome, what
 - Ask a question or raise a doubt: the agent answers. A doubt about the step in progress is answered before that step goes on.
 - Say stop: it starts nothing new, finishes or reverts only what is already running, and reports.
 - Narrow it for now ("just diagnose first", "don't edit yet"): that holds until you lift it, also after a compaction, even when a broader agreement is written down.
-- Change direction: the agent updates the written agreement in your words, then continues under the new one.
+- Change direction: a stop or a limit is written into the agreement at once, in your words; a change to its terms is written when it settles, and a different outcome opens a new agreement.
 
 Your latest message always wins over a stored agreement.
 
@@ -89,7 +89,7 @@ Each skill is one capability. Its first page covers the common case and a table 
 | [Verify Work](../skills/verify-work/SKILL.md) | Checking whether work or a claim holds: tests, builds, the real path; setting up or rechecking saved live checks of your software | `/verify-work` |
 | [Review Work](../skills/review-work/SKILL.md) | Judging whether work, a spec, plan, skill, eval or report is fit to use, in an independent review from a context that did not make it, and weighing a review that came back | `/review-work` |
 | [Deliver Work](../skills/deliver-work/SKILL.md) | Committing, pushing, merging or opening a pull request, cleaning up a branch, releasing, deploying | `/deliver-work` |
-| [Track Work](../skills/track-work/SKILL.md) | A task that needs memory beyond the conversation: its Working Record, recovery after context loss, a handoff to another session or person | `/track-work` |
+| [Track Work](../skills/track-work/SKILL.md) | A task that needs memory beyond the conversation: its Working Record, recovery after context loss, a transfer to another session or person | `/track-work` |
 | [Write Docs](../skills/write-docs/SKILL.md) | A spec, plan, decision record or ADR; user or developer docs; docs a change made wrong | `/write-docs` |
 | [Research Work](../skills/research-work/SKILL.md) | Answering a question from checked sources: an in-depth report on code or papers, a literature review, a study or quick check planned before the data, statistics for a result, a paper written from the results, with its figures, references and build to PDF, and the rebuttal to its reviewers | `/research-work` |
 | [Setup Freeflow](../skills/setup-freeflow/SKILL.md) | Activating Freeflow in a repository, repairing its configuration, checking delivery | `/setup-freeflow` |
@@ -133,7 +133,7 @@ Freeflow 0.9.0 has ten skills instead of twenty-five. The removed names have no 
 | Discuss, Agree Work | Discuss Work (`/discuss-work`) |
 | Commit Work, Finish Branch, Release Work, Launch Work | Deliver Work (`/deliver-work`) |
 | Design for Depth, Simplify Code, Diagnose Failure, Migration Work | Execute Work (`/execute-work`) and its references |
-| Handoff | Track Work's handoff reference |
+| Handoff | Track Work's checkpoint and task release |
 | Write Spec, Write Plan | Write Docs (`/write-docs`) |
 | Map Features | Verify Work's feature map reference (`/verify-work`) |
 
@@ -176,7 +176,6 @@ Review findings are evidence, not commands. An accepted correction that your agr
 - **Working Record:** living task context (including the optional Work agreement and the decision list), one Current Slice, ordered Future Work, Decisions, Slice-local Evidence and Blockers, History, Notes, and the next action ([Track Work](../skills/track-work/SKILL.md)).
 - **Spec:** accepted content, behavior, boundaries and uncertainty ([Write Docs](../skills/write-docs/SKILL.md)).
 - **Plan:** an ordered execution strategy when dependencies, mechanism and checks can be stated without guessing (Write Docs).
-- **Handoff:** point-in-time continuation context for a pause or transfer (Track Work).
 
 Artifacts preserve content or strategy; they are not proof, and they do not outrank your current direction or live evidence. Writing one never adds an approval step to work you already covered.
 

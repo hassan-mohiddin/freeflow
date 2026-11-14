@@ -170,7 +170,7 @@ Use only the fields defined for the block; omit an optional field that has no va
 
 ### Current Context
 
-Bullets under Goal, Settled and Open, in about 600 words in every mode and window. It is written at `init` and rewritten whole before each `checkpoint`; `agreement close` also adds to Settled the choices that still govern.
+Bullets under Goal, Settled and Open, in about 600 words in every mode and window. It is written at `init` and brought up to date before each `checkpoint`, only where it no longer matches the state; `agreement close` also adds to Settled the choices that still govern.
 
 | Heading | Holds |
 | --- | --- |

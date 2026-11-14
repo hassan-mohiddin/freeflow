@@ -2,7 +2,7 @@
 
 This reference is judgment; Review Work's Rules still bind. Its Independent Review section is a contract: the context to provide and the reviewer prompt are binding as written.
 
-It covers documents that guide later work, such as a Spec, Plan, design, decision record, ADR, handoff, or skill, and accounts of work already done: a final report, a status or results note, or a Working Record. Reports And Records below adds what is particular to an account.
+It covers documents that guide later work, such as a Spec, Plan, design, decision record, ADR, or skill, and accounts of work already done: a final report, a status or results note, or a Working Record. Reports And Records below adds what is particular to an account.
 
 ## Establish The Artifact And Its Intended Use
 
@@ -27,7 +27,6 @@ Goal: ask of each artifact only what its job requires.
 - **Spec or content contract:** the accepted content, behavior, boundaries, evidence, and uncertainty needed for its intended use.
 - **Plan:** an inspectable, supported ordered strategy with scope, dependencies, assumptions, checks, and stop or invalidation conditions.
 - **Decision record or ADR:** the choice, owner, source, alternatives, rationale, consequences, and revisit or supersession conditions.
-- **Handoff:** enough truthful point-in-time context for its recipient to continue safely, without replacing the live record.
 - **Report:** every claim the reader may act on matches what happened, every evidence pointer resolves and shows what the claim says, no claim is stronger than its evidence, and unfinished, skipped, or failed work is stated.
 - **Working Record:** accurate current task state, recoverable Slices, decisions and work, compact evidence pointers with their limits, a provisional remaining route, defining artifacts and the sources recovery reads, sufficient for a fresh context to resume, and one next action.
 - **Other artifact:** its declared purpose without taking over another artifact's job.
@@ -96,7 +95,7 @@ Read the supplied evidence first. Run a check listed under May run, in your own 
 ## Artifact And Intended Use
 
 - Artifact: [path]
-- Type: [spec | PRD | issue | API contract | technical design | migration contract | plan | decision record | ADR | handoff | report | working record | eval definition | other]
+- Type: [spec | PRD | issue | API contract | technical design | migration contract | plan | decision record | ADR | report | working record | eval definition | other]
 - Reviewed state: [revision, hash, or other exact identity]
 - Intended use: [decision or future action this artifact must support]
 - Dependency order: [upstream -> downstream, or standalone]

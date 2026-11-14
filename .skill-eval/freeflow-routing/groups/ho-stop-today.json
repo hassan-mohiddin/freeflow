@@ -45,14 +45,6 @@
   },
   "expectations": [
     {
-      "id": "read-handoff",
-      "kind": "tool-call",
-      "variant": "freeflow",
-      "tool": "read",
-      "argumentContains": ["/skills/handoff/SKILL.md"],
-      "expect": "succeeded"
-    },
-    {
       "id": "read-track-work",
       "kind": "tool-call",
       "variant": "freeflow",

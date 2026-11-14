@@ -49,7 +49,7 @@ A question gets an answer, an exact one-line edit gets made, and a large change 
 | Verify Work | Checking whether work or a claim holds; setting up or rechecking saved live checks of your software |
 | Review Work | Judging whether work or a document is fit to use, yours or another's |
 | Deliver Work | Commit, push, merge or pull request, branch cleanup, release, deploy |
-| Track Work | Task memory beyond the conversation: the Working Record, recovery, handoffs |
+| Track Work | Task memory beyond the conversation: the Working Record, recovery, transfers |
 | Write Docs | Specs, plans, decision records, user and developer docs |
 | Setup Freeflow | Activating Freeflow in a repository and checking delivery |
 | Write Skill | Writing or revising a skill or other text an agent acts on |

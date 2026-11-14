@@ -73,7 +73,7 @@ When it is ready, state:
 
 Use existing correction or revision authority only when it covers that result (for an artifact revision, also its dependency impact). Otherwise propose the change and any warranted follow-up once, then wait. A finding, adjudication, or selected review does not authorize mutation.
 
-Actual correction of work returns to [Execute Work](../../../skills/execute-work/SKILL.md). Actual revision of an artifact returns to the artifact's owning skill: [Track Work](../../../skills/track-work/SKILL.md) for a Working Record or a handoff, and [Write Docs](../../../skills/write-docs/SKILL.md) for a Spec, Plan, decision record or documentation.
+Actual correction of work returns to [Execute Work](../../../skills/execute-work/SKILL.md). Actual revision of an artifact returns to the artifact's owning skill: [Track Work](../../../skills/track-work/SKILL.md) for a Working Record, and [Write Docs](../../../skills/write-docs/SKILL.md) for a Spec, Plan, decision record or documentation.
 
 When it is not ready, route it as Review Work's "Route A Problem To Its Owner" says. When findings interact, assumptions or upstream authority are challenged, dependency effects remain uncertain, or user input could change the remedy or revision, report the problem to the user as a return point and stop before selecting or executing a remedy.
 

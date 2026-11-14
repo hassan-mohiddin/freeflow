@@ -1,11 +1,11 @@
 ---
 name: discuss-work
-description: "Use whenever what to do, or how, is not settled yet: exploring a problem, comparing options or approaches, questioning assumptions, brainstorming, planning an approach, designing or changing modules, interfaces, data models, state, error handling or dependencies, or revisiting a direction after new evidence. Read it at a task's first request, before your first tool call, to decide with the user what you will do, where you stop and which choices are theirs before anything is built, fixed or changed. Also use mid-work when a choice the user owns comes up (behavior, names, defaults, scope, cost, risk) or sources conflict; when a question needs a quick experiment before building on it; when a discussion or its decisions must outlast the conversation; and when the user asks to skip or lighten optional steps such as a plan, a review or a record."
+description: "Use at a session's first message, before you reply, whatever it is: a question, an idea, a request, criticism or a status check. Also use whenever what to do, or how, is not settled yet: exploring a problem, comparing options or approaches, questioning assumptions, brainstorming, planning an approach, designing or changing modules, interfaces, data models, state, error handling or dependencies, or revisiting a direction after new evidence. It decides with the user what you will do, where you stop and which choices are theirs before anything is built, fixed or changed. Also use mid-work when a choice the user owns comes up (behavior, names, defaults, scope, cost, risk) or sources conflict; when a question needs a quick experiment before building on it; when a discussion or its decisions must outlast the conversation; and when the user asks to skip or lighten optional steps such as a plan, a review or a record."
 ---
 
 # Discuss Work
 
-Work out with the user what to do, and how, while that is still open; agree the work and every choice that is the user's before building; keep those choices in one decision list through the work; and account for them at the end.
+Answer the user's message first, as any capable agent would; then work out with them what to do, and how, while that is still open; agree the work and every choice that is the user's before building; keep those choices in one decision list through the work; and account for them at the end.
 
 A **user-owned choice** changes something the user will see or live with: behavior, names, text or public interfaces the user meets, defaults, what happens on error, data written or lost, scope, compatibility or migration, permissions, security, privacy, cost, or other risk. Mechanics that change none of these are yours to choose. The [Interaction Contract](../../runtime/prompts/interaction-contract.md) governs what the user's turn asks for.
 
@@ -15,6 +15,8 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 | Situation | Go to |
 | --- | --- |
+| A message that asks for no change: a question, an idea, criticism, a status check | Answer The Message, below |
+| The user comes back while agreed work is under way | When The User Returns Mid-Work, below |
 | What to do, or how, is still open | Explore, below |
 | A task that builds or changes behavior, before the first edit | Agree Before Building, below |
 | A user-owned choice or conflicting sources mid-work | Choices During The Work, below |
@@ -34,6 +36,12 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Keep supported facts and the user's decisions apart from hypotheses, proposals and open choices. Your recommendation or default never becomes a requirement or a Decision because it is repeated, recorded or built; record as a Decision only what the user accepted.
 - Every user-owned choice the work makes goes in the decision list, whether or not anyone answered it. A technical choice that changes something the user will see goes in the plain list.
 - Never weaken required behavior to make an approach look simpler.
+
+## Answer The Message
+
+Goal: the user gets an answer to what they said, and nothing is recorded or started that they did not ask for.
+
+Answer the message itself before anything else; the [Interaction Contract](../../runtime/prompts/interaction-contract.md) governs what it asks for. A question, an idea, criticism or a status check gets its answer and changes nothing else: it needs no agreement and no record update, and starts no work. While a discussion is still moving, the conversation holds it; a change to the work that it settles is recorded once, when it settles, and the rest waits for the checkpoint, as [Track Work](../track-work/SKILL.md) says. A stop or a limit from the user holds from the moment they say it, and with a Working Record it is recorded then.
 
 ## Explore
 
@@ -94,6 +102,8 @@ Size:           <for work past this context cycle: the context cycles it takes, 
 
 `Where I stop` names the endpoint the user can hold you to, and where you come back. After discussing several possible Slices, an ambiguous "proceed" needs it settled: the next Slice and return, or the whole task? Do not ask when the user already named the endpoint.
 
+When the work may outlast this context cycle and the session holds no task, ask whether it gets a task and where, as Track Work's [Choose And Hold The Task](../track-work/SKILL.md#choose-and-hold-the-task) says, before recording anything. On the user's answers, record everything once: the task, the agreement, the decision list and the first Slice.
+
 "Go", "fine", "your call" and "just do it" accept every default: those items become `agreed`. A correction changes only the item it names. Then build within the agreement, through to where you stop.
 
 ### When To Skip
@@ -126,6 +136,18 @@ Goal: no choice is made silently, and the user is interrupted only when the work
 - New evidence that reopens the direction itself, not one bounded choice: go back to Explore for what changed.
 
 When sources the work relies on disagree, state each one's exact claim, scope and status (current, accepted, draft, historical, generated) and apply the repository's own precedence; code is not right because it runs, and tests are not requirements because they fail. Ask only when precedence does not settle it and the answer changes the result.
+
+## When The User Returns Mid-Work
+
+Goal: agreed work changes only when you and the user have settled the change, and then in one step.
+
+Answer first, as Answer The Message says. When the discussion settles a change to the work, say in one line what changes, then make it in one go through Track Work, the open Slice first:
+
+- **The open Slice:** it continues when its result still serves the agreement; otherwise close it as abandoned, with the reason, so its partial state is on record.
+- **The agreement:** the same outcome with different terms (scope, a limit, where you stop) is an update; a different outcome ends the agreement and opens a new one, once no Slice works under it.
+- **The decision list:** an item the change answers becomes `agreed`; one it overturns becomes `changed`, with why.
+
+A discussion that settles nothing changes nothing; the messages open work rests on are saved at the next checkpoint.
 
 ## Ask One Question
 

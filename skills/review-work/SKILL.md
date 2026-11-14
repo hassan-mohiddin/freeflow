@@ -1,6 +1,6 @@
 ---
 name: review-work
-description: "Use whenever finished work or a document is judged fit to use: reviewing code, a diff, a commit or a pull request; reviewing a spec, plan, design, ADR, handoff, skill, final report, status note or Working Record; reviewing changes to authentication, permissions, secrets, untrusted input or other security boundaries; reviewing an eval case, suite, grader or rubric before paying for its runs; preparing, dispatching or skipping an independent review; choosing a model as judge or relying on its verdict; and weighing a review report that came back."
+description: "Use whenever finished work or a document is judged fit to use: reviewing code, a diff, a commit or a pull request; reviewing a spec, plan, design, ADR, skill, final report, status note or Working Record; reviewing changes to authentication, permissions, secrets, untrusted input or other security boundaries; reviewing an eval case, suite, grader or rubric before paying for its runs; preparing, dispatching or skipping an independent review; choosing a model as judge or relying on its verdict; and weighing a review report that came back."
 ---
 
 # Review Work
@@ -26,7 +26,7 @@ Read the reference for what is under review before reviewing it; each names what
 | --- | --- |
 | Work: code, a diff, a commit, an implementation, or integrated state | [Work Review](references/work.md) |
 | Work that changes trust boundaries, authentication, authorization, permissions, untrusted input, secrets, sensitive data, security-relevant dependencies or external integrations, code-execution boundaries, or failure behavior with security consequences | Work Review's [Security Risk Lens](references/work.md#security-risk-lens) as well |
-| An artifact that will guide later work: a Spec, Plan, design, decision record, ADR, handoff, or skill | [Artifact Review](references/artifact.md) |
+| An artifact that will guide later work: a Spec, Plan, design, decision record, ADR, or skill | [Artifact Review](references/artifact.md) |
 | An account of work already done: a final report to the user, a status or results note, or a Working Record | [Artifact Review](references/artifact.md), with its [Reports And Records](references/artifact.md#reports-and-records) |
 | An eval case, suite, fixture, grader, or rubric that will be run to measure behavior, before spending on its runs | [Eval Definition Review](references/evals-and-judges.md#eval-definition-review) |
 | A review unit (a pull request, push, commit or Return, as the user's `review.unit` says): planning, dispatching or proposing the independent review of the work, or checking that one is on record | The Review Gate, below |

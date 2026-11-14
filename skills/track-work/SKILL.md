@@ -1,6 +1,6 @@
 ---
 name: track-work
-description: "Use when a task needs memory beyond the conversation: starting, updating, checkpointing or recovering its Working Record; choosing, taking, switching or releasing a task from Freeflow's task menu, or one another session holds; moving a task into or out of a project; when work may not fit in what is left of the context, or will outlast this context cycle; when Freeflow says compaction is near, after a compaction, a summary, a clear or a move into a new session; before pausing, handing off or transferring work; when a task ID, a project, the Freeflow store or its sync, or parallel sessions are involved; when a record says Schema 4; and when editing a record or running its working-record script. It decides what the record says, and every lifecycle change goes through its script."
+description: "Use when a task needs memory beyond the conversation: starting, updating, checkpointing or recovering its Working Record; choosing, taking, switching or releasing a task from Freeflow's task menu, or one another session holds; moving a task into or out of a project; when work may not fit in what is left of the context, or will outlast this context cycle; when Freeflow says compaction is near, after a compaction, a summary, a clear or a move into a new session; before pausing or transferring work; when a task ID, a project, the Freeflow store or its sync, or parallel sessions are involved; when a record says Schema 4; and when editing a record or running its working-record script. It decides what the record says, and every lifecycle change goes through its script."
 ---
 
 # Track Work
@@ -10,7 +10,7 @@ Keep one Working Record per task so a fresh context, after a compaction, in anot
 A task is a folder, normally in the Freeflow store: one private Git repository at `FREEFLOW_HOME` (default `~/.freeflow`) that holds every task's memory, grouped in projects or in none, and syncs it, on this machine only or, with the user's private remote, on every device. The folder holds:
 
 - `record.md`, the state, in three sections:
-  - **Current Context:** Goal, Settled and Open, rewritten whole at each checkpoint and never patched in between.
+  - **Current Context:** Goal, Settled and Open, brought up to date at each checkpoint, only where it no longer matches the state, and never patched in between.
   - **Current Work:** the open agreement (`A-NNN`), the current Slice (`S-NNN`), Delegations, Space, In flight, Recovery (what the next context cycle reads to recover) and the Next action; it changes as the work moves.
   - **Future Work:** proposed Slices.
 - `history.md`, one entry per closed Slice, agreement or delegation; `decisions.md`, the open agreement's decision list; `sessions.md`, every session that held the task, its last open line the hold.
@@ -29,7 +29,6 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | A session starts with Freeflow's task menu; the user points to a task, asks for a new one, or to switch or close one; a task another session holds | Choose And Hold The Task, below |
 | Freeflow says compaction is near, the context limit is near, or a switch, pause or transfer is coming | Checkpoint Before A Compaction Or A Transfer, below |
 | Context loss: after a compaction, a summary that replaces the conversation, a clear, a transfer into another context | Recover After Context Loss, below |
-| Handing the work to a later session or someone else as a document | Checkpoint first, then [handoff](references/handoff.md) |
 | Setting up the store, local only or local + cloud, or moving older records into it, such as a record whose header says `Schema: 4` | Setup Freeflow's [store setup](../setup-freeflow/references/store-setup.md) |
 | The store and its sync, a sync that fails; projects, holds and other tasks; removing a task or a project | [working record format](references/working-record-format.md), its first part |
 | Editing record structure, preparing a command's input, or any file of the task folder | [working record format](references/working-record-format.md) |
@@ -42,10 +41,11 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Write only the task this session holds. Never write another task's files because you read them; a worker writes only its own `progress.md`, `return.md` and the files its brief names.
 - Record a Slice before causing effects outside the record: edits, commands, generated files, sent messages, or changes to external systems.
 - Use [working-record.mjs](scripts/working-record.mjs) for every lifecycle change: IDs, states, holds, the checkpoint, and moves between sections and files. Edit only meaning directly.
-- Write what the user agreed, and every change to it, in their words with the date. Never record a proposal or a default as agreed.
+- Write what the user agreed, and every settled change to its terms, in their words with the date. Never record a proposal or a default as agreed.
 - After context loss, recover before any task action, as Recover After Context Loss says. If anything it lists cannot be read completely, report that and stop affected work.
 - Never record a requested, reported, or expected result as observed. Keep unverified work, failures, and contradictions visible.
 - Never claim that state will survive context loss unless it is written in the task folder or in a source the record points to.
+- Never write secrets, credentials or private payloads the work does not need into the task folder or a brief: the store syncs to a remote, and a later context or another person reads it.
 
 ## Choose And Hold The Task
 
@@ -80,19 +80,21 @@ Ask: **if context were lost now, what would the next context need that it could 
 | --- | --- |
 | A fact is settled, or a choice the user accepted still governs the task | Settled, at the next checkpoint |
 | A question opens, or you propose something the user has not answered | Open, at the next checkpoint; a proposal as `Proposed: …` with its date, which permission to investigate it does not accept |
-| The user agrees a piece of work, or changes what is agreed | the agreement, in their words |
+| The user agrees a piece of work, or changes what is agreed | the agreement, in their words, when they agree |
 | The work meets a choice the user owns | `decisions.md`, Discuss Work's decision list |
 | Work with partial state is about to begin | a Slice |
 | Work produces a result, an identity (a commit, a document version, a sent message) or evidence | a one-line update on the Slice: its kind and a pointer |
 | Part of the work goes to another agent | a delegation |
-| A Spec, Plan, issue or brief is accepted for the task, or the work must follow a skill beyond the core ones | Recovery, as an `always, not counted:` line |
-| You learn what the next context must read: a file, some of its lines, a saved message | Recovery: an `always:` line, or a `when <trigger>:` line when only some situations need it |
+| A Spec, Plan, issue or brief is accepted for the task, or the work must follow a skill beyond the core ones | Recovery, as an `always, not counted:` line, at the checkpoint |
+| You learn what the next context must read: a file, some of its lines, a saved message | Recovery: an `always:` line, or a `when <trigger>:` line when only some situations need it, at the checkpoint |
 | The repositories the task changes, and where each stands | Space, at the checkpoint |
 | Where the step in progress stands, and what the next step rests on | In flight, at the checkpoint |
-| The next step or the rough route becomes clear | the Next action and Future Work |
-| A discussion with the user shaped the work | discussion blocks, at the checkpoint |
+| The next step or the rough route becomes clear | the Next action and Future Work, at the checkpoint |
+| A discussion with the user shaped the work | discussion blocks: with the change they led to, when it settles; otherwise at the checkpoint |
 
-Until a checkpoint, the conversation holds new understanding; Current Context changes only then, whole, and when `agreement close` adds to Settled the choices that still govern. Check Settled, the agreement and `decisions.md` before asking the user something again.
+Record at two moments. **What happened** is recorded when it happens: the user agreed, stopped you or set a limit; a Slice started; a worker was started, or its return accepted or sent back; a commit, a file or a sent message exists. None of it can be worked out again. **What you currently understand** is recorded once, at the checkpoint: the goal, what is settled and open, where the work stands, what to read next. It keeps moving until then. When unsure, ask: if the context were lost this second, would something that happened be forgotten? If so, record it now.
+
+Until a checkpoint, the conversation holds new understanding; Current Context changes only then, and when `agreement close` adds to Settled the choices that still govern. Check Settled, the agreement and `decisions.md` before asking the user something again.
 
 Default to less. One accurate line beats a paragraph. Update at boundaries, not after every step, and do not narrate routine actions. If maintaining the record is taking noticeable time from the task, you are tracking too much. But concise is not lossy: keep a detail when removing it could change the next action.
 
@@ -104,9 +106,13 @@ Goal: after context loss, the next context knows what the user agreed it may do,
 
 Open the agreement when the user agrees a piece of work, with [Discuss Work](../discuss-work/SKILL.md)'s agreement: `agreement open`, its lines quoting the user beside what each answered, dated. Write only what is known: `Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`; one line is often enough. Never open one as a placeholder, and never ask the user for one just because a task is being created. A task has one open agreement, and each Slice works under it.
 
+The agreement holds terms: what you may do, what you may not, where you stop and where you come back. A message from the user changes it only when it changes one of these; an opinion, an idea or a correction that changes none of them belongs in the discussion blocks.
+
 `Back at` lines are the agreement's return points: a pull request, a review, a decision, a pause. When one is due, stop the work that depends on it and return to the user.
 
-When the user changes what is agreed, `agreement update` adds one line in their words, without asking first: an extension, a lifted limit, a new endpoint, or a narrowing for now ("just diagnose first", "don't edit yet"), which governs over the rest until the user lifts it. Add a narrowing at once: a later context sees only what is written. Progress and results belong to Slices, never to the agreement. When a `Proposed:` item in Open is answered, it becomes an update if it changes what is agreed, an item in `decisions.md` if it settles a choice, and otherwise leaves Open at the next checkpoint.
+When a change to the terms settles, `agreement update` adds one line in their words, without asking first: an extension, a lifted limit, a new endpoint. A stop or a narrowing for now ("just diagnose first", "don't edit yet") is recorded at once and governs over the rest until the user lifts it: a later context sees only what is written. When the outcome itself changes, or the agreement's endpoint has passed, close it (`agreement close --state replaced`) and open the next rather than adding lines: an agreement whose later lines undo its earlier ones has to be replayed to learn what holds.
+
+Progress and results belong to Slices, never to the agreement. When a `Proposed:` item in Open is answered, it becomes an update if it changes what is agreed, an item in `decisions.md` if it settles a choice, and otherwise leaves Open at the next checkpoint.
 
 Discuss Work's decision list lives in `decisions.md`; the items the user answered quote them, and the rest are what you assumed, never what the user accepted. When the user ends or replaces the agreement, or at its Return, `agreement close` moves its lines, updates and decision list into History; the choices that still govern the task go into Settled through its `Settled` input.
 
@@ -146,7 +152,7 @@ Goal: what recovery reads of the memory you shaped fits a fresh context, and you
 
 The recovery budget counts the memory the agent shapes: `record.md`, the active decisions shown, the History and project indexes, and the files Recovery's `always` lines name. It does not count the store's and the project's `rules/`, the skills, or the files its `always, not counted` lines name, which recovery reads all the same; a `when` line's file counts once its trigger applies and it is read. It grows with the context window, a task's header sets `normal` or `expanded`, and Current Context (about 600 words) and Future Work (about 300) stay fixed.
 
-Run `budget` before you write a record or a checkpoint; `budget --record` shows what each part holds and what is left, and `init` and `checkpoint` print the same lines. The budget only warns. When a part runs over, distill it at the next checkpoint: rewrite Current Context tighter, make a source only some situations need a `when` line, cut a long file to the lines that matter, drop sources the work no longer needs, and close Slices whose result is settled, never one that is not. When a task's memory keeps running over, propose expanded mode to the user; `task set-budget` changes it on their word.
+Run `budget` before you write a record or a checkpoint; `budget --record` shows what each part holds and what is left, and `init` and `checkpoint` print the same lines. The budget only warns. When a part runs over, distill it at the next checkpoint: tighten Current Context, changing only the lines that no longer fit, make a source only some situations need a `when` line, cut a long file to the lines that matter, drop sources the work no longer needs, and close Slices whose result is settled, never one that is not. When a task's memory keeps running over, propose expanded mode to the user; `task set-budget` changes it on their word.
 
 Mark a Recovery line `always, not counted` only when it names an accepted definition or a method the work must follow; memory you shaped is `always` or `when`, so the budget counts what you can distill.
 
@@ -158,7 +164,7 @@ Goal: at a compaction, a switch or a transfer, the task folder holds everything 
 
 **How:**
 
-1. Rewrite Current Context whole: the Goal; what is Settled and still governs; what is Open. Drop narration and anything another part already holds. Material that exists only in the conversation, such as a pasted image, file or long message, will not survive: save it under `sources/` and point to it.
+1. Bring Current Context up to date: the Goal; what is Settled and still governs; what is Open. Change only what no longer matches the state: a line that still says what is true stays word for word, since each rewrite of a true line risks changing what it means. Drop narration and anything another part already holds. Material that exists only in the conversation, such as a pasted image, file or long message, will not survive: save it under `sources/` and point to it.
 2. Decide Recovery, what the next context cycle reads to recover: the files it would otherwise read again, from the task folder, the store, a repository or elsewhere, each one line with its class and why:
    - `always: <pointer> — <why>`: read on every recovery and counted against the budget;
    - `always, not counted: <pointer> — <why>`: an accepted Spec, Plan, issue or brief, or a skill beyond the core ones the work follows;
@@ -166,14 +172,14 @@ Goal: at a compaction, a switch or a transfer, the task folder holds everything 
 
    Give a file `(lines <a>–<b>)` when only those lines matter. The list stays as it is unless you change it, and it can be empty: drop what the work no longer needs.
 3. Adjust the rest of Current Work and Future Work: one Next action a fresh context can act on, and the route. Close nothing to make room. Do not rush a Slice to completion, claim an unfinished check passed, or guess the outcome of a running operation.
-4. If discussion with the user in this context cycle shaped the work, save it as blocks; skip this when none did. `discussion list` numbers the user's messages since the last checkpoint; `discussion save --messages 4-7,11 --title <topic> --shapes <A-NNN or S-NNN> --input -` appends one block with those messages word for word and your line under each saying what it answered, specifically enough that it reads alone. A cycle may add several blocks, one per stretch of discussion, or none. A block is never edited: one that a later discussion changes is replaced (`--replaces B-NNN`), and once the work a block shaped is closed and nothing open rests on it, `discussion drop` removes it; the checkpoint lists those blocks.
+4. If discussion with the user in this context cycle shaped the work, save it as blocks; skip this when none did. Messages already saved with the change they led to are not saved again. `discussion list` numbers the user's messages since the last checkpoint; `discussion save --messages 4-7,11 --title <topic> --shapes <A-NNN or S-NNN> --input -` appends one block with those messages word for word and your line under each saying what it answered, specifically enough that it reads alone. A secret or credential in a message is left out, with a mark where it stood. A cycle may add several blocks, one per stretch of discussion, or none. A block is never edited: one that a later discussion changes is replaced (`--replaces B-NNN`), and once the work a block shaped is closed and nothing open rests on it, `discussion drop` removes it; the checkpoint lists those blocks.
 5. `checkpoint --record <ID> --input -` with In flight's lines, which replace the old ones whole, then, when Recovery changes, a line `Recovery:` and the whole new list under it (`Recovery: none` empties it); add `--compact` when Freeflow should compact. In flight is the record's part of the compaction: write state, not a story, and keep exact paths, identifiers, commands, error text, numbers, and the user's words where wording matters.
    - `Now:` the step in progress and exactly how far it got;
    - `Observed:` a result the next step rests on, with its evidence; `Hypothesis:` what is being tested, unverified;
    - `Dropped:` an approach and why it failed, so it is not tried again; `Pending:` what runs or waits, and on what;
 
    A result that closes a claim goes on the Slice instead, and a narrower instruction from the user in the agreement. The command checks the task folder's structure and the budget, writes Space for the repository you work in, adds to the current Slice's measure, sets the record's "State as of", then commits and pushes the store. It prints each Recovery line with the size of what it names and an `always` line's share of the budget, and names an `always, not counted` line the new list dropped: put it back if the work still rests on it.
-6. After `--compact`, end the turn. For a switch, `task switch`; for a pause or a transfer, `task release`, and write a [handoff](references/handoff.md) when someone needs a document.
+6. After `--compact`, end the turn. For a switch, `task switch`; for a pause or a transfer, `task release`.
 
 A session that holds no task writes a session summary instead, `checkpoint --session --input -` with its Goal, Settled, Open, Agreement, In flight, Recovery and Next action, its Recovery lines as a record's: it is the next context cycle's only memory. A compaction never creates a task.
 
@@ -194,7 +200,6 @@ Then reconcile before acting:
 - Compare the record with the live state the next action depends on: the checks name where each repository in Space stands and the store's unpushed commits. If they disagree, resolve it from sources; do not follow whichever version lets work continue.
 - If the record conflicts with a Spec or Plan its Recovery list names, the record does not win. Return the conflict to that artifact's owner before dependent work.
 - Check an important completion, verification, review, or commit claim, and the identity of what it examined, before repeating it; a run that happened may not apply to the current state. Reuse evidence that still applies instead of repeating the investigation, and reopen a source only when its exact content or freshness changes the next action.
-- A next action a handoff names authorizes nothing by itself. Without a record, as when resuming from a handoff alone, reconstruct from it and the exact sources it names, and report a missing boundary instead of inventing it.
 
 ## Maintain The Record
 

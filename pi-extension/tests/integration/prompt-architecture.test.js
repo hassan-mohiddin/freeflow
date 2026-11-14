@@ -72,10 +72,7 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   // such as the agreement template, lives only in the skill.
   assert.match(core, /read that skill's whole body before acting, even for a small change/);
   assert.match(core, /A description selects a skill but is not its method/);
-  assert.match(
-    core,
-    /\*\*Agree, with Discuss Work:\*\* read it at a task's first request, before your first tool call\./,
-  );
+  assert.match(core, /\*\*Agree, with Discuss Work:\*\* read it at a session's first message, before you reply\./);
   assert.match(
     core,
     /\*\*Build, with Execute Work:\*\* read it before your first tool call on a task, even a small or read-only one/,

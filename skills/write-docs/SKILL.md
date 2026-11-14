@@ -103,7 +103,7 @@ Writing or reviewing a document never makes it `Accepted`, and `Accepted` is not
 
 Then run [artifact-check](scripts/artifact-check.mjs) (`node <write-docs-directory>/scripts/artifact-check.mjs <document.md> [--statuses <the repository's own>]`): it refuses a missing title or status, a status outside this vocabulary, an `Accepted` document with no Source, a `Superseded` one with no replacement, and a `file:` or `commit:` pointer that does not resolve.
 
-A Spec or Plan stays identifiable, source-backed and understandable without the original conversation, holding no information a Working Record, handoff or another canonical document owns.
+A Spec or Plan stays identifiable, source-backed and understandable without the original conversation, holding no information a Working Record or another canonical document owns.
 
 ## Documentation
 
