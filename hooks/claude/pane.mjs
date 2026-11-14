@@ -238,7 +238,7 @@ async function readOnce($) {
 }
 
 /**
- * The context cycle the mod counts in the store, as its rows name it: 1 until a compaction counts the next.
+ * The context cycle the mod counts in the store, as its notice names it: 1 until a compaction counts the next.
  * @param {any} $
  * @param {any} status
  */

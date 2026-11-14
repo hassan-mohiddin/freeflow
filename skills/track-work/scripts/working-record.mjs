@@ -23,7 +23,7 @@ import {
   migrateTask,
   readCues,
 } from "./lib/migrate5.mjs";
-import { dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
+import { claudeCodeLog, dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
 import { renderBundle5, renderEntries5, renderIndex5, renderRecover5, renderSessionBundle } from "./lib/views5.mjs";
 import {
   amendDelegation,
@@ -65,7 +65,7 @@ import {
   takeBack,
   takeTask,
 } from "./lib/projects5.mjs";
-import { EstimateError, estimate } from "./lib/estimate5.mjs";
+import { EstimateError, claudeCodeContext, estimate } from "./lib/estimate5.mjs";
 import { runEvents } from "./lib/events-cli.mjs";
 import { appendEvents, HARNESSES } from "./lib/events5.mjs";
 import { delegationScope, gateDrift, gatesPath, readGateState, refreshGates } from "./lib/gate-state5.mjs";
@@ -1102,6 +1102,49 @@ function eventHarness(identity) {
 }
 
 /**
+ * The event log's line for a checkpoint Track Work just wrote (the notice to checkpoint line is measured from it): what,
+ * as "compact" or "plain", and "session" or "delegation" where that is what it wrote, with the context in use when the
+ * session's transcript shows it (as estimate reads it). Written after the checkpoint, and never failing it: a log that
+ * cannot be written, or a session that wrote none (Freeflow off, or events.enabled off), gives no line.
+ */
+async function logCheckpoint(rest) {
+  const identity = sessionIdentity();
+  const harness = eventHarness(identity);
+  if (!identity || !harness) return;
+  const home = storeHome();
+  const capabilities = readJsonOrNull(join(home, "sessions", identity.id, "capabilities.json"));
+  if (capabilities?.events === false) return;
+  const transcript = process.env.FREEFLOW_TRANSCRIPT || claudeCodeLog(process.env);
+  const context = transcript && existsSync(transcript) ? claudeCodeContext(transcript) : null;
+  const detail = [
+    rest.includes("--compact") ? "compact" : "plain",
+    rest.includes("--delegation") ? "delegation" : rest.includes("--session") ? "session" : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const line = {
+    v: 1,
+    ts: new Date().toISOString(),
+    session: identity.id,
+    harness,
+    agent: "main",
+    kind: "freeflow",
+    what: "checkpoint",
+    detail,
+    ...(context === null ? {} : { context }),
+  };
+  await appendEvents(home, JSON.stringify(line));
+}
+
+function readJsonOrNull(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * `agree` (SPEC-008 4.1): the user's agreement for a session that holds no task, in the session's gate state and as an
  * agreement line in its event log; with --exact-spec, the declaration that the request fixes every choice, logged.
  */
@@ -1330,6 +1373,7 @@ try {
     process.stdout.write(`${usage()}\n`);
   } else {
     const output = await runCore(command, rest);
+    if (command === "checkpoint") await logCheckpoint(rest).catch(() => {});
     await gatesAfter(command, rest, output).catch(() => {});
     // A checkpoint that asks for Freeflow's compaction leaves its request once it is written (P102).
     process.stdout.write(

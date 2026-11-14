@@ -197,6 +197,7 @@ export default [
     trigger: "manual",
     by: "freeflow",
     before: 150000,
+    cycle: 1,
   },
   {
     v: 1,

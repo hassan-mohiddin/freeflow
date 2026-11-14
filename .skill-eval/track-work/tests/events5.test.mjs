@@ -6,9 +6,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import {
+  appendEvents,
   COMMAND_LIMIT,
+  cutHeredoc,
   KINDS,
   lineProblem,
+  logPath,
   redact,
   renderSummary,
   summarize,
@@ -448,4 +451,132 @@ test("summarize counts dropped lines and leaves out what came before since", () 
   assert.equal(summary.toolCalls, 0);
   assert.equal(summary.dropped, 4);
   assert.equal(summary.until, "2026-11-03T11:30:00.000Z");
+});
+
+test("the schema takes a notice's and a row's context and point, a checkpoint kind, and a compaction's cycle", () => {
+  const at = { ...base(), kind: "freeflow", what: "notice", detail: "cycle 1", context: 148_000, point: 147_000 };
+  assert.equal(lineProblem(at), null);
+  assert.equal(lineProblem({ ...base(), kind: "freeflow", what: "checkpoint", detail: "compact, session" }), null);
+  assert.equal(
+    lineProblem({ ...base(), kind: "compaction", trigger: "auto", by: "freeflow", before: 150_000, cycle: 2 }),
+    null,
+  );
+  assert.match(lineProblem({ ...base(), kind: "freeflow", what: "notice", context: "148000" }), /context/);
+  assert.match(lineProblem({ ...base(), kind: "freeflow", what: "notice", point: -1 }), /point/);
+});
+
+test("the summary measures the tokens from a cycle's notice to the checkpoint that answered it; old row lines are not measured", () => {
+  const freeflow = (what, fields = {}) => ({ ...base(), kind: "freeflow", what, ...fields });
+  const lines = [
+    freeflow("row", { detail: "cycle 1, 70%", context: 100_000, point: 147_000 }),
+    freeflow("notice", { detail: "cycle 1", context: 148_000, point: 147_000 }),
+    freeflow("checkpoint", { detail: "compact, session", context: 160_000 }),
+    { ...base(), kind: "compaction", trigger: "auto", by: "freeflow", before: 161_000, cycle: 1 },
+    freeflow("row", { detail: "cycle 2, 50%", context: 100_000, point: 147_000 }),
+    freeflow("checkpoint", { detail: "plain", context: 110_000 }),
+    { ...base(), kind: "compaction", trigger: "auto", by: "harness", before: 150_000, cycle: 2 },
+    freeflow("notice", { detail: "cycle 3", context: 149_000, point: 147_000 }),
+    freeflow("checkpoint", { detail: "plain", context: 151_000 }),
+  ];
+  const summary = summarize(lines, { session: "sess-1" });
+  assert.deepEqual(summary.toCheckpoint, [{ from: "notice", cycles: 2, median: 7_000, largest: 12_000 }]);
+  const text = renderSummary(summary);
+  assert.match(text, /^Notice to checkpoint: 2 cycle\(s\), median 7,000, largest 12,000$/m);
+  assert.doesNotMatch(text, /Row to checkpoint/);
+  // A session with rows and no notice measures nothing: rows are no longer a signal before compaction.
+  assert.equal(
+    summarize([freeflow("row", { context: 1 }), freeflow("checkpoint", { context: 5 })], { session: "s" }).toCheckpoint,
+    undefined,
+  );
+});
+test("a checkpoint writes its own freeflow line, with what it was and the context its transcript shows, and says nothing when the log is off", async () => {
+  await withFolder(async ({ folder, home, cli }) => {
+    const transcript = join(folder, "session.jsonl");
+    const entry = (usage) => JSON.stringify({ type: "assistant", message: { usage } });
+    await writeFile(
+      transcript,
+      [
+        entry({ input_tokens: 5, cache_read_input_tokens: 100_000, cache_creation_input_tokens: 0, output_tokens: 10 }),
+        entry({
+          input_tokens: 3,
+          cache_read_input_tokens: 140_000,
+          cache_creation_input_tokens: 0,
+          output_tokens: 100,
+        }),
+      ].join("\n") + "\n",
+    );
+    const summary = [
+      "## Goal",
+      "- Probe the checkpoint line.",
+      "## Settled",
+      "(none)",
+      "## Open",
+      "(none)",
+      "## Agreement",
+      "(none)",
+      "## In flight",
+      "(none)",
+      "## Recovery",
+      "(none)",
+      "## Next action",
+      "- Read the log.",
+    ].join("\n");
+    const claude = {
+      CLAUDE_CODE_SESSION_ID: "cafe0000-1111",
+      FREEFLOW_HARNESS: "Claude Code",
+      FREEFLOW_TRANSCRIPT: transcript,
+    };
+    ok(cli(["checkpoint", "--session", "--compact", "--input", "-"], { input: summary, env: claude }));
+    const log = join(home, "events", "cafe0000-1111.jsonl");
+    const lines = (await readLines(log)).filter((line) => line.what === "checkpoint");
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].detail, "compact, session");
+    assert.equal(lines[0].context, 140_103);
+    assert.equal(lines[0].harness, "claude-code");
+
+    // With the log off (events.enabled off, which the claims file says), the checkpoint still works and writes nothing.
+    await mkdir(join(home, "sessions", "beef0000-2222"), { recursive: true });
+    await writeFile(
+      join(home, "sessions", "beef0000-2222", "capabilities.json"),
+      JSON.stringify({ v: 1, events: false }),
+    );
+    const off = { FREEFLOW_SESSION: "beef0000-2222", FREEFLOW_HARNESS: "Pi" };
+    const out = cli(["checkpoint", "--session", "--input", "-"], { input: summary, env: off });
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(existsSync(join(home, "events", "beef0000-2222.jsonl")), false);
+  });
+});
+
+test("a command's heredoc body is never written to the event log: a command is cut at its first heredoc operator", async () => {
+  await withFolder(async ({ home }) => {
+    assert.equal(cutHeredoc("cat x <<-EOF\nbody\nEOF"), "cat x <<…");
+    assert.equal(cutHeredoc("cat x <<<word"), "cat x <<…");
+    assert.equal(cutHeredoc("echo no heredoc"), "echo no heredoc");
+    const body = "MARKER_BODY_TEXT that is a file's content";
+    const heredoc = `cat > notes.md <<'EOF'\n${body}\nEOF`;
+    const long = `${"x".repeat(150)} <<EOF\n${body}\nEOF`;
+    const plain = `echo ${"y".repeat(300)}`;
+    const batch = jsonl(
+      [heredoc, long, plain].map((command) => ({
+        ...base("sess-heredoc"),
+        kind: "tool.call",
+        tool: "Bash",
+        ok: true,
+        source: "agent",
+        command,
+      })),
+    );
+    const { written, refused } = await appendEvents(home, batch);
+    assert.equal(refused.length, 0);
+    assert.equal(written[0].count, 3);
+    const lines = await readLines(logPath(home, "sess-heredoc"));
+    assert.equal(lines[0].command, "cat > notes.md <<…");
+    assert.equal(lines[1].command, `${"x".repeat(150)} <<…`);
+    assert.equal(lines[2].command.length, 200);
+    assert.ok(lines[2].command.endsWith("…"));
+    assert.equal(
+      lines.some((line) => JSON.stringify(line).includes("MARKER_BODY_TEXT")),
+      false,
+    );
+  });
 });

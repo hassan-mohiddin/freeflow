@@ -1,24 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ROWS_AT, reserveTokens, strictest, thresholds } from "../../dist/compaction/thresholds.js";
+import { fileURLToPath } from "node:url";
+import { loadNotice, reserveTokens, strictest, thresholds } from "../../dist/compaction/thresholds.js";
 
-test("the notice comes at 75% of the window, or a tenth of the window before Pi's trigger if that is earlier", () => {
+// The formula is notice5.mjs's, which the scripts and the other drivers share: loaded from Freeflow's package first.
+await loadNotice(fileURLToPath(new URL("../../..", import.meta.url)));
+
+test("the notice comes a lead of 20,000 tokens before Pi's trigger, under a ceiling of 750,000", () => {
   const at = (window, reserve = 16_384) => {
     const { notice, trigger } = thresholds(window, reserve);
     return [notice, trigger];
   };
-  assert.deepEqual(at(128_000), [96_000, 111_616]);
-  assert.deepEqual(at(200_000), [150_000, 183_616]);
+  assert.deepEqual(at(128_000), [91_616, 111_616]);
+  assert.deepEqual(at(200_000), [163_616, 183_616]);
+  assert.deepEqual(at(256_000), [219_616, 239_616]);
   assert.deepEqual(at(1_000_000), [750_000, 983_616]);
-  // A large reserve brings Pi's trigger close: the notice keeps a tenth of the window before it.
+  // A large reserve brings Pi's trigger close: the notice still comes a lead before it.
   assert.deepEqual(at(200_000, 60_000), [120_000, 140_000]);
-  assert.deepEqual(ROWS_AT, [0.5, 0.6, 0.7]);
 });
 
 test("a model's output limit does not move the notice", () => {
   const model = (maxTokens) => ({ provider: "anthropic", id: "large", contextWindow: 200_000, maxTokens });
   assert.deepEqual(strictest([model(128_000)], {}), strictest([model(16_384)], {}));
-  assert.deepEqual(strictest([model(128_000)], {}), { window: 200_000, trigger: 183_616, notice: 150_000 });
+  assert.deepEqual(strictest([model(128_000)], {}), { window: 200_000, trigger: 183_616, notice: 163_616 });
 });
 
 test("Pi's reserve comes from the model override, then the ordinary setting, then Pi's default", () => {
