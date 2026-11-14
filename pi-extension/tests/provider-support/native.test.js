@@ -1,4 +1,4 @@
-import { everywhereFile } from "../fixtures/freeflow-home.js";
+import { everywhereFile, useFreeflowHome } from "../fixtures/freeflow-home.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
@@ -17,6 +17,8 @@ import { ENTRY_TYPE } from "../../dist/provider-support/openai/history.js";
 import { response } from "../fixtures/pi-native.js";
 
 async function native(extension, run, modelId = "gpt-6-astra") {
+  // Each run's settings are in its own home, never the runner's (D-060): defaults until a test writes them.
+  await useFreeflowHome(null);
   const root = await mkdtemp(join(tmpdir(), "openai-effort-native-")),
     agentDir = join(root, "agent");
   await mkdir(agentDir);
