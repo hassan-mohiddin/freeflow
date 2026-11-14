@@ -58,7 +58,7 @@ test("store init lays an empty remote out as the store and pushes its first comm
     });
     assert.equal(
       await readFile(join(home, ".gitignore"), "utf8"),
-      "scratch/\nevidence/**/raw/\nlocal/\nsessions/\n/events/\n",
+      "scratch/\nevidence/**/raw/\nlocal/\nsessions/\n/events/\n/settings.json\n/folders.json\n/first-session.json\n",
     );
     assert.equal(
       await readFile(join(home, ".gitattributes"), "utf8"),

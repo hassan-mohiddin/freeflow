@@ -1,5 +1,3 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import {
   readCapabilityState,
   readFreeflowConfig,
@@ -12,6 +10,7 @@ import {
   CLAIM_HOURS,
   GATE_KEYS,
   GATE_MODES,
+  MEMORY_MODES,
   RUNTIME_PROMPTS,
   SWITCHABLE_SKILLS,
   resolveDelegationSettings,
@@ -19,7 +18,7 @@ import {
   sectionEnabled,
 } from "../config-validation.js";
 import { freeflowStatusText } from "../status.js";
-import { ensureLocalConfigIgnored, pruneDefaults } from "../config-store.js";
+import { freeflowHome, writeLayer } from "../config-store.js";
 import { PiSettingsComponent } from "./settings-view.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG } from "../../tool-execution/config.js";
 import { DEFAULT_COMPACTION_ENABLED } from "../../compaction/config.js";
@@ -214,7 +213,7 @@ function createScopedBooleanItem(options) {
   item.displaySuffix = coreDisplaySuffix(item);
   return item;
 }
-/** A choice among fixed values, in the Personal or Repository scope; Personal can inherit the repository's value. */
+/** A choice among fixed values, in the This folder or Everywhere scope; This folder can inherit Everywhere's value. */
 function createScopedChoiceItem(options) {
   const repositoryValue = getPath(options.rawConfig, options.path);
   const inheritedValue = options.values.includes(repositoryValue) ? repositoryValue : options.defaultValue;
@@ -246,7 +245,7 @@ function createScopedChoiceItem(options) {
       }
     : {
         ...common,
-        description: `${options.description} This edits shared .freeflow/config.json.`,
+        description: `${options.description} This edits Everywhere: the Freeflow home's settings.json.`,
         value: inheritedValue,
         values: [...options.values],
         valueLabels: options.valueLabels,
@@ -445,6 +444,15 @@ function sessionFreeflowItems(state, rawConfig, localConfig) {
     state.toolExecution?.guidanceNotices ?? DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices,
     DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices,
   );
+  const withoutTaskInherited = configuredSetting(rawConfig, localConfig, ["compaction", "withoutTask"], true);
+  const withoutTaskItem = sessionSwitch(
+    "freeflow.compaction.withoutTask",
+    "Compaction without a task",
+    "Freeflow's compaction also runs in this session with no task held.",
+    "compaction.withoutTask",
+    withoutTaskInherited.value,
+    true,
+  );
   const compactionItem = sessionSwitch(
     "freeflow.compaction.enabled",
     "Enabled",
@@ -487,6 +495,24 @@ function sessionFreeflowItems(state, rawConfig, localConfig) {
     return item;
   });
   // Delegation across sessions, on every host with a Freeflow driver (SPEC-009 4.7).
+  const memoryInherited = configuredSetting(rawConfig, localConfig, ["memory", "mode"], "local");
+  const memoryItem = createSessionChoiceItem({
+    id: "freeflow.memory.mode",
+    label: "Task memory",
+    description: "Task memory in this session: on, this machine; on, with sync; or off.",
+    key: "memory.mode",
+    values: MEMORY_MODES,
+    valueLabels: { local: "on, this machine", sync: "on, with sync", off: "off" },
+    valueDescriptions: {
+      local: "Task memory is on, kept on this machine only.",
+      sync: "Task memory is on, and synced to the store's private remote.",
+      off: "No menu, no task offered, nothing recorded.",
+    },
+    inheritedValue: memoryInherited.value,
+    inheritedSource: memoryInherited.source,
+    effectiveValue: sessionOverrides["memory.mode"] ?? memoryInherited.value,
+    sessionOverrides,
+  });
   const claimInherited = configuredSetting(rawConfig, localConfig, ["delegation", "claimHours"], "4");
   const claimItem = createSessionChoiceItem({
     id: "freeflow.delegation.claimHours",
@@ -574,6 +600,7 @@ function sessionFreeflowItems(state, rawConfig, localConfig) {
   );
   const items = [
     freeflowItem,
+    memoryItem,
     sectionItem("freeflow.prompts", "Runtime prompts", "Runtime prompts for this session.", "", [
       promptsMaster,
       nestedGroup("freeflow.prompts.each", "Each prompt", "One switch per prompt, in this session.", promptItems),
@@ -594,7 +621,7 @@ function sessionFreeflowItems(state, rawConfig, localConfig) {
       "Compaction",
       "Compaction for this session.",
       capabilityStatus(state.compaction),
-      [compactionItem],
+      [compactionItem, withoutTaskItem],
     ),
     sectionItem("freeflow.messaging", "Messaging", "Messaging for this session.", capabilityStatus(state.messaging), [
       messagingItem,
@@ -657,6 +684,34 @@ function freeflowItems(rawConfig, options = {}) {
     defaultValue: DEFAULT_FREEFLOW_ENABLED,
   });
   const freeflowInactive = !core.enabled;
+  // Task memory (Setting 2, D-060): on this machine, on with sync, or off; the default is on, this machine only.
+  const memoryMode = getPath(localConfig, ["memory", "mode"]) ?? getPath(rawConfig, ["memory", "mode"]) ?? "local";
+  const memoryItem = createScopedChoiceItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.memory.mode",
+    label: "Task memory",
+    description:
+      "On, this machine (the default); on, with sync to your private remote; or off: no menu, no task offered, nothing recorded.",
+    path: ["memory", "mode"],
+    values: MEMORY_MODES,
+    valueLabels: { local: "on, this machine", sync: "on, with sync", off: "off" },
+    valueDescriptions: {
+      local: "Task memory is on, kept on this machine only.",
+      sync: "Task memory is on, and synced to the store's private remote.",
+      off: "No menu, no task offered, nothing recorded; a task's budget and the sync remote stay where they are.",
+    },
+    defaultValue: "local",
+    effectiveValue: memoryMode,
+    effectiveSource:
+      getPath(localConfig, ["memory", "mode"]) !== undefined
+        ? "local"
+        : getPath(rawConfig, ["memory", "mode"]) !== undefined
+          ? "repository"
+          : "builtin",
+  });
+  memoryItem.inactive = freeflowInactive;
   const toolExecutionState = options.toolExecution;
   const toolSource = (path) => {
     if (getPath(localConfig, path) !== undefined) return "local";
@@ -715,7 +770,23 @@ function freeflowItems(rawConfig, options = {}) {
     effectiveSource: toolSource(["compaction", "enabled"]),
     defaultValue: DEFAULT_COMPACTION_ENABLED,
   });
-  const compactionItems = [compactionEnabledItem];
+  // Freeflow's compaction when no task is held (D-060): with a task it always applies.
+  const compactionWithoutTaskItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.compaction.withoutTask",
+    label: "Compaction without a task",
+    description: "Freeflow's compaction also runs in a session that holds no task; off leaves compaction to Pi.",
+    path: ["compaction", "withoutTask"],
+    effectiveValue:
+      (getPath(localConfig, ["compaction", "withoutTask"]) ??
+        getPath(rawConfig, ["compaction", "withoutTask"]) ??
+        true) === true,
+    effectiveSource: toolSource(["compaction", "withoutTask"]),
+    defaultValue: true,
+  });
+  const compactionItems = [compactionEnabledItem, compactionWithoutTaskItem];
   walkSettingsItems(compactionItems, (item) => {
     item.inactive = freeflowInactive;
   });
@@ -954,6 +1025,7 @@ function freeflowItems(rawConfig, options = {}) {
   };
   return inSectionOrder([
     freeflowItem,
+    memoryItem,
     toolExecutionGroup,
     compactionGroup,
     messagingGroup,
@@ -970,7 +1042,7 @@ async function updateConfig(cwd, item, value, scope = item.configScope ?? "repos
   const target = scope === "local" ? before.local : before.repository;
   if (target.ignored.length > 0)
     throw new Error(
-      `${target.file} has settings Freeflow ignores; run settings.mjs doctor to see the fix before changing a setting.`,
+      `${target.file} in the Freeflow home has settings Freeflow ignores; run settings.mjs doctor to see the fix before changing a setting.`,
     );
   if (scope === "local") {
     if (!item.path?.length) {
@@ -986,22 +1058,13 @@ async function updateConfig(cwd, item, value, scope = item.configScope ?? "repos
     } else {
       setPath(next, item.path, configValue);
     }
-    const path = join(cwd, ".freeflow/local.json");
-    await ensureLocalConfigIgnored(cwd);
-    if (Object.keys(next).length === 0) {
-      await rm(path, { force: true });
-      return;
-    }
-    await mkdir(join(cwd, ".freeflow"), { recursive: true });
-    await writeFile(path, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+    await writeLayer(cwd, "personal", next, freeflowHome(process.env));
     return;
   }
   const current = await readFreeflowConfig(cwd);
   const next = cloneJson(current);
   setConfigValue(next, item, configValueForChoice(item, value));
-  pruneDefaults(next);
-  await mkdir(join(cwd, ".freeflow"), { recursive: true });
-  await writeFile(join(cwd, ".freeflow/config.json"), `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  await writeLayer(cwd, "repository", next, freeflowHome(process.env));
 }
 /** A value as the settings screen shows it, e.g. "enabled · personal" or "inherit → enabled (repository)". */
 function formatSettingValue(item, value) {
@@ -1011,8 +1074,8 @@ function formatSettingValue(item, value) {
 }
 const ORIGINS = {
   builtin: "Inherited: not set in any file, so Freeflow's default applies.",
-  repository: "Inherited from the repository's .freeflow/config.json.",
-  local: "Inherited from your .freeflow/local.json.",
+  repository: "Inherited from Everywhere: the Freeflow home's settings.json.",
+  local: "Inherited from This folder: the Freeflow home's folders.json.",
   session: "Inherited from this session.",
 };
 function displayParts(item) {
@@ -1040,13 +1103,13 @@ function displayParts(item) {
   const notes = [
     ...(unset ? ["inherited"] : []),
     ...(item.localOverrideValue !== undefined && !valuesEqual(item.localOverrideValue, item.value)
-      ? [`personal: ${formatSettingValue(item, item.localOverrideValue)}`]
+      ? [`this folder: ${formatSettingValue(item, item.localOverrideValue)}`]
       : []),
   ];
   return {
     ...shown,
     ...(notes.length ? { note: notes.join(" · ") } : {}),
-    ...(unset ? { origin: "Inherited: not set in .freeflow/config.json, so Freeflow's default applies." } : {}),
+    ...(unset ? { origin: "Inherited: not set in Everywhere, so Freeflow's default applies." } : {}),
   };
 }
 function joinParts(parts) {
@@ -1315,13 +1378,13 @@ const SCOPES = [
   },
   {
     id: "local",
-    label: "Personal",
-    summary: ".freeflow/local.json: only you, in this checkout. Overrides the repository.",
+    label: "This folder",
+    summary: "Freeflow home, folders.json: this repository's folder only. Overrides everywhere.",
   },
   {
     id: "repository",
-    label: "Repository",
-    summary: ".freeflow/config.json: shared with everyone who uses this repository.",
+    label: "Everywhere",
+    summary: "Freeflow home, settings.json: every folder, this machine. The default for a change.",
   },
 ];
 const NON_TUI_SETTINGS_GUIDANCE =
@@ -1388,11 +1451,6 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, diagnost
     ctx.ui.notify(freeflowStatusText(state, diagnostics?.status()), "info");
     return { changed: false, reloaded: false };
   }
-  // With no shared config file the setup is needed: settings and enablement wait for Setup Freeflow (D-045, round 3).
-  if (state.setupNeeded) {
-    ctx.ui.notify(freeflowStatusText(state), "warning");
-    return { changed: false, reloaded: false, error: "not_configured" };
-  }
   if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
     if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
     const enabled = ["enable", "on", "true"].includes(action);
@@ -1410,12 +1468,12 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, diagnost
       return { changed: false, reloaded: false, error: "ignored_settings" };
     }
     await afterChange(true);
-    // The command writes the repository file; a personal file or a session override still wins over it.
+    // The command writes the everywhere file; this folder's entry or a session override still wins over it.
     const after = await readCapabilityState(ctx.cwd, ctx);
     const winner = after?.configSources?.enabled;
     if (after?.enabled !== enabled && (winner === "local" || winner === "session")) {
       ctx.ui.notify(
-        `The repository now ${enabled ? "enables" : "disables"} Freeflow, but ${winner === "session" ? "this session's override" : "your .freeflow/local.json"} still turns it ${enabled ? "off" : "on"}. Change it in /freeflow settings.`,
+        `Everywhere now ${enabled ? "enables" : "disables"} Freeflow, but ${winner === "session" ? "this session's override" : "this folder's setting"} still turns it ${enabled ? "off" : "on"}. Change it in /freeflow settings.`,
         "warning",
       );
       return { changed: true, reloaded: false };

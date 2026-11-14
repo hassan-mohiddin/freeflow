@@ -964,7 +964,7 @@ test("delegation.claimHours reaches Track Work's script and the agent's commands
     stdout: JSON.stringify({
       root: "/work/widget",
       settings: [
-        { key: "delegation.claimHours", label: "Claim hours", value: "8", scope: "personal", hosts: "all" },
+        { key: "delegation.claimHours", label: "Claim hours", value: "8", scope: "folder", hosts: "all" },
         { key: "delegation.wakeOnReturn", label: "Wake on return", value: true, scope: "default", hosts: "all" },
       ],
       state: [],
@@ -1048,11 +1048,11 @@ const LISTED = {
   settings: [
     { key: "enabled", label: "Freeflow", value: true, scope: "default", hosts: "all" },
     { key: "prompts.enabled", label: "Runtime prompts", value: true, scope: "default", hosts: "all" },
-    { key: "prompts.core", label: "Core prompt", value: false, scope: "personal", hosts: "all" },
+    { key: "prompts.core", label: "Core prompt", value: false, scope: "folder", hosts: "all" },
     { key: "skills.enabled", label: "Skills", value: true, scope: "default", hosts: "all" },
     { key: "skills.write-skill", label: "Skill write-skill", value: true, scope: "default", hosts: "all" },
     { key: "gates.slice", label: "Slice gate", value: "warn", scope: "default", hosts: "all" },
-    { key: "delegation.claimHours", label: "Claim hours", value: "8", scope: "repository", hosts: "all" },
+    { key: "delegation.claimHours", label: "Claim hours", value: "8", scope: "everywhere", hosts: "all" },
     { key: "delegation.wakeOnReturn", label: "Wake on return", value: true, scope: "default", hosts: "all" },
   ],
   state: [],
@@ -1073,28 +1073,25 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
 
   w.settingsAnswers["list "] = { stdout: JSON.stringify(LISTED) };
   const listed = await freeflow($, "settings");
-  expect(w.settingsRuns.at(-1)!.args.join(" ")).toBe("list --host claude-code --root /work/widget --json");
-  // Each section's switch always; another key only when a scope sets it.
-  expect(listed.text).toStartWith("Freeflow settings for /work/widget (Claude Code)\n  Freeflow ");
-  expect(listed.text).toContain("  Core prompt      off       Personal  (prompts.core)");
-  expect(listed.text).toContain("  Slice gate       warn      default\n");
-  expect(listed.text).toContain("  Claim hours      8         Repository  (delegation.claimHours)\n");
-  expect(listed.text).not.toContain("write-skill");
-  expect(listed.text).not.toContain("Wake on return");
-  // Review has no settings: the list says where the review rules are instead.
-  expect(listed.text).toContain(
-    'Review has no settings: a "Review at:" line in the project\'s Review Rules, or in rules/review.md in the Freeflow home, says when a review runs (at every pull request by default).',
+  expect(w.settingsRuns.at(-1)!.args.join(" ")).toBe(
+    "list --view normal --host claude-code --root /work/widget --json",
   );
+  // Each section's switch always; another key only when a scope sets it.
+  expect(listed.text).toStartWith("Freeflow settings for /work/widget (Claude Code), normal view\n  Freeflow ");
+  expect(listed.text).toMatch(/  Core prompt\s+off\s+This folder\s*\n/);
+  expect(listed.text).toMatch(/  Slice gate\s+warn\s+the default\n/);
+  expect(listed.text).toMatch(/  Claim hours\s+8\s+Everywhere\n/);
+  // Which rows a view holds is the script's to say (settings.test.mjs); the mod lists the rows it is given.
   expect(listed.text).toContain("Pi-only settings (tool execution, compaction, messaging) are changed");
   expect(listed.context).toBeUndefined();
 
   const SKILL_OFF = "Skills off: `write-skill`; do not open or follow them.";
-  w.settingsAnswers["set skills.write-skill off --scope personal "] = {
+  w.settingsAnswers["set skills.write-skill off --scope everywhere "] = {
     stdout: JSON.stringify({
       key: "skills.write-skill",
       label: "Skill write-skill",
       value: false,
-      scope: "personal",
+      scope: "folder",
       hosts: "all",
       state: [SKILL_OFF],
       changed: [SKILL_OFF],
@@ -1103,9 +1100,9 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
     }),
   };
   const changed = await freeflow($, "settings skills.write-skill off");
-  expect(changed.text).toBe("Skill write-skill: off, from .freeflow/local.json (Personal). The agent sees it now.");
+  expect(changed.text).toBe("Skill write-skill: off, from This folder. The agent sees it now.");
   expect(changed.context).toEqual([
-    `The user changed a Freeflow setting with /freeflow settings: skills.write-skill is now off, from .freeflow/local.json (Personal).\nRuntime State now: ${SKILL_OFF}`,
+    `The user changed a Freeflow setting with /freeflow settings: skills.write-skill is now off, from This folder.\nRuntime State now: ${SKILL_OFF}`,
   ]);
 
   // A scope flag and inherit reach the script as its scope and unset.
@@ -1161,12 +1158,12 @@ test("enabled off: the mod does nothing but serve /freeflow, and turning it on b
 
   // On again with the command: the change says so, and the next turn end does what session start does with a store.
   w.enabled = true;
-  w.settingsAnswers["set enabled on --scope personal "] = {
+  w.settingsAnswers["set enabled on --scope everywhere "] = {
     stdout: JSON.stringify({
       key: "enabled",
       label: "Freeflow",
       value: true,
-      scope: "personal",
+      scope: "folder",
       hosts: "all",
       state: [],
       changed: [],
@@ -1196,7 +1193,7 @@ test("enabled off: the mod does nothing but serve /freeflow, and turning it on b
     }),
   };
   const off = await freeflow($, "settings enabled off --session");
-  expect(off.text).toStartWith("Freeflow: off, from this session (Session). The agent sees it now.\n");
+  expect(off.text).toStartWith("Freeflow: off, from This session. The agent sees it now.\n");
   expect(off.context![0]).toContain("no menu, notices, context rows, compaction, hold or sync");
   w.runs.length = 0;
   await $.turn.complete(turnEnd("answer"));
@@ -1207,7 +1204,7 @@ test("a settings script that fails leaves enabled as it was", async ($, on) => {
   const w = world(on);
   w.settingsAnswers["get enabled "] = {
     exitCode: 1,
-    stderr: ".freeflow/config.json is invalid: enabled must be a boolean",
+    stderr: "settings.json is invalid: enabled must be a boolean",
   };
   w.status = store();
   w.answers["task here"] = { stdout: MENU };
@@ -1592,7 +1589,7 @@ const governorSettings = (mode: string, cap: number | null = null) => ({
   stdout: JSON.stringify({
     root: "/work/widget",
     settings: [
-      { key: "governor.mode", label: "Cost governor", value: mode, scope: "personal", hosts: "claude-code" },
+      { key: "governor.mode", label: "Cost governor", value: mode, scope: "folder", hosts: "claude-code" },
       {
         key: "governor.cap",
         label: "Cost cap",
@@ -1711,7 +1708,7 @@ test("the cost governor under stop: the ask to stop at 100%; a held task's plan 
       key: "governor.cap",
       label: "Cost cap",
       value: 6,
-      scope: "personal",
+      scope: "folder",
       notes: [],
       changed: [],
       cleared: [],
@@ -1756,7 +1753,7 @@ const changeOf = (key: string, value: unknown) => ({
     key,
     label: key,
     value,
-    scope: "personal",
+    scope: "folder",
     hosts: "all",
     state: [],
     changed: [],
@@ -1808,7 +1805,7 @@ test("the guidance pinned: one section of the system prompt, the hooks' own text
   // A settings change renders the section again, once; the next prompt the engine composes carries it.
   const renders = w.sectionRuns.length;
   w.parts = ["CORE GUIDANCE", "THE CONTRACT", ""];
-  w.settingsAnswers["set prompts.workingMethod off --scope personal "] = changeOf("prompts.workingMethod", false);
+  w.settingsAnswers["set prompts.workingMethod off --scope everywhere "] = changeOf("prompts.workingMethod", false);
   await freeflow($, "settings prompts.workingMethod off");
   expect(w.sectionRuns.length).toBe(renders + 1);
   expect((await $.prompt.compose(COMPOSE)).sections.at(-1)!.text).toBe("CORE GUIDANCE\n\nTHE CONTRACT");
@@ -1821,7 +1818,7 @@ test("the guidance pinned: one section of the system prompt, the hooks' own text
     "memory",
   ]);
   w.enabled = false;
-  w.settingsAnswers["set enabled off --scope personal "] = changeOf("enabled", false);
+  w.settingsAnswers["set enabled off --scope everywhere "] = changeOf("enabled", false);
   await freeflow($, "settings enabled off");
   expect((await $.prompt.compose(COMPOSE)).sections.map((s: any) => s.id)).toEqual(["intro", "memory"]);
 });
@@ -1929,7 +1926,7 @@ test("enabled switched on mid-session: the next turn's start does what the sessi
   expect(w.sectionRuns).toEqual([]);
 
   w.enabled = true;
-  w.settingsAnswers["set enabled on --scope personal "] = changeOf("enabled", true);
+  w.settingsAnswers["set enabled on --scope everywhere "] = changeOf("enabled", true);
   await freeflow($, "settings enabled on");
   await $.turn.start({ text: "go on", turnId: "turn-2" } as any);
   expect(appended(w)).toEqual([`${MID_SESSION}\n\n${SECTION}\n\nFreeflow task memory:\n${MENU.trimEnd()}`]);
@@ -2002,7 +1999,7 @@ const gateSettings = (
       key: `gates.${gate}`,
       label: gate,
       value,
-      scope: "repository",
+      scope: "everywhere",
       hosts: "all",
     })),
     ignored,
@@ -2108,7 +2105,7 @@ test("a gate's ignored value keeps the mode the mod last read: block, an ignored
   const pushDecision = async () =>
     (await $.tool.check({ tool: "Bash", input: { command: "git push" } } as any)).decision;
   const ignoredValue = [
-    { file: ".freeflow/config.json", key: "gates.delivery", reason: "gates.delivery must be one of off, warn, block" },
+    { file: "settings.json", key: "gates.delivery", reason: "gates.delivery must be one of off, warn, block" },
   ];
   const starts: [Record<string, string>, typeof ignoredValue][] = [
     [{ delivery: "block" }, []],

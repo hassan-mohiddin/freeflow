@@ -1,3 +1,4 @@
+import { useFreeflowHome, everywhereFile, setFolderSettings } from "../fixtures/freeflow-home.js";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -195,8 +196,8 @@ async function press(component, label, section) {
 
 async function configuredRepo(config = {}) {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-integration-"));
-  await mkdir(join(cwd, ".freeflow"));
-  await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify(config, null, 2), "utf8");
+  await useFreeflowHome();
+  await writeFile(everywhereFile(), JSON.stringify(config, null, 2), "utf8");
   return cwd;
 }
 
@@ -207,12 +208,14 @@ function lastRuntimeState(messages) {
 test("Pi passes delegation.claimHours to Track Work's script and the agent's commands as FREEFLOW_CLAIM_HOURS", async () => {
   const saved = process.env.FREEFLOW_CLAIM_HOURS;
   const cwd = await configuredRepo({ delegation: { claimHours: "8" } });
-  const plain = await configuredRepo();
+  let plain;
   try {
     const { handlers } = loadExtension();
     await handlers.get("session_start")({ type: "session_start", reason: "startup" }, context(cwd));
     assert.equal(process.env.FREEFLOW_CLAIM_HOURS, "8");
-    // With the setting at its default, the script's own default (4 hours) applies: the variable says so.
+    // With the setting at its default, the script's own default (4 hours) applies: the variable says so. A second
+    // home stands for a folder with no setting.
+    plain = await configuredRepo();
     const other = loadExtension();
     await other.handlers.get("session_start")({ type: "session_start", reason: "startup" }, context(plain));
     assert.equal(process.env.FREEFLOW_CLAIM_HOURS, "4");
@@ -220,7 +223,7 @@ test("Pi passes delegation.claimHours to Track Work's script and the agent's com
     if (saved === undefined) delete process.env.FREEFLOW_CLAIM_HOURS;
     else process.env.FREEFLOW_CLAIM_HOURS = saved;
     await rm(cwd, { recursive: true, force: true });
-    await rm(plain, { recursive: true, force: true });
+    if (plain) await rm(plain, { recursive: true, force: true });
   }
 });
 
@@ -400,7 +403,7 @@ test("settings: a section's switch is its own row, sections run everyday to expe
         /Freeflow\s+on \(inherited\)\n[\s\S]*Compaction\s+on \(inherited\)\n[\s\S]*Tool Execution\s+on \(inherited\)\n[\s\S]*Messaging\s+off \(inherited\)/,
       );
       // Where an inherited value comes from is on the help line, not in the list (Task 005 D-002).
-      assert.match(text, /Inherited: not set in \.freeflow\/config\.json, so Freeflow's default applies\./);
+      assert.match(text, /Inherited: not set in Everywhere, so Freeflow's default applies\./);
       choose(component, "Ask before delivering", "Messaging");
       assert.match(renderText(component, 180), /Takes effect when Messaging is on\./);
       component.handleInput(KEY.enter);
@@ -409,7 +412,7 @@ test("settings: a section's switch is its own row, sections run everyday to expe
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);
-    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).messaging, {
+    assert.deepEqual(JSON.parse(await readFile(everywhereFile(), "utf8")).messaging, {
       inbound: "project",
     });
     // A nested group is one row that opens its switches.
@@ -420,7 +423,7 @@ test("settings: a section's switch is its own row, sections run everyday to expe
       choose(component, "Each skill", "Skills");
       component.handleInput(KEY.enter);
       const opened = renderText(component, 180);
-      assert.match(opened, /Freeflow settings › Repository › Each skill/);
+      assert.match(opened, /Freeflow settings › Everywhere › Each skill/);
       assert.match(opened, /› Deliver Work\s+on \(inherited\)\n\s+Discuss Work/);
       component.handleInput(KEY.enter);
       await component.waitForWrites();
@@ -429,7 +432,7 @@ test("settings: a section's switch is its own row, sections run everyday to expe
       return undefined;
     };
     await command.definition.handler("settings repo", nestedCtx);
-    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).skills, {
+    assert.deepEqual(JSON.parse(await readFile(everywhereFile(), "utf8")).skills, {
       "deliver-work": false,
     });
     const colorCtx = context(cwd);
@@ -538,6 +541,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     DELEGATION_KEYS,
     GOVERNOR_KEYS,
     PANE_KEYS,
+    MEMORY_KEYS,
   } = await import("../../dist/host/config-validation.js");
   const { TOOL_EXECUTION_KEYS } = await import("../../dist/tool-execution/config.js");
   const { COMPACTION_KEYS } = await import("../../dist/compaction/config.js");
@@ -553,6 +557,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     delegation: DELEGATION_KEYS,
     governor: GOVERNOR_KEYS,
     pane: PANE_KEYS,
+    memory: MEMORY_KEYS,
   };
   const nested = {};
   const keys = ["enabled"];
@@ -630,7 +635,7 @@ test("a config that still sets taskMemory loads, shows no setting, and status sa
   }
   const old = await configuredRepo({ taskMemory: { enabled: true, autoApprove: { attach: true } } });
   try {
-    await writeFile(join(old, ".freeflow/local.json"), `${JSON.stringify({ taskMemory: { enabled: false } })}\n`);
+    await setFolderSettings(old, JSON.parse(`${JSON.stringify({ taskMemory: { enabled: false } })}\n`));
     const { commands } = loadExtension(freeflowExtension);
     const command = commands.find((candidate) => candidate.name === "freeflow");
     const settingsCtx = context(old);
@@ -804,59 +809,38 @@ test("Pi expands setup-freeflow when dispatching its unconfigured skill command"
   }
 });
 
-test("Pi in a folder with no config file shows setup needed: only Setup Freeflow loads, the agent is told to set it up, and nothing else runs", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-setup-needed-"));
+test("Pi in a folder with no settings runs with the defaults: installed means on, with no setup step (D-060)", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-defaults-"));
+  await useFreeflowHome(null);
   try {
-    const setupLine =
-      "Freeflow is installed, but this folder has no .freeflow/config.json. Before other work, tell the user and set Freeflow up here with the Setup Freeflow skill, which asks them for the choices that are theirs; if they decline, work without Freeflow.";
-    const { handlers, commands, sentMessages, sentMessageOptions } = loadExtension();
+    const { handlers, commands } = loadExtension();
     const ctx = context(cwd);
     await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
-    assert.equal(ctx.statuses.at(-1).value, "freeflow: setup needed");
-    // Only Setup Freeflow is exposed, and no Freeflow guidance is sent.
-    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 1);
-    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
-    const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
-    assert.equal(result.renderedGuidance ?? "", "", "no Freeflow guidance while the setup is needed");
-    // The Runtime State says so, and carries the instruction word for word after the status line.
-    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
-    const state = lastRuntimeState(providerContext.messages).content;
-    assert.ok(state.includes(`Freeflow: setup needed\n${setupLine}\n`), state);
-    // Tool Execution, Compaction and the store's menu do not run; /setup-freeflow dispatches.
+    assert.doesNotMatch(ctx.statuses.at(-1).value, /setup needed/);
     const capability = await readCapabilityState(cwd, ctx);
-    assert.equal(capability.setupNeeded, true);
-    assert.equal(capability.enabled, false);
-    assert.equal(capability.toolExecution.effective, false);
-    assert.equal(capability.compaction.effective, false);
-    const setup = commands.find((command) => command.name === "setup-freeflow");
-    await setup.definition.handler(undefined, context(cwd));
-    assert.equal(sentMessages.at(-1), "/skill:setup-freeflow");
-    assert.deepEqual(sentMessageOptions.at(-1), { expandPromptTemplates: true, deliverAs: "followUp" });
-    // /freeflow status says how to set it up, and enabling waits for the setup.
+    assert.equal(capability.enabled, true);
+    assert.equal(capability.configExists, false, "no settings file is needed");
+    assert.equal(capability.setupNeeded, undefined, "there is no setup-needed state any more");
+    // The guidance is sent, and every skill is listed, in a folder with no settings at all.
+    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.ok(resources.skillPaths.length > 1, "more than Setup Freeflow loads");
+    const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.ok(result.renderedGuidance?.length > 0, "Freeflow's guidance is sent");
     const freeflow = commands.find((command) => command.name === "freeflow").definition;
     const statusCtx = context(cwd);
     await freeflow.handler("status", statusCtx);
-    assert.equal(statusCtx.notifications.at(-1).message, "Freeflow: inactive (repo not set up); run /setup-freeflow");
-    const enable = context(cwd);
-    await freeflow.handler("enable", enable);
+    assert.doesNotMatch(statusCtx.notifications.at(-1).message, /setup needed|run \/setup-freeflow/);
+    // A folder turns it off in its own setting; Everywhere is unchanged.
+    await setFolderSettings(cwd, { enabled: false });
+    assert.equal((await readCapabilityState(cwd)).enabled, false);
     assert.equal(
-      await readFile(join(cwd, ".freeflow/config.json"), "utf8").then(
+      await readFile(everywhereFile(), "utf8").then(
         () => true,
         () => false,
       ),
       false,
+      "nothing is written",
     );
-    // enabled: false in the personal file keeps Freeflow off once the shared file exists, as on Claude Code.
-    await mkdir(join(cwd, ".freeflow"));
-    await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: true }), "utf8");
-    assert.equal((await readCapabilityState(cwd)).setupNeeded, true);
-    await writeFile(join(cwd, ".freeflow/config.json"), "{}", "utf8");
-    assert.equal((await readCapabilityState(cwd)).enabled, true);
-    await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: false }), "utf8");
-    const off = await readCapabilityState(cwd);
-    assert.equal(off.setupNeeded, false);
-    assert.equal(off.enabled, false);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -946,12 +930,12 @@ test("Pi names which removed context keys must be deleted from each config layer
     const cwd = await configuredRepo(file === "config.json" ? { [key]: true } : {});
     try {
       if (file === "local.json") {
-        await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ [key]: true }), "utf8");
+        await setFolderSettings(cwd, { [key]: true });
       }
       const layers = await readFreeflowConfigLayers(cwd);
       assert.deepEqual(
         layers.ignored.map((item) => [item.file, item.key]),
-        [[`.freeflow/${file}`, key]],
+        [[file === "config.json" ? "settings.json" : "folders.json", key]],
       );
       const { commands } = loadExtension();
       const command = commands.find((candidate) => candidate.name === "freeflow");
@@ -959,7 +943,7 @@ test("Pi names which removed context keys must be deleted from each config layer
       await command.definition.handler("status", status);
       const message = status.notifications.at(-1).message;
       assert.match(message, /^Freeflow: enabled/);
-      assert.match(message, new RegExp(`\\.freeflow/${file.replace(".", "\\.")} ${key}: `));
+      assert.match(message, new RegExp(`${file === "config.json" ? "settings" : "folders"}\\.json ${key}: `));
       assert.match(message, /settings\.mjs doctor/);
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -972,10 +956,14 @@ test("a config that still sets cognitiveRouting ignores it, says the feature was
     const removed = { cognitiveRouting: { enabled: false } };
     const cwd = await configuredRepo(file === "config.json" ? removed : {});
     try {
-      if (file === "local.json") await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify(removed), "utf8");
+      if (file === "local.json") await setFolderSettings(cwd, removed);
       const layers = await readFreeflowConfigLayers(cwd);
       assert.deepEqual(layers.ignored, [
-        { file: `.freeflow/${file}`, key: "cognitiveRouting", reason: "Cognitive Routing was removed from Freeflow" },
+        {
+          file: file === "config.json" ? "settings.json" : "folders.json",
+          key: "cognitiveRouting",
+          reason: "Cognitive Routing was removed from Freeflow",
+        },
       ]);
       assert.equal((await readCapabilityState(cwd)).enabled, true);
       const { commands } = loadExtension();
@@ -1002,7 +990,7 @@ test("Pi keeps Freeflow on when the repository config holds a value it cannot us
     await freeflowCommand.definition.handler("status", statusCtx);
     assert.match(
       statusCtx.notifications.at(-1).message,
-      /Settings ignored: \.freeflow\/config\.json enabled: enabled must be a boolean/,
+      /Settings ignored: settings\.json enabled: enabled must be a boolean/,
     );
     assert.match(statusCtx.notifications.at(-1).message, /^Freeflow: enabled/);
   } finally {
@@ -1013,7 +1001,7 @@ test("Pi keeps Freeflow on when the repository config holds a value it cannot us
 test("Pi resolves only the remaining layered core values", async () => {
   const cwd = await configuredRepo();
   try {
-    await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: false }, null, 2), "utf8");
+    await setFolderSettings(cwd, { enabled: false });
     const layers = await readFreeflowConfigLayers(cwd);
     assert.deepEqual(layers.coreConfig, { enabled: false });
     assert.deepEqual(layers.sources, { enabled: "local" });
@@ -1066,7 +1054,7 @@ test("Pi rejects invalid Tool Execution configuration", async () => {
 
 test("Pi session enablement holds over the files, and a session that is off stays off without a config file", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-session-activation-"));
-  await mkdir(join(cwd, ".freeflow"));
+  await useFreeflowHome();
   const { pi } = loadExtension();
   const ctx = context(cwd);
   try {
@@ -1074,7 +1062,7 @@ test("Pi session enablement holds over the files, and a session that is off stay
     let state = await readCapabilityState(cwd);
     assert.equal(state.enabled, false);
 
-    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ enabled: true }), "utf8");
+    await writeFile(everywhereFile(), JSON.stringify({ enabled: true }), "utf8");
     state = await readCapabilityState(cwd);
     assert.equal(state.enabled, false);
     assert.equal(state.configSources.enabled, "session");
@@ -1114,11 +1102,11 @@ test("Pi stays on when an existing local override cannot be read: it reads as em
   // The repository's block gate still applies when the personal file is unreadable (the file reads as empty).
   const cwd = await configuredRepo({ enabled: true, gates: { slice: "block" } });
   try {
-    await writeFile(join(cwd, ".freeflow/local.json"), "{ invalid\n", "utf8");
+    await writeFile(join(process.env.FREEFLOW_HOME, "folders.json"), "{ invalid\n", "utf8");
     const layers = await readFreeflowConfigLayers(cwd);
     assert.deepEqual(
       layers.ignored.map((item) => [item.file, item.key]),
-      [[".freeflow/local.json", null]],
+      [["folders.json", null]],
     );
     assert.match(layers.local.parseError, /./);
     const state = await readCapabilityState(cwd);
@@ -1136,11 +1124,7 @@ test("Pi stays on when an existing local override cannot be read: it reads as em
 test("each tab shows the value it sets; a default written to the repository reads inherited; enable says what still wins", async () => {
   const cwd = await configuredRepo({ enabled: false });
   try {
-    await writeFile(
-      join(cwd, ".freeflow/local.json"),
-      JSON.stringify({ messaging: { enabled: true, inbound: "project" } }, null, 2),
-      "utf8",
-    );
+    await setFolderSettings(cwd, { messaging: { enabled: true, inbound: "project" } });
     const { commands } = loadExtension(freeflowExtension);
     const command = commands.find((candidate) => candidate.name === "freeflow");
     const personal = context(cwd);
@@ -1161,7 +1145,7 @@ test("each tab shows the value it sets; a default written to the repository read
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
       assert.match(
         renderText(component, 180),
-        /Ask before delivering\s+never \(inherited · personal: outside the project\)/,
+        /Ask before delivering\s+never \(inherited · this folder: outside the project\)/,
       );
       choose(component, "Tool Execution");
       component.handleInput(KEY.enter);
@@ -1174,12 +1158,12 @@ test("each tab shows the value it sets; a default written to the repository read
       return undefined;
     };
     await command.definition.handler("settings repo", repository);
-    assert.equal(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).toolExecution, undefined);
+    assert.equal(JSON.parse(await readFile(everywhereFile(), "utf8")).toolExecution, undefined);
 
-    await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: false }, null, 2), "utf8");
+    await setFolderSettings(cwd, { enabled: false });
     const enable = context(cwd);
     await command.definition.handler("enable", enable);
-    assert.match(enable.notifications.at(-1).message, /your \.freeflow\/local\.json still turns it off/);
+    assert.match(enable.notifications.at(-1).message, /this folder's setting still turns it off/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -1188,7 +1172,7 @@ test("each tab shows the value it sets; a default written to the repository read
 test("Pi local enablement overrides the repository master switch", async () => {
   const cwd = await configuredRepo({ enabled: true });
   try {
-    await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: false }, null, 2), "utf8");
+    await setFolderSettings(cwd, { enabled: false });
     const state = await readCapabilityState(cwd);
     assert.equal(state.enabled, false);
     assert.equal(state.configSources.enabled, "local");
@@ -1254,13 +1238,20 @@ test("Pi enable and disable commands mutate only the master switch", async () =>
     assert.ok(freeflowCommand);
     const disableCtx = context(cwd);
     await freeflowCommand.definition.handler("disable", disableCtx);
-    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")), { enabled: false });
+    assert.deepEqual(JSON.parse(await readFile(everywhereFile(), "utf8")), { enabled: false });
     assert.equal(disableCtx.statuses.at(-1).value, "freeflow: off");
     assert.equal(disableCtx.reloads.length, 1);
 
     const enableCtx = context(cwd);
     await freeflowCommand.definition.handler("enable", enableCtx);
-    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")), {});
+    // Enabling is the default, which an everywhere file leaves out: the file goes.
+    assert.equal(
+      await readFile(everywhereFile(), "utf8").then(
+        () => true,
+        () => false,
+      ),
+      false,
+    );
     assert.equal(enableCtx.reloads.length, 1);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -1270,7 +1261,7 @@ test("Pi enable and disable commands mutate only the master switch", async () =>
 test("Pi settings open over an unreadable local file, which stays as it is; a write refuses a file with ignored settings", async () => {
   const cwd = await configuredRepo({ foo: 1 });
   try {
-    const localPath = join(cwd, ".freeflow/local.json");
+    const localPath = join(cwd, "folders.json");
     await writeFile(localPath, "{ invalid\n", "utf8");
     const { commands } = loadExtension();
     const freeflowCommand = commands.find((command) => command.name === "freeflow");
@@ -1288,44 +1279,7 @@ test("Pi settings open over an unreadable local file, which stays as it is; a wr
     const disable = context(cwd);
     await freeflowCommand.definition.handler("disable", disable);
     assert.match(disable.notifications.at(-1).message, /has settings Freeflow ignores; run settings\.mjs doctor/);
-    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")), { foo: 1 });
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
-test("Pi personal settings refuse to write a tracked local override", async () => {
-  const cwd = await configuredRepo();
-  try {
-    await writeFile(join(cwd, ".freeflow/local.json"), "{}\n", "utf8");
-    await execFileAsync("git", ["init", "-q", cwd]);
-    await execFileAsync("git", ["-C", cwd, "add", ".freeflow/local.json"]);
-    const { commands } = loadExtension();
-    const freeflowCommand = commands.find((command) => command.name === "freeflow");
-    assert.ok(freeflowCommand);
-    const ctx = context(cwd);
-    ctx.ui.custom = async (factory) => {
-      let result;
-      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
-        result = value;
-      });
-      component.handleInput("\r");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      component.handleInput("\u001b");
-      return result;
-    };
-    await freeflowCommand.definition.handler("settings", ctx);
-    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/local.json"), "utf8")), {});
-    assert.match(
-      ctx.notifications.map((notification) => notification.message).join("\n"),
-      /local\.json is tracked by git/,
-    );
-    assert.equal(ctx.reloads.length, 0);
-    assert.doesNotMatch(
-      ctx.notifications.map((notification) => notification.message).join("\n"),
-      /personal overrides saved/,
-    );
+    assert.deepEqual(JSON.parse(await readFile(everywhereFile(), "utf8")), { foo: 1 });
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

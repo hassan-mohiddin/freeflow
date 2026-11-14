@@ -161,6 +161,25 @@ function validateGovernorConfig(value) {
   return null;
 }
 const positiveNumber = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+/**
+ * The harnesses a setting can be ticked for ("Only on this harness", D-060). A tick is stored with the setting in its
+ * scope's file, under `harness.<name>`, and the harness value wins within its scope.
+ */
+export const HARNESSES = ["claude-code", "codex", "pi"];
+/**
+ * Task memory (Setting 2): `local` (on, this machine only, the default), `sync` (on, with the store's private remote) or
+ * `off` (no menu, no task offered, nothing recorded). A task's budget and the sync remote stay where they are.
+ */
+export const MEMORY_MODES = ["local", "sync", "off"];
+export const MEMORY_KEYS = ["mode"];
+function validateMemoryConfig(value) {
+  if (!isRecord(value)) return "memory must be an object";
+  const unknown = Object.keys(value).find((key) => !MEMORY_KEYS.includes(key));
+  if (unknown) return `memory has unsupported key: ${unknown}`;
+  if (value.mode !== undefined && !MEMORY_MODES.includes(value.mode))
+    return `memory.mode must be one of ${MEMORY_MODES.join(", ")}`;
+  return null;
+}
 const PROMPT_LABELS = {
   core: "Core prompt",
   interactionContract: "Interaction Contract",
@@ -173,6 +192,7 @@ const PROMPT_LABELS = {
  */
 export const SETTINGS = [
   { key: "enabled", label: "Freeflow", values: "boolean", default: true, hosts: "all", session: true },
+  { key: "memory.mode", label: "Task memory", values: MEMORY_MODES, default: "local", hosts: "all", session: true },
   { key: "prompts.enabled", label: "Runtime prompts", values: "boolean", default: true, hosts: "all", session: true },
   ...RUNTIME_PROMPTS.map((prompt) => ({
     key: `prompts.${prompt}`,
@@ -256,6 +276,14 @@ export const SETTINGS = [
     session: true,
   },
   { key: "compaction.enabled", label: "Compaction", values: "boolean", default: true, hosts: "pi", session: true },
+  {
+    key: "compaction.withoutTask",
+    label: "Compaction without a task",
+    values: "boolean",
+    default: true,
+    hosts: "all",
+    session: true,
+  },
   { key: "messaging.enabled", label: "Messaging", values: "boolean", default: false, hosts: "pi", session: true },
   {
     key: "messaging.inbound",
@@ -318,9 +346,12 @@ function validateCoreConfigFields(value) {
   }
   return null;
 }
+/** A layer's harness ticks (D-060): `harness.<name>` holds a harness's own settings; not a section of settings. */
+export const HARNESS_TICKS_KEY = "harness";
 /** The top-level keys Freeflow acts on; the settings test checks that every key under them has a settings row. */
 export const CONFIG_SECTIONS = [
   "enabled",
+  "memory",
   "toolExecution",
   "compaction",
   "messaging",
@@ -340,6 +371,8 @@ const RETIRED_SECTIONS = ["outputRouter", "observedRouting", "scriptTransform", 
 const LOCAL_KEYS = [
   "v",
   "enabled",
+  "memory",
+  "harness",
   "processing",
   "toolExecution",
   "compaction",
@@ -359,7 +392,13 @@ export function validateRepositoryConfig(value) {
   }
   const removedContextError = removedContextConfigError(value, ".freeflow/config.json");
   if (removedContextError) return removedContextError;
-  const allowedKeys = new Set(["v", ...CONFIG_SECTIONS, ...RETIRED_SECTIONS, ...Object.keys(REMOVED_SECTIONS)]);
+  const allowedKeys = new Set([
+    "v",
+    ...CONFIG_SECTIONS,
+    HARNESS_TICKS_KEY,
+    ...RETIRED_SECTIONS,
+    ...Object.keys(REMOVED_SECTIONS),
+  ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return removedFeatureError(key, ".freeflow/config.json") ?? `unsupported top-level config key: ${key}`;
@@ -493,6 +532,8 @@ function sectionValidator(section, scope) {
       return validatePaneConfig;
     case "governor":
       return validateGovernorConfig;
+    case "memory":
+      return validateMemoryConfig;
     default:
       return null;
   }
@@ -517,13 +558,52 @@ function sanitizeSection(section, value, validate) {
   return { value: kept, ignored };
 }
 /**
+ * The harness ticks of one file: `harness.<name>` holds a harness's own settings, which win over the file's general
+ * values on that harness. A harness name Freeflow does not know, and a setting a tick cannot hold, are ignored and named.
+ */
+function sanitizeHarnessTicks(entry, scope) {
+  if (!isRecord(entry)) return { ignored: [{ key: "harness", reason: "harness must be an object" }] };
+  const value = {};
+  const ignored = [];
+  for (const [name, ticks] of Object.entries(entry)) {
+    if (!HARNESSES.includes(name)) {
+      ignored.push({ key: `harness.${name}`, reason: `unknown harness: use ${HARNESSES.join(", ")}` });
+      continue;
+    }
+    const inner = sanitizeConfigFile(ticks, scope);
+    const { harness: nested, v: _version, ...settings } = inner.config;
+    if (nested !== undefined) ignored.push({ key: `harness.${name}.harness`, reason: "a tick cannot hold a tick" });
+    if (Object.keys(settings).length > 0) value[name] = settings;
+    for (const item of inner.ignored)
+      ignored.push({ ...item, key: item.key === null ? `harness.${name}` : `harness.${name}.${item.key}` });
+  }
+  return { value: Object.keys(value).length > 0 ? value : undefined, ignored };
+}
+/**
+ * One file's settings as one harness reads them: its general values, with that harness's ticks over them, since a
+ * harness value wins within its scope (D-060). With no harness (null), the general values alone.
+ */
+export function settingsForHarness(config, harness) {
+  const { harness: ticks, ...general } = config;
+  const own = harness && isRecord(ticks) && isRecord(ticks[harness]) ? ticks[harness] : {};
+  return mergeSettings(general, own);
+}
+function mergeSettings(base, over) {
+  const merged = { ...base };
+  for (const [key, value] of Object.entries(over))
+    merged[key] = isRecord(value) && isRecord(base[key]) ? mergeSettings(base[key], value) : value;
+  return merged;
+}
+/**
  * The settings a config file keeps, and the ones it ignores, for one scope. A key unknown to the scope, a removed
  * key, and a value wrong for a known key are ignored and named; what is left is valid. Used by every host and by
  * settings.mjs, so one file gives one answer everywhere.
  */
 export function sanitizeConfigFile(value, scope) {
   if (!isRecord(value)) return { config: {}, ignored: [{ key: null, reason: "the file must hold a JSON object" }] };
-  const allowed = new Set(scope === "repository" ? ["v", ...CONFIG_SECTIONS, ...RETIRED_SECTIONS] : LOCAL_KEYS);
+  const allowed = new Set(
+    scope === "repository" ? ["v", ...CONFIG_SECTIONS, HARNESS_TICKS_KEY, ...RETIRED_SECTIONS] : LOCAL_KEYS,
+  );
   const config = {};
   const ignored = [];
   for (const [key, entry] of Object.entries(value)) {
@@ -541,6 +621,10 @@ export function sanitizeConfigFile(value, scope) {
     } else if (key === "enabled") {
       if (typeof entry === "boolean") config.enabled = entry;
       else ignored.push({ key, reason: "enabled must be a boolean" });
+    } else if (key === "harness") {
+      const ticks = sanitizeHarnessTicks(entry, scope);
+      if (ticks.value !== undefined) config.harness = ticks.value;
+      ignored.push(...ticks.ignored);
     } else if (RETIRED_SECTIONS.includes(key) || key === "processing") {
       config[key] = entry;
     } else {

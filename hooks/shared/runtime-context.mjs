@@ -3,20 +3,24 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 // The validator and reader Pi uses, so a config reads the same on every host: a file's settings it cannot use are
-// ignored and named, and the rest stays (D-045).
+// ignored and named, and the rest stays (D-045). The settings live in the Freeflow home (D-060).
 import {
+  HARNESSES,
   ignoredStateLine,
   selectedRuntimePrompts,
+  settingsForHarness,
   skillsOff,
   skillsStateLine,
 } from "../../pi-extension/dist/host/config-validation.js";
 import {
-  CONFIG_FILES,
+  HOME_FILES,
+  LEGACY_FILES,
   cloneJson,
   freeflowHome,
   readConfigFile,
   readSessionSettings,
   sessionId,
+  sessionValuesForHarness,
   setPath,
 } from "../../pi-extension/dist/host/config-store.js";
 
@@ -88,26 +92,51 @@ function withSession(local, session) {
   return merged;
 }
 
+/** The harness this process runs for: FREEFLOW_HARNESS when it names one, else Claude Code when its session is named; or null. */
+export function harnessFromEnv(env = process.env) {
+  if (HARNESSES.includes(env.FREEFLOW_HARNESS)) return env.FREEFLOW_HARNESS;
+  return env.CLAUDE_CODE_SESSION_ID ? "claude-code" : null;
+}
+
+/** The repository's own config files, which no layer reads (D-060): each is named until the settings doctor moves it. */
+function legacyIgnored(root) {
+  return ["repository", "personal"]
+    .filter((scope) => fs.existsSync(path.join(root, LEGACY_FILES[scope])))
+    .map((scope) => ({
+      key: null,
+      reason: "moved to This folder: run settings.mjs doctor --fix to move it",
+      file: LEGACY_FILES[scope],
+    }));
+}
+
 /**
- * The settings for a folder, each file read to what it keeps. `exists` is the repository file; `ignored` names every
- * setting a file ignores, with its file and reason. Nothing here turns Freeflow off for a file that cannot be used (D-045).
+ * The settings for a folder as one harness reads them: the everywhere and this-folder layers in the Freeflow home, the
+ * session's values over them, each harness's ticks over the layer's general values. Nothing here needs a file: with none,
+ * the defaults apply (installed means on, D-060). A setting a layer ignores is named, and the rest is used (D-045).
  */
-export function readConfig(root, { session = null, env = process.env } = {}) {
-  const repository = readConfigFile(root, "repository");
-  const personal = readConfigFile(root, "personal");
-  const local = withSession(personal.value, readSessionSettings(freeflowHome(env), session));
-  const core = resolveCoreConfig(repository.value, local);
+export function readConfig(root, { session = null, env = process.env, harness = harnessFromEnv(env) } = {}) {
+  const home = freeflowHome(env);
+  const repository = readConfigFile(root, "repository", home);
+  const personal = readConfigFile(root, "personal", home);
+  const repositoryValues = settingsForHarness(repository.value, harness);
+  const local = withSession(
+    settingsForHarness(personal.value, harness),
+    sessionValuesForHarness(readSessionSettings(home, session), harness),
+  );
+  const core = resolveCoreConfig(repositoryValues, local);
   const ignored = [
-    ...repository.ignored.map((item) => ({ ...item, file: CONFIG_FILES.repository })),
-    ...personal.ignored.map((item) => ({ ...item, file: CONFIG_FILES.personal })),
+    ...repository.ignored.map((item) => ({ ...item, file: HOME_FILES.repository })),
+    ...personal.ignored.map((item) => ({ ...item, file: HOME_FILES.personal })),
+    ...legacyIgnored(root),
   ];
 
   return {
-    exists: repository.exists,
+    home,
     enabled: core.enabled,
     ignored,
-    prompts: selectedRuntimePrompts(repository.value, local),
-    skillsOff: skillsOff(repository.value, local),
+    memoryMode: resolveLayeredValue(repositoryValues.memory ?? {}, local.memory ?? {}, "mode", "local"),
+    prompts: selectedRuntimePrompts(repositoryValues, local),
+    skillsOff: skillsOff(repositoryValues, local),
   };
 }
 
@@ -135,10 +164,27 @@ function loadRuntimeContext(selection, part) {
 // The skills line is Pi's, and as on Pi only a choice the user made adds it. This host loads plugin
 // skills itself, so the skills line is how an off skill reaches the agent here. With the core prompt off, which the
 // Runtime State belongs to, the lines still come when there are any: the rest of Freeflow stays on.
-function runtimeStateContext(config) {
-  const lines = [skillsStateLine(config.skillsOff), ignoredStateLine(config.ignored)].filter(Boolean);
+function runtimeStateContext(config, firstSession) {
+  const lines = [firstSession, skillsStateLine(config.skillsOff), ignoredStateLine(config.ignored)].filter(Boolean);
   if (!config.prompts.core && lines.length === 0) return null;
   return ["# Freeflow Runtime State", "", "Freeflow: active", ...lines].join("\n");
+}
+
+/**
+ * The line that reaches the agent once per user, at the first session (D-060): what Freeflow does here and where its guide
+ * is. It is written once, by the first session that renders it, as a marker in the Freeflow home; the home is created then.
+ * Null when the line was given before, or when the marker cannot be written (the line is then left out).
+ */
+export function firstSessionLine(home, { guide = path.join(PLUGIN_ROOT, "plugin-docs", "using-freeflow.md") } = {}) {
+  const marker = path.join(home, "first-session.json");
+  if (fs.existsSync(marker)) return null;
+  try {
+    fs.mkdirSync(home, { recursive: true });
+    fs.writeFileSync(marker, `${JSON.stringify({ at: new Date().toISOString() })}\n`, "utf8");
+  } catch {
+    return null;
+  }
+  return `Freeflow is installed and on in every folder with its defaults: no setup is needed. Your settings and rules are kept in the Freeflow home (${home}). The guide is ${guide}; settings are \`/freeflow settings\` on Claude Code, and the settings script on other hosts.`;
 }
 
 /**
@@ -146,17 +192,21 @@ function runtimeStateContext(config) {
  * `interactionContract`, `workingMethod`). Claude Code caps each hook's context at 10,000 characters, so it runs one
  * hook per part. The Runtime State, which the core prompt refers to, travels with the core.
  */
-export function renderRuntimeContext(root, part = undefined, { session = null, env = process.env } = {}) {
+export function renderRuntimeContext(
+  root,
+  part = undefined,
+  { session = null, env = process.env, harness = harnessFromEnv(env) } = {},
+) {
   if (part !== undefined && !Object.hasOwn(PROMPT_FILES, part)) return "";
-  const config = readConfig(root, { session, env });
-  // A folder with no repository config is not set up here: stay silent, as before. A config that is present stays on
-  // with the settings it can use, and the Runtime State names the ones it ignores (D-045).
-  if (!config.exists) return "";
+  const config = readConfig(root, { session, env, harness });
+  // Installed means on (D-060): Freeflow runs in every folder with its defaults, and only a setting that turns it off
+  // silences it. Settings a layer ignores are named by the Runtime State, and the rest stays (D-045).
   if (!config.enabled) return "";
 
   // The user chooses the prompts on hosts other than Pi; with none selected there is nothing to deliver.
   const prompts = loadRuntimeContext(config.prompts, part);
-  const state = !part || part === "core" ? runtimeStateContext(config) : null;
+  const firstSession = !part || part === "core" ? firstSessionLine(config.home) : null;
+  const state = !part || part === "core" ? runtimeStateContext(config, firstSession) : null;
   if (state) prompts.push(state);
   return prompts.join("\n\n");
 }
@@ -165,7 +215,7 @@ export function emitHookOutput(output) {
   process.stdout.write(`${JSON.stringify(output)}\n`);
 }
 
-export function runSessionStartAdapter({ eventNames, getWorkspaceCwd, formatOutput }) {
+export function runSessionStartAdapter({ eventNames, getWorkspaceCwd, formatOutput, harness = null }) {
   const { input, raw } = readHookInput();
   const eventName = process.argv[2] || input.hook_event_name || "";
   if ((!raw && !eventName) || process.env.FREEFLOW_DISABLE_RUNTIME_CONTEXT === "1") return;
@@ -173,7 +223,7 @@ export function runSessionStartAdapter({ eventNames, getWorkspaceCwd, formatOutp
 
   const root = findWorkspaceRoot(getWorkspaceCwd(input));
   // An optional third argument names the one prompt this hook delivers.
-  const additionalContext = renderRuntimeContext(root, process.argv[3], { session: hookSessionId(input) });
+  const additionalContext = renderRuntimeContext(root, process.argv[3], { session: hookSessionId(input), harness });
   if (additionalContext.trim()) {
     emitHookOutput(formatOutput({ eventName, input, additionalContext }));
   }
@@ -204,10 +254,10 @@ export function isMainModule(metaUrl) {
  * `interactionContract`, `workingMethod`), each the text that hook prints or "" when it prints nothing. Claude Code's mod
  * pins them, joined, as one system prompt section, and knows each hook's text by it (SPEC-013).
  */
-export function hookParts(root, { session = null, env = process.env } = {}) {
+export function hookParts(root, { session = null, env = process.env, harness = harnessFromEnv(env) } = {}) {
   if (env.FREEFLOW_DISABLE_RUNTIME_CONTEXT === "1") return Object.keys(PROMPT_FILES).map(() => "");
   return Object.keys(PROMPT_FILES).map((part) => {
-    const text = renderRuntimeContext(root, part, { session, env });
+    const text = renderRuntimeContext(root, part, { session, env, harness });
     return text.trim() ? text : "";
   });
 }

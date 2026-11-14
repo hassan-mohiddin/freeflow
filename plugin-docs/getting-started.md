@@ -40,7 +40,7 @@ Codex compacts on its own, mid-turn once the context reaches its limit. Freeflow
 /reload-plugins
 ```
 
-Start a new session if the current session predates the plugin installation.
+Start a new session if the current session predates the plugin installation. Freeflow's mod needs Claude Code 2.1.287 or later, and `node` on `PATH`: its hooks run it.
 
 ### Gemini CLI
 
@@ -116,7 +116,7 @@ Run this in the repository where Freeflow should operate:
 /setup-freeflow
 ```
 
-Setup creates the shared `.freeflow/config.json`, the settings file; minimal is `{}`. On Pi, a folder with no `.freeflow/config.json` shows `freeflow: setup needed`: Freeflow does not run there until Setup Freeflow creates the file. A file's `"enabled": false` turns it off. On Claude Code and Codex the guidance starts only in a folder with `.freeflow/config.json`. `.freeflow/local.json` is an optional personal override and does not turn Freeflow on by itself on those hosts.
+Freeflow is on in every folder once it is installed, with no config file and no setup step. Your settings are kept in the Freeflow home (`~/.freeflow`), not in the repository: everywhere, for one folder, or for one session. Setup Freeflow changes them with you, and `"enabled": false` in any of them turns Freeflow off.
 
 Whenever Freeflow is enabled, Pi delivers all of Freeflow's runtime prompts: the core guidance, the separately editable Interaction Contract, and the Working Method. On other hosts each of these is on by default, and you can turn any of them off with the `prompts` setting (see [Runtime prompts on other hosts](using-freeflow.md#runtime-prompts-on-other-hosts)). The 25 base skills are exposed whenever Freeflow is enabled. Messaging is optional and off by default; Tool Execution and Compaction are on by default. The former Freeflow Context tool, Context Virtualization, and Conversation History are removed; before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key is ignored and named by the footer and `/freeflow status` until removed; Freeflow stays on. Cognitive Routing is removed too: delete `cognitiveRouting` from both files, since it is ignored in the same way.
 

@@ -7,7 +7,7 @@ Freeflow compaction lets the agent decide what survives. Freeflow tells the agen
 ## Availability
 
 - Native Pi 0.99.1 or later, including Pi 1.0.
-- On by default whenever Freeflow is enabled. Turn it off with `compaction.enabled: false` in `.freeflow/config.json` or `.freeflow/local.json`, or with the Compaction switch in `/freeflow settings` (Repository, Personal or Session scope).
+- On by default whenever Freeflow is enabled. Turn it off with `compaction.enabled: false` in the Freeflow home's settings (`settings.json` for everywhere, `folders.json` for one repository), or with the Compaction switch in `/freeflow settings` (Everywhere, This folder or This session). With no task held, `compaction.withoutTask` decides whether Freeflow's compaction runs at all.
 - Tool results are not carried across a compaction: the bundle carries the files the agent names in its record's Recovery list, read fresh. `compaction.carry` (the former Context reuse) still loads and does nothing.
 - Tasks need the Freeflow store ([Setup Freeflow](../../skills/setup-freeflow/references/store-setup.md) sets it up). Without a store, compaction still works: the agent writes a session summary instead, and the next cycle starts from it.
 

@@ -17,13 +17,23 @@ const adapters = {
   cursor: ["hooks/adapters/cursor-session-start.mjs", "additional_context"],
 };
 
+/** Each workspace's Freeflow home (D-060): its everywhere settings, and this folder's in folders.json. */
+const homes = new Map();
+
 function createWorkspace(config = "{}\n", local = undefined) {
   const root = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-"));
-  mkdirSync(join(root, ".freeflow"), { recursive: true });
-  writeFileSync(join(root, ".freeflow", "config.json"), config, "utf8");
-  if (local !== undefined) writeFileSync(join(root, ".freeflow", "local.json"), local, "utf8");
+  const home = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-settings-"));
+  homes.set(root, home);
+  writeFileSync(join(home, "settings.json"), config, "utf8");
+  // The first-session line comes once per user (D-060): these workspaces are past their first session.
+  writeFileSync(join(home, "first-session.json"), '{"at":"2026-11-01T00:00:00.000Z"}\n', "utf8");
+  if (local !== undefined)
+    writeFileSync(join(home, "folders.json"), `{${JSON.stringify(root)}:${local.trim()}}`, "utf8");
   return root;
 }
+
+/** The environment a workspace's hooks and readers run in: its own home, with no session. */
+const homeEnvOf = (workspace) => ({ ...process.env, FREEFLOW_HOME: homes.get(workspace) });
 
 const inputFor = (host, workspace) =>
   host === "cursor"
@@ -40,7 +50,7 @@ const isolatedEnv = { ...process.env, CLAUDE_CODE_SESSION_ID: "", FREEFLOW_SESSI
 function runAdapter(relativePath, workspace, input, event = "SessionStart", env = isolatedEnv) {
   const result = spawnSync(process.execPath, [join(repoRoot, relativePath), event], {
     cwd: repoRoot,
-    env,
+    env: { ...env, FREEFLOW_HOME: homes.get(workspace) ?? env.FREEFLOW_HOME },
     input: `${JSON.stringify(input)}\n`,
     encoding: "utf8",
   });
@@ -92,7 +102,7 @@ test("host adapters stay inert for disabled and unsupported lifecycle inputs and
       runAdapter(relativePath, invalidWorkspace, inputFor(host, invalidWorkspace), eventFor(host)),
     );
     assert.match(invalid, /# Freeflow Stable Guidance/, host);
-    assert.match(invalid, /Settings ignored: \.freeflow\/config\.json enabled: enabled must be a boolean/, host);
+    assert.match(invalid, /Settings ignored: settings\.json enabled: enabled must be a boolean/, host);
     assert.match(invalid, /Run `settings\.mjs doctor`/, host);
     assert.equal(runAdapter(relativePath, disabledWorkspace, input, "UserPromptSubmit"), undefined);
   }
@@ -140,8 +150,8 @@ test("the hooks and Pi agree on every config's validity", async () => {
   ];
   for (const [config, local] of cases) {
     const workspace = createWorkspace(`${config}\n`, local === undefined ? undefined : `${local}\n`);
-    const pi = await readFreeflowConfigLayers(workspace);
-    const hook = readConfig(workspace);
+    const pi = await ((process.env.FREEFLOW_HOME = homes.get(workspace)), readFreeflowConfigLayers(workspace));
+    const hook = readConfig(workspace, { env: homeEnvOf(workspace) });
     const label = `config ${config}, local ${local}`;
     // Every host reads the same files the same way: the same switch, and the same settings ignored and named (D-045).
     assert.equal(hook.enabled, pi.coreConfig.enabled, label);
@@ -163,16 +173,16 @@ test("a hook host's Runtime State has no review line, and names a removed review
   assert.doesNotMatch(old, /^Review:/m);
   assert.match(
     old,
-    /Settings ignored: \.freeflow\/config\.json review\.mode: removed: review has no settings \(a "Review at:" line in the project's Review Rules or in rules\/review\.md in the Freeflow home says when a review runs\); \.freeflow\/config\.json review\.unit: removed: [^;]+; \.freeflow\/local\.json review\.rounds: removed: /,
+    /Settings ignored: settings\.json review\.mode: removed: review has no settings \(a "Review at:" line in the project's Review Rules or in rules\/review\.md in the Freeflow home says when a review runs\); settings\.json review\.unit: removed: [^;]+; folders\.json review\.rounds: removed: /,
   );
   const workspace = createWorkspace('{"review":"on"}\n');
   const invalid = contextOf(runAdapter(adapters.codex[0], workspace, inputFor("codex", workspace)));
   assert.match(invalid, /^Freeflow: active$/m);
-  assert.match(invalid, /Settings ignored: \.freeflow\/config\.json review: removed: review has no settings/);
+  assert.match(invalid, /Settings ignored: settings\.json review: removed: review has no settings/);
   const removed = createWorkspace('{"cognitiveRouting":{"enabled":true}}\n');
   assert.match(
     contextOf(runAdapter(adapters.codex[0], removed, inputFor("codex", removed))),
-    /Settings ignored: \.freeflow\/config\.json cognitiveRouting: Cognitive Routing was removed from Freeflow/,
+    /Settings ignored: settings\.json cognitiveRouting: Cognitive Routing was removed from Freeflow/,
   );
 });
 
@@ -207,10 +217,10 @@ test("a hook host's Runtime State names the skills the user turned off, and drop
 // A Session value (SPEC-005 4.3) lives in the Freeflow home under the session's ID and wins over both files; the hook
 // reads it again on resume, /clear and compaction, and a new session has none.
 test("a hook host reads the session's own settings over the files, for that session only", () => {
-  const home = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-home-"));
+  const workspace = createWorkspace('{"skills":{"research-work":false}}\n', '{"skills":{"write-skill":true}}\n');
+  const home = homes.get(workspace);
   mkdirSync(join(home, "sessions", "s-1"), { recursive: true });
   writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ "skills.write-skill": false })}\n`);
-  const workspace = createWorkspace('{"skills":{"research-work":false}}\n', '{"skills":{"write-skill":true}}\n');
   const state = (env, input = inputFor("claude", workspace)) => {
     const context = contextOf(runAdapter(adapters.claude[0], workspace, input, "SessionStart", env));
     return context.slice(context.indexOf("# Freeflow Runtime State"));
@@ -285,7 +295,7 @@ test("an invalid prompt selection is ignored and named, and the prompt keeps its
   const context = contextOf(runAdapter(adapters.codex[0], workspace, inputFor("codex", workspace)));
   assert.match(
     context,
-    /Settings ignored: \.freeflow\/local\.json prompts\.workingMethod: prompts\.workingMethod must be a boolean/,
+    /Settings ignored: folders\.json prompts\.workingMethod: prompts\.workingMethod must be a boolean/,
   );
   assert.match(context, /# Freeflow Working Method/);
 });
@@ -303,7 +313,14 @@ function runManifestHooks(manifestPath, rootVariable, workspace, env = process.e
   return manifest.hooks.SessionStart[0].hooks.map((handler) => {
     const result = spawnSync("/bin/sh", ["-c", handler.command], {
       cwd: repoRoot,
-      env: { ...env, [rootVariable]: repoRoot },
+      // The workspace's own home, with no session named: a test never reads the real home or the session running it.
+      env: {
+        ...env,
+        FREEFLOW_SESSION: "",
+        [rootVariable]: repoRoot,
+        FREEFLOW_HOME: homes.get(workspace) ?? env.FREEFLOW_HOME,
+        CLAUDE_CODE_SESSION_ID: env.CLAUDE_CODE_SESSION_ID ?? "",
+      },
       input: `${JSON.stringify({ hook_event_name: "SessionStart", source: "startup", cwd: workspace })}\n`,
       encoding: "utf8",
     });
@@ -334,17 +351,22 @@ test("each Claude Code hook stays under Claude Code's context cap and together t
   assert.equal(selected[2].context, undefined);
   const invalid = runManifestHooks("hooks/claude/hooks.json", "CLAUDE_PLUGIN_ROOT", createWorkspace('{"enabled":1}\n'));
   assert.deepEqual(
-    invalid.map(({ context }) => /Settings ignored: \.freeflow\/config\.json enabled: /.test(context ?? "")),
+    invalid.map(({ context }) => /Settings ignored: settings\.json enabled: /.test(context ?? "")),
     [true, false, false],
   );
 });
 
 // Claude Code's mod pins what these hooks deliver as one system prompt section, rendered by `runtime-context.mjs section`,
 // and leaves the hooks' copies out by their text (SPEC-013): each part must be exactly what its hook prints.
-test("the mod's section is the Claude Code hooks' texts, in their order, for each configuration and session", () => {
-  const home = mkdtempSync(join(tmpdir(), "freeflow-host-adapter-home-"));
+/** A workspace's session s-1 turns write-skill off, in its own home. */
+function withSessionSettings(workspace) {
+  const home = homes.get(workspace);
   mkdirSync(join(home, "sessions", "s-1"), { recursive: true });
   writeFileSync(join(home, "sessions", "s-1", "settings.json"), `${JSON.stringify({ "skills.write-skill": false })}\n`);
+  return home;
+}
+
+test("the mod's section is the Claude Code hooks' texts, in their order, for each configuration and session", () => {
   const section = (workspace, env) => {
     const result = spawnSync(
       process.execPath,
@@ -364,6 +386,7 @@ test("the mod's section is the Claude Code hooks' texts, in their order, for eac
     ['{"enabled":1}\n', ""],
   ]) {
     const workspace = createWorkspace(config);
+    const home = withSessionSettings(workspace);
     const env = { ...isolatedEnv, FREEFLOW_HOME: home, CLAUDE_CODE_SESSION_ID: session };
     const hooks = runManifestHooks("hooks/claude/hooks.json", "CLAUDE_PLUGIN_ROOT", workspace, env).map(
       ({ context }) => context ?? "",
@@ -374,6 +397,7 @@ test("the mod's section is the Claude Code hooks' texts, in their order, for eac
   }
   // The session's own settings reach the section as they reach the hooks.
   const workspace = createWorkspace();
+  const home = withSessionSettings(workspace);
   const env = { ...isolatedEnv, FREEFLOW_HOME: home };
   assert.match(section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-1" }).parts[0], /\nSkills off: `write-skill`/);
   assert.doesNotMatch(section(workspace, { ...env, CLAUDE_CODE_SESSION_ID: "s-2" }).parts[0], /Skills off:/);

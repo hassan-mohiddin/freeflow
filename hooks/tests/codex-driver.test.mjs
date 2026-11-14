@@ -43,9 +43,10 @@ function setUp({ store = true, config = {} } = {}) {
   const folder = mkdtempSync(join(tmpdir(), "freeflow-codex-driver-"));
   writeFileSync(join(folder, "gitconfig"), "");
   const work = join(folder, "work");
-  mkdirSync(join(work, ".freeflow"), { recursive: true });
   spawnSync("git", ["init", "--quiet", "-b", "main", work]);
-  writeFileSync(join(work, ".freeflow", "config.json"), `${JSON.stringify(config)}\n`);
+  // The settings live in this folder's Freeflow home (D-060), which the store later uses too.
+  mkdirSync(join(folder, "home"), { recursive: true });
+  writeFileSync(join(folder, "home", "settings.json"), `${JSON.stringify(config)}\n`);
   const cli = (args, { session = SESSION, cwd = work, input = "" } = {}) => {
     const run = spawnSync(process.execPath, [SCRIPT, ...args], {
       cwd,

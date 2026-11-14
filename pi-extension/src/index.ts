@@ -108,7 +108,7 @@ async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, s
     sendSkillPrompt(pi, skill, args);
     return;
   }
-  if (state.setupNeeded || !state.enabled) {
+  if (!state.enabled) {
     ctx.ui.notify("Run /setup-freeflow or enable Freeflow before dispatching this skill.", "warning");
     return;
   }
@@ -148,8 +148,8 @@ function freeflowCompletions(prefix: string | undefined) {
 export default function freeflow(pi: FreeflowAPI) {
   // Cache diagnostics are reported to /freeflow status; the footer only shows current settings.
   const cacheMonitor = new CacheMonitor();
-  // Provider support runs only where Freeflow runs: not while it is off, nor while its setup is needed (D-045, round 3).
-  registerProviderSupport(pi, () => capability?.setupNeeded !== true && capability?.enabled !== false, cacheMonitor);
+  // Provider support runs only where Freeflow runs: not while it is off.
+  registerProviderSupport(pi, () => capability?.enabled !== false, cacheMonitor);
   const api = pi as any;
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   // The Freeflow store's layer: Track Work's script on Pi's events, as the Claude Code mod is on Claude Code's.

@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { sessionStage, stagedFor } from "./staging.js";
 import { resolveToolExecutionConfig } from "../tool-execution/config.js";
@@ -8,14 +8,15 @@ import {
   resolveDelegationSettings,
   resolveGateSettings,
   SETTINGS,
-  sanitizeConfigFile,
   sectionEnabled,
   selectedRuntimePrompts,
   settingSpec,
+  settingsForHarness,
   skillsOff,
   validSettingValue,
 } from "./config-validation.js";
 import { cachedBranch } from "./branch.js";
+import { freeflowHome, HOME_FILES, LEGACY_FILES, readConfigFile } from "./config-store.js";
 /**
  * Freeflow configuration: the repository and personal config files, their layering, per-session core overrides, and
  * the resulting capability state, with optional capabilities disabled inside subagents.
@@ -60,52 +61,41 @@ function disableSubagentCapability(capability) {
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-async function readConfigFileState(path, file, scope) {
-  let raw;
-  try {
-    raw = await readFile(path, "utf8");
-  } catch (error) {
-    const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
-    if (code === "ENOENT") return { path, file, exists: false, parsed: {}, ignored: [], parseError: null };
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      path,
-      file,
-      exists: true,
-      parsed: {},
-      ignored: [{ file, key: null, reason: `cannot be read: ${message}` }],
-      parseError: message,
-    };
-  }
-  let value;
-  try {
-    value = JSON.parse(raw);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      path,
-      file,
-      exists: true,
-      parsed: {},
-      ignored: [{ file, key: null, reason: `not JSON: ${message}` }],
-      parseError: message,
-    };
-  }
-  const { config, ignored } = sanitizeConfigFile(value, scope);
+/** Pi's harness name, for the ticks: a setting ticked "only on this harness" applies on Pi and nowhere else. */
+const PI_HARNESS = "pi";
+function readLayerState(cwd, scope) {
+  const file = HOME_FILES[scope];
+  const state = readConfigFile(cwd, scope, freeflowHome(process.env));
   return {
-    path,
     file,
-    exists: true,
-    parsed: config,
-    ignored: ignored.map((item) => ({ ...item, file })),
-    parseError: null,
+    exists: state.exists,
+    parsed: settingsForHarness(state.value, PI_HARNESS),
+    ignored: state.ignored.map((item) => ({ ...item, file })),
+    parseError: state.error,
   };
 }
-function readFreeflowConfigState(cwd) {
-  return readConfigFileState(join(cwd, ".freeflow/config.json"), ".freeflow/config.json", "repository");
+/**
+ * The repository's own config files, which no layer reads any more (D-060): each is named as ignored until the settings
+ * doctor moves its settings to the folder layer.
+ */
+function legacyIgnored(cwd) {
+  return ["repository", "personal"].flatMap((scope) =>
+    existsSync(join(cwd, LEGACY_FILES[scope]))
+      ? [
+          {
+            file: LEGACY_FILES[scope],
+            key: null,
+            reason: "moved to Only this folder: run settings.mjs doctor to move it",
+          },
+        ]
+      : [],
+  );
 }
-function readFreeflowLocalConfigState(cwd) {
-  return readConfigFileState(join(cwd, ".freeflow/local.json"), ".freeflow/local.json", "personal");
+async function readFreeflowConfigState(cwd) {
+  return readLayerState(cwd, "repository");
+}
+async function readFreeflowLocalConfigState(cwd) {
+  return readLayerState(cwd, "personal");
 }
 export async function readFreeflowConfig(cwd) {
   return (await readFreeflowConfigState(cwd)).parsed;
@@ -172,24 +162,23 @@ function resolveSessionCoreConfig(layers) {
  * ignores what it cannot use, and `ignored` names each of those settings for the hosts to show (D-045).
  */
 export async function readFreeflowConfigLayers(cwd) {
-  const [repository, local] = await Promise.all([readFreeflowConfigState(cwd), readFreeflowLocalConfigState(cwd)]);
+  const repository = readLayerState(cwd, "repository");
+  const local = readLayerState(cwd, "personal");
   const core = resolveCoreConfig(repository.parsed, local.parsed);
   return {
     repository,
     local,
     coreConfig: core.config,
     sources: core.sources,
-    ignored: [...repository.ignored, ...local.ignored],
+    ignored: [...repository.ignored, ...local.ignored, ...legacyIgnored(cwd)],
   };
 }
 // host is Pi's extension context (or none); Pi's runtime objects are wider than its exported types.
 export async function readCapabilityState(cwd, host = undefined) {
   const layers = await readFreeflowConfigLayers(cwd);
   const effectiveCore = resolveSessionCoreConfig(layers);
-  // Setup needed (D-045, round 3): with no shared config file Freeflow does not run in this folder, whatever a personal
-  // file or this session says; the agent is told to set it up. A file that exists keeps its settings as before.
-  const setupNeeded = !layers.repository.exists;
-  const enabled = !setupNeeded && effectiveCore.config.enabled;
+  // Installed means on (D-060): no config file is needed, so Freeflow runs in every folder unless a setting turns it off.
+  const enabled = effectiveCore.config.enabled;
   const subagentContext = isSubagentContext(host);
   const sessionLayer = sessionConfigLayer(currentSessionOverrides);
   const repositoryConfig = layers.repository.parsed;
@@ -215,7 +204,6 @@ export async function readCapabilityState(cwd, host = undefined) {
   const delegation = resolveDelegationSettings(repositoryConfig, sessionLocalConfig);
   const capabilityState = {
     configExists: layers.repository.exists,
-    setupNeeded,
     localConfigExists: layers.local.exists,
     // Settings a config file ignores, each with its file and reason: every host names them and keeps the default (D-045).
     ignored: layers.ignored,

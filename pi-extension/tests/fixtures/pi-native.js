@@ -227,10 +227,15 @@ export async function fixture(script, _unused, after, withUI = true, options = {
   const root = await mkdtemp(join(tmpdir(), "freeflow-v2-native-"));
   const cwd = join(root, "cwd"),
     agentDir = join(root, "agent");
-  await mkdir(join(cwd, ".freeflow"), { recursive: true });
+  // Settings live in the Freeflow home (D-060). A home a test set under the temporary folder is the test's own, and
+  // the fixture writes its settings there; otherwise the fixture's own home, so a user's real home is never touched.
+  const preset = process.env.FREEFLOW_HOME;
+  const home = preset && preset.startsWith(tmpdir()) ? preset : join(root, "home");
+  await mkdir(home, { recursive: true });
+  await mkdir(cwd, { recursive: true });
   await mkdir(agentDir);
   await writeFile(
-    join(cwd, ".freeflow/config.json"),
+    join(home, "settings.json"),
     JSON.stringify({
       // The gates (SPEC-008) warn on most changes; their rows race with session start's gate state, so a native test
       // pins them only where it turns them on (tests/gates/).
@@ -238,6 +243,8 @@ export async function fixture(script, _unused, after, withUI = true, options = {
       ...(options.freeflowConfig ?? {}),
     }),
   );
+  const freeflowHome = preset;
+  process.env.FREEFLOW_HOME = home;
   await writeFile(join(cwd, "evidence.txt"), "EXACT_EVIDENCE_BODY_81");
   await writeFile(join(cwd, "unselected.txt"), "UNSELECTED_PRIVATE_BODY_93");
   await writeFile(join(cwd, "recovery.txt"), "FRESH_RECOVERY_BODY_57");
@@ -389,6 +396,8 @@ export async function fixture(script, _unused, after, withUI = true, options = {
     globalThis.fetch = priorFetch;
     if (offline === undefined) delete process.env.PI_OFFLINE;
     else process.env.PI_OFFLINE = offline;
+    if (freeflowHome === undefined) delete process.env.FREEFLOW_HOME;
+    else process.env.FREEFLOW_HOME = freeflowHome;
     await capture(root, requests);
     await rm(root, { recursive: true, force: true });
   }

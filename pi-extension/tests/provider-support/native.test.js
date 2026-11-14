@@ -1,3 +1,4 @@
+import { everywhereFile } from "../fixtures/freeflow-home.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
@@ -177,7 +178,7 @@ for (const id of ["gpt-6-astra", "gpt-6-luna", "gpt-6-sol"]) {
       freeflow,
       async ({ session, manager, prompt, root }) => {
         await mkdir(join(root, ".freeflow"), { recursive: true });
-        await writeFile(join(root, ".freeflow/config.json"), "{}");
+        await writeFile(everywhereFile(), "{}");
         await prompt("one", "low");
         const p = await prompt("two", "high");
         assert.equal(p.model, id);
@@ -217,31 +218,12 @@ test(
   },
 );
 
-// D-045 round 3: with no shared config file the setup is needed, so Freeflow's provider support does not run.
-test(
-  "the Freeflow extension leaves GPT-6 effort requests native while the setup is needed",
-  { timeout: 30000 },
-  async () => {
-    await native(
-      freeflow,
-      async ({ manager, prompt }) => {
-        await prompt("one", "low");
-        const p = await prompt("two", "high");
-        assert.equal(p.reasoning.effort, "high", "the requested effort is sent natively");
-        assert.deepEqual(updates(p), []);
-        assert.ok(!manager.getEntries().some((e) => e.customType === ENTRY_TYPE));
-      },
-      "gpt-6-astra",
-    );
-  },
-);
-
 test("an explicitly disabled Freeflow repository leaves GPT-6 effort requests native", { timeout: 30000 }, async () => {
   await native(
     freeflow,
     async ({ manager, prompt, root }) => {
       await mkdir(join(root, ".freeflow"), { recursive: true });
-      await writeFile(join(root, ".freeflow/config.json"), JSON.stringify({ enabled: false }));
+      await writeFile(everywhereFile(), JSON.stringify({ enabled: false }));
       await prompt("one", "low");
       const p = await prompt("two", "high");
       assert.equal(p.reasoning.effort, "high", "the requested effort is sent natively");

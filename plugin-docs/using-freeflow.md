@@ -352,19 +352,13 @@ Pi's former Task Memory is gone, and so are its `/freeflow task`, `/freeflow pro
 
 Freeflow uses layered settings. The exact available controls depend on the host.
 
-### Shared repository activation
+### Installed means on
 
-`.freeflow/config.json` is the shared settings file, and `{}` is a valid minimal one:
+Freeflow is on once it is installed. It works in every folder, on every host, with its defaults: no config file and no setup step are needed. Your settings live in the Freeflow home (`~/.freeflow`, or `FREEFLOW_HOME`), not in the repository: everywhere, for this folder only, or for this session only. `"enabled": false` in any of them turns Freeflow off, and Freeflow writes nothing into your repository except the project's own review rules. Setup Freeflow is for your choices: `/setup-freeflow` changes a setting, turns Freeflow off or on, and sets up the task-memory store. Setup does not write instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
 
-```json
-{}
-```
+### Settings that Freeflow cannot use
 
-On Pi, a folder with no `.freeflow/config.json` shows `freeflow: setup needed`: Freeflow does not run there, and the agent is told to set it up with Setup Freeflow. `"enabled": false` in either file turns Freeflow off once the file exists. On Claude Code and Codex the guidance starts only in a folder that has this file. Use `/setup-freeflow` to create or repair the supported repository configuration. Setup does not write instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
-
-### Personal override
-
-`.freeflow/local.json` supplies per-checkout personal overrides. It does not turn Freeflow on by itself on Claude Code or Codex. A setting in either file that Freeflow cannot use is ignored and named (the footer and `/freeflow status` say which), and the default, or the other file's value, applies to it; a file that is not JSON is read as empty and named the same way. `settings.mjs doctor` shows the fix for each.
+A setting Freeflow cannot use is ignored and named (the footer and `/freeflow status` say which), and its default applies. A repository's own `.freeflow/config.json` or `.freeflow/local.json` is no longer read: `settings.mjs doctor --fix` moves its settings into this folder, and removes `.freeflow/local.json`; the committed `config.json` is rewritten only with `--committed`. A file in the Freeflow home that is not JSON is never rewritten: fix it by hand.
 
 On Pi:
 

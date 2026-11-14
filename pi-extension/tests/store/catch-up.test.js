@@ -1,3 +1,4 @@
+import { everywhereFile } from "../fixtures/freeflow-home.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
@@ -49,7 +50,7 @@ test("Freeflow switched on after the session started: the next run's start bring
     {
       freeflowConfig: { enabled: false },
       // Freeflow is switched on in the repository after the session started.
-      beforePrompt: async ({ cwd }) => writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({})),
+      beforePrompt: async ({ cwd }) => writeFile(everywhereFile(), JSON.stringify({})),
     },
   );
 });

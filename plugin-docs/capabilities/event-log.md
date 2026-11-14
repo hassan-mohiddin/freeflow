@@ -26,13 +26,7 @@ node <track-work>/scripts/working-record.mjs events summary --session <ID>  anot
 node <track-work>/scripts/working-record.mjs events show [--kind <kind>]    the lines themselves
 ```
 
-The log is on by default. Turn it off with the Event log row in `/freeflow settings` on Pi, `/freeflow settings events.enabled off` on Claude Code, by asking the agent on Codex (it runs Setup Freeflow's settings script), or in a file:
-
-```json
-{
-  "events": { "enabled": false }
-}
-```
+The log is on by default. Turn it off with the Event log row in `/freeflow settings` on Pi, `/freeflow settings events.enabled off` on Claude Code, or by asking the agent on Codex (it runs Setup Freeflow's settings script, `settings.mjs set events.enabled off`). It is a setting in the Freeflow home like any other: `"events": { "enabled": false }` in `settings.json` turns it off everywhere.
 
 Off, nothing is written from the next event on (on Codex, from the next session start).
 

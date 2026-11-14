@@ -1,3 +1,4 @@
+import { useFreeflowHome, everywhereFile, setFolderSettings } from "../fixtures/freeflow-home.js";
 import assert from "node:assert/strict";
 import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -64,8 +65,8 @@ function loadExtension(extension = freeflowExtension) {
 
 async function configuredRepo(config = {}) {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-mode-free-core-"));
-  await mkdir(join(cwd, ".freeflow"));
-  await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify(config), "utf8");
+  await useFreeflowHome();
+  await writeFile(everywhereFile(), JSON.stringify(config), "utf8");
   return cwd;
 }
 
@@ -76,7 +77,7 @@ test("obsolete mode and core-toggle configuration keys are ignored and named, an
     try {
       const layers = await readFreeflowConfigLayers(cwd);
       assert.equal(layers.ignored.length, 1);
-      assert.equal(layers.ignored[0].file, ".freeflow/config.json");
+      assert.equal(layers.ignored[0].file, "settings.json");
       assert.match(layers.ignored[0].reason, /unsupported key/);
       const state = await readCapabilityState(cwd);
       assert.equal(state.enabled, true);
@@ -97,17 +98,20 @@ test("removed context settings are ignored and named in each file, and Freeflow 
     const cwd = await configuredRepo(file === "config.json" ? { [key]: true } : {});
     try {
       if (file === "local.json") {
-        await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ [key]: true }), "utf8");
+        await setFolderSettings(cwd, { [key]: true });
       }
       const layers = await readFreeflowConfigLayers(cwd);
       assert.deepEqual(
         layers.ignored.map((item) => [item.file, item.key]),
-        [[`.freeflow/${file}`, key]],
+        [[file === "config.json" ? "settings.json" : "folders.json", key]],
       );
       assert.match(layers.ignored[0].reason, /removed Freeflow context setting/);
       const state = await readCapabilityState(cwd);
       assert.equal(state.enabled, true);
-      assert.match(ignoredStateLine(state.ignored), new RegExp(`\\.freeflow/${file.replace(".", "\\.")} ${key}: `));
+      assert.match(
+        ignoredStateLine(state.ignored),
+        new RegExp(`${file === "config.json" ? "settings" : "folders"}\\.json ${key}: `),
+      );
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -122,17 +126,17 @@ test("the removed review settings never fail a config: each is ignored and named
       assert.equal(validate({ review }), null, JSON.stringify(review));
   const cwd = await configuredRepo({ review: { mode: "always", unit: "push", depth: { default: "deep" } } });
   try {
-    await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ review: { model: "my-model" } }), "utf8");
+    await setFolderSettings(cwd, { review: { model: "my-model" } });
     const state = await readCapabilityState(cwd);
     assert.equal(state.enabled, true);
     assert.equal("review" in state, false);
     assert.deepEqual(
       state.ignored.map((item) => `${item.file} ${item.key}`),
       [
-        ".freeflow/config.json review.mode",
-        ".freeflow/config.json review.unit",
-        ".freeflow/config.json review.depth",
-        ".freeflow/local.json review.model",
+        "settings.json review.mode",
+        "settings.json review.unit",
+        "settings.json review.depth",
+        "folders.json review.model",
       ],
     );
     for (const item of state.ignored)
@@ -140,7 +144,7 @@ test("the removed review settings never fail a config: each is ignored and named
     const content = freeflowRuntimeStateMessage(state, await getRuntimeContext(state)).content;
     assert.match(content, /^Freeflow: active$/m);
     assert.doesNotMatch(content, /^Review:/m);
-    assert.match(content, /^Settings ignored: \.freeflow\/config\.json review\.mode: removed: review has no settings/m);
+    assert.match(content, /^Settings ignored: settings\.json review\.mode: removed: review has no settings/m);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

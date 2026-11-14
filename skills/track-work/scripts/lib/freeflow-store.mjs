@@ -10,7 +10,7 @@
 
 import { execFile as execFileCallback } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -24,7 +24,17 @@ const execFile = promisify(execFileCallback);
  * What Git never syncs: temporary work, raw evidence, this machine's paths and sync state, live sessions, and the
  * event log at the store's root (a task folder's events/ holds the summaries a checkpoint commits).
  */
-export const STORE_IGNORE = ["scratch/", "evidence/**/raw/", "local/", "sessions/", "/events/"];
+export const STORE_IGNORE = [
+  "scratch/",
+  "evidence/**/raw/",
+  "local/",
+  "sessions/",
+  "/events/",
+  // The user's settings and the first-session marker are kept on this machine, not committed (D-060).
+  "/settings.json",
+  "/folders.json",
+  "/first-session.json",
+];
 /** Files that only append merge by keeping both sides' lines. */
 export const STORE_ATTRIBUTES = [
   "history.md merge=union",
@@ -59,9 +69,9 @@ export function storeHome(explicit) {
 
 /**
  * What Freeflow keeps in its home before there is a store: live sessions (Messaging's registry) and session
- * summaries, and the event log. A store ignores them, so a home that holds only these has no store yet.
+ * summaries, the event log, and the settings (D-060). A store ignores them, so a home that holds only these has no store yet.
  */
-const BEFORE_STORE = ["sessions", "events"];
+const BEFORE_STORE = ["sessions", "events", "settings.json", "folders.json", "first-session.json"];
 
 /** Whether a home holds nothing, or nothing but Freeflow's own `sessions/` and `events/`. */
 async function isEmptyHome(path) {
@@ -84,7 +94,15 @@ async function setSessionsAside(home) {
     const folder = join(home, name);
     if (!existsSync(folder)) continue;
     const aside = `${home}.${name}-${process.pid}`;
+    // A file (the settings, D-060) moves whole; a folder moves with its entries, put back beside anything written meanwhile.
+    const folderIsDirectory = (await stat(folder)).isDirectory();
     await rename(folder, aside);
+    if (!folderIsDirectory) {
+      restores.push(async () => {
+        if (!existsSync(folder)) await rename(aside, folder);
+      });
+      continue;
+    }
     restores.push(async () => {
       await mkdir(folder, { recursive: true });
       for (const entry of await readdir(aside))
