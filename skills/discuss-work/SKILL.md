@@ -1,6 +1,6 @@
 ---
 name: discuss-work
-description: "Use at a session's first message, before you reply, whatever it is: a question, an idea, a request, criticism or a status check. Also use whenever what to do, or how, is not settled yet: exploring a problem, comparing options or approaches, questioning assumptions, brainstorming, planning an approach, designing or changing modules, interfaces, data models, state, error handling or dependencies, or revisiting a direction after new evidence. It decides with the user what you will do, where you stop and which choices are theirs before anything is built, fixed or changed. Also use mid-work when a choice the user owns comes up (behavior, names, defaults, scope, cost, risk) or sources conflict; when a question needs a quick experiment before building on it; when a discussion or its decisions must outlast the conversation; and when the user asks to skip or lighten optional steps such as a plan, a review or a record."
+description: "Use at a session's first message, before you reply, whatever it is: a question, an idea, a request, criticism or a status check. Also use whenever what to do, or how, is not settled yet: exploring a problem, comparing options or approaches, questioning assumptions, brainstorming, planning an approach, designing or changing modules, interfaces, data models, state, error handling or dependencies, or revisiting a direction after new evidence. It decides with the user what you will do, where you stop and which choices are theirs before anything is built, fixed or changed. Also use mid-work when a choice the user owns comes up (behavior, names, defaults, scope, cost, risk) or sources conflict; when the user steers, changes a decision or adds scope while work or workers run; when a question needs a quick experiment before building on it; when a discussion or its decisions must outlast the conversation; and when the user asks to skip or lighten optional steps such as a plan, a review or a record."
 ---
 
 # Discuss Work
@@ -16,7 +16,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 | Situation | Go to |
 | --- | --- |
 | A message that asks for no change: a question, an idea, criticism, a status check | Answer The Message, below |
-| The user comes back while agreed work is under way | When The User Returns Mid-Work, below |
+| The user comes back while agreed work is under way, or steers while workers run | When The User Returns Mid-Work, below |
 | What to do, or how, is still open | Explore, below |
 | A task that builds or changes behavior, before the first edit | Agree Before Building, below |
 | A user-owned choice or conflicting sources mid-work | Choices During The Work, below |
@@ -95,10 +95,13 @@ Where I stop:   <done when; what I won't touch>
 Your decisions: 1. <a choice the request leaves open, as the user meets it>. I'd go with <default>, because <reason>.
                 2. ...
 Technical:      <N> more choices; say "show technical" to see them.
+Workers:        <when workers above the cheap tier will do parts: the models and efforts, such as Opus at high>
 Size:           <for work past this context cycle: the context cycles it takes, its cost at API list price as a range, and what that rests on>
 ```
 
 `choices.mjs agreement --do <outcome> --stop <where you stop>` renders this reply from the list. When the work will outlast this context cycle, first save the output of Track Work's `working-record.mjs estimate --plan --json` to a file (with `--record` for the task's Future Work, or `--input -` with the Slices you propose) and pass it as `--plan <file>`: the reply gains the Size line, last so it stands out, and its Technical part the plan, with the context and cost of each context cycle and Slice and the model and effort they were measured on. Show the technical list in full when the user asks or has said they always want it, and leave the line out when they have said never. With no plain items, say so and still wait.
+
+`Workers` names the workers above the cheap tier that the work will start, so the user's answer grants them for the agreement (`--workers <models and efforts>`); Track Work keeps it as the agreement's `Workers:` line, which `delegate open` reads. Leave it out when every worker runs on the cheap tier or the user's delegation rules already let them open without asking.
 
 `Where I stop` names the endpoint the user can hold you to, and where you come back. After discussing several possible Slices, an ambiguous "proceed" needs it settled: the next Slice and return, or the whole task? Do not ask when the user already named the endpoint.
 
@@ -139,13 +142,21 @@ When sources the work relies on disagree, state each one's exact claim, scope an
 
 ## When The User Returns Mid-Work
 
-Goal: agreed work changes only when you and the user have settled the change, and then in one step.
+Goal: agreed work changes only when you and the user have settled the change, then in one step, and each running worker's brief stays one clean request.
 
-Answer first, as Answer The Message says. When the discussion settles a change to the work, say in one line what changes, then make it in one go through Track Work, the open Slice first:
+Answer first, as Answer The Message says. Then sort what the user said:
+
+- **A question:** the answer is all it needs.
+- **A new decision,** on a choice the agreement left open: it applies at once.
+- **A change to an agreed decision:** before it applies, reply with its consequence, not a question about why: the work it throws away and what else it changes. Then do what the user says.
+- **New scope:** a new part with its own brief, never an addition to a running one; the agreement gets an update first.
+
+When the discussion settles a change to the work, say in one line what changes, then make it in one go through Track Work, the open Slice first:
 
 - **The open Slice:** it continues when its result still serves the agreement; otherwise close it as abandoned, with the reason, so its partial state is on record.
-- **The agreement:** the same outcome with different terms (scope, a limit, where you stop) is an update; a different outcome ends the agreement and opens a new one, once no Slice works under it.
-- **The decision list:** an item the change answers becomes `agreed`; one it overturns becomes `changed`, with why.
+- **The agreement:** the same outcome with different terms (scope, a limit, where you stop, the workers) is an update; a different outcome ends the agreement and opens a new one, once no Slice works under it.
+- **The decision list:** an item the change answers becomes `agreed`; one it overturns becomes `changed`, with a one-line reason.
+- **Running workers:** `delegate status --cites P3` lists those whose brief's Settled cites the decision. Amend or stop a worker whose work so far would be wrong or thrown away, and append a change that only refines to its brief's Changes, as Execute Work's [delegation](../execute-work/references/delegation.md#work-while-workers-run) reference says.
 
 A discussion that settles nothing changes nothing; the messages open work rests on are saved at the next checkpoint.
 

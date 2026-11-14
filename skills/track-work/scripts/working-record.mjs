@@ -207,7 +207,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate status",
-    "Usage: delegate status --record <record.md> [--json]\nThe open delegations: ID, title, kind, agent, when opened, branch, whether a return is there, and each one's sub-workers. With --json, the same as data for a harness layer such as Freeflow's Claude Code pane: delegations, each with id, title, kind, agent, opened, handle, branch, worktree, returned (its return's State, or null), folder and sub (its sub-workers, the same way).",
+    "Usage: delegate status --record <record.md> [--cites <P3>] [--json]\nThe open delegations: ID, title, kind, agent, when opened, branch, whether a return is there, and each one's sub-workers. --cites <P3> lists only those whose brief's Settled cites that decision, the workers a change to it touches. With --json, the same as data for a harness layer such as Freeflow's Claude Code pane: delegations, each with id, title, kind, agent, opened, handle, branch, worktree, returned (its return's State, or null), folder and sub (its sub-workers, the same way).",
   ],
   [
     "delegate check-return",
@@ -498,7 +498,7 @@ function allowedOptions(command, operation) {
     if (operation === "join") return new Set([...record, "--id", "--home"]);
     if (operation === "log") return new Set([...record, "--id", "--append", "--kind", "--body", "--agent"]);
     if (operation === "amend") return new Set([...record, "--id", "--text", "--handle", "--input"]);
-    if (operation === "status") return new Set([...record, "--json"]);
+    if (operation === "status") return new Set([...record, "--json", "--cites"]);
     if (operation === "check-return") return new Set([...record, "--id", "--scratch", "--elsewhere"]);
     if (operation === "close")
       return new Set([
@@ -1028,7 +1028,12 @@ async function runCore(command, rest) {
     const input = await readInput(options["--input"], cwd());
     if (operation === "open") return openDelegation(loaded, options, input);
     if (operation === "amend") return amendDelegation(loaded, options, input);
-    if (operation === "status") return delegationStatus(loaded, { json: options["--json"] === true });
+    if (operation === "status") {
+      const cites = options["--cites"];
+      if (cites !== undefined && !/^[PT][1-9]\d*$/.test(String(cites)))
+        throw new CliError(`--cites takes a decision ID, P<n> or T<n>, not ${JSON.stringify(cites)}`, 2);
+      return delegationStatus(loaded, { json: options["--json"] === true, cites: cites ?? null });
+    }
     // A worker checks its own return before it hands back; the record stays the coordinator's.
     if (operation === "check-return") return checkReturn(loaded, options, { readOnly: Boolean(joined) });
     if (operation === "close") return closeDelegation(loaded, options, input);

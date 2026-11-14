@@ -62,6 +62,18 @@ test("choices validates a list and refuses a broken one", async () => {
     assert.match(broken.stdout, expected);
 });
 
+test("a decision moved to changed carries a one-line reason, or the list does not validate", async () => {
+  const bare = choices(process.cwd(), ["validate", "--list", "-"], "- P1 [changed] Retry count -> 5\n");
+  assert.equal(bare.status, 1, bare.stdout);
+  assert.match(bare.stdout, /error: line 1 P1: changed without saying why/);
+  const reasoned = choices(
+    process.cwd(),
+    ["validate", "--list", "-"],
+    "- P1 [changed] Retry count -> 5, because the server now rate-limits at 3\n",
+  );
+  assert.equal(reasoned.status, 0, reasoned.stdout);
+});
+
 test("a list with no items yet, such as a new task's decisions.md, is valid (P98)", async () => {
   const empty = choices(
     process.cwd(),
@@ -241,6 +253,15 @@ test("choices renders the agreement and the Return filter, and refuses a Schema 
       "",
     ].join("\n"),
   );
+  // The workers above the cheap tier the user's answer grants come before Size, after Technical.
+  const granted = choices(
+    process.cwd(),
+    ["agreement", "--list", "-", "--do", "Add a queue", "--stop", "the queue works", "--workers", "Opus at high"],
+    LIST,
+  );
+  assert.equal(granted.status, 0, granted.stderr);
+  assert.match(granted.stdout, /see them\.\nWorkers: {8}Opus at high\n$/);
+  assert.equal(choices(process.cwd(), ["validate", "--list", "-", "--workers", "Opus"], LIST).status, 2);
   const handover = choices(process.cwd(), ["return", "--list", "-", "--json"], LIST);
   assert.deepEqual(JSON.parse(handover.stdout).shown, ["P2", "P3", "T1"]);
   // Its former name still works.

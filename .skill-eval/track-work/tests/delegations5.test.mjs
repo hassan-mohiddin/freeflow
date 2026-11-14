@@ -785,3 +785,47 @@ test("delegate check-return checks a commit a dot joins to a URL suffix or a wor
     assert.match(ok(check("--elsewhere", `${upstream.slice(0, 8).toUpperCase()}=openai/codex`)), /openai\/codex/);
   });
 });
+
+test("delegate status --cites lists only the open delegations whose brief's Settled cites the decision", async () => {
+  await withTask(async ({ record, cli }) => {
+    const open = (title, settled) =>
+      ok(
+        cli(
+          [
+            "delegate",
+            "open",
+            "--record",
+            record,
+            "--title",
+            title,
+            "--kind",
+            "gather",
+            "--agent",
+            "Haiku, xhigh",
+            "--input",
+            "-",
+          ],
+          `${BRIEF}## Settled\n${settled}\n`,
+        ),
+      );
+    open("Cites three", "- P3: oldest first.");
+    open("Cites thirty", "- P30, TP3: newest first.");
+    const listed = ok(cli(["delegate", "status", "--record", record, "--cites", "P3"]));
+    assert.match(listed, /^- D-001 — Cites three /);
+    assert.doesNotMatch(listed, /D-002/);
+    const json = JSON.parse(ok(cli(["delegate", "status", "--record", record, "--cites", "P3", "--json"])));
+    assert.equal(json.cites, "P3");
+    assert.deepEqual(
+      json.delegations.map((each) => each.id),
+      ["D-001"],
+    );
+    assert.equal(
+      ok(cli(["delegate", "status", "--record", record, "--cites", "P9"])),
+      "No open delegation's Settled cites P9.\n",
+    );
+    const bad = cli(["delegate", "status", "--record", record, "--cites", "X1"]);
+    assert.equal(bad.status, 2, bad.stderr);
+    assert.match(bad.stderr, /P<n> or T<n>/);
+    assert.match(ok(cli(["delegate", "status", "--record", record])), /D-002/);
+  });
+});
