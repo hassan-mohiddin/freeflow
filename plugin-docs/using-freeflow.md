@@ -215,7 +215,13 @@ Before the first edit on a task that builds or changes behavior, the agent sends
 
 A choice that comes up during the work stops it only when the work cannot go on without your answer. On Pi the agent can put that choice to you in a dialog and continue on your answer; see [Questions in a dialog](integrations/pi.md#questions-in-a-dialog). At the end, the Return shows the choices you have not seen.
 
+When workers above the cheap tier (Opus on Claude, by default) will do parts of the work, the agreement has a `Workers:` line naming them, such as `Opus at high`; your answer grants them for that agreement. A worker beyond that line is a change to the agreement, and the agent asks you first.
+
 You can ask the agent to skip an optional step, such as waiting for the agreement, a plan, a review or a record; it skips only that, and still asks before a hard-to-reverse choice.
+
+### Steering while the work runs
+
+You can steer at any time. The agent answers first, then sorts what you said: a question gets its answer; a new decision, on a choice the agreement left open, applies at once; a change to something you already agreed is made in the same reply that states its consequence, the work it throws away and what else it changes; new scope becomes a new part with its own brief, never an addition to a worker's running one. `delegate status --cites P3` lists the workers whose briefs rest on a decision. One whose work so far would be wrong after your change gets the change in its brief and is told at once, or is stopped; one the change only refines finds it in its brief at its next round.
 
 ### Which skill does the work
 
@@ -294,7 +300,23 @@ The memory the agent shapes has a recovery budget that grows with the context wi
 
 ### Which model a worker runs on
 
-When the agent hands work to another agent, the model and effort come from your routing table, `rules/routing.md` in the store (a project's own `projects/<project>/rules/routing.md` is read first). A new store gets the default table, two tiers: the cheap tier (Haiku on Claude) at `xhigh` for gathering, research, evals, reviews and builds whose decisions the brief has settled, and the agent's own model at `high` for unsettled builds, judgement and security reviews, which the agent asks you about first. Edit the table to change it; the agent never does. Each delegation's brief and History entry say which row chose its model, and a return sent back records why (the brief, the model's capability, or the scope), so `estimate --plan` can show how often each kind of work on each model came back. A reviewer model you set with `review.model` still wins for reviews.
+When the agent hands work to another agent, the model and effort come from your delegation rules, `rules/delegation.md` in the store (a project's own `projects/<project>/rules/delegation.md` is read first; the older `rules/routing.md` still works). With no file, Freeflow's default applies, two tiers: the cheap tier (Haiku on Claude) at `xhigh` for gathering, research, evals, reviews and builds whose decisions the brief has settled, and the strongest model a worker may run on, `Worker:` (Opus on Claude), at `high` for unsettled builds, judgement and security reviews, which the agent asks you about first unless your agreement's `Workers:` line names that model. A `Worker:` line in your rules sets that ceiling: the agent starts no worker above it unless you name the model. Edit the rules to change it; the agent never does. Each delegation's brief and History entry say which row chose its model, and a return sent back records why (the brief, the model's capability, or the scope), so `estimate --plan` can show how often each kind of work on each model came back. A reviewer model you set with `review.model` still wins for reviews.
+
+Freeflow's default rules also carry a `## Models` section: one line per Claude model it routes to (Opus 5.5, Fable 5.2, Haiku 5.5, and Sonnet 5.5, which it does not use), saying what to hand it as a worker and what it should mind in the position it holds, each marked observed, measured or list price. The agent reads it when choosing a worker's model. Put a `## Models` section in your own rules file to replace it; the first rules file that has one wins, as for the table, and the routing parser ignores it. A model the section does not list, such as one of another family, is chosen by the table alone.
+
+### Which model coordinates
+
+The coordinator is the model you start the session on; Freeflow never chooses or proposes it. This is advice, and it is untested: it rests on observation of one checkpoint each, not on a measurement.
+
+|  | Closed task | Open task |
+| --- | --- | --- |
+| **Attended** | Opus | Fable |
+| **Unattended** | Fable | Fable |
+
+- **Attended:** you are present and steering. **Unattended:** you gave the defaults and left.
+- **Closed:** a spec exists and the result can be checked. **Open:** what to build is still being decided.
+- Unattended, the coordinator makes the calls you would make, so judgement at the top matters most. On an open task Opus follows every steer without asking why, and your being present does not fix that.
+- Fable's weak side is checking, so Check The Return reruns every command a brief's Done when names.
 
 ### What it does not do
 

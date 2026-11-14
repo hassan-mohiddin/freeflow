@@ -192,7 +192,7 @@ test("view recover prints the opening line, rules, record, decisions, History an
     assert.equal(realpathSync(folderLine[1]), realpathSync(dirname(record)));
     assert.match(
       checks,
-      /- Budget: counted [\d,]+ of about 10,000 words \(normal, 200,000-token window\); largest: .+; fixed: Current Context \d+ of about 600, Future Work \d+ of about 300; not counted: rules 140, Recovery's uncounted files [\d,]+\./,
+      /- Budget: counted [\d,]+ of about 10,000 words \(normal, 200,000-token window\); largest: .+; fixed: Current Context \d+ of about 600, Future Work \d+ of about 300; not counted: rules 8, Recovery's uncounted files [\d,]+\./,
     );
     assert.match(checks, /- Recovery: sources\/missing.md does not exist/);
     assert.match(checks, /- Store: 1 commit\(s\) not pushed, 0 path\(s\) not committed; last sync \S+, created\./);

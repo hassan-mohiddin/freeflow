@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/ask-user/`, `pi-extension/src/host/inbound.ts`, `skills/discuss-work/SKILL.md` (Ask One Question)
 > **Tests:** `pi-extension/tests/ask-user/`, `pi-extension/tests/host/inbound.test.js`
-> **Verified at:** `ecfd0788` (2026-11-10)
+> **Verified at:** `880a17e4` (2026-11-14: Discuss Work's Ask One Question unchanged since `ecfd0788`; the change was When The User Returns Mid-Work and the agreement)
 
 For contributors changing how Freeflow on Pi asks the user a question, or how content from outside the turn reaches the model. Design and decisions: Task 002's spec (`.freeflow/tasks/task-002-*/specs/ask-user-monitor-messaging.md`, local to the developer's checkout).
 
