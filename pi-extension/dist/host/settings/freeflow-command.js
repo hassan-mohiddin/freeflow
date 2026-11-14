@@ -14,9 +14,10 @@ import {
   resolveDelegationSettings,
   resolveGateSettings,
   sectionEnabled,
+  settingSpec,
 } from "../config-validation.js";
 import { freeflowStatusText } from "../status.js";
-import { freeflowHome, readConfigFile, writeLayer } from "../config-store.js";
+import { defaultValueFor, freeflowHome, readConfigFile, writeLayer } from "../config-store.js";
 import { PiSettingsComponent } from "./settings-view.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG } from "../../tool-execution/config.js";
 import { DEFAULT_COMPACTION_ENABLED } from "../../compaction/config.js";
@@ -494,7 +495,9 @@ function sessionFreeflowItems(state, rawConfig, localConfig) {
     return item;
   });
   // Delegation across sessions, on every host with a Freeflow driver (SPEC-009 4.7).
-  const memoryInherited = configuredSetting(rawConfig, localConfig, ["memory", "mode"], "local");
+  // Unset everywhere: sync when the store has a remote, else on this machine (defaultValueFor, round 3).
+  const memoryDefault = String(defaultValueFor(settingSpec("memory.mode"), freeflowHome(process.env)));
+  const memoryInherited = configuredSetting(rawConfig, localConfig, ["memory", "mode"], memoryDefault);
   const memoryItem = createSessionChoiceItem({
     id: "freeflow.memory.mode",
     label: "Task memory",
@@ -683,7 +686,9 @@ function freeflowItems(rawConfig, options = {}) {
   });
   const freeflowInactive = !core.enabled;
   // Task memory (Setting 2, D-060): on this machine, on with sync, or off; the default is on, this machine only.
-  const memoryMode = getPath(localConfig, ["memory", "mode"]) ?? getPath(rawConfig, ["memory", "mode"]) ?? "local";
+  const memoryDefaultScreen = String(defaultValueFor(settingSpec("memory.mode"), freeflowHome(process.env)));
+  const memoryMode =
+    getPath(localConfig, ["memory", "mode"]) ?? getPath(rawConfig, ["memory", "mode"]) ?? memoryDefaultScreen;
   const memoryItem = createScopedChoiceItem({
     scope,
     rawConfig,
@@ -691,7 +696,7 @@ function freeflowItems(rawConfig, options = {}) {
     id: "freeflow.memory.mode",
     label: "Task memory",
     description:
-      "On, this machine (the default); on, with sync to your private remote; or off: no menu, no task offered, nothing recorded.",
+      "On, with sync to your private remote when the store has one, else on, this machine (the default); or off: no menu, no task offered, nothing recorded.",
     path: ["memory", "mode"],
     values: MEMORY_MODES,
     valueLabels: { local: "on, this machine", sync: "on, with sync", off: "off" },
@@ -700,7 +705,7 @@ function freeflowItems(rawConfig, options = {}) {
       sync: "Task memory is on, and synced to the store's private remote.",
       off: "No menu, no task offered, nothing recorded; a task's budget and the sync remote stay where they are.",
     },
-    defaultValue: "local",
+    defaultValue: memoryDefaultScreen,
     effectiveValue: memoryMode,
     effectiveSource:
       getPath(localConfig, ["memory", "mode"]) !== undefined

@@ -41,7 +41,7 @@ node <setup-freeflow>/scripts/settings.mjs unset <key> [--scope everywhere|folde
 - `list` shows the developer view by default; `--view normal` shows the rows a person changes (Freeflow, Task memory, Review and Workers read only, Status line and Pane on Claude Code).
 - Its output names each Runtime State line the change adds or removes; give those to the user, and treat them as the new state.
 
-Task memory is `memory.mode`: `local` (on, this machine, the default), `sync` (on, with the store's private remote) or `off` (no menu, no task offered, nothing recorded). A session's compaction without a task is `compaction.withoutTask`.
+Task memory is `memory.mode`: unset, `sync` when the store has a remote and `local` (on, this machine) when it has none; or set `local`, `sync` (on, with the store's private remote) or `off` (no menu, no task offered, nothing recorded). A session's compaction without a task is `compaction.withoutTask`.
 
 ### Turning Freeflow off
 

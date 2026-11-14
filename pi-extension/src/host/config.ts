@@ -19,7 +19,7 @@ import {
   validSettingValue,
 } from "./config-validation.js";
 import { cachedBranch } from "./branch.js";
-import { freeflowHome, HOME_FILES, LEGACY_FILES, readConfigFile } from "./config-store.js";
+import { defaultValueFor, freeflowHome, HOME_FILES, LEGACY_FILES, readConfigFile } from "./config-store.js";
 /**
  * Freeflow configuration: the repository and personal config files, their layering, per-session core overrides, and
  * the resulting capability state, with optional capabilities disabled inside subagents.
@@ -266,8 +266,10 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
     layeredSetting(sessionLayer, repositoryConfig, localConfig, ["compaction", "withoutTask"]) !== false;
   // memory.mode (D-060, Setting 2): off covers the task store only; sync pushes and pulls, local never does.
   const memoryValue = layeredSetting(sessionLayer, repositoryConfig, localConfig, ["memory", "mode"]);
+  // Unset in every layer: sync when the store has a remote, else local (defaultValueFor, round 3).
+  const memoryFallback = String(defaultValueFor(settingSpec("memory.mode")!, freeflowHome(process.env)));
   const memoryMode =
-    typeof memoryValue === "string" && ["local", "sync", "off"].includes(memoryValue) ? memoryValue : "local";
+    typeof memoryValue === "string" && ["local", "sync", "off"].includes(memoryValue) ? memoryValue : memoryFallback;
   const messaging = resolveMessagingConfig(repositoryConfig, sessionLocalConfig, enabled);
   // Not capabilities: the user's choices for the runtime prompts and the skills, on every host.
   const prompts = selectedRuntimePrompts(repositoryConfig, sessionLocalConfig);

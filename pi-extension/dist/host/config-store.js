@@ -250,7 +250,26 @@ export async function writeSessionValue(home, id, key, value, harness = null) {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(values, null, 2)}\n`, "utf8");
 }
-export function resolveSetting(spec, layers, harness = null) {
+/**
+ * Whether the Freeflow home is a store with a remote named origin, read from the store's Git config: no process, so it
+ * is cheap enough for the request path (D-060, Setting 2).
+ */
+export function storeHasRemote(home) {
+  if (!home) return false;
+  try {
+    return /^\[remote "origin"\]/m.test(readFileSync(join(home, ".git", "config"), "utf8"));
+  } catch {
+    return false;
+  }
+}
+/**
+ * A setting's default where no layer sets it: `defaultWithRemote` when the home's store has a remote, else `default`.
+ * memory.mode is sync with a remote and local without one, unless a layer says otherwise (D-060, round 3).
+ */
+export function defaultValueFor(spec, home) {
+  return spec.defaultWithRemote !== undefined && storeHasRemote(home) ? spec.defaultWithRemote : spec.default;
+}
+export function resolveSetting(spec, layers, harness = null, home = null) {
   if (harness && `harness.${harness}.${spec.key}` in layers.session)
     return { spec, value: layers.session[`harness.${harness}.${spec.key}`], scope: "session", ticked: true };
   if (spec.key in layers.session) return { spec, value: layers.session[spec.key], scope: "session", ticked: false };
@@ -263,7 +282,7 @@ export function resolveSetting(spec, layers, harness = null) {
     const value = getPath(layers[scope], path);
     if (value !== undefined) return { spec, value: value, scope, ticked: false };
   }
-  return { spec, value: spec.default, scope: "default", ticked: false };
+  return { spec, value: defaultValueFor(spec, home), scope: "default", ticked: false };
 }
 /** A session's values as one harness applies them: its general values, with that harness's ticks over them. */
 export function sessionValuesForHarness(session, harness) {

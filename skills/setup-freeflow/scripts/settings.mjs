@@ -152,7 +152,7 @@ function legacyIgnored(root) {
 
 function resolveAll(state, harness) {
   const values = { repository: state.repository.value, personal: state.personal.value, session: state.session };
-  return SETTINGS.map((spec) => resolveSetting(spec, values, harness));
+  return SETTINGS.map((spec) => resolveSetting(spec, values, harness, state.home));
 }
 
 /** The Runtime State lines the resolved settings give: the off-skills line and the ignored settings. */

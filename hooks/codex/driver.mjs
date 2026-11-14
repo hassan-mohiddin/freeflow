@@ -284,7 +284,8 @@ async function resolveSwitches(root, ctx) {
     session: store.readSessionSettings(ctx.home, ctx.session),
   };
   // The settings this driver acts on, as Codex's harness reads them: its ticks win within each scope (D-060).
-  const value = (/** @type {string} */ key) => store.resolveSetting(validation.settingSpec(key), layers, "codex").value;
+  const value = (/** @type {string} */ key) =>
+    store.resolveSetting(validation.settingSpec(key), layers, "codex", ctx.home).value;
   return {
     enabled: value("enabled") !== false,
     // Task memory off: no menu, no task offered, nothing recorded (Setting 2).

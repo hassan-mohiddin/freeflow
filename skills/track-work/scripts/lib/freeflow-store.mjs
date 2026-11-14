@@ -202,27 +202,6 @@ async function hasRemote(home) {
  *
  * @param {{ home?: string, url: string }} options
  */
-/**
- * Turns task memory's sync on in this home (D-060, Setting 2) when the store is given a remote: the setup's "local +
- * cloud" choice, which the user can reverse with memory.mode. Keeps the home's other settings; a settings file that is
- * not a JSON object is left as it is, and the store stays local.
- */
-async function turnSyncOn(home) {
-  const path = join(home, "settings.json");
-  let raw = {};
-  try {
-    raw = existsSync(path) ? JSON.parse(await readFile(path, "utf8")) : {};
-  } catch {
-    return false;
-  }
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return false;
-  const memory = raw.memory && typeof raw.memory === "object" && !Array.isArray(raw.memory) ? raw.memory : {};
-  raw.memory = { ...memory, mode: "sync" };
-  await mkdir(home, { recursive: true });
-  await writeFile(path, `${JSON.stringify(raw, null, 2)}\n`);
-  return true;
-}
-
 export async function addStoreRemote({ home: explicit, url }) {
   const home = storeHome(explicit);
   requireStore(home);
@@ -242,8 +221,7 @@ export async function addStoreRemote({ home: explicit, url }) {
       `${url} already holds commits; a local store moves only into an empty repository. To use a store already there, run store init --remote ${url} --home <another folder>`,
     );
   }
-  // Sync is on for a store that goes cloud (D-060): the setting is committed with the first push.
-  await turnSyncOn(home);
+  // A store with a remote syncs unless memory.mode says otherwise (memoryModeFor, D-060 round 3): no setting is written.
   const outcome = await push(home);
   if (!outcome.pushed) {
     await drop();
@@ -332,11 +310,8 @@ async function layOutOrJoin({ home, remote, name, email, adopted }) {
           `${remote} holds a repository that is not a Freeflow store (no ${STORE_MARKER} at its root)`,
         );
       await recordSync(home, { pushed: true, result: "joined" });
-      await turnSyncOn(home);
       return { home, remote, joined: true, author, pushed: true };
     }
-    // Written before the layout's own commit, so the first commit carries it.
-    await turnSyncOn(home);
     await layOut(home);
     const outcome = await push(home);
     await recordSync(home, { ...outcome, result: "created" });

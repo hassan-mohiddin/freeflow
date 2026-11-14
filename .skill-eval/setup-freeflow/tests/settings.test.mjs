@@ -53,6 +53,26 @@ function otherValue(spec) {
 const settable = SETTINGS;
 const readRows = (listed) => listed.settings.filter((row) => !row.readOnly);
 
+test("the Task memory row is sync with a store that has a remote and local without one, unless a layer sets it (D-060, round 3)", async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+  const memoryRow = () => f.json("list", "--view", "normal").settings.find((row) => row.key === "memory.mode");
+  assert.equal(memoryRow().value, "local");
+  assert.equal(memoryRow().displayed, "On, this machine");
+  // The home is the store: a remote named origin in its Git config makes the unset default sync.
+  await mkdir(join(f.home, ".git"), { recursive: true });
+  await writeFile(
+    join(f.home, ".git", "config"),
+    '[core]\n[remote "origin"]\n\turl = https://example.invalid/store.git\n',
+  );
+  assert.equal(memoryRow().value, "sync");
+  assert.equal(memoryRow().displayed, "On, with sync");
+  assert.equal(memoryRow().scope, "default");
+  // An explicit value wins over the store's remote.
+  await writeFile(join(f.home, "settings.json"), '{"memory":{"mode":"local"}}\n');
+  assert.equal(memoryRow().value, "local");
+});
+
 test("the normal view names where Workers' and Review's rules come from (N4): the default, your rules, or the project's", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);

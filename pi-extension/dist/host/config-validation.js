@@ -192,7 +192,15 @@ const PROMPT_LABELS = {
  */
 export const SETTINGS = [
   { key: "enabled", label: "Freeflow", values: "boolean", default: true, hosts: "all", session: true },
-  { key: "memory.mode", label: "Task memory", values: MEMORY_MODES, default: "local", hosts: "all", session: true },
+  {
+    key: "memory.mode",
+    label: "Task memory",
+    values: MEMORY_MODES,
+    default: "local",
+    defaultWithRemote: "sync",
+    hosts: "all",
+    session: true,
+  },
   { key: "prompts.enabled", label: "Runtime prompts", values: "boolean", default: true, hosts: "all", session: true },
   ...RUNTIME_PROMPTS.map((prompt) => ({
     key: `prompts.${prompt}`,

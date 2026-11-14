@@ -9,7 +9,7 @@ Freeflow is on once it is installed. It runs in every folder, on every host, wit
 | Feature | Default | What it is |
 | --- | --- | --- |
 | Freeflow | on | The core guidance, the Interaction Contract, the Working Method and the skills, plus `ask_user` dialogs |
-| Task memory | on, this machine | The task menu and the store, kept on this machine; with sync, the store's private remote too; off, no menu and nothing recorded |
+| Task memory | on, with sync when the store has a remote, else on, this machine | The task menu and the store; with sync, the store's private remote too; off, no menu and nothing recorded |
 | [Compaction](capabilities/compaction.md) | on | After the agent's checkpoint, the task's bundle replaces the conversation; Pi's compaction stays the fallback |
 | [Tool Execution](capabilities/tool-execution.md) | on | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors, and skill guidance at the tool call that needs it |
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
@@ -125,7 +125,7 @@ Keys are paths in the Freeflow home's layers (`settings.json`, `folders.json` an
 | Screen row | Key | Values | Default | Layers |
 | --- | --- | --- | --- | --- |
 | Freeflow | `enabled` | `true`, `false` | `true` | Everywhere, This folder, This session |
-| Task memory | `memory.mode` | `local` (on, this machine), `sync` (on, with the store's remote), `off`: no menu, no task offered, nothing recorded | `local` | Everywhere, This folder, This session |
+| Task memory | `memory.mode` | `local` (on, this machine), `sync` (on, with the store's remote), `off`: no menu, no task offered, nothing recorded; with no value set, `sync` when the store has a remote and `local` when it has none | `sync` with a remote, else `local` | Everywhere, This folder, This session |
 | Runtime prompts | `prompts.enabled` | `true`, `false`: off leaves all three prompts out | `true` | Everywhere, This folder, This session (every host) |
 | Each prompt | — | opens the three switches below on their own screen, and names the ones that are on | all | Everywhere, This folder, This session |
 | Each prompt › Core | `prompts.core` | `true`, `false` | `true` | Everywhere, This folder, This session (every host) |
@@ -164,7 +164,7 @@ Keys are paths in the Freeflow home's layers (`settings.json`, `folders.json` an
 
 What some of them mean:
 
-- **Task memory** (`memory.mode`) decides whether Freeflow's task memory runs on this machine. `local` is the default: the menu, the held task and the store, kept on this machine. `sync` also syncs the store to your private remote. `off` gives no menu, offers no task and records nothing; a task's budget and the sync remote stay where they are.
+- **Task memory** (`memory.mode`) decides whether Freeflow's task memory runs on this machine. Unset, it is `sync` when the store has a remote and `local` when it has none: the menu, the held task and the store, kept on this machine. `sync` also syncs the store to your private remote, and an explicit `local` keeps a store with a remote on this machine. `off` gives no menu, offers no task and records nothing; Track Work's commands that record a task (`init`, `task create`, `task take`, `checkpoint`, `agreement`, `slice`, `delegate open`) refuse and name the setting, while reads such as `view recover` still work; a task's budget and the sync remote stay where they are.
 - **Compaction without a task** (`compaction.withoutTask`): with a task held, Freeflow's compaction always applies; with none held, this switch decides whether it runs too. Off leaves compaction to the host.
 - **Claim hours** (`delegation.claimHours`) is how long a claim on files lasts, 4 hours by default; a claim is renewed while its session keeps syncing and ends when the session releases it, its delegation closes or the session ends. **Wake on return** (`delegation.wakeOnReturn`) is whether a worker's return wakes the session waiting on it when that session is idle; off, the return shows at its next turn instead. See [Workers in separate sessions](capabilities/delegation-sessions.md#claims-on-files).
 - **Ask before delivering** decides whether a message from another session waits for you; `project` delivers messages from sessions holding a task in the same Freeflow store project and asks about the rest. See [Messaging](capabilities/messaging.md#ask-before-delivering).

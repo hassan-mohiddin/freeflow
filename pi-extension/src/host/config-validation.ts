@@ -229,6 +229,8 @@ export type SettingSpec = {
   label: string;
   values: "boolean" | "number" | readonly string[];
   default: SettingValue | null;
+  /** The default where the home's store has a remote, when it differs from `default` (memory.mode: sync, D-060). */
+  defaultWithRemote?: SettingValue;
   hosts: "all" | "pi" | "claude-code";
   session: boolean;
 };
@@ -246,7 +248,15 @@ const PROMPT_LABELS: Record<(typeof RUNTIME_PROMPTS)[number], string> = {
  */
 export const SETTINGS: readonly SettingSpec[] = [
   { key: "enabled", label: "Freeflow", values: "boolean", default: true, hosts: "all", session: true },
-  { key: "memory.mode", label: "Task memory", values: MEMORY_MODES, default: "local", hosts: "all", session: true },
+  {
+    key: "memory.mode",
+    label: "Task memory",
+    values: MEMORY_MODES,
+    default: "local",
+    defaultWithRemote: "sync",
+    hosts: "all",
+    session: true,
+  },
   { key: "prompts.enabled", label: "Runtime prompts", values: "boolean", default: true, hosts: "all", session: true },
   ...RUNTIME_PROMPTS.map((prompt) => ({
     key: `prompts.${prompt}`,

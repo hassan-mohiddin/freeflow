@@ -270,7 +270,7 @@ A question or a short self-contained result needs no record. The agent creates a
 
 ### Where tasks live
 
-Every task's memory lives in the Freeflow store: one private Git repository at `FREEFLOW_HOME` (`~/.freeflow` by default), which Setup Freeflow makes. It is local by default, on this device only. Add your own private repository as its remote and it becomes a cloud store, kept in step on every device; a cloud session needs one, since its container is thrown away. Tasks sit in projects, or in none:
+Every task's memory lives in the Freeflow store: one private Git repository at `FREEFLOW_HOME` (`~/.freeflow` by default), which Setup Freeflow makes. It stays on this device only until it has a remote. Add your own private repository as its remote and it becomes a cloud store, kept in step on every device (unless `memory.mode` is set to `local`); a cloud session needs one, since its container is thrown away. Tasks sit in projects, or in none:
 
 ```text
 ~/.freeflow/projects/<project>/tasks/task-NNN-<short-name>/
