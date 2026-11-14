@@ -15,6 +15,8 @@ const SCRIPT = "skills/track-work/scripts/working-record.mjs";
 const SETTINGS_SCRIPT = "skills/setup-freeflow/scripts/settings.mjs";
 const PANE = "freeflow";
 const READ_TIMEOUT_MS = 30_000;
+/** A press's command may pull or push the store (take, release, switch, create), so it gets longer than a read. */
+const PRESS_TIMEOUT_MS = 120_000;
 const SETTINGS_TIMEOUT_MS = 8_000;
 /** The pane's width docked: 50 columns, which a terminal of about 112 columns gives (a dock takes at most 45%). */
 const DOCK_COLUMNS = 50;
@@ -29,7 +31,7 @@ const SENT_PAGE = 20;
 const READING_LIMIT = 20_000;
 const GUIDE_URL = "https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/README.md";
 const TABS = [
-  { id: "projects", label: "Projects", hotkey: "1" },
+  { id: "projects", label: "Tasks", hotkey: "1" },
   { id: "workers", label: "Workers", hotkey: "2" },
   { id: "sent", label: "Sent", hotkey: "3" },
   { id: "settings", label: "Settings", hotkey: "4" },
@@ -37,8 +39,8 @@ const TABS = [
 ];
 /**
  * A change's reach, as the `⋯` menu on a settings row offers it, and the `/freeflow settings` flag each takes. The
- * settings branch (D-060) gives the three scopes; until it merges, the script has Session and Personal
- * (`.freeflow/local.json`, this folder's repository), so everywhere and this folder both write Personal.
+ * settings branch (D-060) gives the three scopes and the normal view; until it merges, the pane shows no `⋯` and a
+ * change writes this folder's personal file (`--personal`, `.freeflow/local.json`), which the Settings tab says.
  */
 const REACHES = [
   { id: "everywhere", label: "Everywhere" },
@@ -47,7 +49,7 @@ const REACHES = [
 ];
 const REACH_FLAGS = /** @type {Record<"normal" | "legacy", Record<string, string>>} */ ({
   normal: { everywhere: "", folder: "--folder", session: "--session" },
-  legacy: { everywhere: "--personal", folder: "--personal", session: "--session" },
+  legacy: { everywhere: "--personal" },
 });
 // What a Track Work command a tool ran looks like: after one, the store may have changed, so the pane reads again.
 const TRACK_WORK = /working-record\.mjs\b/;
@@ -65,6 +67,12 @@ const ASKING = { plugin: "freeflow", key: "paneInput" };
 const READING = { plugin: "freeflow", key: "paneReading" };
 /** The settings row whose `⋯` menu is open, and the reach the user chose for each row's next change. */
 const REACH = { plugin: "freeflow", key: "paneReach" };
+/**
+ * A new task the user asked for while this session holds one with work done under it: the agent checkpoints and
+ * releases the held task, and the pane creates this one at its next read that finds no task held (`from`: the task
+ * held when it was asked). The user's text goes to the script as arguments, never through a shell.
+ */
+const NEW_TASK = { plugin: "freeflow", key: "paneNewTask" };
 /** How many of the newest sent lines Sent lists. */
 const SENT_SHOWN = { plugin: "freeflow", key: "paneSentShown" };
 
@@ -83,11 +91,12 @@ let pinned;
  * Runs Track Work's script for this session, as its commands run in the session's shell.
  * @param {any} $
  * @param {string[]} args
+ * @param {number} [timeoutMs] a read's, unless a press's command needs longer
  */
-async function trackWork($, args) {
+async function trackWork($, args, timeoutMs = READ_TIMEOUT_MS) {
   return $.process.run(["node", `${$.plugin.root}/${SCRIPT}`, ...args], {
     env: { CLAUDE_CODE_SESSION_ID: await $.session.id() },
-    timeoutMs: READ_TIMEOUT_MS,
+    timeoutMs,
   });
 }
 
@@ -223,6 +232,7 @@ async function readOnce($) {
   });
   const store = Boolean(status?.store);
   const task = store ? (status?.task?.id ?? null) : null;
+  if (store && !failed.includes("session status")) await pendingTask($, task);
   const projects = store ? await read("projects", ["project", "list", "--json"]) : null;
   let { delegations = null, spent = null, events = null, sent = null, settings = null, version = null } = last;
   if (open) {
@@ -287,9 +297,13 @@ async function readOnce($) {
  * @param {any} was
  */
 async function eventSummary($, failed, was) {
-  const summed = await trackWork($, ["events", "summary", "--json"]).catch(() => null);
-  if (summed?.exitCode === 0) return JSON.parse(summed.stdout);
-  if (summed && /No event log for session/.test(summed.stderr)) return null;
+  try {
+    const summed = await trackWork($, ["events", "summary", "--json"]);
+    if (summed.exitCode === 0) return JSON.parse(summed.stdout);
+    if (/No event log for session/.test(summed.stderr)) return null;
+  } catch {
+    // the same as a run that failed: a run that cannot start, or output that is not JSON
+  }
   failed.push("events summary");
   return was;
 }
@@ -302,9 +316,13 @@ async function eventSummary($, failed, was) {
  */
 async function sentList($, failed, was) {
   const { value: shown = SENT_PAGE } = await $.state.get(SENT_SHOWN);
-  const run = await trackWork($, ["events", "sent", "--json", "--limit", String(shown)]).catch(() => null);
-  if (run?.exitCode === 0) return JSON.parse(run.stdout);
-  if (run && /No event log for session/.test(run.stderr)) return { total: 0, sent: [] };
+  try {
+    const run = await trackWork($, ["events", "sent", "--json", "--limit", String(shown)]);
+    if (run.exitCode === 0) return JSON.parse(run.stdout);
+    if (/No event log for session/.test(run.stderr)) return { total: 0, sent: [] };
+  } catch {
+    // the same as a run that failed: a run that cannot start, or output that is not JSON
+  }
   failed.push("events sent");
   return was;
 }
@@ -370,9 +388,31 @@ function legacyRows(rows, store) {
   const byKey = new Map(rows.map((row) => [row.key, row]));
   const from = (/** @type {string} */ key, /** @type {string} */ label) =>
     byKey.has(key) ? [settingRow({ ...byKey.get(key), label })] : [];
+  const value = (/** @type {string} */ key) => shownValue(byKey.get(key)?.value);
+  // The settled rows; those this script cannot give as settled (Task memory's choices, Review without settings,
+  // Workers from the rules) are read only, with what the script does give, until the settings update.
   return [
     ...from("enabled", "Freeflow"),
-    settingRow({ key: "task-memory", label: "Task memory", value: store ? "On" : "Off (no store)", readOnly: true }),
+    settingRow({
+      key: "task-memory",
+      label: "Task memory",
+      value: store ? "On (a store is set up)" : "Off (no store)",
+      readOnly: true,
+    }),
+    settingRow({
+      key: "review",
+      label: "Review",
+      value:
+        [
+          byKey.has("review.unit") ? `unit ${value("review.unit")}` : null,
+          byKey.has("review.model") ? `model ${value("review.model")}` : null,
+          byKey.has("review.rounds") ? `up to ${value("review.rounds")} rounds` : null,
+        ]
+          .filter(Boolean)
+          .join(", ") || "from your rules or Freeflow's default",
+      readOnly: true,
+    }),
+    settingRow({ key: "workers", label: "Workers", value: "from your rules (rules/delegation.md)", readOnly: true }),
     ...from("pane.statusLine", "Status line"),
     ...from("pane.enabled", "Pane"),
   ];
@@ -438,7 +478,9 @@ export function cutWords(words, budget) {
     kept = next;
   }
   // A cut never ends on a joining word or mark: "Memory &" is "Memory…".
-  kept = kept.replace(/(?:\s+(?:&|and|of|for|the|a|to|-|–|—|,|:))+$/i, "").replace(/[\s,:;–—-]+$/, "");
+  kept = kept
+    .replace(/(?:\s+(?:&|and|or|of|for|the|a|an|to|in|on|at|by|as|with|from|into|-|–|—|,|:))+$/i, "")
+    .replace(/[\s,:;–—-]+$/, "");
   return `${kept || text.slice(0, budget - 1)}…`;
 }
 
@@ -452,7 +494,7 @@ export function statusText(values) {
   if (!values?.store) return null;
   if (!values.task) return "Freeflow: no task held";
   const task = heldTask(values);
-  const name = task?.short ?? task?.shortName ?? cutWords(task?.title ?? values.task, TASK_BUDGET);
+  const name = cutWords(task?.short ?? task?.shortName ?? task?.title ?? values.task, TASK_BUDGET);
   const place = task?.project ? `${cutWords(task.project, PROJECT_BUDGET)} › ` : "";
   const parts = [`Freeflow › ${place}${name}`];
   if (task?.agreement) parts.push(task.agreement.id);
@@ -655,9 +697,7 @@ async function drawPane($, e) {
       flexDirection: "row",
       flexWrap: "wrap",
       columnGap: 2,
-      children: buttons.map(([key, hotkey, label, onPress]) =>
-        el.Button({ key, hotkey, label: `${hotkey} ${label}`, plain: true, onPress }),
-      ),
+      children: buttons.map(([key, hotkey, label, onPress]) => el.Button({ key, hotkey, label, plain: true, onPress })),
     });
   const rule = text("─".repeat(width), { dimColor: true });
   const ui = { el, text, button, keys, width, now };
@@ -682,10 +722,11 @@ async function drawPane($, e) {
         text("No Freeflow store in this session: the pane shows a store's projects and tasks.", { dimColor: true }),
       ],
     });
+  // The terminal draws each hotkey before its label ("1: "), so the five fit 50 columns with one space between.
   const tabs = el.Box({
     flexDirection: "row",
     flexWrap: "wrap",
-    columnGap: 2,
+    columnGap: 1,
     children: TABS.map((each) =>
       el.Button({
         key: `tab-${each.id}`,
@@ -941,8 +982,8 @@ function sentView($, ui, values) {
   const rows = [text(`Sent · newest first · ${sent.sent.length} of ${sent.total}`, { dimColor: true })];
   for (const line of sent.sent)
     rows.push(
-      button(`sent:${line.n}`, `${line.ts.slice(11, 16)}  ${line.what}  ${line.first}`, () =>
-        readSent($, line.n, `${line.what} at ${line.ts.slice(11, 16)}`),
+      button(`sent:${line.sha}`, `${line.ts.slice(11, 16)}  ${line.what}  ${line.first}`, () =>
+        readSent($, line.sha, `${line.what} at ${line.ts.slice(11, 16)}`),
       ),
     );
   if (sent.total > sent.sent.length) rows.push(keys([["older", "o", "show older", () => showOlder($)]]));
@@ -960,6 +1001,15 @@ function settingsTab($, ui, values, reach) {
   const settings = values.settings;
   if (!settings) return [text("Reading the settings…", { dimColor: true })];
   const rows = [];
+  // Until the three scopes ship, the script writes this folder's personal file: no reach to choose, and the pane says so.
+  if (settings.legacy)
+    rows.push(
+      el.Text({
+        dimColor: true,
+        wrap: "wrap",
+        children: "A change here applies to this folder (.freeflow/local.json).",
+      }),
+    );
   for (const row of settings.rows) {
     if (row.readOnly) {
       rows.push(text(`${row.label} · read only`));
@@ -989,6 +1039,11 @@ function settingsTab($, ui, values, reach) {
                 row.choices.find((/** @type {any} */ choice) => shownValue(choice.value) === value)?.value ?? value,
               ),
           });
+    if (settings.legacy) {
+      rows.push(control);
+      rows.push(text(`  from ${scopeText(row.scope)}`, { dimColor: true }));
+      continue;
+    }
     rows.push(
       el.Box({
         flexDirection: "row",
@@ -1013,7 +1068,8 @@ function settingsTab($, ui, values, reach) {
         }),
       );
   }
-  rows.push(keys([["developer", "d", "Developer settings ›", () => developerSettings($, settings.legacy)]]));
+  const all = settings.legacy ? "/freeflow settings" : "/freeflow settings --all";
+  rows.push(keys([["developer", "d", `Developer settings › ${all}`, () => developerSettings($, all)]]));
   return rows;
 }
 
@@ -1144,7 +1200,7 @@ async function tell($, text) {
 async function act($, what, args, toast = (said) => said || "Done.") {
   let run;
   try {
-    run = await trackWork($, args);
+    run = await trackWork($, args, PRESS_TIMEOUT_MS);
   } catch (error) {
     $.ui.toast(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
     return false;
@@ -1204,7 +1260,8 @@ async function workDone($) {
   try {
     await flush($);
     const run = await trackWork($, ["events", "summary", "--json"]);
-    if (run.exitCode !== 0) return !/No event log for session/.test(run.stderr);
+    // No log (the event log off, or nothing written yet) is unknown: counted as work.
+    if (run.exitCode !== 0) return true;
     const summary = JSON.parse(run.stdout);
     return summary.toolCalls - (summary.freeflow?.toolCalls ?? 0) > 0 || (summary.agents ?? []).length > 0;
   } catch {
@@ -1328,9 +1385,10 @@ async function stopWorker($, item) {
   paneRead($);
 }
 
-/** A sent line's full text. @param {any} $ @param {number} n @param {string} title */
-async function readSent($, n, title) {
-  const run = await trackWork($, ["events", "sent", "--show", String(n)]).catch(() => null);
+/** A sent line's full text. @param {any} $ @param {string} sha @param {string} title */
+async function readSent($, sha, title) {
+  // By the line's digest, not its place in the list: a flush between the read and the press adds lines at the front.
+  const run = await trackWork($, ["events", "sent", "--sha", sha]).catch(() => null);
   if (!run || run.exitCode !== 0) {
     $.ui.toast(`Freeflow: ${run ? firstError(run) : "the sent line could not be read"}`);
     return;
@@ -1379,14 +1437,19 @@ async function changeSetting($, key, value, to, legacy) {
 }
 
 /**
- * Developer settings: one link to `/freeflow settings --all`, its listing shown in the pane; before the settings
- * branch merges the script has no views, and `/freeflow settings` lists every key.
+ * Developer settings: one link to `/freeflow settings --all` (`/freeflow settings` until the settings update): it puts
+ * the command in the prompt box for the user's Enter; where no box takes it, the command's listing shows in the pane.
  * @param {any} $
- * @param {boolean} legacy
+ * @param {string} command
  */
-async function developerSettings($, legacy) {
-  const result = await settingsCommand($, legacy ? "settings" : "settings --all");
-  await show($, "Developer settings: /freeflow settings --all", result.text);
+async function developerSettings($, command) {
+  const filled = await $.prompt.fill({ text: command }).catch(() => null);
+  if (filled?.isFilled) {
+    $.ui.toast(`${command} is in the prompt: Enter runs it.`);
+    return;
+  }
+  const result = await settingsCommand($, command.slice("/freeflow ".length));
+  await show($, `Developer settings: ${command}`, result.text);
 }
 
 /** The pane's guide, read from the plugin's own user docs. @param {any} $ */
@@ -1435,15 +1498,40 @@ async function answer($, value) {
   // While this session holds a task, the new one is a switch: the held task's checkpoint first when work was done.
   if (values?.task) {
     if (await workDone($)) {
-      const text = `The user started a new task in Freeflow's pane. Checkpoint ${values.task} first, then run task release, then ${create.map((arg) => (/\s/.test(arg) ? JSON.stringify(arg) : arg)).join(" ")}.`;
+      // The agent writes the checkpoint and releases; the pane creates the task itself, so the user's title and goal
+      // never pass through a command the agent types.
+      await $.state.set(NEW_TASK, { create, title: asking.title, from: values.task });
+      const text = `The user started a new task in Freeflow's pane. Checkpoint ${values.task} first, then run task release; the pane then creates the new task and this session takes it.`;
       paneTexts.push(text);
       await $.prompt.submit({ text });
-      $.ui.toast(`Freeflow: the agent checkpoints ${values.task}, then creates "${asking.title}".`);
+      $.ui.toast(`Freeflow: the agent checkpoints ${values.task}; then the new task is created.`);
       return;
     }
     if (!(await act($, `released ${values.task}`, ["task", "release"]))) return;
   }
-  await act($, `created the task "${asking.title}"`, create, (said) => `Created ${said}. This session holds it.`);
+  await createTask($, asking.title, create);
+}
+
+/** Runs task create for the user's new task. @param {any} $ @param {string} title @param {string[]} create */
+async function createTask($, title, create) {
+  await act($, `created the task "${title}"`, create, (said) => `Created ${said}. This session holds it.`);
+}
+
+/**
+ * A new task waiting on the held task's release: created once a read finds no task held; dropped when this session
+ * holds another task instead.
+ * @param {any} $
+ * @param {string | null} task the task this session holds now
+ */
+async function pendingTask($, task) {
+  const { value: pending = null } = await $.state.get(NEW_TASK);
+  if (!pending || task === pending.from) return;
+  await $.state.set(NEW_TASK, null);
+  if (task) {
+    $.ui.toast(`Freeflow: this session holds ${task} now, so "${pending.title}" was not created.`);
+    return;
+  }
+  await createTask($, pending.title, pending.create);
 }
 
 /**

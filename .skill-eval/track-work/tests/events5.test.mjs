@@ -670,7 +670,7 @@ test("events sent lists a session's sent lines newest first; --what keeps one so
   });
 });
 
-test("events sent --json gives the pane each entry's number, time, source, length and first line; --limit keeps the newest", async () => {
+test("events sent --json gives the pane each entry's number, time, source, length, digest and first line; --sha opens one; --limit keeps the newest", async () => {
   await withFolder(async ({ cli }) => {
     ok(
       cli(["events", "append", "--input", "-"], {
@@ -694,11 +694,23 @@ test("events sent --json gives the pane each entry's number, time, source, lengt
       ts: "2026-11-03T10:07:00.000Z",
       what: "notice",
       chars: 13,
+      sha: digest("Second notice"),
       first: "Second notice",
     });
+    // --sha opens a line by its digest, which a later line does not shift as it shifts the numbers.
+    ok(
+      cli(["events", "append", "--input", "-"], {
+        input: jsonl([{ ...base("sess-1", "2026-11-03T10:09:00.000Z"), kind: "sent", what: "menu", text: "Newer" }]),
+      }),
+    );
+    assert.equal(ok(cli(["events", "sent", "--session", "sess-1", "--sha", all.sent[0].sha])), "Second notice\n");
+    assert.equal(ok(cli(["events", "sent", "--session", "sess-1", "--show", "1"])), "Newer\n");
+    const unknown = cli(["events", "sent", "--session", "sess-1", "--sha", "000000000000"]);
+    assert.notEqual(unknown.status, 0);
+    assert.match(unknown.stderr, /No sent line with sha 000000000000/);
     assert.equal(all.sent[2].first, "Guidance.");
     const two = JSON.parse(ok(cli(["events", "sent", "--session", "sess-1", "--json", "--limit", "2"])));
-    assert.equal(two.total, 3);
+    assert.equal(two.total, 4);
     assert.deepEqual(
       two.sent.map((each) => each.n),
       [1, 2],

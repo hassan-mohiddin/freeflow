@@ -24,6 +24,9 @@ export type FreeflowPaneReading = { title: string; text: string; path?: string; 
 /** The settings row whose `⋯` menu is open, and the reach chosen for each row's next change. */
 export type FreeflowPaneReach = { open: string | null; chosen: Record<string, "everywhere" | "folder" | "session"> };
 
+/** A new task waiting on the held task's release: the task create arguments, its title and the task held then. */
+export type FreeflowPaneNewTask = { create: string[]; title: string; from: string } | null;
+
 declare module "claude-code" {
   interface PluginState {
     freeflow: {
@@ -34,6 +37,7 @@ declare module "claude-code" {
       paneReading: FreeflowPaneReading;
       paneReach: FreeflowPaneReach;
       paneSentShown: number;
+      paneNewTask: FreeflowPaneNewTask;
     };
   }
 }

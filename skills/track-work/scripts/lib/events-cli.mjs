@@ -71,6 +71,12 @@ export async function runEvents(operation, options, { home, identity, input }) {
         (line) => line.kind === "sent" && typeof line.text === "string" && (what === undefined || line.what === what),
       )
       .reverse();
+    if (options["--sha"] !== undefined) {
+      // The line whose text has this digest (`sha` in the --json list), newest first: a key a later line cannot shift.
+      const line = sent.find((each) => each.sha === options["--sha"]);
+      if (!line) throw new Error(`No sent line with sha ${options["--sha"]} in session ${session}`);
+      return line.text.endsWith("\n") ? line.text : `${line.text}\n`;
+    }
     if (options["--show"] !== undefined) {
       const number = Number(options["--show"]);
       if (!Number.isInteger(number) || number < 1 || number > sent.length)
@@ -93,6 +99,7 @@ export async function runEvents(operation, options, { home, identity, input }) {
             ts: line.ts,
             what: line.what,
             chars: line.chars ?? line.text.length,
+            sha: line.sha ?? null,
             first: line.text.split("\n")[0].trim(),
           })),
         },

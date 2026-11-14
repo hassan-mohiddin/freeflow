@@ -125,6 +125,7 @@ const SENT = (total: number, limit: number) => ({
     ts: `2026-11-03T11:${String(59 - index).padStart(2, "0")}:00.000Z`,
     what: index === 0 ? "notice" : "gate",
     chars: 120,
+    sha: `5e17${String(index).padStart(8, "0")}`,
     first: index === 0 ? "Freeflow: the context reached the notice point." : `Gate warning ${index}`,
   })),
 });
@@ -163,6 +164,8 @@ function world(on: any) {
     replies: [] as string[],
     asked: [] as string[],
     stopped: [] as string[],
+    createdArgs: [] as string[][],
+    filled: [] as string[],
     stateSets: 0,
     files: new Map<string, string>([
       ["/store/sessions/sess-1/cycle.json", JSON.stringify({ cycle: 12 })],
@@ -222,6 +225,9 @@ function world(on: any) {
           settings: [
             { key: "enabled", label: "Freeflow", value: enabled, scope: "default", hosts: "all" },
             { key: "events.enabled", label: "Event log", value: events, scope: "default", hosts: "all" },
+            { key: "review.unit", label: "Review unit", value: "pr", scope: "default", hosts: "all" },
+            { key: "review.model", label: "Reviewer model", value: "auto", scope: "default", hosts: "all" },
+            { key: "review.rounds", label: "Review rounds", value: 3, scope: "default", hosts: "all" },
             { key: "pane.enabled", label: "Pane", value: pane, scope: "default", hosts: "claude-code" },
             {
               key: "pane.statusLine",
@@ -236,12 +242,15 @@ function world(on: any) {
     }
     const key = args.join(" ");
     w.runs.push(key);
+    if (args[0] === "task" && args[1] === "create") w.createdArgs.push(args);
     if (key.startsWith("events sent --json")) {
       if (!w.switches.events) return value({ exitCode: 1, stderr: "Error: No event log for session sess-1 (/x)\n" });
       return value({ stdout: JSON.stringify(SENT(w.sentTotal, Number(args.at(-1)))) });
     }
-    if (key.startsWith("events sent --show"))
-      return value({ stdout: `Sent line ${args.at(-1)}, whole.\nIts second line.\n` });
+    if (key.startsWith("events sent --sha"))
+      return value({
+        stdout: `Sent line ${args.at(-1) === "5e1700000000" ? 1 : args.at(-1)}, whole.\nIts second line.\n`,
+      });
     for (const [prefix, answer] of Object.entries(w.answers)) if (key.startsWith(prefix)) return value(answer);
     return value({ stdout: "" });
   });
@@ -296,6 +305,10 @@ function world(on: any) {
   on("ui.view", (_: any, e: any) => {
     w.viewed.push(e);
     return { value: {} };
+  });
+  on("prompt.fill", (_: any, e: any) => {
+    w.filled.push(e.text);
+    return { isFilled: true };
   });
   on("prompt.submit", (_: any, e: any) => {
     w.submitted.push(e.text);
@@ -426,7 +439,7 @@ test("layout B: Needs you first, then Now, then the five tabs; every line fits 5
       "  Memory and orchestration · held here · A-011",
       "  Running: D-035 session-catch-…, 12 min · ctx 62%",
       "─".repeat(50),
-      "[Projects]",
+      "[Tasks]",
       "Workers",
     ]);
     for (const line of lines) expect(line.length).toBeLessThanOrEqual(50);
@@ -461,7 +474,7 @@ test("layout B: Needs you first, then Now, then the five tabs; every line fits 5
   await ui.unmount();
 });
 
-test("below about 112 columns the terminal seats the pane inline above the prompt: the mod asks 24 rows for it and draws the same sections at its width", async ($, on) => {
+test("the inline seat (the host's choice below about 112 columns): the open asks 24 rows for it, and the pane draws the same sections at its width", async ($, on) => {
   const w = world(on);
   await opened($, w);
   // The terminal seats it: docked from 110 columns, inline below; the mod asked for 24 rows for the inline seat.
@@ -471,7 +484,7 @@ test("below about 112 columns the terminal seats the pane inline above the promp
   expect(lines).toContain("Needs you · 2");
   expect(lines).toContain("  Running: D-035 session-catch-up, 12 min · ctx 62%");
   expect(lines).toContain("─".repeat(100));
-  expect(lines).toContain("[Projects]");
+  expect(lines).toContain("[Tasks]");
   expect(has(lines, /Memory and orchestration {2}held here$/)).toBe(true);
   await ui.unmount();
 });
@@ -516,7 +529,7 @@ test("Projects and tasks: pick a project, pick a task, take, release, switch, ta
 
   // A task another session holds is taken only after asking: declined, nothing runs; agreed, --takeover.
   await ui.press({ key: "task:freeflow/task-003" });
-  expect(has(await shown(ui), /t take \(asks first\)/)).toBe(true);
+  expect(has(await shown(ui), /^take \(asks first\)$/)).toBe(true);
   const before = ran().length;
   w.replies.push("Leave it");
   await ui.press({ key: "take" });
@@ -547,17 +560,53 @@ test("Projects and tasks: pick a project, pick a task, take, release, switch, ta
     "Freeflow: the agent checkpoints freeflow/task-001, then switches to freeflow/task-002.",
   );
 
+  // With the event log off there is no log to read: unknown counts as work, so the switch still waits.
+  w.answers["events summary --json"] = { exitCode: 1, stderr: "Error: No event log for session sess-1 (/x)\n" };
+  const switched = ran().length;
+  await ui.press({ key: "switch" });
+  expect(ran().length).toBe(switched);
+  expect(w.submitted.length).toBe(2);
+  expect(w.submitted.at(-1)).toContain("Checkpoint freeflow/task-001 first");
+  w.answers["events summary --json"] = { stdout: JSON.stringify(EVENTS) };
+
   // Pick another project, then a new task in it: its title, then its goal, then task create. While this session
   // holds a task with work done under it, the agent checkpoints it first.
   await ui.select({ key: "project", value: "@none" });
   lines = await shown(ui);
   expect(lines).toContain("  ○ Loose notes  free");
+  // The user's text never reaches a command the agent types, quotes and $( ) included: the pane creates the task
+  // itself once the agent has released the held one.
+  const title = `Fix "the" parser $(touch x) \`y\``;
   await ui.press({ key: "new-task" });
-  await ui.input({ key: "pane-input", text: "Fix the parser" });
+  await ui.input({ key: "pane-input", text: title });
   await ui.input({ key: "pane-input", text: "Parse nested lists" });
   expect(w.submitted.at(-1)).toBe(
-    'The user started a new task in Freeflow\'s pane. Checkpoint freeflow/task-001 first, then run task release, then task create --title "Fix the parser" --goal "Parse nested lists" --cue "read when Fix the parser is in question" --no-project --cwd /work/widget.',
+    "The user started a new task in Freeflow's pane. Checkpoint freeflow/task-001 first, then run task release; the pane then creates the new task and this session takes it.",
   );
+  expect(w.submitted.at(-1)).not.toContain(title);
+  const waiting = ran().length;
+  await turn($, w);
+  expect(ran().length).toBe(waiting);
+  w.answers["session status"] = { stdout: JSON.stringify({ ...STATUS, task: null }) };
+  await turn($, w);
+  expect(w.createdArgs.at(-1)).toEqual([
+    "task",
+    "create",
+    "--title",
+    title,
+    "--goal",
+    "Parse nested lists",
+    "--cue",
+    `read when ${title} is in question`,
+    "--no-project",
+    "--cwd",
+    "/work/widget",
+  ]);
+  // Once: a later read creates nothing more.
+  await turn($, w);
+  expect(w.createdArgs.length).toBe(1);
+  w.answers["session status"] = { stdout: JSON.stringify(STATUS) };
+  await turn($, w);
   // Nothing done under it: released, then created, at once.
   w.answers["events summary --json"] = {
     stdout: JSON.stringify({ toolCalls: 1, freeflow: { toolCalls: 1 }, agents: [] }),
@@ -658,8 +707,9 @@ test("Sent: the 20 newest lines, then show older; each opens to its full text; t
   lines = await shown(ui);
   expect(lines).toContain("Sent · newest first · 25 of 25");
   expect(await keysOf(ui)).not.toContain("older");
-  await ui.press({ key: "sent:1" });
-  expect(w.reads().at(-1)).toBe("events sent --show 1");
+  // A row opens its line by digest, whatever lines came in front of it since the list was read.
+  await ui.press({ key: "sent:5e1700000000" });
+  expect(w.reads().at(-1)).toBe("events sent --sha 5e1700000000");
   lines = await shown(ui);
   expect(lines).toContain("notice at 11:59");
   expect(lines).toContain("Sent line 1, whole.");
@@ -673,25 +723,32 @@ test("Sent: the 20 newest lines, then show older; each opens to its full text; t
   await ui.unmount();
 });
 
-test("Settings: the rows as switches and choices with a ⋯ reach menu, from the normal view or mapped from the flat list", async ($, on) => {
+test("Settings: the rows as switches and choices; the ⋯ reach menu only with the normal view's scopes; Developer settings a link", async ($, on) => {
   const w = world(on);
   await opened($, w);
   const ui = await $.ui.mount(PANE("terminal"));
   await ui.press({ key: "tab-settings" });
   const sets = () => w.settingsRuns.filter((run) => run.startsWith("set "));
 
-  // The script has no views yet: the flat list mapped to Freeflow, Task memory (read only), Status line, Pane.
+  // The script has no views yet: the settled rows from the flat list, those it cannot give as settled read only, no
+  // ⋯ (a change writes this folder's personal file, and the tab says so).
   let lines = await shown(ui);
   expect(lines).toEqual(
     expect.arrayContaining([
+      "A change here applies to this folder (.freeflow/local.json).",
       "Freeflow  [on]",
       "Task memory · read only",
-      "  On",
+      "  On (a store is set up)",
+      "Review · read only",
+      "  unit pr, model auto, up to 3 rounds",
+      "Workers · read only",
+      "  from your rules (rules/delegation.md)",
       "Status line  [on]",
       "Pane  [on]",
       "  from the default",
     ]),
   );
+  expect((await keysOf(ui)).filter((key) => key.startsWith("reach:"))).toEqual([]);
   await ui.press({ key: "setting:pane.statusLine" });
   expect(sets().at(-1)).toBe("set pane.statusLine off --scope personal");
   expect(rows(w).at(-1)).toContain(
@@ -699,24 +756,11 @@ test("Settings: the rows as switches and choices with a ⋯ reach menu, from the
   );
   expect(rows(w).at(-1)).toContain("(The user changed it in Freeflow's pane.)");
 
-  // ⋯: only this session, for that row's next change.
-  await ui.press({ key: "reach:pane.enabled" });
-  expect((await ui.find({ key: "reach-pick:pane.enabled" }))?.props.options.map((each: any) => each.label)).toEqual([
-    "Everywhere",
-    "Only this folder",
-    "Only this session",
-  ]);
-  await ui.select({ key: "reach-pick:pane.enabled", value: "session" });
-  expect(await shown(ui)).toContain("  from the default · next change: this session");
-  await ui.press({ key: "setting:pane.enabled" });
-  expect(sets().at(-1)).toBe("set pane.enabled off --scope session");
-
-  // Developer settings: what the command lists, in the pane.
+  // Developer settings: one link, the command put in the prompt box for the user's Enter.
+  expect(lines).toContain("Developer settings › /freeflow settings");
   await ui.press({ key: "developer" });
-  lines = await shown(ui);
-  expect(lines).toContain("Developer settings: /freeflow settings --all");
-  expect(has(lines, /^Freeflow settings for \/work\/widget \(Claude Code\)$/)).toBe(true);
-  await ui.press({ key: "back" });
+  expect(w.filled).toEqual(["/freeflow settings"]);
+  expect(w.toasts.at(-1)).toBe("/freeflow settings is in the prompt: Enter runs it.");
 
   // The settings script's normal view: its rows, choices and read-only rows; a change goes everywhere by default.
   w.normalView = [
@@ -741,6 +785,7 @@ test("Settings: the rows as switches and choices with a ⋯ reach menu, from the
       choices: [],
       readOnly: true,
     },
+    { key: "pane.enabled", label: "Pane", value: true, scope: "default", choices: [true, false], readOnly: false },
   ];
   await turn($, w);
   lines = await shown(ui);
@@ -751,6 +796,22 @@ test("Settings: the rows as switches and choices with a ⋯ reach menu, from the
   expect(memory?.props.options.map((each: any) => each.label)).toEqual(["On, this machine", "On, with sync", "Off"]);
   await ui.select({ key: "setting:memory", value: "sync" });
   expect(sets().at(-1)).toBe("set memory sync --scope personal");
+  expect(await shown(ui)).not.toContain("A change here applies to this folder (.freeflow/local.json).");
+
+  // ⋯ with the normal view: the reach of that row's next change.
+  await ui.press({ key: "reach:pane.enabled" });
+  expect((await ui.find({ key: "reach-pick:pane.enabled" }))?.props.options.map((each: any) => each.label)).toEqual([
+    "Everywhere",
+    "Only this folder",
+    "Only this session",
+  ]);
+  await ui.select({ key: "reach-pick:pane.enabled", value: "session" });
+  expect(await shown(ui)).toContain("  from the default · next change: this session");
+  await ui.press({ key: "setting:pane.enabled" });
+  expect(sets().at(-1)).toBe("set pane.enabled off --scope session");
+  expect(await keysOf(ui)).toContain("developer");
+  await ui.press({ key: "developer" });
+  expect(w.filled.at(-1)).toBe("/freeflow settings --all");
   await ui.unmount();
 });
 
@@ -804,6 +865,12 @@ test("the status line's words: project within 16, task within 24 cut at a word, 
   expect(cutWords("Supercalifragilisticexpialidocious", 16)).toBe("Supercalifragil…");
   // A cut never ends on a joining word.
   expect(cutWords("Memory and the orchestration of agents", 24)).toBe("Memory…");
+  expect(cutWords("Bugs in the session-start handling", 16)).toBe("Bugs…");
+  expect(cutWords("Notes with an appendix about", 16)).toBe("Notes…");
+  // A short name keeps the same budget.
+  expect(statusText(values("freeflow", { title: "x", short: "A short name that runs on too long" }))).toBe(
+    "Freeflow › freeflow › A short name that runs… · A-012 · ctx 73% (cycle 3) · 7d 41%",
+  );
 });
 
 test("the status line matches the fixture, has no workers, is set only when it changes, and goes with pane.statusLine off", async ($, on) => {
@@ -848,6 +915,17 @@ test("no render writes state; a script that fails keeps the last values with an 
   const back = await $.ui.mount(PANE("terminal"));
   await back.press({ key: "tab-projects" });
   await back.unmount();
+
+  // Output that is not JSON is a failure named like any other; the status line still follows the reads.
+  w.answers["events summary --json"] = { stdout: "not json" };
+  await turn($, w);
+  const garbled = await $.ui.mount(PANE("terminal"));
+  expect((await shown(garbled)).at(-1)).toBe("as of 12:00; could not read events summary");
+  await garbled.unmount();
+  w.answers["session status"] = { stdout: JSON.stringify({ ...STATUS, task: null }) };
+  await turn($, w);
+  expect(w.statuses.at(-1)).toBe("Freeflow: no task held");
+  w.answers["session status"] = { stdout: JSON.stringify(STATUS) };
 
   // A session with no event log yet is not a failure.
   w.answers["events summary --json"] = { exitCode: 1, stderr: "Error: No event log for session sess-1 (/x)\n" };
