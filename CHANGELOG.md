@@ -70,7 +70,7 @@
 
 - Setup Freeflow's `settings.mjs doctor [--fix] [--scope repository|personal|session]` reads each scope against the settings table and prints each problem with its fix: a key renamed to its successor (`review.mode` becomes `review.unit`), a removed key dropped, an unknown key dropped, or a wrong value reset to the default. Without `--fix` it changes nothing; with `--fix` it writes your Personal and Session settings, and the shared Repository file only with `--scope repository`. A file that is not JSON is left as it is. `settings.mjs set` and `unset` refuse to write a file with ignored settings until `doctor` has fixed it.
 
-- Delegation rules (Track Work): the `Worker:` line of the rules file caps the strongest model a worker may run on, and `delegate open --agent` names a model above it only with `--named-by-user`, which says the user named it. An agreement's `Workers:` line (for example `- Workers: Haiku; Opus at medium or high`) grants the models and efforts it names, so an Ask-first route opens without a new yes, and the Route line says `granted by A-NNN`.
+- Delegation rules (Track Work): the `Worker:` line of the rules file caps the strongest model a worker may run on, and `delegate open --agent` names a model above it only with `--named-by-user`, which says the user named it. An agreement's `Workers:` line (for example `- Workers: Haiku; Opus at medium or high`) grants the models and efforts it names, so an Ask-first route opens without a new yes, and the Route line says `granted by A-NNN`. A later `- Update: Workers:` line replaces the grant, so a narrowing update revokes it.
 
 ### Changed
 

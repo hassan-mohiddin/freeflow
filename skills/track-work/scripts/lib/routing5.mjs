@@ -2,8 +2,9 @@
 // by the work's kind, whether its decisions are settled, and how its return is checked. The store's rules/delegation.md
 // is read, a project's own projects/<project>/rules/delegation.md first; the older rules/routing.md (the project's, then
 // the store's) is still read, so existing stores keep working. A file's machine-readable lines are optional: `Cheap:
-// <model>`, `Worker: <model>` (the strongest model a worker may run on) and the routing table. Everything else in a file
-// is prose the parser ignores, and a file with no table has no table here. Each field is looked up on its own: the
+// <model>`, `Worker: <model>` (the strongest model a worker may run on) and the routing table. `Cheap:` and `Worker:` are
+// reserved for that shape: at the start of a line, followed by exactly one model ID; any other line is prose the parser
+// ignores, and a file with no table has no table here. Each field is looked up on its own: the
 // first file that has it wins, and a table row that matches nothing in the first table falls to the next. With no file
 // for a field, Freeflow's shipped default gives it. The agent never edits these files.
 
@@ -99,16 +100,33 @@ function oneOf(cell, allowed, column, fail, { several = false } = {}) {
   return items;
 }
 
-/** The machine-readable model lines a file may hold: the cheap model and the worker's ceiling. */
+/** The machine-readable model lines: `Cheap: <model>` and `Worker: <model>`, each with exactly one model ID. */
 const MODEL_LINES = [
-  { key: "cheap", name: "Cheap", example: "claude-haiku-5-5", pattern: /^Cheap:\s*(.*)$/ },
-  { key: "worker", name: "Worker", example: "claude-opus-5-5", pattern: /^Worker:\s*(.*)$/ },
+  { key: "cheap", name: "Cheap", pattern: /^Cheap:\s*(\S+)$/ },
+  { key: "worker", name: "Worker", pattern: /^Worker:\s*(\S+)$/ },
 ];
 
 /**
+ * A rules file's Cheap: and Worker: models, null where it has none, read from the file's lines alone, so a table that
+ * does not parse does not hide them. `twice` names the first model line named twice, which parseRules refuses.
+ */
+export function modelLinesOf(text, label = RULES_FILE) {
+  const lines = String(text ?? "").split(/\r?\n/);
+  const found = { cheap: null, worker: null, twice: null };
+  for (const [index, line] of lines.entries())
+    for (const { key, name, pattern } of MODEL_LINES) {
+      const match = pattern.exec(line.trim());
+      if (!match) continue;
+      if (found[key] !== null) found.twice ??= { label, line: index + 1, name, key };
+      else found[key] = match[1];
+    }
+  return found;
+}
+
+/**
  * What one rules file gives: its Cheap: and Worker: models (null where it has none) and its table's rows in order, or
- * null when it has no table. Refuses, with the line and the reason, a model line that does not name one model, a
- * table header that is not the six columns, a row that does not parse, and a table with no rows.
+ * null when it has no table. Refuses, with the line and the reason, a model line named twice, a table header that is
+ * not the six columns, a row that does not parse, and a table with no rows.
  */
 export function parseRules(text, label = RULES_FILE) {
   const lines = String(text ?? "").split(/\r?\n/);
@@ -118,15 +136,9 @@ export function parseRules(text, label = RULES_FILE) {
       line: index === undefined ? null : index + 1,
     });
   };
-  const found = { label, cheap: null, worker: null, rows: null };
-  for (const [index, line] of lines.entries())
-    for (const { key, name, example, pattern } of MODEL_LINES) {
-      const match = pattern.exec(line.trim());
-      if (!match) continue;
-      if (found[key] !== null) fail(`the ${key} model is named twice (${name}:)`, index);
-      if (!/^\S+$/.test(match[1].trim())) fail(`${name}: names one model ID, as ${name}: ${example}`, index);
-      found[key] = match[1].trim();
-    }
+  const models = modelLinesOf(text, label);
+  if (models.twice) fail(`the ${models.twice.key} model is named twice (${models.twice.name}:)`, models.twice.line - 1);
+  const found = { label, cheap: models.cheap, worker: models.worker, rows: null };
   const same = (line) =>
     line.trim().startsWith("|") &&
     cellsOf(line)
@@ -214,13 +226,19 @@ export function inputsText({ kind, tier, settled, check }) {
     .join(", ");
 }
 
-/** The family a model is in, from its ID (claude-opus-5-5) or its family word (Opus), or null when it is in none. */
+/**
+ * The family a model is in: a family word among the parts of its ID (claude-opus-5-5, us.anthropic.claude-opus-5-5) or
+ * the family word itself (Opus). Where an ID names two families, the higher-ranked one counts. Null when it is in none.
+ */
 export function familyOf(model) {
-  const name = String(model ?? "")
+  const parts = String(model ?? "")
     .trim()
-    .toLowerCase();
-  for (const family of FAMILY_RANK.keys()) if (name === family || name.startsWith(`claude-${family}-`)) return family;
-  return null;
+    .toLowerCase()
+    .split(/[.\-/:\s_]+/);
+  let found = null;
+  for (const family of FAMILY_RANK.keys())
+    if (parts.includes(family) && (found === null || FAMILY_RANK.get(family) > FAMILY_RANK.get(found))) found = family;
+  return found;
 }
 
 /** A model's rank in the families, or null when it is not ranked. */
@@ -229,17 +247,14 @@ export function rankOf(model) {
   return family ? FAMILY_RANK.get(family) : null;
 }
 
-/** The Worker: model: the first file's that names one; a file that does not parse is skipped (routeFrom reports it). */
+/**
+ * The Worker: model: the first file's that names one, read even where the file's table does not parse (routeFrom
+ * reports that), so a malformed file still caps the workers it names.
+ */
 export function workerFrom(files) {
   for (const file of files) {
-    let rules;
-    try {
-      rules = parseRules(file.text, file.label);
-    } catch (error) {
-      if (error instanceof RoutingError) continue;
-      throw error;
-    }
-    if (rules.worker) return rules.worker;
+    const { worker } = modelLinesOf(file.text, file.label);
+    if (worker) return worker;
   }
   return null;
 }
@@ -306,42 +321,48 @@ export function routeFrom(files, work, model = null) {
 }
 
 /**
- * A `Workers:` line of an agreement, as its grants: each `;`- or `,`-separated item is a model ID or a family word,
- * optionally with `at <efforts>` (`Opus at medium or high`), which limits the grant to those efforts. The user's
- * words after the line's first sentence, a quote, and a date in brackets are not part of the grant. A bullet continued
- * on lines indented two spaces is read whole.
+ * The agreement's grants, from its latest `- Workers:` line or `- Update: Workers:` line (a later one replaces an
+ * earlier one, so a narrowing update revokes a grant): each `;`- or `,`-separated item is a model ID or a family word,
+ * optionally with `at <efforts>` (`Opus at medium or high`), which limits the grant to those efforts. The user's words
+ * after the line's first sentence, a quote, and a date in brackets are not part of the grant. A bullet continued on
+ * lines indented two spaces is read whole.
  */
 export function grantsIn(lines) {
+  let latest = -1;
+  for (const [index, line] of lines.entries()) if (/^- (?:Update: )?Workers:/.test(line)) latest = index;
+  if (latest === -1) return [];
   const grants = [];
-  for (const [index, line] of lines.entries()) {
-    const match = /^- Workers:\s*(.*)$/.exec(line);
-    if (!match) continue;
-    let whole = match[1];
-    for (let next = index + 1; next < lines.length && lines[next].startsWith("  "); next += 1)
-      whole += ` ${lines[next].trim()}`;
-    const text = whole
-      .replace(/\([^)]*\)/g, " ")
-      .replace(/"[^"]*"?.*$/, " ")
-      .split(/\.(?:\s|$)/)[0];
-    for (const piece of text.split(/[;,]/)) {
-      const at = /^(.+?)\s+at\s+(.+)$/i.exec(piece.trim());
-      const name = (at ? at[1] : piece).trim().toLowerCase();
-      if (!name) continue;
-      const efforts = at
-        ? at[2]
-            .split(/\s*(?:\bor\b|\band\b|\/)\s*/i)
-            .map((each) => each.trim().toLowerCase())
-            .filter(Boolean)
-        : null;
-      grants.push({ name, efforts });
-    }
+  const match = /^- (?:Update: )?Workers:\s*(.*)$/.exec(lines[latest]);
+  let whole = match[1];
+  for (let next = latest + 1; next < lines.length && lines[next].startsWith("  "); next += 1)
+    whole += ` ${lines[next].trim()}`;
+  const text = whole
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/"[^"]*"?.*$/, " ")
+    .split(/\.(?:\s|$)/)[0];
+  for (const piece of text.split(/[;,]/)) {
+    const at = /^(.+?)\s+at\s+(.+)$/i.exec(piece.trim().replace(/\s+only$/i, ""));
+    const name = (at ? at[1] : piece.trim().replace(/\s+only$/i, "")).trim().toLowerCase();
+    if (!name) continue;
+    const efforts = at
+      ? at[2]
+          .split(/\s*(?:\bor\b|\band\b|\/)\s*/i)
+          .map((each) => each.trim().toLowerCase())
+          .filter(Boolean)
+      : null;
+    grants.push({ name, efforts });
   }
   return grants;
 }
 
-/** Whether one grant covers a route's model and effort: a family word covers its family, a full ID only itself. */
+/**
+ * Whether one grant covers a route's model and effort: a family word covers its family, a full ID only itself. An item
+ * with no `at` covers only the effort its route opens at, which is its row's; an item with `at` covers only the efforts
+ * it lists.
+ */
 export function grantCovers(grant, model, effort) {
-  if (grant.efforts && !grant.efforts.includes(String(effort).toLowerCase())) return false;
+  const allowed = grant.efforts ?? [String(effort).toLowerCase()];
+  if (!allowed.includes(String(effort).toLowerCase())) return false;
   if (FAMILY_RANK.has(grant.name)) return familyOf(model) === grant.name;
   return String(model).toLowerCase() === grant.name;
 }

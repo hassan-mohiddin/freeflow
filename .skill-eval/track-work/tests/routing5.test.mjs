@@ -14,6 +14,7 @@ import test from "node:test";
 import {
   DEFAULT_LABEL,
   DEFAULT_RULES,
+  familyOf,
   RoutingError,
   grantCovers,
   grantsIn,
@@ -284,14 +285,6 @@ test("a rules file that does not parse is refused with its line and the reason; 
       /^rules\/delegation\.md line 3: Effort "very high" is one level/,
     ],
     [header, /^rules\/delegation\.md line 1: the table has no rows$/],
-    [
-      "Cheap: claude haiku\n\n" + header + "| any | any | any | cheap | xhigh | no |\n",
-      /^rules\/delegation\.md line 1: Cheap: names one model ID/,
-    ],
-    [
-      "Worker: claude opus\n\n" + header + "| any | any | any | cheap | xhigh | no |\n",
-      /^rules\/delegation\.md line 1: Worker: names one model ID, as Worker: claude-opus-5-5/,
-    ],
     [
       "Worker: claude-opus-5-5\nWorker: claude-sonnet-5\n",
       /^rules\/delegation\.md line 2: the worker model is named twice \(Worker:\)/,
@@ -638,4 +631,150 @@ test("estimate --plan and --store group closed delegations by kind, check and mo
     );
     assert.ok(home);
   });
+});
+
+test("the CLI checks of delegate open: a bad --settled or --check, no row matching, a malformed rules file with and without --agent, and a project's own routing.md read first", async () => {
+  await withStore(async ({ home, taskDir, cli }) => {
+    refused(open(cli, ["--kind", "build", "--settled", "maybe"]), /--settled is yes or no/);
+    refused(open(cli, ["--kind", "build", "--check", "vibes"]), /--check is scripted, tests, judgement/);
+    refused(
+      open(cli, ["--kind", "build"]),
+      /^Error: delegate open: no row of Freeflow's default matches build \(give --settled and --check where the table asks\); give --agent "<model>, <effort>"\.$/m,
+    );
+    // A rules file whose build row has five cells: refused with its line, and with --agent the Agent is the one given.
+    await writeFile(
+      join(home, "rules", "delegation.md"),
+      "# Delegation rules\n\n| Kind | Settled | Check | Tier | Effort | Ask first |\n| --- | --- | --- | --- | --- | --- |\n| gather, research, eval | any | any | cheap | xhigh | no |\n| build | yes | scripted, tests | cheap | xhigh |\n",
+    );
+    refused(
+      open(cli, ["--kind", "gather"]),
+      /^Error: delegate open: rules\/delegation\.md line 6: a row has 6 cells, not 5\. Ask the user to mend it \(only the user edits the rules\), or give --agent "<model>, <effort>"\.$/m,
+    );
+    assert.match(
+      ok(open(cli, ["--kind", "gather", "--agent", "Haiku, xhigh"])),
+      /\nRoute: given \(Haiku, xhigh\)\nWarning: rules\/delegation\.md line 6: a row has 6 cells, not 5; the brief's Agent is the one given \(only the user edits the rules\)\.\n/,
+    );
+    // With no rules file, the shipped default's Ask-first security-tier row names the Worker: model, asked first.
+    await rm(join(home, "rules", "delegation.md"));
+    refused(
+      cli(
+        [
+          "delegate",
+          "open",
+          "--record",
+          "widget/task-001",
+          "--title",
+          "Review it",
+          "--kind",
+          "review",
+          "--tier",
+          "security",
+          "--input",
+          "-",
+        ],
+        { input: BRIEF },
+      ),
+      /Route: frontier \(claude-opus-5-5\), high — needs the user's yes \(Freeflow's default\)\. Ask the user; on their yes, open it again with --agent "claude-opus-5-5, high"\./,
+    );
+    // A project's own routing.md, the older name, is read first and names its own row.
+    await mkdir(join(home, "projects", "widget", "rules"), { recursive: true });
+    await writeFile(
+      join(home, "projects", "widget", "rules", "routing.md"),
+      "| Kind | Settled | Check | Tier | Effort | Ask first |\n| --- | --- | --- | --- | --- | --- |\n| build | yes | tests | claude-sonnet-5 | high | no |\n",
+    );
+    assert.match(
+      ok(open(cli, ["--kind", "build", "--settled", "yes", "--check", "tests"])),
+      /\nRoute: claude-sonnet-5, high \(projects\/widget\/rules\/routing\.md: build, settled yes, check tests\)\n/,
+    );
+    assert.match(
+      await briefOf(taskDir, "D-002"),
+      /^Agent: claude-sonnet-5, high · Kind: build · Settled: yes · Check: tests · Route: projects\/widget\/rules\/routing\.md row 1 · Handle: not started$/m,
+    );
+  });
+});
+
+test("a malformed rules file keeps its Worker: ceiling: an above-ceiling --agent is refused without --named-by-user, even with a broken row", async () => {
+  await withStore(async ({ home, taskDir, cli }) => {
+    await writeFile(
+      join(home, "rules", "delegation.md"),
+      "Worker: claude-sonnet-5\n\n| Kind | Settled | Check | Tier | Effort | Ask first |\n| --- | --- | --- | --- | --- | --- |\n| gather, research, eval | any | any | cheap | xhigh |\n",
+    );
+    refused(
+      open(cli, ["--kind", "gather", "--agent", "claude-opus-5-5, high"]),
+      /^Error: delegate open: claude-opus-5-5 is ranked above the Worker: line \(claude-sonnet-5\)/m,
+    );
+    assert.equal(
+      (await readFile(join(taskDir, "record.md"), "utf8")).includes("D-001"),
+      false,
+      "a refusal writes nothing",
+    );
+    assert.match(
+      ok(open(cli, ["--kind", "gather", "--agent", "claude-opus-5-5, high", "--named-by-user"])),
+      /\nWarning: rules\/delegation\.md line 5: a row has 6 cells, not 5; the brief's Agent is the one given/,
+    );
+  });
+});
+
+test("a line starting Cheap: or Worker: that does not name exactly one model ID is prose, and two model lines are still refused", async () => {
+  await withStore(async ({ home, cli, taskDir }) => {
+    const prose = "Worker: Opus is the strongest a worker may run on.\nCheap: claude haiku\n";
+    assert.deepEqual(parseRules(prose), { label: "rules/delegation.md", cheap: null, worker: null, rows: null });
+    await writeFile(join(home, "rules", "delegation.md"), prose);
+    assert.match(
+      ok(open(cli, ["--kind", "gather"])),
+      /\nRoute: cheap \(claude-haiku-5-5\), xhigh \(Freeflow's default: gather\)\n/,
+    );
+    assert.match(await briefOf(taskDir), /Route: Freeflow's default row 1 · Handle/);
+    assert.throws(
+      () => parseRules("Worker: claude-opus-5-5\nWorker: claude-sonnet-5\n"),
+      (error) =>
+        error instanceof RoutingError && /line 2: the worker model is named twice \(Worker:\)/.test(error.message),
+    );
+  });
+});
+
+test("an agreement's later Update: Workers: line replaces its Workers: line, so a narrowing update revokes the grant and a later grant restores it", async () => {
+  await withStore(async ({ cli, taskDir }) => {
+    ok(
+      cli(["agreement", "open", "--record", "widget/task-001", "--title", "Build the demo", "--input", "-"], {
+        input:
+          '- Done when the demo runs. You: "go" (2026-11-14)\n- Workers: Haiku; Opus at medium or high (2026-11-14)\n',
+      }),
+    );
+    ok(cli(["agreement", "update", "--record", "widget/task-001", "--text", "Workers: Haiku only (2026-11-14)"]));
+    refused(open(cli, ["--kind", "build", "--settled", "no", "--check", "tests"]), /needs the user's yes/);
+    ok(
+      cli([
+        "agreement",
+        "update",
+        "--record",
+        "widget/task-001",
+        "--text",
+        "Workers: Opus at medium or high (2026-11-14)",
+      ]),
+    );
+    assert.match(
+      ok(open(cli, ["--kind", "build", "--settled", "no", "--check", "tests"])),
+      /\nRoute: frontier \(claude-opus-5-5\), high \(Freeflow's default: build, settled no, check tests\), granted by A-001\n/,
+    );
+    assert.match(await briefOf(taskDir), /Route: Freeflow's default row 5, granted by A-001/);
+  });
+});
+
+test("an item with no `at` covers the effort its route opens at; an item with `at` covers only the efforts it lists", () => {
+  const plain = { name: "opus", efforts: null };
+  assert.equal(grantCovers(plain, "claude-opus-5-5", "high"), true);
+  assert.equal(grantCovers(plain, "claude-opus-5-5", "xhigh"), true, "a route at xhigh opens at its row's own effort");
+  const listed = { name: "opus", efforts: ["medium", "high"] };
+  assert.equal(grantCovers(listed, "claude-opus-5-5", "high"), true);
+  assert.equal(grantCovers(listed, "claude-opus-5-5", "xhigh"), false);
+});
+
+test("a family word anywhere among the parts of an ID ranks it, so a provider-prefixed Opus ID is ranked as Opus; a model in no family is not", () => {
+  assert.equal(familyOf("us.anthropic.claude-opus-5-5"), "opus");
+  assert.equal(familyOf("claude-opus"), "opus");
+  assert.equal(familyOf("gpt-5"), null);
+  assert.equal(ranksAbove("us.anthropic.claude-opus-5-5", "claude-haiku-5-5"), true);
+  assert.equal(ranksAbove("us.anthropic.claude-opus-5-5", "claude-opus-5-5"), false);
+  assert.equal(grantCovers({ name: "opus", efforts: null }, "us.anthropic.claude-opus-5-5", "high"), true);
 });
