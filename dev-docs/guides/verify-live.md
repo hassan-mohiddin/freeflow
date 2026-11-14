@@ -1,7 +1,7 @@
 # Verify Live
 
 > **Covers:** `scripts/verify-live.sh`
-> **Verified at:** `aa1d65b9` (2026-11-03)
+> **Verified at:** `7aedc257` (2026-11-14)
 
 For anyone checking a Freeflow change in the running software rather than only in `node --test`, people or agents: how to start an isolated Pi session with this checkout's extension, check that it is worth driving, drive it, keep evidence, and clean up, and which inputs cost a model call. What to drive for each feature is in the [feature map](../features/README.md).
 
