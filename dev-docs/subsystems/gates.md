@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/track-work/scripts/lib/gates5.mjs`, `skills/track-work/scripts/lib/gate-state5.mjs`, `pi-extension/src/gates/`, `hooks/claude/freeflow.mjs`
 > **Tests:** `.skill-eval/track-work/tests/gates5.test.mjs`, `pi-extension/tests/gates/`, `hooks/claude/freeflow.test.ts`
-> **Verified at:** `c1702c8a` (2026-11-14)
+> **Verified at:** `bf4a6342` (2026-11-14)
 > **User docs:** `plugin-docs/capabilities/gates.md`
 
 For anyone changing Freeflow's gates: the four rules each driver checks before a tool call, the state Track Work keeps for them, how Claude Code's mod and Pi's extension run them, and why they only warn for now.
@@ -37,7 +37,7 @@ Some rules must always hold: no change before the user's agreement, no effect ou
 
 **Pi** (`pi-extension/src/gates/runtime.ts`). `GateRuntime` loads `gates5.mjs` from Freeflow's package once, reads the state at session start, again after the store's session start (`settled`), and after each `working-record.mjs` command's result, never per call. `tool_call` calls it before Freeflow's other checks with the modes in the capability state (`resolveGateSettings`); block returns `{ block, reason }`, ask uses `ctx.ui.confirm` where `ctx.hasUI`; warn keeps the rows for the call's id and `tool_result` adds them to the result after Tool Execution's notices, with Tool Execution on or off. Pi has no workers.
 
-**Measurement** (`events5.mjs`). A `gate` line (`gate`, `decision`, `tool`, `rule`) for every decision that is not allow, under the agent that made the call; `events summary` prints `Gates: agreement N, slice N, delivery N, delegation N would-fire`, and the summary a checkpoint commits holds them, which `estimate --store` totals across the store.
+**Measurement** (`events5.mjs`). A `gate` line (`gate`, `decision`, `tool`, `rule`) for every decision that is not allow, under the agent that made the call; `events summary` prints `Gates: agreement N, slice N, delivery N, delegation N would-fire`, and the summary a checkpoint commits holds them, which `estimate --store` totals across the store. The text a gate sends the agent (its warning row, or the refusal or question's reason) is also kept as a `sent` line under `gate`, whole, on each driver: the Claude mod and Codex's driver at the call, Pi in its `tool_call` and `tool_result` handlers.
 
 ## Decisions
 

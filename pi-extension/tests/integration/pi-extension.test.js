@@ -733,6 +733,7 @@ test("Pi describes the mode-free Freeflow argument surface", () => {
       label: "capabilities",
       description: "What Freeflow can do in this session, and the event log",
     },
+    { value: "sent", label: "sent", description: "The text Freeflow sent the model in this session, newest first" },
     { value: "compact", label: "compact", description: "Prepare, compact and recover now" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
     { value: "disable", label: "disable", description: "Disable Freeflow for this repository" },

@@ -6,7 +6,7 @@ import { hasUsableMandatoryPrompts } from "./prompts.js";
  * position and changed state never rewrites earlier input. Also drops bootstrap messages that older Freeflow
  * versions saved in sessions.
  */
-const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
+export const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
 
 /** The Runtime State line for a folder with no shared config file, word for word (D-045, round 3). */
 const SETUP_NEEDED_INSTRUCTION =
@@ -128,10 +128,13 @@ export function withFreeflowRuntimeState(
     force?: boolean;
     anchor?: RuntimeStateAnchor;
     skills?: readonly string[];
+    // The message the caller built for this request, so the caller can log the same text it placed.
+    runtimeState?: ReturnType<typeof freeflowRuntimeStateMessage>;
   } = {},
 ) {
   const source = Array.isArray(messages) ? messages : [];
-  const runtimeState = freeflowRuntimeStateMessage(capabilityState, freeflowContext, { skills: options.skills });
+  const runtimeState =
+    options.runtimeState ?? freeflowRuntimeStateMessage(capabilityState, freeflowContext, { skills: options.skills });
   const runtimeStateMessages = source.filter(isRuntimeState);
   const withoutRuntimeState = withoutFreeflowRuntimeState(source);
   const expectedRuntimeStateIndex = firstUserMessageIndex(withoutRuntimeState);
