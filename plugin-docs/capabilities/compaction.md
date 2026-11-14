@@ -45,7 +45,7 @@ If Pi compacts before the agent checkpoints, Pi's summarizer runs as usual, told
 
 ## The Freeflow store on Pi
 
-Where the store exists, a new session gets the task menu and your rules with its first turn; the footer shows the task the session holds; the store is synced after a run that changed it, and the session's hold is released when it ends.
+Where the store exists, a new session gets the task menu and your rules with its first turn; the footer shows the task the session holds; the store is synced after a run that changed it when `memory.mode` is `sync` (a `local` store only commits; `off` touches no task), and the session's hold is released when it ends.
 
 ## Prompt cache
 
