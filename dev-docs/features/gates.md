@@ -1,7 +1,7 @@
 # Gates
 
 > **Covers:** `skills/track-work/scripts/lib/gates5.mjs`, `skills/track-work/scripts/lib/gate-state5.mjs`, `pi-extension/src/gates/`, `hooks/claude/freeflow.mjs`, `hooks/codex/driver.mjs`
-> **Verified at:** `ecfd0788` (2026-11-10)
+> **Verified at:** `f3aa117f` (2026-11-14)
 > **Driven:** 2026-11-14 (round 2), the steps listed here re-run with no model call and matching their output. Not re-run in round 2: the Pi terminal steps, whose output the round did not change. The Claude Code and Codex gate steps match; the settings screen's Review unit reads Repository in this checkout, whose own `.freeflow/config.json` sets it.
 > **User docs:** `plugin-docs/capabilities/gates.md`
 

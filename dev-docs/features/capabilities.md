@@ -1,7 +1,7 @@
 # Capabilities
 
 > **Covers:** `skills/setup-freeflow/scripts/capabilities.mjs`, `hooks/claude/freeflow.mjs`, `hooks/codex/driver.mjs`, `pi-extension/src/events/`
-> **Verified at:** `ecfd0788` (2026-11-10)
+> **Verified at:** `f3aa117f` (2026-11-14)
 > **Driven:** 2026-11-14 (round 2), the steps listed here re-run with no model call and matching their output. Not re-run in round 2: the Pi terminal steps, whose output the round did not change. The Claude Code and Codex steps: the header and the no-driver line match; `/context` reads Messages 1.6k in this checkout, the base commit too, where the step says a few hundred tokens.
 > **User docs:** `plugin-docs/capabilities/event-log.md`
 

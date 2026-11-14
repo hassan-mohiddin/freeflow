@@ -1,7 +1,7 @@
 # Codex driver
 
 > **Covers:** `hooks/codex/`
-> **Verified at:** `ecfd0788` (2026-11-10)
+> **Verified at:** `f3aa117f` (2026-11-14)
 > **Driven:** 2026-11-14 (round 2), the steps listed here re-run with no model call and matching their output. Not re-run in round 2: the Pi terminal steps, whose output the round did not change. `codex-log` still lists the same fourteen lines; a Stop with a rollout captures the user's message into the session (`discussion capture --session`).
 > **User docs:** `plugin-docs/getting-started.md`, `plugin-docs/capabilities/event-log.md`
 

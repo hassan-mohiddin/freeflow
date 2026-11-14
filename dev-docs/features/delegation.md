@@ -1,7 +1,7 @@
 # Delegation across sessions
 
 > **Covers:** `skills/track-work/scripts/lib/delegations5.mjs`, `skills/track-work/scripts/lib/channel5.mjs`, `skills/track-work/scripts/lib/claims5.mjs`, `skills/track-work/scripts/working-record.mjs`
-> **Verified at:** `ecfd0788` (2026-11-10)
+> **Verified at:** `f3aa117f` (2026-11-14)
 > **Driven:** 2026-11-14 (round 2), the steps listed here re-run with no model call and matching their output. Not re-run in round 2: the Pi terminal steps, whose output the round did not change. Every step re-run from a scratch store; no difference found.
 > **User docs:** `plugin-docs/capabilities/delegation-sessions.md`
 

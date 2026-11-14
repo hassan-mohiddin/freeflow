@@ -1,7 +1,7 @@
 # Settings
 
 > **Covers:** `pi-extension/src/host/settings/`, `pi-extension/src/host/config-validation.ts`, `pi-extension/src/host/config-store.ts`, `skills/setup-freeflow/scripts/settings.mjs`, `hooks/claude/freeflow.mjs`, `pi-extension/src/tool-execution/config.ts`, `pi-extension/src/compaction/config.ts`, `pi-extension/src/messaging/config.ts`
-> **Verified at:** `ecfd0788` (2026-11-10)
+> **Verified at:** `f3aa117f` (2026-11-14)
 > **Driven:** 2026-11-14 (round 2), the steps listed here re-run with no model call and matching their output. Not re-run in round 2: the Pi terminal steps, whose output the round did not change. The CLI and Claude Code steps match. Differences: Review unit reads Repository in this checkout (its own config sets it); the Review rounds step expects `{}`, but the review unit set earlier on the same screen stays in the file.
 > **User docs:** `plugin-docs/settings.md`
 
