@@ -1,7 +1,7 @@
 # Codex driver
 
 > **Covers:** `hooks/codex/`
-> **Verified at:** `31e21dee` (2026-11-14), driven again 2026-11-14 on the working tree of the round-3 commit
+> **Verified at:** `c1702c8a` (2026-11-14)
 > **User docs:** `plugin-docs/getting-started.md`, `plugin-docs/capabilities/event-log.md`
 
 On Codex, Freeflow's driver runs on Codex's hook events once the user has approved its hooks in `/hooks`. At a session's start the agent gets Freeflow's guidance and, with a store, the task menu with the user's rules; as the context fills, one checkpoint notice near Codex's own compaction, after the next tool call or prompt, and nothing before it; after Codex compacts, the task's record after Codex's summary. The event log keeps each loop event, written at the turn's end, the store syncs at a turn's end, and the session's end releases its hold, pushed at the next start. `capabilities.mjs` lists Codex's claims.
