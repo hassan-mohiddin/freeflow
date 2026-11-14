@@ -1,23 +1,40 @@
-// Routing (SPEC-010 4.1): the table the user owns in the store's rules/routing.md, a project's own
-// projects/<project>/rules/routing.md read first, from which `delegate open` takes a worker's model and effort by the
-// work's kind, whether its decisions are settled, and how its return is checked. The first row that matches wins. The
-// agent never edits the table; Setup Freeflow's store init writes the default one when it lays out a store (T2).
+// Delegation rules (SPEC-010 4.1): the rules the user owns, which `delegate open` reads for a worker's model and effort
+// by the work's kind, whether its decisions are settled, and how its return is checked. The store's rules/delegation.md
+// is read, a project's own projects/<project>/rules/delegation.md first; the older rules/routing.md (the project's, then
+// the store's) is still read, so existing stores keep working. A file's machine-readable lines are optional: `Cheap:
+// <model>`, `Worker: <model>` (the strongest model a worker may run on) and the routing table. Everything else in a file
+// is prose the parser ignores, and a file with no table has no table here. Each field is looked up on its own: the
+// first file that has it wins, and a table row that matches nothing in the first table falls to the next. With no file
+// for a field, Freeflow's shipped default gives it. The agent never edits these files.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-/** The table's place in the store's rules/, and in a project's. */
+/** The rules file in the store's rules/, and in a project's. */
+export const RULES_FILE = join("rules", "delegation.md");
+/** The older name for the rules file, still read after the newer one. */
 export const ROUTING_FILE = join("rules", "routing.md");
+/** The label the shipped default carries in a Route line, in place of a file's. */
+export const DEFAULT_LABEL = "Freeflow's default";
 export const COLUMNS = ["Kind", "Settled", "Check", "Tier", "Effort", "Ask first"];
 export const ROUTE_KINDS = new Set(["build", "review", "research", "eval", "gather"]);
 export const SETTLED = new Set(["yes", "no"]);
 export const CHECKS = new Set(["scripted", "tests", "judgement"]);
 export const TIERS = new Set(["frontier", "cheap"]);
+/** Claude's model families, weakest first: a model in a family takes its rank; a model in none is not ranked. */
+export const FAMILY_RANK = new Map([
+  ["haiku", 1],
+  ["sonnet", 2],
+  ["opus", 3],
+  ["fable", 4],
+  ["mythos", 4],
+]);
 
-/** The table store init writes into a new store's rules/ (SPEC-010 section 3, P1: two tiers, no Sonnet). */
-export const DEFAULT_TABLE = `# Routing
+/** Freeflow's shipped default (SPEC-010 section 3, P1: two tiers, no Sonnet), used for any field no file gives. */
+export const DEFAULT_RULES = `# Delegation rules
 
 Cheap: claude-haiku-5-5
+Worker: claude-opus-5-5
 
 | Kind | Settled | Check | Tier | Effort | Ask first |
 | --- | --- | --- | --- | --- | --- |
@@ -28,7 +45,7 @@ Cheap: claude-haiku-5-5
 | build | no | any | frontier | high | yes |
 | any | any | judgement | frontier | high | yes |
 
-Tiers: frontier = the coordinator's model; cheap = a model 4 to 10 times cheaper (Haiku on Claude).
+Tiers: frontier = the Worker: model, the strongest a worker may run on (Opus on Claude); cheap = the Cheap: model, a model 4 to 10 times cheaper (Haiku on Claude).
 `;
 
 export class RoutingError extends Error {
@@ -82,12 +99,18 @@ function oneOf(cell, allowed, column, fail, { several = false } = {}) {
   return items;
 }
 
+/** The machine-readable model lines a file may hold: the cheap model and the worker's ceiling. */
+const MODEL_LINES = [
+  { key: "cheap", name: "Cheap", example: "claude-haiku-5-5", pattern: /^Cheap:\s*(.*)$/ },
+  { key: "worker", name: "Worker", example: "claude-opus-5-5", pattern: /^Worker:\s*(.*)$/ },
+];
+
 /**
- * The table in one routing.md: its `Cheap:` model and its rows in order, each with the file line it is on. Refuses,
- * with the line and the reason, a file with no table of the six columns, a row that does not parse, and a table with
- * no rows.
+ * What one rules file gives: its Cheap: and Worker: models (null where it has none) and its table's rows in order, or
+ * null when it has no table. Refuses, with the line and the reason, a model line that does not name one model, a
+ * table header that is not the six columns, a row that does not parse, and a table with no rows.
  */
-export function parseTable(text, label = ROUTING_FILE) {
+export function parseRules(text, label = RULES_FILE) {
   const lines = String(text ?? "").split(/\r?\n/);
   const fail = (message, index) => {
     throw new RoutingError(index === undefined ? `${label}: ${message}` : `${label} line ${index + 1}: ${message}`, {
@@ -95,22 +118,28 @@ export function parseTable(text, label = ROUTING_FILE) {
       line: index === undefined ? null : index + 1,
     });
   };
-  let cheap = null;
-  for (const [index, line] of lines.entries()) {
-    const match = /^Cheap:\s*(.*)$/.exec(line.trim());
-    if (!match) continue;
-    if (cheap !== null) fail("the cheap model is named twice (Cheap:)", index);
-    if (!/^\S+$/.test(match[1].trim())) fail("Cheap: names one model ID, as Cheap: claude-haiku-5-5", index);
-    cheap = match[1].trim();
+  const found = { label, cheap: null, worker: null, rows: null };
+  for (const [index, line] of lines.entries())
+    for (const { key, name, example, pattern } of MODEL_LINES) {
+      const match = pattern.exec(line.trim());
+      if (!match) continue;
+      if (found[key] !== null) fail(`the ${key} model is named twice (${name}:)`, index);
+      if (!/^\S+$/.test(match[1].trim())) fail(`${name}: names one model ID, as ${name}: ${example}`, index);
+      found[key] = match[1].trim();
+    }
+  const same = (line) =>
+    line.trim().startsWith("|") &&
+    cellsOf(line)
+      .map((cell) => cell.toLowerCase())
+      .join("|") === COLUMNS.map((column) => column.toLowerCase()).join("|");
+  const header = lines.findIndex(same);
+  if (header === -1) {
+    // A header that starts as the table's does but has other columns is a broken table, not prose.
+    const broken = lines.findIndex((line) => line.trim().startsWith("|") && cellsOf(line)[0]?.toLowerCase() === "kind");
+    if (broken !== -1)
+      fail(`the table's header is ${cellsOf(lines[broken]).join(" | ")}, not ${COLUMNS.join(" | ")}`, broken);
+    return found;
   }
-  const header = lines.findIndex(
-    (line) =>
-      line.trim().startsWith("|") &&
-      cellsOf(line)
-        .map((cell) => cell.toLowerCase())
-        .join("|") === COLUMNS.map((column) => column.toLowerCase()).join("|"),
-  );
-  if (header === -1) fail(`no table with the columns ${COLUMNS.join(" | ")}`);
   if (!/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(lines[header + 1] ?? ""))
     fail("the header row is followed by its | --- | line", header + 1);
   const rows = [];
@@ -137,22 +166,31 @@ export function parseTable(text, label = ROUTING_FILE) {
     });
   }
   if (!rows.length) fail("the table has no rows", header);
-  return { label, cheap, rows };
+  found.rows = rows;
+  return found;
 }
 
 /**
- * The routing tables that apply to a task, nearest first: its project's projects/<project>/rules/routing.md, then
- * the store's rules/routing.md, each that exists, as { label, path, text }.
+ * The rules that apply to a task, nearest first, each that exists as { label, text }: the project's
+ * projects/<project>/rules/delegation.md, the store's rules/delegation.md, the project's and the store's older
+ * rules/routing.md, then Freeflow's shipped default, which is always last.
  */
-export function routingFiles(home, project = null) {
-  if (!home) return [];
-  const places = [
-    project && { label: join("projects", project, ROUTING_FILE), path: join(home, "projects", project, ROUTING_FILE) },
-    { label: ROUTING_FILE, path: join(home, ROUTING_FILE) },
-  ].filter(Boolean);
-  return places
-    .filter((place) => existsSync(place.path))
-    .map((place) => ({ ...place, text: readFileSync(place.path, "utf8") }));
+export function rulesFiles(home, project = null) {
+  const found = [];
+  if (home) {
+    const places = [
+      project && { label: join("projects", project, RULES_FILE), path: join(home, "projects", project, RULES_FILE) },
+      { label: RULES_FILE, path: join(home, RULES_FILE) },
+      project && {
+        label: join("projects", project, ROUTING_FILE),
+        path: join(home, "projects", project, ROUTING_FILE),
+      },
+      { label: ROUTING_FILE, path: join(home, ROUTING_FILE) },
+    ];
+    for (const place of places.filter(Boolean))
+      if (existsSync(place.path)) found.push({ label: place.label, text: readFileSync(place.path, "utf8") });
+  }
+  return [...found, { label: DEFAULT_LABEL, text: DEFAULT_RULES }];
 }
 
 /** Whether a row matches the work: its kind (and tier), settled and check; a value not given matches only any. */
@@ -176,41 +214,78 @@ export function inputsText({ kind, tier, settled, check }) {
     .join(", ");
 }
 
+/** The family a model is in, from its ID (claude-opus-5-5) or its family word (Opus), or null when it is in none. */
+export function familyOf(model) {
+  const name = String(model ?? "")
+    .trim()
+    .toLowerCase();
+  for (const family of FAMILY_RANK.keys()) if (name === family || name.startsWith(`claude-${family}-`)) return family;
+  return null;
+}
+
+/** A model's rank in the families, or null when it is not ranked. */
+export function rankOf(model) {
+  const family = familyOf(model);
+  return family ? FAMILY_RANK.get(family) : null;
+}
+
+/** The Worker: model: the first file's that names one; a file that does not parse is skipped (routeFrom reports it). */
+export function workerFrom(files) {
+  for (const file of files) {
+    let rules;
+    try {
+      rules = parseRules(file.text, file.label);
+    } catch (error) {
+      if (error instanceof RoutingError) continue;
+      throw error;
+    }
+    if (rules.worker) return rules.worker;
+  }
+  return null;
+}
+
+/** Whether a model is ranked above the Worker: model. A model in no family, or no Worker:, is never above it. */
+export function ranksAbove(model, worker) {
+  const rank = rankOf(model);
+  const ceiling = rankOf(worker);
+  return rank !== null && ceiling !== null && rank > ceiling;
+}
+
 /**
- * The route for one piece of work from the tables that apply (routingFiles' order): the first matching row of the
- * project's table, then of the store's. `model` is the coordinator's model, for the frontier tier; null when it is not
- * known. Returns { state: "none" } with no table, { state: "malformed", error } when a table does not parse,
- * { state: "unmatched", inputs, labels } when no row matches, and { state: "matched", ... } with the row, the agent
- * ("<model>, <effort>"), whether the user must be asked first, the brief's Route value and the Route line.
+ * The route for one piece of work from the rules that apply (rulesFiles' order): the first matching row of the first
+ * table that has one. `model` is the coordinator's model, for a frontier tier with no Worker: model; null when it is
+ * not known. Returns { state: "malformed", error } when a file does not parse, { state: "unmatched", inputs, labels }
+ * when no row matches, and { state: "matched", ... } with the row, the model and effort, whether the user must be asked
+ * first, the brief's Route value and the Route line.
  */
 export function routeFrom(files, work, model = null) {
-  if (!files.length) return { state: "none" };
-  const tables = [];
+  const parsed = [];
   for (const file of files) {
     try {
-      tables.push(parseTable(file.text, file.label));
+      parsed.push(parseRules(file.text, file.label));
     } catch (error) {
       if (error instanceof RoutingError) return { state: "malformed", error };
       throw error;
     }
   }
   const inputs = inputsText(work);
-  for (const table of tables) {
+  const cheap = parsed.find((each) => each.cheap)?.cheap ?? null;
+  const worker = parsed.find((each) => each.worker)?.worker ?? null;
+  const frontier = worker ?? model;
+  for (const table of parsed) {
+    if (!table.rows) continue;
     const row = table.rows.find((each) => matches(each, work));
     if (!row) continue;
-    // The cheap model is the table's own Cheap: line, else the store's; a tier with no model stays its family (section 5).
-    const cheap = table.cheap ?? tables.find((each) => each.cheap)?.cheap ?? null;
-    const resolved = row.tier === "frontier" ? model : row.tier === "cheap" ? cheap : row.tier;
+    const resolved = row.tier === "frontier" ? frontier : row.tier === "cheap" ? cheap : row.tier;
     const named =
       row.tier === "frontier"
-        ? `frontier (${model ?? "the coordinator's model"})`
+        ? `frontier (${frontier ?? "the Worker: model"})`
         : row.tier === "cheap"
           ? `cheap (${cheap ?? "the cheap tier's model"})`
           : row.tier;
     // An Ask-first row names the tier, not the model, since the user says yes to the tier and effort (section 3).
-    const asked = row.tier === "frontier" ? "frontier (the coordinator's model)" : named;
     const line = row.askFirst
-      ? `Route: ${asked}, ${row.effort} — needs the user's yes (${row.label})`
+      ? `Route: ${named}, ${row.effort} — needs the user's yes (${row.label})`
       : `Route: ${named}, ${row.effort} (${row.label}: ${inputs})`;
     return {
       state: "matched",
@@ -221,9 +296,52 @@ export function routeFrom(files, work, model = null) {
       agent: `${resolved ?? row.tier}, ${row.effort}`,
       askFirst: row.askFirst,
       route: `${row.label} row ${row.number}`,
+      label: row.label,
+      named,
       line,
       inputs,
     };
   }
-  return { state: "unmatched", inputs, labels: tables.map((table) => table.label) };
+  return { state: "unmatched", inputs, labels: parsed.filter((each) => each.rows).map((each) => each.label) };
+}
+
+/**
+ * A `Workers:` line of an agreement, as its grants: each `;`- or `,`-separated item is a model ID or a family word,
+ * optionally with `at <efforts>` (`Opus at medium or high`), which limits the grant to those efforts. The user's
+ * words after the line's first sentence, a quote, and a date in brackets are not part of the grant. A bullet continued
+ * on lines indented two spaces is read whole.
+ */
+export function grantsIn(lines) {
+  const grants = [];
+  for (const [index, line] of lines.entries()) {
+    const match = /^- Workers:\s*(.*)$/.exec(line);
+    if (!match) continue;
+    let whole = match[1];
+    for (let next = index + 1; next < lines.length && lines[next].startsWith("  "); next += 1)
+      whole += ` ${lines[next].trim()}`;
+    const text = whole
+      .replace(/\([^)]*\)/g, " ")
+      .replace(/"[^"]*"?.*$/, " ")
+      .split(/\.(?:\s|$)/)[0];
+    for (const piece of text.split(/[;,]/)) {
+      const at = /^(.+?)\s+at\s+(.+)$/i.exec(piece.trim());
+      const name = (at ? at[1] : piece).trim().toLowerCase();
+      if (!name) continue;
+      const efforts = at
+        ? at[2]
+            .split(/\s*(?:\bor\b|\band\b|\/)\s*/i)
+            .map((each) => each.trim().toLowerCase())
+            .filter(Boolean)
+        : null;
+      grants.push({ name, efforts });
+    }
+  }
+  return grants;
+}
+
+/** Whether one grant covers a route's model and effort: a family word covers its family, a full ID only itself. */
+export function grantCovers(grant, model, effort) {
+  if (grant.efforts && !grant.efforts.includes(String(effort).toLowerCase())) return false;
+  if (FAMILY_RANK.has(grant.name)) return familyOf(model) === grant.name;
+  return String(model).toLowerCase() === grant.name;
 }

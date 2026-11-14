@@ -70,6 +70,8 @@
 
 - Setup Freeflow's `settings.mjs doctor [--fix] [--scope repository|personal|session]` reads each scope against the settings table and prints each problem with its fix: a key renamed to its successor (`review.mode` becomes `review.unit`), a removed key dropped, an unknown key dropped, or a wrong value reset to the default. Without `--fix` it changes nothing; with `--fix` it writes your Personal and Session settings, and the shared Repository file only with `--scope repository`. A file that is not JSON is left as it is. `settings.mjs set` and `unset` refuse to write a file with ignored settings until `doctor` has fixed it.
 
+- Delegation rules (Track Work): the `Worker:` line of the rules file caps the strongest model a worker may run on, and `delegate open --agent` names a model above it only with `--named-by-user`, which says the user named it. An agreement's `Workers:` line (for example `- Workers: Haiku; Opus at medium or high`) grants the models and efforts it names, so an Ask-first route opens without a new yes, and the Route line says `granted by A-NNN`.
+
 ### Changed
 
 - Track Work's `checkpoint --compact` asks for Freeflow's compaction only where the session's driver claims it can compact (Claude Code's mod and Pi's extension do). Elsewhere it writes the checkpoint, leaves no request that nothing would answer, and says so: "No Freeflow driver here compacts (no capabilities for this session). The harness compacts on its own; after it, recover with view recover."
@@ -109,6 +111,8 @@
 - Pi in a folder with no `.freeflow/config.json` shows `freeflow: setup needed` and does not run Freeflow there: only Setup Freeflow is exposed, and the agent is told to tell you and set Freeflow up with that skill, which asks you the choices that are yours; if you decline, it works without Freeflow. `enabled: false` in either file turns Freeflow off once the shared file exists. Claude Code and Codex are unchanged.
 - Discuss Work is read at a session's first message, before the reply, and answers that message first: a question, an idea, criticism or a status check gets its answer and changes nothing else, with no agreement and no record update.
 - The Working Record is written when something settles rather than as the conversation goes: a stop or a limit is recorded at once, what happened when it happens, and understanding at the checkpoint, where a part of the record changes only if it no longer matches the state. The agreement holds terms only, so a new outcome gets a new agreement.
+
+- Delegation rules (Track Work): `delegate open` reads `rules/delegation.md` in the Freeflow store, or a project's own `projects/<project>/rules/delegation.md`, first; the older `rules/routing.md` is still read after each. A file with no table is prose and falls through, and with no rules file Freeflow's shipped default applies, so `store init` writes no rules file and an existing one is left alone. The frontier tier is the `Worker:` model (Opus on Claude), not the coordinator's model.
 
 ### Fixed
 
