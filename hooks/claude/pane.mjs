@@ -939,13 +939,13 @@ async function answer($, value) {
       ...(typed === "none" ? ["--no-project"] : ["--project", typed]),
     ]);
   else if (asking.kind === "send") {
-    // The line the person typed, sent on to a worker: a text Freeflow put in front of that agent.
-    paneTexts.push(typed);
+    // The line the person typed, sent on to a worker: a text Freeflow put in front of that agent, once it arrives.
     const delivered = await $.session.send({ to: { agentId: asking.agentId }, text: typed });
     if (delivered?.isDelivered === false || delivered?.deny) {
       $.ui.toast(`Freeflow: the line did not reach ${asking.label}.`);
       return;
     }
+    paneTexts.push(typed);
     await tell($, `Freeflow: the user sent ${asking.label} a line from Freeflow's pane: "${typed}"`);
     $.ui.toast(`Sent to ${asking.label}.`);
   }

@@ -4,8 +4,10 @@
 // file and appends; one writer keeps the schema in one place (T1). The log lives on this machine only, in
 // `<FREEFLOW_HOME>/events/<session>.jsonl`, which the store's Git ignores (P1); a checkpoint and a release write a short
 // summary of it into the held task's folder, `events/<session>.json`, which the store commits (P7). A line never holds
-// a prompt, an answer, a file's content or a tool's output (P4): the writer refuses any field schema v1 does not name.
-// Readers ignore a kind or field they do not know, so a later minor version may add both.
+// a prompt, an answer, a file's content or a tool's output (P4), with one exception: a `sent` line holds the whole text
+// Freeflow itself sent the model (SPEC-006, sent), which the writer redacts (the forms are in `redact`). The writer
+// refuses any field schema v1 does not name. Readers ignore a kind or field they do not know, so a later minor version
+// may add both.
 
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
@@ -60,7 +62,6 @@ export const SENT_WHATS = [
   "continue",
   "compaction-error",
   "gate",
-  "store-allow",
   "took-back",
   "waits",
   "worker-notice",
@@ -168,8 +169,10 @@ function isPath(value) {
 }
 
 /**
- * Keys and tokens in a shell command, replaced with `[redacted]` before it is written (section 4.3): API keys, GitHub,
- * Slack and AWS tokens, a bearer token, and the value of any `…key=`, `…token=`, `…secret=` or `…password=`.
+ * Keys and tokens, replaced with `[redacted]` before a line is written (section 4.3): API keys, GitHub, Slack and AWS
+ * tokens, a bearer token, the value of any key word (`key`, `token`, `secret`, `password`, with a prefix or suffix) in
+ * the forms `word=value`, `word = value`, `word: value` and a JSON `"word": "value"`, and a PEM private-key block.
+ * A secret in none of these forms is kept as it was written; the event-log doc lists the forms.
  */
 const SECRETS = [
   [/\bsk-[A-Za-z0-9_-]{16,}/g, "[redacted]"],
@@ -178,7 +181,8 @@ const SECRETS = [
   [/\bxox[abps]-[A-Za-z0-9-]{10,}/g, "[redacted]"],
   [/\bAKIA[0-9A-Z]{16}\b/g, "[redacted]"],
   [/\b(Bearer)\s+[A-Za-z0-9._~+/=-]+/gi, "$1 [redacted]"],
-  [/\b([A-Za-z0-9_-]*(?:key|token|secret|password))=("[^"]*"|'[^']*'|[^\s&;|]+)/gi, "$1=[redacted]"],
+  [/-----BEGIN ((?:[A-Z]+ )*)PRIVATE KEY-----[\s\S]*?-----END \1PRIVATE KEY-----/g, "[redacted]"],
+  [/\b([A-Za-z0-9_-]*(?:key|token|secret|password)["']?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s&;|]+)/gi, "$1$2[redacted]"],
 ];
 
 export function redact(value) {

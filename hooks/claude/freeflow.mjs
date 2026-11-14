@@ -139,13 +139,18 @@ const sentOnce = new Set();
  */
 async function sent($, what, text, { once = false } = {}) {
   if (typeof text !== "string" || !text || !enabled || !eventsOn) return;
-  sessionId ??= await $.session.id();
-  if (once) {
-    const key = `${sessionId}\u0000${text}`;
-    if (sentOnce.has(key)) return;
-    sentOnce.add(key);
+  try {
+    sessionId ??= await $.session.id();
+    if (once) {
+      const key = `${sessionId}\u0000${text}`;
+      if (sentOnce.has(key)) return;
+      sentOnce.add(key);
+    }
+    await emit($, "sent", { what, text });
+  } catch {
+    // The log is a sensor, and a sensor fails open: a line that cannot be kept is let go, and the send it describes,
+    // which the callers make next, goes on.
   }
-  await emit($, "sent", { what, text });
 }
 
 /**
@@ -154,7 +159,8 @@ async function sent($, what, text, { once = false } = {}) {
  * @param {{ session?: string, timeoutMs?: number }} [options]
  */
 async function flush($, options = {}) {
-  // The texts the pane put in front of the model since the last flush: its own `sent` lines, in the order they went.
+  // The texts the pane put in front of the model since the last flush: its own `sent` lines, placed here at flush time,
+  // so their order against the other `sent` lines can differ from the order they were sent in.
   for (const text of takePaneTexts()) await sent($, "pane", text);
   if (!buffered.length) return;
   const lines = buffered;
@@ -531,11 +537,14 @@ function checkpointDone(state) {
   return Boolean(asOf) && Date.parse(asOf) > (cycle.notice ?? cycle.startedAt);
 }
 
+/** The assistant turn that follows Freeflow's bundle in the conversation the model reads after its own compaction. */
+const RECOVERED = "Recovered from Freeflow's bundle.";
+
 /** @param {string} text */
 const ownMessages = (text) => ({
   messages: [
     { role: /** @type {const} */ ("user"), text, toolUses: [] },
-    { role: /** @type {const} */ ("assistant"), text: "Recovered from Freeflow's bundle.", toolUses: [] },
+    { role: /** @type {const} */ ("assistant"), text: RECOVERED, toolUses: [] },
   ],
 });
 
@@ -574,8 +583,10 @@ async function ownCompaction($, e, next, state) {
   const made = await script($, bundleArgs(state));
   if (made.exitCode !== 0) {
     const error = unmade($, state, made);
-    await sent($, "compaction-error", error);
-    return withMessage(await next(e), error);
+    const compacted = await next(e);
+    // Logged only where the error reaches the model: a compaction that skipped takes no message.
+    if (!compacted.skip) await sent($, "compaction-error", error);
+    return withMessage(compacted, error);
   }
   // The bundle replaces the conversation: a checkpoint --compact waiting for this is answered, whoever compacted.
   if (state.compact && !state.compact.done) await answered($, state.compact);
@@ -587,6 +598,7 @@ async function ownCompaction($, e, next, state) {
       state.summary.path,
     ]);
   await sent($, "bundle", made.stdout);
+  await sent($, "bundle", RECOVERED);
   return ownMessages(made.stdout);
 }
 
@@ -1542,6 +1554,8 @@ async function pinnedStart($, e, next) {
     else await sentHookGuidance($, result, rendered.parts);
   } catch (error) {
     $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}; the session-start hooks keep it`);
+    // With no parts to match, every text the hooks gave is logged, Freeflow's or another plugin's: the model reads all.
+    for (const each of result.additionalContext ?? []) await sent($, "session-start", each);
   }
   if (fresh) pinnedAtStart = pinned;
   else {
@@ -2023,7 +2037,7 @@ async function storeAllowed($, e, verdict) {
   const real = await placed($, input.file_path ?? input.notebook_path ?? input.path);
   const inside = real !== undefined && (real === root || real.startsWith(root + separatorOf(root)));
   if (!inside) return verdict;
-  await sent($, "store-allow", STORE_REASON, { once: true });
+  // The reason of an allow is shown to the user, not the model, so it is not a send and is not logged.
   return { decision: /** @type {const} */ ("allow"), reason: STORE_REASON };
 }
 

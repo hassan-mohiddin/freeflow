@@ -383,7 +383,7 @@ test("a sent line keeps the whole text, once per distinct text where a request r
   assert.equal(recorder.pending(), 0);
 });
 
-test("a notice Freeflow delivers is kept under its source: background and monitor by their type, a store notice as waits", () => {
+test("a notice Freeflow delivers is kept under its source: background and monitor by their type, a store notice as waits", async () => {
   const kept = [];
   const inbound = new Inbound({
     sendMessage: () => {},
@@ -417,6 +417,8 @@ test("a notice Freeflow delivers is kept under its source: background and monito
     details: {},
     wake: false,
   });
+  // A notice is kept once its send is accepted, which the host reports asynchronously.
+  await new Promise((done) => setImmediate(done));
   assert.deepEqual(
     kept.map(([what]) => what),
     ["background", "monitor", "waits", "message"],

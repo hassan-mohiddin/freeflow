@@ -472,7 +472,6 @@ export default function freeflow(pi: FreeflowAPI) {
       return undefined;
     }
   };
-  /** `/freeflow capabilities`: Setup Freeflow's capabilities.mjs, the listing the agent reads too (section 4.6). */
   /** `/freeflow sent [<n>]`: the text Freeflow sent to the model in this session, newest first, or entry n whole. */
   const sentText = async (number: string | undefined): Promise<string> => {
     const session = events.sessionId();
@@ -488,6 +487,7 @@ export default function freeflow(pi: FreeflowAPI) {
       ? ran.stdout.trimEnd()
       : `Freeflow sent: ${(ran.stderr.split("\n")[0] || `exit code ${ran.code}`).replace(/^Error: /, "").trim()}`;
   };
+  /** `/freeflow capabilities`: Setup Freeflow's capabilities.mjs, the listing the agent reads too (section 4.6). */
   const capabilitiesText = async (): Promise<string> => {
     // The claims as they stand now, written before the script reads them.
     await events.writeClaims(claimInputs(), version);
@@ -839,7 +839,8 @@ export default function freeflow(pi: FreeflowAPI) {
     }
     // The gates' warning rows for this call, once per gate per turn (SPEC-008 4.3).
     const gateRows = gates.takeRows((event as any).toolCallId);
-    if (gateRows.length) events.sent("gate", gateRows.join("\n\n"));
+    // The rows as the result carries them: one line each, joined the way withLines joins them.
+    if (gateRows.length) events.sent("gate", gateRows.join("\n"));
     if (!toolExecutionEffective())
       return gateRows.length ? { content: withLines(event.content ?? [], gateRows) } : undefined;
     const shaped = await files.toolResult(event, ctx);
@@ -972,14 +973,16 @@ export default function freeflow(pi: FreeflowAPI) {
     let messages = keepSections(event.messages, ownSections, ownSectionsVersion, ownHead)
       .map(filterBootstrapMessage)
       .filter(Boolean);
+    // The Runtime State every request carries, built once: the request places it, and the event log keeps its text once
+    // per distinct text (the log checks its switch before it hashes anything). Not found in the messages, so the lookup
+    // does not grow with the session.
+    const runtimeState = freeflowRuntimeStateMessage(capability, prompts, { skills: stateSkills });
     messages = withFreeflowRuntimeState(messages, capability, prompts, {
       force: refreshState,
       anchor: runtimeStateAnchor,
       skills: stateSkills,
+      runtimeState,
     });
-    // The Runtime State every request carries, built as the request built it: kept once per distinct text. Built here,
-    // not found in the messages, so the lookup does not grow with the session.
-    const runtimeState = freeflowRuntimeStateMessage(capability, prompts, { skills: stateSkills });
     events.sent("runtime-state", runtimeState.content, { once: true });
     refreshState = false;
     return { messages: await requestHistory.assemble(messages, ctx) };

@@ -608,6 +608,19 @@ test("a sent line keeps the whole text it sent, redacted and never cut; the writ
   });
 });
 
+test('redact replaces each form the event-log doc lists: word=value, word = value, word: value, JSON "word": "value", a PEM key block; a secret in none of them is kept', () => {
+  assert.equal(redact("password=hunter2"), "password=[redacted]");
+  assert.equal(redact("API_KEY = x9y8z7"), "API_KEY = [redacted]");
+  assert.equal(redact("password: hunter2"), "password: [redacted]");
+  assert.equal(redact('{"apiKey": "abc123"}'), '{"apiKey": [redacted]}');
+  assert.equal(
+    redact("-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA\n-----END RSA PRIVATE KEY-----"),
+    "[redacted]",
+  );
+  // A secret written in no listed form stays as it is: the doc says so.
+  assert.equal(redact("the value hunter2 is in the text"), "the value hunter2 is in the text");
+});
+
 test("events sent lists a session's sent lines newest first; --what keeps one source; --show prints one whole", async () => {
   await withFolder(async ({ cli }) => {
     ok(

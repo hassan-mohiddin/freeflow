@@ -94,7 +94,8 @@ function insertRuntimeStateBeforeFirstUser(messages, runtimeState) {
 }
 export function withFreeflowRuntimeState(messages, capabilityState, freeflowContext = undefined, options = {}) {
   const source = Array.isArray(messages) ? messages : [];
-  const runtimeState = freeflowRuntimeStateMessage(capabilityState, freeflowContext, { skills: options.skills });
+  const runtimeState =
+    options.runtimeState ?? freeflowRuntimeStateMessage(capabilityState, freeflowContext, { skills: options.skills });
   const runtimeStateMessages = source.filter(isRuntimeState);
   const withoutRuntimeState = withoutFreeflowRuntimeState(source);
   const expectedRuntimeStateIndex = firstUserMessageIndex(withoutRuntimeState);
