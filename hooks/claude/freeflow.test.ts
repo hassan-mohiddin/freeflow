@@ -326,7 +326,7 @@ const turnEnd = (reason: "answer" | "aborted") => ({
 const start = ($: any, fields: object = {}) =>
   $.classic.SessionStart({ source: "startup", session_id: SESSION, cwd: "/work/widget", ...fields });
 
-/** What the mod appended to the main conversation: every row, or only its checkpoint notices or its context rows. */
+/** What the mod appended to the main conversation: every message, or only its checkpoint notices. */
 const appended = (w: any) => w.session.appended().map((row: any) => row.message.content[0].text as string);
 const noticesOf = (w: any) => appended(w).filter((text) => text.includes("Keep working until a safe point"));
 const rowsOf = (w: any) => appended(w).filter((text) => text.includes("the checkpoint notice comes at"));
@@ -2200,11 +2200,6 @@ test("with no gate state under block, a change is refused with how to write one 
   expect(refused.reason).toContain("Freeflow cannot read its gate state; run `task here` or `agree`");
 });
 
-// The store's cycle file of the notice test's session, carried from one test to the next: a test starts with a module
-// that has no state of its own, and a reload is the same start with the store's copy of the cycle, which is what this
-// carries (P80, T12).
-let carriedCycle: string | undefined;
-
 test("the event log: the notice names the context that crossed it and the notice point, and a compaction the cycle it ended", async ($, on) => {
   const w = world(on);
   w.status = held(at(-30));
@@ -2230,19 +2225,34 @@ test("a cycle's notice is kept in the store, so the copy names it and no row", a
   expect(appended(w)).toEqual([]);
   await step($, w, 148_000);
   expect(noticesOf(w).length).toBe(1);
-  carriedCycle = w.stored.get("/store/sessions/sess-1/cycle.json");
-  const kept = JSON.parse(carriedCycle ?? "null");
+  const kept = JSON.parse(w.stored.get("/store/sessions/sess-1/cycle.json") ?? "null");
   expect([kept?.cycle, typeof kept?.notice, kept?.row]).toEqual([1, "number", undefined]);
 });
 
 test("a reloaded mod mid-cycle does not send the notice its cycle already sent", async ($, on) => {
   const w = world(on);
   w.status = held(at(-30));
-  if (carriedCycle !== undefined) w.stored.set("/store/sessions/sess-1/cycle.json", carriedCycle);
+  // The store's copy of this cycle, as the first module left it: the notice was sent in cycle 1 (T12). The reload
+  // starts with no state of its own and reads the copy, so the test passes on its own, in any order.
+  w.stored.set("/store/sessions/sess-1/cycle.json", JSON.stringify({ cycle: 1, notice: 1_700_000_000_000 }) + "\n");
   // No start: the module loads into the session as it was. The notice was sent in this cycle, so it is not sent twice.
   await step($, w, 100_000);
   await step($, w, 148_000);
   await step($, w, 160_000);
   expect(noticesOf(w).length).toBe(0);
   expect(appended(w)).toEqual([]);
+});
+
+test("a first store read that fails leaves the cycle's copy to the next read: a notice already sent is not sent again", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["session status"] = { exitCode: 1, stderr: "unreadable" };
+  // The first request above the notice point: the store cannot be read, so no notice, and the copy is not yet read.
+  await step($, w, 148_000);
+  expect(noticesOf(w).length).toBe(0);
+  // The store reads again; its copy says the notice was sent in this cycle, so it is not sent again.
+  delete w.answers["session status"];
+  w.stored.set("/store/sessions/sess-1/cycle.json", JSON.stringify({ cycle: 1, notice: 1_700_000_000_000 }) + "\n");
+  await step($, w, 160_000);
+  expect(noticesOf(w).length).toBe(0);
 });

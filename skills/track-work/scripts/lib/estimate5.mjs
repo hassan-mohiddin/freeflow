@@ -9,7 +9,7 @@ import { contextWindow } from "./budget5.mjs";
 import { claudeCodeLog } from "./discussion5.mjs";
 import { storeHome } from "./freeflow-store.mjs";
 import { cycleStart, modelNow, priceTable } from "./measure5.mjs";
-import { noticeFromEnv } from "./notice5.mjs";
+import { noticeFromEnv, noticePoint } from "./notice5.mjs";
 import { futureItems, listItems, planView, projectView, spentView, storeView } from "./planner5.mjs";
 
 /** How much of the end of a log is read to find its latest request; the whole file when that holds none. */
@@ -110,7 +110,8 @@ export function estimate(options, env = process.env, input = "") {
     return spentView(options["--record"], { json: Boolean(options["--json"]) });
   }
   const { used, source, window, transcript } = contextNow(options, env);
-  const notice = noticeFromEnv(window.tokens, env);
+  // A window given with --window is not the session's, so its point is the unknown-host point for that window.
+  const notice = options["--window"] ? noticePoint({ window: window.tokens }) : noticeFromEnv(window.tokens, env);
   if (options["--plan"]) {
     if (options["--left"] !== undefined)
       throw new EstimateError("estimate --plan counts the Slices left itself: give them with --input, or Future Work.");

@@ -53,7 +53,7 @@ Any compaction replaces the conversation, so the next request is written to the 
 
 ## Evidence limits
 
-Native Pi tests cover the notice and rows, Freeflow's compaction with a task and with a session summary on a real Pi session running Track Work's real script, Pi's own compaction with the bundle, and the request after compaction extending into the next. A live run on a real model has not been made on Pi with this design.
+Native Pi tests cover the notice, which is the only signal before compaction, and Freeflow's compaction with a task and with a session summary on a real Pi session running Track Work's real script, Pi's own compaction with the bundle, and the request after compaction extending into the next. A live run on a real model has not been made on Pi with this design.
 
 ## Related documentation
 

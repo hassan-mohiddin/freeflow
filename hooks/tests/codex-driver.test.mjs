@@ -5,7 +5,15 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import CONFORMANCE from "../codex/conformance.mjs";
-import { claims, codexWindow, EVENTS, noticePoint, toolPaths } from "../codex/driver.mjs";
+import {
+  claims,
+  codexWindow,
+  EVENTS,
+  noticePoint,
+  restoreWindow,
+  scriptEnvironment,
+  toolPaths,
+} from "../codex/driver.mjs";
 import GOLDEN from "../codex/golden-events.mjs";
 import { lineProblem } from "../../skills/track-work/scripts/lib/events5.mjs";
 import { OUTPUT_SCHEMAS, SCHEMAS, recorded } from "./fixtures/codex/inputs.mjs";
@@ -761,4 +769,17 @@ test("the driver waits for input the host writes after starting it", async () =>
   } finally {
     done();
   }
+});
+
+test("a script run after the session start gets the host's notice point: the state's limit is restored with its window (review N4)", () => {
+  // The state of a session whose model compacts at 250,000 tokens of a 272,000 window: an event after the session start
+  // restores both, and the script run it makes gets the point 230,000 (250,000 less the lead), not the unknown-host 204,000.
+  const ctx = { session: "thr_n4", home: "/tmp/none", state: { window: 272_000, limit: 250_000 } };
+  restoreWindow(ctx);
+  assert.equal(ctx.limit, 250_000);
+  assert.equal(scriptEnvironment(ctx, {}).FREEFLOW_NOTICE_POINT, "230000");
+  // With no limit in the state, the unknown-host point applies.
+  const plain = { session: "thr_n4", home: "/tmp/none", state: { window: 272_000, limit: null } };
+  restoreWindow(plain);
+  assert.equal(scriptEnvironment(plain, {}).FREEFLOW_NOTICE_POINT, "204000");
 });

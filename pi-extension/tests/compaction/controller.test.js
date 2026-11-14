@@ -8,7 +8,7 @@ import test from "node:test";
 import { CompactionController, RECOVERY_TYPE } from "../../dist/compaction/controller.js";
 import { loadNotice } from "../../dist/compaction/thresholds.js";
 
-// The rows come from notice5.mjs, which the controller reads as Freeflow's package loads it.
+// The notice point comes from notice5.mjs, which the controller reads as Freeflow's package loads it.
 await loadNotice(fileURLToPath(new URL("../../..", import.meta.url)));
 
 // The controller with a fake host: the store's state and bundle are given, the context is a number the test sets.

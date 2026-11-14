@@ -14,7 +14,7 @@ One line per event, in `events/<session ID>.jsonl` in the Freeflow home (`FREEFL
 - each time a [gate](gates.md) warned, asked or refused (the gate, the tool and the rule), and an agreement recorded with `agree`.
 - on Claude Code, each row or notice of the cost governor: the cap, the use against it, and the response (see [Settings](../settings.md), Cost governor); `events summary` lists them.
 
-`events summary` also says how many tokens the context grew from a cycle's notice to the checkpoint that answered it: `Notice to checkpoint: n cycle(s), median …, largest …`.
+`events summary` also says how many tokens the context grew from a cycle's notice to the checkpoint that answered it: `Notice to checkpoint: n cycle(s), median …, largest …`. Two limits for now: the measure reads Claude Code's transcript only, so it is Claude Code only (extending it to Pi and Codex is future work); and its two ends differ by about one reply's output, since the notice's context leaves out the last reply's output and the checkpoint's includes it.
 
 A line never holds a prompt, an answer, a file's content or a tool's output. In a command, keys and tokens (`sk-…`, `ghp_…`, `github_pat_…`, `xox…-`, `AKIA…`, `Bearer …`, and any `…key=`, `…token=`, `…secret=` or `…password=` value) are replaced with `[redacted]` before it is written. A command is cut at its first heredoc operator (`<<`), so the text a heredoc writes into a file is never kept, and then cut to 200 characters.
 

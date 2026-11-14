@@ -56,3 +56,25 @@ test("estimate prints the notice point in tokens, not as a share of the window",
   assert.match(out.stdout, /notice comes at about 147,000 tokens: about 97,000 left/);
   assert.doesNotMatch(out.stdout, /75%/);
 });
+
+test("estimate given its own --window computes the point for that window, not the session's FREEFLOW_NOTICE_POINT", () => {
+  const env = {
+    ...process.env,
+    FREEFLOW_NOTICE_POINT: "147000",
+    FREEFLOW_CONTEXT_WINDOW: "",
+    FREEFLOW_HOME: "/nonexistent",
+  };
+  const own = spawnSync(process.execPath, [scriptPath, "estimate", "--used", "50000", "--window", "200000"], {
+    encoding: "utf8",
+    env,
+  });
+  assert.equal(own.status, 0, own.stderr);
+  assert.match(own.stdout, /notice comes at about 150,000 tokens/);
+  // Without --window, the session's point is the one the harness set.
+  const session = spawnSync(process.execPath, [scriptPath, "estimate", "--used", "50000"], {
+    encoding: "utf8",
+    env: { ...env, FREEFLOW_CONTEXT_WINDOW: "200000" },
+  });
+  assert.equal(session.status, 0, session.stderr);
+  assert.match(session.stdout, /notice comes at about 147,000 tokens/);
+});

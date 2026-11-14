@@ -357,8 +357,10 @@ async function keepCycle($, state) {
  * store's copy says it was made.
  */
 async function restoreCycle($, state) {
-  cycle.restored = true;
+  // Without a state there is no copy read yet: the next request that has one reads it, so a status that fails once is
+  // not taken for a cycle with nothing in the store.
   if (!state) return;
+  cycle.restored = true;
   const number = await cycleNumber($, state);
   let kept = null;
   try {

@@ -213,8 +213,14 @@ function flush(ctx, timeoutMs) {
  * @param {string[]} args
  * @param {{ input?: string, timeoutMs?: number }} [options]
  */
-function script(ctx, args, { input, timeoutMs } = {}) {
-  const env = { ...process.env };
+/**
+ * The environment a script run of this driver gets: the session, the harness, the home, the window and the notice point
+ * (notice5.mjs, from the host's compaction limit when it is known). Exported so a test reads what a run is given.
+ * @param {any} ctx
+ * @param {NodeJS.ProcessEnv} [base]
+ */
+export function scriptEnvironment(ctx, base = process.env) {
+  const env = { ...base };
   delete env.CLAUDE_CODE_SESSION_ID;
   delete env.CLAUDE_CODE_REMOTE_SESSION_ID;
   delete env.CLAUDECODE;
@@ -227,6 +233,21 @@ function script(ctx, args, { input, timeoutMs } = {}) {
   if (ctx.window) env.FREEFLOW_CONTEXT_WINDOW = String(ctx.window);
   if (ctx.window)
     env.FREEFLOW_NOTICE_POINT = String(hostNoticePoint({ window: ctx.window, hostPoint: ctx.limit ?? null }));
+  return env;
+}
+
+/**
+ * The window and the compaction limit this session's state keeps, put back on the context each event: a script run
+ * after the session start gets the host's notice point, not the unknown-host point (the review's N4).
+ * @param {any} ctx
+ */
+export function restoreWindow(ctx) {
+  ctx.window = ctx.state?.window ?? null;
+  ctx.limit = ctx.state?.limit ?? null;
+}
+
+function script(ctx, args, { input, timeoutMs } = {}) {
+  const env = scriptEnvironment(ctx);
   const left = Math.max(1, ctx.deadline - Date.now());
   const run = spawnSync(process.execPath, [SCRIPT, ...args], {
     cwd: existsSync(ctx.cwd) ? ctx.cwd : undefined,
@@ -1023,7 +1044,7 @@ export async function handle(event, input, env = process.env) {
       });
       if (ctx.state.enabled === false) return null;
     }
-    ctx.window = ctx.state?.window ?? null;
+    restoreWindow(ctx);
     return await handler(ctx);
   } catch (error) {
     note(ctx, error);
