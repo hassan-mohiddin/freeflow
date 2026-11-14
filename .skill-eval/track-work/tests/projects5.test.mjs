@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { delimiter, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { sessionIdentity } from "../../../skills/track-work/scripts/lib/projects5.mjs";
 import { DEFAULT_TABLE } from "../../../skills/track-work/scripts/lib/routing5.mjs";
@@ -665,5 +665,108 @@ test("checkpoint refuses a store task this session does not hold, naming task ta
     );
     ok(cli("aaaaaaaa-1", ["task", "take", "--id", "widget/task-001"]));
     ok(checkpoint("aaaaaaaa-1"));
+  });
+});
+
+test("task create --short names the task in project list --json and session status; a longer name is refused with the limit; task set-short sets, changes and removes it (Setting 6)", async () => {
+  await withStore(async ({ home, work, cli }) => {
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
+    const long = "a".repeat(25);
+    const refused = cli(
+      "aaaaaaaa-1",
+      [
+        "task",
+        "create",
+        "--title",
+        "Too long",
+        "--goal",
+        "g",
+        "--cue",
+        "read when it matters",
+        "--short",
+        long,
+        "--project",
+        "widget",
+      ],
+      work,
+    );
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /24 characters at most; this one has 25/);
+    assert.equal(existsSync(join(home, "projects", "widget", "tasks", "task-001-too-long")), false);
+    ok(
+      cli(
+        "aaaaaaaa-1",
+        [
+          "task",
+          "create",
+          "--title",
+          "Quarterly report",
+          "--goal",
+          "g",
+          "--cue",
+          "read when it matters",
+          "--short",
+          "Q3 report",
+          "--project",
+          "widget",
+        ],
+        work,
+      ),
+    );
+    ok(cli("aaaaaaaa-1", ["task", "release"]));
+    ok(
+      cli(
+        "aaaaaaaa-1",
+        [
+          "task",
+          "create",
+          "--title",
+          "No name",
+          "--goal",
+          "g",
+          "--cue",
+          "read when it matters",
+          "--short",
+          "",
+          "--project",
+          "widget",
+        ],
+        work,
+      ),
+    );
+    ok(cli("aaaaaaaa-1", ["task", "release"]));
+    const listed = JSON.parse(ok(cli("aaaaaaaa-1", ["project", "list", "--json"])));
+    const tasks = Object.fromEntries(listed.projects[0].tasks.map((task) => [task.id, task]));
+    assert.equal(tasks["widget/task-001"].short, "Q3 report");
+    assert.equal(tasks["widget/task-002"].short, undefined);
+    assert.equal(tasks["widget/task-002"].title, "No name");
+    assert.match(
+      await readFile(join(home, "projects", "widget", "tasks", "task-001-quarterly-report", "record.md"), "utf8"),
+      /^Short: Q3 report$/m,
+    );
+    // A task with no short name lists as before, with no short key.
+    ok(cli("aaaaaaaa-1", ["task", "take", "--id", "widget/task-001"]));
+    assert.equal(JSON.parse(ok(cli("aaaaaaaa-1", ["session", "status"]))).task.short, "Q3 report");
+    // set-short: a too-long name is refused and nothing changes; a new name replaces; "" removes.
+    const tooLong = cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001", "--short", long]);
+    assert.equal(tooLong.status, 1);
+    assert.match(tooLong.stderr, /24 characters at most/);
+    ok(cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001", "--short", "Q3"]));
+    ok(cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-002", "--short", "Draft"]));
+    const named = JSON.parse(ok(cli("aaaaaaaa-1", ["project", "list", "--json"]))).projects[0].tasks;
+    assert.deepEqual(Object.fromEntries(named.map((task) => [task.id, task.short ?? null])), {
+      "widget/task-002": "Draft",
+      "widget/task-001": "Q3",
+    });
+    ok(cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001", "--short", ""]));
+    const cleared = JSON.parse(ok(cli("aaaaaaaa-1", ["project", "list", "--json"]))).projects[0].tasks;
+    assert.equal(cleared.find((task) => task.id === "widget/task-001").short, undefined);
+    assert.equal(
+      await readFile(join(home, "projects", "widget", "tasks", "task-001-quarterly-report", "record.md"), "utf8").then(
+        (text) => /^Short:/m.test(text),
+      ),
+      false,
+    );
+    assert.match(pushedLog(join(dirname(home), "store.git")), /Short name for widget\/task-001/);
   });
 });
