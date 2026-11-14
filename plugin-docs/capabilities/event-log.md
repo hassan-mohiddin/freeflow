@@ -16,7 +16,7 @@ One line per event, in `events/<session ID>.jsonl` in the Freeflow home (`FREEFL
 
 `events summary` also says how many tokens the context grew from a cycle's notice to the checkpoint that answered it (or, where no notice came, from its last row): `Notice to checkpoint: n cycle(s), median …, largest …`.
 
-A line never holds a prompt, an answer, a file's content or a tool's output. In a command, keys and tokens (`sk-…`, `ghp_…`, `github_pat_…`, `xox…-`, `AKIA…`, `Bearer …`, and any `…key=`, `…token=`, `…secret=` or `…password=` value) are replaced with `[redacted]` before it is written, and the command is cut to 200 characters.
+A line never holds a prompt, an answer, a file's content or a tool's output. In a command, keys and tokens (`sk-…`, `ghp_…`, `github_pat_…`, `xox…-`, `AKIA…`, `Bearer …`, and any `…key=`, `…token=`, `…secret=` or `…password=` value) are replaced with `[redacted]` before it is written. A command is cut at its first heredoc operator (`<<`), so the text a heredoc writes into a file is never kept, and then cut to 200 characters.
 
 The log stays on this machine: the store's Git ignores `events/`, and nothing in it is sent anywhere or read by the model. What leaves the machine is a summary: at each checkpoint and when a session releases its task, Freeflow writes `events/<session ID>.json` into the task's folder, which the store commits: model requests and tokens by model and effort, tool calls by tool with failures, compactions, workers, the share of tool calls that were Freeflow's own, and how often each gate would have fired.
 

@@ -135,6 +135,15 @@ export function redact(value) {
   return SECRETS.reduce((current, [pattern, replacement]) => current.replace(pattern, replacement), value);
 }
 
+/**
+ * A command cut at its first heredoc operator (`<<`, `<<-` or `<<<`), which is written as ` <<…`: the body of a heredoc
+ * is a file's or a message's text, which the log never holds (P4), and a command's first 200 characters would hold it.
+ */
+export function cutHeredoc(value) {
+  const at = value.search(/<</);
+  return at < 0 ? value : `${value.slice(0, at).trimEnd()} <<…`;
+}
+
 /** Redacted first, so a cut never leaves part of a secret behind, then cut to `limit` characters. */
 function redactAndCut(value, limit) {
   const clean = redact(value.replace(/\s+/g, " ").trim());
@@ -184,7 +193,10 @@ function normalize(line, seq) {
   };
   for (const key of Object.keys(fields)) {
     if (line[key] === undefined) continue;
-    written[key] = CUT.has(key) ? redactAndCut(line[key], COMMAND_LIMIT) : line[key];
+    // A command is cut at its heredoc before the length cut, so no body text is kept past its operator (P4).
+    written[key] = CUT.has(key)
+      ? redactAndCut(key === "command" ? cutHeredoc(line[key]) : line[key], COMMAND_LIMIT)
+      : line[key];
   }
   return written;
 }

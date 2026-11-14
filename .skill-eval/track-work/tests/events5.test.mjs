@@ -6,9 +6,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import {
+  appendEvents,
   COMMAND_LIMIT,
+  cutHeredoc,
   KINDS,
   lineProblem,
+  logPath,
   redact,
   renderSummary,
   summarize,
@@ -544,5 +547,39 @@ test("a checkpoint writes its own freeflow line, with what it was and the contex
     const out = cli(["checkpoint", "--session", "--input", "-"], { input: summary, env: off });
     assert.equal(out.status, 0, out.stderr);
     assert.equal(existsSync(join(home, "events", "beef0000-2222.jsonl")), false);
+  });
+});
+
+test("a command's heredoc body is never written to the event log: a command is cut at its first heredoc operator", async () => {
+  await withFolder(async ({ home }) => {
+    assert.equal(cutHeredoc("cat x <<-EOF\nbody\nEOF"), "cat x <<…");
+    assert.equal(cutHeredoc("cat x <<<word"), "cat x <<…");
+    assert.equal(cutHeredoc("echo no heredoc"), "echo no heredoc");
+    const body = "MARKER_BODY_TEXT that is a file's content";
+    const heredoc = `cat > notes.md <<'EOF'\n${body}\nEOF`;
+    const long = `${"x".repeat(150)} <<EOF\n${body}\nEOF`;
+    const plain = `echo ${"y".repeat(300)}`;
+    const batch = jsonl(
+      [heredoc, long, plain].map((command) => ({
+        ...base("sess-heredoc"),
+        kind: "tool.call",
+        tool: "Bash",
+        ok: true,
+        source: "agent",
+        command,
+      })),
+    );
+    const { written, refused } = await appendEvents(home, batch);
+    assert.equal(refused.length, 0);
+    assert.equal(written[0].count, 3);
+    const lines = await readLines(logPath(home, "sess-heredoc"));
+    assert.equal(lines[0].command, "cat > notes.md <<…");
+    assert.equal(lines[1].command, `${"x".repeat(150)} <<…`);
+    assert.equal(lines[2].command.length, 200);
+    assert.ok(lines[2].command.endsWith("…"));
+    assert.equal(
+      lines.some((line) => JSON.stringify(line).includes("MARKER_BODY_TEXT")),
+      false,
+    );
   });
 });

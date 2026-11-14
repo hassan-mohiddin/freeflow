@@ -122,7 +122,7 @@ The P and T numbers name choices in the design that built this, task-004's Spec 
 - `skills/track-work/scripts/lib/store.mjs`: paths and writes: the store marker, the Git check, task numbering, atomic publication.
 - `skills/track-work/scripts/lib/record5.mjs`: Schema 5's parse and validation: field orders (`SLICE5_ORDER`, `ENTRY_ORDER`), states, IDs, the skeleton.
 - `skills/track-work/scripts/lib/transitions5.mjs`: the agreement, Slice and checkpoint commands, readings at start, checkpoint and close, the session summary, Space.
-- `skills/track-work/scripts/lib/events5.mjs`, `events-cli.mjs`: the event log's schema v1, the writer (`seq` under a lock on the file, redaction, a torn last line kept on its own), the summary at checkpoint and release (with the notice to checkpoint measure), the checkpoint's own `freeflow` line that `checkpoint` writes after a successful save, and the `events` commands.
+- `skills/track-work/scripts/lib/events5.mjs`, `events-cli.mjs`: the event log's schema v1, the writer (`seq` under a lock on the file, redaction, a command cut at its first heredoc operator before the length cut, a torn last line kept on its own), the summary at checkpoint and release (with the notice to checkpoint measure), the checkpoint's own `freeflow` line that `checkpoint` writes after a successful save, and the `events` commands.
 - `skills/track-work/scripts/lib/gates5.mjs`, `gate-state5.mjs`: the gates' decision and the gate state ([Gates](gates.md)).
 - `skills/track-work/scripts/lib/views5.mjs`: `view recover`, `view bundle` (with `--fallback` and `--session`), `entry`, `index`.
 - `skills/track-work/scripts/lib/projects5.mjs`: projects, tasks, holds, the menu, `task move`, `session status`.
