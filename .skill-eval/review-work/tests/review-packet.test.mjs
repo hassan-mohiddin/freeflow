@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 
 const script = resolve("skills/review-work/scripts/review-packet.mjs");
-const gitEnv = { ...process.env, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" };
+const gitEnv = {
+  ...process.env,
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  // No user review rule from the machine running the tests.
+  FREEFLOW_HOME: join(tmpdir(), "freeflow-review-no-home"),
+};
 const git = (cwd, ...args) =>
   execFileSync(
     "git",
@@ -51,7 +57,7 @@ async function project(extra = {}) {
   return { root, base, task: join(root, ".freeflow/tasks/task-001-ttl") };
 }
 
-test("review-packet prefills the brief with the plan and its budget, and check-brief accepts it", async () => {
+test("review-packet prefills the brief with the floor and the flags, and check-brief accepts it", async () => {
   const { root, base, task } = await project();
   try {
     const result = run(root, [
@@ -68,19 +74,20 @@ test("review-packet prefills the brief with the plan and its budget, and check-b
     assert.equal(result.status, 0, result.stdout + result.stderr);
     const packet = JSON.parse(result.stdout);
     assert.equal(packet.checkBrief.ok, true);
-    // src/auth/ fires security and the workflow fires ci: a Deep review in the security tier.
+    // src/auth/ raises security and the workflow raises ci: flags, and the review stays at the floor.
     assert.deepEqual(
-      packet.plan.because.map((each) => each.name),
+      packet.plan.flags.map((each) => each.name),
       ["security", "ci"],
     );
-    assert.equal(packet.plan.depth, "deep");
-    assert.equal(packet.plan.tier, "security");
-    assert.match(packet.budget, /^Review 1 of at most 3/);
-    assert.match(packet.notes.join("\n"), /each with its own brief \(--reviewer a, b and c\)/);
+    assert.deepEqual(packet.plan.floor, { reviewers: 1, rounds: 1 });
+    assert.equal(packet.plan.reviewers, 1);
+    assert.equal(packet.plan.aboveFloor, false);
+    assert.match(packet.budget, /^Review 1: the floor's one round, broad by default; after it the initiator checks/);
+    assert.deepEqual(packet.notes, []);
     const brief = await readFile(join(task, "reviews/R1-brief.md"), "utf8");
     assert.match(
       brief,
-      /^Review: 1\nPlan: deep, tier security, 3 reviewers, up to Review 3, model auto \(the security tier's model\)\nBoundary: merge to main\nReviewed state: [0-9a-f]{12}\n/,
+      /^Review: 1\nPlan: 1 reviewer, Review 1, the floor; flags: security, ci\nBoundary: merge to main\nReviewed state: [0-9a-f]{12}\n/,
     );
     assert.match(brief, /\nAgreement: `\.freeflow\/tasks\/task-001-ttl\/record\.md`\n/);
     assert.match(brief, /\nDocs: `dev-docs\/auth\.md`\n/);
@@ -116,7 +123,15 @@ test("review-packet leaves the Boundary empty so check-brief refuses, and Review
     const brief = await readFile(join(task, "reviews/R2-brief.md"), "utf8");
     assert.match(brief, new RegExp(`\\nDiff: ${reviewed.slice(0, 12)}\\.\\.`));
     assert.match(brief, /\nPrevious report: `[^`]*R1-report\.md`\n/);
-    assert.match(JSON.parse(second.stdout).budget, /^Review 2 of at most 3/);
+    assert.match(JSON.parse(second.stdout).budget, /^Review 2, above the floor: a focused follow-up/);
+    assert.match(
+      JSON.parse(second.stdout).notes.join("\n"),
+      /Review 2 is above the floor .*: dispatch it only when you and the user chose it/,
+    );
+    assert.match(
+      brief,
+      /\nPlan: 1 reviewer, Review 2, above the floor \(1 reviewer, Review 1\); flags: security, ci\n/,
+    );
     assert.deepEqual(JSON.parse(second.stdout).correctionDiff, {
       from: reviewed.slice(0, 12),
       files: 1,
@@ -187,8 +202,6 @@ test("review-packet points Method at the base's copy of Review Work when the cha
     const base = git(root, "rev-parse", "HEAD");
     await write(root, { "skills/review-work/references/work.md": "# Work Review, edited by the change\n" });
     git(root, "commit", "--quiet", "-am", "edit the method");
-    // Review Work's plan reads the settings validator from pi-extension/dist beside the skills, as in the package.
-    await symlink(resolve("pi-extension"), join(root, "pi-extension"));
     const copied = join(root, "skills/review-work/scripts/review-packet.mjs");
     const result = run(
       root,

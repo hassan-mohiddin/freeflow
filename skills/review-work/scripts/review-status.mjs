@@ -1,21 +1,36 @@
 #!/usr/bin/env node
-// Whether an independent review is on record for a commit (SPEC-007 4.5), from the review records in the task's
-// reviews/records.jsonl, or this session's in the Freeflow home without a task: covered (the latest Pass or
-// Non-blocking review of that commit, or a diff-only re-review that completes an earlier one), stale (a covering review
-// of an ancestor, with the commits since and the range a diff-only re-review would cover), or none. A Blocking or
-// Inconclusive review covers nothing; records of commits outside the head's history are ignored. With --base it also
-// names the depth the plan gives the change. Deliver Work runs it at the review unit's boundary; until Freeflow's gates
-// arrive, that check is the skill's, not the host's.
-// Usage: review-status.mjs [--head <ref>] [--task <task folder>] [--base <ref>] [--root <repository>] [--json]
-// Exit code 0 when a review covers the head, 1 when none does (none or stale), 2 on a usage or Git error.
+// Whether an independent review is on record for a commit, from the review records in the task's reviews/records.jsonl,
+// or this session's in the Freeflow home without a task: covered (the latest Pass or Non-blocking review of that
+// commit, or a diff-only re-review that completes an earlier one), stale (a covering review of an ancestor, with the
+// commits since and the range a diff-only re-review would cover), or none. A Blocking or Inconclusive review covers
+// nothing; records of commits outside the head's history are ignored. It also prints when a review is due, from the
+// review rules (lib/review-rules.mjs): the project's "Review at:" line at --base (without it, at the head's merge-base
+// with the default branch, origin's HEAD or else main, never at the head), else the Freeflow home's rules/review.md,
+// else the default, a pull request. With --step it says whether that step needs a
+// review on record: a rule's step and every later one do (commit, then push, then pull request), so every pull request
+// needs one. With --base it also names the floor and the flags the plan gives the change. Deliver Work runs it
+// (through delivery-state.mjs) before the step; until Freeflow's gates arrive, that check is the skill's, not the host's.
+// Usage: review-status.mjs [--head <ref>] [--task <task folder>] [--base <ref>] [--step <commit|push|pull-request>]
+//                          [--root <repository>] [--json]
+// Exit code 0 when a review covers the head, or --step names a step no review is due at; 1 when no review covers the
+// head (none or stale), and with --step only when that step needs one; 2 on a usage or Git error. Without --step it
+// says nothing of whether a review is due: 1 means only that none covers the head.
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { PlanError, planReview } from "./lib/plan.mjs";
+import { PlanError, commitOf, flagNames, planReview } from "./lib/plan.mjs";
 import { coverage, coverageLine, readRecords, reviewsDir } from "./lib/records.mjs";
+import { REVIEW_AT, defaultBase, dueAt, reviewAt, reviewAtText } from "./lib/review-rules.mjs";
 
 const USAGE =
-  "Usage: review-status.mjs [--head <ref>] [--task <task folder>] [--base <ref>] [--root <repository>] [--json]";
+  "Usage: review-status.mjs [--head <ref>] [--task <task folder>] [--base <ref>] [--step <commit|push|pull-request>] [--root <repository>] [--json]";
+const STEPS = {
+  commit: "commit",
+  push: "push",
+  "pull-request": "pull request",
+  "pull request": "pull request",
+  pr: "pull request",
+};
 
 function fail(message) {
   console.error(message);
@@ -29,6 +44,7 @@ try {
       head: { type: "string", default: "HEAD" },
       task: { type: "string" },
       base: { type: "string" },
+      step: { type: "string" },
       root: { type: "string" },
       json: { type: "boolean", default: false },
     },
@@ -36,6 +52,8 @@ try {
 } catch (error) {
   fail(`${error.message}\n${USAGE}`);
 }
+const step = values.step === undefined ? null : STEPS[values.step.toLowerCase()];
+if (values.step !== undefined && !step) fail(`--step takes commit, push or pull-request, not ${values.step}\n${USAGE}`);
 
 let root;
 try {
@@ -68,7 +86,23 @@ if (values.base) {
     throw error;
   }
 }
-const line = coverageLine(status, planned?.depth);
+// The project's rule is read at the base, never at the change under review, so a change never relaxes its own rule:
+// --base when given, else the head's merge-base with the default branch; with neither, the project's rules are not
+// read and the line says so.
+const fallback = values.base ? null : defaultBase(root, status.head);
+const rulesRef =
+  values.base ?? (fallback ? `the merge-base with ${fallback.ref} (${fallback.commit.slice(0, 8)})` : null);
+const rule = reviewAt({
+  root,
+  commit: planned?.base.commit ?? (values.base ? commitOf(root, values.base) : fallback?.commit),
+});
+const due = step ? dueAt(rule.value, step) : null;
+const line = coverageLine(status, planned ? { flags: flagNames(planned) } : null);
+const stepLine = step
+  ? due
+    ? `This step (${step}): a review is due${status.state === "covered" ? ", and one is on record" : ""}`
+    : `This step (${step}): no review is due (one is due at: ${REVIEW_AT.slice(REVIEW_AT.indexOf(rule.value)).join(", ")})`
+  : null;
 if (values.json)
   console.log(
     JSON.stringify(
@@ -82,9 +116,14 @@ if (values.json)
         since: status.since ?? 0,
         rereview: status.rereview ?? null,
         blocked: status.blocked ?? null,
-        plannedDepth: planned?.depth ?? null,
+        reviewAt: rule,
+        step,
+        due,
+        floor: planned ? planned.floor : null,
+        flags: planned ? flagNames(planned) : null,
         skippedLines: skipped,
         line,
+        lines: [line, ...reviewAtText(rule, rulesRef), ...(stepLine ? [stepLine] : [])],
       },
       null,
       2,
@@ -92,10 +131,12 @@ if (values.json)
   );
 else {
   console.log(line);
+  for (const each of reviewAtText(rule, rulesRef)) console.log(each);
+  if (stepLine) console.log(stepLine);
   if (!dir)
     console.log(
       "No reviews folder: give --task, or run where the session is named (CLAUDE_CODE_SESSION_ID or FREEFLOW_SESSION).",
     );
   if (skipped) console.log(`Skipped ${skipped} line${skipped === 1 ? "" : "s"} of records.jsonl that are not records.`);
 }
-process.exit(status.state === "covered" ? 0 : 1);
+process.exit(status.state === "covered" || due === false ? 0 : 1);

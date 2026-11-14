@@ -940,9 +940,6 @@ const SECTION_ROWS = new Set([
   "gates.slice",
   "gates.delivery",
   "gates.delegation",
-  "review.unit",
-  "review.model",
-  "review.rounds",
   "governor.mode",
   "governor.cap",
   "pane.enabled",
@@ -965,7 +962,7 @@ const from = (scope) =>
       : `${FILES[scope]} (${SCOPE_NAMES[scope]})`;
 
 /**
- * Lists the settings Claude Code acts on: each section's switch and the review, always, and any other key a scope sets.
+ * Lists the settings Claude Code acts on: each section's switch, always, and any other key a scope sets.
  * @param {any} data the script's list
  */
 function listText(data) {
@@ -981,8 +978,8 @@ function listText(data) {
     ),
     ...ignored,
     COMMAND_USAGE,
-    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.agreement, gates.slice, gates.delivery, gates.delegation, review.unit, review.model, review.rounds, governor.mode, governor.cap, pane.enabled, pane.statusLine.",
-    "Review depth rules (review.depth) are edited in .freeflow/config.json; review-plan reads them from the base commit.",
+    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.agreement, gates.slice, gates.delivery, gates.delegation, governor.mode, governor.cap, pane.enabled, pane.statusLine.",
+    'Review has no settings: a "Review at:" line in the project\'s Review Rules, or in rules/review.md in the Freeflow home, says when a review runs (at every pull request by default).',
     "Pi-only settings (tool execution, compaction, messaging) are changed on Pi or in the files.",
   ].join("\n");
 }

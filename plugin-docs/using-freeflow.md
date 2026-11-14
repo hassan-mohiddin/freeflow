@@ -149,7 +149,7 @@ supported findings with file locations and evidence. Do not edit or dispatch
 another review.
 ```
 
-Independent review runs at each review unit your `review.unit` setting names (a pull request by default), as deep as Review Work's plan says, or when you ask for one; it must come from a context that did not produce the reviewed state ([Review and verification](workflow.md#review-and-verification)).
+Independent review runs at every pull request, one reviewer in one round, earlier where a `Review at:` line in your review rules says so, and when you ask for one; more reviewers or a stronger model is the agent's proposal to you, with the reason and the cost. It must come from a context that did not produce the reviewed state ([Review and verification](workflow.md#review-and-verification)).
 
 ### Documentation or artifact work
 
@@ -294,7 +294,7 @@ The memory the agent shapes has a recovery budget that grows with the context wi
 
 ### Which model a worker runs on
 
-When the agent hands work to another agent, the model and effort come from your routing table, `rules/routing.md` in the store (a project's own `projects/<project>/rules/routing.md` is read first). A new store gets the default table, two tiers: the cheap tier (Haiku on Claude) at `xhigh` for gathering, research, evals, reviews and builds whose decisions the brief has settled, and the agent's own model at `high` for unsettled builds, judgement and security reviews, which the agent asks you about first. Edit the table to change it; the agent never does. Each delegation's brief and History entry say which row chose its model, and a return sent back records why (the brief, the model's capability, or the scope), so `estimate --plan` can show how often each kind of work on each model came back. A reviewer model you set with `review.model` still wins for reviews.
+When the agent hands work to another agent, the model and effort come from your routing table, `rules/routing.md` in the store (a project's own `projects/<project>/rules/routing.md` is read first). A new store gets the default table, two tiers: the cheap tier (Haiku on Claude) at `xhigh` for gathering, research, evals, reviews and builds whose decisions the brief has settled, and the agent's own model at `high` for unsettled builds, judgement and security reviews, which the agent asks you about first. Edit the table to change it; the agent never does. Each delegation's brief and History entry say which row chose its model, and a return sent back records why (the brief, the model's capability, or the scope), so `estimate --plan` can show how often each kind of work on each model came back.
 
 ### What it does not do
 

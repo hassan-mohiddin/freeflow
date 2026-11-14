@@ -1,13 +1,12 @@
 #!/usr/bin/env node
-// The review plan for a change (SPEC-007): how deep its independent review goes, computed from the diff, the review
-// policy in the base commit's .freeflow/config.json (never the branch's), the personal and session settings, the open
-// agreement's "Review:" lines when --task names a task, and the built-in triggers (lib/triggers.mjs). The deepest
-// match wins; a file no rule or built-in matches takes review.depth.default. The agent can add a trigger with its
-// reason; nothing here removes one. It reads and changes nothing else, so the same inputs always give the same plan.
-// Usage: review-plan.mjs --base <ref> [--head <ref>] [--task <task folder>] [--add <trigger> --reason <text>]...
+// The review plan for a change (lib/plan.mjs): when a review is due (the "Review at:" rule, read at the base commit,
+// never the branch), the floor every change gets (one reviewer, one round), and the flags the diff raises with their
+// reasons: the built-in flags (lib/triggers.mjs), the open agreement's "Review:" lines when --task names a task, and the
+// flags the agent adds with --add and --reason. A flag never changes the floor; nothing here removes one. It reads and
+// changes nothing else, so the same inputs always give the same plan.
+// Usage: review-plan.mjs --base <ref> [--head <ref>] [--task <task folder>] [--add <flag> --reason <text>]...
 //                        [--root <repository>] [--json]
-// Exit code 0 with the plan; 2 on a usage or Git error, or when the base's policy does not validate (a broken policy
-// never means no review).
+// Exit code 0 with the plan; 2 on a usage or Git error.
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -15,7 +14,7 @@ import { PlanError, planReview, planText } from "./lib/plan.mjs";
 import { coverage, coverageLine, readRecords, reviewsDir } from "./lib/records.mjs";
 
 const USAGE =
-  "Usage: review-plan.mjs --base <ref> [--head <ref>] [--task <task folder>] [--add <trigger> --reason <text>]... [--root <repository>] [--json]";
+  "Usage: review-plan.mjs --base <ref> [--head <ref>] [--task <task folder>] [--add <flag> --reason <text>]... [--root <repository>] [--json]";
 
 function fail(message) {
   console.error(message);

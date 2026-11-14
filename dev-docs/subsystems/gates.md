@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/track-work/scripts/lib/gates5.mjs`, `skills/track-work/scripts/lib/gate-state5.mjs`, `pi-extension/src/gates/`, `hooks/claude/freeflow.mjs`
 > **Tests:** `.skill-eval/track-work/tests/gates5.test.mjs`, `pi-extension/tests/gates/`, `hooks/claude/freeflow.test.ts`
-> **Verified at:** `ecfd0788` (2026-11-10)
+> **Verified at:** `0d98b19f` (2026-11-14)
 > **User docs:** `plugin-docs/capabilities/gates.md`
 
 For anyone changing Freeflow's gates: the four rules each driver checks before a tool call, the state Track Work keeps for them, how Claude Code's mod and Pi's extension run them, and why they only warn for now.

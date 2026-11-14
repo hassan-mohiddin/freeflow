@@ -10,7 +10,6 @@ import {
   type IgnoredSetting,
   resolveDelegationSettings,
   resolveGateSettings,
-  resolveReviewSettings,
   SETTINGS,
   sanitizeConfigFile,
   sectionEnabled,
@@ -258,8 +257,7 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
   const toolExecution = resolveToolExecutionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const compaction = resolveCompactionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const messaging = resolveMessagingConfig(repositoryConfig, sessionLocalConfig, enabled);
-  // Not capabilities: the user's choices for Review Work, the runtime prompts and the skills, on every host.
-  const review = resolveReviewSettings(repositoryConfig, sessionLocalConfig);
+  // Not capabilities: the user's choices for the runtime prompts and the skills, on every host.
   const prompts = selectedRuntimePrompts(repositoryConfig, sessionLocalConfig);
   const skills = {
     enabled: sectionEnabled(repositoryConfig, sessionLocalConfig, "skills"),
@@ -290,7 +288,6 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
     // Pi's Task Memory is gone: a config that still sets it loads, and /freeflow status says so (P6).
     taskMemoryRetired: repositoryConfig.taskMemory !== undefined || localConfig.taskMemory !== undefined,
     messaging,
-    review,
     prompts,
     promptsEnabled,
     skills,

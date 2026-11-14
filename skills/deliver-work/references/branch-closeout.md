@@ -41,7 +41,7 @@ Stop before pushing when:
 - protected or shared-branch policy disallows the push or leaves it unclear;
 - local and observed upstream history diverge;
 - the push would need force, deletion, tag publication or another separately controlled action;
-- the user's `review.unit` is `push` and no review is on record for the head (the trunk's Review Check).
+- the review rules make a push need a review (`Review at: push` or `commit`) and none is on record for the head (the trunk's Review Check).
 
 ### Push The Exact Branch
 
@@ -90,7 +90,7 @@ The pull-request description, or the final report when there is no pull request,
 - what done looks like, from the work agreement, against what was done, naming anything left out or changed on the way;
 - choices the user has not seen, from Discuss Work's decision list: its `new`, `changed` and `default` items, each with where it shows;
 - the evidence: each check run on the final state and its result;
-- the review outcome: self-review only, or each independent review's depth, rounds and judgment, with every Rejected finding and why, the path of its record, and the human approvals its plan names (nothing enforces them).
+- the review outcome: each independent review's reviewers, rounds, the flags it was planned with and its judgment, with every Rejected finding and why, and the path of its record; or why the change crossed with self-review only.
 
 Build it from the Working Record ([Track Work](../../track-work/SKILL.md)) when one exists, not from memory. When the repository has a pull-request template or convention, fit these into it. Otherwise write a short briefing from which a reviewer who has the diff can accept or reject the change: why it exists; what changed; its scope, including what it deliberately leaves out; what else it could affect and how risky that is; and the Return report above.
 
@@ -109,7 +109,7 @@ Build it from the Working Record ([Track Work](../../track-work/SKILL.md)) when 
 
 Fits when review, CI, collaboration, protected branches or remote integration owns the next gate.
 
-- Before pushing for it, the trunk's Review Check: a review on record for the head the pull request will carry.
+- Before pushing for it, the trunk's Review Check: every pull request needs at least the floor's review (one reviewer, one round) on record for the head it will carry.
 - Inspect remote and upstream state, then push only the intended commits to the accepted destination, as [Simple Push](#simple-push) checks them.
 - Capture the target branch, commit range, residual risks, migrations, rollout or compatibility notes, and the reviewers or checks repository policy requires.
 - Create or update the pull request by repository convention, with the Return report as its description; mark incomplete or failing work as draft when that is the approved route.

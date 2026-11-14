@@ -191,7 +191,7 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 - Update: Narrowed to diagnosis: "just find the cause first" (2026-10-30)
 ```
 
-`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`, `Review:`) and quotes the user where it rests on their reply. A `Review:` line names paths, or `all`, the user wants reviewed and optionally the depth (`- Review: src/billing/** deep`); Review Work's plan reads it and can only be raised by it. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
+`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`, `Review:`) and quotes the user where it rests on their reply. A `Review:` line names paths, or `all`, the user wants reviewed (`- Review: src/billing/**`); Review Work's plan shows a change to them as a flag. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
 
 ### The Slice
 
@@ -237,7 +237,7 @@ After the fields come its update lines, one line each, a kind and then the claim
 Two kinds have a fixed shape, so outcomes and rounds can be counted later. [Review Work](../../review-work/SKILL.md) says when each is written:
 
 ```markdown
-- Review gate: plan: quick | standard | deep, standard | security, because <triggers and rules> | nothing matched; unit: pr | push | commit | agreement | manual; result: dispatched | proposed | on record
+- Review gate: at: pull request | push | commit (project | home | default); reviewers: <n>, rounds: <n> (the floor is 1 and 1); flags: <each with its reason> | none; above the floor: <what, and the user's yes> | no; result: dispatched | proposed | on record
 - Review: round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: <adjudicated judgment>; Accepted: <n>; Rejected: <n>; Open: <n>; head: <the commit reviewed>; report: <path>; effect: <the next route>
 ```
 

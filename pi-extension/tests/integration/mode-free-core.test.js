@@ -9,12 +9,7 @@ import freeflowExtension from "../../dist/index.js";
 import { readCapabilityState, readFreeflowConfigLayers, setSessionCoreOverride } from "../../dist/host/config.js";
 import { getRuntimeContext, hasUsableMandatoryPrompts, stableRuntimeContext } from "../../dist/host/prompts.js";
 import { freeflowRuntimeStateMessage } from "../../dist/host/runtime-state.js";
-import {
-  ignoredStateLine,
-  reviewStateLine,
-  validateLocalConfig,
-  validateRepositoryConfig,
-} from "../../dist/host/config-validation.js";
+import { ignoredStateLine, validateLocalConfig, validateRepositoryConfig } from "../../dist/host/config-validation.js";
 import { FREEFLOW_MODEL_SKILL_NAMES } from "../../dist/host/catalog.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
@@ -119,118 +114,36 @@ test("removed context settings are ignored and named in each file, and Freeflow 
   }
 });
 
-test("review accepts a unit, a model and rounds in either file, depth only in the repository's, and refuses anything else", () => {
-  for (const review of [
-    {},
-    { unit: "pr" },
-    { unit: "manual", rounds: 1 },
-    { unit: "agreement", model: "anthropic/claude-opus", rounds: 3 },
-    { model: "auto" },
-  ])
+// Review has no settings: a file that still holds them is valid, so it never fails, and every key in the review block
+// is ignored and named with the reason (#164); nothing reaches the capability state or a Runtime State review line.
+test("the removed review settings never fail a config: each is ignored and named, and the Runtime State has no review line", async () => {
+  for (const review of [{}, { unit: "manual", rounds: 1 }, { mode: "always" }, { depth: { default: "full" } }, true])
     for (const validate of [validateRepositoryConfig, validateLocalConfig])
       assert.equal(validate({ review }), null, JSON.stringify(review));
-  const depth = {
-    default: "standard",
-    rules: [
-      { paths: ["src/payments/**"], depth: "deep", tier: "security", humans: 1 },
-      { linesOver: 1000, depth: "standard" },
-      { trigger: "data", depth: "deep" },
-    ],
-    builtins: { data: "standard", "public interface": "off" },
-  };
-  assert.equal(validateRepositoryConfig({ review: { depth } }), null);
-  assert.match(validateLocalConfig({ review: { depth } }), /^review\.depth is Repository scope only/);
-  for (const [review, error] of [
-    [true, "review must be an object"],
-    [
-      { mode: "always" },
-      'review.mode is replaced by review.unit (pr, push, commit, agreement, manual): a review runs at every unit, and "manual" proposes it and waits for a yes',
-    ],
-    [{ unit: "sometimes" }, "review.unit must be one of pr, push, commit, agreement, manual"],
-    [{ rounds: 4 }, "review.rounds must be one of 1, 2, 3"],
-    [{ rounds: "2" }, "review.rounds must be one of 1, 2, 3"],
-    [{ model: "" }, "review.model must be auto or a non-empty model name on one line"],
-    [{ model: 5 }, "review.model must be auto or a non-empty model name on one line"],
-    [{ model: "opus\nReview: off" }, "review.model must be auto or a non-empty model name on one line"],
-    [{ effort: "high" }, "review has unsupported key: effort"],
-  ])
-    for (const validate of [validateRepositoryConfig, validateLocalConfig])
-      assert.equal(validate({ review }), error, JSON.stringify(review));
-  for (const [value, error] of [
-    [[], "review.depth must be an object"],
-    [{ default: "full" }, "review.depth.default must be one of quick, standard, deep"],
-    [{ rules: {} }, "review.depth.rules must be a list"],
-    [{ rules: [{ depth: "deep" }] }, "review.depth.rules[0] must match by exactly one of paths, linesOver or trigger"],
-    [
-      { rules: [{ paths: ["a"], linesOver: 3, depth: "deep" }] },
-      "review.depth.rules[0] must match by exactly one of paths, linesOver or trigger",
-    ],
-    [{ rules: [{ paths: [], depth: "deep" }] }, "review.depth.rules[0].paths must be a non-empty list of path globs"],
-    [{ rules: [{ paths: ["a"] }] }, "review.depth.rules[0].depth must be one of quick, standard, deep"],
-    [
-      { rules: [{ paths: ["a"], depth: "deep", tier: "high" }] },
-      "review.depth.rules[0].tier must be one of standard, security",
-    ],
-    [{ rules: [{ paths: ["a"], depth: "deep", humans: -1 }] }, "review.depth.rules[0].humans must be a whole number"],
-    [
-      { rules: [{ trigger: "docs", depth: "deep" }] },
-      "review.depth.rules[0].trigger must be one of security, data, ci, public interface",
-    ],
-    [{ rules: [{ paths: ["a"], depth: "deep", when: 1 }] }, "review.depth.rules[0] has unsupported key: when"],
-    [
-      { builtins: { docs: "quick" } },
-      "review.depth.builtins has unknown trigger: docs; the built-ins are security, data, ci, public interface",
-    ],
-    [{ builtins: { ci: "light" } }, "review.depth.builtins.ci must be one of quick, standard, deep, off"],
-    [{ tiers: {} }, "review.depth has unsupported key: tiers"],
-  ])
-    assert.equal(validateRepositoryConfig({ review: { depth: value } }), error, JSON.stringify(value));
-});
-
-test("the personal review setting overrides the shared one field by field, and only a choice shows in the Runtime State", async () => {
-  const runtimeState = async (config, local) => {
-    const cwd = await configuredRepo(config);
-    try {
-      if (local) await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify(local), "utf8");
-      const state = await readCapabilityState(cwd);
-      return {
-        review: state.review,
-        content: freeflowRuntimeStateMessage(state, await getRuntimeContext(state)).content,
-      };
-    } finally {
-      await rm(cwd, { recursive: true, force: true });
-    }
-  };
-  const plain = await runtimeState({});
-  assert.deepEqual(plain.review, { unit: "pr", model: "auto", rounds: 3 });
-  assert.match(plain.content, /Freeflow: active\n\nCapabilities:/);
-  assert.doesNotMatch(plain.content, /Review:/);
-
-  const manual = await runtimeState({ review: { unit: "manual" } });
-  assert.match(manual.content, /Freeflow: active\nReview: unit `manual`, model `auto`\n\nCapabilities:/);
-
-  const layered = await runtimeState(
-    { review: { unit: "push", model: "shared-model", rounds: 2 } },
-    { review: { model: "my-model" } },
-  );
-  assert.deepEqual(layered.review, { unit: "push", model: "my-model", rounds: 2 });
-  assert.match(layered.content, /^Review: unit `push`, model `my-model`, up to Review 2$/m);
-
-  // `pr` in the personal file returns a shared choice to the default; a model alone still shows.
-  assert.doesNotMatch(
-    (await runtimeState({ review: { unit: "manual" } }, { review: { unit: "pr" } })).content,
-    /Review:/,
-  );
-  assert.match((await runtimeState({ review: { model: "m" } })).content, /^Review: unit `pr`, model `m`$/m);
-  // The repository's depth rules are the plan's, not the Runtime State's.
-  assert.doesNotMatch((await runtimeState({ review: { depth: { default: "deep" } } })).content, /Review:/);
-
-  // A value Freeflow cannot use stays on: it is ignored and named, and the shared choice holds.
-  const invalid = await runtimeState({ review: { unit: "manual" } }, { review: { unit: "never" } });
-  assert.match(invalid.content, /^Freeflow: active$/m);
-  assert.match(invalid.content, /^Review: unit `manual`, model `auto`$/m);
-  assert.match(invalid.content, /^Settings ignored: \.freeflow\/local\.json review\.unit: /m);
-  assert.equal(reviewStateLine(undefined), null);
+  const cwd = await configuredRepo({ review: { mode: "always", unit: "push", depth: { default: "deep" } } });
+  try {
+    await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ review: { model: "my-model" } }), "utf8");
+    const state = await readCapabilityState(cwd);
+    assert.equal(state.enabled, true);
+    assert.equal("review" in state, false);
+    assert.deepEqual(
+      state.ignored.map((item) => `${item.file} ${item.key}`),
+      [
+        ".freeflow/config.json review.mode",
+        ".freeflow/config.json review.unit",
+        ".freeflow/config.json review.depth",
+        ".freeflow/local.json review.model",
+      ],
+    );
+    for (const item of state.ignored)
+      assert.match(item.reason, /^removed: review has no settings \(a "Review at:" line/);
+    const content = freeflowRuntimeStateMessage(state, await getRuntimeContext(state)).content;
+    assert.match(content, /^Freeflow: active$/m);
+    assert.doesNotMatch(content, /^Review:/m);
+    assert.match(content, /^Settings ignored: \.freeflow\/config\.json review\.mode: removed: review has no settings/m);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test("an empty valid config enables the single Freeflow core", async () => {
