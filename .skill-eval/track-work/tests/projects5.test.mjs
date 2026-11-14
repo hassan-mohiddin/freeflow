@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import test from "node:test";
 import { sessionIdentity } from "../../../skills/track-work/scripts/lib/projects5.mjs";
-import { DEFAULT_TABLE } from "../../../skills/track-work/scripts/lib/routing5.mjs";
 
 const scriptPath = resolve("skills/track-work/scripts/working-record.mjs");
 
@@ -518,6 +517,8 @@ test("task here --rules adds the store's rules and the folder's and held task's 
     );
     ok(cli("aaaaaaaa-1", ["task", "move", "--id", "task-001", "--project", "widget"]));
     await writeFile(join(home, "rules", "style.md"), "Plain words, short sentences.\n");
+    // The delegation rules are read by delegate open and printed here like any other rules file (not counted).
+    await writeFile(join(home, "rules", "delegation.md"), "Delegation rules, in prose.\n");
     await writeFile(join(home, "projects", "widget", "rules", "review.md"), "Every change gets a review.\n");
     await writeFile(join(home, "projects", "other", "rules", "other.md"), "Not for widget.\n");
     const plain = ok(cli("aaaaaaaa-1", ["task", "here"], work));
@@ -526,8 +527,7 @@ test("task here --rules adds the store's rules and the folder's and held task's 
     assert.ok(ruled.startsWith(plain), "the menu comes first, unchanged");
     assert.equal(
       ruled.slice(plain.length),
-      // store init wrote the default routing table into the store's rules/ (SPEC-010 T2); it sorts first.
-      `\n## Rules\n\n### rules/routing.md\n\n${DEFAULT_TABLE.trim()}\n\n### rules/style.md\n\nPlain words, short sentences.\n\n### projects/widget/rules/review.md\n\nEvery change gets a review.\n`,
+      `\n## Rules\n\n### rules/delegation.md\n\nDelegation rules, in prose.\n\n### rules/style.md\n\nPlain words, short sentences.\n\n### projects/widget/rules/review.md\n\nEvery change gets a review.\n`,
     );
     // Outside the repository, the held task's project still brings its rules.
     assert.match(ok(cli("aaaaaaaa-1", ["task", "here", "--rules"], folder)), /### projects\/widget\/rules\/review\.md/);
@@ -578,9 +578,10 @@ test("a resumed session takes back the task its end released (F36), never one re
       resumed,
       /^Took widget\/task-001 back: this session held it until it ended\.\nThe record is memory; the user's message decides the work\. Nothing else is taken: .+\nThis session holds widget\/task-001: recover it with view recover --record widget\/task-001\.\n/,
     );
+    // The session's one line is updated in place: taken back, it holds the task, and it is the only line.
     assert.match(
       await readFile(sessions, "utf8"),
-      /· ended · resume aaaaaaaa-1\n- aaaaaaaa · .+ – now · holding · resume aaaaaaaa-1\n$/,
+      /^# Sessions \(times in UTC\)\n\n- aaaaaaaa · .+ – now · holding · resume aaaaaaaa-1\n$/,
     );
     assert.match(
       pushedLog(remote),
@@ -665,5 +666,65 @@ test("checkpoint refuses a store task this session does not hold, naming task ta
     );
     ok(cli("aaaaaaaa-1", ["task", "take", "--id", "widget/task-001"]));
     ok(checkpoint("aaaaaaaa-1"));
+  });
+});
+
+test("take, release, take again gives the session one sessions.md line (first held, last held, last released, how it ended); a legacy file's lines stay", async () => {
+  await withStore(async ({ home, work, cli }) => {
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
+    ok(
+      cli(
+        "aaaaaaaa-1",
+        ["task", "create", "--title", "One", "--goal", "g", "--cue", "read when one matters", "--project", "widget"],
+        work,
+      ),
+    );
+    const sessions = join(home, "projects", "widget", "tasks", "task-001-one", "sessions.md");
+    const lines = async () => (await readFile(sessions, "utf8")).split("\n").filter((line) => line.startsWith("- "));
+    ok(cli("aaaaaaaa-1", ["task", "release"]));
+    // The session's first hold started earlier: its line keeps that as first held once it takes the task again.
+    await writeFile(
+      sessions,
+      (await readFile(sessions, "utf8")).replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2} – /, "2026-01-01 10:00 – "),
+    );
+    ok(cli("aaaaaaaa-1", ["task", "take", "--id", "widget/task-001"]));
+    let all = await lines();
+    assert.equal(all.length, 1);
+    assert.match(
+      all[0],
+      /^- aaaaaaaa · Test harness · .+ · 2026-01-01 10:00, last held \d{4}-\d{2}-\d{2} \d{2}:\d{2} – now · holding · resume aaaaaaaa-1$/,
+    );
+    ok(cli("aaaaaaaa-1", ["task", "release"]));
+    all = await lines();
+    assert.equal(all.length, 1);
+    assert.match(
+      all[0],
+      /^- aaaaaaaa · .+ · 2026-01-01 10:00, last held \d{4}-\d{2}-\d{2} \d{2}:\d{2} – \d{4}-\d{2}-\d{2} \d{2}:\d{2} · released · resume aaaaaaaa-1$/,
+    );
+    // Another session appends its own line; when the first takes again, its line is updated where it stands.
+    ok(cli("bbbbbbbb-2", ["task", "take", "--id", "widget/task-001"]));
+    ok(cli("bbbbbbbb-2", ["task", "release"]));
+    ok(cli("aaaaaaaa-1", ["task", "take", "--id", "widget/task-001"]));
+    all = await lines();
+    assert.equal(all.length, 2);
+    assert.match(all[0], /^- aaaaaaaa · .+ · 2026-01-01 10:00, last held .+ – now · holding · resume aaaaaaaa-1$/);
+    assert.match(all[1], /^- bbbbbbbb · .+ – \d{4}-\d{2}-\d{2} \d{2}:\d{2} · released · resume bbbbbbbb-2$/);
+    // A legacy file, with two lines for one session, stays readable: its take updates the session's last line.
+    ok(cli("aaaaaaaa-1", ["task", "release"]));
+    await writeFile(
+      sessions,
+      "# Sessions (times in UTC)\n\n- cccccccc · Test harness · here · 2026-01-01 09:00 – 2026-01-01 09:30 · released · resume cccccccc-3\n- cccccccc · Test harness · here · 2026-01-02 09:00 – 2026-01-02 09:30 · released · resume cccccccc-3\n",
+    );
+    ok(cli("cccccccc-3", ["task", "take", "--id", "widget/task-001"]));
+    all = await lines();
+    assert.equal(all.length, 2);
+    assert.equal(
+      all[0],
+      "- cccccccc · Test harness · here · 2026-01-01 09:00 – 2026-01-01 09:30 · released · resume cccccccc-3",
+    );
+    assert.match(
+      all[1],
+      /^- cccccccc · Test harness · .+ · 2026-01-01 09:00, last held \d{4}-\d{2}-\d{2} \d{2}:\d{2} – now · holding · resume cccccccc-3$/,
+    );
   });
 });

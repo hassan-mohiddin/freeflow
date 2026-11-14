@@ -685,3 +685,71 @@ test("a remote is named host/owner/repo whatever its URL's form", () => {
   assert.equal(remoteName("ssh://git@github.com:22/acme/widget.git"), "github.com/acme/widget");
   assert.equal(remoteName("/srv/git/widget.git"), "/srv/git/widget");
 });
+
+test("agreement close --state replaced --next-input closes the agreement, opens the next in its place and moves the running Slice under it; without it the guard still refuses", async () => {
+  await withFolder(async (folder) => {
+    const record = initTask(folder, folder);
+    ok(
+      run(
+        folder,
+        ["agreement", "open", "--record", record, "--title", "Build the demo", "--input", "-"],
+        '- Done when the demo runs. You: "go" (2026-10-29)\n',
+      ),
+    );
+    startedSlice(folder, record);
+    const result =
+      "- Cue: read when the terms change mid-Slice\n- Result: Replaced.\n- Task effect: The next agreement governs.\n";
+    const close = (args) =>
+      run(
+        folder,
+        [
+          "agreement",
+          "close",
+          "--record",
+          record,
+          "--state",
+          "replaced",
+          "--next-action",
+          "Build it.",
+          ...args,
+          "--input",
+          "-",
+        ],
+        result,
+      );
+    // Without a next agreement, the guard refuses as it does for every state.
+    assert.match(close([]).stderr, /S-001 works under A-001; close it first/);
+    // The next agreement needs its title, and --next-title goes only with --next-input.
+    const next = join(folder, "next.txt");
+    await writeFile(next, '- Done when the demo runs on the new terms. You: "yes" (2026-10-30)\n');
+    assert.match(close(["--next-input", next]).stderr, /--next-input needs --next-title/);
+    assert.match(close(["--next-title", "Other"]).stderr, /--next-title goes with --next-input/);
+    // --next-input goes only with replaced.
+    assert.match(
+      run(
+        folder,
+        ["agreement", "close", "--record", record, "--state", "completed", "--next-input", next, "--input", "-"],
+        result,
+      ).stderr,
+      /--next-input goes with --state replaced/,
+    );
+    assert.equal(
+      ok(close(["--next-input", next, "--next-title", "Build the demo on the new terms"])),
+      "Closed agreement: A-001 — replaced\nOpened agreement: A-002 — Build the demo on the new terms\nMoved S-001 under A-001 to A-002.\nNot in a Freeflow store: nothing to commit.\n",
+    );
+    const text = await readFile(record, "utf8");
+    assert.ok(
+      text.includes(
+        `### Agreement A-002 — Build the demo on the new terms\n\n- Opened: ${today}\n- Done when the demo runs on the new terms. You: "yes" (2026-10-30)\n`,
+      ),
+    );
+    assert.match(text, /### Slice S-001 — Make the demo\n\n- State: in_progress\n/);
+    assert.match(text, /^- Under: A-002$/m);
+    assert.match(text, /^- Moved: under A-001, replaced by A-002$/m);
+    assert.match(
+      await readFile(join(dirname(record), "history.md"), "utf8"),
+      /## A-001 — Build the demo\n\n- State: replaced\n/,
+    );
+    ok(run(folder, ["validate", "--record", record]));
+  });
+});

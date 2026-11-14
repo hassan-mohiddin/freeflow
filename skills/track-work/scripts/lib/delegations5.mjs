@@ -30,7 +30,7 @@ import { modelNow, priceTable, renderMeasure, workerMeasure } from "./measure5.m
 import { freeflowStoreOf, isFreeflowStore, projectOf, writeAtomically, writeTaskFile } from "./store.mjs";
 import { sessionIdentity } from "./projects5.mjs";
 import { storeHome } from "./freeflow-store.mjs";
-import { CHECKS, ROUTING_FILE, SETTLED, routeFrom, routingFiles } from "./routing5.mjs";
+import { CHECKS, SETTLED, grantCovers, grantsIn, ranksAbove, routeFrom, rulesFiles, workerFrom } from "./routing5.mjs";
 
 export const KINDS = new Set(["build", "review", "research", "eval", "gather"]);
 export const OUTCOMES = new Set(["accepted", "sent back", "stopped"]);
@@ -307,41 +307,65 @@ function coordinatorModel(env = process.env) {
   }
 }
 
+/** The agreement that grants a route's model and effort, by its open agreement's Workers: line, or null. */
+function grantedBy(task, model, effort) {
+  const agreement = task?.record.work.agreement;
+  if (!agreement) return null;
+  const grants = grantsIn(task.record.lines.slice(agreement.start, agreement.end));
+  return grants.some((grant) => grantCovers(grant, model, effort)) ? agreement.id : null;
+}
+
 /**
- * The route delegate open takes from the routing table (SPEC-010 4.1, section 5): with --agent, the agent given and
- * only a warning when a table does not parse; without it, the first matching row's model and effort, refused with
- * the reason when there is no table, a table does not parse, no row matches, or the row asks the user first.
+ * The route delegate open takes from the delegation rules (SPEC-010 4.1, section 5). A model ranked above the Worker:
+ * line is refused unless --named-by-user says the user named it. With --agent, the agent given, with a warning when a
+ * rules file does not parse. Without it, the first matching row's model and effort, refused with the reason when a
+ * file does not parse or no row matches; a row that asks the user first opens when the open agreement's Workers: line
+ * grants its model and effort (the Route line says granted by A-NNN), and is refused until --agent otherwise.
  */
-function routeOf(loaded, taskDir, work, given) {
+function routeOf(loaded, task, taskDir, work, given, namedByUser) {
   const home = freeflowStoreOf(taskDir) ?? (loaded ? null : isFreeflowStore(storeHome()) ? storeHome() : null);
   const project = loaded ? projectOf(loaded.path) : null;
-  const files = routingFiles(home, project ? basename(project) : null);
-  const where = home ? join(home, ROUTING_FILE) : `the Freeflow store's ${ROUTING_FILE}`;
-  const routed = routeFrom(files, work, given ? null : coordinatorModel());
-  const instead = `give --agent "<model>, <effort>"`;
-  if (given)
+  const files = rulesFiles(home, project ? basename(project) : null);
+  const worker = workerFrom(files);
+  const above = `the Worker: line (${worker}), the strongest model a worker may run on`;
+  if (given) {
+    const model = given.split(",")[0].trim();
+    if (ranksAbove(model, worker) && !namedByUser)
+      fail(
+        `delegate open: ${model} is ranked above ${above}. Only a model the user names goes above it: add --named-by-user.`,
+      );
+    const routed = routeFrom(files, work, null);
     return routed.state === "malformed"
       ? {
-          warning: `Warning: ${routed.error.message}; the brief's Agent is the one given (only the user edits the table).`,
+          warning: `Warning: ${routed.error.message}; the brief's Agent is the one given (only the user edits the rules).`,
         }
       : {};
-  if (routed.state === "none")
-    fail(
-      `delegate open requires --agent "<model>, <effort>": there is no routing table${home ? "" : ", since this task is not in a Freeflow store"}. The table goes in ${where}, and only the user writes it.`,
-    );
+  }
+  const instead = `give --agent "<model>, <effort>"`;
+  const routed = routeFrom(files, work, coordinatorModel());
   if (routed.state === "malformed")
     fail(
-      `delegate open: ${routed.error.message}. Ask the user to mend it (only the user edits the table), or ${instead}.`,
+      `delegate open: ${routed.error.message}. Ask the user to mend it (only the user edits the rules), or ${instead}.`,
     );
   if (routed.state === "unmatched")
     fail(
       `delegate open: no row of ${routed.labels.join(" or ")} matches ${routed.inputs}${work.settled && work.check ? "" : " (give --settled and --check where the table asks)"}; ${instead}.`,
     );
-  if (routed.askFirst)
+  if (routed.resolved && ranksAbove(routed.model, worker) && !namedByUser)
     fail(
-      `${routed.line}. Ask the user; on their yes, open it again with --agent "${routed.resolved ? routed.model : routed.row.tier === "frontier" ? "<the coordinator's model>" : `<the ${routed.model} tier's model>`}, ${routed.effort}".`,
+      `delegate open: ${routed.route} routes to ${routed.model}, above ${above}. Only a model the user names goes above it: ${instead} --named-by-user, after the user's yes.`,
     );
-  return routed;
+  if (!routed.askFirst) return routed;
+  const granted = routed.resolved ? grantedBy(task, routed.model, routed.effort) : null;
+  if (granted)
+    return {
+      ...routed,
+      granted,
+      route: `${routed.route}, granted by ${granted}`,
+      line: `Route: ${routed.named}, ${routed.effort} (${routed.label}: ${routed.inputs}), granted by ${granted}`,
+    };
+  const agent = routed.resolved ? routed.model : `<the ${routed.model} tier's model>`;
+  fail(`${routed.line}. Ask the user; on their yes, open it again with --agent "${agent}, ${routed.effort}".`);
 }
 
 /**
@@ -357,8 +381,11 @@ export async function openDelegation(loaded, options, text) {
   if (!KINDS.has(kind)) fail(`--kind is one of ${[...KINDS].join(", ")}.`);
   const given = oneLine(options["--agent"]);
   if (given && !/^[^,]+, ?\S+$/.test(given)) fail('--agent names the model and effort, as "Haiku, xhigh".');
+  const namedByUser = options["--named-by-user"] === true;
+  if (namedByUser && !given)
+    fail('--named-by-user goes with --agent "<model>, <effort>": it says the user named that model.');
   const work = routeWork(kind, options);
-  const routed = routeOf(loaded, taskDir, work, given);
+  const routed = routeOf(loaded, task, taskDir, work, given, namedByUser);
   const agent = given || routed.agent;
   const sections = briefInput(text);
   const parent = options["--parent"] ? parseId(options["--parent"]) : null;
@@ -394,7 +421,10 @@ export async function openDelegation(loaded, options, text) {
     const commit = git(repo, ["rev-parse", "--short=8", `${base}^{commit}`]);
     if (!ok(commit)) fail(`--base ${base} is not a commit in ${repo}.`);
     const branch = options["--branch"] ?? slug;
-    worktree = resolve(options["--worktree"] ?? join(dirname(repo), `${basename(repo)}-${slug}`));
+    // One folder per repository, beside it: its delegations' worktrees sit in <repo>.worktrees/, never inside the repo.
+    worktree = resolve(
+      options["--worktree"] ?? join(dirname(repo), `${basename(repo)}.worktrees`, basename(directory)),
+    );
     const made = git(repo, ["worktree", "add", "-q", "-b", branch, worktree, commit]);
     if (!ok(made)) fail(`Could not make the worktree: ${made.message}`);
     space = `${repo} worktree ${worktree} at ${commit}, branch ${branch}`;
@@ -778,6 +808,55 @@ function workerMeasured(taskDir, id, brief, options, env = process.env) {
   return measure ? renderMeasure(measure) : "not measured";
 }
 
+/** The commits in a range, counted in a directory; null when git cannot count them. */
+function countCommits(directory, range) {
+  const count = git(directory, ["rev-list", "--count", range]);
+  return ok(count) && /^\d+$/.test(count) ? Number(count) : null;
+}
+
+/**
+ * The commits beyond the base that the branch holds or the worktree's HEAD holds, a detached HEAD's included; null
+ * when git cannot count them. A worker that commits on a detached HEAD moves HEAD, not the branch.
+ */
+function commitsBeyondBase(brief) {
+  const branch = countCommits(brief.repo, `${brief.base}..${brief.branch}`);
+  const head = brief.worktree && existsSync(brief.worktree) ? countCommits(brief.worktree, `${brief.base}..HEAD`) : 0;
+  return branch === null || head === null ? null : Math.max(branch, head);
+}
+
+/** The commits the worktree's HEAD holds that its branch does not; null when git cannot count them. */
+function commitsOffBranch(brief) {
+  if (!brief.worktree || !existsSync(brief.worktree)) return 0;
+  return countCommits(brief.worktree, `${brief.branch}..HEAD`);
+}
+
+/**
+ * Removes the delegation's worktree when its outcome is accepted or stopped (a sent back one runs again, so it stays),
+ * and only when it holds nothing that removing it would lose: no uncommitted or untracked change, no ignored file
+ * outside node_modules/ (git deletes ignored files with the worktree; node_modules/ is reinstalled), and no commit its
+ * HEAD holds and its branch does not. Never with --force. Its branch is kept. Returns the line that says what it did,
+ * or why it left the worktree.
+ */
+function removeWorktree(brief, outcome) {
+  const path = brief.worktree;
+  if (!path || !brief.repo || outcome === "sent back") return "";
+  if (!existsSync(path)) return `\nThe worktree ${path} is already gone; branch ${brief.branch} is kept.`;
+  const status = git(path, ["status", "--porcelain", "--ignored", "--untracked-files=all"]);
+  if (!ok(status)) return `\nLeft the worktree ${path}: git could not read its status.`;
+  const entries = status ? status.split("\n") : [];
+  if (entries.some((line) => !line.startsWith("!! ")))
+    return `\nLeft the worktree ${path}: it has uncommitted or untracked changes.`;
+  const kept = entries.map((line) => line.slice(3)).filter((file) => !file.startsWith("node_modules/"));
+  if (kept.length)
+    return `\nLeft the worktree ${path}: it holds ignored files outside node_modules/, which removing it would delete (${kept.slice(0, 3).join(", ")}${kept.length > 3 ? `, and ${kept.length - 3} more` : ""}).`;
+  const off = commitsOffBranch(brief);
+  if (off !== 0)
+    return `\nLeft the worktree ${path}: its HEAD holds ${off === null ? "commits git cannot count" : `${off} commit(s)`} that branch ${brief.branch} does not, and removing it would leave them unreachable.`;
+  const removed = git(brief.repo, ["worktree", "remove", path]);
+  if (!ok(removed)) return `\nLeft the worktree ${path}: ${removed.message}.`;
+  return `\nRemoved the worktree ${path}; branch ${brief.branch} is kept.`;
+}
+
 /**
  * Closes one of the coordinator's delegations: records its outcome in one History entry (with the model, effort,
  * tokens, minutes, the merge commit and the return's path), removes its line, and syncs the store.
@@ -815,10 +894,22 @@ export async function closeDelegation(loaded, options, text) {
     const merge = oneLine(options["--merge"]);
     if (outcome === "accepted") {
       if (problems.length) fail(`${id} cannot be accepted: its return is not ready: ${problems.join("; ")}.`);
-      if (brief.branch && !merge)
-        fail(`${id} has branch ${brief.branch}: accepting it records the commit that merged it, --merge <commit>.`);
+      // A reader, a survey or a reviewer made no commits and has nothing to merge; a builder's commits must be merged.
+      const ahead = brief.branch ? commitsBeyondBase(brief) : 0;
+      if (ahead !== 0 && !merge)
+        fail(
+          `${id} has branch ${brief.branch}${ahead === null ? " whose commits cannot be counted" : ` with ${ahead} commit(s) beyond ${brief.base}`}: accepting it records the commit that merged it, --merge <commit>, since its commits must reach the repository. A delegation with no commits beyond its base needs no --merge.`,
+        );
       if (merge && !ok(git(brief.repo, ["merge-base", "--is-ancestor", brief.branch, merge])))
         fail(`Branch ${brief.branch} is not merged in ${merge} in ${brief.repo}.`);
+      // A detached HEAD's own commits must be in the merge too, or the worktree's removal would be refused and they stay.
+      if (merge && brief.worktree && existsSync(brief.worktree) && commitsOffBranch(brief) !== 0) {
+        const head = git(brief.worktree, ["rev-parse", "--verify", "HEAD"]);
+        if (!ok(head) || !ok(git(brief.repo, ["merge-base", "--is-ancestor", head, merge])))
+          fail(
+            `${id}'s worktree HEAD holds commits that branch ${brief.branch} does not, and ${merge} does not hold them: merge them, then close with that commit.`,
+          );
+      }
     }
     const number = (name) => {
       const value = oneLine(options[name]);
@@ -888,7 +979,8 @@ export async function closeDelegation(loaded, options, text) {
   const decided = added?.items.length
     ? `\nAdded to decisions.md from ${id}'s Left open: ${added.items.join(", ")}${added.linked.length ? ` (${added.linked.join("; ")})` : ""}.`
     : "";
-  return `Closed ${id} — ${outcome}${reason ? ` (${reason})` : ""}${decided}${released}${note}\n${await sync(taskDir, `close ${id}`)}\n`;
+  const removed = removeWorktree(brief, outcome);
+  return `Closed ${id} — ${outcome}${reason ? ` (${reason})` : ""}${decided}${released}${removed}${note}\n${await sync(taskDir, `close ${id}`)}\n`;
 }
 
 /**
