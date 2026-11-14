@@ -413,7 +413,7 @@ test("a store attached after session start that takes back the task this session
   expect(appended(w)).toEqual(["Freeflow: Took widget/task-001 back: this session held it until it ended."]);
 });
 
-test("a request ends: one notice a cycle, at the lower of 75% and a tenth before Claude's threshold, asking for a checkpoint at a safe point", async ($, on) => {
+test("a request ends: one notice a cycle, a lead of 20,000 tokens before Claude's threshold, asking for a checkpoint at a safe point", async ($, on) => {
   const w = world(on);
   w.status = held(at(-30));
   await start($);
@@ -485,17 +485,24 @@ test("a request ends: one notice a cycle, at the lower of 75% and a tenth before
   w.status = held(at(-30));
   await start($);
   expect(w.env.FREEFLOW_CONTEXT_WINDOW).toBe("100000");
-  await step($, w, 56_000);
+  expect(w.env.FREEFLOW_NOTICE_POINT).toBe("47000");
+  await step($, w, 46_000);
   expect(notices().length).toBe(4);
-  await step($, w, 57_000);
+  await step($, w, 47_000);
   expect(notices().length).toBe(5);
-  expect(notices()[4]).toContain("at 57% of its window (57000 of 100000 tokens)");
+  expect(notices()[4]).toContain("at 47% of its window (47000 of 100000 tokens)");
 
   // Without a store, no notice.
   w.status = null;
   await start($);
   await step($, w, 99_000);
   expect(notices().length).toBe(5);
+
+  // A window of 1,000,000 under Claude's threshold of 850,000: the ceiling of 750,000 is the notice point the scripts get.
+  w.threshold = 850_000;
+  w.compactionWindow = 1_000_000;
+  await start($);
+  expect(w.env.FREEFLOW_NOTICE_POINT).toBe("750000");
 });
 
 test("a request ends: the context shown at 50, 60 and 70% below the notice, once each a cycle, and every row naming the cycle the store counts", async ($, on) => {

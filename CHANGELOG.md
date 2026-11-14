@@ -110,6 +110,8 @@
 - Discuss Work is read at a session's first message, before the reply, and answers that message first: a question, an idea, criticism or a status check gets its answer and changes nothing else, with no agreement and no record update.
 - The Working Record is written when something settles rather than as the conversation goes: a stop or a limit is recorded at once, what happened when it happens, and understanding at the checkpoint, where a part of the record changes only if it no longer matches the state. The agreement holds terms only, so a new outcome gets a new agreement.
 
+- The compaction notice comes a lead of 20,000 tokens before the host's own compaction point, and never past 750,000 tokens. Where the point is not known it comes at 75% of the window, as before, up to the same ceiling. The one function that computes it (`skills/track-work/scripts/lib/notice5.mjs`) serves Claude Code, Pi, Codex and Track Work's `estimate` and `plan`, which print the point in tokens.
+
 ### Fixed
 
 - With every runtime prompt off, the hook hosts still deliver the review and skills lines, as the settings page says; they used to drop them. Setup Freeflow no longer calls `skills` an unsupported key, and the settings page names OpenCode as reading no settings.

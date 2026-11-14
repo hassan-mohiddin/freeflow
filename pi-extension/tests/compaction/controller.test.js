@@ -3,12 +3,17 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { CompactionController, RECOVERY_TYPE } from "../../dist/compaction/controller.js";
+import { loadNotice } from "../../dist/compaction/thresholds.js";
+
+// The rows come from notice5.mjs, which the controller reads as Freeflow's package loads it.
+await loadNotice(fileURLToPath(new URL("../../..", import.meta.url)));
 
 // The controller with a fake host: the store's state and bundle are given, the context is a number the test sets.
 const WINDOW = 200_000;
-const limits = { window: WINDOW, trigger: 183_616, notice: 150_000 };
+const limits = { window: WINDOW, trigger: 183_616, notice: 163_616 };
 const notice = (text) => `<freeflow-notice type="compaction">\n${text}\n</freeflow-notice>`;
 
 function setup({ state, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" } } = {}) {
@@ -67,12 +72,12 @@ test("rows at 50, 60 and 70% once each, then the cycle's one notice, naming the 
   assert.equal(row.level, "row");
   assert.match(
     row.text,
-    /Context cycle 1: the context is at 53% of its window \(105000 of 200000 tokens\); the checkpoint notice comes at about 150000 tokens\./,
+    /Context cycle 1: the context is at 53% of its window \(105000 of 200000 tokens\); the checkpoint notice comes at about 163616 tokens\./,
   );
   assert.equal(controller.observe(ctx), undefined, "the 50% row is shown once");
   at(145_000);
   assert.match(controller.observe(ctx).text, /at 73% of its window/, "the highest row crossed, 70%");
-  at(150_000);
+  at(163_616);
   const once = controller.observe(ctx);
   assert.equal(once.level, "notice");
   assert.match(once.text, /Keep working until a safe point/);
@@ -89,7 +94,7 @@ test("rows at 50, 60 and 70% once each, then the cycle's one notice, naming the 
 
 test("with no task the notice asks for the session summary", () => {
   const plain = setup({ state: { home: "/home", store: false, session: "s-1" } });
-  plain.at(150_000);
+  plain.at(163_616);
   assert.match(plain.controller.observe(plain.ctx).text, /checkpoint --session --compact --input -/);
 });
 

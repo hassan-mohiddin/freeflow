@@ -1,7 +1,7 @@
 import { rm } from "node:fs/promises";
 import { skillsRead } from "../tool-execution/skill-reads.js";
 import { currentCycle, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
-import { ROWS_AT } from "./thresholds.js";
+import { rowAt } from "./thresholds.js";
 import { cachedBranch } from "../host/branch.js";
 /**
  * Freeflow compaction on Pi, on Track Work's bundle (task-004's Spec, section 9; P1, P5, P63). As the context grows,
@@ -71,8 +71,8 @@ export class CompactionController {
     if (!measured) return undefined;
     const { tokens, thresholds } = measured;
     if (tokens < thresholds.notice) {
-      const row = ROWS_AT.filter((at) => tokens >= at * thresholds.window).at(-1);
-      if (!row || row <= this.sent.row) return undefined;
+      const row = rowAt(tokens, thresholds);
+      if (row === undefined || row <= this.sent.row) return undefined;
       this.sent.row = row;
       return {
         level: "row",

@@ -698,9 +698,10 @@ test("the window and the notice point come from Codex's config: model_context_wi
     mkdirSync(join(folder, ".codex"));
     writeFileSync(join(folder, ".codex", "config.toml"), "model_auto_compact_token_limit = 250000\n");
     assert.deepEqual(codexWindow(folder, "gpt-5", env), { window: 400_000, limit: 250_000 });
-    // 75% of the window, or a tenth of it before Codex's limit when that is lower (T13).
+    // 75% of the window where Codex's limit is not known; else a lead of 20,000 tokens before the limit, under the
+    // ceiling (notice5.mjs).
     assert.equal(noticePoint(400_000, null), 300_000);
-    assert.equal(noticePoint(400_000, 250_000), 210_000);
+    assert.equal(noticePoint(400_000, 250_000), 230_000);
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }

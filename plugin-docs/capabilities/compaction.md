@@ -25,8 +25,8 @@ Freeflow measures the context after each turn. As it grows it shows one row at 5
 
 | Window | Notice | Pi compacts |
 | --- | --- | --- |
-| 128k | 96k | 112k |
-| 200k | 150k | 184k |
+| 128k | 92k | 112k |
+| 200k | 164k | 184k |
 | 1M | 750k | 984k |
 
 The notice is soft: keep working to a safe point, then checkpoint and end the turn. A safe point is a finished step whose result the agent knows: a check it ran and read, a complete set of edits, a written report. If its work ends within a step or two, the agent finishes first. The notice comes once a cycle and does not repeat.

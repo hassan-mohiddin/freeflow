@@ -40,15 +40,13 @@ import {
   gateText,
   validGateState,
 } from "../../skills/track-work/scripts/lib/gates5.mjs";
+import { noticePoint as hostNoticePoint, rowAt } from "../../skills/track-work/scripts/lib/notice5.mjs";
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SCRIPT = join(PLUGIN_ROOT, "skills/track-work/scripts/working-record.mjs");
 export const DRIVER = "codex-driver";
 const HARNESS = "codex"; // the event log's name for Codex (schema v1)
 const HARNESS_NAME = "Codex"; // sessions.md's
-const NOTICE_AT = 0.75; // of the window, one notice a cycle, as on Claude Code (P50)
-const THRESHOLD_LEAD = 0.1; // and at least a tenth of the window before Codex's own compaction limit (T13)
-const ROWS_AT = [0.5, 0.6, 0.7]; // of the window, one row each a cycle below the notice point (P80)
 const SESSION_ID = /^[A-Za-z0-9._-]+$/;
 
 /**
@@ -229,6 +227,8 @@ function script(ctx, args, { input, timeoutMs } = {}) {
     FREEFLOW_HOME: ctx.home,
   });
   if (ctx.window) env.FREEFLOW_CONTEXT_WINDOW = String(ctx.window);
+  if (ctx.window)
+    env.FREEFLOW_NOTICE_POINT = String(hostNoticePoint({ window: ctx.window, hostPoint: ctx.limit ?? null }));
   const left = Math.max(1, ctx.deadline - Date.now());
   const run = spawnSync(process.execPath, [SCRIPT, ...args], {
     cwd: existsSync(ctx.cwd) ? ctx.cwd : undefined,
@@ -335,9 +335,9 @@ export function codexWindow(cwd, model, env = process.env) {
   return { window: window && window > 0 ? window : null, limit: limit && limit > 0 ? limit : null };
 }
 
-/** Where the notice comes, in tokens: 75% of the window, or a tenth of it before Codex's limit if lower (T13). */
+/** Where the notice comes, in tokens: a lead before Codex's compaction limit, or 75% of the window where it is not known. */
 export const noticePoint = (/** @type {number} */ window, /** @type {number | null} */ limit) =>
-  Math.min(NOTICE_AT * window, limit ? limit - THRESHOLD_LEAD * window : Infinity);
+  hostNoticePoint({ window, hostPoint: limit });
 
 const share = (/** @type {number} */ tokens, /** @type {number} */ window) =>
   `${Math.round((100 * tokens) / window)}% of its window (${tokens} of ${window} tokens)`;
@@ -433,7 +433,7 @@ function watch(ctx, tokens) {
   if (cycle.notice !== null) return;
   const point = noticePoint(window, state.limit ?? null);
   if (tokens < point) {
-    const row = ROWS_AT.filter((at) => tokens >= at * window).at(-1);
+    const row = rowAt(tokens, window, point);
     if (!row || row <= cycle.row) return;
     writeCycle(ctx, { ...cycle, row });
     writeJson(fileOf(ctx, "due.json"), {
@@ -569,6 +569,7 @@ async function taskMemoryAtStart(ctx, root, parts) {
   const switches = await resolveSwitches(root, ctx);
   const { window, limit } = codexWindow(ctx.cwd, ctx.input.model, ctx.env);
   ctx.window = window;
+  ctx.limit = limit;
   ctx.state = updateState(ctx, { ...switches, window, limit, model: ctx.input.model ?? null, store: false });
   // Off, no line is kept (emit asks the state) and every claim is no.
   emit(ctx, "session.start", {
@@ -881,6 +882,8 @@ function postModelRequest(ctx) {
   }
   if (ctx.state && ctx.state.model !== model) {
     const { window, limit } = codexWindow(ctx.cwd, model, ctx.env);
+    ctx.window = window;
+    ctx.limit = limit;
     ctx.state = updateState(ctx, { model, window, limit });
   }
   watch(ctx, Number(usage.total_tokens));

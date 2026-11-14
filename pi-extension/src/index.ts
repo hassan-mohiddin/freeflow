@@ -27,7 +27,7 @@ import { Inbound, renderNotice } from "./host/inbound.js";
 import { currentSections, headSections, keepSections } from "./host/section-keeper.js";
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController, RECOVERY_TYPE, USER_REQUEST, type TurnEnd } from "./compaction/controller.js";
-import { strictest } from "./compaction/thresholds.js";
+import { loadNotice, strictest } from "./compaction/thresholds.js";
 import {
   StoreLayer,
   claimHoursEnvironment,
@@ -152,6 +152,8 @@ export default function freeflow(pi: FreeflowAPI) {
   registerProviderSupport(pi, () => capability?.setupNeeded !== true && capability?.enabled !== false, cacheMonitor);
   const api = pi as any;
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+  // The notice point and the rows come from Track Work's notice5.mjs, loaded once; no notice is due until it has.
+  void loadNotice(packageRoot);
   // The Freeflow store's layer: Track Work's script on Pi's events, as the Claude Code mod is on Claude Code's.
   const runScript = scriptRunner(packageRoot);
   const store = new StoreLayer(runScript);
@@ -582,6 +584,7 @@ export default function freeflow(pi: FreeflowAPI) {
       id: ctx.sessionManager?.getSessionId?.(),
       file: ctx.sessionManager?.getSessionFile?.(),
       window: ctx.model?.contextWindow,
+      notice: strictest([ctx.model], api.getSettings?.())?.notice,
     });
     events.begin(ctx.sessionManager?.getSessionId?.(), capability?.events?.enabled === true);
     // The gate state as it stands, read now; storeStart reads it again once session status has written it.
@@ -820,6 +823,8 @@ export default function freeflow(pi: FreeflowAPI) {
   };
   pi.on("model_select", async (_event, ctx) => {
     if (ctx.model?.contextWindow) process.env.FREEFLOW_CONTEXT_WINDOW = String(ctx.model.contextWindow);
+    const limits = strictest([ctx.model], api.getSettings?.());
+    if (limits) process.env.FREEFLOW_NOTICE_POINT = String(limits.notice);
     await externalChange(ctx);
   });
   pi.on("thinking_level_select", async (_event, ctx) => externalChange(ctx));
