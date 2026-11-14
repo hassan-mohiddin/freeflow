@@ -99,14 +99,19 @@ task-NNN-<short-name>/
   history.md         closed Slices, agreements and delegations    the closing commands
   sessions.md        every session that held the task            task create, take, release and switch
   decisions.md       the open agreement's decision list           the session holding the task
-  sources/           material from outside the work, notes        the session holding the task
-    discussion.md    the user's messages that shaped the work     discussion save and drop
+  README.md          what each file and folder holds, one line   the script: task create, checkpoint, task tidy
+  discussions/       the user's messages, word for word, by day   Freeflow, after each turn (see below)
+  sources/           outside material only: papers, copies of external documents   the session holding the task
+  notes/             the agent's working lists                    the session holding the task
   delegations/       one folder per delegation                    whoever hands the work out, and each worker
-  evidence/<slug>/   README.md kept; raw/ ignored                 whoever ran it
+  reviews/<slug>/    one folder per thing reviewed: brief and report together   the reviewer
+  evidence/<slug>/   what belongs to no delegation; raw/ ignored  whoever ran it
   events/            <session ID>.json, each session's event summary   checkpoint and task release
   specs/  plans/     when the task has them                       Write Docs
   scratch/           temporary, ignored                           anyone
 ```
+
+The README is written and kept by the script: it lists the files, and each folder that exists, one line each; checkpoint rewrites it when a folder appears. A folder is made when first written, except `discussions/`, which `task create` makes with the README.
 
 In the Freeflow store the folder is `<store>/projects/<project>/tasks/task-NNN-<short-name>/`, and its ID is `<project>/task-NNN`, or in no project `<store>/tasks/task-NNN-<short-name>/`, and `task-NNN`; every command that takes `--record` also takes the ID. A task kept before the store, without one, is in `<repository>/.freeflow/tasks/task-NNN-<short-name>/`, which Git must ignore, until it is moved into the store. `NNN` is three or more digits; a new task takes the next number after the highest one there, and numbers are never reused. `init` and `task create` write `record.md`, `history.md`, `decisions.md` and `scratch/`, and `task create` also `sessions.md`; the rest appear when needed. Nothing anything points to is ever under `scratch/`. `sources/notes.md` holds free notes when a task wants them; they carry no authority.
 
@@ -283,10 +288,12 @@ What recovery reads, one line per source, each starting with its class, then a p
 
 ```markdown
 - always, not counted: specs/retry.md — the accepted retry policy.
-- always: sources/discussion.md — the user's messages that shaped the retry policy.
+- always: messages M-12–M-18, M-24 — the messages that shaped the retry policy.
 - always: src/http/client.ts (lines 10–40) — the loop under test
 - when measuring performance: docs/benchmarks.md — baseline timings.
 ```
+
+A line may name the user's messages instead of a file: `messages M-12–M-18, M-24` names their numbers in `discussions/`, which `view bundle` prints word for word and counts like a file. `view recover` reports a number that does not exist, or one `discussion remove` deleted.
 
 | Class | What goes there | Recovery | Budget |
 | --- | --- | --- | --- |
@@ -366,25 +373,25 @@ The open agreement's decision list, one line per item in Discuss Work's format, 
 
 One line per hold: the session, the harness, where it ran, from and to, how it ended (`holding`, `released` on purpose, `ended` with its session, `taken over`), and the way back to it. The last line that says `holding` is the hold, and `checkpoint` refuses a task this session does not hold. Only `task create`, `task take`, `task release` and `task switch` write it; Git merges it by keeping both sides' lines.
 
-## sources/discussion.md
+## discussions/
 
 ```markdown
-# Discussion: <task name>
+# Discussion · 2026-10-29
 
-The user's messages that shaped the work, word for word, in blocks; under each message, the agent's line saying what it answered. Blocks are added or dropped, never edited.
+The user's messages of this day, word for word, numbered per task: kept by Freeflow, never edited. A removed message keeps its number with no text.
 
-Last block: B-002
-
-## B-002 — Retry policy · 2026-10-29 14:02 to 14:20 · shapes A-003, S-024 · replaces B-001
-
-### You, 2026-10-29 14:02
+### M-12 · 14:02
 
 > Three attempts is enough, but never retry a POST.
+>
+> A second paragraph.
 
-Agent: answered whether POST requests are retried, after I proposed retrying every method.
+### M-13 · 14:20 · removed
+
+<!-- removed 3f9c0a1b2d4e5f60 -->
 ```
 
-Only `discussion save` and `discussion drop` write it.
+One file per day, `discussions/<YYYY-MM-DD>.md`, in UTC. Numbers run M-1, M-2 ... per task, continuous across days, and a number is never reused. After each turn Freeflow writes the user's messages of that turn, from the transcript, each message quoted line by line, so a heading inside a message cannot break the file; the event log's secret redaction applies, and a message is captured once, across a compaction and a resumed session. Before a task exists, a session's messages go to `sessions/<session ID>/discussion.md` in the store home, which is not synced; `task create` moves them in, renumbered from M-1. Only Freeflow's capture and `discussion remove` write these files.
 
 ## The Session Summary
 
@@ -419,7 +426,8 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Give a closed Slice its Files, when it closed without one | `slice size --id <S-NNN> (--files <n> \| --range <from>..<to> [--repo <path>])`: appended to its History entry, dated |
 | Hand work to an agent, and close it | `delegate open [--settled <yes\|no>] [--check <scripted\|tests\|judgement>] [--writes <glob> ...]` (the model and effort from the user's routing table, `rules/routing.md`, unless `--agent` names them; what the worker may write, for the brief's Scope), `amend`, `status`, `check-return`, `close` (`--reason` when sent back); with no task, `delegate open --scratch <folder>` and `check-return --scratch <folder>`, which record nothing |
 | Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task; either with `--compact` to have Freeflow's harness layer compact when the turn ends, which it does only on that request, and only where the session's driver claims it can (Setup Freeflow's `capabilities.mjs check compact`); elsewhere the command says so and the harness compacts on its own |
-| Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
+| Read or remove a discussion message | `discussion list [--date <day>]`, `discussion show M-3–M-9,M-14`, `discussion remove --message M-<n>` (remove needs the hold; capture is Freeflow's, at each turn's end) |
+| Bring an older task folder to this structure | `task tidy --id <ID>`: moves sources/discussion*.md into discussions/ unchanged, rewrites the Recovery lines that named them, writes the README; leaves History as stored |
 | The session's event log, and its summary since it took the task | `events summary [--session <ID>]`, `events show [--kind <kind>]`: change nothing; `events append` is the harness layer's |
 | The budget | `budget [--record <ID>]`; `task set-budget --mode <normal\|expanded>` on the user's word |
 | The context used, and whether the rest fits in this context cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
@@ -446,7 +454,7 @@ Edit directly:
 - `decisions.md`'s items;
 - a `Correction:` line appended inside a History entry.
 
-Never edit directly: IDs, `State` fields, `Opened`, `State as of`, `Predicted` and `Measured`, the agreement's lines and updates, Delegations, Space, In flight, `sessions.md`, `sources/discussion.md`, or any History entry beyond appending a correction. After a structural edit, run `validate --record <ID>`. It checks the task folder's structure and lists pointers that do not resolve, as warnings, since a line may name a planned path or a commit not fetched yet; `--strict` fails on those an Evidence or Result line names. It cannot detect a hand-made state change or a deleted entry, so those edits are forbidden rather than checked.
+Never edit directly: IDs, `State` fields, `Opened`, `State as of`, `Predicted` and `Measured`, the agreement's lines and updates, Delegations, Space, In flight, `sessions.md`, the files in `discussions/`, or any History entry beyond appending a correction. After a structural edit, run `validate --record <ID>`. It checks the task folder's structure and lists pointers that do not resolve, as warnings, since a line may name a planned path or a commit not fetched yet; `--strict` fails on those an Evidence or Result line names. It cannot detect a hand-made state change or a deleted entry, so those edits are forbidden rather than checked.
 
 ## Views
 

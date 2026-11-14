@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
+import { messagePointerProblems, parseMessageNumbers } from "./discussion5.mjs";
 
 // Pointers in a record's lines, found and resolved: what each Recovery entry points to and whether it can be read now
 // (the budget and the views), and the pointers on a Slice's update lines for
@@ -134,13 +135,38 @@ export function sourceEntries(lines, context) {
  * pointers, found in what follows the class.
  */
 export function recoveryEntries(items, context) {
-  return items.map((item) => ({
-    ...sourceEntries([`- ${item.rest}`], context)[0],
-    text: item.text,
-    kind: item.kind,
-    trigger: item.trigger,
-    ranges: item.ranges,
-  }));
+  return items.map((item) => {
+    const entry = sourceEntries([`- ${item.rest}`], context)[0];
+    // A line may name messages instead of a file: "messages M-12–M-18, M-24 — <what they settled>" (the discussion's
+    // numbers, as discussion list prints them). Its pointer carries the numbers, and a problem when one is missing.
+    const named = /^messages\s+(.+?)(?:\s+—\s+|$)/.exec(item.rest);
+    return {
+      ...entry,
+      pointers: named ? [messagePointer(named[1], context), ...entry.pointers] : entry.pointers,
+      text: item.text,
+      kind: item.kind,
+      trigger: item.trigger,
+      ranges: item.ranges,
+    };
+  });
+}
+
+function messagePointer(list, context) {
+  const messages = context.messages ?? [];
+  let numbers;
+  try {
+    numbers = parseMessageNumbers(list);
+  } catch (error) {
+    return { kind: "messages", value: list, numbers: [], state: "missing", problem: error.message };
+  }
+  const problems = messagePointerProblems(numbers, messages);
+  return {
+    kind: "messages",
+    value: list,
+    numbers,
+    state: problems.length ? "missing" : "resolves",
+    ...(problems.length ? { problem: problems.join("; ") } : {}),
+  };
 }
 
 export function contextFor(root, recordPath, repositories = []) {

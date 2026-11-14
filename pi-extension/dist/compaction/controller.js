@@ -92,7 +92,7 @@ export class CompactionController {
     const checkpoint = worker
       ? `This session is the worker for ${worker.id} of ${worker.task}: at that point, rewrite its progress.md with ${command} checkpoint --delegation ${worker.id} --record ${worker.task} --compact --input - (## Done, ## Half done, ## Didn't work, ## Next).`
       : task
-        ? `At that point, checkpoint ${task.id}: bring its Current Context up to date, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work and is not saved yet (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${task.id} --compact --input - with In flight's lines.`
+        ? `At that point, checkpoint ${task.id}: bring its Current Context up to date, adjust the rest of Current Work and Future Work, name in Recovery the messages of this cycle that the next cycle must read (messages M-n, as discussion list numbers them; skip it when none did), then run ${command} checkpoint --record ${task.id} --compact --input - with In flight's lines.`
         : `If this session holds a task, checkpoint it as Track Work says, with --compact; if it holds none, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
     return `${head} Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and the run continues. This is the only notice this context cycle; if Pi compacts before the checkpoint, the record as of its last checkpoint follows Pi's summary.`;
   }

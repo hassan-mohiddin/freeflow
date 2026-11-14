@@ -38,6 +38,7 @@ import {
 } from "./store/layer.js";
 import { WAITS_KEY, WAIT_BATCH_MS, WaitWatch } from "./store/waits.js";
 import { EventRecorder } from "./events/recorder.js";
+import { DiscussionCapture } from "./discussion/capture.js";
 import { DEFAULT_INBOUND_POLICY } from "./messaging/config.js";
 import { MESSAGE_TYPE, Messaging } from "./messaging/messaging.js";
 import { freeflowHome } from "./messaging/registry.js";
@@ -151,6 +152,7 @@ export default function freeflow(pi) {
   const store = new StoreLayer(runScript);
   // The event log and the claims (SPEC-006): written off the request path, when a run settles and at shutdown.
   const events = new EventRecorder(runScript);
+  const discussion = new DiscussionCapture(runScript);
   // The gates (SPEC-008): Track Work's gates5.mjs on each tool call, from the session's gate state kept in memory.
   const gates = new GateRuntime(packageRoot);
   const version = (() => {
@@ -592,6 +594,8 @@ export default function freeflow(pi) {
     // The session's last lines, before the release, whose summary counts them.
     events.sessionEnded(event?.reason);
     await events.flush();
+    // The last turn's messages, kept before the store is released and pushed (discussion capture, D-056).
+    if (capability?.enabled === true) await discussion.capture();
     // The hold is released as ended and the store pushed, before the next session's layer starts; a reload keeps it.
     await store.shutdown({ reload: event?.reason === "reload" }).catch(() => {});
     store.reset();
@@ -654,6 +658,7 @@ export default function freeflow(pi) {
   pi.on("agent_start", () => {
     waits.runStarted();
     events.runStarted();
+    discussion.runStarted();
     runUnprepared = !runPrepared;
     runPrepared = false;
     guidance.runStarted();
@@ -799,6 +804,7 @@ export default function freeflow(pi) {
   pi.on("agent_settled", async (_event, ctx) => {
     // The run's lines, written in one script run once the session stays idle: nothing waits on the log (T3).
     events.settled();
+    if (capability?.enabled === true) discussion.settled();
     promptRun = false;
     messageRun = false;
     agentRunning = false;

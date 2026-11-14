@@ -10,7 +10,7 @@ import { hostname } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { releaseClaims } from "./claims5.mjs";
 import { slugify } from "./format.mjs";
-import { claudeCodeLog } from "./discussion5.mjs";
+import { DISCUSSIONS_DIR, SESSION_DISCUSSION, claudeCodeLog, moveSessionMessages } from "./discussion5.mjs";
 import { missingParts, storeStatus, syncStore } from "./freeflow-store.mjs";
 import {
   DECISIONS_FILE,
@@ -23,6 +23,7 @@ import {
 } from "./record5.mjs";
 import { holdStart, summaryForTask } from "./events5.mjs";
 import { decisionItem, orderedDecisions, rules } from "./budget5.mjs";
+import { applyTidy, checkTidyRecord, makeTaskFolders, planTidy } from "./task-folder5.mjs";
 import { searchRecords } from "./search.mjs";
 import {
   LAST_TASK_NUMBER,
@@ -132,7 +133,7 @@ function git(home, args) {
   }
 }
 
-async function sync(home, message, { push = true } = {}) {
+export async function sync(home, message, { push = true } = {}) {
   try {
     const synced = await syncStore({ home, message, push });
     if (synced.local) return "Store: committed; a local store, nothing to push.";
@@ -534,6 +535,9 @@ export async function createTask(
     },
   });
   if (repository) await rememberRepository(home, repository);
+  // The task's folders that always exist, and the messages this session sent before it held a task (renumbered).
+  makeTaskFolders(dirname(record), title);
+  moveSessionMessages(join(home, "sessions", identity.id, SESSION_DISCUSSION), dirname(record));
   const number = /^task-\d{3,}/.exec(basename(dirname(record)))[0];
   const task = findTask(home, slug ? `${slug}/${number}` : number);
   await writeHold(home, task, identity);
@@ -650,6 +654,35 @@ export async function switchTask(home, id, identity, options) {
   if (held?.id === id) return `This session already holds ${id}.\n`;
   const released = held ? await releaseTask(home, identity, held.id) : "";
   return `${released}${await takeTask(home, id, identity, options)}`;
+}
+
+/**
+ * `task tidy --id`: the task's folder brought to its fixed structure, a move of sources/discussion*.md into discussions/
+ * and the Recovery lines that named them rewritten, then the README (task-folder5.mjs). The record is checked and
+ * written before anything moves, so a failure leaves the folder as it was.
+ */
+export async function tidyTask(home, id) {
+  const recordPath = storeRecordPath(home, id);
+  const taskDir = dirname(recordPath);
+  const text = await readFile(recordPath, "utf8");
+  const name = parseRecord5(text).header.name;
+  const plan = planTidy(taskDir, text);
+  if (plan.recordText !== null) {
+    checkTidyRecord(plan.recordText);
+    await writeFile(recordPath, plan.recordText);
+  }
+  const readmeChanged = applyTidy(taskDir, plan, name);
+  const moved = plan.moved.map((file) => `- sources/${file} → ${DISCUSSIONS_DIR}/${file}`);
+  const lines = [
+    ...(moved.length
+      ? [`Moved ${plan.moved.length} file(s) unchanged, from sources/ to ${DISCUSSIONS_DIR}/:`, ...moved]
+      : ["Nothing to move: sources/ holds no discussion file."]),
+    plan.rewritten
+      ? `Recovery: rewrote ${plan.rewritten} line(s) to the new place.`
+      : "Recovery: no line named a moved file.",
+    readmeChanged ? "README.md written." : "README.md is current.",
+  ];
+  return `${lines.join("\n")}\n${await sync(home, `Tidy ${id}`)}\n`;
 }
 
 export async function removeTask(home, id) {

@@ -288,7 +288,8 @@ A session holds at most one task, and a task has one holder at a time. Where Fre
 - `decisions.md`: the open agreement's decision list.
 - `sessions.md`: every session that held the task.
 - `events/<session>.json`: a short summary of each session's event log, written at each checkpoint and when the session releases the task (see [Event log and capabilities](capabilities/event-log.md)).
-- `sources/discussion.md`: your messages that shaped the work, word for word.
+- `discussions/`: every message you send, word for word, numbered by day and task (kept by Freeflow, not chosen by the agent); `discussion list`, `show` and `remove` read and delete them.
+- `sources/`: outside material only, such as papers and copies of external documents. `README.md` lists what each folder holds.
 
 The memory the agent shapes has a recovery budget that grows with the context window; when a task's memory keeps running over, the agent may propose expanded mode, which only you turn on. `working-record.mjs estimate --plan` sizes the work left from what past Slices used, and the work agreement can show it: how many context cycles, and the cost at list price.
 
