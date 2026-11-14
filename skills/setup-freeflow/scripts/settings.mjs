@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import {
+  REMOVED_SETTINGS,
   SETTINGS,
   SWITCHABLE_SKILLS,
   ignoredStateLine,
@@ -52,7 +53,7 @@ const USAGE = `Usage:
   settings.mjs doctor [--fix] [--scope repository|personal|session] [--root <folder>]
 --root names a folder in the repository (default: the current folder); the settings are its repository's.
 The value "inherit" unsets the key in that scope. --host all (the default) lists the settings every host acts on and
-Claude Code's own (its cost governor, pane and status line), as does --host claude-code; --host pi lists Pi's instead of Claude Code's. The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
+Claude Code's own (its pane and status line), as does --host claude-code; --host pi lists Pi's instead of Claude Code's. The Session scope needs a host that names its session (CLAUDE_CODE_SESSION_ID or
 FREEFLOW_SESSION).
 doctor reads each scope against the settings table and prints each problem with its fix, changing nothing (exit 1 when
 there is a problem). --fix writes the Personal and Session scopes; the Repository file is shared, so it is written only
@@ -262,13 +263,16 @@ function fileProblems(raw, scope) {
 function sessionProblems(raw) {
   return Object.entries(raw).flatMap(([key, value]) => {
     const spec = settingSpec(key);
-    const problem = !spec
-      ? "unknown setting"
-      : !spec.session
-        ? "not a Session setting"
-        : !validSettingValue(spec, value)
-          ? `takes ${takes(spec)}`
-          : null;
+    // A removed key is named with its reason, as a file names it (D-058).
+    const problem = REMOVED_SETTINGS[key]
+      ? REMOVED_SETTINGS[key]
+      : !spec
+        ? "unknown setting"
+        : !spec.session
+          ? "not a Session setting"
+          : !validSettingValue(spec, value)
+            ? `takes ${takes(spec)}`
+            : null;
     return problem ? [{ key, reason: problem, fix: { kind: "remove", path: [key], old: value } }] : [];
   });
 }

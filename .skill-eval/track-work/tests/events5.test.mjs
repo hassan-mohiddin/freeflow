@@ -9,6 +9,7 @@ import {
   appendEvents,
   COMMAND_LIMIT,
   cutHeredoc,
+  digest,
   KINDS,
   lineProblem,
   logPath,
@@ -122,10 +123,11 @@ test("schema v1: each kind's required fields, its values, and no field it does n
     "agreement",
     "freeflow",
     "governor",
+    "sent",
   ]);
 });
 
-test("a governor line names its cap, unit, limit, use and response, and the summary prints each one", () => {
+test("an older log's governor line still reads, and the summary no longer counts or prints it (D-058)", () => {
   const governor = (fields) => ({ ...base(), kind: "governor", ...fields });
   const row = { cap: "pace", unit: "percent", limit: 14.3, use: 11.6, response: "row" };
   assert.equal(lineProblem(governor(row)), null);
@@ -133,31 +135,11 @@ test("a governor line names its cap, unit, limit, use and response, and the summ
   assert.equal(lineProblem(governor({ ...row, use: -1 })), "governor's use is not a value it takes");
   assert.equal(lineProblem(governor({ ...row, response: "stop" })), "governor's response is not a value it takes");
   assert.equal(lineProblem(governor({ cap: "task", unit: "usd", limit: 4, use: 4.2 })), "governor requires response");
-  const lines = [
-    { ...base("s", "2026-11-03T10:00:00.000Z"), kind: "governor", ...row },
-    {
-      ...base("s", "2026-11-03T11:00:00.000Z"),
-      kind: "governor",
-      cap: "task",
-      unit: "usd",
-      limit: 4,
-      use: 4.25,
-      response: "ask",
-    },
-  ];
-  const summary = summarize(lines, { session: "s" });
-  assert.deepEqual(
-    summary.governor.map((each) => [each.cap, each.response]),
-    [
-      ["pace", "row"],
-      ["task", "ask"],
-    ],
-  );
-  assert.equal(summarize([], { session: "s" }).governor, undefined);
-  const text = renderSummary(summary);
-  assert.match(text, /^Governor: 2 response\(s\)$/m);
-  assert.match(text, /^ {2}2026-11-03T10:00:00\.000Z: the daily pace at 11\.6% of 14\.3%, a row$/m);
-  assert.match(text, /^ {2}2026-11-03T11:00:00\.000Z: the task's cost at \$4\.25 of \$4\.00, the ask to stop$/m);
+  const summary = summarize([governor(row), { ...base("s", "2026-11-03T11:00:00.000Z"), kind: "governor", ...row }], {
+    session: "s",
+  });
+  assert.equal(summary.governor, undefined);
+  assert.doesNotMatch(renderSummary(summary), /Governor/);
 });
 
 test("redaction replaces keys and tokens in a command before it is written", () => {
@@ -420,7 +402,7 @@ test("checkpoint and release commit the session's event summary since it took th
     assert.match(printed, /\nTool calls: 3, 1 of them Freeflow's own \(33%\)\n  Bash: 2, 1 failed\n  Edit: 1\n/);
     assert.match(printed, /\nWorkers: 1 started, 1 stopped, 1 sent back\n/);
     // Gate lines (SPEC-008) are counted on their own line; this log has none.
-    assert.match(printed, /\nGates: agreement 0, slice 0, delivery 0, delegation 0 would-fire\n$/);
+    assert.match(printed, /\nGates: delegation 0 would-fire\n$/);
     // Another session's view of this log is the whole log: it holds no task.
     assert.match(ok(cli(["events", "summary", "--session", "aaaaaaaa-1111"])), /: 10 line\(s\) from 2020-01-01/);
     assert.match(ok(cli(["events", "summary"])), /^- aaaaaaaa-1111: \d[\d,]* bytes, last written /);
@@ -579,4 +561,103 @@ test("a command's heredoc body is never written to the event log: a command is c
       false,
     );
   });
+});
+
+test("a sent line keeps the whole text it sent, redacted and never cut; the writer sets its chars and sha from the text as sent", async () => {
+  await withFolder(async ({ home }) => {
+    const text = `Freeflow, context cycle 1: token=abc123secret\n${"notice text ".repeat(40)}`;
+    const sent = { ...base(), kind: "sent", what: "notice", text };
+    assert.equal(lineProblem(sent), null);
+    assert.equal(lineProblem({ ...sent, what: "bogus" }), "sent's what is not a value it takes");
+    assert.equal(lineProblem({ ...sent, text: "   " }), "sent's text is not a value it takes");
+    assert.equal(lineProblem({ ...sent, chars: -1 }), "sent's chars is not a value it takes");
+    assert.equal(lineProblem({ ...sent, sha: "not-a-digest" }), "sent's sha is not a value it takes");
+    const { written, refused } = await appendEvents(home, jsonl([sent]));
+    assert.equal(refused.length, 0);
+    assert.equal(written[0].count, 1);
+    const [line] = await readLines(logPath(home, "sess-1"));
+    assert.equal(line.kind, "sent");
+    assert.equal(line.what, "notice");
+    assert.equal(line.text, text.replace("abc123secret", "[redacted]"));
+    assert.equal(line.text.length > COMMAND_LIMIT, true);
+    assert.match(line.text, /\n/);
+    assert.equal(line.chars, text.length);
+    assert.equal(line.sha, digest(text));
+    assert.equal(line.sha.length, 12);
+    assert.equal(redact("Bearer abc.def"), "Bearer [redacted]");
+  });
+});
+
+test('redact replaces each form the event-log doc lists: word=value, word = value, word: value, JSON "word": "value", a PEM key block; a secret in none of them is kept', () => {
+  assert.equal(redact("password=hunter2"), "password=[redacted]");
+  assert.equal(redact("API_KEY = x9y8z7"), "API_KEY = [redacted]");
+  assert.equal(redact("password: hunter2"), "password: [redacted]");
+  assert.equal(redact('{"apiKey": "abc123"}'), '{"apiKey": [redacted]}');
+  assert.equal(
+    redact("-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA\n-----END RSA PRIVATE KEY-----"),
+    "[redacted]",
+  );
+  // A secret written in no listed form stays as it is: the doc says so.
+  assert.equal(redact("the value hunter2 is in the text"), "the value hunter2 is in the text");
+});
+
+test("events sent lists a session's sent lines newest first; --what keeps one source; --show prints one whole", async () => {
+  await withFolder(async ({ cli }) => {
+    ok(
+      cli(["events", "append", "--input", "-"], {
+        input: jsonl([
+          {
+            ...base("sess-1", "2026-11-03T10:00:00.000Z"),
+            kind: "sent",
+            what: "session-start",
+            text: "Guidance.\nmore",
+          },
+          {
+            ...base("sess-1", "2026-11-03T10:05:00.000Z"),
+            kind: "sent",
+            what: "notice",
+            text: `Notice ${"x".repeat(150)}`,
+          },
+          { ...base("sess-1", "2026-11-03T10:06:00.000Z"), kind: "tool.call", tool: "Read", ok: true, source: "agent" },
+          { ...base("sess-1", "2026-11-03T10:07:00.000Z"), kind: "sent", what: "notice", text: "Second notice" },
+        ]),
+      }),
+    );
+    const rows = ok(cli(["events", "sent", "--session", "sess-1"]))
+      .trimEnd()
+      .split("\n");
+    assert.equal(rows.length, 3);
+    assert.equal(rows[0], "1  2026-11-03T10:07:00.000Z  notice  13 chars  Second notice");
+    assert.match(rows[1], /^2  2026-11-03T10:05:00\.000Z  notice  157 chars  Notice x+…$/);
+    assert.equal(rows[1].split("  ").pop().length, 80);
+    assert.equal(rows[2], "3  2026-11-03T10:00:00.000Z  session-start  14 chars  Guidance.");
+    assert.equal(
+      ok(cli(["events", "sent", "--session", "sess-1", "--what", "session-start"])).trimEnd(),
+      "1  2026-11-03T10:00:00.000Z  session-start  14 chars  Guidance.",
+    );
+    assert.equal(
+      ok(cli(["events", "sent", "--session", "sess-1", "--what", "catch-up"])),
+      "No sent lines (what catch-up) in session sess-1.\n",
+    );
+    assert.equal(ok(cli(["events", "sent", "--session", "sess-1", "--show", "1"])), "Second notice\n");
+    assert.equal(ok(cli(["events", "sent", "--session", "sess-1", "--show", "2"])), `Notice ${"x".repeat(150)}\n`);
+    const outside = cli(["events", "sent", "--session", "sess-1", "--show", "9"]);
+    assert.notEqual(outside.status, 0);
+    assert.match(outside.stderr, /--show takes a number from 1 to 3/);
+    const unknown = cli(["events", "sent", "--session", "sess-1", "--what", "bogus"]);
+    assert.notEqual(unknown.status, 0);
+    assert.match(unknown.stderr, /--what is one of session-start, menu, catch-up/);
+  });
+});
+
+test("the summary counts the text sent by source, and a task summary carries the counts, never the text", () => {
+  const sent = (what, text) => ({ ...base(), kind: "sent", what, text });
+  const summary = summarize(
+    [sent("notice", "NOTICE TEXT"), sent("menu", "MENU TEXT"), sent("notice", "NOTICE TEXT 2")],
+    { session: "sess-1" },
+  );
+  assert.deepEqual(summary.sent, { lines: 3, by: { menu: 1, notice: 2 } });
+  assert.match(renderSummary(summary), /^Sent: 3 \(by what: menu 1, notice 2\)$/m);
+  assert.equal(JSON.stringify(summary).includes("NOTICE TEXT"), false);
+  assert.match(renderSummary(summarize([], { session: "sess-1" })), /^Sent: 0$/m);
 });

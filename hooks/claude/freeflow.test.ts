@@ -25,19 +25,14 @@ const store = (fields: object = {}) => ({
 });
 const held = (stateAsOf: string, fields: object = {}) =>
   store({ task: { id: "widget/task-001", record: RECORD, stateAsOf }, ...fields });
-// The session's gate state (SPEC-008), as Track Work writes it: by default one where every rule holds, so the gates
-// stay quiet in the tests that are not about them.
+// The session's gate state (SPEC-008), as Track Work writes it: by default one where the delegation gate has nothing to
+// say, so the gate stays quiet in the tests that are not about it (D-058: the agreement and Slice fields are gone).
 const GATES_PATH = `${HOME}/sessions/${SESSION}/gates.json`;
 const gateState = (fields: object = {}) =>
   JSON.stringify({
     v: 1,
     task: "widget/task-001",
     taskDir: "/store/projects/widget/tasks/task-001-probe",
-    store: HOME,
-    agreement: "A-001",
-    session: null,
-    exactSpec: null,
-    slice: { id: "S-001", state: "in_progress" },
     delegations: {},
     updated: "2026-10-29T12:00:00.000Z",
     ...fields,
@@ -88,6 +83,8 @@ function world(on: any) {
     registered: [] as any[],
     env: {} as Record<string, string | undefined>,
     sent: [] as any[],
+    // Claude's own compaction is skipped when this is set: the mod's result then takes no message.
+    skipCompaction: false as boolean,
     submitted: [] as string[],
     commandsRun: [] as string[],
     compactions: [] as any[],
@@ -264,6 +261,7 @@ function world(on: any) {
   });
   on("session.compact", (_: any, e: any) => {
     w.compactions.push(e);
+    if (w.skipCompaction) return { skip: "the test skips this compaction" };
     return { messages: [{ role: "user", text: "Claude's summary.", toolUses: [] }] };
   });
   on("session.start", (_: any, e: any) => ({ cwd: e.cwd }));
@@ -330,6 +328,8 @@ const start = ($: any, fields: object = {}) =>
 const appended = (w: any) => w.session.appended().map((row: any) => row.message.content[0].text as string);
 const noticesOf = (w: any) => appended(w).filter((text) => text.includes("Keep working until a safe point"));
 const rowsOf = (w: any) => appended(w).filter((text) => text.includes("the checkpoint notice comes at"));
+/** The sent lines of one source, as the session flushed them (the text Freeflow sent the model). */
+const sentOf = (w: any, what: string) => w.events().filter((line: any) => line.kind === "sent" && line.what === what);
 
 test("session start: with a store, pull it, give the scripts the window and the agent the menu; otherwise only what is missing", async ($, on) => {
   const w = world(on);
@@ -588,8 +588,8 @@ test("a turn ends: sync a changed store; only checkpoint --compact compacts, onc
   w.runs.length = 0;
   await $.turn.complete(turnEnd("answer"));
   await w.clock.advance(1);
-  // The checkpoint moved the record: the cost governor reads its plan again (SPEC-014 2.3).
-  expect(w.commands()).toEqual(["session status", "store sync", `estimate --plan --record ${RECORD} --json`]);
+  // The checkpoint moved the record: the store syncs, and nothing else reads it (the cost governor was removed, D-058).
+  expect(w.commands()).toEqual(["session status", "store sync"]);
   expect(w.commandsRun).toEqual([]);
 
   // checkpoint --compact, but the turn was interrupted: nothing compacts.
@@ -1045,6 +1045,9 @@ test("the store is the agent's to keep: file tools inside it are allowed where t
   // A deny stands, inside the store too.
   w.verdict = { decision: "deny", rule: "Edit(/store/**)" };
   expect((await check("Edit", { file_path: record })).decision).toBe("deny");
+  // The allow's reason is the user's to read, not the model's: no sent line keeps it (SPEC-006, sent).
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "store-allow")).toEqual([]);
 });
 
 const ready = ($: any) => $.session.start({ cwd: "/work/widget", surface: null, isInteractive: false });
@@ -1069,7 +1072,7 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
   const w = world(on);
   await ready($);
   expect(w.registered.map((command) => command.name)).toEqual(["freeflow"]);
-  // enabled, the event log's own switch (SPEC-006 P5), and the cost governor's settings in one list (SPEC-014).
+  // enabled, the event log's own switch (SPEC-006 P5), and the delegation gate's mode in one list (SPEC-008 4.5).
   expect(w.settingsRuns.map((run) => run.args.join(" "))).toEqual([
     "get enabled --root /work/widget --json",
     "get events.enabled --root /work/widget --json",
@@ -1143,7 +1146,7 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
     "Freeflow settings: unknown option --global.",
   );
   expect((await freeflow($, "status")).text).toBe(
-    "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session; /freeflow pane opens or closes Freeflow's pane.",
+    "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session; /freeflow pane opens or closes Freeflow's pane; /freeflow sent lists the text Freeflow sent to the model.",
   );
   expect(w.commands()).toEqual([]);
 });
@@ -1245,10 +1248,12 @@ test("the event log: each loop event the mod sees is one schema v1 line, in orde
   expect(w.eventRuns.length).toBe(1);
   expect(w.eventRuns[0].args).toEqual(["events", "append", "--input", "-"]);
   expect(w.eventRuns[0].session).toBe(SESSION);
+  // The menu the start gave the agent is a sent line of its own (the guidance is empty in this test's world).
   expect(kinds(w)).toEqual([
     "session.start",
     "freeflow",
     "freeflow",
+    "sent",
     "turn.start",
     "model.request",
     "tool.call",
@@ -1256,7 +1261,8 @@ test("the event log: each loop event the mod sees is one schema v1 line, in orde
     "turn.end",
     "freeflow",
   ]);
-  const lines = w.events();
+  // The indexed checks below read the lines that are not sent texts; the sent texts are checked on their own.
+  const lines = w.events().filter((line: any) => line.kind !== "sent");
   for (const line of lines) {
     expect(line.v).toBe(1);
     expect(line.ts).toBe(new Date(T0).toISOString());
@@ -1266,6 +1272,12 @@ test("the event log: each loop event the mod sees is one schema v1 line, in orde
   }
   // A -p run: no one at the prompt (section 4.5).
   expect(lines[0]).toMatchObject({ kind: "session.start", source: "startup", interactive: false });
+  expect(
+    w
+      .events()
+      .filter((line: any) => line.kind === "sent")
+      .map((line: any) => line.what),
+  ).toEqual(["menu"]);
   expect(lines.filter((line: any) => line.kind === "freeflow").map((line: any) => line.what)).toEqual([
     "capabilities",
     "menu",
@@ -1304,7 +1316,7 @@ test("the event log: each loop event the mod sees is one schema v1 line, in orde
   // Nothing new, nothing written.
   await $.turn.complete(turnEnd("answer"));
   expect(w.eventRuns.length).toBe(2);
-  expect(kinds(w).slice(9)).toEqual(["turn.end", "freeflow"]);
+  expect(kinds(w).slice(10)).toEqual(["turn.end", "freeflow"]);
 });
 
 test("the event log is written at a compaction, a worker's hand-back and the session's end, and before a checkpoint or release runs (T2)", async ($, on) => {
@@ -1347,7 +1359,19 @@ test("the event log is written at a compaction, a worker's hand-back and the ses
   expect(w.events().at(-1)).toMatchObject({ kind: "compaction", trigger: "manual", by: "harness", before: 150_000 });
   // A script under Freeflow's own plugin is Freeflow's overhead, which Part 8 counts.
   expect(w.scriptPath).toEndWith("/skills/track-work/scripts/working-record.mjs");
-  expect(w.events().at(-2)).toMatchObject({ kind: "tool.call", tool: "Bash", source: "freeflow" });
+  // The checkpoint's own call is written before the compaction's lines, which are what Freeflow sent the model (its note
+  // and, after it, the bundle the summary was made from) and then the compaction itself.
+  expect(
+    w
+      .events()
+      .filter((line: any) => line.kind === "tool.call")
+      .at(-1),
+  ).toMatchObject({
+    kind: "tool.call",
+    tool: "Bash",
+    source: "freeflow",
+  });
+  expect(kinds(w).slice(-2)).toEqual(["sent", "compaction"]);
 
   // After a checkpoint made in the cycle, Freeflow's own.
   w.status = held(at(30));
@@ -1429,7 +1453,8 @@ test("events.enabled off writes no line and claims sensors only as possible; Fre
   expect(JSON.parse(w.claims.at(-1)!.text).claims.sensors.claim).toBe("yes");
   await $.turn.start({ text: "go", turnId: "turn-2" } as any);
   await $.turn.complete(turnEnd("answer"));
-  expect(kinds(w)).toEqual(["freeflow", "turn.start", "turn.end"]);
+  // The setting's change is what the agent reads in its context: a sent line, after the event that says it changed.
+  expect(kinds(w)).toEqual(["freeflow", "sent", "turn.start", "turn.end"]);
 
   // Freeflow off: no claims but no, and nothing written.
   w.enabled = false;
@@ -1559,7 +1584,7 @@ test("the golden event log: a scripted session through the mod matches golden-ev
   await step($, w, 2_304, { effort: "high" });
   await $.tool.call({ tool: "Bash", command: "npm test -- --token=abc123" } as any);
   await $.tool.call({ tool: "Read", file_path: "/work/widget/src.mjs" } as any);
-  // A delivery step: the delivery gate warns and logs it (SPEC-008 4.4).
+  // A delivery step: no gate now (D-058); the harness's own permission prompts decide it.
   await $.tool.call({ tool: "Bash", command: "git push origin main" } as any);
   await $.agent.spawn(spawn("Do D-012's part."));
   await $.turn.start({ text: "x", turnId: "turn-w", agentId: "agent-7" } as any);
@@ -1586,165 +1611,6 @@ test("the golden event log: a scripted session through the mod matches golden-ev
   if (JSON.stringify(lines) !== JSON.stringify(GOLDEN))
     console.log(`golden-events.mjs would be:\n${JSON.stringify(lines, null, 2)}`);
   expect(lines).toEqual(GOLDEN);
-});
-
-// The cost governor (SPEC-014 2.3): the plan's seven-day window at a daily pace, the task's plan, governor.cap.
-const RESETS = new Date(T0 + 4.5 * 86_400_000).toISOString();
-const governorRows = (w: any) => appended(w).filter((text) => text.startsWith("Freeflow cost governor:"));
-const governorLines = (w: any) => w.events().filter((line: any) => line.kind === "governor");
-const governorSettings = (mode: string, cap: number | null = null) => ({
-  stdout: JSON.stringify({
-    root: "/work/widget",
-    settings: [
-      { key: "governor.mode", label: "Cost governor", value: mode, scope: "personal", hosts: "claude-code" },
-      {
-        key: "governor.cap",
-        label: "Cost cap",
-        value: cap,
-        scope: cap === null ? "default" : "personal",
-        hosts: "claude-code",
-      },
-    ],
-    state: [],
-  }),
-});
-
-test("the cost governor on a subscription: the daily pace, no row below 80%, one row at 80%, one notice at 100% under warn", async ($, on) => {
-  const w = world(on);
-  w.status = store();
-  await start($);
-  // 4.5 days to the reset: this day of the window began 12 hours ago, and 5 days are left from it.
-  const seven = (percentUsed: number) => [
-    { kind: "five_hour", percentUsed: 99, resetsAt: at(60) },
-    { kind: "seven_day", percentUsed, resetsAt: RESETS },
-  ];
-  w.rateLimits = seven(50);
-  await step($, w, 1_000);
-  // The first reading starts the day, kept beside the event log for every session of the day: 50% left over 5 days.
-  expect(JSON.parse(w.stored.get(`${HOME}/events/governor.json`))).toEqual({
-    resetsAt: RESETS,
-    dayStart: "2026-10-29T00:00:00.000Z",
-    percent: 50,
-  });
-  w.rateLimits = seven(57.9);
-  await step($, w, 1_000);
-  expect(governorRows(w)).toEqual([]);
-  // 8% used today, of a 10% pace: one row, and not again.
-  w.rateLimits = seven(58);
-  await step($, w, 1_000);
-  w.rateLimits = seven(59);
-  await step($, w, 1_000);
-  expect(governorRows(w)).toEqual([
-    `Freeflow cost governor: this day of the seven-day window used 8% of it, against a daily pace of 10% (50% left over 5 day(s)), 80% of the cap; it resets at ${RESETS}.`,
-  ]);
-  // The pace reached: one notice, under warn only a notice.
-  w.rateLimits = seven(60);
-  await step($, w, 1_000);
-  w.rateLimits = seven(63);
-  await step($, w, 1_000);
-  expect(governorRows(w).length).toBe(2);
-  expect(governorRows(w)[1]).toStartWith(
-    "Freeflow cost governor: a cap is reached: this day of the seven-day window used 10% of it, against a daily pace of 10%",
-  );
-  expect(governorRows(w)[1]).toEndWith(
-    "Say so to the user in your next answer; Freeflow only notifies (governor.mode warn).",
-  );
-  await $.turn.complete(turnEnd("answer"));
-  expect(
-    governorLines(w).map(({ cap, unit, limit, use, response }: any) => ({ cap, unit, limit, use, response })),
-  ).toEqual([
-    { cap: "pace", unit: "percent", limit: 10, use: 8, response: "row" },
-    { cap: "pace", unit: "percent", limit: 10, use: 10, response: "notice" },
-  ]);
-
-  // The next day of the window starts from where this one ended: 37% left over 4 days.
-  await w.clock.advance(13 * 3_600_000);
-  w.rateLimits = seven(63);
-  await step($, w, 1_000);
-  expect(JSON.parse(w.stored.get(`${HOME}/events/governor.json`))).toMatchObject({
-    dayStart: "2026-10-30T00:00:00.000Z",
-    percent: 63,
-  });
-  w.rateLimits = seven(70.4);
-  await step($, w, 1_000);
-  expect(governorRows(w).at(-1)).toStartWith(
-    "Freeflow cost governor: this day of the seven-day window used 7.4% of it, against a daily pace of 9.3% (37% left over 4 day(s))",
-  );
-});
-
-test("the cost governor under stop: the ask to stop at 100%; a held task's plan in dollars; governor.cap over either", async ($, on) => {
-  const w = world(on);
-  w.settingsAnswers["list "] = governorSettings("stop");
-  w.status = held(at(-30));
-  w.answers["estimate --plan"] = { stdout: JSON.stringify({ total: { usd: 3, usdLow: 2, usdHigh: 4 } }) };
-  await start($);
-  // An API-key session: no window, the cost in dollars. The plan is read at the turn's end, with the cost then.
-  w.cost = 1;
-  await $.turn.complete(turnEnd("answer"));
-  expect(w.commands()).toContain(`estimate --plan --record ${RECORD} --json`);
-  w.cost = 4.1;
-  await step($, w, 1_000);
-  expect(governorRows(w)).toEqual([]);
-  w.cost = 4.2;
-  await step($, w, 1_000);
-  expect(governorRows(w)).toEqual([
-    "Freeflow cost governor: widget/task-001 cost $3.20 at API list price since its plan was read, of $4.00, the high end its open Slices are predicted to cost, 80% of the cap.",
-  ]);
-  // Straight past 100%: the ask, under stop.
-  w.cost = 5.5;
-  await step($, w, 1_000);
-  expect(governorRows(w)[1]).toStartWith(
-    "Freeflow cost governor: a cap is reached: widget/task-001 cost $4.50 at API list price since its plan was read, of $4.00",
-  );
-  expect(governorRows(w)[1]).toContain("Stop at your next safe point:");
-  expect(governorRows(w)[1]).toEndWith(
-    "Checkpoint there (your task's record, or this session's summary), then end your turn asking the user whether to go on (governor.mode stop).",
-  );
-  await $.turn.complete(turnEnd("answer"));
-  expect(governorLines(w).map(({ cap, unit, response }: any) => [cap, unit, response])).toEqual([
-    ["task", "usd", "row"],
-    ["task", "usd", "ask"],
-  ]);
-  // The plan is read once while the record stands.
-  expect(w.commands().filter((command: string) => command.startsWith("estimate")).length).toBe(1);
-
-  // governor.cap in dollars replaces the plan's cap where there is no window.
-  w.settingsAnswers["list "] = governorSettings("stop", 6);
-  w.settingsAnswers["set governor.cap"] = {
-    stdout: JSON.stringify({
-      key: "governor.cap",
-      label: "Cost cap",
-      value: 6,
-      scope: "personal",
-      notes: [],
-      changed: [],
-      cleared: [],
-    }),
-  };
-  await freeflow($, "settings governor.cap 6");
-  await step($, w, 1_000);
-  expect(governorRows(w).at(-1)).toBe(
-    "Freeflow cost governor: this session has cost $5.50 at API list price, of the $6.00 your governor.cap sets, 92% of the cap.",
-  );
-  // On a subscription it is a percent of the seven-day window, in place of the pace.
-  w.rateLimits = [{ kind: "seven_day", percentUsed: 5.5, resetsAt: RESETS }];
-  w.cost = 5.6;
-  await step($, w, 1_000);
-  expect(governorRows(w).at(-1)).toBe(
-    `Freeflow cost governor: the seven-day window is 5.5% used, of the 6% your governor.cap sets, 92% of the cap; it resets at ${RESETS}.`,
-  );
-});
-
-test("the cost governor stays quiet with no window and no cost, and with Freeflow off", async ($, on) => {
-  const w = world(on);
-  w.status = store();
-  await start($);
-  await step($, w, 1_000);
-  w.rateLimits = [{ kind: "seven_day", percentUsed: 100, resetsAt: RESETS }];
-  w.enabled = false;
-  await ready($);
-  await step($, w, 1_000);
-  expect(governorRows(w)).toEqual([]);
 });
 
 // Freeflow arriving mid-session, and its guidance pinned (SPEC-013).
@@ -1996,110 +1862,85 @@ const gateLines = (w: any) =>
     .events()
     .filter((line: any) => line.kind === "gate")
     .map((line: any) => `${line.gate}:${line.decision}:${line.tool}`);
-const gateSettings = (
-  modes: Record<string, string>,
-  ignored: { file: string; key: string | null; reason: string }[] = [],
-) => ({
+/** The listing of the one gate left, the delegation gate, with the given mode (D-058: the other three are gone). */
+const gateSettings = (mode: string, ignored: { file: string; key: string | null; reason: string }[] = []) => ({
   stdout: JSON.stringify({
     root: "/work/widget",
-    settings: Object.entries(modes).map(([gate, value]) => ({
-      key: `gates.${gate}`,
-      label: gate,
-      value,
-      scope: "repository",
-      hosts: "all",
-    })),
+    settings: [{ key: "gates.delegation", label: "Delegation gate", value: mode, scope: "repository", hosts: "all" }],
     ignored,
   }),
 });
+/** Another session's claim on src.mjs, live for years: the delegation gate warns or refuses a write to it (SPEC-009 4.5). */
+const CLAIM = {
+  writes: ["/work/widget/src.mjs"],
+  until: "2099-01-01T00:00:00.000Z",
+  task: "other/task-002",
+  delegation: "D-009",
+  session: "cccccccc-3333",
+};
 
-test("the gates warn: the call runs as the engine decided, the agent reads one row per gate per turn, and each would-fire is logged (SPEC-008 4.3)", async ($, on) => {
+test("the delegation gate warns: the call runs, one row per gate per turn, and each would-fire is logged (SPEC-008 4.3)", async ($, on) => {
   const w = world(on);
   w.status = held(at(-30));
   w.answers["task here"] = { stdout: MENU };
-  w.stored.set(GATES_PATH, gateState({ agreement: null, slice: null }));
+  w.stored.set(GATES_PATH, gateState({ claims: [CLAIM] }));
   await start($);
   await $.turn.start({ text: "go", turnId: "turn-1" } as any);
   const edit = (file_path: string) => $.tool.check({ tool: "Edit", input: { file_path } } as any);
 
-  // A change outside the store with no agreement and no Slice: the verdict stands, and both gates warn once.
+  // A write to the path another session claims: the verdict stands, and the row names the claim.
   expect((await edit("/work/widget/src.mjs")).decision).toBe("ask");
-  expect(gateRows(w).map((text) => GATE_ROW.exec(text)![1])).toEqual(["agreement", "slice"]);
-  expect(gateRows(w)[1]).toBe(
-    [
-      "Freeflow gate (warn, slice): Edit on src.mjs with no open Slice in widget/task-001.",
-      "Why: an effect outside the record needs a Slice first, so a lost context can tell what was half done.",
-      "Way through: slice start-direct (or slice start), then go on. This gate only warns for now.",
-    ].join("\n"),
-  );
+  expect(gateRows(w).map((text) => GATE_ROW.exec(text)![1])).toEqual(["delegation"]);
+  expect(gateRows(w)[0]).toStartWith("Freeflow gate (warn, delegation): src.mjs is claimed by other/task-002 D-009 ");
+  expect(gateRows(w)[0]).toContain("This gate only warns for now.");
+  // The same gate in the same turn: no row again, though the would-fire is logged.
+  expect((await edit("/work/widget/src.mjs")).decision).toBe("ask");
+  expect(gateRows(w).length).toBe(1);
+  // What is not claimed, the store's own files, and the removed gates' steps (a push, a write with no Slice) pass with no row.
   expect((await edit("/work/widget/other.mjs")).decision).toBe("ask");
-  expect(gateRows(w).length).toBe(2);
-  // The store's allow still holds, and the store is no change the gates guard; a read is none either.
   expect((await edit(RECORD)).decision).toBe("allow");
-  expect((await $.tool.check({ tool: "Bash", input: { command: "git status" } } as any)).decision).toBe("ask");
-  expect(gateRows(w).length).toBe(2);
-
-  // A Track Work command changes the state: the next call reads it again. The delivery gate always reminds.
-  w.stored.set(GATES_PATH, gateState());
-  await $.tool.call({
-    tool: "Bash",
-    command: `node ${w.scriptPath} slice start-direct --record widget/task-001`,
-  } as any);
-  await $.tool.check({ tool: "Bash", input: { command: "npm test && git push" } } as any);
-  expect(gateRows(w).map((text) => GATE_ROW.exec(text)![1])).toEqual(["agreement", "slice", "delivery"]);
+  expect((await $.tool.check({ tool: "Bash", input: { command: "npm test && git push" } } as any)).decision).toBe(
+    "ask",
+  );
+  expect(gateRows(w).length).toBe(1);
   // A new turn warns again.
   await $.turn.complete(turnEnd("answer"));
   await $.turn.start({ text: "again", turnId: "turn-2" } as any);
-  await $.tool.check({ tool: "Bash", input: { command: "git commit -m x" } } as any);
-  expect(gateRows(w).length).toBe(4);
+  await edit("/work/widget/src.mjs");
+  expect(gateRows(w).length).toBe(2);
   await $.turn.complete(turnEnd("answer"));
-  expect(gateLines(w)).toEqual([
-    "agreement:warn:Edit",
-    "slice:warn:Edit",
-    "agreement:warn:Edit",
-    "slice:warn:Edit",
-    "delivery:warn:Bash",
-    "delivery:warn:Bash",
-  ]);
+  expect(gateLines(w)).toEqual(["delegation:warn:Edit", "delegation:warn:Edit", "delegation:warn:Edit"]);
 });
 
-test("the gates under block: refused with the gate's text, a delivery step put to the person where someone can answer, a deny beneath standing (SPEC-008 4.2)", async ($, on) => {
+test("the delegation gate under block: refused with the gate's text, a deny beneath standing (SPEC-008 4.2)", async ($, on) => {
   const w = world(on);
   w.status = held(at(-30));
   w.answers["task here"] = { stdout: MENU };
-  w.settingsAnswers["list "] = gateSettings({
-    agreement: "block",
-    slice: "block",
-    delivery: "block",
-    delegation: "block",
-  });
-  w.stored.set(GATES_PATH, gateState({ slice: null }));
+  w.settingsAnswers["list "] = gateSettings("block", [
+    { file: ".freeflow/config.json", key: "gates.slice", reason: "the Slice gate was removed from Freeflow" },
+  ]);
+  w.stored.set(GATES_PATH, gateState({ claims: [CLAIM] }));
   w.verdict = { decision: "allow" };
   await start($);
   await $.turn.start({ text: "go", turnId: "turn-1" } as any);
 
-  const refused = await $.tool.check({ tool: "Write", input: { file_path: "/work/widget/new.mjs" } } as any);
+  const refused = await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any);
   expect(refused.decision).toBe("deny");
-  expect(refused.reason).toStartWith("Freeflow gate (block, slice): Write on new.mjs with no open Slice");
+  expect(refused.reason).toStartWith("Freeflow gate (block, delegation): src.mjs is claimed by other/task-002 D-009 ");
   expect(gateRows(w)).toEqual([]);
-  // The store's own files stay allowed.
-  w.verdict = { decision: "ask" };
+  // The store's own files and what the removed gates warned about are not refused.
   expect((await $.tool.check({ tool: "Edit", input: { file_path: RECORD } } as any)).decision).toBe("allow");
-  // A delivery step asks where someone can answer, and is refused where nobody can.
-  w.stored.set(GATES_PATH, gateState());
-  await $.tool.call({ tool: "Bash", command: `node ${w.scriptPath} slice resume --record widget/task-001` } as any);
-  w.verdict = { decision: "allow" };
-  const asked = await $.tool.check({ tool: "Bash", input: { command: "git push" }, approver: "person" } as any);
-  expect(asked.decision).toBe("ask");
-  expect(asked.reason).toContain("git push is a delivery step.");
-  expect((await $.tool.check({ tool: "Bash", input: { command: "git push" } } as any)).decision).toBe("deny");
+  expect((await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/other.mjs" } } as any)).decision).toBe(
+    "allow",
+  );
+  expect((await $.tool.check({ tool: "Bash", input: { command: "git push" } } as any)).decision).toBe("allow");
   // A deny from beneath is never turned into anything else.
-  w.verdict = { decision: "deny", rule: "Bash(git push:*)" };
-  expect(
-    (await $.tool.check({ tool: "Bash", input: { command: "git push" }, approver: "person" } as any)).decision,
-  ).toBe("deny");
+  w.verdict = { decision: "deny", rule: "Edit(src.mjs)" };
+  expect((await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any)).decision).toBe(
+    "deny",
+  );
   await $.turn.complete(turnEnd("answer"));
-  expect(gateLines(w)).toEqual(["slice:block:Write", "delivery:ask:Bash", "delivery:block:Bash"]);
+  expect(gateLines(w)).toEqual(["delegation:block:Edit"]);
 });
 
 // R1 B1: a gate whose value the listing ignores keeps the mode the mod last read in this process; a config problem
@@ -2108,23 +1949,28 @@ test("a gate's ignored value keeps the mode the mod last read: block, an ignored
   const w = world(on);
   w.status = held(at(-30));
   w.answers["task here"] = { stdout: MENU };
+  w.stored.set(GATES_PATH, gateState({ claims: [CLAIM] }));
   w.verdict = { decision: "allow" };
-  const pushDecision = async () =>
-    (await $.tool.check({ tool: "Bash", input: { command: "git push" } } as any)).decision;
+  const editDecision = async () =>
+    (await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any)).decision;
   const ignoredValue = [
-    { file: ".freeflow/config.json", key: "gates.delivery", reason: "gates.delivery must be one of off, warn, block" },
+    {
+      file: ".freeflow/config.json",
+      key: "gates.delegation",
+      reason: "gates.delegation must be one of off, warn, block",
+    },
   ];
-  const starts: [Record<string, string>, typeof ignoredValue][] = [
-    [{ delivery: "block" }, []],
-    [{ delivery: "warn" }, ignoredValue],
-    [{ delivery: "block" }, []],
+  const starts: [string, typeof ignoredValue][] = [
+    ["block", []],
+    ["warn", ignoredValue],
+    ["block", []],
   ];
   const decisions: string[] = [];
-  for (const [modes, ignored] of starts) {
-    w.settingsAnswers["list "] = gateSettings(modes, ignored);
+  for (const [mode, ignored] of starts) {
+    w.settingsAnswers["list "] = gateSettings(mode, ignored);
     await start($);
     await $.turn.start({ text: "go", turnId: "turn-1" } as any);
-    decisions.push(await pushDecision());
+    decisions.push(await editDecision());
     await $.turn.complete(turnEnd("answer"));
   }
   expect(decisions).toEqual(["deny", "deny", "deny"]);
@@ -2140,6 +1986,7 @@ test("the delegation gate: a worker's write outside its brief's May write, or to
       delegations: {
         "D-012": {
           writes: ["/wt/d-012/skills/review-work/**"],
+          line: true,
           worktree: "/wt/d-012",
           folder: "/store/projects/widget/tasks/task-001-probe/delegations/D-012-review",
         },
@@ -2172,7 +2019,7 @@ test("the delegation gate: a worker's write outside its brief's May write, or to
   ]);
 });
 
-test("with no gate state the gates are quiet under warn and say so once in the event log; closed under block (SPEC-008 section 5)", async ($, on) => {
+test("with no gate state the gate is quiet under warn and says so once in the event log (SPEC-008 section 5)", async ($, on) => {
   const w = world(on);
   w.stored.delete(GATES_PATH);
   w.status = held(at(-30));
@@ -2188,16 +2035,22 @@ test("with no gate state the gates are quiet under warn and say so once in the e
   expect(w.events().filter((line: any) => line.kind === "freeflow" && line.what === "gates").length).toBe(1);
 });
 
-test("with no gate state under block, a change is refused with how to write one (SPEC-008 section 5)", async ($, on) => {
+test("with no gate state under block, a worker's write is refused with how to write one (SPEC-008 section 5)", async ($, on) => {
   const w = world(on);
   w.stored.delete(GATES_PATH);
   w.status = held(at(-30));
   w.answers["task here"] = { stdout: MENU };
-  w.settingsAnswers["list "] = gateSettings({ agreement: "block" });
+  w.settingsAnswers["list "] = gateSettings("block");
   await start($);
-  const refused = await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any);
+  await $.agent.spawn(spawn("Do D-012's part."));
+  await $.turn.start({ text: "x", turnId: "turn-w", agentId: "agent-7" } as any);
+  const refused = await $.tool.check({
+    tool: "Edit",
+    input: { file_path: "/wt/d-012/x.mjs" },
+    agentId: "agent-7",
+  } as any);
   expect(refused.decision).toBe("deny");
-  expect(refused.reason).toContain("Freeflow cannot read its gate state; run `task here` or `agree`");
+  expect(refused.reason).toContain("Freeflow cannot read its gate state; run `task here`");
 });
 
 test("the event log: the notice names the context that crossed it and the notice point, and a compaction the cycle it ended", async ($, on) => {
@@ -2255,4 +2108,103 @@ test("a first store read that fails leaves the cycle's copy to the next read: a 
   w.stored.set("/store/sessions/sess-1/cycle.json", JSON.stringify({ cycle: 1, notice: 1_700_000_000_000 }) + "\n");
   await step($, w, 160_000);
   expect(noticesOf(w).length).toBe(0);
+});
+
+test("the text Freeflow sent the model is kept whole: a notice and each gate row as a sent line; /freeflow sent lists it and shows one whole (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  // Prefixes match in order, so the longer answer comes last.
+  w.answers["events sent"] = {
+    stdout: "1  2026-10-29T12:00:00.000Z  gate  40 chars  Freeflow gate (warn, delegation)\n",
+  };
+  w.answers["events sent --show 2"] = { stdout: "THE NOTICE, WHOLE\n" };
+  w.stored.set(GATES_PATH, gateState({ claims: [CLAIM] }));
+  await start($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  // A request past the notice point, then a write to a path another session claims.
+  await step($, w, 148_000);
+  await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any);
+  await $.turn.complete(turnEnd("answer"));
+
+  // Each text the agent read is one sent line, under its source, with the whole text: the menu the start gave, the
+  // notice, and the gate's row (the gate warns once per turn).
+  const sent = w.events().filter((line: any) => line.kind === "sent");
+  expect(sent.map((line: any) => line.what)).toEqual(["menu", "notice", "gate"]);
+  expect(sent[0].text).toContain("Freeflow task memory:");
+  expect(sent[1].text).toBe(noticesOf(w)[0]);
+  expect(sent[2].text).toBe(gateRows(w)[0]);
+
+  // /freeflow sent: the list the log's `events sent` prints, and entry n whole.
+  expect((await freeflow($, "sent")).text).toBe(
+    "1  2026-10-29T12:00:00.000Z  gate  40 chars  Freeflow gate (warn, delegation)",
+  );
+  expect((await freeflow($, "sent 2")).text).toBe("THE NOTICE, WHOLE");
+});
+
+test("the pinned guidance every request carries is kept as a sent line once per session, not with each request (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  await start($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  // Three requests compose the same section: each carries it, and the log keeps its text once.
+  const sections = [] as string[];
+  for (let request = 0; request < 3; request += 1)
+    sections.push((await $.prompt.compose(COMPOSE)).sections.at(-1)!.text);
+  expect(new Set(sections).size).toBe(1);
+  await $.turn.complete(turnEnd("answer"));
+  const pinned = w.events().filter((line: any) => line.kind === "sent" && line.what === "pinned-guidance");
+  expect(pinned.map((line: any) => line.text)).toEqual([sections[0]]);
+  expect(pinned[0].text).toContain("CORE GUIDANCE");
+});
+
+test("the classic session start's guidance is kept as one sent line with its full text, and none while the guidance is pinned (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  w.answers["task here"] = { stdout: MENU };
+  w.parts = [SECTION];
+  w.hookContext = [SECTION];
+  // Pinned at a fresh start: the hooks' copy is left out of the conversation, so no line keeps it.
+  await start($);
+  // A thread the ledger does not show pinned: the hooks' copy is what the model reads, and its text is the line.
+  w.stored.delete(LEDGER);
+  w.ledgers.clear();
+  expect((await start($, { source: "resume" })).additionalContext).toEqual([SECTION, `Freeflow task memory:\n${MENU}`]);
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "session-start").map((line: any) => line.text)).toEqual([SECTION]);
+});
+
+test("a renderer that fails at a session start leaves the hooks' texts in the conversation, and each is kept as a session-start line (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  w.answers["task here"] = { stdout: MENU };
+  w.hookContext = ["CORE GUIDANCE", "THE CONTRACT"];
+  w.sectionAnswer = { exitCode: 1, stderr: "Error: no prompts\n" };
+  expect((await start($)).additionalContext).toEqual([
+    "CORE GUIDANCE",
+    "THE CONTRACT",
+    `Freeflow task memory:\n${MENU}`,
+  ]);
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "session-start").map((line: any) => line.text)).toEqual(["CORE GUIDANCE", "THE CONTRACT"]);
+});
+
+test("a compaction that skips takes no message, so its error is no sent line; one that takes the message keeps its error (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.answers["view bundle --record"] = { exitCode: 1, stderr: "Error: Future Work holds only proposed Slices.\n" };
+  w.status = store();
+  await start($);
+  await w.clock.advance(2 * 60_000);
+  w.status = held(at(1));
+  w.skipCompaction = true;
+  expect((await $.session.compact({ trigger: "manual", messages: CONVERSATION })).skip).toBe(
+    "the test skips this compaction",
+  );
+  w.skipCompaction = false;
+  const kept = await $.session.compact({ trigger: "manual", messages: CONVERSATION });
+  const error = kept.messages?.[1]?.text as string;
+  expect(error).toContain("Freeflow could not make widget/task-001's bundle: Future Work holds only proposed Slices.");
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "compaction-error").map((line: any) => line.text)).toEqual([error]);
 });

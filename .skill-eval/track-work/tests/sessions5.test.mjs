@@ -306,12 +306,9 @@ test("delegate join records the Handle and the session, prints the worker's reco
         { ...worker, input: BRIEF },
       ),
     );
-    // Its gate state is its delegation's: the coordinator's agreement, its own scope, no Slice.
+    // Its gate state is its delegation's: the task, its own scope and the worker it is (D-058: no agreement or Slice).
     const state = await gates(home, WORKER);
-    assert.deepEqual(
-      [state.task, state.worker, state.agreement, state.slice],
-      ["widget/task-001", "D-001", "A-001", null],
-    );
+    assert.deepEqual([state.task, state.worker], ["widget/task-001", "D-001"]);
     assert.ok(state.delegations["D-001"]);
     const write = decide(state, { tool: "Edit", paths: [join(taskDir, "record.md")], cwd: repo });
     assert.deepEqual(

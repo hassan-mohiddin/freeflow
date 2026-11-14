@@ -4,9 +4,12 @@
 // file and appends; one writer keeps the schema in one place (T1). The log lives on this machine only, in
 // `<FREEFLOW_HOME>/events/<session>.jsonl`, which the store's Git ignores (P1); a checkpoint and a release write a short
 // summary of it into the held task's folder, `events/<session>.json`, which the store commits (P7). A line never holds
-// a prompt, an answer, a file's content or a tool's output (P4): the writer refuses any field schema v1 does not name.
-// Readers ignore a kind or field they do not know, so a later minor version may add both.
+// a prompt, an answer, a file's content or a tool's output (P4), with one exception: a `sent` line holds the whole text
+// Freeflow itself sent the model (SPEC-006, sent), which the writer redacts (the forms are in `redact`). The writer
+// refuses any field schema v1 does not name. Readers ignore a kind or field they do not know, so a later minor version
+// may add both.
 
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { appendFile, mkdir, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -35,12 +38,49 @@ const boolean = (value) => typeof value === "boolean";
 const nullable = (check) => (value) => value === null || check(value);
 const amount = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
 /**
- * The cost governor's caps (SPEC-014, section 2.3): the seven-day window's daily pace, the seven-day window at the
- * `governor.cap` percent, and the task's cost (its plan's high end, or `governor.cap` dollars). Its responses: a row at
- * 80% of a cap; at 100% a notice under `governor.mode` warn, the ask to stop under stop.
+ * The cost governor was removed (D-058). Its caps and responses stay in the schema so an older log's `governor` lines
+ * still read; nothing writes or summarizes them now.
  */
 export const GOVERNOR_CAPS = ["pace", "window", "task"];
 export const GOVERNOR_RESPONSES = ["row", "notice", "ask"];
+/** The gates a `gate` line may name: the three removed in D-058 (agreement, slice, delivery) stay readable in an older log. */
+export const GATE_LINE_NAMES = ["agreement", "slice", "delivery", "delegation"];
+/**
+ * The text Freeflow itself put in front of the model, by the send point's source (a `sent` line's `what`). A driver
+ * names the source; `events sent` lists them and the summary counts them. Added in schema v1 (additive).
+ */
+export const SENT_WHATS = [
+  "session-start",
+  "menu",
+  "catch-up",
+  "pinned-guidance",
+  "system-prompt",
+  "runtime-state",
+  "notice",
+  "compact-request",
+  "compaction-note",
+  "bundle",
+  "continue",
+  "compaction-error",
+  "gate",
+  "took-back",
+  "waits",
+  "worker-notice",
+  "stop-block",
+  // "governor" is read from an older log only: the cost governor was removed (D-058).
+  "governor",
+  "settings",
+  "pane",
+  "guidance",
+  "files",
+  "background",
+  "monitor",
+  "message",
+  "skill",
+  "keep-alive",
+];
+/** How many characters of a `sent` line's first line `events sent` lists before it is cut. */
+export const SENT_LIST_WIDTH = 80;
 
 /**
  * Schema v1's kinds and the fields each takes beyond the common ones (section 4.1): `true` marks a required field.
@@ -83,9 +123,9 @@ export const KINDS = {
   },
   "agent.spawn": { delegation: [(value) => /^D-\d{3,}(\.\d+)?$/.test(value)], model: [text] },
   "agent.stop": { blocked: [boolean] },
-  // SPEC-008, additive to v1 (T3): a gate that did not allow a call, and an agreement `agree` recorded.
+  // SPEC-008, additive to v1 (T3): a gate that did not allow a call. The agreement line is kept for older logs (D-058).
   gate: {
-    gate: [oneOf(GATES), true],
+    gate: [oneOf(GATE_LINE_NAMES), true],
     decision: [oneOf(["warn", "ask", "block"]), true],
     tool: [text, true],
     rule: [text],
@@ -103,7 +143,7 @@ export const KINDS = {
     context: [count],
     point: [count],
   },
-  // The cost governor: a cap, the use measured against it (both in percent of a window or in dollars), and its response.
+  // The cost governor (removed in D-058): a line an older log holds stays valid; no driver writes one now.
   governor: {
     cap: [oneOf(GOVERNOR_CAPS), true],
     unit: [oneOf(["percent", "usd"]), true],
@@ -111,15 +151,30 @@ export const KINDS = {
     use: [amount, true],
     response: [oneOf(GOVERNOR_RESPONSES), true],
   },
+  // Added in schema v1: the text Freeflow sent to the model, in full. `text` is redacted and never cut (it is the
+  // whole text, newlines kept); the writer sets `chars` (its length) and `sha` (`digest`) from the text before redaction.
+  sent: {
+    what: [oneOf(SENT_WHATS), true],
+    text: [(value) => typeof value === "string" && value.trim() !== "", true],
+    chars: [count],
+    sha: [(value) => typeof value === "string" && /^[0-9a-f]{12}$/.test(value)],
+  },
 };
+
+/** The first 12 hex digits of the SHA-256 of a text: what a `sent` line's `sha` holds, and what drivers dedupe by. */
+export function digest(text) {
+  return createHash("sha256").update(text, "utf8").digest("hex").slice(0, 12);
+}
 
 function isPath(value) {
   return typeof value === "string" && value !== "" && value.length <= PATH_LIMIT && !/[\0\n\r]/.test(value);
 }
 
 /**
- * Keys and tokens in a shell command, replaced with `[redacted]` before it is written (section 4.3): API keys, GitHub,
- * Slack and AWS tokens, a bearer token, and the value of any `…key=`, `…token=`, `…secret=` or `…password=`.
+ * Keys and tokens, replaced with `[redacted]` before a line is written (section 4.3): API keys, GitHub, Slack and AWS
+ * tokens, a bearer token, the value of any key word (`key`, `token`, `secret`, `password`, with a prefix or suffix) in
+ * the forms `word=value`, `word = value`, `word: value` and a JSON `"word": "value"`, and a PEM private-key block.
+ * A secret in none of these forms is kept as it was written; the event-log doc lists the forms.
  */
 const SECRETS = [
   [/\bsk-[A-Za-z0-9_-]{16,}/g, "[redacted]"],
@@ -128,7 +183,8 @@ const SECRETS = [
   [/\bxox[abps]-[A-Za-z0-9-]{10,}/g, "[redacted]"],
   [/\bAKIA[0-9A-Z]{16}\b/g, "[redacted]"],
   [/\b(Bearer)\s+[A-Za-z0-9._~+/=-]+/gi, "$1 [redacted]"],
-  [/\b([A-Za-z0-9_-]*(?:key|token|secret|password))=("[^"]*"|'[^']*'|[^\s&;|]+)/gi, "$1=[redacted]"],
+  [/-----BEGIN ((?:[A-Z]+ )*)PRIVATE KEY-----[\s\S]*?-----END \1PRIVATE KEY-----/g, "[redacted]"],
+  [/\b([A-Za-z0-9_-]*(?:key|token|secret|password)["']?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s&;|]+)/gi, "$1$2[redacted]"],
 ];
 
 export function redact(value) {
@@ -193,10 +249,17 @@ function normalize(line, seq) {
   };
   for (const key of Object.keys(fields)) {
     if (line[key] === undefined) continue;
+    // A `sent` line's text is the whole text Freeflow sent: redacted, never cut.
+    if (key === "text" && line.kind === "sent") written.text = redact(line.text);
     // A command is cut at its heredoc before the length cut, so no body text is kept past its operator (P4).
-    written[key] = CUT.has(key)
-      ? redactAndCut(key === "command" ? cutHeredoc(line[key]) : line[key], COMMAND_LIMIT)
-      : line[key];
+    else if (CUT.has(key))
+      written[key] = redactAndCut(key === "command" ? cutHeredoc(line[key]) : line[key], COMMAND_LIMIT);
+    else written[key] = line[key];
+  }
+  // Measured from the text as sent, before redaction: `sha` identifies what was sent, and a driver's own is not kept.
+  if (line.kind === "sent") {
+    written.chars = line.text.length;
+    written.sha = digest(line.text);
   }
   return written;
 }
@@ -389,11 +452,12 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
   let toolCalls = 0;
   let freeflowCalls = 0;
   let dropped = 0;
-  const governor = [];
   let harness = null;
   const gates = Object.fromEntries(GATES.map((gate) => [gate, 0]));
   let gatesBlocked = 0;
   let agreements = 0;
+  let sentLines = 0;
+  const sentBy = {};
   // The tokens from a cycle's notice to the checkpoint that answered it. Rows (schema v1's older kind of line) are not
   // measured: no driver writes one now, and the notice is the only signal before compaction.
   const toCheckpoint = { notice: [] };
@@ -434,13 +498,14 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       workers.stopped += 1;
       if (line.blocked) workers.blocked += 1;
     } else if (line.kind === "freeflow" && line.what === "dropped") dropped += line.dropped ?? 0;
-    else if (line.kind === "governor") {
-      const { ts, cap, unit, limit, use, response } = line;
-      governor.push({ ts, cap, unit, limit, use, response });
-    } else if (line.kind === "gate" && line.gate in gates) {
+    else if (line.kind === "gate" && line.gate in gates) {
       gates[line.gate] += 1;
       if (line.decision !== "warn") gatesBlocked += 1;
     } else if (line.kind === "agreement") agreements += 1;
+    else if (line.kind === "sent" && SENT_WHATS.includes(line.what)) {
+      sentLines += 1;
+      sentBy[line.what] = (sentBy[line.what] ?? 0) + 1;
+    }
   }
   const spread = (values) => {
     const sorted = [...values].sort((x, y) => x - y);
@@ -471,20 +536,15 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       share: toolCalls ? Math.round((freeflowCalls / toolCalls) * 1000) / 1000 : 0,
     },
     dropped,
-    ...(governor.length ? { governor } : {}),
     gates: { ...gates, blocked: gatesBlocked },
     agreements,
+    // The counts of the text Freeflow sent to the model, by source (the text itself is in the log, never here).
+    sent: {
+      lines: sentLines,
+      by: Object.fromEntries(Object.entries(sentBy).sort(([x], [y]) => x.localeCompare(y))),
+    },
     ...(checkpoints.length ? { toCheckpoint: checkpoints } : {}),
   };
-}
-
-const CAP_NAMES = { pace: "the daily pace", window: "the seven-day window", task: "the task's cost" };
-const RESPONSE_NAMES = { row: "a row", notice: "a notice", ask: "the ask to stop" };
-
-/** One governor line as `events summary` prints it. */
-function governorLine(each) {
-  const figure = (value) => (each.unit === "usd" ? `$${value.toFixed(2)}` : `${Math.round(value * 10) / 10}%`);
-  return `  ${each.ts}: ${CAP_NAMES[each.cap] ?? each.cap} at ${figure(each.use)} of ${figure(each.limit)}, ${RESPONSE_NAMES[each.response] ?? each.response}`;
 }
 
 /** A summary as the few lines `events summary` prints. */
@@ -507,16 +567,24 @@ export function renderSummary(summary) {
         `Notice to checkpoint: ${n(each.cycles)} cycle(s), median ${n(each.median)}, largest ${n(each.largest)}`,
     ),
     `Workers: ${summary.workers.spawned} started, ${summary.workers.stopped} stopped${summary.workers.blocked ? `, ${summary.workers.blocked} sent back` : ""}`,
-    ...(summary.gates
+    ...(summary.sent
       ? [
-          `Gates: ${GATES.map((gate) => `${gate} ${summary.gates[gate] ?? 0}`).join(", ")} would-fire${summary.gates.blocked ? `, ${summary.gates.blocked} of them asked or refused` : ""}`,
+          `Sent: ${n(summary.sent.lines)}${
+            summary.sent.lines
+              ? ` (by what: ${Object.entries(summary.sent.by)
+                  .map(([what, count]) => `${what} ${n(count)}`)
+                  .join(", ")})`
+              : ""
+          }`,
         ]
       : []),
-    ...(summary.agreements ? [`Agreements recorded with agree: ${summary.agreements}`] : []),
-    ...(summary.dropped ? [`Dropped: ${summary.dropped} line(s) were not written`] : []),
-    ...(summary.governor?.length
-      ? [`Governor: ${summary.governor.length} response(s)`, ...summary.governor.map(governorLine)]
+    ...(summary.gates
+      ? [
+          `Gates: ${GATES.map((gate) => `${gate} ${summary.gates[gate] ?? 0}`).join(", ")} would-fire${summary.gates.blocked ? `, ${summary.gates.blocked} of them refused` : ""}`,
+        ]
       : []),
+    ...(summary.agreements ? [`Agreement lines in the log: ${summary.agreements}`] : []),
+    ...(summary.dropped ? [`Dropped: ${summary.dropped} line(s) were not written`] : []),
   ];
   return `${lines.join("\n")}\n`;
 }

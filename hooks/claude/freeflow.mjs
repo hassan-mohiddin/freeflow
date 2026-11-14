@@ -6,7 +6,7 @@
 import { decide, gateEvent, gateText, validGateState } from "../../skills/track-work/scripts/lib/gates5.mjs";
 import { noticePoint } from "../../skills/track-work/scripts/lib/notice5.mjs";
 
-import { paneCommand, paneRead, registerPane, resolvePane } from "./pane.mjs";
+import { paneCommand, paneRead, registerPane, resolvePane, takePaneTexts } from "./pane.mjs";
 
 const SCRIPT = "skills/track-work/scripts/working-record.mjs";
 const SETTINGS_SCRIPT = "skills/setup-freeflow/scripts/settings.mjs";
@@ -74,14 +74,14 @@ let sessionId = null;
 /** @type {Map<string, number>} each worker's turns, and the main loop's under "main" */
 const turnsOf = new Map();
 
-// The gates (SPEC-008): before each tool call, Track Work's gates5.mjs decides it from the session's gate state, which
+// The gate (SPEC-008): before each tool call, Track Work's gates5.mjs decides it from the session's gate state, which
 // Track Work's lifecycle commands write to `<home>/sessions/<session>/gates.json`. The state is read once a turn and
-// again after a Track Work command; each gate's mode (`gates.*`) is read with `enabled`. Under warn the call runs and
-// the agent reads one row per gate per turn; under block the call is refused with the same text, and a delivery step
-// is put to the person where someone can answer.
-const GATE_KEYS = ["agreement", "slice", "delivery", "delegation"];
-/** @type {Record<string, string>} each gate's mode: off, warn or block */
-let gateModes = { agreement: "warn", slice: "warn", delivery: "warn", delegation: "warn" };
+// again after a Track Work command; the gate's mode (`gates.delegation`) is read with `enabled`. Under warn the call runs
+// and the agent reads one row per turn; under block the call is refused with the same text. The agreement, Slice and
+// delivery gates were removed (D-058); delivery is left to the harness's own permission prompts.
+const GATE_KEYS = ["delegation"];
+/** @type {Record<string, string>} the gate's mode: off, warn or block */
+let gateModes = { delegation: "warn" };
 /** @type {any} the session's gate state as last read; undefined until read this turn, null where there is none */
 let gateState = undefined;
 /** Whether the event log has its one line saying the gate state is missing. */
@@ -122,11 +122,46 @@ async function emit($, kind, fields, agent = "main") {
 }
 
 /**
+ * The texts logged with `once`, keyed by session and text: a text a session already sent is not logged again (what every
+ * request carries). The text itself is the key, since this module imports nothing from Node, which a hash needs.
+ * @type {Set<string>}
+ */
+const sentOnce = new Set();
+
+/**
+ * Keeps one `sent` line for the next flush: the whole text Freeflow sent to the model, by its source (`what`, one of
+ * Track Work's SENT_WHATS). Nothing while Freeflow or its event log is off. With `once`, a text this session already
+ * logged is not logged again.
+ * @param {any} $
+ * @param {string} what
+ * @param {string} text
+ * @param {{ once?: boolean }} [options]
+ */
+async function sent($, what, text, { once = false } = {}) {
+  if (typeof text !== "string" || !text || !enabled || !eventsOn) return;
+  try {
+    sessionId ??= await $.session.id();
+    if (once) {
+      const key = `${sessionId}\u0000${text}`;
+      if (sentOnce.has(key)) return;
+      sentOnce.add(key);
+    }
+    await emit($, "sent", { what, text });
+  } catch {
+    // The log is a sensor, and a sensor fails open: a line that cannot be kept is let go, and the send it describes,
+    // which the callers make next, goes on.
+  }
+}
+
+/**
  * Writes the waiting lines with one script run; never fails the hook it runs in.
  * @param {any} $
  * @param {{ session?: string, timeoutMs?: number }} [options]
  */
 async function flush($, options = {}) {
+  // The texts the pane put in front of the model since the last flush: its own `sent` lines, placed here at flush time,
+  // so their order against the other `sent` lines can differ from the order they were sent in.
+  for (const text of takePaneTexts()) await sent($, "pane", text);
   if (!buffered.length) return;
   const lines = buffered;
   buffered = [];
@@ -186,10 +221,7 @@ function claims() {
       ? claim("yes", "a prompt after its compaction ($.prompt.submit)")
       : claim("no", "nothing runs between turns in a headless run"),
     ask: claim("possible", "$.ui.ask exists; Freeflow does not ask through it yet"),
-    block: claim(
-      "yes",
-      "tool.check refuses a gate's call under block, or asks the person for a delivery step (gates.*)",
-    ),
+    block: claim("yes", "tool.check refuses the delegation gate's call under block (gates.delegation)"),
     sensors: eventsOn
       ? claim("yes", "turns, model requests, tool calls, compactions, workers, written to the event log")
       : claim("possible", "the event log is off (events.enabled)"),
@@ -420,10 +452,13 @@ function noticeText($, context, state, number) {
 }
 
 /**
+ * Appends one row the agent reads, and keeps it as a `sent` line under its source.
  * @param {any} $
  * @param {string} text
+ * @param {string} what the source, one of Track Work's SENT_WHATS
  */
-async function appendRow($, text) {
+async function appendRow($, text, what) {
+  await sent($, what, text);
   await $.session.append({ message: { type: "user", content: [{ type: "text", text }] } });
 }
 
@@ -449,7 +484,7 @@ async function watchMain($) {
   cycle.notice = await $.clock.now();
   await keepCycle($, state);
   const number = await cycleNumber($, state);
-  await appendRow($, noticeText($, context, state, number));
+  await appendRow($, noticeText($, context, state, number), "notice");
   await emit($, "freeflow", { what: "notice", detail: `cycle ${number}`, context: tokens, point: Math.round(point) });
 }
 
@@ -483,10 +518,9 @@ async function noticeWorker($, step, response) {
     `context at ${Math.round((100 * tokens) / size)}%: told to rewrite progress.md`,
     step.agentId,
   );
-  await $.session.send({
-    to: { agentId: step.agentId },
-    text: `Freeflow: your context is at ${Math.round((100 * tokens) / size)}% of its window and compaction is near. At your next safe point, rewrite ${worker.delegation}'s progress.md (Done, Half done, Didn't work, Next), so a compaction loses nothing, then go on.`,
-  });
+  const text = `Freeflow: your context is at ${Math.round((100 * tokens) / size)}% of its window and compaction is near. At your next safe point, rewrite ${worker.delegation}'s progress.md (Done, Half done, Didn't work, Next), so a compaction loses nothing, then go on.`;
+  await sent($, "worker-notice", text);
+  await $.session.send({ to: { agentId: step.agentId }, text });
 }
 
 /** Whether the checkpoint this cycle asked for is done: the record's State as of, or the summary's time, is later
@@ -500,11 +534,14 @@ function checkpointDone(state) {
   return Boolean(asOf) && Date.parse(asOf) > (cycle.notice ?? cycle.startedAt);
 }
 
+/** The assistant turn that follows Freeflow's bundle in the conversation the model reads after its own compaction. */
+const RECOVERED = "Recovered from Freeflow's bundle.";
+
 /** @param {string} text */
 const ownMessages = (text) => ({
   messages: [
     { role: /** @type {const} */ ("user"), text, toolUses: [] },
-    { role: /** @type {const} */ ("assistant"), text: "Recovered from Freeflow's bundle.", toolUses: [] },
+    { role: /** @type {const} */ ("assistant"), text: RECOVERED, toolUses: [] },
   ],
 });
 
@@ -541,7 +578,13 @@ function unmade($, state, made) {
 /** Freeflow's compaction (P63, T14): the bundle as the whole conversation, with no summarizer request. */
 async function ownCompaction($, e, next, state) {
   const made = await script($, bundleArgs(state));
-  if (made.exitCode !== 0) return withMessage(await next(e), unmade($, state, made));
+  if (made.exitCode !== 0) {
+    const error = unmade($, state, made);
+    const compacted = await next(e);
+    // Logged only where the error reaches the model: a compaction that skipped takes no message.
+    if (!compacted.skip) await sent($, "compaction-error", error);
+    return withMessage(compacted, error);
+  }
   // The bundle replaces the conversation: a checkpoint --compact waiting for this is answered, whoever compacted.
   if (state.compact && !state.compact.done) await answered($, state.compact);
   if (!state.task && !state.delegation)
@@ -551,6 +594,8 @@ async function ownCompaction($, e, next, state) {
       "require('node:fs').rmSync(process.argv[1], { force: true })",
       state.summary.path,
     ]);
+  await sent($, "bundle", made.stdout);
+  await sent($, "bundle", RECOVERED);
   return ownMessages(made.stdout);
 }
 
@@ -569,15 +614,16 @@ function bundleArgs(state) {
 async function workerSessionCompaction($, e, next, state) {
   const { id, task } = state.delegation;
   const note = `Freeflow: this session is the worker for ${id} of ${task}; its progress.md holds the work up to ${state.delegation.progressAsOf ?? "its last checkpoint --delegation"}. Say so in the summary, and keep what happened after that.`;
+  await sent($, "compaction-note", note);
   const compacted = await next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${note}` : note });
   if (compacted.skip) return compacted;
   const made = await script($, bundleArgs(state));
-  return withMessage(
-    compacted,
+  const text =
     made.exitCode === 0
       ? made.stdout
-      : `Freeflow could not make ${id}'s bundle: ${made.stderr.replace(/^Error: /, "").trim()}. Recover with node ${$.plugin.root}/${SCRIPT} view recover --record ${task} --delegation ${id}.`,
-  );
+      : `Freeflow could not make ${id}'s bundle: ${made.stderr.replace(/^Error: /, "").trim()}. Recover with node ${$.plugin.root}/${SCRIPT} view recover --record ${task} --delegation ${id}.`;
+  await sent($, made.exitCode === 0 ? "bundle" : "compaction-error", text);
+  return withMessage(compacted, text);
 }
 
 /**
@@ -643,10 +689,12 @@ async function waitsReturned($, state, { wake }) {
     $.clock.after(WAIT_BATCH_MS, async () => {
       const text = `Freeflow: ${pendingWaits.join(" ")}`;
       pendingWaits = [];
-      if (mainTurns === turns) await $.prompt.submit({ text });
-      else await appendRow($, text);
+      if (mainTurns === turns) {
+        await sent($, "waits", text);
+        await $.prompt.submit({ text });
+      } else await appendRow($, text, "waits");
     });
-  } else await appendRow($, `Freeflow: ${row}`);
+  } else await appendRow($, `Freeflow: ${row}`, "waits");
 }
 
 /**
@@ -673,10 +721,13 @@ function watchWaits($, state) {
  * checkpoint with the user's messages since and the transcript's path, as one message after its summary (T14). */
 async function fallbackCompaction($, e, next, state) {
   const note = `Freeflow: the task's Working Record (${state.task.id}) holds the work up to its last checkpoint, ${state.task.stateAsOf}; keep in the summary what happened after that.`;
+  await sent($, "compaction-note", note);
   const compacted = await next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${note}` : note });
   if (compacted.skip) return compacted;
   const made = await script($, ["view", "bundle", "--record", state.task.record, "--fallback"]);
-  return withMessage(compacted, made.exitCode === 0 ? made.stdout : unmade($, state, made));
+  const text = made.exitCode === 0 ? made.stdout : unmade($, state, made);
+  await sent($, made.exitCode === 0 ? "bundle" : "compaction-error", text);
+  return withMessage(compacted, text);
 }
 
 /** A worker's compaction: its summary names its delegation and how it recovers. */
@@ -687,6 +738,7 @@ async function workerCompaction($, e, next) {
   // Its compaction starts the worker's next cycle, with a notice of its own.
   worker.noticed = false;
   const note = `Freeflow: this agent is the worker for delegation ${worker.delegation}. Say so in the summary, and that after the compaction it recovers with node ${$.plugin.root}/${SCRIPT} view recover --record ${state.task.id} --delegation ${worker.delegation}, then continues from its progress.md.`;
+  await sent($, "compaction-note", note);
   return next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${note}` : note });
 }
 
@@ -719,7 +771,9 @@ async function compactAndContinue($, request) {
       // on from the bundle; a prompt submitted now would wait behind it and arrive out of date (F35).
       const turns = mainTurns;
       $.clock.after(CONTINUE_AFTER_MS, async () => {
-        if (mainTurns === turns) await $.prompt.submit({ text: CONTINUE });
+        if (mainTurns !== turns) return;
+        await sent($, "continue", CONTINUE);
+        await $.prompt.submit({ text: CONTINUE });
       });
     }
   } catch (error) {
@@ -736,6 +790,7 @@ async function compactAndContinue($, request) {
     await appendRow(
       $,
       `Freeflow: the compaction your checkpoint asked for did not run (${dropped}); it tries again when the next turn ends.`,
+      "compaction-error",
     );
     return;
   }
@@ -743,6 +798,7 @@ async function compactAndContinue($, request) {
   await appendRow(
     $,
     `Freeflow: the compaction your checkpoint asked for did not run (${dropped}), ${tries} times; it stops trying. Checkpoint with --compact again, or run /compact.`,
+    "compaction-error",
   );
 }
 
@@ -777,7 +833,7 @@ async function turnEnded($, e) {
     const menu = await storeArrived($, state, session, cwd);
     // The menu has no place to go now, but a task taken back does: the agent learns it holds the task (F36).
     const tookBack = menu.exitCode === 0 ? /^Took .+ back: .+$/m.exec(menu.stdout)?.[0] : undefined;
-    if (tookBack) await appendRow($, `Freeflow: ${tookBack}`);
+    if (tookBack) await appendRow($, `Freeflow: ${tookBack}`, "took-back");
   }
   if (state.changed) {
     await script($, ["store", "sync"]);
@@ -785,8 +841,6 @@ async function turnEnded($, e) {
   }
   await waitsReturned($, state, { wake: e.reason === "answer" });
   if (e.reason === "answer") watchWaits($, state);
-  // The cost governor's task cap follows the held task's plan.
-  await governorTask($, state);
   // Only the agent's own request compacts (P102): checkpoint --compact, after a turn that ended, until the bundle
   // replaces the conversation; one /compact queued at a time.
   const request = state.compact;
@@ -847,7 +901,6 @@ async function resolveEnabled($) {
   if (events.ok && typeof events.data.value === "boolean") eventsOn = events.data.value;
   const listed = await settings($, ["list"]);
   lastListed = listed;
-  await resolveGovernor($, listed);
   if (listed.ok) {
     // A gate whose value or file the listing ignores keeps the mode this process last read for it: the default would
     // weaken a block a config problem did not cause (D-045, review 1 B1).
@@ -887,9 +940,8 @@ async function readGates($) {
 }
 
 /**
- * The gates on one tool call (SPEC-008 4.2, 4.3): the verdict as it stands under warn, with one row per gate per turn
- * the agent reads (a worker's as a message to it); under block, a deny with the gate's text, or an ask for a delivery
- * step where someone can answer. A deny beneath stands.
+ * The gate on one tool call (SPEC-008 4.2, 4.3): the verdict as it stands under warn, with one row per turn the agent
+ * reads (a worker's as a message to it); under block, a deny with the gate's text. A deny beneath stands.
  * @param {any} $
  * @param {any} e
  * @param {{ decision: string, reason?: string }} verdict
@@ -909,7 +961,6 @@ async function gated($, e, verdict) {
       cwd: await $.session.cwd(),
       readOnly: e.isReadOnly === true,
       delegation,
-      canAsk: e.approver !== undefined,
     },
     gateModes,
   );
@@ -926,15 +977,19 @@ async function gated($, e, verdict) {
         return gateText(fired);
       });
     for (const row of rows)
-      if (e.agentId !== undefined) await $.session.send({ to: { agentId: e.agentId }, text: row });
-      else await appendRow($, row);
+      if (e.agentId !== undefined) {
+        await sent($, "gate", row);
+        await $.session.send({ to: { agentId: e.agentId }, text: row });
+      } else await appendRow($, row, "gate");
     return verdict;
   }
   const reason = result.fired
     .filter((/** @type {any} */ fired) => fired.decision !== "warn")
     .map((/** @type {any} */ fired) => gateText(fired))
     .join("\n\n");
-  return { decision: /** @type {const} */ (result.decision === "ask" ? "ask" : "deny"), reason };
+  // A refusal: its text is what the agent reads as the call's result.
+  await sent($, "gate", reason);
+  return { decision: /** @type {const} */ ("deny"), reason };
 }
 
 const SCOPE_NAMES = /** @type {Record<string, string>} */ ({
@@ -952,15 +1007,10 @@ const SECTION_ROWS = new Set([
   "prompts.enabled",
   "skills.enabled",
   "events.enabled",
-  "gates.agreement",
-  "gates.slice",
-  "gates.delivery",
   "gates.delegation",
   "review.unit",
   "review.model",
   "review.rounds",
-  "governor.mode",
-  "governor.cap",
   "pane.enabled",
   "pane.statusLine",
 ]);
@@ -997,7 +1047,7 @@ function listText(data) {
     ),
     ...ignored,
     COMMAND_USAGE,
-    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.agreement, gates.slice, gates.delivery, gates.delegation, review.unit, review.model, review.rounds, governor.mode, governor.cap, pane.enabled, pane.statusLine.",
+    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.delegation, review.unit, review.model, review.rounds, pane.enabled, pane.statusLine.",
     "Review depth rules (review.depth) are edited in .freeflow/config.json; review-plan reads them from the base commit.",
     "Pi-only settings (tool execution, compaction, messaging) are changed on Pi or in the files.",
   ].join("\n");
@@ -1024,6 +1074,24 @@ async function capabilitiesCommand($) {
 }
 
 /**
+ * Serves `/freeflow sent [<n>]`: the text Freeflow sent to the model in this session, newest first, or entry n whole;
+ * Track Work's `events sent` reads the log. It is for the person, and the model does not read it.
+ * @param {any} $
+ * @param {string} args
+ * @returns {Promise<{ text: string }>}
+ */
+async function sentCommand($, args) {
+  const words = args.trim().split(/\s+/).filter(Boolean);
+  if (words.length > 2) return { text: "Freeflow sent: too many arguments.\nUsage: /freeflow sent [<n>]" };
+  const run = await script($, ["events", "sent", ...(words[1] === undefined ? [] : ["--show", words[1]])]);
+  if (run.exitCode !== 0)
+    return {
+      text: `Freeflow sent: ${(run.stderr.split("\n")[0] || `exit code ${run.exitCode}`).replace(/^Error: /, "").trim()}`,
+    };
+  return { text: run.stdout.trimEnd() };
+}
+
+/**
  * Serves `/freeflow settings [<key> [<value>] [--session | --personal | --repository]]` through the settings script:
  * the lines for the person, and for the model the setting and the Runtime State lines that changed (SPEC-005 4.4).
  * @param {any} $
@@ -1034,7 +1102,7 @@ async function settingsCommand($, args) {
   const words = args.trim().split(/\s+/).filter(Boolean);
   if (words[0] !== "settings")
     return {
-      text: "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session; /freeflow pane opens or closes Freeflow's pane.",
+      text: "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session; /freeflow pane opens or closes Freeflow's pane; /freeflow sent lists the text Freeflow sent to the model.",
     };
   const flags = words.slice(1).filter((word) => word.startsWith("--"));
   const [key, value, extra] = words.slice(1).filter((word) => !word.startsWith("--"));
@@ -1075,7 +1143,6 @@ async function settingsCommand($, args) {
     await resolvePane($);
     paneRead($);
   }
-  if (data.key.startsWith("governor.")) await resolveGovernor($);
   if (!wasOn && enabled) {
     // On again: the next turn end does what session start does with a store, and the window is read at the next request.
     awaitingStore = { session: await $.session.id(), cwd: await $.session.cwd() };
@@ -1100,214 +1167,6 @@ async function settingsCommand($, args) {
       ].join("\n"),
     ],
   };
-}
-
-// The cost governor (SPEC-014, section 2.3): after each model request it reads the plan's usage windows and the
-// session's cost, and tells the agent once a cap is near: a row at 80% of it, and at 100% a notice (`governor.mode`
-// warn, the default) or the ask to stop at the next safe point, checkpoint and ask the user (stop). The caps: on a
-// subscription, the seven-day window's daily pace, what is left of it at the start of this day of the window over the
-// days until it resets, against what this day used; with a held task, its plan's high end (`estimate --plan`) against
-// what the session spent since the plan was read. `governor.cap` replaces the pace with a percent of the seven-day
-// window, or where there is no window (an API key), the task's cap with dollars of the session's cost. Each response
-// comes once for its cap and period, and is written to the event log. It notifies; a gate for it is not built.
-const DAY_MS = 86_400_000;
-const GOVERNOR_ROW_AT = 0.8;
-/** @type {"warn" | "stop"} */
-let governorMode = "warn";
-/** @type {number | null} `governor.cap`: a percent of the seven-day window, or dollars */
-let governorCap = null;
-/** @type {{ task: string, asOf: string | null, usd: number | null, from: number | null } | null} the held task's plan: its high end, and the session's cost when it was read */
-let taskPlan = null;
-/** @type {{ resetsAt: string, dayStart: string, percent: number } | null | undefined} this day of the window's start; undefined until read */
-let dayBase = undefined;
-/** Responses already given, by cap, period and response: each comes once. */
-const governed = new Set();
-
-/**
- * Reads `governor.mode` and `governor.cap` with one settings run, or from the listing the caller already read; each
- * stays as it was when the script fails.
- * @param {any} $
- * @param {any} [listed] a settings `list` result read for the same resolve
- */
-async function resolveGovernor($, listed = undefined) {
-  const result = listed ?? (await settings($, ["list"]));
-  if (!result.ok) return;
-  const value = (/** @type {string} */ key) =>
-    result.data.settings?.find((/** @type {any} */ row) => row.key === key)?.value;
-  const mode = value("governor.mode");
-  if (mode === "warn" || mode === "stop") governorMode = mode;
-  const cap = value("governor.cap");
-  if (cap === null || (typeof cap === "number" && cap > 0)) governorCap = cap;
-}
-
-/**
- * The held task's plan, read again when the task or its last checkpoint changes: the high end of what its open Slices
- * are predicted to cost (null where the planner cannot predict it), and the session's cost then.
- * @param {any} $
- * @param {any} state session status
- */
-async function governorTask($, state) {
-  if (!state.task) {
-    taskPlan = null;
-    return;
-  }
-  if (taskPlan && taskPlan.task === state.task.id && taskPlan.asOf === state.task.stateAsOf) return;
-  const run = await script($, ["estimate", "--plan", "--record", state.task.record, "--json"]);
-  let usd = null;
-  try {
-    const high = run.exitCode === 0 ? JSON.parse(run.stdout).total?.usdHigh : null;
-    usd = typeof high === "number" && high > 0 ? high : null;
-  } catch {
-    // Not the planner's JSON: no task cap.
-  }
-  const spent = (await $.session.usage()).cost?.usd;
-  taskPlan = {
-    task: state.task.id,
-    asOf: state.task.stateAsOf ?? null,
-    usd,
-    from: typeof spent === "number" ? spent : null,
-  };
-}
-
-/**
- * The day of the seven-day window `now` is in, counted back from its reset: its start, and the days left from it.
- * @param {string} resetsAt
- * @param {number} now
- */
-function windowDay(resetsAt, now) {
-  const reset = Date.parse(resetsAt);
-  if (!Number.isFinite(reset) || reset <= now) return null;
-  const days = Math.floor((reset - now) / DAY_MS) + 1;
-  return { start: new Date(reset - days * DAY_MS).toISOString(), days };
-}
-
-/**
- * The daily pace: what was left of the window when this day of it began, over the days left from then.
- * @param {number} basePercent
- * @param {number} days
- */
-const dailyPace = (basePercent, days) => Math.max(0, 100 - basePercent) / days;
-
-/**
- * Where this day of the window began, from the Freeflow home (beside the event log, on this machine only), so every
- * session of the day counts from the same point; the first reading of a day starts it.
- * @param {any} $
- * @param {{ kind: string, percentUsed: number, resetsAt: string }} window
- * @param {{ start: string }} day
- */
-async function baseOf($, window, day) {
-  const path = freeflowHome ? `${freeflowHome}/events/governor.json` : null;
-  if (dayBase === undefined) {
-    dayBase = null;
-    if (path)
-      try {
-        dayBase = JSON.parse(await $.fs.read(path));
-      } catch {
-        // None kept yet, or unreadable: this reading starts the day.
-      }
-  }
-  if (dayBase?.resetsAt === window.resetsAt && dayBase.dayStart === day.start) return dayBase;
-  dayBase = { resetsAt: window.resetsAt, dayStart: day.start, percent: window.percentUsed };
-  if (path) await $.fs.write(path, `${JSON.stringify(dayBase)}\n`).catch(() => undefined);
-  return dayBase;
-}
-
-/**
- * The caps that apply now, each with its use, limit, unit, the period it holds for and how it reads.
- * @param {any} $
- * @param {any} usage
- */
-async function governorCaps($, usage) {
-  const caps = [];
-  const money = (/** @type {number} */ value) => `$${value.toFixed(2)}`;
-  const seven = (usage.rateLimits ?? []).find(
-    (/** @type {any} */ each) => each.kind === "seven_day" && typeof each.percentUsed === "number",
-  );
-  const spent = usage.cost?.usd;
-  if (seven && governorCap !== null)
-    caps.push({
-      cap: "window",
-      unit: "percent",
-      use: seven.percentUsed,
-      limit: governorCap,
-      period: seven.resetsAt ?? "window",
-      what: `the seven-day window is ${seven.percentUsed}% used, of the ${governorCap}% your governor.cap sets`,
-      resets: seven.resetsAt,
-    });
-  else if (seven?.resetsAt) {
-    const day = windowDay(seven.resetsAt, await $.clock.now());
-    if (day) {
-      const base = await baseOf($, seven, day);
-      const limit = dailyPace(base.percent, day.days);
-      const use = Math.max(0, seven.percentUsed - base.percent);
-      caps.push({
-        cap: "pace",
-        unit: "percent",
-        use,
-        limit,
-        period: day.start,
-        what: `this day of the seven-day window used ${round(use)}% of it, against a daily pace of ${round(limit)}% (${round(100 - base.percent)}% left over ${day.days} day(s))`,
-        resets: seven.resetsAt,
-      });
-    }
-  }
-  if (typeof spent === "number" && !seven && governorCap !== null)
-    caps.push({
-      cap: "task",
-      unit: "usd",
-      use: spent,
-      limit: governorCap,
-      period: "session",
-      what: `this session has cost ${money(spent)} at API list price, of the ${money(governorCap)} your governor.cap sets`,
-    });
-  else if (typeof spent === "number" && taskPlan?.usd && taskPlan.from !== null) {
-    const use = Math.max(0, spent - taskPlan.from);
-    caps.push({
-      cap: "task",
-      unit: "usd",
-      use,
-      limit: taskPlan.usd,
-      period: `${taskPlan.task} ${taskPlan.asOf}`,
-      what: `${taskPlan.task} cost ${money(use)} at API list price since its plan was read, of ${money(taskPlan.usd)}, the high end its open Slices are predicted to cost`,
-    });
-  }
-  return caps;
-}
-
-const round = (/** @type {number} */ value) => Math.round(value * 10) / 10;
-
-/**
- * After each model request: each cap at 80% gets one row, and at 100% one notice or, under stop, the ask.
- * @param {any} $
- */
-async function governStep($) {
-  const usage = await $.session.usage();
-  for (const cap of await governorCaps($, usage)) {
-    if (!(cap.limit > 0)) continue;
-    const share = cap.use / cap.limit;
-    const response =
-      share >= 1 ? (governorMode === "stop" ? "ask" : "notice") : share >= GOVERNOR_ROW_AT ? "row" : null;
-    if (!response) continue;
-    const key = `${cap.cap} ${cap.period} ${response === "row" ? "row" : "full"}`;
-    if (governed.has(key)) continue;
-    governed.add(key);
-    if (response !== "row") governed.add(`${cap.cap} ${cap.period} row`);
-    const resets = cap.resets ? `; it resets at ${cap.resets}` : "";
-    const text =
-      response === "row"
-        ? `Freeflow cost governor: ${cap.what}, ${Math.round(share * 100)}% of the cap${resets}.`
-        : response === "notice"
-          ? `Freeflow cost governor: a cap is reached: ${cap.what}${resets}. Say so to the user in your next answer; Freeflow only notifies (governor.mode warn).`
-          : `Freeflow cost governor: a cap is reached: ${cap.what}${resets}. Stop at your next safe point: ${SAFE_POINT}. Checkpoint there (your task's record, or this session's summary), then end your turn asking the user whether to go on (governor.mode stop).`;
-    await appendRow($, text);
-    await emit($, "governor", {
-      cap: cap.cap,
-      unit: cap.unit,
-      limit: Math.round(cap.limit * 100) / 100,
-      use: Math.round(cap.use * 100) / 100,
-      response,
-    });
-  }
 }
 
 // Freeflow arriving mid-session, and its guidance pinned (SPEC-013). What session start does, it does once per session,
@@ -1399,6 +1258,19 @@ function withoutHookGuidance(result, parts) {
   return rest.length ? { ...others, additionalContext: rest } : others;
 }
 
+/**
+ * The hooks' copies of the guidance that a session start sends as they are, where the section does not carry them: each
+ * is a `sent` line. The hooks' texts are the parts the renderer gave.
+ * @param {any} $
+ * @param {any} result the session start's result, with the hooks' additional context
+ * @param {string[]} parts
+ */
+async function sentHookGuidance($, result, parts) {
+  const ours = new Set(parts.map((part) => part.trim()).filter(Boolean));
+  for (const each of result.additionalContext ?? [])
+    if (ours.has(String(each).trim())) await sent($, "session-start", each);
+}
+
 /** @param {any} $ */
 async function keepLedger($) {
   if (!freeflowHome || !started) return;
@@ -1457,8 +1329,11 @@ async function pinnedStart($, e, next) {
       : Boolean(home) && (await readLedger($, String(home), e.session_id))?.pinned === true;
     pinned = Boolean(rendered.text) && recorded;
     if (pinned) out = withoutHookGuidance(result, rendered.parts);
+    else await sentHookGuidance($, result, rendered.parts);
   } catch (error) {
     $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}; the session-start hooks keep it`);
+    // With no parts to match, every text the hooks gave is logged, Freeflow's or another plugin's: the model reads all.
+    for (const each of result.additionalContext ?? []) await sent($, "session-start", each);
   }
   if (fresh) pinnedAtStart = pinned;
   else {
@@ -1596,6 +1471,7 @@ async function catchUp($) {
         ...(shown.guidance ? [shown.guidance] : []),
         ...(shown.menu ? [`Freeflow task memory:\n${shown.menu}`] : []),
       ].join("\n\n"),
+      "catch-up",
     );
   if (done.length) await emit($, "freeflow", { what: "menu", detail: `mid-session: ${done.join(", ")}` });
   await keepLedger($);
@@ -1613,6 +1489,8 @@ async function withGuidance($, e, composed) {
   try {
     const { text } = await renderGuidance($);
     if (!text) return composed;
+    // The section every request carries, unchanged: its text is logged once a session per distinct text.
+    await sent($, "pinned-guidance", text, { once: true });
     return {
       sections: [
         ...composed.sections.filter((/** @type {{ id: string }} */ section) => section.id !== SECTION_ID),
@@ -1632,8 +1510,9 @@ export function register(on) {
     await $.command.register({
       name: "freeflow",
       description:
-        "Freeflow's settings: list them, or change one for this session, you or the repository; what Freeflow can do here; and Freeflow's pane",
-      argumentHint: "settings [<key> <value|inherit> [--session | --personal | --repository]] | capabilities | pane",
+        "Freeflow's settings: list them, or change one for this session, you or the repository; what Freeflow can do here; Freeflow's pane; and the text Freeflow sent to the model",
+      argumentHint:
+        "settings [<key> <value|inherit> [--session | --personal | --repository]] | capabilities | pane | sent [<n>]",
     });
     // A -p run or the SDK has no one at the prompt, so nothing runs between its turns (section 4.5). Claims written
     // before this event came, at the classic SessionStart, are written again with what it says.
@@ -1646,13 +1525,18 @@ export function register(on) {
     return next(e);
   });
 
-  on("command.run", { command: "freeflow" }, ($, e) =>
-    /^\s*capabilities\b/.test(e.args ?? "")
-      ? capabilitiesCommand($)
+  on("command.run", { command: "freeflow" }, async ($, e) => {
+    const result = /^\s*capabilities\b/.test(e.args ?? "")
+      ? await capabilitiesCommand($)
       : /^\s*pane\b/.test(e.args ?? "")
-        ? paneCommand($)
-        : settingsCommand($, e.args),
-  );
+        ? await paneCommand($)
+        : /^\s*sent\b/.test(e.args ?? "")
+          ? await sentCommand($, e.args)
+          : await settingsCommand($, e.args);
+    // A setting's change, as the agent reads it in its context, is text Freeflow sent to the model.
+    for (const each of result.context ?? []) await sent($, "settings", each);
+    return result;
+  });
 
   // Session start, /clear and resume: pull the store, give the scripts the window, and give the agent the menu, which
   // says which task this session holds, taken back when a resume finds the task its end released (Spec section 4, F36).
@@ -1678,23 +1562,21 @@ export function register(on) {
     await storeRootOf($, state);
     const missing = missingText(found);
     awaitingStore = state ? null : { session: e.session_id, cwd: e.cwd };
-    if (!state)
-      return missing.length
-        ? {
-            ...result,
-            additionalContext: [
-              ...(result.additionalContext ?? []),
-              `Freeflow task memory: the store is not ready.\n${missing.join("\n")}`,
-            ],
-          }
-        : result;
+    if (!state) {
+      if (!missing.length) return result;
+      const notReady = `Freeflow task memory: the store is not ready.\n${missing.join("\n")}`;
+      await sent($, "menu", notReady);
+      return { ...result, additionalContext: [...(result.additionalContext ?? []), notReady] };
+    }
     const menu = await storeArrived($, state, e.session_id, e.cwd);
     if (menu.exitCode !== 0) return result;
     await emit($, "freeflow", { what: "menu" });
     const text = [menu.stdout.trimEnd(), ...missing].join("\n");
+    const memory = `Freeflow task memory:\n${text}\n`;
+    await sent($, "menu", memory);
     return {
       ...result,
-      additionalContext: [...(result.additionalContext ?? []), `Freeflow task memory:\n${text}\n`],
+      additionalContext: [...(result.additionalContext ?? []), memory],
     };
   });
 
@@ -1745,12 +1627,6 @@ export function register(on) {
       else await noticeWorker($, e, response);
     } catch (error) {
       $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    // The cost governor, after every request of the session's: the plan's windows and the cost are the session's.
-    try {
-      await governStep($);
-    } catch (error) {
-      $.ui.log(`Freeflow cost governor: ${error instanceof Error ? error.message : String(error)}`);
     }
     return response;
   });
@@ -1823,12 +1699,13 @@ export function register(on) {
     const verdict = await next(e);
     if (!enabled) return verdict;
     return gated($, e, await storeAllowed($, e, verdict));
-  }).catch(async ($, e, next) =>
+  }).catch(async ($, e, next) => {
     // A gate that fails is open under warn, as its sensor is, and closed under block (section 5).
-    Object.values(gateModes).includes("block")
-      ? { decision: /** @type {const} */ ("deny"), reason: "Freeflow's gates could not decide this call; try again." }
-      : next(e),
-  );
+    if (!Object.values(gateModes).includes("block")) return next(e);
+    const reason = "Freeflow's gates could not decide this call; try again.";
+    await sent($, "gate", reason);
+    return { decision: /** @type {const} */ ("deny"), reason };
+  });
 
   on("session.compact", async ($, e, next) => {
     if (e.trigger === "precompute" || !enabled) return next(e);
@@ -1931,7 +1808,9 @@ async function storeAllowed($, e, verdict) {
   if (!root) return verdict;
   const real = await placed($, input.file_path ?? input.notebook_path ?? input.path);
   const inside = real !== undefined && (real === root || real.startsWith(root + separatorOf(root)));
-  return inside ? { decision: /** @type {const} */ ("allow"), reason: STORE_REASON } : verdict;
+  if (!inside) return verdict;
+  // The reason of an allow is shown to the user, not the model, so it is not a send and is not logged.
+  return { decision: /** @type {const} */ ("allow"), reason: STORE_REASON };
 }
 
 /**
@@ -1956,8 +1835,7 @@ async function stopChecked($, e, result) {
   if (checked.exitCode === 0 || !/return is not ready/.test(checked.stderr)) return result;
   const reason = checked.stderr.replace(/^Error: /, "").trim();
   await logDelegation($, worker.delegation, "blocked", `stop blocked: ${reason}`, e.agent_id, state);
-  return {
-    ...result,
-    block: `Freeflow: ${reason} Write return.md as your brief says, then hand back.`,
-  };
+  const block = `Freeflow: ${reason} Write return.md as your brief says, then hand back.`;
+  await sent($, "stop-block", block);
+  return { ...result, block };
 }

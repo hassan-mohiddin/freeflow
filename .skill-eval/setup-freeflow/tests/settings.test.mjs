@@ -5,7 +5,12 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { SETTINGS } from "../../../pi-extension/dist/host/config-validation.js";
+import {
+  SETTINGS,
+  sanitizeConfigFile,
+  validateLocalConfig,
+  validateRepositoryConfig,
+} from "../../../pi-extension/dist/host/config-validation.js";
 
 const scriptPath = resolve("skills/setup-freeflow/scripts/settings.mjs");
 const baseEnv = {
@@ -182,8 +187,10 @@ test("a change prints the Runtime State lines it changed, and the prompt note fo
   assert.match(prompt.stdout, /Prompt text already given in this session stays/);
   const pi = f.run("set", "compaction.enabled", "off", "--scope", "personal");
   assert.match(pi.stdout, /Only Pi acts on this setting\./);
+  // The cost governor and the agreement, Slice and delivery gates were removed (D-058): their keys are not settings.
   const governor = f.run("set", "governor.mode", "stop", "--scope", "personal");
-  assert.match(governor.stdout, /Only Claude Code's mod acts on this setting\./);
+  assert.equal(governor.status, 1);
+  assert.match(governor.stderr, /unknown setting governor\.mode/);
 });
 
 test("refusals name what is wrong and write nothing", async (t) => {
@@ -205,8 +212,8 @@ test("refusals name what is wrong and write nothing", async (t) => {
     [["set", "review.unit", "manual"], /set needs --scope/],
     [["set", "review.unit", "manual", "--scope", "global"], /--scope must be repository, personal or session/],
     [["set", "review.model", "two\nlines", "--scope", "personal"], /review\.model takes a name on one line/],
-    [["set", "governor.cap", "0", "--scope", "personal"], /governor\.cap takes a number above 0, not 0/],
-    [["set", "governor.cap", "lots", "--scope", "personal"], /governor\.cap takes a number above 0, not lots/],
+    [["set", "gates.slice", "block", "--scope", "personal"], /unknown setting gates\.slice/],
+    [["set", "gates.delegation", "blok", "--scope", "personal"], /gates\.delegation takes off, warn, block, not blok/],
   ];
   for (const [args, message] of cases) {
     const result = f.run(...args);
@@ -254,6 +261,7 @@ test("doctor names each problem with its fix, and changes nothing without --fix"
   assert.match(result.stdout, /\.freeflow\/config\.json \(Repository\): 5 problems\./);
   assert.match(result.stdout, /- review\.mode: "off"\n\s+\+ review\.unit: "manual"/);
   assert.match(result.stdout, /- cognitiveRouting: \{"enabled":true\}\n\s+\+ \(removed/);
+  assert.match(result.stdout, /gates\.slice: the Slice gate was removed from Freeflow/);
   assert.match(result.stdout, /doctor --fix/);
   assert.equal(await readFile(join(f.root, ".freeflow/config.json"), "utf8"), shared);
 });
@@ -348,4 +356,55 @@ test("a folder inside the repository reads and writes the repository's settings"
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(await f.file(".freeflow/config.json"), { review: { unit: "manual" } });
   assert.equal(f.json("list").root, f.root);
+});
+
+test("a Session file that holds a removed key names it with its reason, and doctor --fix removes it (D-058)", async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+  await mkdir(join(f.home, "sessions/s-1"), { recursive: true });
+  await writeFile(
+    join(f.home, "sessions/s-1/settings.json"),
+    '{"gates.slice":"block","governor.cap":6,"review.unit":"manual"}\n',
+  );
+  const result = f.run("doctor");
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /gates\.slice: the Slice gate was removed from Freeflow/);
+  assert.match(result.stdout, /governor\.cap: the cost cap was removed from Freeflow/);
+  const fixed = f.run("doctor", "--fix", "--scope", "session");
+  assert.equal(fixed.status, 0, fixed.stdout);
+  assert.deepEqual(JSON.parse(await readFile(join(f.home, "sessions/s-1/settings.json"), "utf8")), {
+    "review.unit": "manual",
+  });
+});
+
+test("a file holding a removed governor or gate key loads: the validators accept it, and the sanitizer names each key with its reason (D-058)", () => {
+  const removed = {
+    governor: { mode: "stop", cap: 6 },
+    gates: { agreement: "block", slice: "warn", delivery: "block", delegation: "block" },
+  };
+  assert.equal(validateRepositoryConfig({ v: 1, ...removed }), null);
+  assert.equal(validateLocalConfig({ v: 1, ...removed }), null);
+  const shared = sanitizeConfigFile({ v: 1, ...removed }, "repository");
+  assert.deepEqual(shared.config, { v: 1, gates: { delegation: "block" } });
+  assert.deepEqual(shared.ignored.map((item) => item.key).sort(), [
+    "gates.agreement",
+    "gates.delivery",
+    "gates.slice",
+    "governor.cap",
+    "governor.mode",
+  ]);
+  assert.equal(
+    shared.ignored.find((item) => item.key === "governor.cap").reason,
+    "the cost cap was removed from Freeflow",
+  );
+  const personal = sanitizeConfigFile({ v: 1, ...removed }, "personal");
+  assert.deepEqual(personal.config, { v: 1, gates: { delegation: "block" } });
+  assert.equal(personal.ignored.length, 5);
+  // A key the removed section never had is unsupported, and a removed section that is not an object is named whole.
+  assert.deepEqual(sanitizeConfigFile({ v: 1, governor: { foo: 1 } }, "repository").ignored, [
+    { key: "governor.foo", reason: "unsupported key" },
+  ]);
+  assert.deepEqual(sanitizeConfigFile({ v: 1, governor: 5 }, "personal").ignored, [
+    { key: "governor", reason: "governor was removed from Freeflow" },
+  ]);
 });

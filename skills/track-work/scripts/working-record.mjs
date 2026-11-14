@@ -68,7 +68,7 @@ import {
 import { EstimateError, claudeCodeContext, estimate } from "./lib/estimate5.mjs";
 import { runEvents } from "./lib/events-cli.mjs";
 import { appendEvents, HARNESSES } from "./lib/events5.mjs";
-import { delegationScope, gateDrift, gatesPath, readGateState, refreshGates } from "./lib/gate-state5.mjs";
+import { delegationScope, gatesPath, refreshGates } from "./lib/gate-state5.mjs";
 import { PlanError } from "./lib/planner5.mjs";
 
 const ROOT_HELP =
@@ -83,7 +83,6 @@ function usage() {
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|task> <operation> ...",
     "  working-record.mjs agreement <open|update|close> ...",
-    '  working-record.mjs agree --outcome <text> [--exact-spec "<reason>"] (a session holding no task)',
     "  working-record.mjs checkpoint --record <record.md> [--repo <path>] [--input <file|->] [--compact]",
     "  working-record.mjs checkpoint --session --input <file|-> [--compact] (a session holding no task)",
     "  working-record.mjs budget [--record <record.md>] [--window <tokens>] [--mode normal|expanded]",
@@ -100,7 +99,7 @@ function usage() {
     "  working-record.mjs task <create|take|release|switch|move|here|search|remove> ... (in a Freeflow store)",
     "  working-record.mjs store <init|remote|status|sync> ...",
     "  working-record.mjs session status [--home <folder>] (for a harness layer)",
-    "  working-record.mjs events <append|summary|show> ... (the event log; append is for a harness layer)",
+    "  working-record.mjs events <append|summary|show|sent> ... (the event log; append is for a harness layer)",
     "",
     ROOT_HELP,
     "In a Freeflow store, a task's ID (such as my-project/task-003, or task-004 in no project) may be given as --record.",
@@ -108,10 +107,6 @@ function usage() {
 }
 
 const COMMAND_HELP = new Map([
-  [
-    "agree",
-    "Usage: agree --outcome <text> [--exact-spec \"<reason>\"] [--home <folder>]\nRecords the user's agreement for a session that holds no task (a task's agreement is agreement open): in this session's gate state, <FREEFLOW_HOME>/sessions/<session>/gates.json, which the gates read, and as an agreement line in its event log. --exact-spec declares that the request fixes every choice, with the reason; the declaration lasts the session and is logged, for a reviewer to audit. Refused while the session holds a task.",
-  ],
   [
     "events append",
     "Usage: events append --input <file|-> [--home <folder>]\nAppends a Freeflow driver's event lines (JSON Lines, schema v1) to each line's session log in <FREEFLOW_HOME>/events/<session>.jsonl, on this machine only: it sets seq under a lock on the file, redacts and cuts a shell command to 200 characters, refuses a line that is not schema v1 and writes the rest, with a freeflow line saying how many it dropped.",
@@ -123,6 +118,10 @@ const COMMAND_HELP = new Map([
   [
     "events show",
     "Usage: events show [--session <ID>] [--kind <kind>] [--home <folder>]\nPrints a session's event log as stored, one JSON line each, only the lines of one kind with --kind; a line that cannot be read is named on standard error and skipped.",
+  ],
+  [
+    "events sent",
+    "Usage: events sent [--session <ID>] [--what <name>] [--show <n>] [--home <folder>]\nLists the text Freeflow sent to the model in a session, newest first: its number, time, what sent it, its length in characters and the first line cut to 80 characters. --what keeps one source (session-start, menu, catch-up, pinned-guidance, system-prompt, runtime-state, notice, compact-request, compaction-note, bundle, continue, compaction-error, gate, store-allow, took-back, waits, worker-notice, stop-block, settings, pane, guidance, files, background, monitor, message, skill, keep-alive). --show <n> prints the whole text of entry n of that list. The text is what was sent, with keys and tokens redacted; the log is on this machine only.",
   ],
   [
     "slice",
@@ -367,7 +366,7 @@ const COMMAND_HELP = new Map([
 function commandHelp(command, operation) {
   const help = COMMAND_HELP.get([command, operation].filter(Boolean).join(" ")) ?? COMMAND_HELP.get(command);
   if (!help) return `${usage()}\n`;
-  return ["init", "store", "session", "events", "agree", "claim", "release"].includes(command)
+  return ["init", "store", "session", "events", "claim", "release"].includes(command)
     ? `${help}\n`
     : `${help}\n${ROOT_HELP}\n`;
 }
@@ -513,7 +512,6 @@ function allowedOptions(command, operation) {
       ]);
   }
   if (command === "validate") return new Set(["--root", "--record", "--strict", "--help"]);
-  if (command === "agree" && operation === undefined) return new Set(["--outcome", "--exact-spec", "--home", "--help"]);
   if (command === "slice") {
     if (operation === "propose") return new Set([...common, "--title"]);
     if (operation === "start" || operation === "start-direct")
@@ -551,6 +549,7 @@ function allowedOptions(command, operation) {
     if (operation === "append") return new Set(["--input", "--home", "--help"]);
     if (operation === "summary") return new Set(["--session", "--json", "--home", "--help"]);
     if (operation === "show") return new Set(["--session", "--kind", "--home", "--help"]);
+    if (operation === "sent") return new Set(["--session", "--what", "--show", "--home", "--help"]);
   }
   if (command === "store" && operation === "init")
     return new Set(["--remote", "--home", "--git-name", "--git-email", "--help"]);
@@ -647,16 +646,8 @@ async function validate5(loaded, options) {
   });
   const pointers = checkLinePointers(updates, { root: loaded.root, recordPath: loaded.path });
   const unresolved = options["--strict"] ? pointers.warnings : [...pointers.problems, ...pointers.warnings];
-  const identity = sessionIdentity();
-  const drift = identity
-    ? gateDrift(readGateState(storeHome(), identity.id), task.record, loaded.path).map(
-        (each) =>
-          `warning: this session's gate state differs from the record (${each}); the next lifecycle command rewrites it`,
-      )
-    : [];
   const notes = [
     ...warnings5(task).map((warning) => `warning: ${warning}`),
-    ...drift,
     ...unresolved.map((each) => `warning: a pointer in the Slice's updates does not resolve here: ${each}`),
     ...pointers.outside.map((each) => `outside the repository, not checked: ${each}`),
   ];
@@ -811,7 +802,6 @@ const WORKER_REFUSED = new Set([
   "task set-budget",
   "project new",
   "project remove",
-  "agree ",
   "migrate ",
   "discussion save",
   "discussion drop",
@@ -868,10 +858,6 @@ async function runCore(command, rest) {
     } catch (error) {
       throw new CliError(error.message);
     }
-  }
-  if (command === "agree") {
-    if (positionals.length) throw new CliError("agree takes no operation");
-    return agree(options);
   }
   if (command === "claim" || command === "release") {
     if (positionals.length) throw new CliError(`${command} takes no operation`);
@@ -1137,50 +1123,6 @@ function readJsonOrNull(path) {
   }
 }
 
-/**
- * `agree` (SPEC-008 4.1): the user's agreement for a session that holds no task, in the session's gate state and as an
- * agreement line in its event log; with --exact-spec, the declaration that the request fixes every choice, logged.
- */
-async function agree(options) {
-  const identity = sessionIdentity();
-  if (!identity)
-    throw new CliError("No session ID: Claude Code sets CLAUDE_CODE_SESSION_ID; other harnesses set FREEFLOW_SESSION.");
-  const home = storeHome(options["--home"]);
-  const outcome = String(requireOption(options, "--outcome")).replace(/\s+/g, " ").trim();
-  const reason =
-    options["--exact-spec"] === undefined ? null : String(options["--exact-spec"]).replace(/\s+/g, " ").trim();
-  if (reason === "") throw new CliError("--exact-spec gives the reason the request fixes every choice");
-  const held = isFreeflowStore(home) ? heldTask(home, identity) : null;
-  if (held)
-    throw new CliError(
-      `This session holds ${held.id}: record the agreement in its record with agreement open --record ${held.id}.`,
-    );
-  const at = new Date().toISOString();
-  const path = await refreshGates({
-    home,
-    identity,
-    agreed: { outcome, at, ...(reason ? { exactSpec: { reason, at } } : {}) },
-  });
-  if (!path) throw new CliError(`Could not write this session's gate state in ${join(home, "sessions", identity.id)}`);
-  const harness = eventHarness(identity);
-  let logged = "no event line: this harness has no name in the event log's schema";
-  if (harness) {
-    const line = { v: 1, ts: at, session: identity.id, harness, agent: "main", kind: "agreement", outcome };
-    if (reason) line.exactSpec = reason;
-    try {
-      const { written, refused } = await appendEvents(home, JSON.stringify(line));
-      logged = refused.length
-        ? `no event line (${refused[0].problem})`
-        : written.length
-          ? "an agreement line in the event log"
-          : "no event line";
-    } catch (error) {
-      logged = `no event line (${error.message})`;
-    }
-  }
-  return `Agreed for this session: ${outcome}${reason ? `\nExact spec declared: ${reason}; a reviewer audits it` : ""}\nRecorded in ${path} and ${logged}.\n`;
-}
-
 /** The commands after which this session's gate state is written again (SPEC-008 4.1). */
 const GATE_COMMANDS = new Set([
   "task take",
@@ -1188,13 +1130,6 @@ const GATE_COMMANDS = new Set([
   "task switch",
   "task create",
   "task here",
-  "agreement open",
-  "agreement close",
-  "slice start",
-  "slice start-direct",
-  "slice pause",
-  "slice resume",
-  "slice close",
   "delegate open",
   "delegate close",
   "delegate join",

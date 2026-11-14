@@ -83,20 +83,20 @@ export class GateRuntime {
   }
   /**
    * Decides one tool call. Pure apart from this turn's warned gates; no file is read. Pi has no workers, so the
-   * delegation gate never fires here.
+   * delegation gate fires here only for another session's claim.
    */
-  check(event, cwd, settings, canAsk) {
+  check(event, cwd, settings) {
     const module = this.module;
     // Until the module has loaded and the state has been read once at session start, every call is allowed.
     if (!module || !this.stateRead) return { kind: "allow", fired: [] };
     const command = event.toolName === "bash" ? String(event.input?.command ?? "") : undefined;
     const result = module.decide(
       this.state,
-      { tool: event.toolName, paths: writtenPaths(event.toolName, event.input, cwd), command, cwd, canAsk },
+      { tool: event.toolName, paths: writtenPaths(event.toolName, event.input, cwd), command, cwd },
       settings,
     );
     if (result.decision === "allow") return { kind: "allow", fired: [] };
-    if (result.decision === "block" || result.decision === "ask") {
+    if (result.decision === "block") {
       const refused = result.fired.filter((each) => each.decision !== "warn");
       const reason = refused.map((each) => module.gateText(each)).join("\n\n");
       return { kind: result.decision, fired: result.fired, reason };
@@ -116,10 +116,6 @@ export class GateRuntime {
     const rows = this.rows.get(toolCallId) ?? [];
     this.rows.delete(toolCallId);
     return rows;
-  }
-  /** The text of one gate that fired, for a question to the person. */
-  text(fired) {
-    return this.module?.gateText(fired) ?? fired.reason;
   }
   /** A gate's event line fields. */
   eventFields(fired, tool) {

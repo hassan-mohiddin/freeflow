@@ -9,6 +9,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { HISTORY_FILE, fieldText, filesIn, parseHistory5, parseRecord5 } from "./record5.mjs";
 import { PRICES, parseMeasure } from "./measure5.mjs";
 import { noticePoint } from "./notice5.mjs";
+import { GATES } from "./gates5.mjs";
 import { freeflowStoreOf, isFreeflowStore } from "./store.mjs";
 
 /** A pool stands for a prediction only with at least this many measured Slices, or sized ones for a per-file rate. */
@@ -817,9 +818,16 @@ function gateCounts(taskDir) {
     try {
       const gates = JSON.parse(readFileSync(join(folder, name), "utf8"))?.gates;
       if (!gates || typeof gates !== "object") continue;
-      found ??= {};
+      found ??= Object.fromEntries(GATES.map((gate) => [gate, 0]));
+      // The delegation gate's would-fire counts. Its refusals (`blocked`) are counted only from a summary with no removed
+      // gate in it: the summary keeps one blocked total for all gates, so a summary that names a removed gate (D-058)
+      // may have refused under it, and its blocks cannot be told apart.
+      const removed = Object.entries(gates).some(
+        ([gate, value]) => !GATES.includes(gate) && gate !== "blocked" && Number.isInteger(value) && value > 0,
+      );
       for (const [gate, value] of Object.entries(gates))
-        if (Number.isInteger(value)) found[gate] = (found[gate] ?? 0) + value;
+        if (Number.isInteger(value) && GATES.includes(gate)) found[gate] = (found[gate] ?? 0) + value;
+      if (!removed && Number.isInteger(gates.blocked)) found.blocked = (found.blocked ?? 0) + gates.blocked;
     } catch {
       // A summary that cannot be read counts nothing.
     }
@@ -886,7 +894,7 @@ export function storeView(home) {
     lines.push(
       `Gates, would-fire in the sessions' summaries: ${Object.entries(each)
         .map(([gate, value]) => `${gate} ${value}`)
-        .join(", ")}${blocked ? `; ${blocked} asked or refused` : ""}`,
+        .join(", ")}${blocked ? `; ${blocked} refused` : ""}`,
     );
   }
   return `${lines.join("\n")}\n`;

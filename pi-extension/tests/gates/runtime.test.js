@@ -8,8 +8,9 @@ import freeflowExtension from "../../dist/index.js";
 import { GateRuntime } from "../../dist/gates/runtime.js";
 
 const packageRoot = resolve(process.cwd());
-const WARN = { agreement: "warn", slice: "warn", delivery: "warn", delegation: "warn" };
-const BLOCK = { agreement: "block", slice: "block", delivery: "block", delegation: "block" };
+// The one gate left is the delegation gate (D-058): the agreement, Slice and delivery gates were removed.
+const WARN = { delegation: "warn" };
+const BLOCK = { delegation: "block" };
 
 /** A Freeflow home holding one session's gate state; FREEFLOW_HOME points at it for the test. */
 async function withHome(state, run) {
@@ -33,73 +34,68 @@ const state = (extra = {}) => ({
   v: 1,
   task: "demo/task-001",
   taskDir: "/store/projects/demo/tasks/task-001-demo",
-  store: "/store",
-  agreement: "A-001",
-  session: null,
-  exactSpec: null,
-  slice: null,
   delegations: {},
   updated: "2026-11-03T10:00:00.000Z",
   ...extra,
 });
 
-test("the runtime warns once per gate per turn, refuses under block, asks for delivery, and reads no file per call", async () => {
-  await withHome(state(), async () => {
+/** Another session's claim on a glob, live for years: the delegation gate warns or refuses a write under it. */
+const claim = (glob) => ({
+  writes: [glob],
+  until: "2099-01-01T00:00:00.000Z",
+  task: "other/task-002",
+  delegation: "D-009",
+  session: "cccccccc-3333",
+});
+
+test("the runtime warns once per turn, refuses under block, and reads no file per call (delegation gate, D-058)", async () => {
+  await withHome(state({ claims: [claim("/w/**")] }), async () => {
     const gates = new GateRuntime(packageRoot);
     gates.begin("s-1");
     // Before the state is read, every call runs.
     await gates.load();
-    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w", WARN, false).kind, "allow");
+    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w", WARN).kind, "allow");
     await gates.refresh();
-    const first = gates.check({ toolName: "edit", input: { path: "a.ts" }, toolCallId: "c1" }, "/w", WARN, false);
+    const first = gates.check({ toolName: "edit", input: { path: "a.ts" }, toolCallId: "c1" }, "/w", WARN);
     assert.equal(first.kind, "warn");
     assert.deepEqual(
       first.fired.map((each) => each.gate),
-      ["slice"],
+      ["delegation"],
     );
-    assert.match(first.rows[0], /^Freeflow gate \(warn, slice\): edit on a\.ts with no open Slice in demo\/task-001\./);
+    assert.match(first.rows[0], /^Freeflow gate \(warn, delegation\): a\.ts is claimed by other\/task-002 D-009 /);
     assert.deepEqual(gates.takeRows("c1"), first.rows);
     assert.deepEqual(gates.takeRows("c1"), []);
     // The same gate again this turn: logged, no second row; a new turn warns again.
-    const again = gates.check({ toolName: "write", input: { path: "/w/b.ts" }, toolCallId: "c2" }, "/w", WARN, false);
+    const again = gates.check({ toolName: "write", input: { path: "/w/b.ts" }, toolCallId: "c2" }, "/w", WARN);
     assert.equal(again.fired.length, 1);
     assert.deepEqual(again.rows, []);
     gates.turnStart();
-    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/c.ts" } }, "/w", WARN, false).rows.length, 1);
-    // Under block: refused with the text; a delivery step asks where Pi has a screen.
-    const refused = gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w", BLOCK, true);
+    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/c.ts" } }, "/w", WARN).rows.length, 1);
+    // Under block: refused with the text.
+    const refused = gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w", BLOCK);
     assert.equal(refused.kind, "block");
-    assert.match(refused.reason, /^Freeflow gate \(block, slice\)/);
-    const push = gates.check(
-      { toolName: "bash", input: { command: "git status && git push" } },
-      "/w",
-      {
-        ...WARN,
-        slice: "off",
-        agreement: "off",
-        delivery: "block",
-      },
-      true,
+    assert.match(refused.reason, /^Freeflow gate \(block, delegation\): a\.ts is claimed by other\/task-002/);
+    // A push and a write outside the claim are not the removed gates' business: they run.
+    assert.equal(gates.check({ toolName: "bash", input: { command: "git push" } }, "/w", BLOCK).kind, "allow");
+    assert.equal(
+      gates.check({ toolName: "bash", input: { command: "git status && git push" } }, "/w", WARN).kind,
+      "allow",
     );
-    assert.equal(push.kind, "ask");
-    assert.match(push.reason, /git push is a delivery step/);
-    const headless = gates.check({ toolName: "bash", input: { command: "git push" } }, "/w", BLOCK, false);
-    assert.equal(headless.kind, "block");
     // apply_patch names its files in the patch.
     const patch = gates.check(
       { toolName: "apply_patch", input: { input: "*** Begin Patch\n*** Update File: src/x.ts\n*** End Patch" } },
       "/w",
       BLOCK,
-      false,
     );
-    assert.match(patch.reason, /apply_patch on src\/x\.ts/);
+    assert.equal(patch.kind, "block");
+    assert.match(patch.reason, /src\/x\.ts is claimed/);
     // Reads are never gated.
-    assert.equal(gates.check({ toolName: "read", input: { path: "/w/a.ts" } }, "/w", BLOCK, false).kind, "allow");
-    assert.equal(gates.check({ toolName: "bash", input: { command: "npm test" } }, "/w", BLOCK, false).kind, "allow");
+    assert.equal(gates.check({ toolName: "read", input: { path: "/w/a.ts" } }, "/w", BLOCK).kind, "allow");
+    assert.equal(gates.check({ toolName: "bash", input: { command: "npm test" } }, "/w", BLOCK).kind, "allow");
   });
 });
 
-test("a missing gate state is quiet under warn, said once, and closed under block", async () => {
+test("a missing gate state is quiet, said once, and never refuses a main-loop call (Pi has no workers)", async () => {
   await withHome(null, async () => {
     const gates = new GateRuntime(packageRoot);
     gates.begin("s-1");
@@ -109,10 +105,8 @@ test("a missing gate state is quiet under warn, said once, and closed under bloc
     await gates.refresh({ settled: true });
     assert.equal(gates.missingOnce(), true);
     assert.equal(gates.missingOnce(), false);
-    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w", WARN, false).kind, "allow");
-    const closed = gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w", BLOCK, false);
-    assert.equal(closed.kind, "block");
-    assert.match(closed.reason, /Freeflow cannot read its gate state/);
+    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w", WARN).kind, "allow");
+    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w", BLOCK).kind, "allow");
   });
 });
 
@@ -148,10 +142,10 @@ async function configuredRepo(config) {
   return cwd;
 }
 
-function context(cwd, confirm) {
+function context(cwd) {
   return {
     cwd,
-    hasUI: Boolean(confirm),
+    hasUI: false,
     getSystemPrompt: () => "",
     sessionManager: {
       getSessionId: () => "s-1",
@@ -160,7 +154,7 @@ function context(cwd, confirm) {
       getBranch: () => [],
       buildContextEntries: () => [],
     },
-    ui: { setStatus() {}, notify() {}, confirm: confirm ?? (async () => false) },
+    ui: { setStatus() {}, notify() {}, confirm: async () => false },
   };
 }
 
@@ -175,11 +169,14 @@ async function untilGated(handlers, event, ctx) {
 }
 
 test("Pi's tool_call warns through the call's result and allows, or blocks with the reason under block", async () => {
-  await withHome(state({ agreement: null, task: null, taskDir: null }), async () => {
-    const warnRepo = await configuredRepo({ enabled: true, toolExecution: { enabled: false } });
-    const blockRepo = await configuredRepo({ enabled: true, gates: { agreement: "block" } });
-    const askRepo = await configuredRepo({ enabled: true, gates: { agreement: "off", delivery: "block" } });
-    try {
+  const warnRepo = await configuredRepo({ enabled: true, toolExecution: { enabled: false } });
+  // The removed gates' keys are ignored by the file, and the delegation gate alone is set to block (D-058).
+  const blockRepo = await configuredRepo({
+    enabled: true,
+    gates: { delegation: "block", agreement: "block", slice: "block", delivery: "block" },
+  });
+  try {
+    await withHome(state({ claims: [claim(`${blockRepo}/**`), claim(`${warnRepo}/**`)] }), async () => {
       // Block first: the refusal shows when the state has been read.
       let handlers = loadExtension();
       let ctx = context(blockRepo);
@@ -187,18 +184,13 @@ test("Pi's tool_call warns through the call's result and allows, or blocks with 
       const edit = { toolName: "edit", toolCallId: "c1", input: { path: join(blockRepo, "src", "a.ts") } };
       const refused = await untilGated(handlers, edit, ctx);
       assert.equal(refused?.block, true);
-      assert.match(refused.reason, /^Freeflow gate \(block, agreement\): edit on src\/a\.ts before an agreement/);
-      // A delivery step asks the person; their no refuses, their yes lets it run.
-      let asked = 0;
-      ctx = context(askRepo, async () => ((asked += 1), asked > 1));
+      assert.match(
+        refused.reason,
+        /^Freeflow gate \(block, delegation\): src\/a\.ts is claimed by other\/task-002 D-009/,
+      );
+      // A delivery step is not the removed delivery gate's: it runs without asking anyone.
       const push = { toolName: "bash", toolCallId: "c2", input: { command: "git push" } };
-      handlers = loadExtension();
-      await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
-      const no = await untilGated(handlers, push, ctx);
-      assert.equal(no?.block, true);
-      const yes = await handlers.get("tool_call")(push, ctx);
-      assert.equal(yes?.block, undefined);
-      assert.equal(asked, 2);
+      assert.equal((await handlers.get("tool_call")(push, ctx))?.block, undefined);
 
       // Warn: the call runs and its result gains the row, with Tool Execution off too.
       handlers = loadExtension();
@@ -216,18 +208,17 @@ test("Pi's tool_call warns through the call's result and allows, or blocks with 
       }
       const text = shaped.content.map((block) => block.text).join("\n");
       assert.match(text, /Wrote b\.ts/);
-      assert.match(text, /Freeflow gate \(warn, agreement\): write on b\.ts before an agreement in this session\./);
+      assert.match(text, /Freeflow gate \(warn, delegation\): b\.ts is claimed by other\/task-002 D-009/);
       assert.match(text, /This gate only warns for now\./);
-    } finally {
-      await rm(warnRepo, { recursive: true, force: true });
-      await rm(blockRepo, { recursive: true, force: true });
-      await rm(askRepo, { recursive: true, force: true });
-    }
-  });
+    });
+  } finally {
+    await rm(warnRepo, { recursive: true, force: true });
+    await rm(blockRepo, { recursive: true, force: true });
+  }
 });
 
 test(
-  "in a real Pi session, a change before an agreement runs with the gate's row on its result, once a turn, and is logged",
+  "in a real Pi session, a change with no agreement and no Slice runs with no gate row: the removed gates are silent (D-058)",
   { timeout: 60000 },
   async () => {
     const { fixture } = await import("../fixtures/pi-native.js");
@@ -254,15 +245,10 @@ test(
             .filter((entry) => entry.message?.role === "toolResult")
             .map((entry) => entry.message.content.map((block) => block.text ?? "").join("\n"));
           assert.equal(results.length, 3);
-          assert.doesNotMatch(results[0], /Freeflow gate/);
-          assert.match(
-            results[1],
-            /Freeflow gate \(warn, agreement\): bash on one\.txt before an agreement in this session\./,
-          );
-          assert.doesNotMatch(results[2], /Freeflow gate/);
+          for (const result of results) assert.doesNotMatch(result, /Freeflow gate/);
           const session = process.env.FREEFLOW_SESSION;
           assert.ok(existsSync(join(home, "sessions", session, "gates.json")));
-          // The lines are written when the run settles.
+          // The lines are written when the run settles: no gate line at all.
           const log = join(home, "events", `${session}.jsonl`);
           for (let tries = 0; tries < 100 && !existsSync(log); tries += 1)
             await new Promise((done) => setTimeout(done, 50));
@@ -271,17 +257,14 @@ test(
             .split("\n")
             .map((line) => JSON.parse(line))
             .filter((line) => line.kind === "gate");
-          assert.deepEqual(
-            gateLines.map((line) => [line.gate, line.decision, line.tool]),
-            [
-              ["agreement", "warn", "bash"],
-              ["agreement", "warn", "bash"],
-            ],
-          );
+          assert.deepEqual(gateLines, []);
         },
         true,
         {
-          freeflowConfig: { toolExecution: { enabled: true }, gates: { slice: "warn", agreement: "warn" } },
+          freeflowConfig: {
+            toolExecution: { enabled: true },
+            gates: { delegation: "block", agreement: "block", slice: "block" },
+          },
         },
       );
     } finally {
