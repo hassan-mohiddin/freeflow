@@ -1,7 +1,7 @@
 # Delegation across sessions
 
 > **Covers:** `skills/track-work/scripts/lib/delegations5.mjs`, `skills/track-work/scripts/lib/channel5.mjs`, `skills/track-work/scripts/lib/claims5.mjs`, `skills/track-work/scripts/working-record.mjs`
-> **Verified at:** `c15656ec` (2026-11-16: every step driven at this commit, the two that were unverified included)
+> **Verified at:** `d7eda653` (2026-11-16: every step driven at this commit with `verify-live.sh observe` in a scratch folder, the two that were unverified included, each matching the text below; the brief's `Handle: not started` line was not re-read at open time, only after the join)
 > **User docs:** `plugin-docs/capabilities/delegation-sessions.md`
 
 A coordinator hands part of its task to a separate session as it does to a subagent. `delegate open --session` writes the brief, the worker's worktree and the claims on its scope, and prints the command that starts the worker session on Claude Code and on Pi. The worker session runs `delegate join` and reads its recovery; from then on it holds no task, and each command that writes the record is refused with "this session works for D-NNN". It keeps its `progress.md` with `checkpoint --delegation` and writes `return.md`. Every delegation event is a line in the task's delegation log, which `delegate log` prints. An accepted return's Left open choices join `decisions.md`, and a session's claims on paths warn another session before it writes them.
