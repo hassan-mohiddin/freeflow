@@ -181,7 +181,6 @@ function world(on: any) {
     ],
     clock: mock.clock(on, { now: T0 }),
     session: mock.session(on),
-    /** What the pane reads, without the event log's flushes and the settings script. */
     // The pane's reads: not the event log's writes, nor a turn end's discussion capture (freeflow.test.ts checks that).
     reads: () => w.runs.filter((run) => !run.startsWith("events append") && !run.startsWith("discussion capture")),
   };
