@@ -79,6 +79,8 @@ async function storeCheck(home) {
     ? `last sync ${status.lastSync.at}, ${status.lastSync.result}${status.lastSync.reason ? ` (${status.lastSync.reason})` : ""}`
     : "never synced";
   if (!status.remote) return `- Store: a local store; ${status.uncommitted} path(s) not committed.`;
+  if (status.memory === "local")
+    return `- Store: task memory is local, so it is not synced with ${status.remote}; ${status.uncommitted} path(s) not committed.`;
   const conflict = status.conflict ? `; a conflict waits in ${status.conflict.join(", ")}` : "";
   return `- Store: ${status.unpushed ?? "unknown"} commit(s) not pushed, ${status.uncommitted} path(s) not committed; ${last}${conflict}.`;
 }

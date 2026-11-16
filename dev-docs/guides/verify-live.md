@@ -12,7 +12,7 @@ Everything goes through one helper, `scripts/verify-live.sh`, run from the repos
 ```bash
 npm ci                                   # once per checkout: installs the pinned Pi
 npm run build                            # after editing pi-extension/src: Pi loads pi-extension/dist
-scripts/verify-live.sh launch            # fixture with .freeflow/config.json = {}
+scripts/verify-live.sh launch            # the run's FREEFLOW_HOME has settings.json = {}
 scripts/verify-live.sh launch --no-config
 scripts/verify-live.sh launch --config '{"messaging":{"enabled":true}}'
 ```
@@ -41,7 +41,7 @@ Run it before the first step, after any failed step, and whenever the screen loo
 scripts/verify-live.sh cmd "/freeflow status"         # type, submit, wait for idle or a full-screen list, print the pane tail
 scripts/verify-live.sh keys Down Down Enter           # tmux key names: Up Down Enter Space Tab Escape C-u, or literal text
 scripts/verify-live.sh screen                         # print the visible pane; writes no evidence
-scripts/verify-live.sh observe <name> -- cat .freeflow/config.json
+scripts/verify-live.sh observe <name> -- cat "$FREEFLOW_HOME/settings.json"
 scripts/verify-live.sh tty <name> --wait 'Start? [y/N]' --keys 'n Enter' -- <command...>
 ```
 

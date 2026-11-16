@@ -82,7 +82,7 @@ type Theme = {
   bold?: (text: string) => string;
 };
 
-/** One scope of settings, such as Session, Personal or Repository; Tab switches between scopes. */
+/** One scope of settings, such as Session, This folder or Everywhere; Tab switches between scopes. */
 export type SettingsScope = {
   id: string;
   label: string;

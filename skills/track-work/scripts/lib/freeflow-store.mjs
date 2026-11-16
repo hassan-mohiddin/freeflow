@@ -16,6 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { FREEFLOW_STORE_KIND, isFreeflowStore, STORE_MARKER, StoreError } from "./store.mjs";
+import { memoryModeFor } from "./memory5.mjs";
 
 const execFile = promisify(execFileCallback);
 
@@ -24,6 +25,10 @@ const execFile = promisify(execFileCallback);
  * event log at the store's root (a task folder's events/ holds the summaries a checkpoint commits).
  */
 export const STORE_IGNORE = ["scratch/", "evidence/**/raw/", "local/", "sessions/", "/events/"];
+/** The user's settings and the first-session marker in the home (D-060): the store commits them, so they sync. */
+const SETTINGS_FILES = ["settings.json", "folders.json", "first-session.json"];
+/** Lines an earlier build of the store wrote to .gitignore to keep the settings files out of the store's commits. */
+const RETIRED_SETTINGS_IGNORES = ["/settings.json", "/folders.json", "/first-session.json"];
 /** Files that only append merge by keeping both sides' lines. */
 export const STORE_ATTRIBUTES = [
   "history.md merge=union",
@@ -62,10 +67,10 @@ export function storeHome(explicit) {
  */
 const BEFORE_STORE = ["sessions", "events"];
 
-/** Whether a home holds nothing, or nothing but Freeflow's own `sessions/` and `events/`. */
+/** Whether a home holds nothing, or nothing but Freeflow's own `sessions/`, `events/` and settings files. */
 async function isEmptyHome(path) {
   try {
-    return (await readdir(path)).every((entry) => BEFORE_STORE.includes(entry));
+    return (await readdir(path)).every((entry) => BEFORE_STORE.includes(entry) || SETTINGS_FILES.includes(entry));
   } catch (error) {
     if (error?.code === "ENOENT") return true;
     throw error;
@@ -94,6 +99,23 @@ async function setSessionsAside(home) {
   return async () => {
     for (const restore of restores) await restore();
   };
+}
+
+/**
+ * Removes the lines an earlier build wrote to .gitignore to keep the settings files out of commits (D-060): the settings
+ * sync with the store now. A store that never had them is left as it is.
+ */
+async function dropRetiredSettingsIgnores(home) {
+  const path = join(home, ".gitignore");
+  let text;
+  try {
+    text = await readFile(path, "utf8");
+  } catch {
+    return;
+  }
+  const lines = text.split("\n");
+  const kept = lines.filter((line) => !RETIRED_SETTINGS_IGNORES.includes(line.trim()));
+  if (kept.length !== lines.length) await writeFile(path, kept.join("\n"));
 }
 
 /** Whether path holds only a clone of remote with no commits on either side yet. */
@@ -196,6 +218,7 @@ export async function addStoreRemote({ home: explicit, url }) {
       `${url} already holds commits; a local store moves only into an empty repository. To use a store already there, run store init --remote ${url} --home <another folder>`,
     );
   }
+  // A store with a remote syncs unless memory.mode says otherwise (memoryModeFor, D-060 round 3): no setting is written.
   const outcome = await push(home);
   if (!outcome.pushed) {
     await drop();
@@ -324,6 +347,8 @@ export async function storeStatus({ home: explicit }) {
     home,
     remote,
     branch,
+    // The task memory mode (D-060, Setting 2): a local store with a remote stays unsynced, and says so.
+    memory: memoryModeFor({ home }),
     uncommitted,
     // As of the last fetch: status itself never reaches the network.
     unpushed: await count("@{upstream}..HEAD"),
@@ -559,6 +584,22 @@ async function rebaseOntoRemote(home, { resolved = false } = {}) {
 export async function syncStore({ home: explicit, message, pull = false, resolved = false, push = true }) {
   const home = storeHome(explicit);
   requireStore(home);
+  // Task memory's mode (D-060, Setting 2): off syncs nothing; local keeps the store on this machine (no push, no pull),
+  // and only sync takes the remote's changes and sends this store's.
+  const mode = memoryModeFor({ home });
+  if (mode === "off")
+    return {
+      home,
+      committed: false,
+      local: true,
+      pulled: false,
+      pushed: false,
+      reason: "task memory is off: nothing synced",
+    };
+  if (mode === "local") {
+    const committed = await commitChanges(home, message);
+    return { home, committed, local: true, pulled: false, pushed: false, reason: "task memory is local: not synced" };
+  }
   const conflict = await pendingConflict(home);
   if (conflict && !resolved)
     fail(
@@ -566,6 +607,7 @@ export async function syncStore({ home: explicit, message, pull = false, resolve
       `A conflict waits in ${conflict.paths.join(", ")}, with the remote's copies under ${CONFLICT_COPIES}/: merge what should stay into this store's files, then run store sync --resolved`,
     );
   if (resolved && !conflict) fail("no-conflict", "No conflict waits; run store sync");
+  await dropRetiredSettingsIgnores(home);
   const committed = await commitChanges(home, message);
   // Committed here only, as a harness layer does where the session's end leaves no time for the network (Codex's
   // SessionEnd); the next sync pushes it.

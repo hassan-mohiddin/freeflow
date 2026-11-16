@@ -1,10 +1,10 @@
-import { execFile } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, resolve } from "node:path";
-import { promisify } from "node:util";
+import { dirname, join, resolve } from "node:path";
 import {
+  HARNESSES,
   SETTINGS,
   sanitizeConfigFile,
   settingSpec,
@@ -20,8 +20,6 @@ import {
  * the repository's `.freeflow/config.json`, the personal `.freeflow/local.json`, and, outside Pi, a session's own file
  * in the Freeflow home. Plain Node only: the script imports the built file.
  */
-
-const execFileAsync = promisify(execFile);
 
 type JsonObject = Record<string, unknown>;
 
@@ -82,94 +80,178 @@ export function pruneDefaults(config: JsonObject) {
   }
 }
 
-export const CONFIG_FILES = { repository: ".freeflow/config.json", personal: ".freeflow/local.json" } as const;
+/**
+ * Where the settings live (D-060): in the Freeflow home, never in the repository. The everywhere layer is the home's
+ * `settings.json` (the layer the code names `repository`, the wider of the two files); the folder layer is the home's
+ * `folders.json`, one entry per repository folder (`personal`, which overrides it). A session's values are in
+ * `sessions/<id>/settings.json`. The repository's own `.freeflow/config.json` and `.freeflow/local.json` are no longer
+ * read: the settings doctor moves their keys to the folder layer.
+ */
+export const HOME_FILES = { repository: "settings.json", personal: "folders.json" } as const;
+export const LEGACY_FILES = { repository: ".freeflow/config.json", personal: ".freeflow/local.json" } as const;
 
 /**
- * A config file as the hosts read it: absent, or its settings with the ones it ignores. A file that is not JSON reads as
- * empty, with `error` and one ignored entry (D-045). A file with ignored entries is never written over: see writeConfigValue.
+ * The repository a folder is in, as every host and the settings script find it: the nearest folder up with `.git`, else
+ * the folder itself. The folder layer is keyed by it, so a session in a subfolder reads its repository's settings (D-060).
+ */
+export function repositoryRoot(folder: string): string {
+  const start = resolve(folder);
+  for (let current = start; ; current = dirname(current)) {
+    if (existsSync(join(current, ".git"))) return current;
+    if (dirname(current) === current) return start;
+  }
+}
+
+/**
+ * A repository's remote URL in the portable form the folder layer is keyed by (D-060, Q4): the host lowercased, with no
+ * scheme, no user, no port and no trailing `.git`, e.g. `github.com/owner/repo`. A scp-style `user@host:path` is read
+ * as `host/path`. Worktrees of one repository share the key.
+ */
+export function portableRemoteKey(url: string): string {
+  let s = url.trim();
+  const scheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(s);
+  s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/^[^@/]+@/, "");
+  if (!scheme) {
+    const scp = /^([^/:]+):(.*)$/.exec(s);
+    if (scp) s = `${scp[1]}/${scp[2]}`;
+  }
+  s = s.replace(/\/+$/, "").replace(/\.git$/i, "");
+  const slash = s.indexOf("/");
+  const host = (slash < 0 ? s : s.slice(0, slash)).replace(/:\d+$/, "").toLowerCase();
+  return host + (slash < 0 ? "" : s.slice(slash));
+}
+
+const originCache = new Map<string, string | null>();
+
+/** A repository's `origin` remote URL, read once per process; null when it has none or is not a Git repository. */
+function originOf(repo: string): string | null {
+  if (originCache.has(repo)) return originCache.get(repo) ?? null;
+  let origin: string | null = null;
+  if (existsSync(join(repo, ".git"))) {
+    try {
+      origin =
+        execFileSync("git", ["-C", repo, "config", "--get", "remote.origin.url"], {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "ignore"],
+        }).trim() || null;
+    } catch {
+      origin = null;
+    }
+  }
+  originCache.set(repo, origin);
+  return origin;
+}
+
+/**
+ * The key a repository's folder layer is stored under: its portable remote key when it has an `origin`, else its
+ * absolute root (D-060, Q4).
+ */
+export function folderKey(root: string): string {
+  const repo = repositoryRoot(root);
+  const origin = originOf(repo);
+  return origin ? portableRemoteKey(origin) : repo;
+}
+
+/** The path of a layer's file in the Freeflow home. */
+export function layerPath(home: string, scope: "repository" | "personal"): string {
+  return join(home, HOME_FILES[scope]);
+}
+
+/**
+ * A layer as the hosts read it: absent, or its settings with the ones it ignores. A file that is not JSON reads as
+ * empty, with `error` and one ignored entry (D-045). A layer with ignored entries is never written over: see
+ * writeConfigValue. The value keeps the layer's `harness` ticks; settingsForHarness(value, harness) applies them.
  */
 export type ConfigFileState = { exists: boolean; value: JsonObject; error: string | null; ignored: IgnoredSetting[] };
 
-export function readConfigFile(root: string, scope: "repository" | "personal"): ConfigFileState {
-  const path = join(root, CONFIG_FILES[scope]);
-  if (!existsSync(path)) return { exists: false, value: {}, error: null, ignored: [] };
-  let raw: unknown;
+function readHomeObject(path: string): { exists: boolean; raw?: unknown; error?: string } {
+  if (!existsSync(path)) return { exists: false };
   try {
-    raw = JSON.parse(readFileSync(path, "utf8"));
+    return { exists: true, raw: JSON.parse(readFileSync(path, "utf8")) };
   } catch (error) {
-    const message = `not JSON: ${error instanceof Error ? error.message : String(error)}`;
-    return { exists: true, value: {}, error: message, ignored: [{ key: null, reason: message }] };
+    return { exists: true, error: `not JSON: ${error instanceof Error ? error.message : String(error)}` };
   }
-  const { config, ignored } = sanitizeConfigFile(raw, scope);
+}
+
+/** The folder layer's entries by repository folder; a file that is not one JSON object reads as an error. */
+function readFolders(home: string): { entries: JsonObject; error: string | null } {
+  const read = readHomeObject(layerPath(home, "personal"));
+  if (!read.exists) return { entries: {}, error: null };
+  if (read.error !== undefined) return { entries: {}, error: read.error };
+  if (!isRecord(read.raw)) return { entries: {}, error: "must hold a JSON object of folders" };
+  return { entries: read.raw, error: null };
+}
+
+export function readConfigFile(root: string, scope: "repository" | "personal", home: string): ConfigFileState {
+  if (scope === "repository") {
+    const read = readHomeObject(layerPath(home, "repository"));
+    if (!read.exists) return { exists: false, value: {}, error: null, ignored: [] };
+    if (read.error !== undefined)
+      return { exists: true, value: {}, error: read.error, ignored: [{ key: null, reason: read.error }] };
+    const { config, ignored } = sanitizeConfigFile(read.raw, "repository");
+    return { exists: true, value: config, error: null, ignored };
+  }
+  const folders = readFolders(home);
+  if (folders.error !== null)
+    return { exists: true, value: {}, error: folders.error, ignored: [{ key: null, reason: folders.error }] };
+  // A folder written under the absolute root before the portable key (D-060, Q4) is read as before.
+  const entry = folders.entries[folderKey(root)] ?? folders.entries[repositoryRoot(root)];
+  if (entry === undefined) return { exists: false, value: {}, error: null, ignored: [] };
+  const { config, ignored } = sanitizeConfigFile(entry, "personal");
   return { exists: true, value: config, error: null, ignored };
 }
 
 /**
- * Keeps `.freeflow/local.json` out of Git before the first personal write: refuses when Git tracks it, and adds it to the
- * repository's exclude file unless something already ignores it. Outside a Git repository it does nothing.
+ * Writes a layer's whole settings object (`next`), with the rules the layers keep: the everywhere file drops values
+ * equal to their default (unset and the default are the same there); the folder entry keeps them, since it overrides
+ * the everywhere file. An object with nothing left removes the layer's file or the folder's entry.
  */
-export async function ensureLocalConfigIgnored(root: string) {
-  let gitPath: string;
-  try {
-    gitPath = (await execFileAsync("git", ["-C", root, "rev-parse", "--git-path", "info/exclude"])).stdout.trim();
-  } catch {
+export async function writeLayer(root: string, scope: "repository" | "personal", next: JsonObject, home: string) {
+  if (scope === "repository") {
+    pruneDefaults(next);
+    if (Object.keys(next).length === 0) {
+      await rm(layerPath(home, "repository"), { force: true });
+      return;
+    }
+    await mkdir(home, { recursive: true });
+    await writeFile(layerPath(home, "repository"), `${JSON.stringify(next, null, 2)}\n`, "utf8");
     return;
   }
-  const tracked = await execFileAsync("git", ["-C", root, "ls-files", "--", CONFIG_FILES.personal]);
-  if (tracked.stdout.trim())
-    throw new Error(
-      ".freeflow/local.json is tracked by git; remove it from the index before writing personal overrides.",
-    );
-  try {
-    await execFileAsync("git", ["-C", root, "check-ignore", "-q", "--", CONFIG_FILES.personal]);
+  const folders = readFolders(home);
+  // Written under the portable key; an entry under the absolute root is moved there.
+  delete folders.entries[repositoryRoot(root)];
+  if (Object.keys(next).length === 0) delete folders.entries[folderKey(root)];
+  else folders.entries[folderKey(root)] = next;
+  if (Object.keys(folders.entries).length === 0) {
+    await rm(layerPath(home, "personal"), { force: true });
     return;
-  } catch {
-    // Add a local exclude when the repository does not already ignore the file.
   }
-  const excludePath = isAbsolute(gitPath) ? gitPath : resolve(root, gitPath);
-  let existing = "";
-  try {
-    existing = await readFile(excludePath, "utf8");
-  } catch {
-    // The git metadata path may not exist yet in a minimal repository.
-  }
-  if (existing.split(/\r?\n/).includes(CONFIG_FILES.personal)) return;
-  await mkdir(dirname(excludePath), { recursive: true });
-  const prefix = existing && !existing.endsWith("\n") ? "\n" : "";
-  await appendFile(excludePath, `${prefix}${CONFIG_FILES.personal}\n`, "utf8");
+  await mkdir(home, { recursive: true });
+  await writeFile(layerPath(home, "personal"), `${JSON.stringify(folders.entries, null, 2)}\n`, "utf8");
 }
 
 /**
- * Writes one value into a file scope (`undefined` removes it), with Pi's rules: a repository write drops values equal
- * to their default; a personal write keeps them, keeps the file out of Git, and removes the file once it is empty.
- * Refuses to touch a file that is invalid now.
+ * Writes one value into a layer (`undefined` removes it), through writeLayer. Refuses to touch a layer that is invalid
+ * now: doctor fixes it first (D-045). With `harness`, the value is that harness's tick.
  */
 export async function writeConfigValue(
   root: string,
   scope: "repository" | "personal",
   path: readonly string[],
   value: unknown,
+  home: string,
+  harness: string | null = null,
 ) {
-  const current = readConfigFile(root, scope);
-  // Writing would drop what the file ignores, so a file with ignored settings is fixed by doctor first (D-045).
+  const current = readConfigFile(root, scope, home);
   if (current.ignored.length > 0)
     throw new Error(
-      `${CONFIG_FILES[scope]} has settings Freeflow ignores; run settings.mjs doctor to see the fix before changing a setting.`,
+      `${HOME_FILES[scope]} in the Freeflow home has settings Freeflow ignores; run settings.mjs doctor to see the fix before changing a setting.`,
     );
+  const target = harness ? ["harness", harness, ...path] : [...path];
   const next = cloneJson(current.value);
-  if (value === undefined) deletePath(next, path);
-  else setPath(next, path, value);
-  const file = join(root, CONFIG_FILES[scope]);
-  if (scope === "personal") {
-    if (value === undefined && !current.exists) return;
-    await ensureLocalConfigIgnored(root);
-    if (Object.keys(next).length === 0) {
-      await rm(file, { force: true });
-      return;
-    }
-  } else pruneDefaults(next);
-  await mkdir(join(root, ".freeflow"), { recursive: true });
-  await writeFile(file, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  if (value === undefined) deletePath(next, target);
+  else setPath(next, target, value);
+  await writeLayer(root, scope, next, home);
 }
 
 /** The Freeflow home: `FREEFLOW_HOME`, else `~/.freeflow`. */
@@ -188,7 +270,7 @@ export function sessionSettingsPath(home: string, id: string) {
   return join(home, "sessions", id, "settings.json");
 }
 
-/** A session's values by dotted key; values the table does not accept are dropped, as Pi drops them. */
+/** A session's values by dotted key; values the table does not accept are dropped, as Pi drops them. A harness tick is `harness.<name>.<key>`. */
 export function readSessionSettings(home: string, id: string | null): Record<string, SettingValue> {
   if (!id) return {};
   const path = sessionSettingsPath(home, id);
@@ -202,16 +284,26 @@ export function readSessionSettings(home: string, id: string | null): Record<str
   const values: Record<string, SettingValue> = {};
   if (!isRecord(raw)) return values;
   for (const [key, value] of Object.entries(raw)) {
-    const spec = settingSpec(key);
+    const tick = /^harness\.([^.]+)\.(.+)$/.exec(key);
+    if (tick && !(HARNESSES as readonly string[]).includes(tick[1]!)) continue;
+    const spec = settingSpec(tick ? tick[2]! : key);
     if (spec?.session && validSettingValue(spec, value)) values[key] = value;
   }
   return values;
 }
 
-export async function writeSessionValue(home: string, id: string, key: string, value: SettingValue | undefined) {
+/** Writes a session's value for a key, or its tick for one harness (`harness`), and removes an empty file. */
+export async function writeSessionValue(
+  home: string,
+  id: string,
+  key: string,
+  value: SettingValue | undefined,
+  harness: string | null = null,
+) {
   const values = readSessionSettings(home, id);
-  if (value === undefined) delete values[key];
-  else values[key] = value;
+  const stored = harness ? `harness.${harness}.${key}` : key;
+  if (value === undefined) delete values[stored];
+  else values[stored] = value;
   const path = sessionSettingsPath(home, id);
   if (Object.keys(values).length === 0) {
     await rm(path, { force: true });
@@ -221,18 +313,69 @@ export async function writeSessionValue(home: string, id: string, key: string, v
   await writeFile(path, `${JSON.stringify(values, null, 2)}\n`, "utf8");
 }
 
-/** A setting's value now and the scope it comes from: Session, then Personal, then Repository, then the default. */
-export type ResolvedSetting = { spec: SettingSpec; value: SettingValue | null; scope: SettingScope | "default" };
+/**
+ * A setting's value now and the scope it comes from: Session, then Folder (`personal`), then Everywhere (`repository`),
+ * then the default. Within each scope a value ticked for `harness` wins over that scope's general value (D-060);
+ * `ticked` says the value came from a tick.
+ */
+export type ResolvedSetting = {
+  spec: SettingSpec;
+  value: SettingValue | null;
+  scope: SettingScope | "default";
+  ticked: boolean;
+};
+
+/**
+ * Whether the Freeflow home is a store with a remote named origin, read from the store's Git config: no process, so it
+ * is cheap enough for the request path (D-060, Setting 2).
+ */
+export function storeHasRemote(home: string | null | undefined): boolean {
+  if (!home) return false;
+  try {
+    return /^\[remote "origin"\]/m.test(readFileSync(join(home, ".git", "config"), "utf8"));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A setting's default where no layer sets it: `defaultWithRemote` when the home's store has a remote, else `default`.
+ * memory.mode is sync with a remote and local without one, unless a layer says otherwise (D-060, round 3).
+ */
+export function defaultValueFor(spec: SettingSpec, home: string | null | undefined): SettingValue | null {
+  return spec.defaultWithRemote !== undefined && storeHasRemote(home) ? spec.defaultWithRemote : spec.default;
+}
 
 export function resolveSetting(
   spec: SettingSpec,
   layers: { repository: JsonObject; personal: JsonObject; session: Record<string, SettingValue> },
+  harness: string | null = null,
+  home: string | null = null,
 ): ResolvedSetting {
-  if (spec.key in layers.session) return { spec, value: layers.session[spec.key]!, scope: "session" };
+  if (harness && `harness.${harness}.${spec.key}` in layers.session)
+    return { spec, value: layers.session[`harness.${harness}.${spec.key}`]!, scope: "session", ticked: true };
+  if (spec.key in layers.session) return { spec, value: layers.session[spec.key]!, scope: "session", ticked: false };
   const path = spec.key.split(".");
   for (const scope of ["personal", "repository"] as const) {
+    if (harness) {
+      const tick = getPath(layers[scope], ["harness", harness, ...path]);
+      if (tick !== undefined) return { spec, value: tick as SettingValue, scope, ticked: true };
+    }
     const value = getPath(layers[scope], path);
-    if (value !== undefined) return { spec, value: value as SettingValue, scope };
+    if (value !== undefined) return { spec, value: value as SettingValue, scope, ticked: false };
   }
-  return { spec, value: spec.default, scope: "default" };
+  return { spec, value: defaultValueFor(spec, home), scope: "default", ticked: false };
+}
+
+/** A session's values as one harness applies them: its general values, with that harness's ticks over them. */
+export function sessionValuesForHarness(
+  session: Record<string, SettingValue>,
+  harness: string | null,
+): Record<string, SettingValue> {
+  const values: Record<string, SettingValue> = {};
+  for (const [key, value] of Object.entries(session)) if (!key.startsWith("harness.")) values[key] = value;
+  if (harness)
+    for (const [key, value] of Object.entries(session))
+      if (key.startsWith(`harness.${harness}.`)) values[key.slice(`harness.${harness}.`.length)] = value;
+  return values;
 }

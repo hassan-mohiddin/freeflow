@@ -46,7 +46,7 @@ body:
     id: config
     attributes:
       label: Freeflow settings
-      description: The relevant part of `.freeflow/config.json` and `.freeflow/local.json`, or which switches are on in `/freeflow settings`. Remove anything private.
+      description: The relevant settings (`/freeflow settings` shows them; on another host, `settings.mjs list`). Remove anything private.
       render: json
   - type: textarea
     id: logs

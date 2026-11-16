@@ -43,6 +43,7 @@ import { DiscussionCapture } from "./discussion/capture.js";
 import { DEFAULT_INBOUND_POLICY } from "./messaging/config.js";
 import { MESSAGE_TYPE, Messaging } from "./messaging/messaging.js";
 import { freeflowHome } from "./messaging/registry.js";
+import { firstSessionLine } from "./host/first-session.js";
 import { applyMessagingTools, registerMessagingTools } from "./messaging/tools.js";
 import { renderMessage } from "./messaging/render.js";
 import { applyAskUserTool, registerAskUserTool } from "./ask-user/tool.js";
@@ -65,7 +66,12 @@ import {
   refreshRuntimeContext,
   stableRuntimeContext,
 } from "./host/prompts.js";
-import { filterBootstrapMessage, freeflowRuntimeStateMessage, withFreeflowRuntimeState } from "./host/runtime-state.js";
+import {
+  filterBootstrapMessage,
+  freeflowRuntimeStateMessage,
+  withFreeflowRuntimeState,
+  withoutFreeflowRuntimeState,
+} from "./host/runtime-state.js";
 import { setFreeflowStatus } from "./host/status.js";
 import { cachedBranch } from "./host/branch.js";
 const COMPACTION_NOTICE_TYPE = "freeflow-compaction-notice";
@@ -137,7 +143,7 @@ async function sendSkillCommand(pi, ctx, skill, args, events) {
     sendSkillPrompt(pi, skill, args, events);
     return;
   }
-  if (state.setupNeeded || !state.enabled) {
+  if (!state.enabled) {
     ctx.ui.notify("Run /setup-freeflow or enable Freeflow before dispatching this skill.", "warning");
     return;
   }
@@ -157,17 +163,17 @@ function freeflowCompletions(prefix) {
   const choices = query.startsWith("settings ")
     ? [
         ["settings session", "session", "Override Freeflow for this Pi session"],
-        ["settings local", "local", "Edit personal overrides for this repository"],
-        ["settings repo", "repo", "Edit shared repository settings"],
+        ["settings folder", "folder", "Open This folder's settings (folders.json)"],
+        ["settings everywhere", "everywhere", "Open Everywhere's settings (settings.json)"],
       ]
     : [
-        ["settings", "settings", "Open settings; Tab switches Session, Personal and Repository"],
+        ["settings", "settings", "Open settings; Tab switches Session, This folder and Everywhere"],
         ["status", "status", "Show effective Freeflow state"],
         ["capabilities", "capabilities", "What Freeflow can do in this session, and the event log"],
         ["sent", "sent", "The text Freeflow sent the model in this session, newest first"],
         ["compact", "compact", "Prepare, compact and recover now"],
-        ["enable", "enable", "Enable Freeflow for this repository"],
-        ["disable", "disable", "Disable Freeflow for this repository"],
+        ["enable", "enable", "Turn Freeflow on in every folder (Everywhere)"],
+        ["disable", "disable", "Turn Freeflow off in every folder (Everywhere)"],
       ];
   return choices
     .filter(([value]) => value.startsWith(query))
@@ -176,10 +182,10 @@ function freeflowCompletions(prefix) {
 export default function freeflow(pi) {
   // Cache diagnostics are reported to /freeflow status; the footer only shows current settings.
   const cacheMonitor = new CacheMonitor();
-  // Provider support runs only where Freeflow runs: not while it is off, nor while its setup is needed (D-045, round 3).
+  // Provider support runs only where Freeflow runs: not while it is off.
   registerProviderSupport(
     pi,
-    () => capability?.setupNeeded !== true && capability?.enabled !== false,
+    () => capability?.enabled !== false,
     cacheMonitor,
     (what, text) => events.sent(what, text, { once: true }),
   );
@@ -187,9 +193,13 @@ export default function freeflow(pi) {
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   // The notice point comes from Track Work's notice5.mjs, loaded once; no notice is due until it has.
   void loadNotice(packageRoot);
+  // The first-session line of this session, once per user (N1, D-060): set at session start, null after the first.
+  let firstSession = null;
   // The Freeflow store's layer: Track Work's script on Pi's events, as the Claude Code mod is on Claude Code's.
   const runScript = scriptRunner(packageRoot);
-  const store = new StoreLayer(runScript);
+  // Task memory's mode as the session has it now; off when Freeflow is off (D-060, Setting 1 and 2).
+  const memorySetting = () => (capability?.enabled === true ? (capability?.memory?.mode ?? "local") : "off");
+  const store = new StoreLayer(runScript, memorySetting);
   // The event log and the claims (SPEC-006): written off the request path, when a run settles and at shutdown.
   const events = new EventRecorder(runScript);
   const discussion = new DiscussionCapture(runScript);
@@ -353,6 +363,8 @@ export default function freeflow(pi) {
   registerBackgroundTools(api, background, backgroundHost);
   const compaction = new CompactionController({
     effective: compactionEffective,
+    memoryOff: () => memorySetting() === "off",
+    withoutTask: () => capability?.compaction?.withoutTask !== false,
     background: () => background.running().map(({ id, label, outputPath }) => ({ id, label, outputPath })),
     notice: (text) => freeflowNotice("compaction", text),
     sent: (what, text) => events.sent(what, text),
@@ -428,7 +440,7 @@ export default function freeflow(pi) {
   let startState = "due";
   let startFailures = 0;
   const catchUp = async (ctx) => {
-    if (startState !== "due" || capability?.enabled !== true) return undefined;
+    if (startState !== "due" || capability?.enabled !== true || memorySetting() === "off") return undefined;
     startState = "running";
     const session = ctx.sessionManager?.getSessionId?.();
     const held = store.heldTask();
@@ -640,9 +652,12 @@ export default function freeflow(pi) {
     events.sessionStarted(event?.reason, ctx.hasUI !== false);
     syncClaims();
     // A reload keeps the session, whose ledger says whether its start had the store's menu (SPEC-013).
-    startState = capability?.enabled === true && event?.reason !== "reload" ? "done" : "due";
+    // Freeflow on: the first-session line, once per user, from the marker the shared renderer also reads (N1).
+    if (capability?.enabled === true && event?.reason !== "reload")
+      firstSession = firstSessionLine(freeflowHome(), join(packageRoot, "plugin-docs", "using-freeflow.md"));
+    startState = memorySetting() !== "off" && event?.reason !== "reload" ? "done" : "due";
     startFailures = 0;
-    if (capability?.enabled === true) void storeStart(ctx, event?.reason, generation);
+    if (memorySetting() !== "off") void storeStart(ctx, event?.reason, generation);
     status(ctx);
   });
   pi.on("session_shutdown", async (event) => {
@@ -839,7 +854,7 @@ export default function freeflow(pi) {
       const ended = compaction.cycleNow(ctx);
       const compacting = await compaction.settle(event, ctx);
       // After the store was read at the run's end: a delegation the Slice waits on that came back gives its row.
-      if (!compacting && capability?.enabled === true) await waits.runEnded().catch(() => {});
+      if (!compacting && memorySetting() !== "off") await waits.runEnded().catch(() => {});
       if (compacting) {
         if (compacting.entries.some((entry) => entry?.type === "compaction"))
           events.compaction("freeflow", undefined, ended);
@@ -947,17 +962,21 @@ export default function freeflow(pi) {
     let messages = keepSections(event.messages, ownSections, ownSectionsVersion, ownHead)
       .map(filterBootstrapMessage)
       .filter(Boolean);
-    // The Runtime State every request carries, built once: the request places it, and the event log keeps its text once
-    // per distinct text (the log checks its switch before it hashes anything). Not found in the messages, so the lookup
-    // does not grow with the session.
-    const runtimeState = freeflowRuntimeStateMessage(capability, prompts, { skills: stateSkills });
-    messages = withFreeflowRuntimeState(messages, capability, prompts, {
-      force: refreshState,
-      anchor: runtimeStateAnchor,
-      skills: stateSkills,
-      runtimeState,
-    });
-    events.sent("runtime-state", runtimeState.content, { once: true });
+    // Off sends no Runtime State, and drops one an earlier request carried (settled Setting 1: off sends nothing).
+    if (capability?.enabled === true) {
+      // The Runtime State every request carries, built once: the request places it, and the event log keeps its text
+      // once per distinct text (the log checks its switch before it hashes anything). Not found in the messages, so the
+      // lookup does not grow with the session.
+      const runtimeState = freeflowRuntimeStateMessage(capability, prompts, { skills: stateSkills, firstSession });
+      messages = withFreeflowRuntimeState(messages, capability, prompts, {
+        force: refreshState,
+        anchor: runtimeStateAnchor,
+        skills: stateSkills,
+        firstSession,
+        runtimeState,
+      });
+      events.sent("runtime-state", runtimeState.content, { once: true });
+    } else messages = withoutFreeflowRuntimeState(messages);
     refreshState = false;
     return { messages: await requestHistory.assemble(messages, ctx) };
   });

@@ -48,7 +48,7 @@ It deliberately does not:
 
 ### Configuration and declaration
 
-`resolveToolExecutionConfig()` layers `toolExecution.enabled` from `.freeflow/config.json`, then `.freeflow/local.json`, then session scope. The default is on (`DEFAULT_TOOL_EXECUTION_CONFIG`). On every `status()` call `applyToolExecutionTools()` declares `apply_patch`, `bash_background`, `monitor` and `stop_background` when effective and withdraws them when not. All four are registered once at load with `defaultActive: false`, so their definitions never change; only whether they are declared does.
+`resolveToolExecutionConfig()` layers `toolExecution.enabled` from Everywhere (the Freeflow home's `settings.json`), then This folder (`folders.json`), then the session, the session winning. The default is on (`DEFAULT_TOOL_EXECUTION_CONFIG`). On every `status()` call `applyToolExecutionTools()` declares `apply_patch`, `bash_background`, `monitor` and `stop_background` when effective and withdraws them when not. All four are registered once at load with `defaultActive: false`, so their definitions never change; only whether they are declared does.
 
 ### Prompt
 
@@ -183,7 +183,7 @@ In `tool_call` for `bash`, `backgroundRefusal()` blocks a command ending in a si
 
 ## Surface
 
-**Configuration:** `toolExecution.enabled` (default `true`) in `.freeflow/config.json`, `.freeflow/local.json`, or session scope through `/freeflow settings`; `toolExecution.guidanceNotices` (default `true`) the same way, as the Guidance notices row under Tool Execution. Retired keys accepted and ignored without a warning: `capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`. Any other key fails validation.
+**Configuration:** `toolExecution.enabled` (default `true`) in Everywhere, This folder, or the session, through `/freeflow settings`; `toolExecution.guidanceNotices` (default `true`) the same way, as the Guidance notices row under Tool Execution. Retired keys accepted and ignored without a warning: `capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`. Any other key fails validation.
 
 **Pi settings read:** `shellPath` (environment facts and background shell).
 

@@ -73,7 +73,7 @@ export class CompactionController {
   }
   /** After a turn: the cycle's one notice, once the context reaches the notice point; never again in the cycle. */
   observe(ctx, turn) {
-    if (!this.host.effective()) return undefined;
+    if (!this.host.effective() || this.host.memoryOff()) return undefined;
     const cycle = cycleOf(branchOf(ctx));
     // What this cycle showed before a reload (the store's copy), read the first time after a module load.
     if (!this.restored) {
@@ -87,6 +87,9 @@ export class CompactionController {
     if (!measured) return undefined;
     const { tokens, thresholds } = measured;
     if (tokens < thresholds.notice) return undefined;
+    // With no task or delegation held, the checkpoint notice comes only while compaction.withoutTask is on (N2, D-060).
+    const held = this.host.store.current();
+    if (!held?.task && !held?.delegation && !this.host.withoutTask()) return undefined;
     this.sent.noticeAt = Date.now();
     this.keepSent(ctx, cycle);
     return {
@@ -216,11 +219,13 @@ export class CompactionController {
    * usual, when compaction is off or anything fails; it never cancels Pi's compaction.
    */
   async fallback(event, ctx) {
-    if (!this.host.effective()) return undefined;
+    if (!this.host.effective() || this.host.memoryOff()) return undefined;
     try {
       const branch = branchOf(ctx);
       const cycle = nextCycle(branch);
       const state = await this.host.store.refresh();
+      // With no task or delegation held, Freeflow's compaction runs only while compaction.withoutTask is on (B2, D-060).
+      if (!state?.task && !state?.delegation && !this.host.withoutTask()) return undefined;
       if (state && (state.task || state.summary || state.delegation) && this.checkpointDone(state, branch)) {
         const made = await this.host.store.bundle({});
         if (made.code === 0) {

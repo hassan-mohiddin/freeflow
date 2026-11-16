@@ -47,7 +47,7 @@ The user's delegation rules choose: `rules/delegation.md` in the Freeflow store,
 
 Read the Models section of the delegation rules for each model you weigh, and for your own model in the position you hold: the first of the user's rules files that has one, which recovery shows, else Freeflow's default (`DEFAULT_RULES` in Track Work's `scripts/lib/routing5.mjs`); a model it does not list is chosen by the table alone.
 
-Spend the strong model on settling what the brief decides, and the small one on doing it. Choose effort by the job, not the maximum: higher effort raises cost more reliably than it raises success. A model policy of the user's, such as a reviewer model they set, overrides the table. Name the model and effort in every brief.
+Spend the strong model on settling what the brief decides, and the small one on doing it. Choose effort by the job, not the maximum: higher effort raises cost more reliably than it raises success. A model policy of the user's, such as a model they asked for reviews, overrides the table. Name the model and effort in every brief.
 
 What past work cost helps you weigh it: Track Work's `working-record.mjs estimate --plan` prints the measured context, time and list-price cost of past delegations by kind, model and effort, and how many of each kind, check and model were sent back and why; `--fan-out <n>` prices n workers, and `estimate --store` adds up every task's. The figures show the cost; the table and this section's goal, a model that does the work well, still choose.
 

@@ -96,6 +96,10 @@ const warnedGates = new Map();
 /** @type {Set<string>} */
 const seenReturns = new Set();
 let wakeOnReturn = true;
+/** Task memory (`memory.mode`): off means no menu and no task offered (D-060, Setting 2). */
+let memoryOff = false;
+/** `compaction.withoutTask`: Freeflow's compaction when no task is held (D-060). */
+let compactWithoutTask = true;
 const WAIT_BATCH_MS = 60_000;
 /** How often an idle session whose Slice waits on a delegation looks for its return (Pi's WaitWatch, once a minute). */
 const WAIT_POLL_MS = 60_000;
@@ -468,7 +472,8 @@ async function appendRow($, text, what) {
  * long turn has it (P50, T13). Below it nothing is sent: the notice is the only signal before compaction. Appending
  * leaves what the model already received, and the prompt cache, as it was. */
 async function watchMain($) {
-  if (cycle.notice !== null) return;
+  // Task memory off: no context row or notice about a task (D-060, Setting 2).
+  if (memoryOff || cycle.notice !== null) return;
   const current = cycle;
   const { tokens } = (await $.session.usage()).context;
   if (!tokens) return;
@@ -483,6 +488,8 @@ async function watchMain($) {
   if (cycle !== current) return;
   if (!cycle.restored) await restoreCycle($, state);
   if (cycle.notice !== null || !state) return;
+  // With no task held, the checkpoint notice comes only while compaction.withoutTask is on (N2).
+  if (!state.task && !state.delegation && !compactWithoutTask) return;
   cycle.notice = await $.clock.now();
   await keepCycle($, state);
   const number = await cycleNumber($, state);
@@ -824,6 +831,8 @@ async function storeArrived($, state, session, cwd) {
 }
 
 async function turnEnded($, e) {
+  // Task memory off: no task is read, synced, waited on or compacted here (D-060, Setting 2).
+  if (memoryOff) return;
   const state = await status($);
   if (!state) return;
   // The turn's user messages, kept word for word in the store (Track Work's discussion capture reads this session's
@@ -867,6 +876,8 @@ async function turnEnded($, e) {
   // Only the agent's own request compacts (P102): checkpoint --compact, after a turn that ended, until the bundle
   // replaces the conversation; one /compact queued at a time.
   const request = state.compact;
+  // With no task held, Freeflow's compaction runs only while compaction.withoutTask is on (D-060).
+  if (!state.task && !compactWithoutTask) return;
   if (e.reason !== "answer" || !request || request.done || compactQueued || !checkpointDone(state)) return;
   compactQueued = true;
   $.clock.after(0, () => compactAndContinue($, request));
@@ -930,6 +941,8 @@ async function resolveEnabled($) {
     const ignored = ignoredGates(listed.data.ignored ?? []);
     for (const row of listed.data.settings ?? []) {
       if (row.key === "delegation.wakeOnReturn" && typeof row.value === "boolean") wakeOnReturn = row.value;
+      if (row.key === "memory.mode") memoryOff = row.value === "off";
+      if (row.key === "compaction.withoutTask" && typeof row.value === "boolean") compactWithoutTask = row.value;
       if (row.key === "delegation.claimHours" && row.value != null)
         await $.env.set("FREEFLOW_CLAIM_HOURS", String(row.value));
       const gate = /^gates\.(\w+)$/.exec(row.key)?.[1];
@@ -1016,14 +1029,10 @@ async function gated($, e, verdict) {
 }
 
 const SCOPE_NAMES = /** @type {Record<string, string>} */ ({
-  repository: "Repository",
-  personal: "Personal",
-  session: "Session",
+  everywhere: "Everywhere",
+  folder: "This folder",
+  session: "This session",
   default: "default",
-});
-const FILES = /** @type {Record<string, string>} */ ({
-  repository: ".freeflow/config.json",
-  personal: ".freeflow/local.json",
 });
 const SECTION_ROWS = new Set([
   "enabled",
@@ -1031,48 +1040,43 @@ const SECTION_ROWS = new Set([
   "skills.enabled",
   "events.enabled",
   "gates.delegation",
-  "review.unit",
-  "review.model",
-  "review.rounds",
   "pane.enabled",
   "pane.statusLine",
 ]);
 const COMMAND_USAGE = [
-  "Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)",
-  "Remove one: /freeflow settings <key> inherit [--session | --personal | --repository]",
+  "Set one: /freeflow settings <key> <value> [--folder | --session] [--harness-only]  (Everywhere by default)",
+  "Remove one: /freeflow settings <key> inherit [--folder | --session] [--harness-only]",
+  "Every setting, Developer settings: /freeflow settings --all",
 ].join("\n");
 
 /** A value as the person reads it. @param {unknown} value */
 const shown = (value) => (value === null ? "none" : value === true ? "on" : value === false ? "off" : String(value));
 
-/** Where a resolved value comes from, in words. @param {string} scope */
-const from = (scope) =>
-  scope === "default"
-    ? "the default"
-    : scope === "session"
-      ? "this session (Session)"
-      : `${FILES[scope]} (${SCOPE_NAMES[scope]})`;
+/** Where a resolved value comes from, in words; a value ticked for Claude Code says so. @param {string} scope @param {boolean} [ticked] */
+const from = (scope, ticked) =>
+  scope === "default" ? "the default" : `${SCOPE_NAMES[scope]}${ticked ? ", only on Claude Code" : ""}`;
 
 /**
- * Lists the settings Claude Code acts on: each section's switch and the review, always, and any other key a scope sets.
+ * Lists the settings as the view gives them: the normal view's rows a person changes and the read-only ones, or the
+ * Developer settings (every row, with its key and its harness tick). The script names the rows and their scope.
  * @param {any} data the script's list
+ * @param {"normal" | "developer"} view
  */
-function listText(data) {
-  const rows = data.settings.filter((/** @type {any} */ row) => SECTION_ROWS.has(row.key) || row.scope !== "default");
+function listText(data, view) {
+  const rows = data.settings;
   const width = Math.max(...rows.map((/** @type {any} */ row) => row.label.length));
   // The settings a file ignores are named with the script's own line for them, and Freeflow stays on (D-045).
   const ignored = (data.state ?? []).filter((/** @type {string} */ line) => line.startsWith("Settings ignored:"));
   return [
-    `Freeflow settings for ${data.root} (Claude Code)`,
+    `Freeflow settings for ${data.root} (Claude Code), ${view === "developer" ? "Developer settings" : "normal view"}`,
     ...rows.map(
       (/** @type {any} */ row) =>
-        `  ${row.label.padEnd(width)}  ${shown(row.value).padEnd(8)}  ${SCOPE_NAMES[row.scope]}${SECTION_ROWS.has(row.key) ? "" : `  (${row.key})`}`,
+        `  ${row.label.padEnd(width)}  ${String(row.displayed ?? shown(row.value)).padEnd(8)}  ${row.readOnly ? row.source : from(row.scope, row.ticked)}${view === "developer" && !row.readOnly ? `  (${row.key})` : ""}`,
     ),
     ...ignored,
+    ...(data.notes ?? []),
     COMMAND_USAGE,
-    "Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.delegation, review.unit, review.model, review.rounds, pane.enabled, pane.statusLine.",
-    "Review depth rules (review.depth) are edited in .freeflow/config.json; review-plan reads them from the base commit.",
-    "Pi-only settings (tool execution, compaction, messaging) are changed on Pi or in the files.",
+    "Pi-only settings (tool execution, compaction, messaging) are changed on Pi's screen.",
   ].join("\n");
 }
 
@@ -1115,7 +1119,7 @@ async function sentCommand($, args) {
 }
 
 /**
- * Serves `/freeflow settings [<key> [<value>] [--session | --personal | --repository]]` through the settings script:
+ * Serves `/freeflow settings [<key> [<value>] [--folder | --session] [--harness-only]] [--all]` through the settings script:
  * the lines for the person, and for the model the setting and the Runtime State lines that changed (SPEC-005 4.4).
  * @param {any} $
  * @param {string} args
@@ -1127,37 +1131,53 @@ export async function settingsCommand($, args) {
     return {
       text: "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session; /freeflow pane opens or closes Freeflow's pane; /freeflow sent lists the text Freeflow sent to the model.",
     };
-  const flags = words.slice(1).filter((word) => word.startsWith("--"));
+  const flags = words
+    .slice(1)
+    .filter((word) => word.startsWith("--"))
+    .map((word) => word.slice(2));
   const [key, value, extra] = words.slice(1).filter((word) => !word.startsWith("--"));
-  const scopes = flags.map((flag) => flag.slice(2));
-  const unknown = scopes.find((scope) => !["session", "personal", "repository"].includes(scope));
+  const scopes = flags.filter((flag) => ["everywhere", "folder", "session"].includes(flag));
+  const unknown = flags.find((flag) => !["everywhere", "folder", "session", "harness-only", "all"].includes(flag));
   if (unknown !== undefined || scopes.length > 1 || extra !== undefined)
     return {
-      text: `Freeflow settings: ${unknown !== undefined ? `unknown option --${unknown}` : "too many arguments"}.\n${COMMAND_USAGE}`,
+      text: `Freeflow settings: ${unknown !== undefined ? `unknown option --${unknown}` : "too many arguments or scopes"}.\n${COMMAND_USAGE}`,
     };
+  const view = flags.includes("all") ? "developer" : "normal";
   if (key === undefined) {
-    const result = await settings($, ["list", "--host", "claude-code"]);
-    return { text: result.ok ? listText(result.data) : `Freeflow settings: ${result.error}` };
+    const result = await settings($, ["list", "--view", view, "--host", "claude-code"]);
+    return { text: result.ok ? listText(result.data, view) : `Freeflow settings: ${result.error}` };
   }
   if (value === undefined) {
     const result = await settings($, ["get", key]);
     return {
       text: result.ok
-        ? `${result.data.label}: ${shown(result.data.value)}, from ${from(result.data.scope)}.`
+        ? `${result.data.label}: ${shown(result.data.value)}, from ${from(result.data.scope, result.data.ticked)}.`
         : `Freeflow settings: ${result.error}`,
     };
   }
-  const scope = scopes[0] ?? "personal";
+  const scope = scopes[0] ?? "everywhere";
+  const tick = flags.includes("harness-only") ? ["--harness-only"] : [];
   const result = await settings(
     $,
-    value === "inherit" ? ["unset", key, "--scope", scope] : ["set", key, value, "--scope", scope],
+    value === "inherit" ? ["unset", key, "--scope", scope, ...tick] : ["set", key, value, "--scope", scope, ...tick],
   );
   if (!result.ok) return { text: `Freeflow settings: ${result.error}` };
   const data = result.data;
   await guidanceChanged($);
   const wasOn = enabled;
-  if (data.key === "enabled" || data.key === "events.enabled") {
+  const wasMemoryOff = memoryOff;
+  if (
+    data.key === "enabled" ||
+    data.key === "events.enabled" ||
+    data.key === "memory.mode" ||
+    data.key === "compaction.withoutTask"
+  ) {
     await resolveEnabled($);
+    // Memory on again: the task steps run at the next turn's start, as session start's would have (D-060).
+    if (wasMemoryOff && !memoryOff && started) {
+      for (const step of TASK_STEPS) delete started.steps[step];
+      await keepLedger($);
+    }
     // The claims follow the switch: off, every request is no; the event log's own off, sensors is only possible.
     await writeCapabilities($, freeflowHome);
   }
@@ -1176,14 +1196,14 @@ export async function settingsCommand($, args) {
     notes.push(
       enabled
         ? "Freeflow's task menu, notices and compaction work in this session from its next event."
-        : "Freeflow's task memory layer stops in this session now: no menu, notice, compaction, hold or sync; the session-start context stops from the next session.",
+        : "Freeflow stops in this session now: no menu, notice, compaction, hold or sync; the session-start context stops from the next session.",
     );
-  const line = `${data.label}: ${shown(data.value)}, from ${from(data.scope)}.`;
+  const line = `${data.label}: ${shown(data.value)}, from ${from(data.scope, data.ticked)}.`;
   return {
     text: [`${line} The agent sees it now.`, ...notes].join("\n"),
     context: [
       [
-        `The user changed a Freeflow setting with /freeflow settings: ${data.key} is now ${shown(data.value)}, from ${from(data.scope)}.`,
+        `The user changed a Freeflow setting with /freeflow settings: ${data.key} is now ${shown(data.value)}, from ${from(data.scope, data.ticked)}.`,
         ...data.changed.map((/** @type {string} */ each) => `Runtime State now: ${each}`),
         ...data.cleared.map((/** @type {string} */ each) => `Runtime State no longer: ${each}`),
         ...notes,
@@ -1203,6 +1223,8 @@ const SECTION_SCRIPT = "hooks/shared/runtime-context.mjs";
 const SECTION_ID = "freeflow:guidance";
 /** Session start's steps, in the order a catch-up runs them. */
 const START_STEPS = ["window", "cycle", "capabilities", "sync", "menu", "guidance"];
+/** The steps that are the task store's: none runs while memory.mode is off, and each runs again once it is on (D-060). */
+const TASK_STEPS = ["cycle", "sync", "menu"];
 /** Tries a failed step gets, at most one a turn: the first, then one more at the next turn (section 4). */
 const STEP_TRIES = 2;
 const MID_SESSION =
@@ -1322,7 +1344,11 @@ async function readLedger($, home, session) {
 
 /** Whether every step ran or has had its tries. */
 const settled = () =>
-  started !== null && START_STEPS.every((step) => started?.steps[step] || (stepFailures.get(step) ?? 0) >= STEP_TRIES);
+  started !== null &&
+  START_STEPS.every(
+    (step) =>
+      (memoryOff && TASK_STEPS.includes(step)) || started?.steps[step] || (stepFailures.get(step) ?? 0) >= STEP_TRIES,
+  );
 
 /**
  * The classic SessionStart's chain beneath the mod, with the hooks' copies of the guidance left out where the section
@@ -1426,7 +1452,10 @@ async function catchUp($) {
   }
   started ??= { session, steps: {}, pinned: false };
   const ledger = started;
-  const due = START_STEPS.filter((step) => !ledger.steps[step] && (stepFailures.get(step) ?? 0) < STEP_TRIES);
+  const due = START_STEPS.filter(
+    (step) =>
+      !ledger.steps[step] && (stepFailures.get(step) ?? 0) < STEP_TRIES && !(memoryOff && TASK_STEPS.includes(step)),
+  );
   if (!due.length) return;
   const cwd = await $.session.cwd();
   const now = new Date(await $.clock.now()).toISOString();
@@ -1533,9 +1562,9 @@ export function register(on) {
     await $.command.register({
       name: "freeflow",
       description:
-        "Freeflow's settings: list them, or change one for this session, you or the repository; what Freeflow can do here; Freeflow's pane; and the text Freeflow sent to the model",
+        "Freeflow's settings: the normal view, Developer settings with --all, or change one (everywhere, this folder or this session); what Freeflow can do here; Freeflow's pane; and the text Freeflow sent to the model",
       argumentHint:
-        "settings [<key> <value|inherit> [--session | --personal | --repository]] | capabilities | pane | sent [<n>]",
+        "settings [--all] | settings <key> <value|inherit> [--folder | --session] [--harness-only] | capabilities | pane | sent [<n>]",
     });
     // A -p run or the SDK has no one at the prompt, so nothing runs between its turns (section 4.5). Claims written
     // before this event came, at the classic SessionStart, are written again with what it says.
@@ -1572,6 +1601,8 @@ export function register(on) {
     await resolveEnabled($);
     if (!enabled) return result;
     await emit($, "session.start", { source: e.source, interactive });
+    // Task memory off: no menu, no task offered (D-060, Setting 2).
+    if (memoryOff) return result;
     await newCycle($, null);
     workers = null;
     await readWindow($);
@@ -1739,7 +1770,8 @@ export function register(on) {
       return compacted;
     }
     const before = (await $.session.usage()).context.tokens;
-    const state = await status($);
+    // Task memory off: the task and the session summary are the store's, so Claude's own compaction only.
+    const state = memoryOff ? null : await status($);
     const result =
       !state || (!state.task && !state.summary && !state.delegation)
         ? await next(e)
@@ -1801,10 +1833,13 @@ export function register(on) {
   // The session ends: release its hold as ended, so a resume of this session takes it back (F36), and push, within
   // the short time an exit allows; the event log's last lines go first, so the release's summary counts them.
   on("session.end", async ($, e, next) => {
+    // Off, nothing runs (D-060, Setting 1); with task memory off, only the event log's last lines go.
+    if (!enabled) return next(e);
     try {
       const options = { session: e.sessionId, timeoutMs: Math.min(60_000, Math.max(1, next.budget.remainingMs - 500)) };
       await emit($, "session.end", { reason: typeof e.reason === "string" && e.reason ? e.reason : undefined });
       await flush($, { session: e.sessionId, timeoutMs: Math.min(EVENT_FLUSH_MS, options.timeoutMs) });
+      if (memoryOff) return next(e);
       const state = await status($, options);
       if (state?.task) await script($, ["task", "release", "--ended"], options);
       // A worker session's end, or one holding claims, releases them, and the worker's log says it ended (SPEC-009 5).

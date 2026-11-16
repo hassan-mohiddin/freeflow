@@ -1,3 +1,4 @@
+import { everywhereFile } from "../fixtures/freeflow-home.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
@@ -47,9 +48,10 @@ test("Freeflow switched on after the session started: the next run's start bring
     },
     true,
     {
+      home,
       freeflowConfig: { enabled: false },
       // Freeflow is switched on in the repository after the session started.
-      beforePrompt: async ({ cwd }) => writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({})),
+      beforePrompt: async ({ cwd }) => writeFile(everywhereFile(), JSON.stringify({})),
     },
   );
 });
@@ -70,6 +72,7 @@ test("a session that started with Freeflow gets the menu from its start and no c
     },
     true,
     {
+      home,
       // Session start does not wait for the store (activation-status's Gotchas): the prompt waits until the start has
       // recorded its steps, which it does once the menu is made, so the menu reaches the first prompt.
       beforePrompt: async ({ manager }) => {
@@ -81,5 +84,22 @@ test("a session that started with Freeflow gets the menu from its start and no c
         await new Promise((done) => setTimeout(done, 50));
       },
     },
+  );
+});
+
+test("task memory off: no menu at the start or in a later run, mid-session or not (D-060, Setting 2)", async () => {
+  await fixture(
+    async () => [],
+    true,
+    async ({ session, requests }) => {
+      assert.equal(count(requests[0], MENU), 0);
+      assert.equal(count(requests[0], MID_SESSION), 0);
+      await session.prompt("Go on.");
+      await session.waitForIdle();
+      assert.equal(count(requests[1], MENU), 0);
+      assert.equal(count(requests[1], MID_SESSION), 0);
+    },
+    true,
+    { home, freeflowConfig: { memory: { mode: "off" } } },
   );
 });

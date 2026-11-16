@@ -995,7 +995,7 @@ test("delegation.claimHours reaches Track Work's script and the agent's commands
     stdout: JSON.stringify({
       root: "/work/widget",
       settings: [
-        { key: "delegation.claimHours", label: "Claim hours", value: "8", scope: "personal", hosts: "all" },
+        { key: "delegation.claimHours", label: "Claim hours", value: "8", scope: "folder", hosts: "all" },
         { key: "delegation.wakeOnReturn", label: "Wake on return", value: true, scope: "default", hosts: "all" },
       ],
       state: [],
@@ -1082,15 +1082,14 @@ const LISTED = {
   settings: [
     { key: "enabled", label: "Freeflow", value: true, scope: "default", hosts: "all" },
     { key: "prompts.enabled", label: "Runtime prompts", value: true, scope: "default", hosts: "all" },
-    { key: "prompts.core", label: "Core prompt", value: false, scope: "personal", hosts: "all" },
+    { key: "prompts.core", label: "Core prompt", value: false, scope: "folder", hosts: "all" },
     { key: "skills.enabled", label: "Skills", value: true, scope: "default", hosts: "all" },
     { key: "skills.write-skill", label: "Skill write-skill", value: true, scope: "default", hosts: "all" },
-    { key: "review.unit", label: "Review unit", value: "manual", scope: "repository", hosts: "all" },
-    { key: "review.model", label: "Reviewer model", value: "auto", scope: "default", hosts: "all" },
-    { key: "review.rounds", label: "Review rounds", value: 3, scope: "default", hosts: "all" },
-    { key: "review.depth", label: "Review depth rules", value: null, scope: "default", hosts: "all" },
+    { key: "gates.slice", label: "Slice gate", value: "warn", scope: "default", hosts: "all" },
+    { key: "delegation.claimHours", label: "Claim hours", value: "8", scope: "everywhere", hosts: "all" },
+    { key: "delegation.wakeOnReturn", label: "Wake on return", value: true, scope: "default", hosts: "all" },
   ],
-  state: ["Review: unit `manual`, model `auto`"],
+  state: [],
 };
 
 test("/freeflow settings: declared at session start, lists what Claude Code acts on, and changes one with the line the model reads now (SPEC-005 4.4)", async ($, on) => {
@@ -1108,66 +1107,66 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
 
   w.settingsAnswers["list "] = { stdout: JSON.stringify(LISTED) };
   const listed = await freeflow($, "settings");
-  expect(w.settingsRuns.at(-1)!.args.join(" ")).toBe("list --host claude-code --root /work/widget --json");
-  // Each section's switch and the review always; another key only when a scope sets it.
-  expect(listed.text).toStartWith("Freeflow settings for /work/widget (Claude Code)\n  Freeflow ");
-  expect(listed.text).toContain("  Core prompt      off       Personal  (prompts.core)");
-  expect(listed.text).toContain("  Review unit      manual    Repository\n");
-  expect(listed.text).toContain("  Review rounds    3         default\n");
-  expect(listed.text).not.toContain("write-skill");
-  // review.depth has no row: the repository's file holds it, and the plan reads it from the base.
-  expect(listed.text).not.toContain("\n  Review depth rules");
-  expect(listed.text).toContain("Review depth rules (review.depth) are edited in .freeflow/config.json");
+  expect(w.settingsRuns.at(-1)!.args.join(" ")).toBe(
+    "list --view normal --host claude-code --root /work/widget --json",
+  );
+  // Each section's switch always; another key only when a scope sets it.
+  expect(listed.text).toStartWith("Freeflow settings for /work/widget (Claude Code), normal view\n  Freeflow ");
+  expect(listed.text).toMatch(/  Core prompt\s+off\s+This folder\s*\n/);
+  expect(listed.text).toMatch(/  Slice gate\s+warn\s+the default\n/);
+  expect(listed.text).toMatch(/  Claim hours\s+8\s+Everywhere\n/);
+  // Which rows a view holds is the script's to say (settings.test.mjs); the mod lists the rows it is given.
   expect(listed.text).toContain("Pi-only settings (tool execution, compaction, messaging) are changed");
   expect(listed.context).toBeUndefined();
 
-  w.settingsAnswers["set review.unit manual --scope personal "] = {
+  const SKILL_OFF = "Skills off: `write-skill`; do not open or follow them.";
+  w.settingsAnswers["set skills.write-skill off --scope everywhere "] = {
     stdout: JSON.stringify({
-      key: "review.unit",
-      label: "Review unit",
-      value: "manual",
-      scope: "personal",
+      key: "skills.write-skill",
+      label: "Skill write-skill",
+      value: false,
+      scope: "folder",
       hosts: "all",
-      state: ["Review: unit `manual`, model `auto`"],
-      changed: ["Review: unit `manual`, model `auto`"],
+      state: [SKILL_OFF],
+      changed: [SKILL_OFF],
       cleared: [],
       notes: [],
     }),
   };
-  const changed = await freeflow($, "settings review.unit manual");
-  expect(changed.text).toBe("Review unit: manual, from .freeflow/local.json (Personal). The agent sees it now.");
+  const changed = await freeflow($, "settings skills.write-skill off");
+  expect(changed.text).toBe("Skill write-skill: off, from This folder. The agent sees it now.");
   expect(changed.context).toEqual([
-    "The user changed a Freeflow setting with /freeflow settings: review.unit is now manual, from .freeflow/local.json (Personal).\nRuntime State now: Review: unit `manual`, model `auto`",
+    `The user changed a Freeflow setting with /freeflow settings: skills.write-skill is now off, from This folder.\nRuntime State now: ${SKILL_OFF}`,
   ]);
 
   // A scope flag and inherit reach the script as its scope and unset.
-  w.settingsAnswers["unset review.unit --scope session "] = {
+  w.settingsAnswers["unset skills.write-skill --scope session "] = {
     stdout: JSON.stringify({
-      key: "review.unit",
-      label: "Review unit",
-      value: "pr",
+      key: "skills.write-skill",
+      label: "Skill write-skill",
+      value: true,
       scope: "default",
       hosts: "all",
       state: [],
       changed: [],
-      cleared: ["Review: unit `manual`, model `auto`"],
+      cleared: [SKILL_OFF],
       notes: [],
     }),
   };
-  const inherited = await freeflow($, "settings review.unit inherit --session");
-  expect(inherited.text).toBe("Review unit: pr, from the default. The agent sees it now.");
-  expect(inherited.context![0]).toEndWith("\nRuntime State no longer: Review: unit `manual`, model `auto`");
+  const inherited = await freeflow($, "settings skills.write-skill inherit --session");
+  expect(inherited.text).toBe("Skill write-skill: on, from the default. The agent sees it now.");
+  expect(inherited.context![0]).toEndWith(`\nRuntime State no longer: ${SKILL_OFF}`);
 
   // A refusal is the script's first line, and the model is told nothing.
-  w.settingsAnswers["set review.unit sometimes "] = {
+  w.settingsAnswers["set delegation.claimHours 3 "] = {
     exitCode: 1,
-    stderr: "review.unit takes pr, push, commit, agreement, manual, not sometimes\nUsage: ...",
+    stderr: "delegation.claimHours takes 1, 2, 4, 8, 24, not 3\nUsage: ...",
   };
-  const refused = await freeflow($, "settings review.unit sometimes");
+  const refused = await freeflow($, "settings delegation.claimHours 3");
   expect(refused).toEqual({
-    text: "Freeflow settings: review.unit takes pr, push, commit, agreement, manual, not sometimes",
+    text: "Freeflow settings: delegation.claimHours takes 1, 2, 4, 8, 24, not 3",
   });
-  expect((await freeflow($, "settings review.unit manual --global")).text).toStartWith(
+  expect((await freeflow($, "settings delegation.claimHours 8 --global")).text).toStartWith(
     "Freeflow settings: unknown option --global.",
   );
   expect((await freeflow($, "status")).text).toBe(
@@ -1193,12 +1192,12 @@ test("enabled off: the mod does nothing but serve /freeflow, and turning it on b
 
   // On again with the command: the change says so, and the next turn end does what session start does with a store.
   w.enabled = true;
-  w.settingsAnswers["set enabled on --scope personal "] = {
+  w.settingsAnswers["set enabled on --scope everywhere "] = {
     stdout: JSON.stringify({
       key: "enabled",
       label: "Freeflow",
       value: true,
-      scope: "personal",
+      scope: "folder",
       hosts: "all",
       state: [],
       changed: [],
@@ -1228,18 +1227,76 @@ test("enabled off: the mod does nothing but serve /freeflow, and turning it on b
     }),
   };
   const off = await freeflow($, "settings enabled off --session");
-  expect(off.text).toStartWith("Freeflow: off, from this session (Session). The agent sees it now.\n");
+  expect(off.text).toStartWith("Freeflow: off, from This session. The agent sees it now.\n");
   expect(off.context![0]).toContain("no menu, notice, compaction, hold or sync");
   w.runs.length = 0;
   await $.turn.complete(turnEnd("answer"));
   expect(w.commands()).toEqual([]);
+  // Off writes nothing at the session's end either: no release, no sync (D-060, Setting 1).
+  w.status = held(at(-30), { changed: true });
+  w.eventRuns.length = 0;
+  await $.session.end({ reason: "clear", sessionId: SESSION, resume: { id: SESSION } });
+  expect(w.commands()).toEqual([]);
+  expect(w.eventRuns).toEqual([]);
+});
+
+// The settings list the mod reads for memory.mode and the other switches it acts on.
+const memoryList = (mode: string) => JSON.stringify({ settings: [{ key: "memory.mode", value: mode }], ignored: [] });
+
+test("task memory off: no menu, no task row or notice, no store sync or task release, and Claude's own compaction; the event log's last lines still go (D-060, Setting 2)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30), { changed: true });
+  w.answers["task here"] = { stdout: MENU };
+  w.settingsAnswers["list"] = { stdout: memoryList("off") };
+  await ready($);
+  expect(JSON.stringify((await start($)).additionalContext ?? [])).not.toContain("Freeflow task memory");
+  expect(w.commands()).toEqual([]);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  expect(appended(w).join("\n")).not.toContain("Freeflow task memory");
+  // The turn's start reads the session's status to find the home, and nothing else.
+  expect(w.commands()).toEqual(["session status"]);
+  w.runs.length = 0;
+  await step($, w, 190_000);
+  await $.turn.complete(turnEnd("answer"));
+  expect(noticesOf(w)).toEqual([]);
+  expect(rowsOf(w)).toEqual([]);
+  expect(w.commands()).toEqual([]);
+  const compacted = await $.session.compact({ trigger: "manual", messages: CONVERSATION } as any);
+  expect(compacted.messages[0].text).toBe("Claude's summary.");
+  await $.session.end({ reason: "clear", sessionId: SESSION, resume: { id: SESSION } });
+  expect(w.commands()).toEqual([]);
+  expect(w.events().map((line: any) => line.kind)).toContain("session.end");
+
+  // Memory on again with the command: the next turn's start brings the menu, once, as session start would have.
+  w.settingsAnswers["list"] = { stdout: memoryList("local") };
+  w.settingsAnswers["set memory.mode local --scope session "] = {
+    stdout: JSON.stringify({
+      key: "memory.mode",
+      label: "Task memory",
+      value: "local",
+      scope: "session",
+      hosts: "all",
+      state: [],
+      changed: [],
+      cleared: [],
+      notes: [],
+    }),
+  };
+  await freeflow($, "settings memory.mode local --session");
+  w.runs.length = 0;
+  await $.turn.start({ text: "again", turnId: "turn-2" } as any);
+  expect(
+    w
+      .commands()
+      .some((c: string) => c.startsWith("task here --cwd /work/widget") && c.endsWith(" --rules --take-back")),
+  ).toBe(true);
 });
 
 test("a settings script that fails leaves enabled as it was", async ($, on) => {
   const w = world(on);
   w.settingsAnswers["get enabled "] = {
     exitCode: 1,
-    stderr: ".freeflow/config.json is invalid: enabled must be a boolean",
+    stderr: "settings.json is invalid: enabled must be a boolean",
   };
   w.status = store();
   w.answers["task here"] = { stdout: MENU };
@@ -1651,7 +1708,7 @@ const changeOf = (key: string, value: unknown) => ({
     key,
     label: key,
     value,
-    scope: "personal",
+    scope: "folder",
     hosts: "all",
     state: [],
     changed: [],
@@ -1703,7 +1760,7 @@ test("the guidance pinned: one section of the system prompt, the hooks' own text
   // A settings change renders the section again, once; the next prompt the engine composes carries it.
   const renders = w.sectionRuns.length;
   w.parts = ["CORE GUIDANCE", "THE CONTRACT", ""];
-  w.settingsAnswers["set prompts.workingMethod off --scope personal "] = changeOf("prompts.workingMethod", false);
+  w.settingsAnswers["set prompts.workingMethod off --scope everywhere "] = changeOf("prompts.workingMethod", false);
   await freeflow($, "settings prompts.workingMethod off");
   expect(w.sectionRuns.length).toBe(renders + 1);
   expect((await $.prompt.compose(COMPOSE)).sections.at(-1)!.text).toBe("CORE GUIDANCE\n\nTHE CONTRACT");
@@ -1716,7 +1773,7 @@ test("the guidance pinned: one section of the system prompt, the hooks' own text
     "memory",
   ]);
   w.enabled = false;
-  w.settingsAnswers["set enabled off --scope personal "] = changeOf("enabled", false);
+  w.settingsAnswers["set enabled off --scope everywhere "] = changeOf("enabled", false);
   await freeflow($, "settings enabled off");
   expect((await $.prompt.compose(COMPOSE)).sections.map((s: any) => s.id)).toEqual(["intro", "memory"]);
 });
@@ -1824,7 +1881,7 @@ test("enabled switched on mid-session: the next turn's start does what the sessi
   expect(w.sectionRuns).toEqual([]);
 
   w.enabled = true;
-  w.settingsAnswers["set enabled on --scope personal "] = changeOf("enabled", true);
+  w.settingsAnswers["set enabled on --scope everywhere "] = changeOf("enabled", true);
   await freeflow($, "settings enabled on");
   await $.turn.start({ text: "go on", turnId: "turn-2" } as any);
   expect(appended(w)).toEqual([`${MID_SESSION}\n\n${SECTION}\n\nFreeflow task memory:\n${MENU.trimEnd()}`]);
@@ -1891,7 +1948,7 @@ const gateLines = (w: any) =>
 const gateSettings = (mode: string, ignored: { file: string; key: string | null; reason: string }[] = []) => ({
   stdout: JSON.stringify({
     root: "/work/widget",
-    settings: [{ key: "gates.delegation", label: "Delegation gate", value: mode, scope: "repository", hosts: "all" }],
+    settings: [{ key: "gates.delegation", label: "Delegation gate", value: mode, scope: "everywhere", hosts: "all" }],
     ignored,
   }),
 });
@@ -1980,7 +2037,7 @@ test("a gate's ignored value keeps the mode the mod last read: block, an ignored
     (await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any)).decision;
   const ignoredValue = [
     {
-      file: ".freeflow/config.json",
+      file: "settings.json",
       key: "gates.delegation",
       reason: "gates.delegation must be one of off, warn, block",
     },

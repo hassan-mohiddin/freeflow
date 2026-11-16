@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { sessionStage, stagedFor } from "./staging.js";
@@ -10,16 +10,16 @@ import {
   type IgnoredSetting,
   resolveDelegationSettings,
   resolveGateSettings,
-  resolveReviewSettings,
   SETTINGS,
-  sanitizeConfigFile,
   sectionEnabled,
   selectedRuntimePrompts,
   settingSpec,
+  settingsForHarness,
   skillsOff,
   validSettingValue,
 } from "./config-validation.js";
 import { cachedBranch } from "./branch.js";
+import { defaultValueFor, freeflowHome, HOME_FILES, LEGACY_FILES, readConfigFile } from "./config-store.js";
 /**
  * Freeflow configuration: the repository and personal config files, their layering, per-session core overrides, and
  * the resulting capability state, with optional capabilities disabled inside subagents.
@@ -79,15 +79,15 @@ function isRecord(value: unknown): value is ConfigObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** An ignored setting, named with the file it is in: `.freeflow/config.json` and the key, or the whole file. */
+/** An ignored setting, named with the file it is in: `settings.json` and the key, or the whole file. */
 export type IgnoredEntry = IgnoredSetting & { file: string };
 
 /**
- * One config file as read: whether it exists, its settings with the ones it ignores, and the reason it could not be
- * read at all (a file that is not JSON reads as empty, with one ignored entry for the whole file).
+ * One settings layer as read: whether it exists, its settings as Pi applies them (with Pi's ticks over the general
+ * values), and the ignored settings. The layers live in the Freeflow home (D-060): `settings.json` (Everywhere, the
+ * layer the code names `repository`) and `folders.json` (This folder, `personal`).
  */
 type ConfigFileState = {
-  path: string;
   file: string;
   exists: boolean;
   parsed: ConfigObject;
@@ -95,58 +95,45 @@ type ConfigFileState = {
   parseError: string | null;
 };
 
-async function readConfigFileState(
-  path: string,
-  file: string,
-  scope: "repository" | "personal",
-): Promise<ConfigFileState> {
-  let raw: string;
-  try {
-    raw = await readFile(path, "utf8");
-  } catch (error) {
-    const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
-    if (code === "ENOENT") return { path, file, exists: false, parsed: {}, ignored: [], parseError: null };
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      path,
-      file,
-      exists: true,
-      parsed: {},
-      ignored: [{ file, key: null, reason: `cannot be read: ${message}` }],
-      parseError: message,
-    };
-  }
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      path,
-      file,
-      exists: true,
-      parsed: {},
-      ignored: [{ file, key: null, reason: `not JSON: ${message}` }],
-      parseError: message,
-    };
-  }
-  const { config, ignored } = sanitizeConfigFile(value, scope);
+/** Pi's harness name, for the ticks: a setting ticked "only on this harness" applies on Pi and nowhere else. */
+const PI_HARNESS = "pi";
+
+function readLayerState(cwd: string, scope: "repository" | "personal"): ConfigFileState {
+  const file = HOME_FILES[scope];
+  const state = readConfigFile(cwd, scope, freeflowHome(process.env));
   return {
-    path,
     file,
-    exists: true,
-    parsed: config,
-    ignored: ignored.map((item) => ({ ...item, file })),
-    parseError: null,
+    exists: state.exists,
+    parsed: settingsForHarness(state.value, PI_HARNESS),
+    ignored: state.ignored.map((item) => ({ ...item, file })),
+    parseError: state.error,
   };
 }
 
-function readFreeflowConfigState(cwd: string) {
-  return readConfigFileState(join(cwd, ".freeflow/config.json"), ".freeflow/config.json", "repository");
+/**
+ * The repository's own config files, which no layer reads any more (D-060): each is named as ignored until the settings
+ * doctor moves its settings to the folder layer.
+ */
+function legacyIgnored(cwd: string): IgnoredEntry[] {
+  return (["repository", "personal"] as const).flatMap((scope) =>
+    existsSync(join(cwd, LEGACY_FILES[scope]))
+      ? [
+          {
+            file: LEGACY_FILES[scope],
+            key: null,
+            reason: "moved to This folder: run settings.mjs doctor --fix to move it",
+          },
+        ]
+      : [],
+  );
 }
 
-function readFreeflowLocalConfigState(cwd: string) {
-  return readConfigFileState(join(cwd, ".freeflow/local.json"), ".freeflow/local.json", "personal");
+async function readFreeflowConfigState(cwd: string) {
+  return readLayerState(cwd, "repository");
+}
+
+async function readFreeflowLocalConfigState(cwd: string) {
+  return readLayerState(cwd, "personal");
 }
 
 export async function readFreeflowConfig(cwd: string) {
@@ -210,6 +197,24 @@ function withSessionLayer(local: Record<string, unknown>, session: Record<string
   return merged;
 }
 
+/**
+ * A setting as the layers give it: the session's first, then this folder's, then everywhere's (D-060, the settled
+ * precedence). Undefined when no layer sets it.
+ */
+function layeredSetting(
+  session: ConfigObject,
+  repository: ConfigObject,
+  personal: ConfigObject,
+  path: string[],
+): unknown {
+  for (const layer of [session, repository, personal]) {
+    let at: unknown = layer;
+    for (const key of path) at = isRecord(at) ? at[key] : undefined;
+    if (at !== undefined) return at;
+  }
+  return undefined;
+}
+
 function resolveSessionCoreConfig(layers: FreeflowConfigLayers) {
   const configured = layers.coreConfig;
   const sources = layers.sources;
@@ -228,14 +233,15 @@ export type FreeflowConfigLayers = Awaited<ReturnType<typeof readFreeflowConfigL
  * ignores what it cannot use, and `ignored` names each of those settings for the hosts to show (D-045).
  */
 export async function readFreeflowConfigLayers(cwd: string) {
-  const [repository, local] = await Promise.all([readFreeflowConfigState(cwd), readFreeflowLocalConfigState(cwd)]);
+  const repository = readLayerState(cwd, "repository");
+  const local = readLayerState(cwd, "personal");
   const core = resolveCoreConfig(repository.parsed, local.parsed);
   return {
     repository,
     local,
     coreConfig: core.config,
     sources: core.sources,
-    ignored: [...repository.ignored, ...local.ignored],
+    ignored: [...repository.ignored, ...local.ignored, ...legacyIgnored(cwd)],
   };
 }
 
@@ -246,10 +252,8 @@ export type CapabilityState = Awaited<ReturnType<typeof readCapabilityState>>;
 export async function readCapabilityState(cwd: string, host: any = undefined) {
   const layers = await readFreeflowConfigLayers(cwd);
   const effectiveCore = resolveSessionCoreConfig(layers);
-  // Setup needed (D-045, round 3): with no shared config file Freeflow does not run in this folder, whatever a personal
-  // file or this session says; the agent is told to set it up. A file that exists keeps its settings as before.
-  const setupNeeded = !layers.repository.exists;
-  const enabled = !setupNeeded && effectiveCore.config.enabled;
+  // Installed means on (D-060): no config file is needed, so Freeflow runs in every folder unless a setting turns it off.
+  const enabled = effectiveCore.config.enabled;
   const subagentContext = isSubagentContext(host);
   const sessionLayer = sessionConfigLayer(currentSessionOverrides);
   const repositoryConfig = layers.repository.parsed;
@@ -257,9 +261,17 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
   const sessionLocalConfig = withSessionLayer(localConfig, sessionLayer);
   const toolExecution = resolveToolExecutionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const compaction = resolveCompactionConfig(repositoryConfig, sessionLocalConfig, enabled);
+  // compaction.withoutTask (D-060): Freeflow's compaction with no task held; on unless set to false.
+  const withoutTask =
+    layeredSetting(sessionLayer, repositoryConfig, localConfig, ["compaction", "withoutTask"]) !== false;
+  // memory.mode (D-060, Setting 2): off covers the task store only; sync pushes and pulls, local never does.
+  const memoryValue = layeredSetting(sessionLayer, repositoryConfig, localConfig, ["memory", "mode"]);
+  // Unset in every layer: sync when the store has a remote, else local (defaultValueFor, round 3).
+  const memoryFallback = String(defaultValueFor(settingSpec("memory.mode")!, freeflowHome(process.env)));
+  const memoryMode =
+    typeof memoryValue === "string" && ["local", "sync", "off"].includes(memoryValue) ? memoryValue : memoryFallback;
   const messaging = resolveMessagingConfig(repositoryConfig, sessionLocalConfig, enabled);
-  // Not capabilities: the user's choices for Review Work, the runtime prompts and the skills, on every host.
-  const review = resolveReviewSettings(repositoryConfig, sessionLocalConfig);
+  // Not capabilities: the user's choices for the runtime prompts and the skills, on every host.
   const prompts = selectedRuntimePrompts(repositoryConfig, sessionLocalConfig);
   const skills = {
     enabled: sectionEnabled(repositoryConfig, sessionLocalConfig, "skills"),
@@ -276,7 +288,6 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
   const delegation = resolveDelegationSettings(repositoryConfig, sessionLocalConfig);
   const capabilityState = {
     configExists: layers.repository.exists,
-    setupNeeded,
     localConfigExists: layers.local.exists,
     // Settings a config file ignores, each with its file and reason: every host names them and keeps the default (D-045).
     ignored: layers.ignored,
@@ -286,11 +297,11 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
     configSources: effectiveCore.sources,
     enabled,
     toolExecution,
-    compaction,
+    compaction: { ...compaction, withoutTask },
+    memory: { mode: memoryMode, effective: enabled && memoryMode !== "off", sync: enabled && memoryMode === "sync" },
     // Pi's Task Memory is gone: a config that still sets it loads, and /freeflow status says so (P6).
     taskMemoryRetired: repositoryConfig.taskMemory !== undefined || localConfig.taskMemory !== undefined,
     messaging,
-    review,
     prompts,
     promptsEnabled,
     skills,

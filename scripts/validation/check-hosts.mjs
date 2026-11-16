@@ -72,7 +72,7 @@ export const NAMED_ON_PURPOSE = {
   // Skill text that routes a Schema 4 record or Pi's records to migrate.
   "skills/track-work/SKILL.md": 3,
   "skills/track-work/references/working-record-format.md": 3,
-  "skills/setup-freeflow/SKILL.md": 1,
+  "skills/setup-freeflow/SKILL.md": 2,
   "skills/setup-freeflow/references/store-setup.md": 5,
   // User docs that say what was removed and how old records move in.
   "plugin-docs/getting-started.md": 1,
@@ -81,7 +81,7 @@ export const NAMED_ON_PURPOSE = {
   "plugin-docs/using-freeflow.md": 1,
   // Developer docs: the removal, migrate, and design records' reasons.
   "dev-docs/README.md": 3,
-  "dev-docs/features/activation-status.md": 2,
+  "dev-docs/features/activation-status.md": 1,
   "dev-docs/features/track-work-cli.md": 6,
   "dev-docs/skills/execute-work.md": 3,
   "dev-docs/skills/track-work.md": 10,

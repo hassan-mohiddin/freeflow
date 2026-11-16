@@ -30,7 +30,7 @@ The Freeflow store is one Git repository at `FREEFLOW_HOME` (default `~/.freeflo
 
 `rules/` holds the user's always-on context, like `CLAUDE.md` with room to organize: every file in the store's `rules/`, and the project's once the session holds one of its tasks, is read at every recovery and never counted against the budget. Create or edit a rule only when the user asks; the checks show their size, and you never trim them. `rules/delegation.md` is the delegation rules `delegate open` takes a worker's model and effort from, with a project's own `projects/<project>/rules/delegation.md` read before it; the older `rules/routing.md` is read after each, and with neither, Freeflow's default applies.
 
-**Local or cloud.** The same store either way. A local store, the default, lives on this device only: `store init` makes it, and nothing leaves the machine. A cloud store is the same store with the user's private repository as its remote, kept in step on every device: `store init --remote <url>` clones it into `FREEFLOW_HOME`, laying out an empty repository as a store or joining one that already is, and `store remote --url <url>` moves a local store's whole history into an empty repository. A cloud session needs a cloud store, since its container is thrown away: the store's repository is one of the session's repositories, `FREEFLOW_HOME` points at its clone, and pushing needs the host's access to that repository; Setup Freeflow's [store setup](../../setup-freeflow/references/store-setup.md) says what the user sets, and `session status` lists what is missing. `store init` refuses a folder that holds Pi's former Task Memory (`registry.json`) or anything else but Freeflow's own `sessions/` and `events/`, which it keeps: ask the user where the store should go. Commits are authored as the user, with no trailers.
+**Local or cloud.** The same store either way. A store with no remote, the default, lives on this device only: `store init` makes it, and nothing leaves the machine. With memory.mode unset, a store that has a remote syncs with it; an explicit `local` keeps it on this device. A cloud store is the same store with the user's private repository as its remote, kept in step on every device: `store init --remote <url>` clones it into `FREEFLOW_HOME`, laying out an empty repository as a store or joining one that already is, and `store remote --url <url>` moves a local store's whole history into an empty repository. A cloud session needs a cloud store, since its container is thrown away: the store's repository is one of the session's repositories, `FREEFLOW_HOME` points at its clone, and pushing needs the host's access to that repository; Setup Freeflow's [store setup](../../setup-freeflow/references/store-setup.md) says what the user sets, and `session status` lists what is missing. `store init` refuses a folder that holds Pi's former Task Memory (`registry.json`) or anything else but Freeflow's own `sessions/` and `events/`, which it keeps: ask the user where the store should go. Commits are authored as the user, with no trailers.
 
 ## Sync
 
@@ -198,7 +198,7 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 - Update: Narrowed to diagnosis: "just find the cause first" (2026-10-30)
 ```
 
-`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`, `Review:`) and quotes the user where it rests on their reply. A `Review:` line names paths, or `all`, the user wants reviewed and optionally the depth (`- Review: src/billing/** deep`); Review Work's plan reads it and can only be raised by it. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
+`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`, `Review:`) and quotes the user where it rests on their reply. A `Review:` line names paths, or `all`, the user wants reviewed (`- Review: src/billing/**`); Review Work's plan shows a change to them as a flag. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
 
 ### The Slice
 
@@ -244,7 +244,7 @@ After the fields come its update lines, one line each, a kind and then the claim
 Two kinds have a fixed shape, so outcomes and rounds can be counted later. [Review Work](../../review-work/SKILL.md) says when each is written:
 
 ```markdown
-- Review gate: plan: quick | standard | deep, standard | security, because <triggers and rules> | nothing matched; unit: pr | push | commit | agreement | manual; result: dispatched | proposed | on record
+- Review gate: at: pull request | push | commit (project | home | default); reviewers: <n>, rounds: <n> (the floor is 1 and 1); flags: <each with its reason> | none; above the floor: <what, and the user's yes> | no; result: dispatched | proposed | on record
 - Review: round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: <adjudicated judgment>; Accepted: <n>; Rejected: <n>; Open: <n>; head: <the commit reviewed>; report: <path>; effect: <the next route>
 ```
 

@@ -90,8 +90,8 @@ Native Pi controls:
 /freeflow capabilities
 /freeflow settings
 /freeflow settings session
-/freeflow settings local
-/freeflow settings repo
+/freeflow settings folder
+/freeflow settings everywhere
 /freeflow compact
 ```
 
@@ -192,7 +192,7 @@ Run:
 /setup-freeflow
 ```
 
-This creates the required shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. Optional `.freeflow/local.json` personal overrides cannot activate Freeflow alone. Configuration or installation alone does not establish runtime delivery; setup reports delivery as confirmed, unavailable or unconfirmed.
+Installation turns Freeflow on in every folder with its defaults, and there is no file to create. Its settings are kept in the Freeflow home (`~/.freeflow`), not in the repository: `"enabled": false` in one of its layers (Everywhere, This folder or a session) turns it off. Configuration or installation alone does not establish runtime delivery; setup reports delivery as confirmed, unavailable or unconfirmed.
 
 ## Use Freeflow effectively
 

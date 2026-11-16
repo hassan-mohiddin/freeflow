@@ -149,7 +149,7 @@ supported findings with file locations and evidence. Do not edit or dispatch
 another review.
 ```
 
-Independent review runs at each review unit your `review.unit` setting names (a pull request by default), as deep as Review Work's plan says, or when you ask for one; it must come from a context that did not produce the reviewed state ([Review and verification](workflow.md#review-and-verification)).
+Independent review runs at every pull request, one reviewer in one round, earlier where a `Review at:` line in your review rules says so, and when you ask for one; more reviewers or a stronger model is the agent's proposal to you, with the reason and the cost. It must come from a context that did not produce the reviewed state ([Review and verification](workflow.md#review-and-verification)).
 
 ### Documentation or artifact work
 
@@ -276,7 +276,7 @@ A question or a short self-contained result needs no record. The agent creates a
 
 ### Where tasks live
 
-Every task's memory lives in the Freeflow store: one private Git repository at `FREEFLOW_HOME` (`~/.freeflow` by default), which Setup Freeflow makes. It is local by default, on this device only. Add your own private repository as its remote and it becomes a cloud store, kept in step on every device; a cloud session needs one, since its container is thrown away. Tasks sit in projects, or in none:
+Every task's memory lives in the Freeflow store: one private Git repository at `FREEFLOW_HOME` (`~/.freeflow` by default), which Setup Freeflow makes. It stays on this device only until it has a remote. Add your own private repository as its remote and it becomes a cloud store, kept in step on every device (unless `memory.mode` is set to `local`); a cloud session needs one, since its container is thrown away. Tasks sit in projects, or in none:
 
 ```text
 ~/.freeflow/projects/<project>/tasks/task-NNN-<short-name>/
@@ -301,7 +301,7 @@ The memory the agent shapes has a recovery budget that grows with the context wi
 
 ### Which model a worker runs on
 
-When the agent hands work to another agent, the model and effort come from your delegation rules, `rules/delegation.md` in the store (a project's own `projects/<project>/rules/delegation.md` is read first; the older `rules/routing.md` still works). With no file, Freeflow's default applies, two tiers: the cheap tier (Haiku on Claude) at `xhigh` for gathering, research, evals, reviews and builds whose decisions the brief has settled, and the strongest model a worker may run on, `Worker:` (Opus on Claude), at `high` for unsettled builds, judgement and security reviews, which the agent asks you about first unless your agreement's `Workers:` line names that model. A `Worker:` line in your rules sets that ceiling: the agent starts no worker above it unless you name the model. Edit the rules to change it; the agent never does. Each delegation's brief and History entry say which row chose its model, and a return sent back records why (the brief, the model's capability, or the scope), so `estimate --plan` can show how often each kind of work on each model came back. A reviewer model you set with `review.model` still wins for reviews.
+When the agent hands work to another agent, the model and effort come from your delegation rules, `rules/delegation.md` in the store (a project's own `projects/<project>/rules/delegation.md` is read first; the older `rules/routing.md` still works). With no file, Freeflow's default applies, two tiers: the cheap tier (Haiku on Claude) at `xhigh` for gathering, research, evals, reviews and builds whose decisions the brief has settled, and the strongest model a worker may run on, `Worker:` (Opus on Claude), at `high` for unsettled builds, judgement and security reviews, which the agent asks you about first unless your agreement's `Workers:` line names that model. A `Worker:` line in your rules sets that ceiling: the agent starts no worker above it unless you name the model. Edit the rules to change it; the agent never does. Each delegation's brief and History entry say which row chose its model, and a return sent back records why (the brief, the model's capability, or the scope), so `estimate --plan` can show how often each kind of work on each model came back.
 
 Freeflow's default rules also carry a `## Models` section: one line per Claude model it routes to (Opus 5.5, Fable 5.2, Haiku 5.5, and Sonnet 5.5, which it does not use), saying what to hand it as a worker and what it should mind in the position it holds, each marked observed, measured or list price. The agent reads it when choosing a worker's model. Put a `## Models` section in your own rules file to replace it; the first rules file that has one wins, as for the table, and the routing parser ignores it. A model the section does not list, such as one of another family, is chosen by the table alone.
 
@@ -375,33 +375,27 @@ Pi's former Task Memory is gone, and so are its `/freeflow task`, `/freeflow pro
 
 Freeflow uses layered settings. The exact available controls depend on the host.
 
-### Shared repository activation
+### Installed means on
 
-`.freeflow/config.json` is the shared settings file, and `{}` is a valid minimal one:
+Freeflow is on once it is installed. It works in every folder, on every host, with its defaults: no config file and no setup step are needed. Your settings live in the Freeflow home (`~/.freeflow`, or `FREEFLOW_HOME`), not in the repository: everywhere, for this folder only, or for this session only. `"enabled": false` in any of them turns Freeflow off, and Freeflow writes nothing into your repository except the project's own review rules. Setup Freeflow is for your choices: `/setup-freeflow` changes a setting, turns Freeflow off or on, and sets up the task-memory store. Setup does not write instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
 
-```json
-{}
-```
+### Settings that Freeflow cannot use
 
-On Pi, a folder with no `.freeflow/config.json` shows `freeflow: setup needed`: Freeflow does not run there, and the agent is told to set it up with Setup Freeflow. `"enabled": false` in either file turns Freeflow off once the file exists. On Claude Code and Codex the guidance starts only in a folder that has this file. Use `/setup-freeflow` to create or repair the supported repository configuration. Setup does not write instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
-
-### Personal override
-
-`.freeflow/local.json` supplies per-checkout personal overrides. It does not turn Freeflow on by itself on Claude Code or Codex. A setting in either file that Freeflow cannot use is ignored and named (the footer and `/freeflow status` say which), and the default, or the other file's value, applies to it; a file that is not JSON is read as empty and named the same way. `settings.mjs doctor` shows the fix for each.
+A setting Freeflow cannot use is ignored and named (the footer and `/freeflow status` say which), and its default applies. A repository's own `.freeflow/config.json` or `.freeflow/local.json` is no longer read: `settings.mjs doctor --fix` moves its settings into This folder (the Freeflow home's `folders.json`), and removes `.freeflow/local.json`; the committed `config.json` is rewritten only with `--committed`. A file in the Freeflow home that is not JSON is never rewritten: fix it by hand.
 
 On Pi:
 
 ```text
 /freeflow settings
-/freeflow settings local
+/freeflow settings folder
 ```
 
-edit personal settings.
+edit This folder's settings.
 
-### Shared settings
+### Everywhere settings
 
 ```text
-/freeflow settings repo
+/freeflow settings everywhere
 ```
 
 edits shared repository configuration. Treat shared changes as team-facing behavior and review them accordingly.
@@ -412,11 +406,11 @@ edits shared repository configuration. Treat shared changes as team-facing behav
 /freeflow settings session
 ```
 
-manages temporary session enablement and optional-context settings. Session overrides take precedence over personal and repository settings without mutating either file; reset or inherit restores the configured values. The footer shows the task the session holds.
+manages temporary session enablement and optional-context settings. Session overrides take precedence over This folder and Everywhere settings without mutating either file; reset or inherit restores the configured values. The footer shows the task the session holds.
 
 ### Runtime prompts and skills
 
-On every host Freeflow delivers three runtime prompts: the core guidance, the Interaction Contract, and the Working Method. Each is on unless you turn it off, in `.freeflow/config.json` for everyone or `.freeflow/local.json` for yourself:
+On every host Freeflow delivers three runtime prompts: the core guidance, the Interaction Contract, and the Working Method. Each is on unless you turn it off, for Everywhere, for This folder, or for one session:
 
 ```json
 {
@@ -424,7 +418,7 @@ On every host Freeflow delivers three runtime prompts: the core guidance, the In
 }
 ```
 
-The personal file overrides the shared one prompt by prompt. With all three off, Freeflow delivers none of them; its skills stay available. On Pi, `/freeflow settings` has the same switches: Runtime prompts and Skills are each a switch for the whole set, with one row under each opening a switch per item, in the Session, Personal and Repository scopes.
+This folder's setting overrides Everywhere's prompt by prompt, and a session's overrides both. With all three off, Freeflow delivers none of them; its skills stay available. On Pi, `/freeflow settings` has the same switches: Runtime prompts and Skills are each a switch for the whole set, with one row under each opening a switch per item, in the Session, This folder and Everywhere scopes.
 
 `skills` turns a skill off the same way, such as `{ "skills": { "write-skill": false } }`, and `"enabled": false` in either object turns all of them off; Setup Freeflow always stays. On Pi an off skill is not loaded. Other hosts load plugin skills themselves, so there the agent is told not to use it. See [Settings](settings.md#all-settings).
 
@@ -434,8 +428,8 @@ For core and capability settings:
 
 ```text
 host session enablement
--> personal override
--> repository value
+-> this folder
+-> everywhere
 -> built-in default
 ```
 

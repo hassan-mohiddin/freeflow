@@ -438,6 +438,11 @@ export function showProject(home, name, identity) {
   return `Project ${slug}\n${tasks.length ? tasks.map((task) => taskLine(task, identity)).join("\n") : "No tasks."}\n`;
 }
 
+/** The slugs of the projects whose tasks name the folder's repository, the lookup `task here` makes (N4, settings rows). */
+export function projectsOfFolder(home, directory) {
+  return projectsFor(home, directory).projects;
+}
+
 /** The projects whose tasks name the repository holding directory in Space (T8). */
 function projectsFor(home, directory) {
   const repository = repositoryState(directory);

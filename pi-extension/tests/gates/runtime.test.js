@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
+import { setFolderSettings } from "../fixtures/freeflow-home.js";
+
 import freeflowExtension from "../../dist/index.js";
 import { GateRuntime } from "../../dist/gates/runtime.js";
 
@@ -135,10 +137,10 @@ function loadExtension() {
   return handlers;
 }
 
+/** A repository whose folder settings are `config`, in the test's Freeflow home (D-060); each repository has its own. */
 async function configuredRepo(config) {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-gates-repo-"));
-  await mkdir(join(cwd, ".freeflow"));
-  await writeFile(join(cwd, ".freeflow", "config.json"), JSON.stringify(config));
+  await setFolderSettings(cwd, config);
   return cwd;
 }
 
@@ -278,6 +280,7 @@ test(
             toolExecution: { enabled: true },
             gates: { delegation: "block", agreement: "block", slice: "block" },
           },
+          home,
         },
       );
     } finally {

@@ -311,16 +311,20 @@ const missingText = (found) =>
 async function resolveSwitches(root, ctx) {
   const store = await import(pathToFileURL(join(PLUGIN_ROOT, "pi-extension/dist/host/config-store.js")).href);
   const validation = await import(pathToFileURL(join(PLUGIN_ROOT, "pi-extension/dist/host/config-validation.js")).href);
-  const repository = store.readConfigFile(root, "repository");
-  const personal = store.readConfigFile(root, "personal");
+  const repository = store.readConfigFile(root, "repository", ctx.home);
+  const personal = store.readConfigFile(root, "personal", ctx.home);
   const layers = {
     repository: repository.value,
     personal: personal.value,
     session: store.readSessionSettings(ctx.home, ctx.session),
   };
-  const value = (/** @type {string} */ key) => store.resolveSetting(validation.settingSpec(key), layers).value;
+  // The settings this driver acts on, as Codex's harness reads them: its ticks win within each scope (D-060).
+  const value = (/** @type {string} */ key) =>
+    store.resolveSetting(validation.settingSpec(key), layers, "codex", ctx.home).value;
   return {
     enabled: value("enabled") !== false,
+    // Task memory off: no menu, no task offered, nothing recorded (Setting 2).
+    memory: value("memory.mode") ?? "local",
     events: value("events.enabled") !== false,
     gates: Object.fromEntries(GATES.map((gate) => [gate, value(`gates.${gate}`)])),
   };
@@ -566,7 +570,7 @@ const context = (eventName, additionalContext) => ({
 async function guidance(ctx) {
   const shared = await import(pathToFileURL(join(PLUGIN_ROOT, "hooks/shared/runtime-context.mjs")).href);
   const root = shared.findWorkspaceRoot(ctx.cwd);
-  return { root, text: shared.renderRuntimeContext(root, undefined, { session: ctx.session }) };
+  return { root, text: shared.renderRuntimeContext(root, undefined, { session: ctx.session, harness: "codex" }) };
 }
 
 /**
@@ -608,16 +612,18 @@ async function sessionStart(ctx) {
  */
 async function taskMemoryAtStart(ctx, root, parts, logged) {
   const switches = await resolveSwitches(root, ctx);
+  // Off writes nothing, not even the state or the claims, before this check (D-060, Setting 1).
+  if (!switches.enabled) return;
   const { window, limit } = codexWindow(ctx.cwd, ctx.input.model, ctx.env);
   ctx.window = window;
   ctx.limit = limit;
   ctx.state = updateState(ctx, { ...switches, window, limit, model: ctx.input.model ?? null, store: false });
-  // Off, no line is kept (emit asks the state) and every claim is no.
   emit(ctx, "session.start", {
     source: ["startup", "resume", "clear", "fork"].includes(ctx.input.source) ? ctx.input.source : "startup",
   });
   writeCapabilities(ctx, switches);
-  if (!switches.enabled) return;
+  // Task memory off: no cycle, no store, no menu (D-060, Setting 2).
+  if (switches.memory === "off") return;
   const kept = readCycle(ctx);
   writeCycle(ctx, { cycle: kept.cycle, startedAt: Date.now(), notice: null });
   rmSync(fileOf(ctx, "due.json"), { force: true });
@@ -1112,11 +1118,10 @@ export async function handle(event, input, env = process.env) {
     // No session start ran (its hook not trusted, say): the switches are read once here.
     if (!ctx.state && event !== "SessionStart") {
       const shared = await import(pathToFileURL(join(PLUGIN_ROOT, "hooks/shared/runtime-context.mjs")).href);
-      ctx.state = updateState(ctx, {
-        ...(await resolveSwitches(shared.findWorkspaceRoot(ctx.cwd), ctx)),
-        store: false,
-      });
-      if (ctx.state.enabled === false) return null;
+      const switches = await resolveSwitches(shared.findWorkspaceRoot(ctx.cwd), ctx);
+      // Off writes nothing, not even this session's state (D-060, Setting 1): the hook stops here.
+      if (!switches.enabled) return null;
+      ctx.state = updateState(ctx, { ...switches, store: false });
     }
     restoreWindow(ctx);
     return await handler(ctx);

@@ -145,3 +145,47 @@ test("answering a compaction request marks its file done", async () => {
     await rm(folder, { recursive: true, force: true });
   }
 });
+
+test("task memory off: no menu, no run's end reads or syncs the store, and a shutdown runs nothing (D-060, Setting 2)", async () => {
+  const script = fake({
+    "session status": status({
+      home: "/s",
+      store: true,
+      session: "a",
+      task: { id: "t", record: "/s/r", stateAsOf: "x" },
+      changed: true,
+    }),
+    "task here": { stdout: "MENU" },
+  });
+  const layer = new StoreLayer(script.run, () => "off");
+  assert.equal(await layer.start("/w", ["/w"]), undefined);
+  layer.note("bash", { command: "node /p/working-record.mjs checkpoint --record x" }, "/w");
+  assert.equal(layer.touchedThisRun(), false);
+  assert.equal(await layer.runEnded(), undefined);
+  await layer.shutdown();
+  assert.deepEqual(script.ran, []);
+});
+
+test("task memory local: the menu and the task work on this machine; nothing is pulled or pushed (D-060, Setting 2)", async () => {
+  const script = fake({
+    "session status": status({
+      home: "/s",
+      store: true,
+      session: "a",
+      task: { id: "t", record: "/s/r", stateAsOf: "x" },
+      changed: true,
+    }),
+    "task here": { stdout: "MENU" },
+  });
+  const layer = new StoreLayer(script.run, () => "local");
+  assert.equal(await layer.start("/w", ["/w"]), "MENU");
+  layer.note("bash", { command: "node /p/working-record.mjs checkpoint --record x" }, "/w");
+  await layer.runEnded();
+  await layer.shutdown();
+  assert.equal(
+    script.full.some((command) => command.startsWith("store sync")),
+    false,
+    "local never syncs",
+  );
+  assert.equal(script.full.at(-1), "task release --ended", "the hold is still released as ended, locally");
+});

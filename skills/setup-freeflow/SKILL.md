@@ -1,162 +1,109 @@
 ---
 name: setup-freeflow
-description: "Use when installing, activating or turning off Freeflow in a repository, changing or repairing its repository or personal configuration (.freeflow/config.json, .freeflow/local.json), setting up the Freeflow store that keeps task memory (local only, or local + cloud with a private repository, in a cloud session too) and moving older task records into it, or checking whether the current host is loading Freeflow's guidance and skills."
+description: "Use when Freeflow is installed and the user asks to turn it on or off, to change or repair a setting (everywhere, for this folder or for this session, or ticked for one harness), to see what Freeflow's settings are, to set up the Freeflow store that keeps task memory (local only, or local + cloud with a private repository, in a cloud session too) and move older task records into it, or to check whether the current host is loading Freeflow's guidance and skills."
 ---
 
 # Setup Freeflow
 
-Create or repair the smallest valid layered setup. Keep repository activation, personal overrides, and host runtime delivery as separate facts.
+Freeflow works the moment it is installed: in every folder, on every host, with its defaults, and no config file. Setup is for the user's choices, not for activation. Keep three facts separate: the settings the user chose (kept in the Freeflow home, never in the repository), the store that keeps task memory, and what the host delivers at runtime.
 
-- `.freeflow/config.json` is the shared repository settings file; `{}` is valid. On Pi, Freeflow shows the setup needed without it; Claude Code and Codex give guidance only where it exists.
-- `.freeflow/local.json` is an optional per-checkout personal override. `"enabled": false` in it turns Freeflow off.
-- Runtime delivery depends on the current host's installed and trusted adapter. Configuration does not prove runtime delivery.
+- The settings are in the Freeflow home, not in the repository (`FREEFLOW_HOME`, default `~/.freeflow`): `settings.json` (everywhere, the default for a change), `folders.json` (this folder, one entry per repository), and the session's own file. Precedence is session, then this folder, then everywhere, then the default.
+- A setting can also be ticked "only on this harness" (`claude-code`, `codex` or `pi`); the harness value wins within its layer.
+- `.freeflow/config.json` and `.freeflow/local.json` are no longer read; `settings.mjs doctor` moves their settings to this folder. Freeflow writes nothing into a repository except the project's own review rules. Do not create or append Freeflow instructions in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/` or another host-owned instruction surface.
+- Configuration does not prove runtime delivery. Delivery depends on the host's installed and trusted adapter.
 
-Answer setup questions and delivery checks read-only. An explicit action request authorizes the smallest selected setup change under the state rules below. When repository config is missing, first activation authorizes minimal shared config; it does not authorize personal overrides, optional capabilities, replacement of invalid config, or edits to repo-owned host instructions.
+Answer setting questions and delivery checks read-only. An explicit request authorizes the smallest selected change. Freeflow runs without setup, so a session never needs a setup step before work.
 
 ## Routes
 
 | Situation | Go to |
 | --- | --- |
-| Activating, or changing shared or personal setup | Establish Mutation Authority, then Inspect The Layers, then the section for that layer |
-| Repository config invalid, or conflicting with accepted source truth or repository instructions | [Discuss Work](../discuss-work/SKILL.md), before replacing or reinterpreting it |
+| Turning Freeflow on or off, or changing any setting the user asks for | Change A Setting, below |
 | Setting up the Freeflow store for task memory, local only or local + cloud, in a cloud session too; moving a local store to the cloud; moving older records (a repository's `.freeflow/tasks/`, Pi's former Task Memory) into the store | [store setup](references/store-setup.md) |
 | Whether the host delivers Freeflow, or which host action refreshes it | Hosts, below |
-| Changing any setting the user asks for, in a file or for this session only | Change A Setting, below |
-| Tool Execution values | Change A Setting, only when the user requests them |
-
-## Establish Mutation Authority
-
-Classify the current state before editing:
-
-- **Unconfigured:** no repository config. On Claude Code and Codex no Freeflow guidance is effective here; on Pi the state is setup needed: Freeflow does not run, the Runtime State tells the agent to set it up with this skill, and only this skill is exposed. An explicit setup request may create minimal config when it is missing. A setting a file ignores is not a state: Freeflow stays on, and `settings.mjs doctor` shows each fix. Replacing a file that is not JSON requires specific authorization and resolving the source conflict.
-- **Configured but ineffective:** effective `enabled` is `false`, from a file or this session. No Freeflow guidance is effective. An explicit request governs the selected enablement, configuration, or repair.
-- **Effective:** Freeflow core guidance, the Interaction Contract, and base skills are effective; obey them. An explicit setup or repair request may be carried out within its authority; optional capability behavior remains independently gated.
-
-User-operated host settings are direct user actions, not agent-performed config edits. Prefer them when available, do not claim their state changed until the host reports it, and verify the resulting source and effective state afterward.
-
-## Inspect The Layers
-
-Before editing:
-
-1. inspect `.freeflow/config.json` and `.freeflow/local.json` independently;
-2. identify which requested values are shared repository state and which are personal overrides;
-3. inspect repo instructions only when a conflict would change setup behavior;
-4. identify the host and available delivery evidence when runtime status matters.
-
-A repository config is the shared settings file; Freeflow runs on Pi where it exists (otherwise the state is setup needed), and on Claude Code and Codex where it exists. A missing local config inherits repository settings. A setting in either file that Freeflow cannot use is ignored and named; the default, or the other file's value, applies to it. Never fall back silently: name it.
-
-Resolve each configurable value in this order:
-
-```text
-host session override -> personal override -> repository value -> built-in default
-```
-
-Host session overrides last one session. Pi keeps them in the Pi session; other hosts keep them in the Freeflow home's `sessions/<session>/settings.json`, which the settings script writes and the session-start hook reads. Effective Freeflow requires session-resolved `enabled: true` and the prompt files the host delivers (Hosts, below); on Pi, Claude Code and Codex it also requires the repository config to exist.
-
-If setup is already valid and no change was requested, preserve it and report the effective sources. Do not rewrite config merely to normalize formatting or materialize defaults.
-
-## Configure Shared Activation
-
-For a new setup, write the minimal activation boundary:
-
-```json
-{}
-```
-
-Missing core keys use the built-in default `enabled: true`. Add `enabled: false` only when the user explicitly requests Freeflow to be disabled. Add optional capability configuration only when the user explicitly requests it. Do not add task state, phase, file inventories, plans, version metadata, activation paths, empty optional sections, host instruction copies, or generated workflow text.
-
-These keys are unsupported in either config file; each is ignored and named until removed: `defaultMode`, `interactionContract`, `contextVirtualization`, and `conversationHistory`. The user deletes them wherever present; setup never migrates or removes them automatically.
-
-Do not create or append Freeflow instructions in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, or another host-owned instruction surface, including to compensate for unavailable or unconfirmed delivery. Existing repo instructions remain live source truth within host precedence. They are not activation markers, but they can conflict with Freeflow behavior: name a conflict and ask through Discuss Work before changing setup or behavior when it would alter the next action, rather than overwriting them to make Freeflow appear active. Do not install repo-local hooks, CLI commands, lint rules, global standards, documentation inventories, or state files during setup.
-
-## Add Personal Overrides Only When Requested
-
-Use `.freeflow/local.json` for an explicitly selected per-checkout override of `enabled`:
-
-```json
-{
-  "enabled": false
-}
-```
-
-Omitted values inherit from repository config and built-in defaults; local precedence is per property, not whole-file replacement.
-
-Before writing local config in a Git checkout, verify it is untracked and ignored. Do not modify shared ignore policy merely to store a personal preference: prefer the host's safe settings path, `.git/info/exclude`, or an existing ignore rule. Refuse to overwrite a tracked local config.
-
-If local config holds settings Freeflow ignores, report each by name, as the footer and `/freeflow status` do, with the fix `settings.mjs doctor` shows. `doctor` changes nothing without `--fix`; repair or remove a file's content only with authorization, and never discard it silently.
+| A setting the file or the script ignores, or a file that is not JSON | Repair Settings, below |
 
 ## Change A Setting
 
-When the user asks to change a setting, run [settings](scripts/settings.mjs) rather than editing a file; a file with settings Freeflow ignores refuses the write, so `doctor` shows the fix first: `node <setup-freeflow-directory>/scripts/settings.mjs set <key> <value> --scope repository|personal|session`; `unset <key>`, or the value `inherit`, removes it from that scope, and `list` and `get <key>` show each value with the scope that set it (`--json` for data). It refuses a key or value the settings table does not allow, writes with the rules above (a personal file kept out of Git and refused when tracked, an invalid file never overwritten) and drops a repository value equal to its default. Its output names the Runtime State lines that changed: they hold for you from now on, while prompt text already given stays until the next session start or compaction. The Session scope lasts this session only and needs a host that names its session. The user changes the same settings with `/freeflow settings` on Pi and on Claude Code.
+Run [the settings script](scripts/settings.mjs); never edit a settings file by hand:
+
+```text
+node <setup-freeflow>/scripts/settings.mjs list [--view normal|developer] [--harness <name>]
+node <setup-freeflow>/scripts/settings.mjs get <key> [--harness <name>]
+node <setup-freeflow>/scripts/settings.mjs set <key> <value> [--scope everywhere|folder|session] [--harness-only] [--harness <name>]
+node <setup-freeflow>/scripts/settings.mjs unset <key> [--scope everywhere|folder|session] [--harness-only] [--harness <name>]
+```
+
+- `--scope` defaults to `everywhere`, a change on every folder on this machine. Use `folder` for this repository only, `session` for this session only.
+- `--harness-only` ticks the value for one harness: `--harness codex` when you run the script on Codex, `claude-code` on Claude Code. Without `--harness`, the script reads `FREEFLOW_HARNESS`, else Claude Code when its session is named.
+- `inherit` (or `unset`) removes the value in that scope, so it follows the next layer down.
+- The script refuses a key or value the settings table does not list, and it writes nothing to a layer that holds settings Freeflow ignores; run `doctor` first.
+- `list` shows the developer view by default; `--view normal` shows the rows a person changes (Freeflow, Task memory, Review and Workers read only, Status line and Pane on Claude Code).
+- Its output names each Runtime State line the change adds or removes; give those to the user, and treat them as the new state.
+
+Task memory is `memory.mode`: unset, `sync` when the store has a remote and `local` (on, this machine) when it has none; or set `local`, `sync` (on, with the store's private remote) or `off` (no menu, no task offered, nothing recorded). A session's compaction without a task is `compaction.withoutTask`.
+
+### Turning Freeflow off
+
+`enabled` is Freeflow's switch, in any layer or ticked for one harness. Off means Freeflow was never there: it sends nothing, does nothing and writes nothing. Freeflow never disables its own plugin. When the script reports an off value on Claude Code or Codex, give the user the one line it prints, with the harness's own command to disable the plugin (`claude plugin disable freeflow` on Claude Code; on Codex, the uninstall step in `plugin-docs/getting-started.md`, unverified there).
+
+## Repair Settings
+
+`list` names each setting a file ignores, with its file and reason, and each ignored setting keeps its default. `doctor` shows the fix for each, changing nothing:
+
+```text
+node <setup-freeflow>/scripts/settings.mjs doctor
+node <setup-freeflow>/scripts/settings.mjs doctor --fix
+node <setup-freeflow>/scripts/settings.mjs doctor --fix --committed
+```
+
+`doctor --fix` removes a removed key (such as `review.mode`), drops an unknown key, resets a wrong value to its default, and moves a repository's `.freeflow/config.json` or `.freeflow/local.json` settings into this folder, naming each. The committed `.freeflow/config.json` is shared, so it is rewritten only with `--committed`, and only after the user agrees. A file that is not JSON is never rewritten: ask the user before replacing it, and name the file. Never discard a setting silently.
+
+A setting Freeflow cannot use is ignored and named; its default applies, and the rest of the file is used. Unsupported keys (`defaultMode`, `interactionContract`, `contextVirtualization`, `conversationHistory`, the removed `review` block, `cognitiveRouting`, `taskMemory`) are ignored and named until the user deletes them; `doctor` shows each.
 
 ## Set Up The Store
 
-[Track Work](../track-work/SKILL.md) keeps task memory in the Freeflow store: one private Git repository at `FREEFLOW_HOME` (default `~/.freeflow`), apart from every code repository. When the user asks to set it up, says yes when Track Work asks, or Freeflow's session start says something is missing for it, follow [store setup](references/store-setup.md): local only or local + cloud, a cloud session's settings, moving existing records in, and the check that ends it.
+[Track Work](../track-work/SKILL.md) keeps task memory in the Freeflow store: one private Git repository at `FREEFLOW_HOME`, apart from every code repository. When the user asks to set it up, says yes when Track Work asks, or Freeflow's session start says something is missing for it, follow [store setup](references/store-setup.md): local only or local + cloud, a cloud session's steps, and moving older records. The store's own `.gitignore` keeps `settings.json`, `folders.json` and `first-session.json` out of its commits: they stay on this machine.
 
 ## Hosts
 
-When Freeflow is effective, host adapters deliver `runtime/prompts/core.md`, `interaction-contract.md` and `working-method.md`, the base Freeflow skill surface, and compact current capability state; on Pi also `tool-execution.md` while Tool Execution is effective, with its tools. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions. Context Virtualization and Conversation History are removed.
+When Freeflow is on, host adapters deliver `runtime/prompts/core.md`, `interaction-contract.md` and `working-method.md`, the base Freeflow skill surface, and the Runtime State, each prompt unless its switch is off. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repository instructions.
+
+The first session in a user's Freeflow home gets one line, once, saying what Freeflow does and where its guide is.
 
 ### Pi
 
-The Pi extension reads both config layers before each agent turn. When Freeflow is enabled it always delivers the core prompt, Interaction Contract and Working Method together, keeping the existing system prompt. Runtime State is refreshed at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the provider context. Skill and capability bodies stay discoverable rather than delivered as hidden persistent messages.
+The Pi extension reads the layers before each agent turn. `/freeflow settings` opens the same rows as the settings script, with tabs for **Session**, **This folder** and **Everywhere**; `Tab` switches between them. A change is written at once, and closing the screen after a change reloads the session. A file-level change applies from the next turn; resource discovery waits for `/reload`, which tells the user to run it once after a setup change.
 
-Settings scopes:
+### Claude Code
 
-```text
-/freeflow settings          personal overrides
-/freeflow settings session  temporary Freeflow session controls
-/freeflow settings repo     shared repository settings
-```
+Freeflow's mod adds `/freeflow settings` (the normal view), `/freeflow settings --all` (Developer settings), and `/freeflow settings <key> <value> [--folder | --session] [--harness-only]`, which changes one through the script; its line reaches the agent at once. `enabled` off stops the mod's task menu, notices, compaction, store sync and event log in the session; turning it on again brings them back from the next event.
 
-Session settings can temporarily inherit, enable, or disable Freeflow; one reset action clears them. They persist in the active Pi session branch, never write either config file, and cannot bypass missing or invalid repository activation. The personal settings path uses omission to inherit, refuses to overwrite invalid or tracked local config, and establishes local Git exclusion when needed. These user-operated controls update state before the next model turn and reload Pi resources when supported.
+### Codex
 
-A config written during setup is visible to the adapter on the next agent turn. After first activation, tell the user to run `/reload` so Pi refreshes skills and resources fully; without it, core runtime context loads on the next turn but resource discovery waits. Confirm automatic delivery through current extension status or runtime evidence.
+Codex has no settings command. The user asks the agent, which runs the settings script with `--harness codex`. Freeflow's driver answers the Codex hook events, and Codex runs each only once the user trusts it: after first-time install and after each update, tell the user to open `/hooks` and approve Freeflow's hooks, then start a new session. An unapproved hook is skipped silently.
 
-### Codex And Claude Code
-
-The packaged runtime hook reads the same two layers. At supported `SessionStart` boundaries (startup, resume, clear, fork, and compact) it loads `core.md`, `interaction-contract.md` and `working-method.md`, each unless `prompts` (`core`, `interactionContract`, `workingMethod`; each a boolean, on by default, personal overriding shared per prompt) turns it off, and emits a compact active Runtime State, with the session's own values over both files. It does not process submitted prompts, inject skill bodies, or inspect Pi-only capabilities.
-
-On Claude Code, Freeflow's mod adds `/freeflow settings`: it lists the settings Claude Code acts on, and `/freeflow settings <key> <value> [--session | --personal | --repository]` (Personal by default; `inherit` removes one) changes one through the settings script, its line reaching you at once. With `enabled` off, the mod's task menu, notices, compaction, store sync and event log stop too, and its claims read no for every request. `/freeflow capabilities` lists what Freeflow can do in the session, on Claude Code and Pi.
-
-On Codex, Freeflow's driver answers eleven hook events, and Codex runs each only once the user trusts it: after first-time setup and after each update, tell the user to open `/hooks` and approve Freeflow's hooks (`SessionStart` twice, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostModelRequest`, `PreCompact`, `PostCompact`, `SubagentStart`, `SubagentStop`, `Stop`, `SessionEnd`); an unapproved hook is skipped silently. Codex compacts on its own, mid-turn once the context reaches its limit, so suggest `model_post_turn_compact_threshold_percent` in Codex's `config.toml` (for example `70`): Codex then compacts after a turn, once the agent has had its chance to checkpoint. Codex has no `/freeflow` command; change a setting with the [settings script](scripts/settings.mjs), and the driver takes `enabled`, `events.enabled` and the gates (`gates.*`) up at the next session start.
-
-After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session or startup, as available. Name the exact control the current host supports; do not prescribe Pi's `/reload`.
+After a first install or a setting change, tell the user to trigger the least disruptive host-native lifecycle boundary the host supports (a new session, resume, clear or compact); do not prescribe a host command the host lacks.
 
 ### What Freeflow Can Do Here
 
-Freeflow's driver for the host (Claude Code's mod, Pi's extension, Codex's driver) writes, at session start, its claims for each request Freeflow knows: `yes` for what it does here today, `possible` for what the host offers and Freeflow does not use yet, `no` for what the host cannot do. Before relying on one, such as Freeflow compacting the session or keeping its event log, run [capabilities](scripts/capabilities.mjs): `node <setup-freeflow-directory>/scripts/capabilities.mjs check <request>` exits 0 only for `yes` and prints how or why not; `list` gives every request and the event log, `--json` the claims as data. Never assume a request that is not `yes`. A host with no driver (Cursor, Copilot, Gemini) has no claims: only the session-start guidance arrives there, and you run Freeflow's scripts yourself.
+Freeflow's driver for the host writes, at session start, its claims for each request Freeflow knows: `yes` for what it does here today, `possible` for what the host offers and Freeflow does not use yet, `no` for what the host cannot do. Before relying on one, such as Freeflow compacting the session or keeping its event log, run [capabilities](scripts/capabilities.mjs) and use only what it reports as `yes`.
 
 ## Establish Same-Turn Context
 
-After successful verification, apply newly effective context directly for the remainder of the setup turn:
-
-- read the [Interaction Contract](../../runtime/prompts/interaction-contract.md);
-- read the [core guidance](../../runtime/prompts/core.md) and the [Working Method](../../runtime/prompts/working-method.md) when Freeflow is effective.
-
-These direct reads establish same-turn guidance; they do not prove that a lifecycle adapter ran, and no further adapter invocation has occurred yet. After first activation, name the exact host-native lifecycle action for automatic delivery and resource refresh (Hosts, above), and state what applies before that boundary.
+After a first install or a setting change, apply the guidance for the rest of the turn: read the [Interaction Contract](../../runtime/prompts/interaction-contract.md), the [core guidance](../../runtime/prompts/core.md) and the [Working Method](../../runtime/prompts/working-method.md) when Freeflow is on. These reads do not prove that a host adapter ran at a lifecycle boundary; Hosts, above, says which boundary refreshes it.
 
 ## Verify And Report
 
-Verify:
+Verify with the script, not by reading files:
 
-- repository config parses and is the required activation boundary;
-- local config is missing or valid, personal, untracked, and ignored when applicable;
-- effective `enabled`, core guidance, and optional capability values have the expected sources;
-- no repo-owned host instructions or unrelated files changed, and running setup again would change nothing.
-
-After verification supports a setup result, silently self-review the final observed or changed state before accepting, reusing, or reporting it. Correct clear local issues within the existing setup authority and re-verify the affected boundary; stop on ambiguity, route change, or an out-of-envelope correction.
-
-Classify automatic runtime delivery from evidence:
-
-- **confirmed:** trustworthy evidence shows the current host adapter ran for the current lifecycle;
-- **unavailable:** the adapter, plugin or hook is absent, disabled, denied, untrusted, or unsupported;
-- **unconfirmed:** the adapter may be installed and trusted, but the host exposes no trustworthy evidence that it ran. Installed and trusted registration establishes availability for the next lifecycle action, not delivery.
+- `list --view normal --json` shows each value and the layer it comes from;
+- `doctor` reports nothing to fix, or names each problem and its fix;
+- the host's runtime evidence shows the adapter ran for the current lifecycle, when the host exposes it.
 
 Report separately:
 
-1. shared repository activation;
-2. personal override state and effective sources;
-3. effective Freeflow core guidance, Interaction Contract, base skills, and optional capability state;
-4. same-turn direct context reads;
-5. automatic runtime delivery as **confirmed**, **unavailable**, or **unconfirmed**.
+1. the value of each changed setting, and the layer or harness tick it is set in;
+2. the Runtime State lines the change added or removed;
+3. the store state, when the store was touched;
+4. automatic runtime delivery as **confirmed**, **unavailable**, or **unconfirmed**, with the host action that refreshes it.

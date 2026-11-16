@@ -50,7 +50,7 @@ A command that fails shows its error in a small box and changes nothing. A value
 /freeflow settings pane.statusLine off    the status line
 ```
 
-Both are on by default; see [Settings](../settings.md), or the Pane and Status line rows in the pane's Settings tab. With Freeflow itself off (`enabled`), neither shows. With the event log off (`events.enabled`), Sent is empty.
+Both are on by default, in every scope (Session, This folder, Everywhere); see [Settings](../settings.md), or the Pane and Status line rows in the pane's Settings tab. With Freeflow itself off (`enabled`), neither shows. With the event log off (`events.enabled`), Sent is empty.
 
 ## What it reads
 

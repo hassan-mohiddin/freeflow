@@ -1,3 +1,4 @@
+import { useFreeflowHome, everywhereFile } from "../fixtures/freeflow-home.js";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -83,8 +84,8 @@ function loadExtension(runtimeApi = {}) {
 
 async function configuredRepo(config = {}) {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-unaffected-regressions-"));
-  await mkdir(join(cwd, ".freeflow"));
-  await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify(config, null, 2), "utf8");
+  await useFreeflowHome();
+  await writeFile(everywhereFile(), JSON.stringify(config, null, 2), "utf8");
   return cwd;
 }
 
@@ -122,7 +123,7 @@ function freeflowCommand(commands) {
 
 test("non-TUI settings selectors provide guidance without mutation", async () => {
   const cwd = await configuredRepo();
-  const configPath = join(cwd, ".freeflow/config.json");
+  const configPath = everywhereFile();
   const original = await readFile(configPath, "utf8");
   try {
     const { commands } = loadExtension();
@@ -143,7 +144,7 @@ test("non-TUI settings selectors provide guidance without mutation", async () =>
 
 test("settings refuse a mid-run mutation before opening the TUI", async () => {
   const cwd = await configuredRepo();
-  const configPath = join(cwd, ".freeflow/config.json");
+  const configPath = everywhereFile();
   const original = await readFile(configPath, "utf8");
   try {
     const { commands } = loadExtension();
@@ -160,7 +161,7 @@ test("settings refuse a mid-run mutation before opening the TUI", async () => {
 
 test("settings recheck idle state before committing a master-switch selection", async () => {
   const cwd = await configuredRepo({ enabled: false });
-  const configPath = join(cwd, ".freeflow/config.json");
+  const configPath = everywhereFile();
   const original = await readFile(configPath, "utf8");
   let idle = true;
   try {
@@ -222,7 +223,7 @@ test("retired router-shaped configuration remains inert while core activation wo
 test("remaining session overrides apply without changing repository configuration", async () => {
   const cwd = await configuredRepo();
   try {
-    const configPath = join(cwd, ".freeflow/config.json");
+    const configPath = everywhereFile();
     const original = await readFile(configPath, "utf8");
     const { pi } = loadExtension();
     const ctx = context(cwd);
@@ -239,7 +240,7 @@ test("remaining session overrides apply without changing repository configuratio
 test("a session can switch each capability without changing either config file", async () => {
   const cwd = await configuredRepo({ toolExecution: { enabled: true, guidanceNotices: true } });
   try {
-    const configPath = join(cwd, ".freeflow/config.json");
+    const configPath = everywhereFile();
     const original = await readFile(configPath, "utf8");
     const { pi } = loadExtension();
     const ctx = context(cwd);
@@ -254,7 +255,7 @@ test("a session can switch each capability without changing either config file",
     assert.equal((await setSessionCoreOverride("messaging.enabled", true, ctx, pi)).reloadRequired, true);
     assert.equal((await readCapabilityState(cwd)).messaging.enabled, true);
     assert.equal(await readFile(configPath, "utf8"), original);
-    assert.equal(await readFile(join(cwd, ".freeflow/local.json"), "utf8").catch(() => undefined), undefined);
+    assert.equal(await readFile(join(cwd, "folders.json"), "utf8").catch(() => undefined), undefined);
 
     await resetSessionOverrides(ctx, pi);
     const reset = await readCapabilityState(cwd);
@@ -287,7 +288,7 @@ test("session settings switch messaging on for the session only", async () => {
     assert.match(before, /Messaging\s+off \(inherited\)\n/);
     assert.match(after, /› Messaging\s+on\n/);
     const { readCapabilityState } = await import("../../dist/host/config.js");
-    assert.equal(await readFile(join(cwd, ".freeflow/local.json"), "utf8").catch(() => undefined), undefined);
+    assert.equal(await readFile(join(cwd, "folders.json"), "utf8").catch(() => undefined), undefined);
     await resetSessionOverrides(settings, {});
     assert.equal((await readCapabilityState(cwd)).messaging.enabled, false);
   } finally {

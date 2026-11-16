@@ -13,6 +13,7 @@ import {
   freeflowStoreOf,
 } from "./lib/store.mjs";
 import { checkLinePointers } from "./lib/recover.mjs";
+import { memoryModeFor } from "./lib/memory5.mjs";
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { checkpointSession, runTransition5, writeCompactionRequest } from "./lib/transitions5.mjs";
 import { budgetLines, budgetFor, contextWindow, measureTask, renderBudget } from "./lib/budget5.mjs";
@@ -90,6 +91,42 @@ import { PlanError } from "./lib/planner5.mjs";
 
 const ROOT_HELP =
   "--record is resolved against --root, which defaults to the current directory; an absolute --record path finds its own root.";
+
+/**
+ * The commands that record a task's memory. With memory.mode off they refuse and name the setting (D-060, Setting 2);
+ * the reads (view, budget, estimate, validate, store status) keep working, and so does a task's budget.
+ */
+const RECORDS_WHEN_MEMORY_OFF = [
+  "init",
+  "checkpoint",
+  "agreement",
+  "slice",
+  "task create",
+  "task take",
+  "task switch",
+  "task move",
+  "delegate open",
+];
+
+/** The refusal for a recording command while task memory is off here, else null. */
+function memoryOffRefusal(command, operation, options) {
+  const key = `${command} ${operation ?? ""}`.trim();
+  const records = RECORDS_WHEN_MEMORY_OFF.some(
+    (name) => key === name || (!name.includes(" ") && key.split(" ")[0] === name),
+  );
+  // A scratch delegation's brief lives in the caller's scratch folder, not the store, so it records no task memory.
+  if (key === "delegate open" && options["--scratch"]) return null;
+  if (!records || memoryModeFor({ home: storeHome(options["--home"]) }) !== "off") return null;
+  const script = resolve(dirname(new URL(import.meta.url).pathname), "../../setup-freeflow/scripts/settings.mjs");
+  return `Task memory is off here (memory.mode), so ${key} records nothing. Turn it on with: node ${script} set memory.mode local (or sync), or /freeflow settings on Claude Code and Pi.`;
+}
+
+/** What the status line says about task memory: the mode, and that a local store is not synced (D-060, Setting 2). */
+function memoryText(status) {
+  if (status.memory === "off") return "off, so nothing is synced";
+  if (status.memory === "local") return status.remote ? "local, not synced with its remote" : "local";
+  return "sync";
+}
 
 function usage() {
   return [
@@ -721,6 +758,7 @@ async function runStore(operation, options) {
       status.remote
         ? `Remote: ${status.remote} · branch ${status.branch ?? "none"}`
         : `Remote: none, a local store (store remote --url <url> makes it a cloud store) · branch ${status.branch ?? "none"}`,
+      `Task memory: ${memoryText(status)}`,
       `Not committed: ${status.uncommitted} path(s)`,
       `Not pushed: ${count(status.unpushed)} commit(s); not yet taken: ${count(status.behind)}, as of the last sync`,
       `Last sync: ${last}`,
@@ -998,6 +1036,8 @@ async function runCore(command, rest) {
   const joined = joinedDelegation(storeHome(options["--home"]), sessionIdentity());
   const refusal = workerRefusal(command, operation, options, joined);
   if (refusal) throw new CliError(refusal);
+  const offRefusal = memoryOffRefusal(command, operation, options);
+  if (offRefusal) throw new CliError(offRefusal);
   // Projects and tasks are the Freeflow store's folders.
   if (STORE_OPTIONS.has(`${command} ${operation}`)) {
     const home = storeHome(options["--home"]);

@@ -159,7 +159,8 @@ cmd_launch() {
     git init -q
     printf '# verify-live fixture\n' >README.md
     printf '.freeflow/*/\n.freeflow/local.json\n' >.gitignore
-    if [[ $noconf -eq 0 ]]; then mkdir -p .freeflow && printf '%s\n' "$config" >.freeflow/config.json; fi
+    # The settings live in the run's Freeflow home (D-060), not in the fixture repository.
+    if [[ $noconf -eq 0 ]]; then printf '%s\n' "$config" >"$RUN_DIR/home/settings.json"; fi
     git add -A && git -c user.email=verify@localhost -c user.name=verify commit -qm "fixture"
   )
   # run.env exists before the pane starts, because env_command reads the model-call setting from it.
