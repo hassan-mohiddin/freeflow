@@ -404,7 +404,7 @@ export function claims(eventsOn) {
     ask: claim("no", "no Codex hook asks the user; the agent asks in its reply"),
     block: claim(
       "yes",
-      "PreToolUse denies a gate's call under block (gates.*), with the reason; not hosted tools such as web search",
+      "PreToolUse denies the delegation gate's call under block (gates.delegation), with the reason; not hosted tools such as web search",
     ),
     sensors: eventsOn
       ? claim("yes", "tool calls, model requests with token usage, compactions, workers, written to the event log")
@@ -774,11 +774,11 @@ function preToolUse(ctx) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// The gates (SPEC-008): Track Work's gates5.mjs decides each file-writing or shell call from the session's gate state,
-// which Track Work's lifecycle commands write to sessions/<session>/gates.json; each gate's mode (gates.*) was resolved
-// with enabled at session start. Under warn the call runs and the agent reads one row per gate per turn, as
-// additionalContext; under block Codex refuses the call with the same text (permissionDecision: deny). Codex has no
-// ask, so a delivery step under block is refused too. Each gate that fired leaves a `gate` line in the buffer.
+// The gate (SPEC-008): Track Work's gates5.mjs decides each file-writing or shell call from the session's gate state,
+// which Track Work's lifecycle commands write to sessions/<session>/gates.json; the gate's mode (gates.delegation) was
+// resolved with enabled at session start. Under warn the call runs and the agent reads one row per turn, as
+// additionalContext; under block Codex refuses the call with the same text (permissionDecision: deny). Each gate that
+// fired leaves a `gate` line in the buffer.
 
 /** The gates' modes as session start resolved them; a state from before gates.* existed gives the defaults. */
 function gateModes(ctx) {
@@ -842,7 +842,7 @@ function gated(ctx) {
     const input = ctx.input.tool_input;
     const result = decide(
       readGates(ctx),
-      { tool, paths: toolPaths(tool, input, ctx.cwd), command: commandOf(tool, input), cwd: ctx.cwd, canAsk: false },
+      { tool, paths: toolPaths(tool, input, ctx.cwd), command: commandOf(tool, input), cwd: ctx.cwd },
       modes,
     );
     if (result.decision === "allow") return null;

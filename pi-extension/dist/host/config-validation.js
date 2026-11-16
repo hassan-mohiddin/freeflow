@@ -97,15 +97,31 @@ function validatePaneConfig(value) {
   return null;
 }
 /**
- * The gates (SPEC-008 4.5): each of the four is `off`, `warn` (the default: the agent reads a warning, the event log
- * counts it) or `block` (a refusal, or for delivery a question where someone can answer), on every host with a Freeflow
- * driver. Track Work's `lib/gates5.mjs` decides; the drivers read these values.
+ * Removed settings (D-058): a key a file may still hold. A file that holds one loads; the key is named as ignored with
+ * its reason, keeps its default (nothing reads it), and `settings.mjs doctor --fix` removes it. The agreement, Slice and
+ * delivery gates and the cost governor (with its cost cap) were removed from Freeflow.
  */
-export const GATE_KEYS = ["agreement", "slice", "delivery", "delegation"];
+export const REMOVED_SETTINGS = {
+  "gates.agreement": "the Agreement gate was removed from Freeflow",
+  "gates.slice": "the Slice gate was removed from Freeflow",
+  "gates.delivery": "the Delivery gate was removed from Freeflow; each harness's own permission prompts cover delivery",
+  "governor.mode": "the cost governor was removed from Freeflow",
+  "governor.cap": "the cost cap was removed from Freeflow",
+};
+/** Removed sections: each key a file holds is named as ignored with REMOVED_SETTINGS' reason; none is acted on. */
+export const REMOVED_SECTIONS = ["governor"];
+/**
+ * The gates (SPEC-008 4.5): the delegation gate is `off`, `warn` (the default: the agent reads a warning, the event log
+ * counts it) or `block`, on every host with a Freeflow driver. Track Work's `lib/gates5.mjs` decides; the drivers read
+ * this value. The agreement, Slice and delivery gates were removed (D-058).
+ */
+export const GATE_KEYS = ["delegation"];
 export const GATE_MODES = ["off", "warn", "block"];
 function validateGatesConfig(value) {
   if (!isRecord(value)) return "gates must be an object";
-  const unknown = Object.keys(value).find((key) => !GATE_KEYS.includes(key));
+  const unknown = Object.keys(value).find(
+    (key) => !GATE_KEYS.includes(key) && REMOVED_SETTINGS[`gates.${key}`] === undefined,
+  );
   if (unknown) return `gates has unsupported key: ${unknown}`;
   for (const key of GATE_KEYS)
     if (value[key] !== undefined && !GATE_MODES.includes(value[key]))
@@ -248,22 +264,6 @@ export function resolveReviewSettings(repository, local) {
     rounds: personal.rounds ?? shared.rounds ?? REVIEW_DEFAULTS.rounds,
   };
 }
-/**
- * The cost governor (SPEC-014, section 2.3), on Claude Code: `mode` warn (the default) only notifies at a cap, stop
- * also asks the agent to stop at the next safe point, checkpoint and ask the user; `cap` replaces the governor's own
- * caps with one number, a percent of the seven-day window on a subscription or dollars of the task's cost elsewhere.
- */
-export const GOVERNOR_MODES = ["warn", "stop"];
-export const GOVERNOR_KEYS = ["mode", "cap"];
-function validateGovernorConfig(value) {
-  if (!isRecord(value)) return "governor must be an object";
-  const unknown = Object.keys(value).find((key) => !GOVERNOR_KEYS.includes(key));
-  if (unknown) return `governor has unsupported key: ${unknown}`;
-  if (value.mode !== undefined && !GOVERNOR_MODES.includes(value.mode))
-    return `governor.mode must be one of ${GOVERNOR_MODES.join(", ")}`;
-  if (value.cap !== undefined && !positiveNumber(value.cap)) return "governor.cap must be a number above 0";
-  return null;
-}
 const positiveNumber = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
 /** The Runtime State line for the user's review choice; none for the defaults (unit `pr`, model `auto`, 3 rounds). */
 export function reviewStateLine(review) {
@@ -305,10 +305,7 @@ export const SETTINGS = [
     session: true,
   })),
   { key: "events.enabled", label: "Event log", values: "boolean", default: true, hosts: "all", session: true },
-  // The gates (SPEC-008 4.5).
-  { key: "gates.agreement", label: "Agreement gate", values: GATE_MODES, default: "warn", hosts: "all", session: true },
-  { key: "gates.slice", label: "Slice gate", values: GATE_MODES, default: "warn", hosts: "all", session: true },
-  { key: "gates.delivery", label: "Delivery gate", values: GATE_MODES, default: "warn", hosts: "all", session: true },
+  // The gate (SPEC-008 4.5).
   {
     key: "gates.delegation",
     label: "Delegation gate",
@@ -338,15 +335,6 @@ export const SETTINGS = [
   { key: "review.model", label: "Reviewer model", values: "name", default: "auto", hosts: "all", session: true },
   { key: "review.rounds", label: "Review rounds", values: REVIEW_ROUNDS, default: 3, hosts: "all", session: true },
   { key: "review.depth", label: "Review depth rules", values: "policy", default: null, hosts: "all", session: false },
-  {
-    key: "governor.mode",
-    label: "Cost governor",
-    values: GOVERNOR_MODES,
-    default: "warn",
-    hosts: "claude-code",
-    session: true,
-  },
-  { key: "governor.cap", label: "Cost cap", values: "number", default: null, hosts: "claude-code", session: true },
   { key: "pane.enabled", label: "Pane", values: "boolean", default: true, hosts: "claude-code", session: true },
   {
     key: "pane.statusLine",
@@ -432,7 +420,6 @@ export const CONFIG_SECTIONS = [
   "events",
   "gates",
   "delegation",
-  "governor",
   "pane",
 ];
 // outputRouter, observedRouting, scriptTransform and taskMemory belong to retired features; they are accepted and
@@ -454,7 +441,6 @@ const LOCAL_KEYS = [
   "events",
   "gates",
   "delegation",
-  "governor",
   "pane",
 ];
 export function validateRepositoryConfig(value) {
@@ -463,7 +449,7 @@ export function validateRepositoryConfig(value) {
   }
   const removedContextError = removedContextConfigError(value, ".freeflow/config.json");
   if (removedContextError) return removedContextError;
-  const allowedKeys = new Set(["v", ...CONFIG_SECTIONS, ...RETIRED_SECTIONS]);
+  const allowedKeys = new Set(["v", ...CONFIG_SECTIONS, ...RETIRED_SECTIONS, ...REMOVED_SECTIONS]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return removedFeatureError(key, ".freeflow/config.json") ?? `unsupported top-level config key: ${key}`;
@@ -512,10 +498,6 @@ export function validateRepositoryConfig(value) {
     const error = validatePaneConfig(value.pane);
     if (error) return error;
   }
-  if (value.governor !== undefined) {
-    const error = validateGovernorConfig(value.governor);
-    if (error) return error;
-  }
   if (value.review !== undefined) return validateReviewConfig(value.review, "repository");
   return null;
 }
@@ -525,7 +507,7 @@ export function validateLocalConfig(value) {
   }
   const removedContextError = removedContextConfigError(value, ".freeflow/local.json");
   if (removedContextError) return removedContextError;
-  const allowedKeys = new Set(LOCAL_KEYS);
+  const allowedKeys = new Set([...LOCAL_KEYS, ...REMOVED_SECTIONS]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return removedFeatureError(key, ".freeflow/local.json") ?? `unsupported top-level local config key: ${key}`;
@@ -569,10 +551,6 @@ export function validateLocalConfig(value) {
     const error = validatePaneConfig(value.pane);
     if (error) return error;
   }
-  if (value.governor !== undefined) {
-    const error = validateGovernorConfig(value.governor);
-    if (error) return error;
-  }
   if (value.review !== undefined) return validateReviewConfig(value.review, "personal");
   return null;
 }
@@ -597,8 +575,6 @@ function sectionValidator(section, scope) {
       return validateDelegationConfig;
     case "pane":
       return validatePaneConfig;
-    case "governor":
-      return validateGovernorConfig;
     case "review":
       return (value) => validateReviewConfig(value, scope);
     default:
@@ -610,6 +586,19 @@ function sectionValidator(section, scope) {
  * that is still invalid without those leaves is ignored whole and named.
  */
 function sanitizeSection(section, value, validate) {
+  // A removed setting is named with its reason whatever the rest holds (D-058), then the rest is checked as usual.
+  const removed = isRecord(value) ? Object.keys(value).filter((leaf) => REMOVED_SETTINGS[`${section}.${leaf}`]) : [];
+  if (removed.length > 0 && isRecord(value)) {
+    const rest = Object.fromEntries(Object.entries(value).filter(([leaf]) => !removed.includes(leaf)));
+    const checked = sanitizeSection(section, rest, validate);
+    return {
+      ...checked,
+      ignored: [
+        ...removed.map((leaf) => ({ key: `${section}.${leaf}`, reason: REMOVED_SETTINGS[`${section}.${leaf}`] })),
+        ...checked.ignored,
+      ],
+    };
+  }
   const whole = validate(value);
   if (whole === null) return { value, ignored: [] };
   if (!isRecord(value)) return { ignored: [{ key: section, reason: whole }] };
@@ -639,6 +628,12 @@ export function sanitizeConfigFile(value, scope) {
       ignored.push({ key, reason: `removed Freeflow context setting: delete this key` });
     } else if (REMOVED_FEATURES[key]) {
       ignored.push({ key, reason: `${REMOVED_FEATURES[key]} was removed from Freeflow` });
+    } else if (REMOVED_SECTIONS.includes(key)) {
+      // Every key of a removed section is named with its reason; none is kept (D-058).
+      if (!isRecord(entry)) ignored.push({ key, reason: `${key} was removed from Freeflow` });
+      else
+        for (const leaf of Object.keys(entry))
+          ignored.push({ key: `${key}.${leaf}`, reason: REMOVED_SETTINGS[`${key}.${leaf}`] ?? "unsupported key" });
     } else if (!allowed.has(key)) {
       ignored.push({ key, reason: "unsupported key" });
     } else if (key === "v") {

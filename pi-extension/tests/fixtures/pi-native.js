@@ -232,9 +232,9 @@ export async function fixture(script, _unused, after, withUI = true, options = {
   await writeFile(
     join(cwd, ".freeflow/config.json"),
     JSON.stringify({
-      // The gates (SPEC-008) warn on most changes; their rows race with session start's gate state, so a native test
-      // pins them only where it turns them on (tests/gates/).
-      gates: { agreement: "off", slice: "off", delivery: "off", delegation: "off" },
+      // The delegation gate (SPEC-008) warns on a write to a path another session claims; its rows race with session
+      // start's gate state, so a native test pins it only where it turns it on (tests/gates/).
+      gates: { delegation: "off" },
       ...(options.freeflowConfig ?? {}),
     }),
   );

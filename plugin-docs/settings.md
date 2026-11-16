@@ -12,9 +12,9 @@ With nothing configured, Freeflow on Pi runs with these capabilities; each one's
 | [Compaction](capabilities/compaction.md) | on | After the agent's checkpoint, the task's bundle replaces the conversation; Pi's compaction stays the fallback |
 | [Tool Execution](capabilities/tool-execution.md) | on | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors, and skill guidance at the tool call that needs it |
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
-| [Gates](capabilities/gates.md) | warn | Four rules checked before each tool call (agreement, Slice, delivery, delegation scope), warning only; also on Claude Code |
+| [Gates](capabilities/gates.md) | warn | The delegation-scope rule, checked before each tool call, warning only; on Claude Code, Codex and Pi |
 
-On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts`, `skills` and `review` apply, on Claude Code `events`, `gates` and `governor` too, and on Codex `events`; the capabilities above are Pi only. OpenCode reads no settings.
+On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts`, `skills` and `review` apply, on Claude Code `events` and `gates` too, and on Codex `events` and `gates`; the capabilities above are Pi only. OpenCode reads no settings.
 
 ## Where a setting lives
 
@@ -46,9 +46,6 @@ Freeflow settings    Session  [Personal]  Repository
       Ask before delivering  never (inherited)
     Event log                on (inherited)
   Gates
-      Agreement gate         warn (inherited)
-      Slice gate             warn (inherited)
-      Delivery gate          warn (inherited)
       Delegation gate        warn (inherited)
     Review                   pull request (inherited)
       Reviewer model         auto (inherited)
@@ -80,18 +77,13 @@ Freeflow settings for /home/you/project (Claude Code)
   Runtime prompts  on        default
   Skills           on        default
   Event log        on        default
-  Agreement gate   warn      default
-  Slice gate       warn      default
-  Delivery gate    warn      default
   Delegation gate  warn      default
   Review unit      pr        default
   Reviewer model   auto      default
   Review rounds    3         default
-  Cost governor    warn      default
-  Cost cap         none      default
 Set one: /freeflow settings <key> <value> [--session | --personal | --repository]  (Personal by default)
 Remove one: /freeflow settings <key> inherit [--session | --personal | --repository]
-Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.agreement, gates.slice, gates.delivery, gates.delegation, delegation.claimHours, delegation.wakeOnReturn, review.unit, review.model, review.rounds, governor.mode, governor.cap.
+Keys: enabled, prompts.enabled, prompts.<prompt>, skills.enabled, skills.<skill>, events.enabled, gates.delegation, delegation.claimHours, delegation.wakeOnReturn, review.unit, review.model, review.rounds.
 Review depth rules (review.depth) are edited in .freeflow/config.json; review-plan reads them from the base commit.
 Pi-only settings (tool execution, compaction, messaging) are changed on Pi or in the files.
 ```
@@ -168,9 +160,6 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Ask before delivering | `messaging.inbound` | `accept` (never), `project` (outside the project), `hold` (every message), `refuse` (refuse all) | `accept` | Session, Personal, Repository |
 | Reset overrides | none | clears every session override | — | Session |
 | Event log | `events.enabled` | `true`, `false`: off, Freeflow writes no event log | `true` | Session, Personal, Repository (Claude Code and Pi) |
-| Agreement gate | `gates.agreement` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
-| Slice gate | `gates.slice` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
-| Delivery gate | `gates.delivery` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
 | Delegation gate | `gates.delegation` | `off`, `warn`, `block` | `warn` | Session, Personal, Repository (Claude Code and Pi) |
 | Claim hours | `delegation.claimHours` | `1`, `2`, `4`, `8`, `24`: how long a claim on paths lasts, renewed while its session syncs | `4` | Session, Personal, Repository (Claude Code and Pi) |
 | Wake on return | `delegation.wakeOnReturn` | `true`, `false`: a delegation the current Slice waits on wakes the idle session when it comes back | `true` | Session, Personal, Repository (Claude Code and Pi) |
@@ -178,8 +167,6 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Reviewer model | `review.model` | `auto`, or a model name such as `claude-opus-4-5` | `auto` | Session, Personal, Repository (every host) |
 | Review rounds | `review.rounds` | `1`, `2`, `3` | `3` | Session, Personal, Repository (every host) |
 | — | `review.depth` | `{ "default", "rules", "builtins" }`, below | none: every change gets a Standard review, deeper where a built-in trigger fires | Repository only, read from the base commit |
-| — | `governor.mode` | `warn`, `stop` | `warn` | Session, Personal, Repository (Claude Code) |
-| — | `governor.cap` | a number above 0: a percent of the seven-day window, or dollars | none | Session, Personal, Repository (Claude Code) |
 | — | `pane.enabled` | `true`, `false`: off, `/freeflow pane` opens nothing and the pane's data is not read | `true` | Session, Personal, Repository (Claude Code only, with `/freeflow settings`) |
 | — | `pane.statusLine` | `true`, `false`: off, Freeflow pins no status line under the prompt | `true` | Session, Personal, Repository (Claude Code only, with `/freeflow settings`) |
 
@@ -191,13 +178,12 @@ What some of them mean:
 - **Runtime prompts** is the switch for all of Freeflow's always-present prompts, and **Each prompt** turns them on or off one by one, on every host: Core (how Freeflow works: the cycle, what authorizes work, where it stops), the Interaction Contract (how the agent talks with you) and the Working Method (how it works). With one off, the agent works without that guidance; the rest of Freeflow stays on. The Tool Execution prompt follows its capability's switch.
 - **Skills** is the switch for all of Freeflow's skills but Setup Freeflow, which always stays so you can repair a configuration; **Each skill** turns them off or on one by one. On Pi an off skill is not loaded and its command says it is off. Codex, Claude Code and the other hosts load plugin skills themselves, so there the agent is told, in its Runtime State, not to use an off skill (``Skills off: `write-skill`; do not open or follow them.``); use the host's own setting to remove it completely. The capability skill (Messaging) follows its capability's switch.
 - **Event log** (`events.enabled`) is whether Freeflow's driver, Claude Code's mod or the Pi extension, writes what happens in the session's loop to `events/<session>.jsonl` in the Freeflow home: the commands run (with keys and tokens redacted, cut to 200 characters), exit status, the paths file tools named, token counts, compactions and workers, never a prompt, an answer, a file's content or a tool's output. It stays on this machine; a checkpoint commits a short summary of it into the task's folder. Off, nothing is written from the next event, and `/freeflow capabilities` says so.
-- **Gates** (`gates.agreement`, `gates.slice`, `gates.delivery`, `gates.delegation`) set each of Freeflow's four gates, checked before each tool call on Claude Code and Pi: `warn` (the default) lets the call run and the agent reads the rule and the way through, once per gate in a turn, and the event log counts it; `block` refuses the call with the same text, a delivery step becoming a question to you where someone can answer; `off` checks nothing. See [Gates](capabilities/gates.md).
+- **Gates** (`gates.delegation`) sets Freeflow's delegation gate, checked before each tool call on Claude Code, Codex and Pi: `warn` (the default) lets the call run and the agent reads the rule and the way through, once per turn, and the event log counts it; `block` refuses the call with the same text; `off` checks nothing. See [Gates](capabilities/gates.md).
 - **Review** (`review.unit`), **Reviewer model** (`review.model`) and **Review rounds** (`review.rounds`) set when finished work gets its independent review, by a separate reviewer; the agent's own self-review always runs. A review runs at every unit: before each pull request opens (`pr`), before each push or commit, or at an agreement's Return (`agreement`); `manual` has the agent propose each review with its plan and estimated cost and run it only on your yes. `pr` in your personal file returns a shared choice to the default. How deep the review goes is the plan's, below. Reviewer model names the model a reviewer runs on, where the host lets the agent choose one; `auto` takes the cheapest capable model, and a stronger one for a security review. Freeflow passes a name on as written and does not check it. The screen offers this Pi's authenticated models; on another host, write the name that host uses into the file. Review rounds caps the follow-up reviews of one change (Review 1, 2, 3); a depth's own limit still applies. A Session value applies to this session only. A setting other than the default shows in the agent's Runtime State, such as ``Review: unit `manual`, model `claude-opus-4-5` ``. `review.mode` is gone: a file that still has it is refused with a message naming `review.unit`.
 - **Review depth rules** (`review.depth`) live only in the repository's `.freeflow/config.json`, and Review Work's `review-plan.mjs` reads them from the base commit of the change, so a branch never supplies the rules that review it; a personal file with `depth` is refused. `default` is the depth of a file no rule matches (`quick`, `standard` or `deep`; `standard` when unset). Each rule matches by `paths` (globs), `linesOver` (added plus removed lines) or `trigger` (a built-in's name), and sets a `depth`, optionally a `tier` (`standard` or `security`) and `humans` (how many people should approve; named in the plan and the pull request, not enforced). `builtins` sets a built-in trigger's depth or turns it `off`; the built-ins (`security`, `data`, `ci`, `public interface`) are otherwise Deep. The deepest match wins, and nothing lowers a built-in but `builtins`. Quick is one reviewer on the cheapest model; Standard one reviewer on the cheapest capable model, up to Review 2; Deep three reviewers in parallel, sealed until all report, up to Review 3. See [Review Work in the workflow](workflow.md).
-- **Cost governor** (`governor.mode`) and **Cost cap** (`governor.cap`), on Claude Code: Freeflow's mod watches what the session spends against two caps and tells the agent before a limit surprises you. On a Claude subscription the cap is a daily pace for your seven-day window: what is left of it divided by the days until it resets, against what you used since this day of the window began. With a Working Record whose plan predicts its cost (Track Work's `estimate --plan`), the task's cap is the plan's high end, against the session's cost at API list price; with an API key, dollars are the only measure. At 80% of a cap the agent gets one row naming the cap, the use and when it resets; at 100%, under `warn` it gets one more, and under `stop` it is asked to stop at its next safe point, checkpoint and ask you how to go on. `governor.cap` sets one number in their place: on a subscription a percent of the seven-day window, in place of the daily pace; with an API key, dollars of the session's cost, in place of the task's cap. Each row is also written to the event log, and `events summary` lists them. Pi's screen has no row for these: Pi has no cost governor yet.
 - **Pane** (`pane.enabled`) and **Status line** (`pane.statusLine`) are Claude Code's own: Freeflow's mod keeps a status line under the prompt and a pane `/freeflow pane` opens, showing your tasks, the agents working on the held task, what the work costs and the decisions waiting on you (see [the pane](capabilities/pane.md)). Pi's screen has no row for them, since Pi's footer already shows the held task; change them with `/freeflow settings pane.enabled off` on Claude Code, or in the files.
 
-A configuration file with a key Freeflow does not know, or a value wrong for a key it knows, does not turn Freeflow off: the key or value is ignored, its default is used, and the footer and `/freeflow status` name it with its file. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting`, `scriptTransform` and `taskMemory` (with `processing` in the personal file). Pi's Task Memory is gone, so a `taskMemory` key does nothing, and `/freeflow status` says so. `contextVirtualization` and `conversationHistory` belong to removed context features: a file that still has either ignores it, names it, and Freeflow stays on; delete the key, or let `doctor --fix` remove it.
+A configuration file with a key Freeflow does not know, or a value wrong for a key it knows, does not turn Freeflow off: the key or value is ignored, its default is used, and the footer and `/freeflow status` name it with its file. The agreement, Slice and delivery gates (`gates.agreement`, `gates.slice`, `gates.delivery`) and the cost governor (`governor.mode`, `governor.cap`) were removed: a file that still holds one loads, names the key as ignored with its reason, and `doctor --fix` removes it. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting`, `scriptTransform` and `taskMemory` (with `processing` in the personal file). Pi's Task Memory is gone, so a `taskMemory` key does nothing, and `/freeflow status` says so. `contextVirtualization` and `conversationHistory` belong to removed context features: a file that still has either ignores it, names it, and Freeflow stays on; delete the key, or let `doctor --fix` remove it.
 
 ## Example
 

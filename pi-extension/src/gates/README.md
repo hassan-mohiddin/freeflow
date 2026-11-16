@@ -1,6 +1,6 @@
 # Gates
 
-Freeflow's gates on Pi (SPEC-008), as Claude Code's mod runs them: before each tool call, Track Work's [`lib/gates5.mjs`](../../../skills/track-work/scripts/lib/gates5.mjs) decides the call against the agreement, Slice, delivery and delegation gates, from the session's gate state (`<FREEFLOW_HOME>/sessions/<session>/gates.json`), which Track Work's lifecycle commands write. How the gates work and why: [Gates](../../../dev-docs/subsystems/gates.md).
+Freeflow's gates on Pi (SPEC-008), as Claude Code's mod runs them: before each tool call, Track Work's [`lib/gates5.mjs`](../../../skills/track-work/scripts/lib/gates5.mjs) decides the call against the delegation gate (the agreement, Slice and delivery gates were removed, D-058), from the session's gate state (`<FREEFLOW_HOME>/sessions/<session>/gates.json`), which Track Work's lifecycle commands write. How the gates work and why: [Gates](../../../dev-docs/subsystems/gates.md).
 
 | File | Owns |
 |---|---|

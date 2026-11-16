@@ -127,7 +127,7 @@ test("schema v1: each kind's required fields, its values, and no field it does n
   ]);
 });
 
-test("a governor line names its cap, unit, limit, use and response, and the summary prints each one", () => {
+test("an older log's governor line still reads, and the summary no longer counts or prints it (D-058)", () => {
   const governor = (fields) => ({ ...base(), kind: "governor", ...fields });
   const row = { cap: "pace", unit: "percent", limit: 14.3, use: 11.6, response: "row" };
   assert.equal(lineProblem(governor(row)), null);
@@ -135,31 +135,11 @@ test("a governor line names its cap, unit, limit, use and response, and the summ
   assert.equal(lineProblem(governor({ ...row, use: -1 })), "governor's use is not a value it takes");
   assert.equal(lineProblem(governor({ ...row, response: "stop" })), "governor's response is not a value it takes");
   assert.equal(lineProblem(governor({ cap: "task", unit: "usd", limit: 4, use: 4.2 })), "governor requires response");
-  const lines = [
-    { ...base("s", "2026-11-03T10:00:00.000Z"), kind: "governor", ...row },
-    {
-      ...base("s", "2026-11-03T11:00:00.000Z"),
-      kind: "governor",
-      cap: "task",
-      unit: "usd",
-      limit: 4,
-      use: 4.25,
-      response: "ask",
-    },
-  ];
-  const summary = summarize(lines, { session: "s" });
-  assert.deepEqual(
-    summary.governor.map((each) => [each.cap, each.response]),
-    [
-      ["pace", "row"],
-      ["task", "ask"],
-    ],
-  );
-  assert.equal(summarize([], { session: "s" }).governor, undefined);
-  const text = renderSummary(summary);
-  assert.match(text, /^Governor: 2 response\(s\)$/m);
-  assert.match(text, /^ {2}2026-11-03T10:00:00\.000Z: the daily pace at 11\.6% of 14\.3%, a row$/m);
-  assert.match(text, /^ {2}2026-11-03T11:00:00\.000Z: the task's cost at \$4\.25 of \$4\.00, the ask to stop$/m);
+  const summary = summarize([governor(row), { ...base("s", "2026-11-03T11:00:00.000Z"), kind: "governor", ...row }], {
+    session: "s",
+  });
+  assert.equal(summary.governor, undefined);
+  assert.doesNotMatch(renderSummary(summary), /Governor/);
 });
 
 test("redaction replaces keys and tokens in a command before it is written", () => {
@@ -422,7 +402,7 @@ test("checkpoint and release commit the session's event summary since it took th
     assert.match(printed, /\nTool calls: 3, 1 of them Freeflow's own \(33%\)\n  Bash: 2, 1 failed\n  Edit: 1\n/);
     assert.match(printed, /\nWorkers: 1 started, 1 stopped, 1 sent back\n/);
     // Gate lines (SPEC-008) are counted on their own line; this log has none.
-    assert.match(printed, /\nGates: agreement 0, slice 0, delivery 0, delegation 0 would-fire\n$/);
+    assert.match(printed, /\nGates: delegation 0 would-fire\n$/);
     // Another session's view of this log is the whole log: it holds no task.
     assert.match(ok(cli(["events", "summary", "--session", "aaaaaaaa-1111"])), /: 10 line\(s\) from 2020-01-01/);
     assert.match(ok(cli(["events", "summary"])), /^- aaaaaaaa-1111: \d[\d,]* bytes, last written /);

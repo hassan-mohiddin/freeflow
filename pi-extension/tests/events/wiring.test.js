@@ -32,11 +32,16 @@ async function withHome(run) {
         v: 1,
         task: "demo/task-001",
         taskDir: "/store/projects/demo/tasks/task-001-demo",
-        store: "/store",
-        agreement: null,
-        session: null,
-        exactSpec: null,
-        slice: null,
+        // Another session's claim on every absolute path: the delegation gate warns on the write (D-058).
+        claims: [
+          {
+            writes: ["/**"],
+            until: "2099-01-01T00:00:00.000Z",
+            task: "other/task-002",
+            delegation: "D-009",
+            session: "cccccccc-3333",
+          },
+        ],
         delegations: {},
         updated: "2026-11-03T10:00:00.000Z",
       }),
@@ -132,7 +137,7 @@ test("Pi's handlers keep the gate's row, the system prompt's section and the Run
       assert.ok(shaped, "the gate's row reached the call's result");
       const rows = sentLines.filter((line) => line.what === "gate");
       assert.equal(rows.length, 1);
-      assert.match(rows[0].text, /^Freeflow gate \(warn, agreement\): write on b\.ts before an agreement/);
+      assert.match(rows[0].text, /^Freeflow gate \(warn, delegation\): b\.ts is claimed by other\/task-002 D-009/);
       // The line is the text the result carries, as the agent reads it.
       assert.ok(shaped.content[0].text.endsWith(rows[0].text));
     } finally {

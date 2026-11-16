@@ -312,11 +312,8 @@ const INBOUND_DESCRIPTIONS = {
   hold: "Ask you before delivering any message.",
   refuse: "Refuse every message.",
 };
-// The gates (SPEC-008 4.5): one row per gate, off, warn or block.
+// The gate (SPEC-008 4.5): one row, off, warn or block. The agreement, Slice and delivery gates were removed (D-058).
 const GATE_LABELS = {
-  agreement: ["Agreement gate", "A change before the user's agreement is recorded"],
-  slice: ["Slice gate", "A change outside the record with no open Slice while a task is held"],
-  delivery: ["Delivery gate", "A commit, push, tag, merge, pull request, publish or release"],
   delegation: ["Delegation gate", "A worker's write outside its brief's scope, or to the task's record"],
 };
 const GATE_VALUE_LABELS = { off: "off", warn: "warn", block: "block" };
@@ -331,7 +328,7 @@ const CLAIM_HOURS_DESCRIPTIONS = Object.fromEntries(
 const GATE_DESCRIPTIONS = {
   off: "No check.",
   warn: "The agent reads a warning with the rule and the way through, and the event log counts it.",
-  block: "The call is refused with the same text; a delivery step becomes a question where you can answer.",
+  block: "The call is refused with the same text.",
 };
 const REVIEW_UNIT_LABELS = {
   pr: "pull request",
@@ -1065,7 +1062,7 @@ function freeflowItems(rawConfig, options = {}) {
   const gatesGroup = {
     id: "freeflow.gates",
     label: "Gates",
-    description: "Configure Freeflow's gates on every host with a Freeflow driver: off, warn (the default) or block.",
+    description: "Configure Freeflow's gate on every host with a Freeflow driver: off, warn (the default) or block.",
     kind: "group",
     value: true,
     inactive: freeflowInactive,
