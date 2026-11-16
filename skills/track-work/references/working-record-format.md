@@ -126,6 +126,7 @@ A delegation's folder, `delegations/D-NNN-<slug>/` with `brief.md`, `progress.md
 
 Schema: 5 · State: active · Budget: normal
 Cue: read when <situations this task matters to>
+Short: <readable name, 24 characters at most>
 State as of: <UTC ISO-8601 time>
 
 ## Current Context
@@ -160,6 +161,7 @@ The three top-level sections are fixed, in this order. Current Work holds its se
 | `# <task name>` | The task's name. |
 | `Schema: 5 · State: <state> · Budget: <mode>` | The task state (`active`, `paused`, `completed`, `abandoned`) and the budget mode (`normal` or `expanded`; `normal` when absent). |
 | `Cue:` | When the task matters, starting "read when", in at most 25 words. The menu and the project index show it. |
+| `Short:` | Optional. The task's readable name for the status line and the pane, 24 characters at most, one line; `task create --short` sets it and `task set-short`, run by the session that holds the task, changes or removes it (`""`). Absent, the listings carry no `short` and the title stands. A Freeflow build older than this line refuses a record that has it, so a store shared with one keeps tasks without short names until it is updated. |
 | `State as of:` | When the record was last checkpointed: `init` and `checkpoint` set it, nothing else. Where Freeflow compacts for the harness, it counts a checkpoint as done when this is later than the context cycle's notice, or, with no notice in it, than its start. |
 
 ### Fields

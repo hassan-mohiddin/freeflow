@@ -19,6 +19,7 @@ import {
   cueProblem,
   emptyHistory,
   parseRecord5,
+  shortProblem,
   skeleton5,
 } from "./record5.mjs";
 import { holdStart, summaryForTask } from "./events5.mjs";
@@ -334,7 +335,14 @@ export async function sessionStatus(home, identity, env = process.env) {
     home,
     store: true,
     session: identity?.id ?? null,
-    task: held ? { id: held.id, record: join(held.dir, "record.md"), stateAsOf: held.header?.stateAsOf ?? null } : null,
+    task: held
+      ? {
+          id: held.id,
+          record: join(held.dir, "record.md"),
+          stateAsOf: held.header?.stateAsOf ?? null,
+          ...(held.header?.short ? { short: held.header.short } : {}),
+        }
+      : null,
     summary,
     changed: status.uncommitted > 0 || (status.unpushed ?? 0) > 0,
     transcript: env.FREEFLOW_TRANSCRIPT || claudeCodeLog(env),
@@ -377,6 +385,7 @@ function projectsJson(home, identity) {
     return {
       id: each.id,
       title: each.header?.name ?? null,
+      ...(each.header?.short ? { short: each.header.short } : {}),
       state: each.header?.state ?? null,
       cue: each.header?.cue ?? null,
       hold: each.hold
@@ -533,10 +542,10 @@ export async function findRepositories(home, folders) {
 }
 
 /** Makes a Schema 5 task folder at root: record.md, history.md and decisions.md. */
-export async function createTaskFolder5(root, { name, cue, sections }) {
+export async function createTaskFolder5(root, { name, cue, short = "", sections }) {
   const problem = cueProblem(cue);
   if (problem) fail(`--cue: ${problem}`);
-  const text = skeleton5({ name, cue, stateAsOf: new Date().toISOString(), sections });
+  const text = skeleton5({ name, cue, short, stateAsOf: new Date().toISOString(), sections });
   parseRecord5(text);
   const created = await createRecordPath(root, name, slugify(name));
   try {
@@ -565,10 +574,12 @@ async function writeHold(home, task, identity, { takeover = false } = {}) {
 
 export async function createTask(
   home,
-  { project, noProject = false, directory, title, goal, cue, nextAction },
+  { project, noProject = false, directory, title, goal, cue, short = "", nextAction },
   identity,
 ) {
   requireIdentity(identity);
+  const shortProblemText = short ? shortProblem(short) : null;
+  if (shortProblemText) fail(`--short: ${shortProblemText}`);
   const held = heldTask(home, identity);
   if (held) fail(`This session holds ${held.id}; checkpoint it and use task switch, or release it first.`);
   if (project && noProject) fail("Give --project or --no-project, not both.");
@@ -584,6 +595,7 @@ export async function createTask(
   const record = await createTaskFolder5(slug ? join(projectsDir(home), slug) : home, {
     name: title,
     cue,
+    short,
     sections: {
       Goal: [`- ${goal}`],
       Space: repository ? [repository.line] : [],
@@ -598,6 +610,39 @@ export async function createTask(
   const task = findTask(home, slug ? `${slug}/${number}` : number);
   await writeHold(home, task, identity);
   return `${task.id}\n${record}\nThis session holds it.\n${await sync(home, `Create ${task.id}, held by ${identity.short}`)}\n`;
+}
+
+/**
+ * `task set-short`: the task's short name, 24 characters at most, or "" to remove it. The header's Short line is the
+ * only thing that changes; the commit and push are the store's sync, as for any listing change.
+ */
+export async function setTaskShort(home, id, short, identity) {
+  requireIdentity(identity);
+  const problem = short ? shortProblem(short) : null;
+  if (problem) fail(`--short: ${problem}`);
+  const task = findTask(home, id);
+  // A session writes only the task it holds (Track Work's Rules), the short name included.
+  if (task.hold?.short !== identity.short)
+    fail(
+      task.hold
+        ? `This session does not hold ${id}; it is ${holderText(task)}. Only its holder sets its short name.`
+        : `This session does not hold ${id}: take it with task take --id ${id}, then set its short name.`,
+    );
+  const path = join(task.dir, "record.md");
+  const text = readFileSync(path, "utf8");
+  const lines = text.split("\n");
+  // The header is the lines before the first section; a Short line anywhere else is body text.
+  const header = lines.findIndex((line) => line.startsWith("## "));
+  const at = lines.findIndex((line, index) => index < header && line.startsWith("Short: "));
+  if (short) {
+    if (at >= 0) lines[at] = `Short: ${short}`;
+    else lines.splice(lines.findIndex((line) => line.startsWith("Cue: ")) + 1, 0, `Short: ${short}`);
+  } else if (at >= 0) lines.splice(at, 1);
+  else return `${id} has no short name.\n`;
+  const candidate = lines.join("\n");
+  parseRecord5(candidate);
+  await writeFile(path, candidate);
+  return `${short ? `Set ${id}'s short name: ${short}` : `Removed ${id}'s short name`}.\n${await sync(home, `Short name for ${id} (${identity.short})`)}\n`;
 }
 
 export async function takeTask(home, id, identity, { takeover = false } = {}) {

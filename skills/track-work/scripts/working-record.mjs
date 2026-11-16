@@ -71,6 +71,7 @@ import {
   sync,
   tidyTask,
   searchTasks,
+  setTaskShort,
   sessionIdentity,
   sessionFiles,
   sessionStatus,
@@ -112,7 +113,7 @@ function usage() {
     "  working-record.mjs carry <list|show> ...",
     "  working-record.mjs migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name>] (Schema 4 to 5)",
     "  working-record.mjs project <new|show|list|remove> ... (in a Freeflow store)",
-    "  working-record.mjs task <create|take|release|switch|move|here|search|remove|tidy> ... (in a Freeflow store)",
+    "  working-record.mjs task <create|take|release|switch|move|here|search|remove|tidy|set-short> ... (in a Freeflow store)",
     "  working-record.mjs store <init|remote|status|sync> ...",
     "  working-record.mjs session status [--home <folder>] (for a harness layer)",
     "  working-record.mjs events <append|summary|show|sent> ... (the event log; append is for a harness layer)",
@@ -164,7 +165,7 @@ const COMMAND_HELP = new Map([
     "task",
     [
       "Usage: working-record.mjs task <operation> ...",
-      "Operations: task set-state and task set-budget on a record; in a Freeflow store, task create, take, release, switch, move, here, search, remove and tidy. A task belongs to a project (<project>/task-NNN) or to none (task-NNN). A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
+      "Operations: task set-state and task set-budget on a record; in a Freeflow store, task create, take, release, switch, move, here, search, remove, tidy and set-short. A task belongs to a project (<project>/task-NNN) or to none (task-NNN). A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
     ].join("\n"),
   ],
@@ -294,7 +295,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "session status",
-    "Usage: session status [--home <folder>]\nPrints, as JSON for a harness layer such as Freeflow's Claude Code mod, this session's state in the Freeflow store: home and store (false where the home is not a store, with only missing beside it); session, the session's ID; task, the task it holds, with its ID, record and State as of, or null; summary, the session summary checkpoint --session wrote, with its path and time, or null; changed, whether the store holds paths not committed or commits not pushed; transcript, the session's log, or null; missing, what keeps the session from a working store (a store FREEFLOW_HOME names that is not there, an empty clone not laid out yet, a cloud session's store with no remote), each with what, fix and by (user or agent), and empty when nothing is; compact, the request checkpoint --compact left (its path, requestedAt and done), or null. Reaches no network.",
+    "Usage: session status [--home <folder>]\nPrints, as JSON for a harness layer such as Freeflow's Claude Code mod, this session's state in the Freeflow store: home and store (false where the home is not a store, with only missing beside it); session, the session's ID; task, the task it holds, with its ID, record and State as of (and its short name when it has one), or null; summary, the session summary checkpoint --session wrote, with its path and time, or null; changed, whether the store holds paths not committed or commits not pushed; transcript, the session's log, or null; missing, what keeps the session from a working store (a store FREEFLOW_HOME names that is not there, an empty clone not laid out yet, a cloud session's store with no remote), each with what, fix and by (user or agent), and empty when nothing is; compact, the request checkpoint --compact left (its path, requestedAt and done), or null. Reaches no network.",
   ],
   [
     "project",
@@ -314,7 +315,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "project list",
-    "Usage: project list [--json]\nEach project in the Freeflow store with its number of tasks and the repositories its tasks name in Space. With --json, for a harness layer such as Freeflow's Claude Code pane: every project (the store's tasks with no project under the name null) with each of its tasks, newest first: its ID, title, state and cue; hold, the session holding it (its short ID, harness, where and since when) or null, and thisSession; lastSync; its open agreement and Slice (ID and title) or null; decisions, the open agreement's decision items (id, state, text), those waiting on the user and those the user answered first; and problem, why its record cannot be read, or null.",
+    "Usage: project list [--json]\nEach project in the Freeflow store with its number of tasks and the repositories its tasks name in Space. With --json, for a harness layer such as Freeflow's Claude Code pane: every project (the store's tasks with no project under the name null) with each of its tasks, newest first: its ID, title, state and cue, and its short name when it has one; hold, the session holding it (its short ID, harness, where and since when) or null, and thisSession; lastSync; its open agreement and Slice (ID and title) or null; decisions, the open agreement's decision items (id, state, text), those waiting on the user and those the user answered first; and problem, why its record cannot be read, or null.",
   ],
   [
     "project remove",
@@ -338,7 +339,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task create",
-    "Usage: task create --title <title> --goal <goal> --cue <cue> [--project <project> | --no-project] [--cwd <directory>] [--next-action <text>]\nMakes a Schema 5 task in the project, by default the one whose tasks name --cwd's repository, or with no project (task-NNN, in the store's tasks/) when none does or with --no-project; names that repository in its Space, and this session takes it; then commits and pushes. Only when the user asks or says yes to your question, which also asks where the task goes.",
+    "Usage: task create --title <title> --goal <goal> --cue <cue> [--short <name>] [--project <project> | --no-project] [--cwd <directory>] [--next-action <text>]\nWith --short, the task's readable name for the status line and the pane: 24 characters at most, refused when longer, never cut (task set-short changes it later). Makes a Schema 5 task in the project, by default the one whose tasks name --cwd's repository, or with no project (task-NNN, in the store's tasks/) when none does or with --no-project; names that repository in its Space, and this session takes it; then commits and pushes. Only when the user asks or says yes to your question, which also asks where the task goes.",
   ],
   [
     "task move",
@@ -380,6 +381,10 @@ const COMMAND_HELP = new Map([
   [
     "task set-state",
     "Usage: task set-state --record <record.md> --state <active|paused|completed|abandoned> --next-action <text>",
+  ],
+  [
+    "task set-short",
+    "Usage: task set-short --id <ID> --short <name>\nSets a task's short name, 24 characters at most, in the store's record header; --short \"\" removes it. Only the session that holds the task sets it; the store's sync commits and pushes the change.",
   ],
   [
     "task set-budget",
@@ -750,7 +755,8 @@ const STORE_OPTIONS = new Map([
   ["project remove", ["--name"]],
   ["project list", ["--json"]],
   ["project show", ["--name", "--cwd"]],
-  ["task create", ["--title", "--goal", "--cue", "--project", "--no-project", "--cwd", "--next-action"]],
+  ["task create", ["--title", "--goal", "--cue", "--short", "--project", "--no-project", "--cwd", "--next-action"]],
+  ["task set-short", ["--id", "--short"]],
   ["task move", ["--id", "--project", "--no-project"]],
   ["task take", ["--id", "--takeover"]],
   ["task release", ["--id", "--ended", "--no-push"]],
@@ -760,6 +766,15 @@ const STORE_OPTIONS = new Map([
   ["task remove", ["--id"]],
   ["task tidy", ["--id"]],
 ]);
+
+/** The --short option: "" means no short name (create) or removes it (set-short); a flag with no value is refused. */
+function shortOption(options) {
+  const value = options["--short"];
+  if (value === undefined) return "";
+  if (typeof value !== "string") throw new CliError('--short needs the task\'s short name, or "" for none');
+  // Spaces around a name are not part of it: the count and the stored line are the trimmed name.
+  return value.trim();
+}
 
 async function runProjects5(command, operation, options, home) {
   const allowed = new Set([...STORE_OPTIONS.get(`${command} ${operation}`), "--home"]);
@@ -786,10 +801,17 @@ async function runProjects5(command, operation, options, home) {
         title: requireOption(options, "--title"),
         goal: requireOption(options, "--goal"),
         cue: requireOption(options, "--cue"),
+        short: shortOption(options),
         nextAction: options["--next-action"],
       },
       identity,
     );
+  if (key === "task set-short") {
+    // set-short with no --short would remove the name by accident: removing takes --short "".
+    if (options["--short"] === undefined)
+      throw new CliError('task set-short needs --short <name>, or --short "" to remove it');
+    return setTaskShort(home, requireOption(options, "--id"), shortOption(options), identity);
+  }
   if (key === "task take")
     return takeTask(home, requireOption(options, "--id"), identity, { takeover: options["--takeover"] === true });
   if (key === "task release")
@@ -828,6 +850,7 @@ const WORKER_REFUSED = new Set([
   "task remove",
   "task set-state",
   "task set-budget",
+  "task set-short",
   "project new",
   "project remove",
   "migrate ",

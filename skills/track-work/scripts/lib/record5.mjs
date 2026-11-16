@@ -21,6 +21,8 @@ export const TOP5_SECTIONS = ["Current Context", "Current Work", "Future Work"];
  */
 export const FIXED_BUDGETS = { "Current Context": 600, "Future Work": 300 };
 export const CUE_WORDS = 25;
+/** A task's short name, the readable name the status line and the pane show: 24 characters at most (Setting 6). */
+export const SHORT_CHARACTERS = 24;
 export const BUDGET_MODES = new Set(["normal", "expanded"]);
 
 /** In flight's lines (P59): where the step in progress stands, and what the next step rests on, labelled as on Pi. */
@@ -188,6 +190,15 @@ export function wordCount(lines) {
     .filter((word) => word && word !== "-").length;
 }
 
+/** Why a short name is refused, or null: one line, not empty, within SHORT_CHARACTERS characters (never cut). */
+export function shortProblem(short) {
+  if (/[\r\n]/.test(short)) return "a short name is one line";
+  const length = [...short].length;
+  if (length > SHORT_CHARACTERS)
+    return `a short name is ${SHORT_CHARACTERS} characters at most; this one has ${length}`;
+  return null;
+}
+
 /** Whether text is a cue: when the entry matters, not what it holds, starting "read when", within CUE_WORDS. */
 export function cueProblem(cue) {
   if (!/^read when\s+\S/i.test(cue ?? "")) return 'a cue starts "read when" and says when the entry matters';
@@ -319,7 +330,8 @@ function parseHeader5(lines, end) {
     const schema = /^Schema:\s*(\d+)\s*·\s*State:\s*(\S+)(?:\s*·\s*Budget:\s*(\S+))?\s*$/.exec(line);
     const cue = /^Cue:\s*(.*?)\s*$/.exec(line);
     const asOf = /^State as of:\s*(\S+)\s*$/.exec(line);
-    const key = schema ? "schema" : cue ? "cue" : asOf ? "stateAsOf" : null;
+    const short = /^Short:\s*(.*?)\s*$/.exec(line);
+    const key = schema ? "schema" : cue ? "cue" : asOf ? "stateAsOf" : short ? "short" : null;
     if (!key) fail("unknown-header-field", `Unknown header content: ${line}`);
     if (key in header) fail("duplicate-field", `Duplicate header line: ${line}`);
     if (schema) {
@@ -330,6 +342,12 @@ function parseHeader5(lines, end) {
     } else if (cue) {
       header.cue = cue[1];
       header.cueLine = index;
+    } else if (short) {
+      const problem = shortProblem(short[1]);
+      if (problem || !short[1])
+        fail("invalid-short", `Short: ${problem ?? "is empty; omit the line for no short name"}`);
+      header.short = short[1];
+      header.shortLine = index;
     } else {
       header.stateAsOf = asOf[1];
       header.stateAsOfLine = index;
@@ -597,7 +615,7 @@ export function renderFields5(heading, order, values) {
   return out;
 }
 
-export function skeleton5({ name, cue, stateAsOf, sections = {} }) {
+export function skeleton5({ name, cue, short = "", stateAsOf, sections = {} }) {
   const part = (title) => {
     const lines = trimBlank(sections[title] ?? []);
     return lines.length ? ["", ...lines, ""] : [""];
@@ -607,6 +625,7 @@ export function skeleton5({ name, cue, stateAsOf, sections = {} }) {
     "",
     stateLine5("active", "normal"),
     `Cue: ${cue}`,
+    ...(short ? [`Short: ${short}`] : []),
     `State as of: ${stateAsOf}`,
     "",
     "## Current Context",
