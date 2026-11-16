@@ -91,37 +91,92 @@ function requireIdentity(identity) {
 
 const minute = (date = new Date()) => date.toISOString().slice(0, 16).replace("T", " ");
 
+// A session's line for a task names its first hold and, once it has taken the task again, its last hold's start:
+// "10:00, last held 11:00 – 11:30". A line with one hold reads "10:00 – 10:30", as before.
+const FROM_TIMES = /^(.+?), last held (.+)$/;
+
+/** The holds in sessions.md's lines, in file order; a session has one line per task, legacy files may have more. */
+function parseHolds(lines) {
+  return lines
+    .map((line, index) => ({ index, match: SESSION_LINE.exec(line) }))
+    .filter((each) => each.match)
+    .map(({ index, match }) => {
+      const times = FROM_TIMES.exec(match[4]);
+      return {
+        index,
+        short: match[1],
+        harness: match[2],
+        where: match[3],
+        first: times?.[1] ?? match[4],
+        // `from` is the start of the session's last hold: the one that counts for the hold, its events and take back.
+        from: times?.[2] ?? match[4],
+        to: match[5],
+        state: match[6],
+        back: match[7],
+      };
+    });
+}
+
 /** sessions.md's holds, oldest first; `hold` is the last line still holding. */
 export function readSessions(taskDir) {
   const path = join(taskDir, SESSIONS_FILE);
   const text = existsSync(path) ? readFileSync(path, "utf8") : null;
+  return sessionsOf(text, path);
+}
+
+function sessionsOf(text, path = null) {
   const lines = (text ?? "").split(/\r?\n/);
-  const holds = lines
-    .map((line, index) => ({ index, match: SESSION_LINE.exec(line) }))
-    .filter((each) => each.match)
-    .map(({ index, match }) => ({
-      index,
-      short: match[1],
-      harness: match[2],
-      where: match[3],
-      from: match[4],
-      to: match[5],
-      state: match[6],
-      back: match[7],
-    }));
+  const holds = parseHolds(lines);
   return { path, text, lines, holds, hold: holds.filter((each) => each.state === "holding").at(-1) ?? null };
+}
+
+/** One session's line in sessions.md. */
+function holdLine(hold) {
+  const from = hold.first && hold.first !== hold.from ? `${hold.first}, last held ${hold.from}` : hold.from;
+  return `- ${hold.short} · ${hold.harness} · ${hold.where} · ${from} – ${hold.to} · ${hold.state} · ${hold.back}`;
 }
 
 function closeHold(sessions, hold, state) {
   const lines = [...sessions.lines];
-  lines[hold.index] =
-    `- ${hold.short} · ${hold.harness} · ${hold.where} · ${hold.from} – ${minute()} · ${state} · ${hold.back}`;
+  lines[hold.index] = holdLine({ ...hold, to: minute(), state });
   return lines.join("\n");
 }
 
+/**
+ * The text with this session holding the task: its one line updated in place when it held the task before (first held
+ * kept, last held now), else a line added at the end.
+ */
 function openHold(sessions, identity) {
+  const now = minute();
+  const mine = sessions.holds.filter((hold) => hold.short === identity.short);
+  const own = mine.at(-1);
+  if (own) {
+    // First held is the earliest start among the session's lines, whichever line of a legacy file it is on.
+    const first = mine.map((hold) => hold.first).sort()[0];
+    const lines = [...sessions.lines];
+    lines[own.index] = holdLine({
+      ...own,
+      first,
+      harness: identity.harness,
+      where: identity.where,
+      from: now,
+      to: "now",
+      state: "holding",
+      back: identity.back,
+    });
+    return `${lines.join("\n").replace(/\s+$/, "")}\n`;
+  }
   const base = (sessions.text ?? "# Sessions (times in UTC)\n").replace(/\s+$/, "");
-  return `${base}\n${sessions.text ? "" : "\n"}- ${identity.short} · ${identity.harness} · ${identity.where} · ${minute()} – now · holding · ${identity.back}\n`;
+  return `${base}\n${sessions.text ? "" : "\n"}- ${identity.short} · ${identity.harness} · ${identity.where} · ${now} – now · holding · ${identity.back}\n`;
+}
+
+/** The task's latest hold: the one whose session started it last; file order breaks a tie. */
+function latestHold(holds) {
+  return holds.reduce(
+    (latest, hold) =>
+      !latest || hold.from > latest.from || (hold.from === latest.from && hold.index > latest.index) ? hold : latest,
+    null,
+  );
 }
 
 function git(home, args) {
@@ -502,7 +557,7 @@ async function writeHold(home, task, identity, { takeover = false } = {}) {
       `${task.id} is ${holderText({ ...task, hold: holder })}. Ask the user before taking it over; then task take --id ${task.id} --takeover.`,
     );
   const text = holder ? closeHold(sessions, holder, "taken over") : sessions.text;
-  await writeFile(sessions.path, openHold({ text }, identity));
+  await writeFile(sessions.path, openHold(sessionsOf(text, sessions.path), identity));
   return holder;
 }
 
@@ -601,9 +656,10 @@ export async function takeBack(home, identity) {
   let last = null;
   for (const task of allTasks(home)) {
     const { holds } = readSessions(task.dir);
+    const latest = latestHold(holds);
     for (const hold of holds) {
       if (hold.short !== identity.short || hold.state === "holding") continue;
-      const each = { task, hold, isLast: hold.index === holds.at(-1).index };
+      const each = { task, hold, isLast: hold === latest };
       if (!last || after(each, last)) last = each;
     }
   }

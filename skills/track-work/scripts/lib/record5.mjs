@@ -91,6 +91,7 @@ export const UPDATE_KINDS = new Set([
   "Paused",
   "Resumed",
   "Extension",
+  "Moved",
 ]);
 
 export const ENTRY_KINDS = { S: "slice", A: "agreement", D: "delegation" };

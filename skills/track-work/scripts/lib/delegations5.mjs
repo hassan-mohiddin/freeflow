@@ -422,7 +422,10 @@ export async function openDelegation(loaded, options, text) {
     const commit = git(repo, ["rev-parse", "--short=8", `${base}^{commit}`]);
     if (!ok(commit)) fail(`--base ${base} is not a commit in ${repo}.`);
     const branch = options["--branch"] ?? slug;
-    worktree = resolve(options["--worktree"] ?? join(dirname(repo), `${basename(repo)}-${slug}`));
+    // One folder per repository, beside it: its delegations' worktrees sit in <repo>.worktrees/, never inside the repo.
+    worktree = resolve(
+      options["--worktree"] ?? join(dirname(repo), `${basename(repo)}.worktrees`, basename(directory)),
+    );
     const made = git(repo, ["worktree", "add", "-q", "-b", branch, worktree, commit]);
     if (!ok(made)) fail(`Could not make the worktree: ${made.message}`);
     space = `${repo} worktree ${worktree} at ${commit}, branch ${branch}`;
@@ -812,6 +815,55 @@ function workerMeasured(taskDir, id, brief, options, env = process.env) {
   return measure ? renderMeasure(measure) : "not measured";
 }
 
+/** The commits in a range, counted in a directory; null when git cannot count them. */
+function countCommits(directory, range) {
+  const count = git(directory, ["rev-list", "--count", range]);
+  return ok(count) && /^\d+$/.test(count) ? Number(count) : null;
+}
+
+/**
+ * The commits beyond the base that the branch holds or the worktree's HEAD holds, a detached HEAD's included; null
+ * when git cannot count them. A worker that commits on a detached HEAD moves HEAD, not the branch.
+ */
+function commitsBeyondBase(brief) {
+  const branch = countCommits(brief.repo, `${brief.base}..${brief.branch}`);
+  const head = brief.worktree && existsSync(brief.worktree) ? countCommits(brief.worktree, `${brief.base}..HEAD`) : 0;
+  return branch === null || head === null ? null : Math.max(branch, head);
+}
+
+/** The commits the worktree's HEAD holds that its branch does not; null when git cannot count them. */
+function commitsOffBranch(brief) {
+  if (!brief.worktree || !existsSync(brief.worktree)) return 0;
+  return countCommits(brief.worktree, `${brief.branch}..HEAD`);
+}
+
+/**
+ * Removes the delegation's worktree when its outcome is accepted or stopped (a sent back one runs again, so it stays),
+ * and only when it holds nothing that removing it would lose: no uncommitted or untracked change, no ignored file
+ * outside node_modules/ (git deletes ignored files with the worktree; node_modules/ is reinstalled), and no commit its
+ * HEAD holds and its branch does not. Never with --force. Its branch is kept. Returns the line that says what it did,
+ * or why it left the worktree.
+ */
+function removeWorktree(brief, outcome) {
+  const path = brief.worktree;
+  if (!path || !brief.repo || outcome === "sent back") return "";
+  if (!existsSync(path)) return `\nThe worktree ${path} is already gone; branch ${brief.branch} is kept.`;
+  const status = git(path, ["status", "--porcelain", "--ignored", "--untracked-files=all"]);
+  if (!ok(status)) return `\nLeft the worktree ${path}: git could not read its status.`;
+  const entries = status ? status.split("\n") : [];
+  if (entries.some((line) => !line.startsWith("!! ")))
+    return `\nLeft the worktree ${path}: it has uncommitted or untracked changes.`;
+  const kept = entries.map((line) => line.slice(3)).filter((file) => !file.startsWith("node_modules/"));
+  if (kept.length)
+    return `\nLeft the worktree ${path}: it holds ignored files outside node_modules/, which removing it would delete (${kept.slice(0, 3).join(", ")}${kept.length > 3 ? `, and ${kept.length - 3} more` : ""}).`;
+  const off = commitsOffBranch(brief);
+  if (off !== 0)
+    return `\nLeft the worktree ${path}: its HEAD holds ${off === null ? "commits git cannot count" : `${off} commit(s)`} that branch ${brief.branch} does not, and removing it would leave them unreachable.`;
+  const removed = git(brief.repo, ["worktree", "remove", path]);
+  if (!ok(removed)) return `\nLeft the worktree ${path}: ${removed.message}.`;
+  return `\nRemoved the worktree ${path}; branch ${brief.branch} is kept.`;
+}
+
 /**
  * Closes one of the coordinator's delegations: records its outcome in one History entry (with the model, effort,
  * tokens, minutes, the merge commit and the return's path), removes its line, and syncs the store.
@@ -849,10 +901,22 @@ export async function closeDelegation(loaded, options, text) {
     const merge = oneLine(options["--merge"]);
     if (outcome === "accepted") {
       if (problems.length) fail(`${id} cannot be accepted: its return is not ready: ${problems.join("; ")}.`);
-      if (brief.branch && !merge)
-        fail(`${id} has branch ${brief.branch}: accepting it records the commit that merged it, --merge <commit>.`);
+      // A reader, a survey or a reviewer made no commits and has nothing to merge; a builder's commits must be merged.
+      const ahead = brief.branch ? commitsBeyondBase(brief) : 0;
+      if (ahead !== 0 && !merge)
+        fail(
+          `${id} has branch ${brief.branch}${ahead === null ? " whose commits cannot be counted" : ` with ${ahead} commit(s) beyond ${brief.base}`}: accepting it records the commit that merged it, --merge <commit>, since its commits must reach the repository. A delegation with no commits beyond its base needs no --merge.`,
+        );
       if (merge && !ok(git(brief.repo, ["merge-base", "--is-ancestor", brief.branch, merge])))
         fail(`Branch ${brief.branch} is not merged in ${merge} in ${brief.repo}.`);
+      // A detached HEAD's own commits must be in the merge too, or the worktree's removal would be refused and they stay.
+      if (merge && brief.worktree && existsSync(brief.worktree) && commitsOffBranch(brief) !== 0) {
+        const head = git(brief.worktree, ["rev-parse", "--verify", "HEAD"]);
+        if (!ok(head) || !ok(git(brief.repo, ["merge-base", "--is-ancestor", head, merge])))
+          fail(
+            `${id}'s worktree HEAD holds commits that branch ${brief.branch} does not, and ${merge} does not hold them: merge them, then close with that commit.`,
+          );
+      }
     }
     const number = (name) => {
       const value = oneLine(options[name]);
@@ -922,7 +986,8 @@ export async function closeDelegation(loaded, options, text) {
   const decided = added?.items.length
     ? `\nAdded to decisions.md from ${id}'s Left open: ${added.items.join(", ")}${added.linked.length ? ` (${added.linked.join("; ")})` : ""}.`
     : "";
-  return `Closed ${id} — ${outcome}${reason ? ` (${reason})` : ""}${decided}${released}${note}\n${await sync(taskDir, `close ${id}`)}\n`;
+  const removed = removeWorktree(brief, outcome);
+  return `Closed ${id} — ${outcome}${reason ? ` (${reason})` : ""}${decided}${released}${removed}${note}\n${await sync(taskDir, `close ${id}`)}\n`;
 }
 
 /**
