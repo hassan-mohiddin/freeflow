@@ -95,7 +95,7 @@ test(
           assert.equal(JSON.parse(readFileSync(join(home, "sessions", session, "compact.json"), "utf8")).done, true);
         },
         true,
-        noRouting,
+        { ...noRouting, home },
       );
     });
   },
@@ -148,6 +148,7 @@ test(
         true,
         {
           ...noRouting,
+          home,
           beforePrompt: async () => {
             execFileSync(process.execPath, [
               script,
@@ -196,6 +197,7 @@ test("a reload keeps the session's hold, since the same session goes on (F36)", 
       true,
       {
         ...noRouting,
+        home,
         beforePrompt: async () => {
           execFileSync(process.execPath, [
             script,

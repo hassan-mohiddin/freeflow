@@ -3,7 +3,8 @@ export type CompactionState = Readonly<{ enabled: boolean; effective: boolean }>
 /** Freeflow compaction is on whenever Freeflow is, unless a config turns it off. */
 export const DEFAULT_COMPACTION_ENABLED = true;
 /** The keys `compaction` acts on; the settings test checks each has a /freeflow settings row. */
-export const COMPACTION_KEYS = ["enabled"] as const;
+// `withoutTask`: Freeflow's compaction when no task is held (D-060); with a task it always applies.
+export const COMPACTION_KEYS = ["enabled", "withoutTask"] as const;
 // `carry`, context reuse, is retired: Track Work's bundle carries the files In flight names, and nothing else.
 // Existing configuration files keep loading; the value no longer does anything.
 const RETIRED_KEYS = ["carry"];

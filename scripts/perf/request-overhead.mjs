@@ -140,10 +140,12 @@ async function run(label, config, sessionPath) {
   const cwd = join(dir, "cwd"),
     agentDir = join(dir, "agent"),
     sessions = join(dir, "sessions");
-  await mkdir(join(cwd, ".freeflow"), { recursive: true });
+  await mkdir(cwd, { recursive: true });
   await mkdir(agentDir);
   await mkdir(sessions);
-  if (config) await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify(config));
+  // The scenario's settings live in its Freeflow home (D-060), which is set for the run below.
+  await mkdir(join(dir, "home"), { recursive: true });
+  if (config) await writeFile(join(dir, "home", "settings.json"), JSON.stringify(config));
   await writeFile(
     join(agentDir, "models.json"),
     JSON.stringify({ providers: { openai: { baseUrl: "https://perf.invalid/v1" } } }),

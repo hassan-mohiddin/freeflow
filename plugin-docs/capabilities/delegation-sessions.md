@@ -13,6 +13,8 @@ Pi: cd <worktree> && pi --session-name D-031 "…"
 
 You or the agent start it; Freeflow does not start sessions itself. In the new session, `delegate join` makes it the worker and prints what it must read first.
 
+A worker's worktree sits in one folder beside its repository, `<repo>.worktrees/D-031-<slug>`, and `delegate close` removes it once the delegation is accepted or stopped, if nothing in it would be lost: no uncommitted or untracked change, no ignored file outside `node_modules/` (removing a worktree deletes its ignored files, and `node_modules/` is reinstalled), and no commit on a detached HEAD that its branch does not hold. The branch stays. A worktree that holds any of these is left in place, and the close says what kept it.
+
 ## What a worker session may do
 
 - It holds no task. Commands that write the task's record (`task take`, `checkpoint --record`, `slice …`, `agreement …`, `delegate close`) are refused with "this session works for D-031".
@@ -32,13 +34,13 @@ Every delegation event is a line in the task folder's `channel.jsonl`: the brief
 
 A session can claim files it is changing: `working-record.mjs claim --paths 'src/**'`. `delegate open --writes` claims the worker's scope for it. Another session that is about to write a claimed file gets a warning from the [delegation gate](gates.md) naming the task, the session and how long the claim lasts. Claims live in the Freeflow store, so with a cloud store they reach your other machines at their next sync.
 
-A claim lasts `delegation.claimHours` (4 hours by default). It is renewed while its session keeps syncing, and ends at `release`, when its delegation is closed, or when its session ends. `claim --list` shows every live claim.
+A claim lasts `delegation.claimHours` (8 hours by default). It is renewed while its session keeps syncing, and ends at `release`, when its delegation is closed, or when its session ends. `claim --list` shows every live claim.
 
 ## Settings
 
 | Setting | Values | Default |
 | --- | --- | --- |
-| `delegation.claimHours` | `1`, `2`, `4`, `8`, `24` | `4` |
+| `delegation.claimHours` | `1`, `2`, `4`, `8`, `24` | `8` |
 | `delegation.wakeOnReturn` | `true`, `false` | `true` |
 
 Both are in every scope ([Settings](../settings.md)).

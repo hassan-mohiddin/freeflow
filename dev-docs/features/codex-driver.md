@@ -1,7 +1,7 @@
 # Codex driver
 
 > **Covers:** `hooks/codex/`
-> **Verified at:** `f7c8450c` (2026-11-14): not driven in round 2: no step's output changed (the Codex gate's conformance name and golden log changed in round 1); covered by `hooks/tests/codex-driver.test.mjs` (22 tests)
+> **Verified at:** `f83c3fc5` (2026-11-16: all five steps below driven at `f83c3fc5` in a fresh run, exit 0 each; the live Codex session is not driven)
 > **User docs:** `plugin-docs/getting-started.md`, `plugin-docs/capabilities/event-log.md`
 
 On Codex, Freeflow's driver runs on Codex's hook events once the user has approved its hooks in `/hooks`. At a session's start the agent gets Freeflow's guidance and, with a store, the task menu with the user's rules; as the context fills, one checkpoint notice near Codex's own compaction, after the next tool call or prompt, and nothing before it; after Codex compacts, the task's record after Codex's summary. The event log keeps each loop event, written at the turn's end, the store syncs at a turn's end, and the session's end releases its hold, pushed at the next start. `capabilities.mjs` lists Codex's claims.
@@ -16,14 +16,14 @@ On Codex, Freeflow's driver runs on Codex's hook events once the user has approv
 
 ## How to get to it (user POV)
 
-- Install Freeflow on Codex, approve its hooks in `/hooks`, and start a session in a repository with `.freeflow/config.json`.
+- Install Freeflow on Codex, approve its hooks in `/hooks`, and start a session in a repository (no config file is needed: installed means on, D-060).
 - Ask the agent what Freeflow can do here; it runs `capabilities.mjs list`.
 
 ## Driving it
 
 Preconditions:
 
-- Any fresh run; Pi itself is not used, and neither is Codex: each step pipes a hook input, shaped as Codex's generated hook schemas give it, into `hooks/codex/driver.mjs <event>`, as Codex runs it. `observe` sets `FFV_REPO` to this repository, and the single quotes keep your shell from expanding it.
+- Any fresh run (driven at `0ca2ebb1`, with `launch`); Pi itself is not used, and neither is Codex: each step pipes a hook input, shaped as Codex's generated hook schemas give it, into `hooks/codex/driver.mjs <event>`, as Codex runs it. `observe` sets `FFV_REPO` to this repository, and the single quotes keep your shell from expanding it.
 - Every step defines `h`, which sends one event for session `thr_f1` in the fixture: `h <event> '<fields as JSON>'`. Copy it as written.
 - Run the steps in order: each builds on the one before, in the same `codex-home` store.
 

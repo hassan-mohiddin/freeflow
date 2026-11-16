@@ -28,8 +28,8 @@ export const CONFORMANCE = {
   ],
   ask: ["ask-user/ask-user.test.js", "the model reads the answers, each deciding only its question"],
   block: [
-    "gates/runtime.test.js",
-    "Pi's tool_call warns through the call's result and allows, or blocks with the reason under block",
+    "tool-execution/file-tracking-native.test.js",
+    "write refuses to overwrite a file that was never read, and only that",
   ],
   sensors: [
     "events/recorder.test.js",

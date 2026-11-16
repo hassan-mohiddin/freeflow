@@ -8,8 +8,6 @@ export default {
     "a model request past the notice point: its notice reaches the model at the next tool call or prompt, once a cycle",
   checkpoint:
     "a checkpoint after the notice, through Track Work's script, makes the bundle after Codex's next compaction current; checkpoint --compact is refused, naming Codex's thresholds",
-  block:
-    "the delegation gate under block: PreToolUse denies a call it fires on in Codex's deny shape with the gate's text as the reason, a removed gate's step runs, and with no gate state a main-loop call still runs",
   sensors:
     "the event log: a scripted Codex session's lines are schema v1, in order, kept until the turn ends and written in one run, never contents",
 };

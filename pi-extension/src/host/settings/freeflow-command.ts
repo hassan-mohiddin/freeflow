@@ -1,31 +1,21 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-
 import {
   readCapabilityState,
-  readFreeflowConfig,
   readFreeflowConfigLayers,
-  readFreeflowLocalConfig,
   resetSessionOverrides,
   setSessionCoreOverride,
   type SessionCoreKey,
 } from "../config.js";
 import {
   CLAIM_HOURS,
-  GATE_KEYS,
-  GATE_MODES,
-  REVIEW_DEFAULTS,
-  REVIEW_ROUNDS,
-  REVIEW_UNITS,
+  MEMORY_MODES,
   RUNTIME_PROMPTS,
   SWITCHABLE_SKILLS,
   resolveDelegationSettings,
-  resolveGateSettings,
-  resolveReviewSettings,
   sectionEnabled,
+  settingSpec,
 } from "../config-validation.js";
 import { freeflowStatusText } from "../status.js";
-import { ensureLocalConfigIgnored, pruneDefaults } from "../config-store.js";
+import { defaultValueFor, freeflowHome, readConfigFile, writeLayer } from "../config-store.js";
 import {
   PiSettingsComponent,
   type SettingsCommitResult,
@@ -53,8 +43,8 @@ const LOCAL_INHERIT = "inherit";
 /** How a value's source reads in the settings screen. */
 const SOURCE_LABELS: Record<ConfigSource, string> = {
   builtin: "default",
-  local: "personal",
-  repository: "repository",
+  local: "This folder",
+  repository: "Everywhere",
   session: "session",
 };
 
@@ -79,9 +69,9 @@ type SettingsItem = {
   runtimeInactive?: boolean;
   /** A group shown as one row that opens its settings on a screen of their own, as each prompt and skill do. */
   nested?: boolean;
-  /** The section's own row, as a capability's `.enabled` switch is, for a section without one (Review). */
+  /** The section's own row, as a capability's `.enabled` switch is, for a section without one. */
   heading?: boolean;
-  /** Repository tab: the repository file does not set this, so its value is Freeflow's default. */
+  /** Everywhere tab: the Freeflow home's settings.json does not set this, so its value is Freeflow's default. */
   repositoryUnset?: boolean;
   displaySuffix?: string;
   children?: SettingsItem[];
@@ -307,7 +297,7 @@ function createScopedBooleanItem(options: ScopedBooleanItemOptions): SettingsIte
   return item;
 }
 
-/** A choice among fixed values, in the Personal or Repository scope; Personal can inherit the repository's value. */
+/** A choice among fixed values, in the This folder or Everywhere scope; This folder can inherit Everywhere's value. */
 function createScopedChoiceItem(options: {
   scope: Exclude<ConfigScope, "session">;
   rawConfig: Record<string, unknown>;
@@ -322,17 +312,13 @@ function createScopedChoiceItem(options: {
   defaultValue: string;
   effectiveValue: string;
   effectiveSource: ConfigSource;
-  /** The file holds numbers (review.rounds); the choices are their strings. */
-  numeric?: boolean;
 }): SettingsItem {
-  const choice = (value: unknown) => (options.numeric && typeof value === "number" ? String(value) : value);
-  const stored = (value: string) => (options.numeric ? Number(value) : value);
-  const repositoryValue = choice(getPath(options.rawConfig, options.path));
+  const repositoryValue = getPath(options.rawConfig, options.path);
   const inheritedValue = options.values.includes(repositoryValue as string)
     ? (repositoryValue as string)
     : options.defaultValue;
   const inheritedSource: ConfigSource = repositoryValue === undefined ? "builtin" : "repository";
-  const localValue = choice(getPath(options.localConfig, options.path));
+  const localValue = getPath(options.localConfig, options.path);
   const common = {
     id: options.id,
     label: options.label,
@@ -353,25 +339,19 @@ function createScopedChoiceItem(options: {
           ...options.valueDescriptions,
         },
         configScope: "local",
-        configValues: Object.fromEntries([
-          ["inherit", undefined],
-          ...options.values.map((value) => [value, stored(value)]),
-        ]),
+        configValues: Object.fromEntries([["inherit", undefined], ...options.values.map((value) => [value, value])]),
         inheritedValue,
         inheritedSource,
       }
     : {
         ...common,
-        description: `${options.description} This edits shared .freeflow/config.json.`,
+        description: `${options.description} This edits Everywhere: the Freeflow home's settings.json.`,
         value: inheritedValue,
         values: [...options.values],
         valueLabels: options.valueLabels,
         valueDescriptions: options.valueDescriptions,
         defaultValue: options.defaultValue,
         configScope: "repository",
-        ...(options.numeric
-          ? { configValues: Object.fromEntries(options.values.map((value) => [value, stored(value)])) }
-          : {}),
         repositoryUnset: repositoryValue === undefined,
         localOverrideValue: options.values.includes(localValue as string) ? localValue : undefined,
       };
@@ -434,11 +414,6 @@ const INBOUND_DESCRIPTIONS = {
   hold: "Ask you before delivering any message.",
   refuse: "Refuse every message.",
 };
-// The gate (SPEC-008 4.5): one row, off, warn or block. The agreement, Slice and delivery gates were removed (D-058).
-const GATE_LABELS: Record<(typeof GATE_KEYS)[number], [string, string]> = {
-  delegation: ["Delegation gate", "A worker's write outside its brief's scope, or to the task's record"],
-};
-const GATE_VALUE_LABELS = { off: "off", warn: "warn", block: "block" };
 // Delegation across sessions (SPEC-009 4.7).
 const CLAIM_HOURS_LABELS = { "1": "1 hour", "2": "2 hours", "4": "4 hours", "8": "8 hours", "24": "24 hours" };
 const CLAIM_HOURS_DESCRIPTIONS = Object.fromEntries(
@@ -447,35 +422,8 @@ const CLAIM_HOURS_DESCRIPTIONS = Object.fromEntries(
     `A claim on paths lasts ${CLAIM_HOURS_LABELS[hours]}, renewed while its session syncs.`,
   ]),
 );
-const GATE_DESCRIPTIONS = {
-  off: "No check.",
-  warn: "The agent reads a warning with the rule and the way through, and the event log counts it.",
-  block: "The call is refused with the same text.",
-};
 
-const REVIEW_UNIT_LABELS = {
-  pr: "pull request",
-  push: "push",
-  commit: "commit",
-  agreement: "agreement",
-  manual: "manual",
-};
-const REVIEW_UNIT_DESCRIPTIONS = {
-  pr: "Review before each pull request opens.",
-  push: "Review before each push.",
-  commit: "Review before each commit.",
-  agreement: "Review at each agreement's Return.",
-  manual: "The agent proposes each review, with its plan and cost, and waits for your yes.",
-};
-const REVIEW_ROUND_KEYS = REVIEW_ROUNDS.map(String);
-const REVIEW_ROUND_LABELS = { "1": "Review 1", "2": "up to Review 2", "3": "up to Review 3" };
-const REVIEW_ROUND_DESCRIPTIONS = {
-  "1": "One review; no follow-up review of the corrections.",
-  "2": "A focused Review 2 of the corrections when it is needed.",
-  "3": "Up to an exceptional, final Review 3 (the most a depth allows).",
-};
-
-/** A choice among fixed values in the Session scope; inherit follows the personal and repository settings. */
+/** A choice among fixed values in the Session scope; inherit follows This folder and Everywhere. */
 function createSessionChoiceItem(options: {
   id: string;
   label: string;
@@ -488,11 +436,8 @@ function createSessionChoiceItem(options: {
   inheritedSource: ConfigSource;
   effectiveValue: string;
   sessionOverrides: Partial<Record<SessionCoreKey, unknown>>;
-  /** The session holds numbers (review.rounds); the choices are their strings. */
-  numeric?: boolean;
 }): SettingsItem {
-  const raw = options.sessionOverrides[options.key];
-  const override = options.numeric && typeof raw === "number" ? String(raw) : raw;
+  const override = options.sessionOverrides[options.key];
   const set = typeof override === "string" && options.values.includes(override);
   return {
     id: options.id,
@@ -511,10 +456,7 @@ function createSessionChoiceItem(options: {
       ...options.valueDescriptions,
     },
     configScope: "session",
-    configValues: Object.fromEntries([
-      ["inherit", undefined],
-      ...options.values.map((value) => [value, options.numeric ? Number(value) : value]),
-    ]),
+    configValues: Object.fromEntries([["inherit", undefined], ...options.values.map((value) => [value, value])]),
     effectiveValue: options.effectiveValue,
     effectiveSource: set ? "session" : options.inheritedSource,
     inheritedValue: options.inheritedValue,
@@ -558,15 +500,14 @@ function nestedGroup(id: string, label: string, description: string, children: S
 /** Sections from everyday to experimental (Task 005): Freeflow, then the capabilities, then session tools. */
 const SECTION_ORDER = [
   "freeflow.enabled",
+  "freeflow.memory.mode",
   "freeflow.prompts",
   "freeflow.skills",
   "freeflow.compaction",
   "freeflow.toolExecution",
   "freeflow.messaging",
   "freeflow.events",
-  "freeflow.gates",
   "freeflow.delegation",
-  "freeflow.review",
   "freeflow.session",
 ];
 
@@ -588,7 +529,6 @@ function capabilityStatus(state: { enabled?: boolean; effective?: boolean } | un
 
 function sessionFreeflowItems(
   state: Awaited<ReturnType<typeof readCapabilityState>>,
-  ctx: any,
   rawConfig: Record<string, unknown>,
   localConfig: Record<string, unknown>,
 ): SettingsItem[] {
@@ -646,6 +586,15 @@ function sessionFreeflowItems(
     state.toolExecution?.guidanceNotices ?? DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices,
     DEFAULT_TOOL_EXECUTION_CONFIG.guidanceNotices,
   );
+  const withoutTaskInherited = configuredSetting(rawConfig, localConfig, ["compaction", "withoutTask"], true);
+  const withoutTaskItem = sessionSwitch(
+    "freeflow.compaction.withoutTask",
+    "Compaction without a task",
+    "Freeflow's compaction also runs in this session with no task held.",
+    "compaction.withoutTask",
+    withoutTaskInherited.value,
+    true,
+  );
   const compactionItem = sessionSwitch(
     "freeflow.compaction.enabled",
     "Enabled",
@@ -668,27 +617,28 @@ function sessionFreeflowItems(
     eventsOn,
     true,
   );
-  // The gates, on every host with a Freeflow driver (SPEC-008 4.5).
-  const gateItems = GATE_KEYS.map((gate) => {
-    const inherited = configuredSetting(rawConfig, localConfig, ["gates", gate], "warn");
-    const item = createSessionChoiceItem({
-      id: `freeflow.gates.${gate}`,
-      label: GATE_LABELS[gate][0],
-      description: `${GATE_LABELS[gate][1]}, in this session.`,
-      key: `gates.${gate}`,
-      values: GATE_MODES,
-      valueLabels: GATE_VALUE_LABELS,
-      valueDescriptions: GATE_DESCRIPTIONS,
-      inheritedValue: inherited.value,
-      inheritedSource: inherited.source,
-      effectiveValue: state.gates?.[gate] ?? "warn",
-      sessionOverrides,
-    });
-    item.inactive = freeflowInactive;
-    return item;
-  });
   // Delegation across sessions, on every host with a Freeflow driver (SPEC-009 4.7).
-  const claimInherited = configuredSetting(rawConfig, localConfig, ["delegation", "claimHours"], "4");
+  // Unset everywhere: sync when the store has a remote, else on this machine (defaultValueFor, round 3).
+  const memoryDefault = String(defaultValueFor(settingSpec("memory.mode")!, freeflowHome(process.env)));
+  const memoryInherited = configuredSetting(rawConfig, localConfig, ["memory", "mode"], memoryDefault);
+  const memoryItem = createSessionChoiceItem({
+    id: "freeflow.memory.mode",
+    label: "Task memory",
+    description: "Task memory in this session: on, this machine; on, with sync; or off.",
+    key: "memory.mode",
+    values: MEMORY_MODES,
+    valueLabels: { local: "on, this machine", sync: "on, with sync", off: "off" },
+    valueDescriptions: {
+      local: "Task memory is on, kept on this machine only.",
+      sync: "Task memory is on, and synced to the store's private remote.",
+      off: "No menu, no task offered, nothing recorded.",
+    },
+    inheritedValue: memoryInherited.value,
+    inheritedSource: memoryInherited.source,
+    effectiveValue: (sessionOverrides["memory.mode"] as string | undefined) ?? memoryInherited.value,
+    sessionOverrides,
+  });
+  const claimInherited = configuredSetting(rawConfig, localConfig, ["delegation", "claimHours"], "8");
   const claimItem = createSessionChoiceItem({
     id: "freeflow.delegation.claimHours",
     label: "Claim hours",
@@ -699,7 +649,7 @@ function sessionFreeflowItems(
     valueDescriptions: CLAIM_HOURS_DESCRIPTIONS,
     inheritedValue: claimInherited.value,
     inheritedSource: claimInherited.source,
-    effectiveValue: state.delegation?.claimHours ?? "4",
+    effectiveValue: state.delegation?.claimHours ?? "8",
     sessionOverrides,
   });
   claimItem.inactive = freeflowInactive;
@@ -729,53 +679,6 @@ function sessionFreeflowItems(
     sessionOverrides,
   });
   inboundItem.inactive = freeflowInactive;
-  const unitInherited = configuredSetting(rawConfig, localConfig, ["review", "unit"], REVIEW_DEFAULTS.unit as string);
-  const reviewUnitItem = createSessionChoiceItem({
-    id: "freeflow.review.unit",
-    label: "Review unit",
-    description: "When finished work gets its independent review, in this session.",
-    key: "review.unit",
-    values: REVIEW_UNITS,
-    valueLabels: REVIEW_UNIT_LABELS,
-    valueDescriptions: REVIEW_UNIT_DESCRIPTIONS,
-    inheritedValue: unitInherited.value,
-    inheritedSource: unitInherited.source,
-    effectiveValue: state.review?.unit ?? REVIEW_DEFAULTS.unit,
-    sessionOverrides,
-  });
-  reviewUnitItem.inactive = freeflowInactive;
-  reviewUnitItem.heading = true;
-  const roundsInherited = configuredSetting(
-    rawConfig,
-    localConfig,
-    ["review", "rounds"],
-    REVIEW_DEFAULTS.rounds as number,
-  );
-  const reviewRoundsItem = createSessionChoiceItem({
-    id: "freeflow.review.rounds",
-    label: "Review rounds",
-    description: "The most review rounds of one change, in this session.",
-    key: "review.rounds",
-    values: REVIEW_ROUND_KEYS,
-    valueLabels: REVIEW_ROUND_LABELS,
-    valueDescriptions: REVIEW_ROUND_DESCRIPTIONS,
-    inheritedValue: String(roundsInherited.value),
-    inheritedSource: roundsInherited.source,
-    effectiveValue: String(state.review?.rounds ?? REVIEW_DEFAULTS.rounds),
-    sessionOverrides,
-    numeric: true,
-  });
-  reviewRoundsItem.inactive = freeflowInactive;
-  const reviewModelItem = reviewerModelItem({
-    scope: "session",
-    rawConfig,
-    localConfig,
-    effectiveValue: state.review?.model,
-    effectiveSource: typeof sessionOverrides["review.model"] === "string" ? "session" : "builtin",
-    ctx,
-    sessionValue: typeof sessionOverrides["review.model"] === "string" ? sessionOverrides["review.model"] : undefined,
-  });
-  reviewModelItem.inactive = freeflowInactive;
   const promptsMaster = sessionSwitch(
     "freeflow.prompts.enabled",
     "Enabled",
@@ -824,6 +727,7 @@ function sessionFreeflowItems(
 
   const items: SettingsItem[] = [
     freeflowItem,
+    memoryItem,
     sectionItem("freeflow.prompts", "Runtime prompts", "Runtime prompts for this session.", "", [
       promptsMaster,
       nestedGroup("freeflow.prompts.each", "Each prompt", "One switch per prompt, in this session.", promptItems),
@@ -844,7 +748,7 @@ function sessionFreeflowItems(
       "Compaction",
       "Compaction for this session.",
       capabilityStatus(state.compaction),
-      [compactionItem],
+      [compactionItem, withoutTaskItem],
     ),
     sectionItem("freeflow.messaging", "Messaging", "Messaging for this session.", capabilityStatus(state.messaging), [
       messagingItem,
@@ -853,22 +757,15 @@ function sessionFreeflowItems(
     sectionItem("freeflow.events", "Event log", "The event log for this session.", eventsOn ? "on" : "off", [
       eventsItem,
     ]),
-    sectionItem("freeflow.gates", "Gates", "Freeflow's gates for this session.", "", gateItems),
     sectionItem("freeflow.delegation", "Delegation", "Delegation across sessions for this session.", "", [
       claimItem,
       wakeItem,
-    ]),
-    sectionItem("freeflow.review", "Review", "Review Work for this session.", "", [
-      reviewUnitItem,
-      reviewModelItem,
-      reviewRoundsItem,
     ]),
     sectionItem("freeflow.session", "Session", "Session overrides.", "", [
       {
         id: "freeflow.session.reset",
         label: "Reset overrides",
-        description:
-          "Clear every session override above, so the session follows personal and repository settings again.",
+        description: "Clear every session override above, so the session follows This folder and Everywhere again.",
         kind: "enum",
         value: "available",
         values: ["reset"],
@@ -896,112 +793,6 @@ function sessionFreeflowItems(
   return inSectionOrder(items);
 }
 
-const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-
-/**
- * The thinking levels a model supports, by Pi's own rule (pi-ai's getSupportedThinkingLevels): a model without
- * reasoning has only off; a level its thinkingLevelMap maps to null is unsupported; xhigh and max need a mapping.
- * Pi's model registry has no such method, so the rule reads the model's data directly.
- */
-function supportedThinkingLevels(model: any): string[] {
-  if (model?.reasoning !== true) return ["off"];
-  return THINKING_LEVELS.filter((level) => {
-    const mapped = model.thinkingLevelMap?.[level];
-    if (mapped === null) return false;
-    return level === "xhigh" || level === "max" ? mapped !== undefined : true;
-  });
-}
-
-/** This host's authenticated models that support a thinking level, by `provider/id`, sorted. */
-function availableModelKeys(ctx: any): string[] {
-  const registry = ctx?.modelRegistry;
-  if (typeof registry?.getAvailable !== "function") return [];
-  let models: any[];
-  try {
-    models = registry.getAvailable();
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(models)) return [];
-  return models
-    .filter((model) => typeof model?.provider === "string" && typeof model?.id === "string")
-    .filter((model) => supportedThinkingLevels(model).length > 0)
-    .map((model) => `${model.provider}/${model.id}`)
-    .sort((a, b) => a.localeCompare(b));
-}
-
-/**
- * The reviewer model: Freeflow passes the name on as written (Review Work), so the picker offers this host's
- * authenticated models by `provider/id`, keeps a name set elsewhere, and clears the setting with None or inherit.
- */
-function reviewerModelItem(options: {
-  scope: ConfigScope;
-  rawConfig: Record<string, unknown>;
-  localConfig: Record<string, unknown>;
-  effectiveValue: string | undefined;
-  effectiveSource: ConfigSource;
-  ctx: any;
-  sessionValue?: string;
-}): SettingsItem {
-  const path = ["review", "model"];
-  const name = (value: unknown) => (typeof value === "string" ? value : undefined);
-  const repositoryModel = name(getPath(options.rawConfig, path));
-  const configuredModel = name(getPath(options.localConfig, path)) ?? repositoryModel;
-  const session = options.scope === "session";
-  const local = options.scope === "local";
-  const value = session ? options.sessionValue : local ? name(getPath(options.localConfig, path)) : repositoryModel;
-  const inherited = session ? configuredModel : repositoryModel;
-  const clear = session
-    ? { label: "Inherit configured setting", description: "Remove this session's reviewer model." }
-    : local
-      ? { label: "Inherit repository setting", description: "Remove your personal reviewer model." }
-      : { label: "auto", description: "The cheapest capable model; a stronger one for the security tier." };
-  const models = availableModelKeys(options.ctx);
-  const names = value && !models.includes(value) ? [value, ...models] : models;
-  return {
-    id: "freeflow.review.model",
-    label: "Reviewer model",
-    description: session
-      ? "The model a reviewer runs on, in this Pi session only."
-      : local
-        ? "The model a reviewer runs on, for you in this checkout."
-        : "The model a reviewer runs on, where the host lets the agent choose one. This edits shared .freeflow/config.json.",
-    path,
-    kind: "string",
-    // The Repository tab shows the default, auto, when the file sets no model.
-    value: session || local ? value : (value ?? REVIEW_DEFAULTS.model),
-    ...(session || local ? {} : { repositoryUnset: value === undefined }),
-    format: (current) => (typeof current === "string" ? current : REVIEW_DEFAULTS.model),
-    configScope: options.scope,
-    effectiveValue: options.effectiveValue,
-    effectiveSource: options.effectiveSource,
-    inheritedValue: session || local ? (inherited ?? REVIEW_DEFAULTS.model) : undefined,
-    inheritedSource:
-      session && name(getPath(options.localConfig, path))
-        ? "local"
-        : (session || local) && repositoryModel
-          ? "repository"
-          : "builtin",
-    wizard: () => ({
-      firstStep: () => ({
-        title: "Choose reviewer model",
-        choices: [
-          { key: LOCAL_INHERIT, value: LOCAL_INHERIT, label: clear.label, description: clear.description },
-          ...names.map((key) => ({
-            key,
-            value: key,
-            label: key,
-            description: models.includes(key) ? "" : "Set in the file; not an authenticated model here.",
-          })),
-        ],
-        selectedKey: value ?? LOCAL_INHERIT,
-      }),
-      nextStep: () => undefined,
-      valueFromSelections: (selected) => (selected[0] === LOCAL_INHERIT ? undefined : selected[0]),
-    }),
-  };
-}
-
 function freeflowItems(
   rawConfig: Record<string, unknown>,
   options: {
@@ -1010,7 +801,6 @@ function freeflowItems(
     toolExecution?: ToolExecutionState;
     compaction?: CompactionState;
     messaging?: MessagingState;
-    ctx?: any;
   } = {},
 ): SettingsItem[] {
   const scope: Exclude<ConfigScope, "session"> = options.scope === "local" ? "local" : "repository";
@@ -1030,6 +820,38 @@ function freeflowItems(
     defaultValue: DEFAULT_FREEFLOW_ENABLED,
   });
   const freeflowInactive = !core.enabled;
+
+  // Task memory (Setting 2, D-060): on this machine, on with sync, or off; the default is on, this machine only.
+  const memoryDefaultScreen = String(defaultValueFor(settingSpec("memory.mode")!, freeflowHome(process.env)));
+  const memoryMode = (getPath(localConfig, ["memory", "mode"]) ??
+    getPath(rawConfig, ["memory", "mode"]) ??
+    memoryDefaultScreen) as string;
+  const memoryItem = createScopedChoiceItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.memory.mode",
+    label: "Task memory",
+    description:
+      "On, with sync to your private remote when the store has one, else on, this machine (the default); or off: no menu, no task offered, nothing recorded.",
+    path: ["memory", "mode"],
+    values: MEMORY_MODES,
+    valueLabels: { local: "on, this machine", sync: "on, with sync", off: "off" },
+    valueDescriptions: {
+      local: "Task memory is on, kept on this machine only.",
+      sync: "Task memory is on, and synced to the store's private remote.",
+      off: "No menu, no task offered, nothing recorded; a task's budget and the sync remote stay where they are.",
+    },
+    defaultValue: memoryDefaultScreen,
+    effectiveValue: memoryMode,
+    effectiveSource:
+      getPath(localConfig, ["memory", "mode"]) !== undefined
+        ? "local"
+        : getPath(rawConfig, ["memory", "mode"]) !== undefined
+          ? "repository"
+          : "builtin",
+  });
+  memoryItem.inactive = freeflowInactive;
 
   const toolExecutionState = options.toolExecution;
   const toolSource = (path: string[]): ConfigSource => {
@@ -1092,7 +914,23 @@ function freeflowItems(
     effectiveSource: toolSource(["compaction", "enabled"]),
     defaultValue: DEFAULT_COMPACTION_ENABLED,
   });
-  const compactionItems = [compactionEnabledItem];
+  // Freeflow's compaction when no task is held (D-060): with a task it always applies.
+  const compactionWithoutTaskItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.compaction.withoutTask",
+    label: "Compaction without a task",
+    description: "Freeflow's compaction also runs in a session that holds no task; off leaves compaction to Pi.",
+    path: ["compaction", "withoutTask"],
+    effectiveValue:
+      (getPath(localConfig, ["compaction", "withoutTask"]) ??
+        getPath(rawConfig, ["compaction", "withoutTask"]) ??
+        true) === true,
+    effectiveSource: toolSource(["compaction", "withoutTask"]),
+    defaultValue: true,
+  });
+  const compactionItems = [compactionEnabledItem, compactionWithoutTaskItem];
   walkSettingsItems(compactionItems, (item) => {
     item.inactive = freeflowInactive;
   });
@@ -1262,37 +1100,6 @@ function freeflowItems(
     children: [eventsEnabledItem],
   };
 
-  // The gates, on every host with a Freeflow driver (SPEC-008 4.5).
-  const gateModes = resolveGateSettings(rawConfig, localConfig);
-  const gatesGroup: SettingsItem = {
-    id: "freeflow.gates",
-    label: "Gates",
-    description: "Configure Freeflow's gate on every host with a Freeflow driver: off, warn (the default) or block.",
-    kind: "group",
-    value: true,
-    inactive: freeflowInactive,
-    displaySuffix: "",
-    children: GATE_KEYS.map((gate) => {
-      const item = createScopedChoiceItem({
-        scope,
-        rawConfig,
-        localConfig,
-        id: `freeflow.gates.${gate}`,
-        label: GATE_LABELS[gate][0],
-        description: `${GATE_LABELS[gate][1]}.`,
-        path: ["gates", gate],
-        values: GATE_MODES,
-        valueLabels: GATE_VALUE_LABELS,
-        valueDescriptions: GATE_DESCRIPTIONS,
-        defaultValue: "warn",
-        effectiveValue: gateModes[gate],
-        effectiveSource: toolSource(["gates", gate]),
-      });
-      item.inactive = freeflowInactive;
-      return item;
-    }),
-  };
-
   // Delegation across sessions, on every host with a Freeflow driver (SPEC-009 4.7).
   const delegation = resolveDelegationSettings(rawConfig, localConfig);
   const claimHoursItem = createScopedChoiceItem({
@@ -1306,7 +1113,7 @@ function freeflowItems(
     values: CLAIM_HOURS,
     valueLabels: CLAIM_HOURS_LABELS,
     valueDescriptions: CLAIM_HOURS_DESCRIPTIONS,
-    defaultValue: "4",
+    defaultValue: "8",
     effectiveValue: delegation.claimHours,
     effectiveSource: toolSource(["delegation", "claimHours"]),
   });
@@ -1335,72 +1142,14 @@ function freeflowItems(
     children: [claimHoursItem, wakeOnReturnItem],
   };
 
-  // Review Work's choice on every host (config-validation.ts).
-  const review = resolveReviewSettings(rawConfig, localConfig);
-  const reviewUnitItem = createScopedChoiceItem({
-    scope,
-    rawConfig,
-    localConfig,
-    id: "freeflow.review.unit",
-    label: "Review unit",
-    description:
-      "When finished work gets its independent review; how deep it goes is the repository's review.depth, read from the base.",
-    path: ["review", "unit"],
-    values: REVIEW_UNITS,
-    valueLabels: REVIEW_UNIT_LABELS,
-    valueDescriptions: REVIEW_UNIT_DESCRIPTIONS,
-    defaultValue: REVIEW_DEFAULTS.unit,
-    effectiveValue: review.unit,
-    effectiveSource: toolSource(["review", "unit"]),
-  });
-  reviewUnitItem.inactive = freeflowInactive;
-  reviewUnitItem.heading = true;
-  const reviewRoundsItem = createScopedChoiceItem({
-    scope,
-    rawConfig,
-    localConfig,
-    id: "freeflow.review.rounds",
-    label: "Review rounds",
-    description: "The most review rounds of one change; a depth's own limit still applies.",
-    path: ["review", "rounds"],
-    values: REVIEW_ROUND_KEYS,
-    valueLabels: REVIEW_ROUND_LABELS,
-    valueDescriptions: REVIEW_ROUND_DESCRIPTIONS,
-    defaultValue: String(REVIEW_DEFAULTS.rounds),
-    effectiveValue: String(review.rounds),
-    effectiveSource: toolSource(["review", "rounds"]),
-    numeric: true,
-  });
-  reviewRoundsItem.inactive = freeflowInactive;
-  const reviewModelItem = reviewerModelItem({
-    scope,
-    rawConfig,
-    localConfig,
-    effectiveValue: review.model,
-    effectiveSource: toolSource(["review", "model"]),
-    ctx: options.ctx,
-  });
-  reviewModelItem.inactive = freeflowInactive;
-  const reviewGroup: SettingsItem = {
-    id: "freeflow.review",
-    label: "Review",
-    description: "Configure Review Work's independent review, on every host that reads these files.",
-    kind: "group",
-    value: true,
-    inactive: freeflowInactive,
-    displaySuffix: "",
-    children: [reviewUnitItem, reviewModelItem, reviewRoundsItem],
-  };
-
   return inSectionOrder([
     freeflowItem,
+    memoryItem,
     toolExecutionGroup,
     compactionGroup,
     messagingGroup,
     eventsGroup,
-    gatesGroup,
     delegationGroup,
-    reviewGroup,
     promptsGroup,
     skillsGroup,
   ]);
@@ -1417,13 +1166,14 @@ async function updateConfig(
   const target = scope === "local" ? before.local : before.repository;
   if (target.ignored.length > 0)
     throw new Error(
-      `${target.file} has settings Freeflow ignores; run settings.mjs doctor to see the fix before changing a setting.`,
+      `${target.file} in the Freeflow home has settings Freeflow ignores; run settings.mjs doctor to see the fix before changing a setting.`,
     );
   if (scope === "local") {
     if (!item.path?.length) {
       throw new Error(`${item.label} is a settings group, not a writable setting.`);
     }
-    const current = await readFreeflowLocalConfig(cwd);
+    // The raw layer, so the other harnesses' ticks (`harness`) survive the write; only the general value changes (D-060).
+    const current = readConfigFile(cwd, "personal", freeflowHome(process.env)).value;
     const next = cloneJson(current) as Record<string, unknown>;
     const configValue = configValueForChoice(item, value);
     const previousValue = getPath(current, item.path);
@@ -1433,24 +1183,14 @@ async function updateConfig(
     } else {
       setPath(next, item.path, configValue);
     }
-    const path = join(cwd, ".freeflow/local.json");
-    await ensureLocalConfigIgnored(cwd);
-    if (Object.keys(next).length === 0) {
-      await rm(path, { force: true });
-      return;
-    }
-    await mkdir(join(cwd, ".freeflow"), { recursive: true });
-    await writeFile(path, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+    await writeLayer(cwd, "personal", next, freeflowHome(process.env));
     return;
   }
 
-  const current = await readFreeflowConfig(cwd);
+  const current = readConfigFile(cwd, "repository", freeflowHome(process.env)).value;
   const next = cloneJson(current) as Record<string, unknown>;
-  // A choice whose file value is not its key (review.rounds' numbers) is written as the file value.
   setConfigValue(next, item, configValueForChoice(item, value));
-  pruneDefaults(next);
-  await mkdir(join(cwd, ".freeflow"), { recursive: true });
-  await writeFile(join(cwd, ".freeflow/config.json"), `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  await writeLayer(cwd, "repository", next, freeflowHome(process.env));
 }
 
 /** A value as the settings screen shows it, e.g. "enabled · personal" or "inherit → enabled (repository)". */
@@ -1468,9 +1208,9 @@ function formatSettingValue(item: SettingsItem, value: unknown): string {
 type ValueParts = { value: string; note?: string; tone?: "on" | "off"; origin?: string };
 
 const ORIGINS: Record<ConfigSource, string> = {
-  builtin: "Inherited: not set in any file, so Freeflow's default applies.",
-  repository: "Inherited from the repository's .freeflow/config.json.",
-  local: "Inherited from your .freeflow/local.json.",
+  builtin: "Inherited: not set in any layer, so Freeflow's default applies.",
+  repository: "Inherited from Everywhere: the Freeflow home's settings.json.",
+  local: "Inherited from This folder: the Freeflow home's folders.json.",
   session: "Inherited from this session.",
 };
 
@@ -1500,13 +1240,13 @@ function displayParts(item: SettingsItem): ValueParts {
   const notes = [
     ...(unset ? ["inherited"] : []),
     ...(item.localOverrideValue !== undefined && !valuesEqual(item.localOverrideValue, item.value)
-      ? [`personal: ${formatSettingValue(item, item.localOverrideValue)}`]
+      ? [`this folder: ${formatSettingValue(item, item.localOverrideValue)}`]
       : []),
   ];
   return {
     ...shown,
     ...(notes.length ? { note: notes.join(" · ") } : {}),
-    ...(unset ? { origin: "Inherited: not set in .freeflow/config.json, so Freeflow's default applies." } : {}),
+    ...(unset ? { origin: "Inherited: not set in Everywhere, so Freeflow's default applies." } : {}),
   };
 }
 
@@ -1807,17 +1547,17 @@ const SCOPES: Array<{ id: ConfigScope; label: string; summary: string }> = [
   {
     id: "session",
     label: "Session",
-    summary: "This Pi session only, not saved to a file. Overrides personal and repository values.",
+    summary: "This Pi session only, not saved to a file. Overrides This folder and Everywhere.",
   },
   {
     id: "local",
-    label: "Personal",
-    summary: ".freeflow/local.json: only you, in this checkout. Overrides the repository.",
+    label: "This folder",
+    summary: "Freeflow home, folders.json: this repository's folder only. Overrides everywhere.",
   },
   {
     id: "repository",
-    label: "Repository",
-    summary: ".freeflow/config.json: shared with everyone who uses this repository.",
+    label: "Everywhere",
+    summary: "Freeflow home, settings.json: every folder, this machine. The default for a change.",
   },
 ];
 
@@ -1904,12 +1644,6 @@ export async function handleFreeflowCommand(
     ctx.ui.notify(freeflowStatusText(state, diagnostics?.status()), "info");
     return { changed: false, reloaded: false };
   }
-  // With no shared config file the setup is needed: settings and enablement wait for Setup Freeflow (D-045, round 3).
-  if (state.setupNeeded) {
-    ctx.ui.notify(freeflowStatusText(state), "warning");
-    return { changed: false, reloaded: false, error: "not_configured" };
-  }
-
   if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
     if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
     const enabled = ["enable", "on", "true"].includes(action);
@@ -1919,7 +1653,6 @@ export async function handleFreeflowCommand(
       toolExecution: state.toolExecution,
       compaction: state.compaction,
       messaging: state.messaging,
-      ctx,
     }).find((candidate) => candidate.id === "freeflow.enabled")!;
     try {
       await updateConfig(ctx.cwd, item, enabled, "repository");
@@ -1928,12 +1661,12 @@ export async function handleFreeflowCommand(
       return { changed: false, reloaded: false, error: "ignored_settings" };
     }
     await afterChange(true);
-    // The command writes the repository file; a personal file or a session override still wins over it.
+    // The command writes the everywhere file; this folder's entry or a session override still wins over it.
     const after = await readCapabilityState(ctx.cwd, ctx);
     const winner = after?.configSources?.enabled;
     if (after?.enabled !== enabled && (winner === "local" || winner === "session")) {
       ctx.ui.notify(
-        `The repository now ${enabled ? "enables" : "disables"} Freeflow, but ${winner === "session" ? "this session's override" : "your .freeflow/local.json"} still turns it ${enabled ? "off" : "on"}. Change it in /freeflow settings.`,
+        `Everywhere now ${enabled ? "enables" : "disables"} Freeflow, but ${winner === "session" ? "this session's override" : "this folder's setting"} still turns it ${enabled ? "off" : "on"}. Change it in /freeflow settings.`,
         "warning",
       );
       return { changed: true, reloaded: false };
@@ -1956,13 +1689,14 @@ export async function handleFreeflowCommand(
   }
 
   let initialScope: ConfigScope = "local";
+  // The words a person types are folder and everywhere; the older words stay as aliases (N-item: no published names).
   if (actionValue === "session") {
     initialScope = "session";
-  } else if (["repo", "repository", "shared"].includes(actionValue)) {
+  } else if (["everywhere", "repo", "repository", "shared"].includes(actionValue)) {
     initialScope = "repository";
-  } else if (actionValue && !["local", "personal"].includes(actionValue)) {
+  } else if (actionValue && !["folder", "local", "personal"].includes(actionValue)) {
     ctx.ui.notify(
-      "Usage: /freeflow settings, /freeflow settings session, /freeflow settings local, or /freeflow settings repo",
+      "Usage: /freeflow settings, /freeflow settings session, /freeflow settings folder, or /freeflow settings everywhere",
       "warning",
     );
     return { changed: false, reloaded: false, error: "invalid_scope" };
@@ -1980,7 +1714,7 @@ export async function handleFreeflowCommand(
     const rawNow = layersNow.repository.parsed;
     if (scope === "session") {
       const localNow = layersNow.local.parsed;
-      return sessionFreeflowItems(stateNow, ctx, rawNow, localNow);
+      return sessionFreeflowItems(stateNow, rawNow, localNow);
     }
     return freeflowItems(rawNow, {
       scope,
@@ -1988,7 +1722,6 @@ export async function handleFreeflowCommand(
       toolExecution: stateNow.toolExecution,
       compaction: stateNow.compaction,
       messaging: stateNow.messaging,
-      ctx,
     });
   };
   const scopes: SettingsScope[] = SCOPES.map((scope) => ({

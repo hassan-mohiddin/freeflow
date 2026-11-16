@@ -1,3 +1,4 @@
+import { everywhereFile } from "../fixtures/freeflow-home.js";
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -123,7 +124,7 @@ test(
       async ({ session, requests, cwd }) => {
         assert.match(JSON.stringify(requests[0].system), WORKING_METHOD);
         // Turning a runtime prompt off in the repository's settings changes Freeflow's guidance.
-        await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ prompts: { workingMethod: false } }));
+        await writeFile(everywhereFile(), JSON.stringify({ prompts: { workingMethod: false } }));
         await wait(50);
         await session.sendCustomMessage(wake, { triggerTurn: true });
         await until(() => requests.length >= 3, "the message's run to make two requests");

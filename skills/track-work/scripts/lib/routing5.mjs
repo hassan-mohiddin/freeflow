@@ -6,7 +6,8 @@
 // reserved for that shape: at the start of a line, followed by exactly one model ID; any other line is prose the parser
 // ignores, and a file with no table has no table here. Each field is looked up on its own: the
 // first file that has it wins, and a table row that matches nothing in the first table falls to the next. With no file
-// for a field, Freeflow's shipped default gives it. The agent never edits these files.
+// for a field, Freeflow's shipped default gives it. The agent never edits these files. A `## Models` section is prose for
+// the coordinator, notes on each model: the parser ignores it, and the first file that has one replaces the default's.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -47,6 +48,15 @@ Worker: claude-opus-5-5
 | any | any | judgement | frontier | high | yes |
 
 Tiers: frontier = the Worker: model, the strongest a worker may run on (Opus on Claude); cheap = the Cheap: model, a model 4 to 10 times cheaper (Haiku on Claude).
+
+## Models
+
+For the coordinator choosing a worker, and each model in its position. Each line says how it is known: observed in use, measured (with its source), or list price.
+
+- claude-opus-5-5: finishes and verifies thoroughly (observed). Takes a brief or a steer as right and applies every piece of feedback, so scope grows under repeated steering (observed): settle the approach before briefing it, and send back only the defects that decide the result; on top, state the consequence of a change to an agreed decision as you make it; as a worker, Work From A Brief says when to return instead.
+- claude-fable-5-2: questions the premise and offers more varied options; skips details and lets more through when reviewing (observed): when named for a part, open questions, not detailed checks; on top, keep to the delegation reference's Rule on checking a return. Far above its workers in price (list price): on top, hand out nearly every part.
+- claude-haiku-5-5: fits gathering, bulk pattern matching, map-reduce work and what tests or a script decide (observed). With the decisions the hidden tests check in its brief it solved 15 of 19 tasks, against 8 from the issue alone (measured: Beyond the Weights preprint, Study 4, one run each; 15 is a ceiling). Caps long output (observed): ask for the return in a file.
+- claude-sonnet-5-5: not used: about Opus's cost per finished task for a worse result (observed); from the issue alone it solved 13 of 19 tasks, Opus 11 (measured: the same preprint, one run each, for scale).
 `;
 
 export class RoutingError extends Error {

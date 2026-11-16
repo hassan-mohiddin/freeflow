@@ -1,4 +1,4 @@
-import { ignoredStateLine, reviewStateLine, skillsStateLine } from "./config-validation.js";
+import { ignoredStateLine, skillsStateLine } from "./config-validation.js";
 import { hasUsableMandatoryPrompts } from "./prompts.js";
 
 /**
@@ -7,10 +7,6 @@ import { hasUsableMandatoryPrompts } from "./prompts.js";
  * versions saved in sessions.
  */
 export const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
-
-/** The Runtime State line for a folder with no shared config file, word for word (D-045, round 3). */
-const SETUP_NEEDED_INSTRUCTION =
-  "Freeflow is installed, but this folder has no .freeflow/config.json. Before other work, tell the user and set Freeflow up here with the Setup Freeflow skill, which asks them for the choices that are theirs; if they decline, work without Freeflow.";
 
 // Runtime State and bootstrap messages that older Freeflow versions sent or saved in sessions, under a feature's own
 // type (`freeflow-<feature>-runtime-state`, `freeflow-<feature>-bootstrap`) or as one `freeflow-bootstrap` naming its
@@ -56,20 +52,13 @@ export function freeflowRuntimeStateMessage(
   options: {
     /** Freeflow skills already read in this context, by name. */
     skills?: readonly string[];
+    /** The first-session line, when this session is the user's first (N1); null otherwise. */
+    firstSession?: string | null;
   } = {},
 ) {
   const mandatoryPromptAvailable = capabilityState?.enabled !== true || hasUsableMandatoryPrompts(freeflowContext);
-  const freeflowStatus = capabilityState?.setupNeeded
-    ? "setup needed"
-    : capabilityState?.enabled
-      ? mandatoryPromptAvailable
-        ? "active"
-        : "unavailable"
-      : "inactive";
-  // With the setup needed, the agent is told to set Freeflow up here, and what to do if the user declines (D-045, round 3).
-  const setupLine = capabilityState?.setupNeeded ? [SETUP_NEEDED_INSTRUCTION] : [];
+  const freeflowStatus = capabilityState?.enabled ? (mandatoryPromptAvailable ? "active" : "unavailable") : "inactive";
   // Only a choice the user made: the default adds nothing, so most users' state stays as it was.
-  const review = freeflowStatus === "active" ? reviewStateLine(capabilityState?.review) : null;
   const skillsOff = freeflowStatus === "active" ? skillsStateLine(capabilityState?.skills?.off) : null;
   // A setting a config file ignores is named whatever the status, so the user sees it (D-045).
   const ignored = ignoredStateLine(capabilityState?.ignored ?? []);
@@ -83,8 +72,7 @@ export function freeflowRuntimeStateMessage(
       "This is extension-generated runtime state. Use it to interpret the stable Freeflow guidance.",
       "",
       `Freeflow: ${freeflowStatus}`,
-      ...setupLine,
-      ...(review ? [review] : []),
+      ...(options.firstSession ? [options.firstSession] : []),
       ...(skillsOff ? [skillsOff] : []),
       ...(ignored ? [ignored] : []),
       "",
@@ -100,7 +88,7 @@ export function freeflowRuntimeStateMessage(
   };
 }
 
-function withoutFreeflowRuntimeState(messages: readonly FreeflowContextMessage[] | undefined) {
+export function withoutFreeflowRuntimeState(messages: readonly FreeflowContextMessage[] | undefined) {
   return (Array.isArray(messages) ? messages : []).filter((message) => !isRuntimeState(message));
 }
 
@@ -130,11 +118,16 @@ export function withFreeflowRuntimeState(
     skills?: readonly string[];
     // The message the caller built for this request, so the caller can log the same text it placed.
     runtimeState?: ReturnType<typeof freeflowRuntimeStateMessage>;
+    firstSession?: string | null;
   } = {},
 ) {
   const source = Array.isArray(messages) ? messages : [];
   const runtimeState =
-    options.runtimeState ?? freeflowRuntimeStateMessage(capabilityState, freeflowContext, { skills: options.skills });
+    options.runtimeState ??
+    freeflowRuntimeStateMessage(capabilityState, freeflowContext, {
+      skills: options.skills,
+      firstSession: options.firstSession,
+    });
   const runtimeStateMessages = source.filter(isRuntimeState);
   const withoutRuntimeState = withoutFreeflowRuntimeState(source);
   const expectedRuntimeStateIndex = firstUserMessageIndex(withoutRuntimeState);

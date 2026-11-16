@@ -5,7 +5,7 @@
 // next sync ("first push wins"). A path is kept relative to its repository, named as Space names it, so two checkouts
 // or worktrees of one repository claim the same file; a path outside any repository is kept whole.
 //
-// A claim lasts its hours (default 4, `delegation.claimHours`, which a driver passes as FREEFLOW_CLAIM_HOURS), is
+// A claim lasts its hours (default 8, `delegation.claimHours`, which a driver passes as FREEFLOW_CLAIM_HOURS), is
 // renewed by its session's next store sync while it is live, and ends at its release, its delegation's close, or its
 // session's end.
 
@@ -20,7 +20,7 @@ import { REPOSITORIES_FILE, isFreeflowStore } from "./store.mjs";
 
 export const CLAIMS_FILE = "claims.jsonl";
 export const CLAIM_VERSION = 1;
-export const DEFAULT_CLAIM_HOURS = 4;
+export const DEFAULT_CLAIM_HOURS = 8;
 const HOUR = 3_600_000;
 
 class ClaimError extends Error {
@@ -154,7 +154,7 @@ export function storeClaims(home, now = Date.now()) {
   );
 }
 
-/** The hours a new claim lasts: --for, else the driver's FREEFLOW_CLAIM_HOURS (delegation.claimHours), else 4. */
+/** The hours a new claim lasts: --for, else the driver's FREEFLOW_CLAIM_HOURS (delegation.claimHours), else 8. */
 export function claimHours(option, env = process.env) {
   const given = option ?? env.FREEFLOW_CLAIM_HOURS;
   if (given === undefined || given === "") return DEFAULT_CLAIM_HOURS;

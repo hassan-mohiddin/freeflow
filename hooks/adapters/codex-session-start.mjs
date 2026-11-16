@@ -4,6 +4,7 @@ export function main() {
   runSessionStartAdapter({
     eventNames: ["SessionStart"],
     getWorkspaceCwd: (input) => input.cwd || process.cwd(),
+    harness: "codex",
     formatOutput: ({ eventName, additionalContext }) => ({
       hookSpecificOutput: {
         hookEventName: eventName,

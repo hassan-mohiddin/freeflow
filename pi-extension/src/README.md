@@ -19,7 +19,7 @@
 2. **`context_with_system`**: tag messages with their native entries, add the Runtime State, and assemble request history so Freeflow's generated messages keep their positions.
 3. **`before_provider_request`** (in `provider-support/`): adapt the payload for prompt caching where the route is qualified.
 4. **`tool_call` / `tool_result`**: Freeflow's gates first, then the background-command guard and file tracking.
-5. **`turn_end` / `agent_settled`**: file tracking clears pending state, status updates; at the run's last turn the store is synced and a waiting `checkpoint --compact` is answered by Freeflow's compaction. **`turn_start`** runs the resets after a Freeflow compaction.
+5. **`turn_end` / `agent_settled`**: file tracking clears pending state, status updates; once a run settles, the turn's user messages are captured (`discussion/`), and at the run's last turn the store is synced and a waiting `checkpoint --compact` is answered by Freeflow's compaction. **`turn_start`** runs the resets after a Freeflow compaction.
 6. **`session_compact` / `session_tree`**: reset request history and cache tracking; restate background commands after compaction.
 
 ## Conventions

@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/compaction/`, `pi-extension/src/store/`
 > **Tests:** `pi-extension/tests/compaction/`, `pi-extension/tests/store/`, `pi-extension/tests/integration/request-path-budget.test.js`
-> **Verified at:** `8a66a3fd` (2026-11-14)
+> **Verified at:** `cbbaf549` (2026-11-14)
 > **User docs:** `plugin-docs/capabilities/compaction.md`
 
 For contributors changing Freeflow compaction on Pi and Pi's layer for the Freeflow store: when Freeflow tells the agent compaction is near, what it writes into the session, how Pi's own compaction works with it, and which behaviors are deliberate.
@@ -40,8 +40,8 @@ It deliberately does not:
 
 - **Session start** (`index.ts`): `sessionEnvironment()` sets `FREEFLOW_SESSION` (Pi's session ID), `FREEFLOW_HARNESS=Pi`, `FREEFLOW_TRANSCRIPT` (the session file), `FREEFLOW_RESUME` (`pi --session <file>`) and `FREEFLOW_CONTEXT_WINDOW` in the process, so the agent's commands, which Pi's bash runs with its environment, and Freeflow's own see the same session (T6). Then, not awaited: where a store exists, `store sync --pull` and `task here --rules --take-back`, which first takes back the task this session held when it ended, delivered as one `freeflow-store` message for the next turn; where none exists, what `session status` lists as missing. A `/reload` only reads the state again.
 - **A tool call** that runs `working-record.mjs`, or a file tool on a path inside the store, marks the run as touching the store (`touchesStore()`).
-- **The run's last turn** (a `turn_end` whose message has no tool calls): after a run that touched the store, `session status` is read again and `store sync` runs when something changed; then the compaction below.
-- **Shutdown:** `task release --ended` for a held task, so a resume of the session takes it back, else `store sync` when something changed. A reload's shutdown is not the session's end (the same session starts again), so it keeps the hold and only syncs.
+- **The run's last turn** (a `turn_end` whose message has no tool calls): after a run that touched the store, `session status` is read again and `store sync` runs when something changed and memory is `sync`; then the compaction below. With `memory.mode` off, nothing here reads or syncs the store (D-060).
+- **Shutdown:** `task release --ended` for a held task, so a resume of the session takes it back, else `store sync` when something changed, under `memory.mode` `sync` only. A reload's shutdown is not the session's end (the same session starts again), so it keeps the hold and only syncs.
 - **Footer and status:** the footer adds `task <ID>` while the session holds one; `/freeflow status` has a `store:` line.
 
 ### Notices
@@ -84,7 +84,7 @@ Pi's file lists from an earlier Freeflow compaction are added back into Pi's pre
 | One soft notice a cycle a lead of 20,000 tokens before Pi's trigger, under a ceiling of 750,000 tokens, and no row before it (P5, P80; rows removed, 2026-11-14). The formula is `lib/notice5.mjs`'s, shared with every driver and Track Work's planner. | As on Claude Code: a soft notice the agent acts on at a safe point; repeats turned a soft notice into a hard one. | The warning, then "compact now" every further 10k tokens. | task-004 P5, P50 |
 | The store's state is held in memory and read only at session start, after the agent's own script run, at a run's end after a store touch, and at a compaction. | Performance rule R-1: the request path never reads store files. A notice names the task from memory. | `session status` on every turn, as the mod's turn end does. | [Performance](../guides/performance.md) |
 | The session's environment is set in Pi's process. | Pi's bash spreads `process.env` into each command (`getShellEnv()`, Pi 1.4.0), so the agent's own `checkpoint` writes for the same session Freeflow reads. | Passing the session to each script run only, which leaves the agent's commands without it. | Pi `src/utils/shell.ts` at v1.4.0 |
-| Track Work's script reads Pi's session file along its active branch for `discussion list` (P2). | One reader per transcript format serves every command; the branch walk ignores a branch left with `/tree`. | Pi's own result index (`r12`) and carry: a second carry path that would differ from Claude Code's. Tool results are not carried at all since 2026-11-03: Carry is files only. | `skills/track-work/scripts/lib/pi-session.mjs` |
+| Track Work's script reads Pi's session file along its active branch for `discussion capture` (P2). | One reader per transcript format serves every command; the branch walk ignores a branch left with `/tree`. | Pi's own result index (`r12`) and carry: a second carry path that would differ from Claude Code's. Tool results are not carried at all since 2026-11-03: Carry is files only. | `skills/track-work/scripts/lib/pi-session.mjs` |
 | Pi's own compaction stays on; with the checkpoint done the bundle replaces its summary, otherwise the bundle follows it. | Pi's `compaction.enabled = false` also disables its recovery from an overflowing request. | Turning Pi's automatic compaction off. | `d75ac55`, P16 |
 | Freeflow's code never names a Working Record; the bundle and the notice name the task the store says this session holds. | The store's hold is the only reliable link between a session and a task. | Guessing from the repository. | P40 |
 
@@ -101,7 +101,7 @@ Pi's file lists from an earlier Freeflow compaction are added back into Pi's pre
 
 ## Surface
 
-**Configuration:** `compaction.enabled` (default on; off: no notices, no Freeflow compaction, Pi's compaction unchanged). `compaction.carry` (context reuse) is retired: tool results are not carried, so a config that sets it still loads and it does nothing. Pi settings read, never written: `compaction.reserveTokens` and its per-model overrides.
+**Configuration:** `compaction.enabled` (default on; off: no notices, no Freeflow compaction, Pi's compaction unchanged) and `compaction.withoutTask` (default on; with no task held, off: Freeflow's compaction does not run; with a task held it always applies, D-060). With `memory.mode` off, Freeflow's compaction and its notices stay out of the way and Pi's compaction is unchanged (`memoryOff()` and `withoutTask()` in `controller.ts`, D-060). `compaction.carry` (context reuse) is retired: tool results are not carried, so a config that sets it still loads and it does nothing. Pi settings read, never written: `compaction.reserveTokens` and its per-model overrides.
 
 **Environment set:** `FREEFLOW_SESSION`, `FREEFLOW_HARNESS`, `FREEFLOW_TRANSCRIPT`, `FREEFLOW_RESUME`, `FREEFLOW_CONTEXT_WINDOW` (also on `model_select`). Read: `FREEFLOW_HOME`, through the script.
 

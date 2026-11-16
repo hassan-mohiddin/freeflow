@@ -40,9 +40,11 @@ import {
 } from "./store/layer.js";
 import { WAITS_KEY, WAIT_BATCH_MS, WaitWatch } from "./store/waits.js";
 import { EventRecorder, type ClaimInputs } from "./events/recorder.js";
+import { DiscussionCapture } from "./discussion/capture.js";
 import { DEFAULT_INBOUND_POLICY } from "./messaging/config.js";
 import { MESSAGE_TYPE, Messaging } from "./messaging/messaging.js";
 import { freeflowHome } from "./messaging/registry.js";
+import { firstSessionLine } from "./host/first-session.js";
 import { applyMessagingTools, registerMessagingTools } from "./messaging/tools.js";
 import { renderMessage } from "./messaging/render.js";
 import { applyAskUserTool, registerAskUserTool } from "./ask-user/tool.js";
@@ -69,6 +71,7 @@ import {
   filterBootstrapMessage,
   freeflowRuntimeStateMessage,
   withFreeflowRuntimeState,
+  withoutFreeflowRuntimeState,
   type RuntimeStateAnchor,
 } from "./host/runtime-state.js";
 import { setFreeflowStatus } from "./host/status.js";
@@ -154,7 +157,7 @@ async function sendSkillCommand(
     sendSkillPrompt(pi, skill, args, events);
     return;
   }
-  if (state.setupNeeded || !state.enabled) {
+  if (!state.enabled) {
     ctx.ui.notify("Run /setup-freeflow or enable Freeflow before dispatching this skill.", "warning");
     return;
   }
@@ -175,17 +178,17 @@ function freeflowCompletions(prefix: string | undefined) {
   const choices = query.startsWith("settings ")
     ? [
         ["settings session", "session", "Override Freeflow for this Pi session"],
-        ["settings local", "local", "Edit personal overrides for this repository"],
-        ["settings repo", "repo", "Edit shared repository settings"],
+        ["settings folder", "folder", "Open This folder's settings (folders.json)"],
+        ["settings everywhere", "everywhere", "Open Everywhere's settings (settings.json)"],
       ]
     : [
-        ["settings", "settings", "Open settings; Tab switches Session, Personal and Repository"],
+        ["settings", "settings", "Open settings; Tab switches Session, This folder and Everywhere"],
         ["status", "status", "Show effective Freeflow state"],
         ["capabilities", "capabilities", "What Freeflow can do in this session, and the event log"],
         ["sent", "sent", "The text Freeflow sent the model in this session, newest first"],
         ["compact", "compact", "Prepare, compact and recover now"],
-        ["enable", "enable", "Enable Freeflow for this repository"],
-        ["disable", "disable", "Disable Freeflow for this repository"],
+        ["enable", "enable", "Turn Freeflow on in every folder (Everywhere)"],
+        ["disable", "disable", "Turn Freeflow off in every folder (Everywhere)"],
       ];
   return choices
     .filter(([value]) => value.startsWith(query))
@@ -195,10 +198,10 @@ function freeflowCompletions(prefix: string | undefined) {
 export default function freeflow(pi: FreeflowAPI) {
   // Cache diagnostics are reported to /freeflow status; the footer only shows current settings.
   const cacheMonitor = new CacheMonitor();
-  // Provider support runs only where Freeflow runs: not while it is off, nor while its setup is needed (D-045, round 3).
+  // Provider support runs only where Freeflow runs: not while it is off.
   registerProviderSupport(
     pi,
-    () => capability?.setupNeeded !== true && capability?.enabled !== false,
+    () => capability?.enabled !== false,
     cacheMonitor,
     (what, text) => events.sent(what, text, { once: true }),
   );
@@ -206,11 +209,17 @@ export default function freeflow(pi: FreeflowAPI) {
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   // The notice point comes from Track Work's notice5.mjs, loaded once; no notice is due until it has.
   void loadNotice(packageRoot);
+  // The first-session line of this session, once per user (N1, D-060): set at session start, null after the first.
+  let firstSession: string | null = null;
   // The Freeflow store's layer: Track Work's script on Pi's events, as the Claude Code mod is on Claude Code's.
   const runScript = scriptRunner(packageRoot);
-  const store = new StoreLayer(runScript);
+  // Task memory's mode as the session has it now; off when Freeflow is off (D-060, Setting 1 and 2).
+  const memorySetting = (): "local" | "sync" | "off" =>
+    capability?.enabled === true ? (capability?.memory?.mode ?? "local") : "off";
+  const store = new StoreLayer(runScript, memorySetting);
   // The event log and the claims (SPEC-006): written off the request path, when a run settles and at shutdown.
   const events = new EventRecorder(runScript);
+  const discussion = new DiscussionCapture(runScript);
   // The gates (SPEC-008): Track Work's gates5.mjs on each tool call, from the session's gate state kept in memory.
   const gates = new GateRuntime(packageRoot);
   const version = (() => {
@@ -373,6 +382,8 @@ export default function freeflow(pi: FreeflowAPI) {
   registerBackgroundTools(api, background, backgroundHost);
   const compaction = new CompactionController({
     effective: compactionEffective,
+    memoryOff: () => memorySetting() === "off",
+    withoutTask: () => capability?.compaction?.withoutTask !== false,
     background: () => background.running().map(({ id, label, outputPath }) => ({ id, label, outputPath })),
     notice: (text: string) => freeflowNotice("compaction", text),
     sent: (what: string, text: string) => events.sent(what, text),
@@ -448,7 +459,7 @@ export default function freeflow(pi: FreeflowAPI) {
   let startState: "done" | "due" | "running" = "due";
   let startFailures = 0;
   const catchUp = async (ctx: any): Promise<string | undefined> => {
-    if (startState !== "due" || capability?.enabled !== true) return undefined;
+    if (startState !== "due" || capability?.enabled !== true || memorySetting() === "off") return undefined;
     startState = "running";
     const session = ctx.sessionManager?.getSessionId?.();
     const held = store.heldTask();
@@ -660,9 +671,12 @@ export default function freeflow(pi: FreeflowAPI) {
     events.sessionStarted((event as any)?.reason, ctx.hasUI !== false);
     syncClaims();
     // A reload keeps the session, whose ledger says whether its start had the store's menu (SPEC-013).
-    startState = capability?.enabled === true && (event as any)?.reason !== "reload" ? "done" : "due";
+    // Freeflow on: the first-session line, once per user, from the marker the shared renderer also reads (N1).
+    if (capability?.enabled === true && (event as any)?.reason !== "reload")
+      firstSession = firstSessionLine(freeflowHome(), join(packageRoot, "plugin-docs", "using-freeflow.md"));
+    startState = memorySetting() !== "off" && (event as any)?.reason !== "reload" ? "done" : "due";
     startFailures = 0;
-    if (capability?.enabled === true) void storeStart(ctx, (event as any)?.reason, generation);
+    if (memorySetting() !== "off") void storeStart(ctx, (event as any)?.reason, generation);
     status(ctx);
   });
   pi.on("session_shutdown", async (event) => {
@@ -670,6 +684,8 @@ export default function freeflow(pi: FreeflowAPI) {
     // The session's last lines, before the release, whose summary counts them.
     events.sessionEnded((event as any)?.reason);
     await events.flush();
+    // The last turn's messages, kept before the store is released and pushed (discussion capture, D-056).
+    if (capability?.enabled === true) await discussion.capture();
     // The hold is released as ended and the store pushed, before the next session's layer starts; a reload keeps it.
     await store.shutdown({ reload: (event as any)?.reason === "reload" }).catch(() => {});
     store.reset();
@@ -738,6 +754,7 @@ export default function freeflow(pi: FreeflowAPI) {
   pi.on("agent_start", () => {
     waits.runStarted();
     events.runStarted();
+    discussion.runStarted();
     runUnprepared = !runPrepared;
     runPrepared = false;
     guidance.runStarted();
@@ -787,15 +804,11 @@ export default function freeflow(pi: FreeflowAPI) {
       /working-record\.mjs\s+(checkpoint|task\s+(release|switch))\b/.test(String((event.input as any)?.command ?? ""))
     )
       await events.flush();
-    // The gate (SPEC-008 4.3), before Freeflow's other checks: warn adds a row to the result, block refuses.
-    if (capability?.gates) {
-      const gated = gates.check(event as any, ctx.cwd, capability.gates);
+    // The gate (SPEC-008 4.3), before Freeflow's other checks: it only warns, and the warning joins the result (D-069).
+    if (capability?.gates?.delegation) {
+      const gated = gates.check(event as any, ctx.cwd);
       if (gates.missingOnce()) events.freeflow("gates", "no gate state for this session");
       for (const fired of gated.fired) events.emit("gate", gates.eventFields(fired, event.toolName));
-      if (gated.kind === "block") {
-        events.sent("gate", gated.reason);
-        return { block: true, reason: gated.reason };
-      }
     }
     if (!toolExecutionEffective()) return undefined;
     const refusal = event.toolName === "bash" ? backgroundRefusal((event.input as any)?.command) : undefined;
@@ -856,7 +869,7 @@ export default function freeflow(pi: FreeflowAPI) {
       const ended = compaction.cycleNow(ctx);
       const compacting = await compaction.settle(event, ctx);
       // After the store was read at the run's end: a delegation the Slice waits on that came back gives its row.
-      if (!compacting && capability?.enabled === true) await waits.runEnded().catch(() => {});
+      if (!compacting && memorySetting() !== "off") await waits.runEnded().catch(() => {});
       if (compacting) {
         if (compacting.entries.some((entry: any) => entry?.type === "compaction"))
           events.compaction("freeflow", undefined, ended);
@@ -891,6 +904,7 @@ export default function freeflow(pi: FreeflowAPI) {
   pi.on("agent_settled", async (_event, ctx) => {
     // The run's lines, written in one script run once the session stays idle: nothing waits on the log (T3).
     events.settled();
+    if (capability?.enabled === true) discussion.settled();
     promptRun = false;
     messageRun = false;
     agentRunning = false;
@@ -965,17 +979,21 @@ export default function freeflow(pi: FreeflowAPI) {
     let messages = keepSections(event.messages, ownSections, ownSectionsVersion, ownHead)
       .map(filterBootstrapMessage)
       .filter(Boolean);
-    // The Runtime State every request carries, built once: the request places it, and the event log keeps its text once
-    // per distinct text (the log checks its switch before it hashes anything). Not found in the messages, so the lookup
-    // does not grow with the session.
-    const runtimeState = freeflowRuntimeStateMessage(capability, prompts, { skills: stateSkills });
-    messages = withFreeflowRuntimeState(messages, capability, prompts, {
-      force: refreshState,
-      anchor: runtimeStateAnchor,
-      skills: stateSkills,
-      runtimeState,
-    });
-    events.sent("runtime-state", runtimeState.content, { once: true });
+    // Off sends no Runtime State, and drops one an earlier request carried (settled Setting 1: off sends nothing).
+    if (capability?.enabled === true) {
+      // The Runtime State every request carries, built once: the request places it, and the event log keeps its text
+      // once per distinct text (the log checks its switch before it hashes anything). Not found in the messages, so the
+      // lookup does not grow with the session.
+      const runtimeState = freeflowRuntimeStateMessage(capability, prompts, { skills: stateSkills, firstSession });
+      messages = withFreeflowRuntimeState(messages, capability, prompts, {
+        force: refreshState,
+        anchor: runtimeStateAnchor,
+        skills: stateSkills,
+        firstSession,
+        runtimeState,
+      });
+      events.sent("runtime-state", runtimeState.content, { once: true });
+    } else messages = withoutFreeflowRuntimeState(messages);
     refreshState = false;
     return { messages: await requestHistory.assemble(messages, ctx) };
   });

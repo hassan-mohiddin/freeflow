@@ -13,6 +13,7 @@ import {
   freeflowStoreOf,
 } from "./lib/store.mjs";
 import { checkLinePointers } from "./lib/recover.mjs";
+import { memoryModeFor } from "./lib/memory5.mjs";
 import { loadTask5, schemaOf, warnings5 } from "./lib/record5.mjs";
 import { checkpointSession, runTransition5, writeCompactionRequest } from "./lib/transitions5.mjs";
 import { budgetLines, budgetFor, contextWindow, measureTask, renderBudget } from "./lib/budget5.mjs";
@@ -23,7 +24,21 @@ import {
   migrateTask,
   readCues,
 } from "./lib/migrate5.mjs";
-import { claudeCodeLog, dropBlock, listText, parseNumbers, saveBlock, userMessages } from "./lib/discussion5.mjs";
+import {
+  SESSION_DISCUSSION,
+  captureList,
+  captureMessages,
+  claudeCodeLog,
+  distinct,
+  listText,
+  parseMessageNumbers,
+  readPlain,
+  removeMessage,
+  sessionMessages,
+  showText,
+  taskMessages,
+  userMessages,
+} from "./lib/discussion5.mjs";
 import { renderBundle5, renderEntries5, renderIndex5, renderRecover5, renderSessionBundle } from "./lib/views5.mjs";
 import {
   amendDelegation,
@@ -54,7 +69,10 @@ import {
   removeProject,
   requireHold,
   removeTask,
+  sync,
+  tidyTask,
   searchTasks,
+  setTaskShort,
   sessionIdentity,
   sessionFiles,
   sessionStatus,
@@ -74,6 +92,42 @@ import { PlanError } from "./lib/planner5.mjs";
 const ROOT_HELP =
   "--record is resolved against --root, which defaults to the current directory; an absolute --record path finds its own root.";
 
+/**
+ * The commands that record a task's memory. With memory.mode off they refuse and name the setting (D-060, Setting 2);
+ * the reads (view, budget, estimate, validate, store status) keep working, and so does a task's budget.
+ */
+const RECORDS_WHEN_MEMORY_OFF = [
+  "init",
+  "checkpoint",
+  "agreement",
+  "slice",
+  "task create",
+  "task take",
+  "task switch",
+  "task move",
+  "delegate open",
+];
+
+/** The refusal for a recording command while task memory is off here, else null. */
+function memoryOffRefusal(command, operation, options) {
+  const key = `${command} ${operation ?? ""}`.trim();
+  const records = RECORDS_WHEN_MEMORY_OFF.some(
+    (name) => key === name || (!name.includes(" ") && key.split(" ")[0] === name),
+  );
+  // A scratch delegation's brief lives in the caller's scratch folder, not the store, so it records no task memory.
+  if (key === "delegate open" && options["--scratch"]) return null;
+  if (!records || memoryModeFor({ home: storeHome(options["--home"]) }) !== "off") return null;
+  const script = resolve(dirname(new URL(import.meta.url).pathname), "../../setup-freeflow/scripts/settings.mjs");
+  return `Task memory is off here (memory.mode), so ${key} records nothing. Turn it on with: node ${script} set memory.mode local (or sync), or /freeflow settings on Claude Code and Pi.`;
+}
+
+/** What the status line says about task memory: the mode, and that a local store is not synced (D-060, Setting 2). */
+function memoryText(status) {
+  if (status.memory === "off") return "off, so nothing is synced";
+  if (status.memory === "local") return status.remote ? "local, not synced with its remote" : "local";
+  return "sync";
+}
+
 function usage() {
   return [
     "Usage:",
@@ -92,11 +146,11 @@ function usage() {
     "  working-record.mjs delegate <open|amend|status|check-return|close|join|log> ...",
     "  working-record.mjs checkpoint --delegation <D-NNN> --record <record.md> --input <file|-> [--compact] (a worker)",
     "  working-record.mjs claim --paths <glob> ... [--for <hours>] | claim --list; release [--paths <glob> ...] [--ended]",
-    "  working-record.mjs discussion <list|save|drop> --record <record.md> ...",
+    "  working-record.mjs discussion <capture|list|show|remove> ... (the user's messages, kept by Freeflow)",
     "  working-record.mjs carry <list|show> ...",
     "  working-record.mjs migrate --record <record.md> --cue <cue> [--cues <file>] [--project <name>] (Schema 4 to 5)",
     "  working-record.mjs project <new|show|list|remove> ... (in a Freeflow store)",
-    "  working-record.mjs task <create|take|release|switch|move|here|search|remove> ... (in a Freeflow store)",
+    "  working-record.mjs task <create|take|release|switch|move|here|search|remove|tidy|set-short> ... (in a Freeflow store)",
     "  working-record.mjs store <init|remote|status|sync> ...",
     "  working-record.mjs session status [--home <folder>] (for a harness layer)",
     "  working-record.mjs events <append|summary|show|sent> ... (the event log; append is for a harness layer)",
@@ -121,7 +175,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "events sent",
-    "Usage: events sent [--session <ID>] [--what <name>] [--show <n>] [--home <folder>]\nLists the text Freeflow sent to the model in a session, newest first: its number, time, what sent it, its length in characters and the first line cut to 80 characters. --what keeps one source (session-start, menu, catch-up, pinned-guidance, system-prompt, runtime-state, notice, compact-request, compaction-note, bundle, continue, compaction-error, gate, store-allow, took-back, waits, worker-notice, stop-block, settings, pane, guidance, files, background, monitor, message, skill, keep-alive). --show <n> prints the whole text of entry n of that list. The text is what was sent, with keys and tokens redacted; the log is on this machine only.",
+    "Usage: events sent [--session <ID>] [--what <name>] [--show <n> | --sha <sha>] [--limit <n>] [--json] [--home <folder>]\nLists the text Freeflow sent to the model in a session, newest first: its number, time, what sent it, its length in characters and the first line cut to 80 characters. --what keeps one source (session-start, menu, catch-up, pinned-guidance, system-prompt, runtime-state, notice, compact-request, compaction-note, bundle, continue, compaction-error, gate, store-allow, took-back, waits, worker-notice, stop-block, settings, pane, guidance, files, background, monitor, message, skill, keep-alive). --show <n> prints the whole text of entry n of that list. --limit <n> lists the n newest only. With --json, for a harness layer such as Freeflow's Claude Code pane: session, total (every entry) and sent, each entry's n, ts, what, chars, sha and first line, newest first; --sha <sha> prints the whole text of the entry with that sha, which a later line does not renumber. The text is what was sent, with keys and tokens redacted; the log is on this machine only.",
   ],
   [
     "slice",
@@ -148,7 +202,7 @@ const COMMAND_HELP = new Map([
     "task",
     [
       "Usage: working-record.mjs task <operation> ...",
-      "Operations: task set-state and task set-budget on a record; in a Freeflow store, task create, take, release, switch, move, here, search and remove. A task belongs to a project (<project>/task-NNN) or to none (task-NNN). A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
+      "Operations: task set-state and task set-budget on a record; in a Freeflow store, task create, take, release, switch, move, here, search, remove, tidy and set-short. A task belongs to a project (<project>/task-NNN) or to none (task-NNN). A session holds at most one task and a task has at most one holder: its sessions.md's last open line. The session is read from the environment: CLAUDE_CODE_SESSION_ID on Claude Code, else FREEFLOW_SESSION (with FREEFLOW_HARNESS and FREEFLOW_RESUME).",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
     ].join("\n"),
   ],
@@ -158,19 +212,27 @@ const COMMAND_HELP = new Map([
   ],
   [
     "discussion",
-    'Usage: working-record.mjs discussion <list|save|drop> --record <record.md> ...\nThe user\'s messages that shaped the work, kept word for word as blocks in sources/discussion.md, each message with the agent\'s line saying what it answered; blocks are added or dropped, never edited. The transcript is --transcript <path> (--format claude-code, pi or plain; a Pi session file is known by its header), else FREEFLOW_TRANSCRIPT, else this Claude Code session\'s log; --transcript - reads a plain export (lines starting "User:" or "Assistant:") from standard input.',
+    "Usage: working-record.mjs discussion <capture|list|show|remove> ...\nThe user's messages, kept by Freeflow: every message word for word (a secret redacted), numbered M-n per task in the held task's discussions/<day>.md (or, before a task, in the session's own file, which task create moves in). capture runs at each turn's end (a driver's); list prints numbers, times and first words; show prints the named messages whole; remove deletes one message's text and keeps its number. The transcript is --transcript <path> (--format claude-code, codex, pi or plain; a Pi session file and a Codex rollout are known by their entries), else FREEFLOW_TRANSCRIPT, else this Claude Code session's log; --transcript - reads a plain export (lines starting \"User:\" or \"Assistant:\") from standard input.",
+  ],
+  [
+    "discussion capture",
+    "Usage: discussion capture [--transcript <path>] [--format <claude-code|codex|pi|plain>] [--home <folder>]\nCaptures the user's messages of the transcript that are new since the last capture, word for word, into the task this session holds (discussions/<day>.md, numbered M-n), or into the session's own file while it holds no task (`task create` moves those in). The transcript is --transcript, else FREEFLOW_TRANSCRIPT, else this Claude Code session's log. A capture already made is not made again, across a compaction or a resumed session. Commits the store and pushes it, unless --no-push (a driver whose turn-end budget is short pushes with its own sync). Drivers run it at each turn's end.",
   ],
   [
     "discussion list",
-    "Usage: discussion list --record <record.md> [--since <time>] [--until <time>] [--transcript <path>] [--format <claude-code|pi|plain>]\nNumbers the user's messages since the record's State as of (or --since), each with its time and first words; messages sent while a turn ran are included, and resent duplicates and cut-off copies left out.",
+    "Usage: discussion list [--record <record.md>] [--date <YYYY-MM-DD>] [--home <folder>]\nNumbers the held task's messages (or --record's, or the session's own before a task) with their day, time and first words; --date lists one day's.",
   ],
   [
-    "discussion save",
-    'Usage: discussion save --record <record.md> --messages <4-7,11> --title <topic> --shapes <A-NNN, S-NNN> [--replaces B-NNN] [--since <time>] [--transcript <path>] --input <file|->\nAppends one block B-NNN to sources/discussion.md: the chosen messages, numbered as discussion list numbers them, word for word, each followed by the agent\'s line. --shapes names the agreement or Slices the discussion shaped; --replaces drops the block this one replaces. Input: one "N: <what the message answered, specifically enough that it reads alone>" line per chosen message.',
+    "discussion show",
+    "Usage: discussion show <M-3–M-9,M-14> [--record <record.md>] [--home <folder>]\nPrints the named messages whole, word for word, each under its heading; a removed one says so.",
   ],
   [
-    "discussion drop",
-    "Usage: discussion drop --record <record.md> --block <B-NNN>\nRemoves a block, once the work it shaped is closed and nothing open rests on it; Git keeps it. checkpoint lists the blocks whose shaped work is closed.",
+    "discussion remove",
+    "Usage: discussion remove --message M-<n> [--record <record.md>] [--home <folder>]\nDeletes one message's text, the user's word; its number stays, so no later message takes it, and Git keeps the text. Refused unless this session holds the task.",
+  ],
+  [
+    "task tidy",
+    "Usage: task tidy --id <task ID>\nBrings a task folder to its fixed structure: moves sources/discussion*.md unchanged into discussions/, rewrites the Recovery lines that named them, writes the README, and commits and pushes. It moves nothing else and leaves History as stored. Only when the user asked.",
   ],
   [
     "migrate",
@@ -190,7 +252,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "claim",
-    "Usage: claim --paths <glob> ... [--for <hours>] [--home <folder>]\n       claim --list [--home <folder>]\nClaims files this session is changing, for the task it holds or the delegation it works for, in the Freeflow store's claims.jsonl (the project's, or the store's for a task with no project), so the delegation gate warns another session before it writes them. A path is kept relative to its repository, so every checkout and worktree of it is covered. A claim lasts --for hours (default: delegation.claimHours, which the driver passes as FREEFLOW_CLAIM_HOURS, else 4), is renewed by this session's store sync while it is live, and ends at release, its delegation's close or the session's end. --list prints every live claim in the store.",
+    "Usage: claim --paths <glob> ... [--for <hours>] [--home <folder>]\n       claim --list [--home <folder>]\nClaims files this session is changing, for the task it holds or the delegation it works for, in the Freeflow store's claims.jsonl (the project's, or the store's for a task with no project), so the delegation gate warns another session before it writes them. A path is kept relative to its repository, so every checkout and worktree of it is covered. A claim lasts --for hours (default: delegation.claimHours, which the driver passes as FREEFLOW_CLAIM_HOURS, else 8), is renewed by this session's store sync while it is live, and ends at release, its delegation's close or the session's end. --list prints every live claim in the store.",
   ],
   [
     "release",
@@ -206,11 +268,11 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate status",
-    "Usage: delegate status --record <record.md> [--json]\nThe open delegations: ID, title, kind, agent, when opened, branch, whether a return is there, and each one's sub-workers. With --json, the same as data for a harness layer such as Freeflow's Claude Code pane: delegations, each with id, title, kind, agent, opened, handle, branch, worktree, returned (its return's State, or null), folder and sub (its sub-workers, the same way).",
+    "Usage: delegate status --record <record.md> [--cites <P3>] [--json]\nThe open delegations: ID, title, kind, agent, when opened, branch, whether a return is there, and each one's sub-workers. --cites <P3> lists only those whose brief's Settled cites that decision, the workers a change to it touches. With --json, the same as data for a harness layer such as Freeflow's Claude Code pane: delegations, each with id, title, kind, agent, opened, handle, branch, worktree, returned (its return's State, or null), folder and sub (its sub-workers, the same way).",
   ],
   [
     "delegate check-return",
-    "Usage: delegate check-return --record <record.md> --id <D-NNN[.n]> [--elsewhere <hash>=<owner/name> ...]\nRefuses a return that is missing, lacks its State line or a heading (Result, Identities, Checks, Left open, Not done; a reviewer returns Review Work's report instead), or names a commit that is not in the repository or not on the brief's branch. A hex word inside an email address, a UUID or a folder name between two slashes of a path (but not a URL's git ref, after blob/, tree/, commit/, raw/ or blame/) is not taken for a commit. --elsewhere, once per commit, names a commit the return names that belongs to another repository, such as a host's source the worker pinned: it is not looked for here, and the output names it; it is refused when the return names no such commit missing here. When it passes, the delegation's line says returned and the delegation log has its return (or blocked) line; it warns when Left open has text but no choice line (\"- <the choice> -> <what was taken>[, technical]\"). A worker session checks its own return the same way, leaving the record as it is. A return that passes is not accepted: read it and the diff, and rerun the check that decides the result. --scratch <folder> in place of --record checks a delegation opened with --scratch.",
+    "Usage: delegate check-return --record <record.md> --id <D-NNN[.n]> [--elsewhere <hash>=<owner/name> ...]\nRefuses a return that is missing, lacks its State line or a heading (Result, Identities, Checks, Left open, Not done; a reviewer returns Review Work's report instead), or names a commit that is not in the repository or not on the brief's branch. A hex word inside an email address, a UUID or a folder name between two slashes of a path (but not a URL's git ref, after blob/, tree/, commit/, raw/ or blame/) is not taken for a commit. --elsewhere, once per commit, names a commit the return names that belongs to another repository, such as a host's source the worker pinned: it is not looked for here, and the output names it; it is refused when the return names no such commit missing here. When it passes, the delegation's line says returned and the delegation log has its return (or blocked) line; it warns when Left open has text but no choice line (\"- <the choice> -> <what was taken>[, technical]\"). A worker session checks its own return the same way, leaving the record as it is. A return that passes is not accepted: read it and the diff, and rerun every command its brief's Done when names. --scratch <folder> in place of --record checks a delegation opened with --scratch.",
   ],
   [
     "delegate close",
@@ -230,7 +292,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "agreement close",
-    "Usage: agreement close --record <record.md> --state <completed|ended|replaced> [--next-action <text>] --input <file|->\nAppends the agreement's History entry (its lines, updates and decisions.md's list), removes it from Current Work, empties decisions.md, then syncs the Freeflow store holding the task. Refused while the current Slice works under it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required; Settled optional: choices that still govern the task, added to Current Context's Settled.",
+    "Usage: agreement close --record <record.md> --state <completed|ended|replaced> [--next-action <text>] [--next-input <file|-> --next-title <title>] --input <file|->\nAppends the agreement's History entry (its lines, updates and decisions.md's list), removes it from Current Work, empties decisions.md, then syncs the Freeflow store holding the task. Refused while the current Slice works under it, unless --state replaced with --next-input: that closes it and opens the next agreement in its place (A-NNN after every ID used, titled by --next-title, Opened today, from --next-input's bullets), and moves the Slice under it to the next agreement (its Under field, with a Moved update). --next-input goes only with --state replaced, and needs --next-title, which goes only with it.\nInput: Cue (\"read when …\", at most 25 words), Result and Task effect required; Settled optional: choices that still govern the task, added to Current Context's Settled.",
   ],
   [
     "estimate",
@@ -270,7 +332,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "session status",
-    "Usage: session status [--home <folder>]\nPrints, as JSON for a harness layer such as Freeflow's Claude Code mod, this session's state in the Freeflow store: home and store (false where the home is not a store, with only missing beside it); session, the session's ID; task, the task it holds, with its ID, record and State as of, or null; summary, the session summary checkpoint --session wrote, with its path and time, or null; changed, whether the store holds paths not committed or commits not pushed; transcript, the session's log, or null; missing, what keeps the session from a working store (a store FREEFLOW_HOME names that is not there, an empty clone not laid out yet, a cloud session's store with no remote), each with what, fix and by (user or agent), and empty when nothing is; compact, the request checkpoint --compact left (its path, requestedAt and done), or null. Reaches no network.",
+    "Usage: session status [--home <folder>]\nPrints, as JSON for a harness layer such as Freeflow's Claude Code mod, this session's state in the Freeflow store: home and store (false where the home is not a store, with only missing beside it); session, the session's ID; task, the task it holds, with its ID, record and State as of (and its short name when it has one), or null; summary, the session summary checkpoint --session wrote, with its path and time, or null; changed, whether the store holds paths not committed or commits not pushed; transcript, the session's log, or null; missing, what keeps the session from a working store (a store FREEFLOW_HOME names that is not there, an empty clone not laid out yet, a cloud session's store with no remote), each with what, fix and by (user or agent), and empty when nothing is; compact, the request checkpoint --compact left (its path, requestedAt and done), or null. Reaches no network.",
   ],
   [
     "project",
@@ -290,7 +352,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "project list",
-    "Usage: project list [--json]\nEach project in the Freeflow store with its number of tasks and the repositories its tasks name in Space. With --json, for a harness layer such as Freeflow's Claude Code pane: every project (the store's tasks with no project under the name null) with each of its tasks, newest first: its ID, title, state and cue; hold, the session holding it (its short ID, harness, where and since when) or null, and thisSession; lastSync; its open agreement and Slice (ID and title) or null; decisions, the open agreement's decision items (id, state, text), those waiting on the user and those the user answered first; and problem, why its record cannot be read, or null.",
+    "Usage: project list [--json]\nEach project in the Freeflow store with its number of tasks and the repositories its tasks name in Space. With --json, for a harness layer such as Freeflow's Claude Code pane: every project (the store's tasks with no project under the name null) with each of its tasks, newest first: its ID, title, state and cue, and its short name when it has one; hold, the session holding it (its short ID, harness, where and since when) or null, and thisSession; lastSync; its open agreement and Slice (ID and title) or null; decisions, the open agreement's decision items (id, state, text), those waiting on the user and those the user answered first; and problem, why its record cannot be read, or null.",
   ],
   [
     "project remove",
@@ -314,7 +376,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task create",
-    "Usage: task create --title <title> --goal <goal> --cue <cue> [--project <project> | --no-project] [--cwd <directory>] [--next-action <text>]\nMakes a Schema 5 task in the project, by default the one whose tasks name --cwd's repository, or with no project (task-NNN, in the store's tasks/) when none does or with --no-project; names that repository in its Space, and this session takes it; then commits and pushes. Only when the user asks or says yes to your question, which also asks where the task goes.",
+    "Usage: task create --title <title> --goal <goal> --cue <cue> [--short <name>] [--project <project> | --no-project] [--cwd <directory>] [--next-action <text>]\nWith --short, the task's readable name for the status line and the pane: 24 characters at most, refused when longer, never cut (task set-short changes it later). Makes a Schema 5 task in the project, by default the one whose tasks name --cwd's repository, or with no project (task-NNN, in the store's tasks/) when none does or with --no-project; names that repository in its Space, and this session takes it; then commits and pushes. Only when the user asks or says yes to your question, which also asks where the task goes.",
   ],
   [
     "task move",
@@ -356,6 +418,10 @@ const COMMAND_HELP = new Map([
   [
     "task set-state",
     "Usage: task set-state --record <record.md> --state <active|paused|completed|abandoned> --next-action <text>",
+  ],
+  [
+    "task set-short",
+    "Usage: task set-short --id <ID> --short <name>\nSets a task's short name, 24 characters at most, in the store's record header; --short \"\" removes it. Only the session that holds the task sets it; the store's sync commits and pushes the change.",
   ],
   [
     "task set-budget",
@@ -462,11 +528,11 @@ function allowedOptions(command, operation) {
     ]);
   if (command === "migrate") return new Set(["--root", "--record", "--cue", "--cues", "--project", "--home", "--help"]);
   if (command === "discussion") {
-    const reading = ["--root", "--record", "--since", "--until", "--transcript", "--format", "--help"];
-    if (operation === "list") return new Set(reading);
-    if (operation === "save")
-      return new Set([...reading, "--messages", "--title", "--shapes", "--replaces", "--input"]);
-    if (operation === "drop") return new Set(["--root", "--record", "--block", "--help"]);
+    if (operation === "capture")
+      return new Set(["--transcript", "--format", "--session", "--no-push", "--home", "--help"]);
+    if (operation === "list") return new Set(["--record", "--date", "--home", "--help"]);
+    if (operation === "show") return new Set(["--record", "--home", "--help"]);
+    if (operation === "remove") return new Set(["--record", "--message", "--home", "--help"]);
   }
   if (command === "delegate") {
     const record = ["--root", "--record", "--help"];
@@ -497,7 +563,7 @@ function allowedOptions(command, operation) {
     if (operation === "join") return new Set([...record, "--id", "--home"]);
     if (operation === "log") return new Set([...record, "--id", "--append", "--kind", "--body", "--agent"]);
     if (operation === "amend") return new Set([...record, "--id", "--text", "--handle", "--input"]);
-    if (operation === "status") return new Set([...record, "--json"]);
+    if (operation === "status") return new Set([...record, "--json", "--cites"]);
     if (operation === "check-return") return new Set([...record, "--id", "--scratch", "--elsewhere"]);
     if (operation === "close")
       return new Set([
@@ -545,13 +611,14 @@ function allowedOptions(command, operation) {
   if (command === "agreement") {
     if (operation === "open") return new Set([...withNextAction, "--title"]);
     if (operation === "update") return new Set([...common, "--text"]);
-    if (operation === "close") return new Set([...withNextAction, "--state"]);
+    if (operation === "close") return new Set([...withNextAction, "--state", "--next-input", "--next-title"]);
   }
   if (command === "events") {
     if (operation === "append") return new Set(["--input", "--home", "--help"]);
     if (operation === "summary") return new Set(["--session", "--json", "--home", "--help"]);
     if (operation === "show") return new Set(["--session", "--kind", "--home", "--help"]);
-    if (operation === "sent") return new Set(["--session", "--what", "--show", "--home", "--help"]);
+    if (operation === "sent")
+      return new Set(["--session", "--what", "--show", "--sha", "--limit", "--json", "--home", "--help"]);
   }
   if (command === "store" && operation === "init")
     return new Set(["--remote", "--home", "--git-name", "--git-email", "--help"]);
@@ -691,6 +758,7 @@ async function runStore(operation, options) {
       status.remote
         ? `Remote: ${status.remote} · branch ${status.branch ?? "none"}`
         : `Remote: none, a local store (store remote --url <url> makes it a cloud store) · branch ${status.branch ?? "none"}`,
+      `Task memory: ${memoryText(status)}`,
       `Not committed: ${status.uncommitted} path(s)`,
       `Not pushed: ${count(status.unpushed)} commit(s); not yet taken: ${count(status.behind)}, as of the last sync`,
       `Last sync: ${last}`,
@@ -726,7 +794,8 @@ const STORE_OPTIONS = new Map([
   ["project remove", ["--name"]],
   ["project list", ["--json"]],
   ["project show", ["--name", "--cwd"]],
-  ["task create", ["--title", "--goal", "--cue", "--project", "--no-project", "--cwd", "--next-action"]],
+  ["task create", ["--title", "--goal", "--cue", "--short", "--project", "--no-project", "--cwd", "--next-action"]],
+  ["task set-short", ["--id", "--short"]],
   ["task move", ["--id", "--project", "--no-project"]],
   ["task take", ["--id", "--takeover"]],
   ["task release", ["--id", "--ended", "--no-push"]],
@@ -734,7 +803,17 @@ const STORE_OPTIONS = new Map([
   ["task here", ["--cwd", "--scan", "--rules", "--take-back"]],
   ["task search", ["--query", "--project"]],
   ["task remove", ["--id"]],
+  ["task tidy", ["--id"]],
 ]);
+
+/** The --short option: "" means no short name (create) or removes it (set-short); a flag with no value is refused. */
+function shortOption(options) {
+  const value = options["--short"];
+  if (value === undefined) return "";
+  if (typeof value !== "string") throw new CliError('--short needs the task\'s short name, or "" for none');
+  // Spaces around a name are not part of it: the count and the stored line are the trimmed name.
+  return value.trim();
+}
 
 async function runProjects5(command, operation, options, home) {
   const allowed = new Set([...STORE_OPTIONS.get(`${command} ${operation}`), "--home"]);
@@ -761,10 +840,17 @@ async function runProjects5(command, operation, options, home) {
         title: requireOption(options, "--title"),
         goal: requireOption(options, "--goal"),
         cue: requireOption(options, "--cue"),
+        short: shortOption(options),
         nextAction: options["--next-action"],
       },
       identity,
     );
+  if (key === "task set-short") {
+    // set-short with no --short would remove the name by accident: removing takes --short "".
+    if (options["--short"] === undefined)
+      throw new CliError('task set-short needs --short <name>, or --short "" to remove it');
+    return setTaskShort(home, requireOption(options, "--id"), shortOption(options), identity);
+  }
   if (key === "task take")
     return takeTask(home, requireOption(options, "--id"), identity, { takeover: options["--takeover"] === true });
   if (key === "task release")
@@ -783,6 +869,7 @@ async function runProjects5(command, operation, options, home) {
   }
   if (key === "task search") return searchTasks(home, requireOption(options, "--query"), options["--project"] ?? null);
   if (key === "task remove") return removeTask(home, requireOption(options, "--id"));
+  if (key === "task tidy") return tidyTask(home, requireOption(options, "--id"), identity);
   if (key === "task move")
     return moveTask(
       home,
@@ -802,11 +889,11 @@ const WORKER_REFUSED = new Set([
   "task remove",
   "task set-state",
   "task set-budget",
+  "task set-short",
   "project new",
   "project remove",
   "migrate ",
-  "discussion save",
-  "discussion drop",
+  "discussion remove",
   "delegate close",
 ]);
 
@@ -828,13 +915,129 @@ function workerRefusal(command, operation, options, joined) {
   return `This session works for ${joined.id} of ${joined.task}; it writes its progress.md (checkpoint --delegation ${joined.id}) and return.md, and only the coordinator writes the record${key === "delegate open" ? ". It may hand parts to its own subagents (delegate open --parent), never to another session" : ""}.`;
 }
 
+/**
+ * `discussion`: the user's messages Freeflow captured, read and removed. `capture` (each driver runs it at a turn's end)
+ * writes the turn's new messages to the held task's discussions/, or to the session's own file while it holds none,
+ * and commits and pushes the store. list, show and remove read the held task's messages (or --record's), or the
+ * session's own; remove deletes one message's text and keeps its number.
+ */
+async function runDiscussion(operation, positionals, options) {
+  const home = storeHome(options["--home"]);
+  const identity = sessionIdentity();
+  if (operation === "capture") {
+    if (!isFreeflowStore(home)) throw new CliError(`discussion capture works in a Freeflow store; ${home} is not one`);
+    const source = await captureSource(options);
+    return captureDiscussion(home, source, { push: options["--no-push"] !== true });
+  }
+  if (!["list", "show", "remove"].includes(operation))
+    throw new CliError("discussion takes capture, list, show or remove");
+  const place = await discussionPlace(options, home, identity);
+  const messages = place.taskDir ? taskMessages(place.taskDir) : sessionMessages(place.file);
+  if (operation === "list") return listText(messages, { date: options["--date"] ?? null });
+  if (operation === "show") {
+    if (positionals.length !== 2) throw new CliError("discussion show takes the messages to print, as M-3–M-9,M-14");
+    return showText(messages, parseMessageNumbers(positionals[1]));
+  }
+  const numbers = parseMessageNumbers(requireOption(options, "--message"));
+  if (numbers.length !== 1) throw new CliError("discussion remove takes one message: --message M-<n>");
+  if (place.record) requireHold(place.record, identity);
+  return removeMessage(messages, numbers[0]);
+}
+
+/** Where a discussion command reads: --record's task, the task this session holds, or the session's own file. */
+async function discussionPlace(options, home, identity) {
+  if (options["--record"]) {
+    const loaded = requireSchema5(await readExisting(options));
+    return { taskDir: dirname(loaded.path), record: loaded.path, file: null };
+  }
+  if (!identity)
+    throw new CliError("No session ID: Claude Code sets CLAUDE_CODE_SESSION_ID; other harnesses set FREEFLOW_SESSION.");
+  const held = heldTask(home, identity);
+  if (held) return { taskDir: held.dir, record: join(held.dir, "record.md"), file: null };
+  return { taskDir: null, record: null, file: join(home, "sessions", identity.id, SESSION_DISCUSSION) };
+}
+
+/**
+ * Which session a capture is for, and what it reads. Each driver names its own session with --session and its own
+ * transcript with --transcript; without them, the identity is FREEFLOW_SESSION (a harness layer sets it, as Pi does),
+ * else Claude Code's session ID. A transcript not named is the session's own Claude Code log when the identity is that
+ * Claude Code session, else FREEFLOW_TRANSCRIPT. An inherited variable never picks another session's transcript.
+ */
+async function captureSource(options) {
+  const env = process.env;
+  const id = options["--session"] || env.FREEFLOW_SESSION || env.CLAUDE_CODE_SESSION_ID;
+  if (!id) throw new CliError("No session ID: pass --session, or set FREEFLOW_SESSION or CLAUDE_CODE_SESSION_ID.");
+  const identity = sessionIdentity({ ...env, FREEFLOW_SESSION: id });
+  if (options["--transcript"] === "-") {
+    // A plain export on standard input: read whole, captured without a cursor.
+    const text = await readInput("-", cwd());
+    return { identity, list: distinct(readPlain(text)).map((message) => ({ ...message, turn: 0 })) };
+  }
+  let transcript = options["--transcript"];
+  if (transcript === undefined && env.CLAUDE_CODE_SESSION_ID === id) {
+    transcript = claudeCodeLog(env);
+    if (!transcript)
+      throw new CliError(
+        "No log for this Claude Code session was found beside its session ID; pass --transcript <path>.",
+      );
+  }
+  if (transcript === undefined) transcript = env.FREEFLOW_TRANSCRIPT;
+  if (!transcript)
+    throw new CliError(
+      "No transcript found: pass --transcript <path> (or --transcript - for a plain export on standard input).",
+    );
+  return { identity, transcript, format: options["--format"] };
+}
+
+async function captureDiscussion(home, source, { push = true } = {}) {
+  const identity = source.identity;
+  // A worker session captures nothing: the words it is given are the coordinator's, already in the brief.
+  if (joinedDelegation(home, identity))
+    return "A worker session captures nothing: its words are the coordinator's, already in the brief.\n";
+  const held = heldTask(home, identity);
+  const sessionDir = join(home, "sessions", identity.id);
+  const taskDir = held ? held.dir : null;
+  const result = source.list
+    ? captureList({ sessionDir, taskDir, messages: source.list })
+    : captureMessages({ sessionDir, taskDir, transcript: source.transcript, format: source.format });
+  if (!result.captured) return "No new messages.\n";
+  const [first, last] = [result.numbers[0], result.numbers.at(-1)];
+  const range = first === last ? `M-${first}` : `M-${first}–M-${last}`;
+  const synced = await sync(home, `Capture ${range} (${identity.short})`, { push });
+  return `Captured ${result.captured} message(s), ${range}, into ${result.path}.\n${synced}\n`;
+}
+
+/**
+ * The capture a checkpoint and a fallback bundle run first (N-3, N-4): the turn in progress is in the task before the
+ * record is written or the bundle is read. Best effort: a capture that cannot run never stops the checkpoint or bundle.
+ */
+async function captureBeforeCheckpoint(options) {
+  try {
+    const home = storeHome(options["--home"]);
+    if (!isFreeflowStore(home)) return;
+    const source = await captureSource({
+      "--session": undefined,
+      "--transcript": options["--transcript"],
+      "--format": undefined,
+    });
+    if (joinedDelegation(home, source.identity)) return;
+    await captureDiscussion(home, source, { push: false });
+  } catch {
+    // The checkpoint or the bundle goes on without it: the next capture reads the same transcript from its cursor.
+  }
+}
+
 async function runCore(command, rest) {
-  const { options, positionals } = parseOptions(rest, { valued: command === "events" ? ["--session"] : [] });
+  const { options, positionals } = parseOptions(rest, {
+    valued: command === "events" || command === "discussion" ? ["--session"] : [],
+  });
   const operation = positionals[0];
   if (options["--help"]) return commandHelp(command, operation);
   const joined = joinedDelegation(storeHome(options["--home"]), sessionIdentity());
   const refusal = workerRefusal(command, operation, options, joined);
   if (refusal) throw new CliError(refusal);
+  const offRefusal = memoryOffRefusal(command, operation, options);
+  if (offRefusal) throw new CliError(offRefusal);
   // Projects and tasks are the Freeflow store's folders.
   if (STORE_OPTIONS.has(`${command} ${operation}`)) {
     const home = storeHome(options["--home"]);
@@ -933,35 +1136,7 @@ async function runCore(command, rest) {
       text: await readInput(requireOption(options, "--input"), cwd()),
     });
   }
-  if (command === "discussion") {
-    const loaded = requireSchema5(await readExisting(options));
-    if (operation === "drop") return dropBlock(loaded, requireOption(options, "--block"));
-    const task = await loadTask5(loaded.path, loaded.text);
-    // List and save number the same messages: by default, those since the record's last checkpoint.
-    const since = options["--since"] ?? task.record.header.stateAsOf;
-    if (options["--transcript"] === "-" && options["--input"] === "-")
-      throw new CliError("--transcript - reads standard input; give the notes with --input <file>");
-    const stdin = options["--transcript"] === "-" ? await readInput("-", cwd()) : null;
-    const messages = userMessages({
-      transcript: options["--transcript"],
-      format: options["--format"],
-      since,
-      until: options["--until"],
-      stdin,
-    });
-    if (operation === "list") return listText(messages, since);
-    if (operation === "save") {
-      if (!messages.length) throw new CliError(`No messages from the user since ${since} to save.`);
-      return saveBlock(loaded, {
-        messages,
-        numbers: parseNumbers(requireOption(options, "--messages"), messages.length),
-        title: options["--title"],
-        shapes: options["--shapes"],
-        replaces: options["--replaces"],
-        notesText: await readInput(options["--input"], cwd()),
-      });
-    }
-  }
+  if (command === "discussion") return runDiscussion(operation, positionals, options);
   if (command === "migrate") {
     const loaded = await readExisting(options);
     if (schemaOf(loaded.text) === 5 && (hasOldRecoveryHeadings(loaded.text) || /^- Carry:/m.test(loaded.text)))
@@ -1014,7 +1189,12 @@ async function runCore(command, rest) {
     const input = await readInput(options["--input"], cwd());
     if (operation === "open") return openDelegation(loaded, options, input);
     if (operation === "amend") return amendDelegation(loaded, options, input);
-    if (operation === "status") return delegationStatus(loaded, { json: options["--json"] === true });
+    if (operation === "status") {
+      const cites = options["--cites"];
+      if (cites !== undefined && !/^[PT][1-9]\d*$/.test(String(cites)))
+        throw new CliError(`--cites takes a decision ID, P<n> or T<n>, not ${JSON.stringify(cites)}`, 2);
+      return delegationStatus(loaded, { json: options["--json"] === true, cites: cites ?? null });
+    }
     // A worker checks its own return before it hands back; the record stays the coordinator's.
     if (operation === "check-return") return checkReturn(loaded, options, { readOnly: Boolean(joined) });
     if (operation === "close") return closeDelegation(loaded, options, input);
@@ -1050,6 +1230,7 @@ async function runCore(command, rest) {
     if (view === "full") return loaded.text;
     requireSchema5(loaded);
     if (view === "recover") return renderRecover5(loaded, { delegation: options["--delegation"] ?? null });
+    if (view === "bundle" && options["--fallback"] === true) await captureBeforeCheckpoint(options);
     if (view === "bundle")
       return renderBundle5(loaded, {
         fallback: options["--fallback"] === true,
@@ -1068,7 +1249,10 @@ async function runCore(command, rest) {
     );
   const loaded = requireSchema5(await readExisting(options));
   // A checkpoint writes only the task this session holds (F36).
-  if (command === "checkpoint") requireHold(loaded.path, sessionIdentity());
+  if (command === "checkpoint") {
+    requireHold(loaded.path, sessionIdentity());
+    await captureBeforeCheckpoint(options);
+  }
   const input = await readInput(options["--input"], cwd());
   return runTransition5(command, positionals, options, input, loaded);
 }
@@ -1144,7 +1328,7 @@ const GATE_COMMANDS = new Set([
 async function gatesAfter(command, rest, output) {
   let parsed;
   try {
-    parsed = parseOptions(rest, { valued: command === "events" ? ["--session"] : [] });
+    parsed = parseOptions(rest, { valued: command === "events" || command === "discussion" ? ["--session"] : [] });
   } catch {
     return;
   }

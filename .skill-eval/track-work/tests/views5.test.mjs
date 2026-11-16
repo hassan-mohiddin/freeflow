@@ -137,7 +137,7 @@ test("view recover prints the opening line, rules, record, decisions, History an
     const out = ok(run(folder, ["view", "recover", "--record", record]));
     assert.ok(
       out.startsWith(
-        "This task's record is memory, not authority: the user's direction decides the work, as written in the agreement and the discussion blocks",
+        "This task's record is memory, not authority: the user's direction decides the work, as written in the agreement and the user's messages in discussions/",
       ),
     );
     const order = [

@@ -3,7 +3,8 @@
 // (Discuss Work, "Build The Decision List").
 //   validate   IDs, states, T -> P links, a default on every plain item, the user's words on agreed items, a reason on
 //              changed ones;
-//   agreement  the reply sent before building: What I'll do / Where I stop / Your decisions / Technical: N;
+//   agreement  the reply sent before building: What I'll do / Where I stop / Your decisions / Technical: N /
+//              Workers, when given;
 //   return     the items a Return shows: new, changed and default;
 //   catch-up   after an unattended run: defaults taken, choices waiting, changes, and what ran (the record's current
 //              Slice's updates).
@@ -52,7 +53,8 @@ export function parseChoices(text) {
     if (item.kind === "technical" && !item.serves)
       errors.push(`${where}: a technical item names the plain item it serves ("-> serves P1")`);
     if (item.state === "agreed" && !item.quote) warnings.push(`${where}: agreed without the user's words (You: "...")`);
-    if (item.state === "changed" && !item.reason) warnings.push(`${where}: changed without saying why`);
+    if (item.state === "changed" && !item.reason)
+      errors.push(`${where}: changed without saying why (one line: "because ...")`);
   }
   for (const item of items.filter((each) => each.serves)) {
     const target = items.find((each) => each.id === item.serves);
@@ -148,7 +150,7 @@ function planLines(plan) {
 export function renderChoices(
   view,
   parsed,
-  { outcome, stop, showTechnical = false, recordText = null, plan = null } = {},
+  { outcome, stop, workers = null, showTechnical = false, recordText = null, plan = null } = {},
 ) {
   const { items } = parsed;
   const plain = items.filter((item) => item.kind === "plain" && item.state !== "dropped");
@@ -187,6 +189,8 @@ export function renderChoices(
       `Where I stop:   ${stop}`,
       `Your decisions: ${decisions.join("\n")}`,
       ...technicalLine,
+      // The workers the user's answer grants, which Track Work keeps as the agreement's Workers: line.
+      ...(workers ? [`Workers:        ${workers.trim()}`] : []),
       // Last, so the work's size stands out (P101).
       ...(plan ? [sizeLine(plan)] : []),
     ].join("\n");

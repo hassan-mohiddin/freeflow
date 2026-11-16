@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
+import { setFolderSettings } from "../fixtures/freeflow-home.js";
+
 import freeflowExtension from "../../dist/index.js";
 import { GateRuntime } from "../../dist/gates/runtime.js";
 
 const packageRoot = resolve(process.cwd());
 // The one gate left is the delegation gate (D-058): the agreement, Slice and delivery gates were removed.
-const WARN = { delegation: "warn" };
-const BLOCK = { delegation: "block" };
 
 /** A Freeflow home holding one session's gate state; FREEFLOW_HOME points at it for the test. */
 async function withHome(state, run) {
@@ -48,15 +48,15 @@ const claim = (glob) => ({
   session: "cccccccc-3333",
 });
 
-test("the runtime warns once per turn, refuses under block, and reads no file per call (delegation gate, D-058)", async () => {
+test("the runtime warns once per turn, never refuses, and reads no file per call (delegation gate, D-058, D-069)", async () => {
   await withHome(state({ claims: [claim("/w/**")] }), async () => {
     const gates = new GateRuntime(packageRoot);
     gates.begin("s-1");
     // Before the state is read, every call runs.
     await gates.load();
-    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w", WARN).kind, "allow");
+    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w").kind, "allow");
     await gates.refresh();
-    const first = gates.check({ toolName: "edit", input: { path: "a.ts" }, toolCallId: "c1" }, "/w", WARN);
+    const first = gates.check({ toolName: "edit", input: { path: "a.ts" }, toolCallId: "c1" }, "/w");
     assert.equal(first.kind, "warn");
     assert.deepEqual(
       first.fired.map((each) => each.gate),
@@ -66,32 +66,32 @@ test("the runtime warns once per turn, refuses under block, and reads no file pe
     assert.deepEqual(gates.takeRows("c1"), first.rows);
     assert.deepEqual(gates.takeRows("c1"), []);
     // The same gate again this turn: logged, no second row; a new turn warns again.
-    const again = gates.check({ toolName: "write", input: { path: "/w/b.ts" }, toolCallId: "c2" }, "/w", WARN);
+    const again = gates.check({ toolName: "write", input: { path: "/w/b.ts" }, toolCallId: "c2" }, "/w");
     assert.equal(again.fired.length, 1);
     assert.deepEqual(again.rows, []);
     gates.turnStart();
-    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/c.ts" } }, "/w", WARN).rows.length, 1);
-    // Under block: refused with the text.
-    const refused = gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w", BLOCK);
-    assert.equal(refused.kind, "block");
-    assert.match(refused.reason, /^Freeflow gate \(block, delegation\): a\.ts is claimed by other\/task-002/);
+    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/c.ts" } }, "/w").rows.length, 1);
+    // The claimed write warns, and the call is not refused (D-069).
+    const claimed = gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w");
+    assert.equal(claimed.kind, "warn");
+    assert.equal(claimed.fired[0].decision, "warn");
     // A push and a write outside the claim are not the removed gates' business: they run.
-    assert.equal(gates.check({ toolName: "bash", input: { command: "git push" } }, "/w", BLOCK).kind, "allow");
-    assert.equal(
-      gates.check({ toolName: "bash", input: { command: "git status && git push" } }, "/w", WARN).kind,
-      "allow",
-    );
-    // apply_patch names its files in the patch.
+    assert.equal(gates.check({ toolName: "bash", input: { command: "git push" } }, "/w").kind, "allow");
+    assert.equal(gates.check({ toolName: "bash", input: { command: "git status && git push" } }, "/w").kind, "allow");
+    // apply_patch names its files in the patch; a new turn warns again.
+    gates.turnStart();
     const patch = gates.check(
-      { toolName: "apply_patch", input: { input: "*** Begin Patch\n*** Update File: src/x.ts\n*** End Patch" } },
+      {
+        toolName: "apply_patch",
+        input: { input: "*** Begin Patch\n*** Update File: src/x.ts\n*** End Patch" },
+      },
       "/w",
-      BLOCK,
     );
-    assert.equal(patch.kind, "block");
-    assert.match(patch.reason, /src\/x\.ts is claimed/);
+    assert.equal(patch.kind, "warn");
+    assert.match(patch.rows[0], /src\/x\.ts is claimed/);
     // Reads are never gated.
-    assert.equal(gates.check({ toolName: "read", input: { path: "/w/a.ts" } }, "/w", BLOCK).kind, "allow");
-    assert.equal(gates.check({ toolName: "bash", input: { command: "npm test" } }, "/w", BLOCK).kind, "allow");
+    assert.equal(gates.check({ toolName: "read", input: { path: "/w/a.ts" } }, "/w").kind, "allow");
+    assert.equal(gates.check({ toolName: "bash", input: { command: "npm test" } }, "/w").kind, "allow");
   });
 });
 
@@ -105,8 +105,7 @@ test("a missing gate state is quiet, said once, and never refuses a main-loop ca
     await gates.refresh({ settled: true });
     assert.equal(gates.missingOnce(), true);
     assert.equal(gates.missingOnce(), false);
-    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w", WARN).kind, "allow");
-    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w", BLOCK).kind, "allow");
+    assert.equal(gates.check({ toolName: "edit", input: { path: "/w/a.ts" } }, "/w").kind, "allow");
   });
 });
 
@@ -135,10 +134,10 @@ function loadExtension() {
   return handlers;
 }
 
+/** A repository whose folder settings are `config`, in the test's Freeflow home (D-060); each repository has its own. */
 async function configuredRepo(config) {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-gates-repo-"));
-  await mkdir(join(cwd, ".freeflow"));
-  await writeFile(join(cwd, ".freeflow", "config.json"), JSON.stringify(config));
+  await setFolderSettings(cwd, config);
   return cwd;
 }
 
@@ -159,36 +158,32 @@ function context(cwd) {
 }
 
 /** Calls tool_call until the gate state has been read, as session start reads it without waiting. */
-async function untilGated(handlers, event, ctx) {
-  for (let tries = 0; tries < 100; tries += 1) {
-    const result = await handlers.get("tool_call")(event, ctx);
-    if (result !== undefined) return result;
-    await new Promise((done) => setTimeout(done, 20));
-  }
-  return undefined;
-}
-
-test("Pi's tool_call warns through the call's result and allows, or blocks with the reason under block", async () => {
-  const warnRepo = await configuredRepo({ enabled: true, toolExecution: { enabled: false } });
-  // The removed gates' keys are ignored by the file, and the delegation gate alone is set to block (D-058).
-  const blockRepo = await configuredRepo({
-    enabled: true,
-    gates: { delegation: "block", agreement: "block", slice: "block", delivery: "block" },
-  });
+test("Pi's tool_call only warns: the call runs and its result gains the row; a removed gate value is named, not read (D-069)", async () => {
+  // The folders first, for the claims; their settings go in the home's folders.json once the home is set.
+  const warnRepo = await mkdtemp(join(tmpdir(), "freeflow-gates-repo-"));
+  const oldRepo = await mkdtemp(join(tmpdir(), "freeflow-gates-repo-"));
   try {
-    await withHome(state({ claims: [claim(`${blockRepo}/**`), claim(`${warnRepo}/**`)] }), async () => {
-      // Block first: the refusal shows when the state has been read.
+    await withHome(state({ claims: [claim(`${oldRepo}/**`), claim(`${warnRepo}/**`)] }), async () => {
+      await setFolderSettings(warnRepo, { enabled: true, toolExecution: { enabled: false } });
+      // A file that still holds the removed setting: the layer names it, and the gate warns all the same.
+      await setFolderSettings(oldRepo, {
+        enabled: true,
+        gates: { delegation: "block", agreement: "block", slice: "block", delivery: "block" },
+      });
       let handlers = loadExtension();
-      let ctx = context(blockRepo);
+      let ctx = context(oldRepo);
       await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
-      const edit = { toolName: "edit", toolCallId: "c1", input: { path: join(blockRepo, "src", "a.ts") } };
-      const refused = await untilGated(handlers, edit, ctx);
-      assert.equal(refused?.block, true);
-      assert.match(
-        refused.reason,
-        /^Freeflow gate \(block, delegation\): src\/a\.ts is claimed by other\/task-002 D-009/,
+      const edit = { toolName: "edit", toolCallId: "c1", input: { path: join(oldRepo, "src", "a.ts") } };
+      assert.equal(await handlers.get("tool_call")(edit, ctx), undefined);
+      const warned = await handlers.get("tool_result")(
+        { ...edit, content: [{ type: "text", text: "Edited a.ts" }], isError: false },
+        ctx,
       );
-      // A delivery step is not the removed delivery gate's: it runs without asking anyone.
+      assert.match(
+        warned?.content?.map((block) => block.text).join("\n") ?? "",
+        /Freeflow gate \(warn, delegation\): src\/a\.ts is claimed by other\/task-002 D-009/,
+      );
+      // A push is not the removed delivery gate's: it runs without asking anyone.
       const push = { toolName: "bash", toolCallId: "c2", input: { command: "git push" } };
       assert.equal((await handlers.get("tool_call")(push, ctx))?.block, undefined);
 
@@ -209,11 +204,11 @@ test("Pi's tool_call warns through the call's result and allows, or blocks with 
       const text = shaped.content.map((block) => block.text).join("\n");
       assert.match(text, /Wrote b\.ts/);
       assert.match(text, /Freeflow gate \(warn, delegation\): b\.ts is claimed by other\/task-002 D-009/);
-      assert.match(text, /This gate only warns for now\./);
+      assert.match(text, /This gate only warns\./);
     });
   } finally {
     await rm(warnRepo, { recursive: true, force: true });
-    await rm(blockRepo, { recursive: true, force: true });
+    await rm(oldRepo, { recursive: true, force: true });
   }
 });
 
@@ -278,6 +273,7 @@ test(
             toolExecution: { enabled: true },
             gates: { delegation: "block", agreement: "block", slice: "block" },
           },
+          home,
         },
       );
     } finally {

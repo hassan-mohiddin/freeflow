@@ -375,7 +375,7 @@ A configuration with `freeflow` runs the subject with Freeflow loaded, built fro
 ```
 
 - `source` is a Git commit; the package is built from that commit with the definition root's `scripts/freeflow-snapshot.mjs`, once per distinct ref per group, into the group's `resources/freeflow/`. The user's development snapshot is never used or changed.
-- `repository` is written to the workspace's `.freeflow/config.json` and `personal`, when not empty, to `.freeflow/local.json`, before the workspace's starting state is taken, so neither counts as a subject change. Both default to `{}`, and that build's own validator checks them.
+- `repository` is written to the arm's Freeflow home as Everywhere's settings (`settings.json`), and `personal` (This folder's settings) to the home's `folders.json` under the workspace, before the workspace's starting state is taken, so neither counts as a subject change. Both default to `{}`, and that build's own validator checks them.
 - `runtime.prompt` is `host`, because the isolated prompt replaces the host's system prompt, which would remove Freeflow's own instructions.
 - Freeflow's extension loads right after the evaluator's guard, the package directory is readable by the subject, and Freeflow may register custom tools that `tools` then names.
 - `run.json` records the ref, resolved commit, package name and version, tarball hash, and the settings under `resources.freeflow`.

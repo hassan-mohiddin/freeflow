@@ -16,7 +16,13 @@ const WINDOW = 200_000;
 const limits = { window: WINDOW, trigger: 183_616, notice: 163_616 };
 const notice = (text) => `<freeflow-notice type="compaction">\n${text}\n</freeflow-notice>`;
 
-function setup({ state, kept, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" } } = {}) {
+function setup({
+  state,
+  kept,
+  bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stderr: "" },
+  memoryOff = false,
+  withoutTask = true,
+} = {}) {
   let tokens = 0;
   const calls = { answered: 0, bundle: [], summarize: [] };
   // The store's copy of the cycle (cycle.json): what a reload reads back.
@@ -26,6 +32,8 @@ function setup({ state, kept, bundle = { code: 0, stdout: "BUNDLE_TEXT\n", stder
   const ctx = { cwd: "/work", sessionManager: { getBranch: () => branch, getLeafId: () => String(branch.length) } };
   const controller = new CompactionController({
     effective: () => true,
+    memoryOff: () => memoryOff,
+    withoutTask: () => withoutTask,
     background: () => [],
     measure: () => ({ tokens, thresholds: limits }),
     kept: () => copies.value,
@@ -97,6 +105,31 @@ test("with no task the notice asks for the session summary", () => {
   const plain = setup({ state: { home: "/home", store: false, session: "s-1" } });
   plain.at(163_616);
   assert.match(plain.controller.observe(plain.ctx).text, /checkpoint --session --compact --input -/);
+});
+
+test("with no task held and compaction.withoutTask off, no notice asks for a checkpoint and Pi compacts on its own (B2, D-060)", async () => {
+  const event = { preparation: { firstKeptEntryId: "tail-1", tokensBefore: 120_000 }, signal: undefined };
+  const plain = setup({ state: { home: "/home", store: false, session: "s-1" }, withoutTask: false });
+  plain.at(163_616);
+  assert.equal(plain.controller.observe(plain.ctx), undefined);
+  assert.equal(await plain.controller.fallback(event, plain.ctx), undefined);
+  assert.equal(plain.calls.summarize.length, 0, "no Freeflow summarizer request");
+  assert.equal(plain.calls.bundle.length, 0);
+
+  // A held task is not a session without one: its notice and its bundle still come.
+  const held = setup({ state: task(new Date().toISOString()), withoutTask: false });
+  held.at(163_616);
+  assert.match(held.controller.observe(held.ctx).text, /checkpoint freeflow\/task-001/);
+});
+
+test("task memory off: no notice and no Freeflow compaction, whatever a held task says (D-060, Setting 2)", async () => {
+  const event = { preparation: { firstKeptEntryId: "tail-1", tokensBefore: 120_000 }, signal: undefined };
+  const off = setup({ state: task(new Date().toISOString()), memoryOff: true });
+  off.at(163_616);
+  assert.equal(off.controller.observe(off.ctx), undefined);
+  assert.equal(await off.controller.fallback(event, off.ctx), undefined);
+  assert.equal(off.calls.bundle.length, 0);
+  assert.equal(off.calls.answered, 0);
 });
 
 test("a run that ends with checkpoint --compact done compacts with the bundle, keeps nothing raw, and continues", async () => {

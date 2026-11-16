@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { OPENING_LINE, SESSION_OPENING } from "../../../skills/track-work/scripts/lib/discussion5.mjs";
 
@@ -211,13 +211,24 @@ test("view bundle --fallback adds the user's messages since the checkpoint, word
       ].join("\n") + "\n",
     );
 
+    // The messages Freeflow captured into the task's discussions/, one day file each.
+    await mkdir(join(dirname(record), "discussions"), { recursive: true });
+    await writeFile(
+      join(dirname(record), "discussions", "2000-01-01.md"),
+      "# Discussion · 2000-01-01\n\n### M-1 · 00:00\n\n> Before the checkpoint.\n\n",
+    );
+    await writeFile(
+      join(dirname(record), "discussions", "2099-01-01.md"),
+      "# Discussion · 2099-01-01\n\n### M-2 · 00:00\n\n> After the checkpoint:\n> keep the parser as it is.\n\n",
+    );
     const bundle = ok(
       cli(["view", "bundle", "--record", record, "--fallback"], { env: { FREEFLOW_TRANSCRIPT: transcript } }),
     );
     const since = bundle.indexOf(`## The user's messages since ${stateAsOf}`);
     assert.ok(bundle.indexOf("## Sizes") < since && since > 0);
-    assert.ok(bundle.includes("### 1. 2099-01-01T00:00:00.000Z\n\nAfter the checkpoint:\nkeep the parser as it is.\n"));
+    assert.ok(bundle.includes("### M-2 · 2099-01-01 00:00\n\nAfter the checkpoint:\nkeep the parser as it is.\n"));
     assert.ok(!bundle.includes("Before the checkpoint."));
+    assert.ok(!bundle.includes("### M-1"), "a message before the checkpoint is not in the fallback");
     assert.ok(!bundle.includes("### 2."), "an installed bundle is not one of the user's messages");
     assert.ok(!bundle.includes("then continue from In flight and the Next action."));
     const closing = bundle.trimEnd().split("\n").at(-1);
@@ -229,6 +240,8 @@ test("view bundle --fallback adds the user's messages since the checkpoint, word
     assert.ok(plain.trimEnd().endsWith("then continue from In flight and the Next action."));
     assert.ok(bundle.startsWith(plain.slice(0, plain.indexOf("## Sizes"))));
 
+    // With no captured messages and no transcript, the fallback says so.
+    await rm(join(dirname(record), "discussions"), { recursive: true, force: true });
     const unfound = ok(cli(["view", "bundle", "--record", record, "--fallback"]));
     assert.ok(unfound.includes(`## The user's messages since ${stateAsOf}\n\nNone.\n`));
     assert.ok(unfound.includes("No transcript was found to read back what the summary lost."));

@@ -30,6 +30,8 @@ codex plugin add freeflow@freeflow
 
 Codex installs Freeflow from its npm package, so it needs Node.js and `npm`, and it receives released versions. Then open `/hooks` in Codex, approve Freeflow's hooks, and start a new session. Freeflow's Codex driver runs on these events, each a hook to approve: `SessionStart` (twice: at startup, resume, clear and fork, and after a compaction), `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostModelRequest`, `PreCompact`, `PostCompact`, `SubagentStart`, `SubagentStop`, `Stop` and `SessionEnd`. Codex silently skips a plugin hook you have not approved, and an update that changes a hook or its script needs approving again.
 
+To remove Freeflow from Codex, run `codex plugin remove freeflow@freeflow`. This step is unverified: Codex was not installed on the machine where it was written, so check `codex plugin --help` first and use the command it names.
+
 Codex compacts on its own, mid-turn once the context reaches its limit. Freeflow tells the agent when compaction is near so it can checkpoint first, and after Codex's compaction it adds the task's record after Codex's summary. To have Codex compact between turns instead, after the agent has had its chance to checkpoint, you can set `model_post_turn_compact_threshold_percent` in Codex's `config.toml`, for example to `70`. Freeflow 0.7.1 through 0.8.0 shipped no hook Codex could load, so Codex users of those versions got Freeflow's skills but not its session-start guidance; upgrade with `codex plugin marketplace upgrade freeflow` and approve the hook.
 
 ### Claude Code
@@ -40,7 +42,7 @@ Codex compacts on its own, mid-turn once the context reaches its limit. Freeflow
 /reload-plugins
 ```
 
-Start a new session if the current session predates the plugin installation.
+Start a new session if the current session predates the plugin installation. Freeflow's mod needs Claude Code 2.1.287 or later, and `node` on `PATH`: its hooks run it.
 
 ### Gemini CLI
 
@@ -116,9 +118,9 @@ Run this in the repository where Freeflow should operate:
 /setup-freeflow
 ```
 
-Setup creates the shared `.freeflow/config.json`, the settings file; minimal is `{}`. On Pi, a folder with no `.freeflow/config.json` shows `freeflow: setup needed`: Freeflow does not run there until Setup Freeflow creates the file. A file's `"enabled": false` turns it off. On Claude Code and Codex the guidance starts only in a folder with `.freeflow/config.json`. `.freeflow/local.json` is an optional personal override and does not turn Freeflow on by itself on those hosts.
+Freeflow is on in every folder once it is installed, with no config file and no setup step. Your settings are kept in the Freeflow home (`~/.freeflow`), not in the repository: everywhere, for one folder, or for one session. Setup Freeflow changes them with you, and `"enabled": false` in any of them turns Freeflow off.
 
-Whenever Freeflow is enabled, Pi delivers all of Freeflow's runtime prompts: the core guidance, the separately editable Interaction Contract, and the Working Method. On other hosts each of these is on by default, and you can turn any of them off with the `prompts` setting (see [Runtime prompts on other hosts](using-freeflow.md#runtime-prompts-on-other-hosts)). The 25 base skills are exposed whenever Freeflow is enabled. Messaging is optional and off by default; Tool Execution and Compaction are on by default. The former Freeflow Context tool, Context Virtualization, and Conversation History are removed; before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key is ignored and named by the footer and `/freeflow status` until removed; Freeflow stays on. Cognitive Routing is removed too: delete `cognitiveRouting` from both files, since it is ignored in the same way.
+Whenever Freeflow is enabled, Pi delivers all of Freeflow's runtime prompts: the core guidance, the separately editable Interaction Contract, and the Working Method. On other hosts each of these is on by default, and you can turn any of them off with the `prompts` setting (see [Runtime prompts on other hosts](using-freeflow.md#runtime-prompts-on-other-hosts)). The 25 base skills are exposed whenever Freeflow is enabled. Messaging is optional and off by default; Tool Execution and Compaction are on by default. The former Freeflow Context tool, Context Virtualization, and Conversation History are removed; before updating, note that a repository's `.freeflow/config.json` and `.freeflow/local.json` are no longer read: `/freeflow status` names them and their removed keys (`contextVirtualization` and `conversationHistory` among them), and `settings.mjs doctor --fix` moves what they set into This folder. Freeflow stays on. Cognitive Routing is removed too: a legacy file that still sets `cognitiveRouting` is named the same way and not read.
 
 Tool Execution and Compaction are on unless you turn them off:
 

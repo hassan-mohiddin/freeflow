@@ -7,7 +7,7 @@ Freeflow compaction lets the agent decide what survives. Freeflow tells the agen
 ## Availability
 
 - Native Pi 0.99.1 or later, including Pi 1.0.
-- On by default whenever Freeflow is enabled. Turn it off with `compaction.enabled: false` in `.freeflow/config.json` or `.freeflow/local.json`, or with the Compaction switch in `/freeflow settings` (Repository, Personal or Session scope).
+- On by default whenever Freeflow is enabled. Turn it off with `compaction.enabled: false` in the Freeflow home's settings (`settings.json` for everywhere, `folders.json` for one repository), or with the Compaction switch in `/freeflow settings` (Everywhere, This folder or This session). With no task held, `compaction.withoutTask` decides whether Freeflow's compaction runs at all.
 - Tool results are not carried across a compaction: the bundle carries the files the agent names in its record's Recovery list, read fresh. `compaction.carry` (the former Context reuse) still loads and does nothing.
 - Tasks need the Freeflow store ([Setup Freeflow](../../skills/setup-freeflow/references/store-setup.md) sets it up). Without a store, compaction still works: the agent writes a session summary instead, and the next cycle starts from it.
 
@@ -45,7 +45,7 @@ If Pi compacts before the agent checkpoints, Pi's summarizer runs as usual, told
 
 ## The Freeflow store on Pi
 
-Where the store exists, a new session gets the task menu and your rules with its first turn; the footer shows the task the session holds; the store is synced after a run that changed it, and the session's hold is released when it ends.
+Where the store exists, a new session gets the task menu and your rules with its first turn; the footer shows the task the session holds; the store is synced after a run that changed it when `memory.mode` is `sync` (a `local` store only commits; `off` touches no task), and the session's hold is released when it ends.
 
 ## Prompt cache
 

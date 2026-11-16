@@ -15,11 +15,6 @@ export function setFreeflowStatus(
     task?: string;
   } = {},
 ) {
-  // Setup needed (D-045, round 3): no shared config file, so Freeflow is not running in this folder.
-  if (capabilityState?.setupNeeded) {
-    ctx.ui.setStatus("freeflow", "freeflow: setup needed");
-    return;
-  }
   if (capabilityState && !capabilityState.enabled) {
     const source = capabilityState.configSources?.enabled === "session" ? " (session)" : "";
     ctx.ui.setStatus("freeflow", `freeflow: off${source}`);
@@ -53,7 +48,6 @@ export function freeflowStatusText(
     messaging?: string;
   },
 ): string {
-  if (state.setupNeeded) return "Freeflow: inactive (repo not set up); run /setup-freeflow";
   const sessionSuffix = (source: string) => (source === "session" ? " (session override)" : "");
   return [
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled)}`,

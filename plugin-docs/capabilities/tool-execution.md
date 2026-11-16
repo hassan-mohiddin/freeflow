@@ -12,7 +12,7 @@ It changes how a model works in the repository, not what it is allowed to do: ev
 
 ## Turning it off
 
-Set `toolExecution.enabled` to `false` in `.freeflow/config.json` (shared) or `.freeflow/local.json` (personal), or use `/freeflow settings` and change Tool Execution in the Repository, Personal or Session scope:
+Set `toolExecution.enabled` to `false` with `/freeflow settings toolExecution.enabled off` (everywhere, or `--folder` or `--session` for the reach you want), or change Tool Execution in `/freeflow settings` in the Everywhere, This folder or This session tab:
 
 ```json
 {

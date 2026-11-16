@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { delimiter, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { sessionIdentity } from "../../../skills/track-work/scripts/lib/projects5.mjs";
 
@@ -578,9 +578,10 @@ test("a resumed session takes back the task its end released (F36), never one re
       resumed,
       /^Took widget\/task-001 back: this session held it until it ended\.\nThe record is memory; the user's message decides the work\. Nothing else is taken: .+\nThis session holds widget\/task-001: recover it with view recover --record widget\/task-001\.\n/,
     );
+    // The session's one line is updated in place: taken back, it holds the task, and it is the only line.
     assert.match(
       await readFile(sessions, "utf8"),
-      /· ended · resume aaaaaaaa-1\n- aaaaaaaa · .+ – now · holding · resume aaaaaaaa-1\n$/,
+      /^# Sessions \(times in UTC\)\n\n- aaaaaaaa · .+ – now · holding · resume aaaaaaaa-1\n$/,
     );
     assert.match(
       pushedLog(remote),
@@ -665,5 +666,176 @@ test("checkpoint refuses a store task this session does not hold, naming task ta
     );
     ok(cli("aaaaaaaa-1", ["task", "take", "--id", "widget/task-001"]));
     ok(checkpoint("aaaaaaaa-1"));
+  });
+});
+
+test("take, release, take again gives the session one sessions.md line (first held, last held, last released, how it ended); a legacy file's lines stay", async () => {
+  await withStore(async ({ home, work, cli }) => {
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
+    ok(
+      cli(
+        "aaaaaaaa-1",
+        ["task", "create", "--title", "One", "--goal", "g", "--cue", "read when one matters", "--project", "widget"],
+        work,
+      ),
+    );
+    const sessions = join(home, "projects", "widget", "tasks", "task-001-one", "sessions.md");
+    const lines = async () => (await readFile(sessions, "utf8")).split("\n").filter((line) => line.startsWith("- "));
+    ok(cli("aaaaaaaa-1", ["task", "release"]));
+    // The session's first hold started earlier: its line keeps that as first held once it takes the task again.
+    await writeFile(
+      sessions,
+      (await readFile(sessions, "utf8")).replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2} – /, "2026-01-01 10:00 – "),
+    );
+    ok(cli("aaaaaaaa-1", ["task", "take", "--id", "widget/task-001"]));
+    let all = await lines();
+    assert.equal(all.length, 1);
+    assert.match(
+      all[0],
+      /^- aaaaaaaa · Test harness · .+ · 2026-01-01 10:00, last held \d{4}-\d{2}-\d{2} \d{2}:\d{2} – now · holding · resume aaaaaaaa-1$/,
+    );
+    ok(cli("aaaaaaaa-1", ["task", "release"]));
+    all = await lines();
+    assert.equal(all.length, 1);
+    assert.match(
+      all[0],
+      /^- aaaaaaaa · .+ · 2026-01-01 10:00, last held \d{4}-\d{2}-\d{2} \d{2}:\d{2} – \d{4}-\d{2}-\d{2} \d{2}:\d{2} · released · resume aaaaaaaa-1$/,
+    );
+    // Another session appends its own line; when the first takes again, its line is updated where it stands.
+    ok(cli("bbbbbbbb-2", ["task", "take", "--id", "widget/task-001"]));
+    ok(cli("bbbbbbbb-2", ["task", "release"]));
+    ok(cli("aaaaaaaa-1", ["task", "take", "--id", "widget/task-001"]));
+    all = await lines();
+    assert.equal(all.length, 2);
+    assert.match(all[0], /^- aaaaaaaa · .+ · 2026-01-01 10:00, last held .+ – now · holding · resume aaaaaaaa-1$/);
+    assert.match(all[1], /^- bbbbbbbb · .+ – \d{4}-\d{2}-\d{2} \d{2}:\d{2} · released · resume bbbbbbbb-2$/);
+    // A legacy file, with two lines for one session, stays readable: its take updates the session's last line.
+    ok(cli("aaaaaaaa-1", ["task", "release"]));
+    await writeFile(
+      sessions,
+      "# Sessions (times in UTC)\n\n- cccccccc · Test harness · here · 2026-01-01 09:00 – 2026-01-01 09:30 · released · resume cccccccc-3\n- cccccccc · Test harness · here · 2026-01-02 09:00 – 2026-01-02 09:30 · released · resume cccccccc-3\n",
+    );
+    ok(cli("cccccccc-3", ["task", "take", "--id", "widget/task-001"]));
+    all = await lines();
+    assert.equal(all.length, 2);
+    assert.equal(
+      all[0],
+      "- cccccccc · Test harness · here · 2026-01-01 09:00 – 2026-01-01 09:30 · released · resume cccccccc-3",
+    );
+    assert.match(
+      all[1],
+      /^- cccccccc · Test harness · .+ · 2026-01-01 09:00, last held \d{4}-\d{2}-\d{2} \d{2}:\d{2} – now · holding · resume cccccccc-3$/,
+    );
+  });
+});
+
+test("task create --short names the task in project list --json and session status; a longer name is refused with the limit; task set-short sets, changes and removes it (Setting 6)", async () => {
+  await withStore(async ({ home, work, cli }) => {
+    ok(cli("aaaaaaaa-1", ["project", "new", "--name", "Widget"]));
+    const long = "a".repeat(25);
+    const refused = cli(
+      "aaaaaaaa-1",
+      [
+        "task",
+        "create",
+        "--title",
+        "Too long",
+        "--goal",
+        "g",
+        "--cue",
+        "read when it matters",
+        "--short",
+        long,
+        "--project",
+        "widget",
+      ],
+      work,
+    );
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /24 characters at most; this one has 25/);
+    assert.equal(existsSync(join(home, "projects", "widget", "tasks", "task-001-too-long")), false);
+    ok(
+      cli(
+        "aaaaaaaa-1",
+        [
+          "task",
+          "create",
+          "--title",
+          "Quarterly report",
+          "--goal",
+          "g",
+          "--cue",
+          "read when it matters",
+          "--short",
+          "Q3 report",
+          "--project",
+          "widget",
+        ],
+        work,
+      ),
+    );
+    ok(cli("aaaaaaaa-1", ["task", "release"]));
+    ok(
+      cli(
+        "aaaaaaaa-1",
+        [
+          "task",
+          "create",
+          "--title",
+          "No name",
+          "--goal",
+          "g",
+          "--cue",
+          "read when it matters",
+          "--short",
+          "",
+          "--project",
+          "widget",
+        ],
+        work,
+      ),
+    );
+    ok(cli("aaaaaaaa-1", ["task", "release"]));
+    const listed = JSON.parse(ok(cli("aaaaaaaa-1", ["project", "list", "--json"])));
+    const tasks = Object.fromEntries(listed.projects[0].tasks.map((task) => [task.id, task]));
+    assert.equal(tasks["widget/task-001"].short, "Q3 report");
+    assert.equal(tasks["widget/task-002"].short, undefined);
+    assert.equal(tasks["widget/task-002"].title, "No name");
+    assert.match(
+      await readFile(join(home, "projects", "widget", "tasks", "task-001-quarterly-report", "record.md"), "utf8"),
+      /^Short: Q3 report$/m,
+    );
+    // A task with no short name lists as before, with no short key.
+    ok(cli("aaaaaaaa-1", ["task", "take", "--id", "widget/task-001"]));
+    assert.equal(JSON.parse(ok(cli("aaaaaaaa-1", ["session", "status"]))).task.short, "Q3 report");
+    // set-short: a too-long name is refused and nothing changes; a new name replaces; "" removes.
+    const tooLong = cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001", "--short", long]);
+    assert.equal(tooLong.status, 1);
+    assert.match(tooLong.stderr, /24 characters at most/);
+    // No --short is refused, not read as a removal; spaces around a name are trimmed.
+    const noValue = cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001"]);
+    assert.equal(noValue.status, 1);
+    assert.match(noValue.stderr, /needs --short <name>/);
+    assert.equal(JSON.parse(ok(cli("aaaaaaaa-1", ["session", "status"]))).task.short, "Q3 report");
+    ok(cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001", "--short", "  Q3  "]));
+    // A task this session does not hold is not its to write: refused, and nothing changes.
+    const notHeld = cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-002", "--short", "Draft"]);
+    assert.equal(notHeld.status, 1);
+    assert.match(notHeld.stderr, /does not hold widget\/task-002/);
+    const named = JSON.parse(ok(cli("aaaaaaaa-1", ["project", "list", "--json"]))).projects[0].tasks;
+    assert.deepEqual(Object.fromEntries(named.map((task) => [task.id, task.short ?? null])), {
+      "widget/task-002": null,
+      "widget/task-001": "Q3",
+    });
+    ok(cli("aaaaaaaa-1", ["task", "set-short", "--id", "widget/task-001", "--short", ""]));
+    const cleared = JSON.parse(ok(cli("aaaaaaaa-1", ["project", "list", "--json"]))).projects[0].tasks;
+    assert.equal(cleared.find((task) => task.id === "widget/task-001").short, undefined);
+    assert.equal(
+      await readFile(join(home, "projects", "widget", "tasks", "task-001-quarterly-report", "record.md"), "utf8").then(
+        (text) => /^Short:/m.test(text),
+      ),
+      false,
+    );
+    assert.match(pushedLog(join(dirname(home), "store.git")), /Short name for widget\/task-001/);
   });
 });

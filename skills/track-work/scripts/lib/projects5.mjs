@@ -10,7 +10,7 @@ import { hostname } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { releaseClaims } from "./claims5.mjs";
 import { slugify } from "./format.mjs";
-import { claudeCodeLog } from "./discussion5.mjs";
+import { DISCUSSIONS_DIR, SESSION_DISCUSSION, claudeCodeLog, moveSessionMessages } from "./discussion5.mjs";
 import { missingParts, storeStatus, syncStore } from "./freeflow-store.mjs";
 import {
   DECISIONS_FILE,
@@ -19,16 +19,19 @@ import {
   cueProblem,
   emptyHistory,
   parseRecord5,
+  shortProblem,
   skeleton5,
 } from "./record5.mjs";
 import { holdStart, summaryForTask } from "./events5.mjs";
 import { decisionItem, orderedDecisions, rules } from "./budget5.mjs";
+import { applyTidy, checkTidyRecord, makeTaskFolders, planTidy, writeReadme } from "./task-folder5.mjs";
 import { searchRecords } from "./search.mjs";
 import {
   LAST_TASK_NUMBER,
   createRecordPath,
   isFreeflowStore,
   nextTaskNumber,
+  writeAtomically,
   writeInitialAtomically,
   writeTaskFile,
 } from "./store.mjs";
@@ -91,37 +94,92 @@ function requireIdentity(identity) {
 
 const minute = (date = new Date()) => date.toISOString().slice(0, 16).replace("T", " ");
 
+// A session's line for a task names its first hold and, once it has taken the task again, its last hold's start:
+// "10:00, last held 11:00 – 11:30". A line with one hold reads "10:00 – 10:30", as before.
+const FROM_TIMES = /^(.+?), last held (.+)$/;
+
+/** The holds in sessions.md's lines, in file order; a session has one line per task, legacy files may have more. */
+function parseHolds(lines) {
+  return lines
+    .map((line, index) => ({ index, match: SESSION_LINE.exec(line) }))
+    .filter((each) => each.match)
+    .map(({ index, match }) => {
+      const times = FROM_TIMES.exec(match[4]);
+      return {
+        index,
+        short: match[1],
+        harness: match[2],
+        where: match[3],
+        first: times?.[1] ?? match[4],
+        // `from` is the start of the session's last hold: the one that counts for the hold, its events and take back.
+        from: times?.[2] ?? match[4],
+        to: match[5],
+        state: match[6],
+        back: match[7],
+      };
+    });
+}
+
 /** sessions.md's holds, oldest first; `hold` is the last line still holding. */
 export function readSessions(taskDir) {
   const path = join(taskDir, SESSIONS_FILE);
   const text = existsSync(path) ? readFileSync(path, "utf8") : null;
+  return sessionsOf(text, path);
+}
+
+function sessionsOf(text, path = null) {
   const lines = (text ?? "").split(/\r?\n/);
-  const holds = lines
-    .map((line, index) => ({ index, match: SESSION_LINE.exec(line) }))
-    .filter((each) => each.match)
-    .map(({ index, match }) => ({
-      index,
-      short: match[1],
-      harness: match[2],
-      where: match[3],
-      from: match[4],
-      to: match[5],
-      state: match[6],
-      back: match[7],
-    }));
+  const holds = parseHolds(lines);
   return { path, text, lines, holds, hold: holds.filter((each) => each.state === "holding").at(-1) ?? null };
+}
+
+/** One session's line in sessions.md. */
+function holdLine(hold) {
+  const from = hold.first && hold.first !== hold.from ? `${hold.first}, last held ${hold.from}` : hold.from;
+  return `- ${hold.short} · ${hold.harness} · ${hold.where} · ${from} – ${hold.to} · ${hold.state} · ${hold.back}`;
 }
 
 function closeHold(sessions, hold, state) {
   const lines = [...sessions.lines];
-  lines[hold.index] =
-    `- ${hold.short} · ${hold.harness} · ${hold.where} · ${hold.from} – ${minute()} · ${state} · ${hold.back}`;
+  lines[hold.index] = holdLine({ ...hold, to: minute(), state });
   return lines.join("\n");
 }
 
+/**
+ * The text with this session holding the task: its one line updated in place when it held the task before (first held
+ * kept, last held now), else a line added at the end.
+ */
 function openHold(sessions, identity) {
+  const now = minute();
+  const mine = sessions.holds.filter((hold) => hold.short === identity.short);
+  const own = mine.at(-1);
+  if (own) {
+    // First held is the earliest start among the session's lines, whichever line of a legacy file it is on.
+    const first = mine.map((hold) => hold.first).sort()[0];
+    const lines = [...sessions.lines];
+    lines[own.index] = holdLine({
+      ...own,
+      first,
+      harness: identity.harness,
+      where: identity.where,
+      from: now,
+      to: "now",
+      state: "holding",
+      back: identity.back,
+    });
+    return `${lines.join("\n").replace(/\s+$/, "")}\n`;
+  }
   const base = (sessions.text ?? "# Sessions (times in UTC)\n").replace(/\s+$/, "");
-  return `${base}\n${sessions.text ? "" : "\n"}- ${identity.short} · ${identity.harness} · ${identity.where} · ${minute()} – now · holding · ${identity.back}\n`;
+  return `${base}\n${sessions.text ? "" : "\n"}- ${identity.short} · ${identity.harness} · ${identity.where} · ${now} – now · holding · ${identity.back}\n`;
+}
+
+/** The task's latest hold: the one whose session started it last; file order breaks a tie. */
+function latestHold(holds) {
+  return holds.reduce(
+    (latest, hold) =>
+      !latest || hold.from > latest.from || (hold.from === latest.from && hold.index > latest.index) ? hold : latest,
+    null,
+  );
 }
 
 function git(home, args) {
@@ -132,7 +190,7 @@ function git(home, args) {
   }
 }
 
-async function sync(home, message, { push = true } = {}) {
+export async function sync(home, message, { push = true } = {}) {
   try {
     const synced = await syncStore({ home, message, push });
     if (synced.local) return "Store: committed; a local store, nothing to push.";
@@ -277,7 +335,14 @@ export async function sessionStatus(home, identity, env = process.env) {
     home,
     store: true,
     session: identity?.id ?? null,
-    task: held ? { id: held.id, record: join(held.dir, "record.md"), stateAsOf: held.header?.stateAsOf ?? null } : null,
+    task: held
+      ? {
+          id: held.id,
+          record: join(held.dir, "record.md"),
+          stateAsOf: held.header?.stateAsOf ?? null,
+          ...(held.header?.short ? { short: held.header.short } : {}),
+        }
+      : null,
     summary,
     changed: status.uncommitted > 0 || (status.unpushed ?? 0) > 0,
     transcript: env.FREEFLOW_TRANSCRIPT || claudeCodeLog(env),
@@ -320,6 +385,7 @@ function projectsJson(home, identity) {
     return {
       id: each.id,
       title: each.header?.name ?? null,
+      ...(each.header?.short ? { short: each.header.short } : {}),
       state: each.header?.state ?? null,
       cue: each.header?.cue ?? null,
       hold: each.hold
@@ -370,6 +436,11 @@ export function showProject(home, name, identity) {
     right.id.localeCompare(left.id, undefined, { numeric: true }),
   );
   return `Project ${slug}\n${tasks.length ? tasks.map((task) => taskLine(task, identity)).join("\n") : "No tasks."}\n`;
+}
+
+/** The slugs of the projects whose tasks name the folder's repository, the lookup `task here` makes (N4, settings rows). */
+export function projectsOfFolder(home, directory) {
+  return projectsFor(home, directory).projects;
 }
 
 /** The projects whose tasks name the repository holding directory in Space (T8). */
@@ -476,10 +547,10 @@ export async function findRepositories(home, folders) {
 }
 
 /** Makes a Schema 5 task folder at root: record.md, history.md and decisions.md. */
-export async function createTaskFolder5(root, { name, cue, sections }) {
+export async function createTaskFolder5(root, { name, cue, short = "", sections }) {
   const problem = cueProblem(cue);
   if (problem) fail(`--cue: ${problem}`);
-  const text = skeleton5({ name, cue, stateAsOf: new Date().toISOString(), sections });
+  const text = skeleton5({ name, cue, short, stateAsOf: new Date().toISOString(), sections });
   parseRecord5(text);
   const created = await createRecordPath(root, name, slugify(name));
   try {
@@ -502,16 +573,18 @@ async function writeHold(home, task, identity, { takeover = false } = {}) {
       `${task.id} is ${holderText({ ...task, hold: holder })}. Ask the user before taking it over; then task take --id ${task.id} --takeover.`,
     );
   const text = holder ? closeHold(sessions, holder, "taken over") : sessions.text;
-  await writeFile(sessions.path, openHold({ text }, identity));
+  await writeFile(sessions.path, openHold(sessionsOf(text, sessions.path), identity));
   return holder;
 }
 
 export async function createTask(
   home,
-  { project, noProject = false, directory, title, goal, cue, nextAction },
+  { project, noProject = false, directory, title, goal, cue, short = "", nextAction },
   identity,
 ) {
   requireIdentity(identity);
+  const shortProblemText = short ? shortProblem(short) : null;
+  if (shortProblemText) fail(`--short: ${shortProblemText}`);
   const held = heldTask(home, identity);
   if (held) fail(`This session holds ${held.id}; checkpoint it and use task switch, or release it first.`);
   if (project && noProject) fail("Give --project or --no-project, not both.");
@@ -527,6 +600,7 @@ export async function createTask(
   const record = await createTaskFolder5(slug ? join(projectsDir(home), slug) : home, {
     name: title,
     cue,
+    short,
     sections: {
       Goal: [`- ${goal}`],
       Space: repository ? [repository.line] : [],
@@ -534,10 +608,46 @@ export async function createTask(
     },
   });
   if (repository) await rememberRepository(home, repository);
+  // The task's folders that always exist, and the messages this session sent before it held a task (renumbered).
+  makeTaskFolders(dirname(record), title);
+  moveSessionMessages(join(home, "sessions", identity.id, SESSION_DISCUSSION), dirname(record));
   const number = /^task-\d{3,}/.exec(basename(dirname(record)))[0];
   const task = findTask(home, slug ? `${slug}/${number}` : number);
   await writeHold(home, task, identity);
   return `${task.id}\n${record}\nThis session holds it.\n${await sync(home, `Create ${task.id}, held by ${identity.short}`)}\n`;
+}
+
+/**
+ * `task set-short`: the task's short name, 24 characters at most, or "" to remove it. The header's Short line is the
+ * only thing that changes; the commit and push are the store's sync, as for any listing change.
+ */
+export async function setTaskShort(home, id, short, identity) {
+  requireIdentity(identity);
+  const problem = short ? shortProblem(short) : null;
+  if (problem) fail(`--short: ${problem}`);
+  const task = findTask(home, id);
+  // A session writes only the task it holds (Track Work's Rules), the short name included.
+  if (task.hold?.short !== identity.short)
+    fail(
+      task.hold
+        ? `This session does not hold ${id}; it is ${holderText(task)}. Only its holder sets its short name.`
+        : `This session does not hold ${id}: take it with task take --id ${id}, then set its short name.`,
+    );
+  const path = join(task.dir, "record.md");
+  const text = readFileSync(path, "utf8");
+  const lines = text.split("\n");
+  // The header is the lines before the first section; a Short line anywhere else is body text.
+  const header = lines.findIndex((line) => line.startsWith("## "));
+  const at = lines.findIndex((line, index) => index < header && line.startsWith("Short: "));
+  if (short) {
+    if (at >= 0) lines[at] = `Short: ${short}`;
+    else lines.splice(lines.findIndex((line) => line.startsWith("Cue: ")) + 1, 0, `Short: ${short}`);
+  } else if (at >= 0) lines.splice(at, 1);
+  else return `${id} has no short name.\n`;
+  const candidate = lines.join("\n");
+  parseRecord5(candidate);
+  await writeFile(path, candidate);
+  return `${short ? `Set ${id}'s short name: ${short}` : `Removed ${id}'s short name`}.\n${await sync(home, `Short name for ${id} (${identity.short})`)}\n`;
 }
 
 export async function takeTask(home, id, identity, { takeover = false } = {}) {
@@ -548,6 +658,8 @@ export async function takeTask(home, id, identity, { takeover = false } = {}) {
   if (held && held.id !== id) fail(`This session holds ${held.id}; checkpoint it and use task switch --id ${id}.`);
   if (held?.id === id) return `This session already holds ${id}.\n`;
   const previous = await writeHold(home, task, identity, { takeover });
+  // The pre-task messages this session sent go into the task it takes, as task create moves them (numbered on).
+  moveSessionMessages(join(home, "sessions", identity.id, SESSION_DISCUSSION), task.dir);
   const note = pulled ? "" : " (could not take the remote's commits first)";
   return `This session holds ${id}${previous ? `, taken over from ${previous.short}` : ""}${note}.\n${await sync(home, `Take ${id} (${identity.short})`)}\n`;
 }
@@ -601,9 +713,10 @@ export async function takeBack(home, identity) {
   let last = null;
   for (const task of allTasks(home)) {
     const { holds } = readSessions(task.dir);
+    const latest = latestHold(holds);
     for (const hold of holds) {
       if (hold.short !== identity.short || hold.state === "holding") continue;
-      const each = { task, hold, isLast: hold.index === holds.at(-1).index };
+      const each = { task, hold, isLast: hold === latest };
       if (!last || after(each, last)) last = each;
     }
   }
@@ -650,6 +763,37 @@ export async function switchTask(home, id, identity, options) {
   if (held?.id === id) return `This session already holds ${id}.\n`;
   const released = held ? await releaseTask(home, identity, held.id) : "";
   return `${released}${await takeTask(home, id, identity, options)}`;
+}
+
+/**
+ * `task tidy --id`: the task's folder brought to its fixed structure, a move of sources/discussion*.md into discussions/
+ * and the Recovery lines that named them rewritten, then the README (task-folder5.mjs). The record is checked and
+ * written before anything moves, so a failure leaves the folder as it was.
+ */
+export async function tidyTask(home, id, identity) {
+  const recordPath = storeRecordPath(home, id);
+  requireHold(recordPath, identity);
+  const taskDir = dirname(recordPath);
+  const text = await readFile(recordPath, "utf8");
+  const name = parseRecord5(text).header.name;
+  const plan = planTidy(taskDir, text);
+  if (plan.recordText !== null) checkTidyRecord(plan.recordText);
+  // The files move first, then the record is published whole as checkpoint publishes it, then the README follows.
+  applyTidy(taskDir, plan);
+  // The record's root is its project folder (or the store, for a task in no project): two levels above its task folder.
+  if (plan.recordText !== null) await writeAtomically(dirname(dirname(taskDir)), recordPath, text, plan.recordText);
+  const readmeChanged = writeReadme(taskDir, name);
+  const moved = plan.moved.map((file) => `- sources/${file} → ${DISCUSSIONS_DIR}/${file}`);
+  const lines = [
+    ...(moved.length
+      ? [`Moved ${plan.moved.length} file(s) unchanged, from sources/ to ${DISCUSSIONS_DIR}/:`, ...moved]
+      : ["Nothing to move: sources/ holds no discussion file."]),
+    plan.rewritten
+      ? `Recovery: rewrote ${plan.rewritten} line(s) to the new place.`
+      : "Recovery: no line named a moved file.",
+    readmeChanged ? "README.md written." : "README.md is current.",
+  ];
+  return `${lines.join("\n")}\n${await sync(home, `Tidy ${id}`)}\n`;
 }
 
 export async function removeTask(home, id) {

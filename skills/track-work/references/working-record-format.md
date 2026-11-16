@@ -30,7 +30,7 @@ The Freeflow store is one Git repository at `FREEFLOW_HOME` (default `~/.freeflo
 
 `rules/` holds the user's always-on context, like `CLAUDE.md` with room to organize: every file in the store's `rules/`, and the project's once the session holds one of its tasks, is read at every recovery and never counted against the budget. Create or edit a rule only when the user asks; the checks show their size, and you never trim them. `rules/delegation.md` is the delegation rules `delegate open` takes a worker's model and effort from, with a project's own `projects/<project>/rules/delegation.md` read before it; the older `rules/routing.md` is read after each, and with neither, Freeflow's default applies.
 
-**Local or cloud.** The same store either way. A local store, the default, lives on this device only: `store init` makes it, and nothing leaves the machine. A cloud store is the same store with the user's private repository as its remote, kept in step on every device: `store init --remote <url>` clones it into `FREEFLOW_HOME`, laying out an empty repository as a store or joining one that already is, and `store remote --url <url>` moves a local store's whole history into an empty repository. A cloud session needs a cloud store, since its container is thrown away: the store's repository is one of the session's repositories, `FREEFLOW_HOME` points at its clone, and pushing needs the host's access to that repository; Setup Freeflow's [store setup](../../setup-freeflow/references/store-setup.md) says what the user sets, and `session status` lists what is missing. `store init` refuses a folder that holds Pi's former Task Memory (`registry.json`) or anything else but Freeflow's own `sessions/` and `events/`, which it keeps: ask the user where the store should go. Commits are authored as the user, with no trailers.
+**Local or cloud.** The same store either way. A store with no remote, the default, lives on this device only: `store init` makes it, and nothing leaves the machine. With memory.mode unset, a store that has a remote syncs with it; an explicit `local` keeps it on this device. A cloud store is the same store with the user's private repository as its remote, kept in step on every device: `store init --remote <url>` clones it into `FREEFLOW_HOME`, laying out an empty repository as a store or joining one that already is, and `store remote --url <url>` moves a local store's whole history into an empty repository. A cloud session needs a cloud store, since its container is thrown away: the store's repository is one of the session's repositories, `FREEFLOW_HOME` points at its clone, and pushing needs the host's access to that repository; Setup Freeflow's [store setup](../../setup-freeflow/references/store-setup.md) says what the user sets, and `session status` lists what is missing. `store init` refuses a folder that holds Pi's former Task Memory (`registry.json`) or anything else but Freeflow's own `sessions/` and `events/`, which it keeps: ask the user where the store should go. Commits are authored as the user, with no trailers.
 
 ## Sync
 
@@ -99,14 +99,19 @@ task-NNN-<short-name>/
   history.md         closed Slices, agreements and delegations    the closing commands
   sessions.md        every session that held the task            task create, take, release and switch
   decisions.md       the open agreement's decision list           the session holding the task
-  sources/           material from outside the work, notes        the session holding the task
-    discussion.md    the user's messages that shaped the work     discussion save and drop
+  README.md          what each file and folder holds, one line   the script: task create, checkpoint, task tidy
+  discussions/       the user's messages, word for word, by day   Freeflow, after each turn (see below)
+  sources/           outside material only: papers, copies of external documents   the session holding the task
+  notes/             the agent's working lists                    the session holding the task
   delegations/       one folder per delegation                    whoever hands the work out, and each worker
-  evidence/<slug>/   README.md kept; raw/ ignored                 whoever ran it
+  reviews/<slug>/    one folder per thing reviewed: brief and report together   the reviewer
+  evidence/<slug>/   what belongs to no delegation; raw/ ignored  whoever ran it
   events/            <session ID>.json, each session's event summary   checkpoint and task release
   specs/  plans/     when the task has them                       Write Docs
   scratch/           temporary, ignored                           anyone
 ```
+
+The README is written and kept by the script: it lists the files, and each folder that exists, one line each; checkpoint rewrites it when a folder appears. A folder is made when first written, except `discussions/`, which `task create` makes with the README.
 
 In the Freeflow store the folder is `<store>/projects/<project>/tasks/task-NNN-<short-name>/`, and its ID is `<project>/task-NNN`, or in no project `<store>/tasks/task-NNN-<short-name>/`, and `task-NNN`; every command that takes `--record` also takes the ID. A task kept before the store, without one, is in `<repository>/.freeflow/tasks/task-NNN-<short-name>/`, which Git must ignore, until it is moved into the store. `NNN` is three or more digits; a new task takes the next number after the highest one there, and numbers are never reused. `init` and `task create` write `record.md`, `history.md`, `decisions.md` and `scratch/`, and `task create` also `sessions.md`; the rest appear when needed. Nothing anything points to is ever under `scratch/`. `sources/notes.md` holds free notes when a task wants them; they carry no authority.
 
@@ -121,6 +126,7 @@ A delegation's folder, `delegations/D-NNN-<slug>/` with `brief.md`, `progress.md
 
 Schema: 5 · State: active · Budget: normal
 Cue: read when <situations this task matters to>
+Short: <readable name, 24 characters at most>
 State as of: <UTC ISO-8601 time>
 
 ## Current Context
@@ -155,6 +161,7 @@ The three top-level sections are fixed, in this order. Current Work holds its se
 | `# <task name>` | The task's name. |
 | `Schema: 5 · State: <state> · Budget: <mode>` | The task state (`active`, `paused`, `completed`, `abandoned`) and the budget mode (`normal` or `expanded`; `normal` when absent). |
 | `Cue:` | When the task matters, starting "read when", in at most 25 words. The menu and the project index show it. |
+| `Short:` | Optional. The task's readable name for the status line and the pane, 24 characters at most, one line; `task create --short` sets it and `task set-short`, run by the session that holds the task, changes or removes it (`""`). Absent, the listings carry no `short` and the title stands. A Freeflow build older than this line refuses a record that has it, so a store shared with one keeps tasks without short names until it is updated. |
 | `State as of:` | When the record was last checkpointed: `init` and `checkpoint` set it, nothing else. Where Freeflow compacts for the harness, it counts a checkpoint as done when this is later than the context cycle's notice, or, with no notice in it, than its start. |
 
 ### Fields
@@ -191,7 +198,7 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 - Update: Narrowed to diagnosis: "just find the cause first" (2026-10-30)
 ```
 
-`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`, `Review:`) and quotes the user where it rests on their reply. A `Review:` line names paths, or `all`, the user wants reviewed and optionally the depth (`- Review: src/billing/** deep`); Review Work's plan reads it and can only be raised by it. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
+`agreement open` assigns the ID and writes `Opened` and its lines; each line starts with the lead words for the part it states (`Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`, `Review:`) and quotes the user where it rests on their reply. A `Review:` line names paths, or `all`, the user wants reviewed (`- Review: src/billing/**`); Review Work's plan shows a change to them as a flag. `agreement update` appends one `Update:` line. `agreement close` moves the block, with `decisions.md`'s list, into History.
 
 ### The Slice
 
@@ -232,12 +239,12 @@ Bullets under Goal, Settled and Open, in about 600 words in every mode and windo
 | Predicted | no | Written by `slice start`. With a Size and 3 Slices with Files in the nearest of this task, its project and the store: the size times their median context, working time and cost per file (`<n> files at the median rate of <n> sized Slices of <pool>`); otherwise the median Slice of the nearest holding 3 measured (`median of <n> Slices of <pool>`). The cost comes from those of them run mostly on the model and effort the Slice starts on, its transcript's newest request, once 3 were (`cost from the <n> run on <model> <effort>`), else from all of them (`cost measured mostly on <model> <effort>`, the one that took most of their cost); context and working time from all. Each figure is scaled `(×<n>)` by the correction: the geometric mean of actual over predicted of the Slices predicted the same way, from the first that has its actual, pulled toward 1 as if two more had been on target; a cost only by predictions whose cost was measured on the model and effort their Slice ran on. A reading that found no requests is not measured. None when too few are measured. |
 | Measured | no | Written by `slice start`, `checkpoint` and `slice close`: the context the Slice added and the context cycles it touched (`partly measured` where a reading missed some), working and wall-clock time, then per model and effort its billed tokens (input, cache written, cache read, output) and their cost at API list price, and the last reading. Read from the harness's transcript, or `--used`; none when neither is available. |
 
-After the fields come its update lines, one line each, a kind and then the claim and its pointer; the detail lives in the file the line points to. The kinds: `Evidence (observed)`, `Evidence (reported)`, `Result`, `Review`, `Review gate`, `Contradiction`, `Blocker`, `Correction`, `Paused`, `Resumed`, `Extension`. `slice pause` and `slice resume` write the `Paused` and `Resumed` lines; the rest are direct edits. An Evidence line identifies the state it observed well enough to tell it apart from later versions; append counterevidence as a new line instead of rewriting the earlier one, and label what you did not observe yourself `reported`.
+After the fields come its update lines, one line each, a kind and then the claim and its pointer; the detail lives in the file the line points to. The kinds: `Evidence (observed)`, `Evidence (reported)`, `Result`, `Review`, `Review gate`, `Contradiction`, `Blocker`, `Correction`, `Paused`, `Resumed`, `Extension`, `Moved`. `slice pause` and `slice resume` write the `Paused` and `Resumed` lines, and `agreement close --state replaced --next-input` writes `Moved` when it moves the Slice under the next agreement; the rest are direct edits. An Evidence line identifies the state it observed well enough to tell it apart from later versions; append counterevidence as a new line instead of rewriting the earlier one, and label what you did not observe yourself `reported`.
 
 Two kinds have a fixed shape, so outcomes and rounds can be counted later. [Review Work](../../review-work/SKILL.md) says when each is written:
 
 ```markdown
-- Review gate: plan: quick | standard | deep, standard | security, because <triggers and rules> | nothing matched; unit: pr | push | commit | agreement | manual; result: dispatched | proposed | on record
+- Review gate: at: pull request | push | commit (project | home | default); reviewers: <n>, rounds: <n> (the floor is 1 and 1); flags: <each with its reason> | none; above the floor: <what, and the user's yes> | no; result: dispatched | proposed | on record
 - Review: round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: <adjudicated judgment>; Accepted: <n>; Rejected: <n>; Open: <n>; head: <the commit reviewed>; report: <path>; effect: <the next route>
 ```
 
@@ -283,10 +290,12 @@ What recovery reads, one line per source, each starting with its class, then a p
 
 ```markdown
 - always, not counted: specs/retry.md — the accepted retry policy.
-- always: sources/discussion.md — the user's messages that shaped the retry policy.
+- always: messages M-12–M-18, M-24 — the messages that shaped the retry policy.
 - always: src/http/client.ts (lines 10–40) — the loop under test
 - when measuring performance: docs/benchmarks.md — baseline timings.
 ```
+
+A line may name the user's messages instead of a file: `messages M-12–M-18, M-24` names their numbers in `discussions/`, which `view bundle` prints word for word and counts like a file. `view recover` reports a number that does not exist, or one `discussion remove` deleted.
 
 | Class | What goes there | Recovery | Budget |
 | --- | --- | --- | --- |
@@ -364,27 +373,27 @@ The open agreement's decision list, one line per item in Discuss Work's format, 
 - 4b1e90c2 · Pi · laptop · 2026-10-28 21:10 – 23:02 · released · <Pi's resume command>
 ```
 
-One line per hold: the session, the harness, where it ran, from and to, how it ended (`holding`, `released` on purpose, `ended` with its session, `taken over`), and the way back to it. The last line that says `holding` is the hold, and `checkpoint` refuses a task this session does not hold. Only `task create`, `task take`, `task release` and `task switch` write it; Git merges it by keeping both sides' lines.
+One line per session and task: the session, the harness, where it ran, when it first held the task, when it last held it, when it last released it (or `now` while it holds it), how it ended (`holding`, `released` on purpose, `ended` with its session, `taken over`), and the way back to it. A session that takes, releases and takes the task again updates its one line in place: `10:00, last held 11:00 – 11:30` is first held, last held and last released. A line with one hold reads `10:00 – 10:30`, and a file with several lines for one session, written before this, stays readable: taking the task again updates that session's last line. The last line that says `holding` is the hold, and `checkpoint` refuses a task this session does not hold. Only `task create`, `task take`, `task release` and `task switch` write it; Git merges it by keeping both sides' lines, so the one line holds per clone: two clones that each update one session's line keep both.
 
-## sources/discussion.md
+## discussions/
 
 ```markdown
-# Discussion: <task name>
+# Discussion · 2026-10-29
 
-The user's messages that shaped the work, word for word, in blocks; under each message, the agent's line saying what it answered. Blocks are added or dropped, never edited.
+The user's messages of this day, word for word, numbered per task: kept by Freeflow, never edited. A removed message keeps its number with no text.
 
-Last block: B-002
-
-## B-002 — Retry policy · 2026-10-29 14:02 to 14:20 · shapes A-003, S-024 · replaces B-001
-
-### You, 2026-10-29 14:02
+### M-12 · 14:02
 
 > Three attempts is enough, but never retry a POST.
+>
+> A second paragraph.
 
-Agent: answered whether POST requests are retried, after I proposed retrying every method.
+### M-13 · 14:20 · removed
+
+<!-- removed 3f9c0a1b2d4e5f60 -->
 ```
 
-Only `discussion save` and `discussion drop` write it.
+One file per day, `discussions/<YYYY-MM-DD>.md`, in UTC. Numbers run M-1, M-2 ... per task, continuous across days, and a number is never reused. After each turn Freeflow writes the user's messages of that turn, from the transcript, each message quoted line by line, so a heading inside a message cannot break the file; the event log's secret redaction applies, and a message is captured once, across a compaction and a resumed session. Before a task exists, a session's messages go to `sessions/<session ID>/discussion.md` in the store home, which is not synced; `task create` moves them in, renumbered from M-1. Only Freeflow's capture and `discussion remove` write these files.
 
 ## The Session Summary
 
@@ -409,7 +418,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Create a task | `task create --title <title> --goal <goal> --cue <cue> [--project <p> \| --no-project]` in the store (this session holds it) |
 | Hold a task, give it up, move to another | `task take --id <ID> [--takeover]`, `task release`, `task switch --id <ID>` |
 | Move a task into a project, or out of one | `task move --id <ID> (--project <p> \| --no-project)`, on the user's word |
-| Open, change, close the agreement | `agreement open`, `agreement update`, `agreement close --state <completed\|ended\|replaced>` |
+| Open, change, close the agreement | `agreement open`, `agreement update`, `agreement close --state <completed\|ended\|replaced>` (with `--state replaced --next-input <file\|-> --next-title <title>`: closes it, opens the next from those lines under that title and moves the running Slice under it) |
 | Propose a Slice | `slice propose` |
 | Start a proposed Slice, or one never proposed | `slice start --title <proposal title>`, `slice start-direct` |
 | `in_progress` ↔ `paused` | `slice pause`, `slice resume` |
@@ -418,7 +427,8 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Give a closed Slice its Files, when it closed without one | `slice size --id <S-NNN> (--files <n> \| --range <from>..<to> [--repo <path>])`: appended to its History entry, dated |
 | Hand work to an agent, and close it | `delegate open [--settled <yes\|no>] [--check <scripted\|tests\|judgement>] [--writes <glob> ...]` (the model and effort from the user's delegation rules, `rules/delegation.md`, unless `--agent` names them; what the worker may write, for the brief's Scope), `amend`, `status`, `check-return`, `close` (`--reason` when sent back); with no task, `delegate open --scratch <folder>` and `check-return --scratch <folder>`, which record nothing |
 | Checkpoint | `checkpoint --record <ID> --input -`; `checkpoint --session --input -` without a task; either with `--compact` to have Freeflow's harness layer compact when the turn ends, which it does only on that request, and only where the session's driver claims it can (Setup Freeflow's `capabilities.mjs check compact`); elsewhere the command says so and the harness compacts on its own |
-| Save or drop discussion | `discussion list`, `discussion save`, `discussion drop` |
+| Read or remove a discussion message | `discussion list [--date <day>]`, `discussion show M-3–M-9,M-14`, `discussion remove --message M-<n>` (remove needs the hold; capture is Freeflow's, at each turn's end) |
+| Bring an older task folder to this structure | `task tidy --id <ID>` (refused unless this session holds the task): moves sources/discussion*.md into discussions/ unchanged, publishes the Recovery lines that named them rewritten, writes the README; leaves History as stored |
 | The session's event log, and its summary since it took the task | `events summary [--session <ID>]`, `events show [--kind <kind>]`: change nothing; `events append` is the harness layer's |
 | The budget | `budget [--record <ID>]`; `task set-budget --mode <normal\|expanded>` on the user's word |
 | The context used, and whether the rest fits in this context cycle | `estimate [--used <tokens>] [--done <n> --left <m>]`: changes nothing; `--used` where the harness shows the use and the script cannot read it |
@@ -445,7 +455,7 @@ Edit directly:
 - `decisions.md`'s items;
 - a `Correction:` line appended inside a History entry.
 
-Never edit directly: IDs, `State` fields, `Opened`, `State as of`, `Predicted` and `Measured`, the agreement's lines and updates, Delegations, Space, In flight, `sessions.md`, `sources/discussion.md`, or any History entry beyond appending a correction. After a structural edit, run `validate --record <ID>`. It checks the task folder's structure and lists pointers that do not resolve, as warnings, since a line may name a planned path or a commit not fetched yet; `--strict` fails on those an Evidence or Result line names. It cannot detect a hand-made state change or a deleted entry, so those edits are forbidden rather than checked.
+Never edit directly: IDs, `State` fields, `Opened`, `State as of`, `Predicted` and `Measured`, the agreement's lines and updates, Delegations, Space, In flight, `sessions.md`, the files in `discussions/`, or any History entry beyond appending a correction. After a structural edit, run `validate --record <ID>`. It checks the task folder's structure and lists pointers that do not resolve, as warnings, since a line may name a planned path or a commit not fetched yet; `--strict` fails on those an Evidence or Result line names. It cannot detect a hand-made state change or a deleted entry, so those edits are forbidden rather than checked.
 
 ## Views
 

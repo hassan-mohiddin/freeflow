@@ -8,7 +8,6 @@ import test from "node:test";
 import {
   classifyCommand,
   decide,
-  DEFAULT_GATE_SETTINGS,
   GATE_STATE_VERSION,
   GATES,
   gateEvent,
@@ -38,11 +37,9 @@ const noTask = (extra = {}) => held({ task: null, taskDir: null, ...extra });
 const edit = (path, extra = {}) => ({ tool: "Edit", paths: [path], cwd: "/work/app", ...extra });
 const bash = (command, extra = {}) => ({ tool: "Bash", command, cwd: "/work/app", ...extra });
 const gates = (result) => result.fired.map((each) => `${each.gate}:${each.decision}`).sort();
-const block = { delegation: "block" };
 
 test("only the delegation gate is left: the agreement, Slice and delivery gates never fire (D-058)", () => {
   assert.deepEqual(GATES, ["delegation"]);
-  assert.deepEqual(DEFAULT_GATE_SETTINGS, { delegation: "warn" });
   // Calls the removed gates warned about, with a task held or not, now pass.
   assert.deepEqual(gates(decide(noTask(), edit("/work/app/src/a.ts"))), []);
   assert.deepEqual(gates(decide(held({ slice: null }), edit("/work/app/src/a.ts"))), []);
@@ -51,8 +48,7 @@ test("only the delegation gate is left: the agreement, Slice and delivery gates 
   assert.deepEqual(gates(decide(held(), bash("git commit -m 'x' && git push"))), []);
   for (const command of ["gh pr create --fill", "npm publish", "node scripts/release.mjs --version 1.0.0"])
     assert.deepEqual(gates(decide(held(), bash(command))), [], command);
-  // Settings for the removed gates are not read: the delegation gate alone decides.
-  assert.equal(decide(noTask(), bash("npm install"), { delegation: "warn", agreement: "block" }).decision, "allow");
+  assert.equal(decide(noTask(), bash("npm install")).decision, "allow");
 });
 
 test("decide: the delegation gate keeps a worker to its scope and off the task's record", () => {
@@ -94,24 +90,19 @@ test("decide: the delegation gate keeps a worker to its scope and off the task's
     /no May write line; its worktree is its scope: \/wt\/d-006\/\*\*/,
   );
   assert.deepEqual(gates(worker(edit("/wt/d-006/x.md"), "D-006")), []);
-  // The main loop is not a worker; a worker inside its scope is allowed; a block refuses.
+  // The main loop is not a worker; a worker inside its scope is allowed. The gate has no setting and only warns (D-069).
   assert.deepEqual(gates(decide(state, edit("/wt/d-004/hooks/claude/freeflow.mjs"))), []);
   assert.deepEqual(gates(worker(edit("/wt/d-004/skills/review-work/x"), "D-004")), []);
-  assert.equal(decide(state, { ...edit("/wt/d-004/hooks/x"), delegation: "D-004" }, block).decision, "block");
+  assert.equal(worker(edit(`${TASK_DIR}/record.md`)).decision, "warn");
 });
 
-test("decide: a missing gate state is quiet under warn, and closed under block for a worker", () => {
+test("decide: a missing gate state is quiet, for the main loop and for a worker alike (D-069)", () => {
   assert.equal(decide(null, edit("/work/app/a.ts")).decision, "allow");
   assert.equal(decide({ v: 2 }, edit("/work/app/a.ts")).decision, "allow");
-  // Without a worker there is no scope to read: a missing state is no refusal.
-  assert.equal(decide(null, edit("/work/app/a.ts"), block).decision, "allow");
+  // A worker with no readable state has no scope to read: quiet, never a refusal.
   const worker = edit("/work/app/a.ts", { delegation: "D-004" });
   assert.equal(decide(null, worker).decision, "allow");
-  const closed = decide(null, worker, block);
-  assert.equal(closed.decision, "block");
-  assert.match(gateText(closed.fired[0]), /Freeflow cannot read its gate state; run `task here`, then go on\./);
-  // Off is off.
-  assert.equal(decide(null, worker, { delegation: "off" }).decision, "allow");
+  assert.equal(decide({ v: 2 }, worker).decision, "allow");
 });
 
 test("decide: the strongest decision leads, and every gate that fired is listed for the log", () => {
@@ -134,13 +125,12 @@ test("decide: the strongest decision leads, and every gate that fired is listed 
       },
     ],
   });
-  // The worker writes its record (block refuses) and a file another session claims (a warning in the same list).
-  const result = decide(
-    state,
-    { ...edit(`${TASK_DIR}/record.md`, { delegation: "D-004" }), now: Date.parse("2026-11-03T10:30:00.000Z") },
-    block,
-  );
-  assert.equal(result.decision, "block");
+  // The worker writes its record (a warning, never a refusal) and a file another session claims (a second warning).
+  const result = decide(state, {
+    ...edit(`${TASK_DIR}/record.md`, { delegation: "D-004" }),
+    now: Date.parse("2026-11-03T10:30:00.000Z"),
+  });
+  assert.equal(result.decision, "warn");
   assert.equal(result.gate, "delegation");
   const claimed = decide(state, { ...edit("/work/app/src/a.ts"), now: Date.parse("2026-11-03T10:30:00.000Z") });
   assert.deepEqual(gates(claimed), ["delegation:warn"]);

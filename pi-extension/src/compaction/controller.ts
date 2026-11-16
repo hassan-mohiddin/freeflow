@@ -33,6 +33,10 @@ export interface CompactionStore {
 
 export interface CompactionHost {
   effective(): boolean;
+  /** Task memory is off: no notice, no row and no Freeflow compaction about a task (D-060, Setting 2). */
+  memoryOff(): boolean;
+  /** compaction.withoutTask: whether Freeflow compacts, and asks for a checkpoint, with no task or delegation held. */
+  withoutTask(): boolean;
   background(): readonly { id: string; label: string; outputPath: string }[];
   /** Context size that the next request receiving the full history would carry, and the thresholds to judge it. */
   measure(ctx: any, turn?: TurnEnd): { tokens: number; thresholds: Thresholds } | undefined;
@@ -123,7 +127,7 @@ export class CompactionController {
 
   /** After a turn: the cycle's one notice, once the context reaches the notice point; never again in the cycle. */
   observe(ctx: any, turn?: TurnEnd): Notice | undefined {
-    if (!this.host.effective()) return undefined;
+    if (!this.host.effective() || this.host.memoryOff()) return undefined;
     const cycle = cycleOf(branchOf(ctx));
     // What this cycle showed before a reload (the store's copy), read the first time after a module load.
     if (!this.restored) {
@@ -137,6 +141,9 @@ export class CompactionController {
     if (!measured) return undefined;
     const { tokens, thresholds } = measured;
     if (tokens < thresholds.notice) return undefined;
+    // With no task or delegation held, the checkpoint notice comes only while compaction.withoutTask is on (N2, D-060).
+    const held = this.host.store.current();
+    if (!held?.task && !held?.delegation && !this.host.withoutTask()) return undefined;
     this.sent.noticeAt = Date.now();
     this.keepSent(ctx, cycle);
     return {
@@ -155,7 +162,7 @@ export class CompactionController {
     const checkpoint = worker
       ? `This session is the worker for ${worker.id} of ${worker.task}: at that point, rewrite its progress.md with ${command} checkpoint --delegation ${worker.id} --record ${worker.task} --compact --input - (## Done, ## Half done, ## Didn't work, ## Next).`
       : task
-        ? `At that point, checkpoint ${task.id}: bring its Current Context up to date, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work and is not saved yet (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${task.id} --compact --input - with In flight's lines.`
+        ? `At that point, checkpoint ${task.id}: bring its Current Context up to date, adjust the rest of Current Work and Future Work, name in Recovery the messages of this cycle that the next cycle must read (messages M-n, as discussion list numbers them; skip it when none did), then run ${command} checkpoint --record ${task.id} --compact --input - with In flight's lines.`
         : `If this session holds a task, checkpoint it as Track Work says, with --compact; if it holds none, write its summary with ${command} checkpoint --session --compact --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
     return `${head} Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn: Freeflow compacts the session with the record in place of the conversation, and the run continues. This is the only notice this context cycle; if Pi compacts before the checkpoint, the record as of its last checkpoint follows Pi's summary.`;
   }
@@ -272,11 +279,13 @@ export class CompactionController {
    * usual, when compaction is off or anything fails; it never cancels Pi's compaction.
    */
   async fallback(event: any, ctx: any): Promise<{ compaction: any } | undefined> {
-    if (!this.host.effective()) return undefined;
+    if (!this.host.effective() || this.host.memoryOff()) return undefined;
     try {
       const branch = branchOf(ctx);
       const cycle = nextCycle(branch);
       const state = await this.host.store.refresh();
+      // With no task or delegation held, Freeflow's compaction runs only while compaction.withoutTask is on (B2, D-060).
+      if (!state?.task && !state?.delegation && !this.host.withoutTask()) return undefined;
       if (state && (state.task || state.summary || state.delegation) && this.checkpointDone(state, branch)) {
         const made = await this.host.store.bundle({});
         if (made.code === 0) {

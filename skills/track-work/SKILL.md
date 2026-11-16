@@ -14,7 +14,7 @@ A task is a folder, normally in the Freeflow store: one private Git repository a
   - **Current Work:** the open agreement (`A-NNN`), the current Slice (`S-NNN`), Delegations, Space, In flight, Recovery (what the next context cycle reads to recover) and the Next action; it changes as the work moves.
   - **Future Work:** proposed Slices.
 - `history.md`, one entry per closed Slice, agreement or delegation; `decisions.md`, the open agreement's decision list; `sessions.md`, every session that held the task, its last open line the hold.
-- `sources/` (with `sources/discussion.md`, the user's messages that shaped the work), `delegations/`, `evidence/`, `specs/`, `plans/` and `scratch/`.
+- `discussions/` (the user's messages, word for word but for a redacted secret, kept by Freeflow), `sources/` (outside material only), `delegations/`, `reviews/`, `notes/`, `evidence/`, `specs/`, `plans/` and `scratch/`; the task's README lists the ones that exist.
 
 This is Schema 5. A record whose header says `Schema: 4` was written by an earlier Freeflow, in a repository or by Pi's former Task Memory: only `migrate` reads it, and every other command refuses it. On the user's word, move it into the store as the Routes say.
 
@@ -58,7 +58,7 @@ A session holds at most one task, and a task has at most one holder; any session
 | points to one task | `task take --id <ID>`, recover it, and say in one line what you read |
 | could be about more than one | ask, with the likely tasks and "a new task" as the options |
 | points to a task another session holds | `take` refuses and names that session and when it last synced: ask before `task take --id <ID> --takeover`; that session learns at its next sync and stops writing |
-| asks for work that needs memory and no task fits | ask one question, through the harness's question tool where it has one, whose options say where the task goes: in the project the work belongs to, in no project, or no task at all; on the answer, `task create` with `--project <name>` or `--no-project` (this session holds it); a project the same way, with `project new` |
+| asks for work that needs memory and no task fits | ask one question, through the harness's question tool where it has one, whose options say where the task goes: in the project the work belongs to, in no project, or no task at all; on the answer, `task create` with `--project <name>` or `--no-project` and `--short <name>`, the task's readable name of 24 characters at most (this session holds it); a project the same way, with `project new` |
 | moves a task into a project, or out of one | `task move --id <ID> --project <name>` or `--no-project`: the task gets the next number there, and the output prints its new ID |
 | turns to another task | checkpoint the held task, `task switch --id <ID>`, then recover the new one |
 | closes the task or ends the session | checkpoint what changed, then `task release` (at the session's end, Freeflow's harness layer releases it as ended, which a resume of this session takes back); `task set-state` only when the user says the task is done or abandoned |
@@ -90,7 +90,7 @@ Ask: **if context were lost now, what would the next context need that it could 
 | The repositories the task changes, and where each stands | Space, at the checkpoint |
 | Where the step in progress stands, and what the next step rests on | In flight, at the checkpoint |
 | The next step or the rough route becomes clear | the Next action and Future Work, at the checkpoint |
-| A discussion with the user shaped the work | discussion blocks: with the change they led to, when it settles; otherwise at the checkpoint |
+| A discussion with the user shaped the work | Freeflow keeps the messages; the change goes into the agreement, decisions or Slices when it settles, and Recovery names the messages at the checkpoint |
 
 Record at two moments. **What happened** is recorded when it happens: the user agreed, stopped you or set a limit; a Slice started; a worker was started, or its return accepted or sent back; a commit, a file or a sent message exists. None of it can be worked out again. **What you currently understand** is recorded once, at the checkpoint: the goal, what is settled and open, where the work stands, what to read next. It keeps moving until then. When unsure, ask: if the context were lost this second, would something that happened be forgotten? If so, record it now.
 
@@ -104,13 +104,13 @@ When the record starts after work has already happened, compress that stretch; d
 
 Goal: after context loss, the next context knows what the user agreed it may do, where it comes back, and until when, in the user's words.
 
-Open the agreement when the user agrees a piece of work, with [Discuss Work](../discuss-work/SKILL.md)'s agreement: `agreement open`, its lines quoting the user beside what each answered, dated. Write only what is known: `Done when`, `Without asking:`, `Ask first:`, `Back at`, `Holds until`; one line is often enough. Never open one as a placeholder, and never ask the user for one just because a task is being created. A task has one open agreement, and each Slice works under it.
+Open the agreement when the user agrees a piece of work, with [Discuss Work](../discuss-work/SKILL.md)'s agreement: `agreement open`, its lines quoting the user beside what each answered, dated. Write only what is known: `Done when`, `Without asking:`, `Ask first:`, `Workers:`, `Back at`, `Holds until`; one line is often enough. `Workers:` names the workers above the cheap tier the user granted with the agreement, such as `- Workers: Opus at high`; `delegate open` reads it. A worker beyond it changes the terms: ask, and on the user's yes `agreement update` adds `Update: Workers:`, which replaces the grant, so it lists every worker granted. Never open one as a placeholder, and never ask the user for one just because a task is being created. A task has one open agreement, and each Slice works under it.
 
-The agreement holds terms: what you may do, what you may not, where you stop and where you come back. A message from the user changes it only when it changes one of these; an opinion, an idea or a correction that changes none of them belongs in the discussion blocks.
+The agreement holds terms: what you may do, what you may not, where you stop and where you come back. A message from the user changes it only when it changes one of these; an opinion, an idea or a correction that changes none of them belongs in the messages Freeflow keeps.
 
 `Back at` lines are the agreement's return points: a pull request, a review, a decision, a pause. When one is due, stop the work that depends on it and return to the user.
 
-When a change to the terms settles, `agreement update` adds one line in their words, without asking first: an extension, a lifted limit, a new endpoint. A stop or a narrowing for now ("just diagnose first", "don't edit yet") is recorded at once and governs over the rest until the user lifts it: a later context sees only what is written. When the outcome itself changes, or the agreement's endpoint has passed, close it (`agreement close --state replaced`) and open the next rather than adding lines: an agreement whose later lines undo its earlier ones has to be replayed to learn what holds.
+When a change to the terms settles, `agreement update` adds one line in their words, without asking first: an extension, a lifted limit, a new endpoint. A stop or a narrowing for now ("just diagnose first", "don't edit yet") is recorded at once and governs over the rest until the user lifts it: a later context sees only what is written. When the outcome itself changes, or the agreement's endpoint has passed, close it (`agreement close --state replaced`) and open the next rather than adding lines: an agreement whose later lines undo its earlier ones has to be replayed to learn what holds. A change of terms while a Slice runs under the agreement uses `agreement close --state replaced --next-input <file|-> --next-title <title>`, which closes it, opens the next from those lines under that title and moves the Slice under that one in a single step.
 
 Progress and results belong to Slices, never to the agreement. When a `Proposed:` item in Open is answered, it becomes an update if it changes what is agreed, an item in `decisions.md` if it settles a choice, and otherwise leaves Open at the next checkpoint.
 
@@ -122,7 +122,7 @@ A Slice is a unit of your work that would leave something to reconcile if interr
 
 - Implementing a change, producing an artifact, or running an experiment is a Slice.
 - An in-depth investigation across many sources can be a Slice; stopping halfway would lose which sources were covered and what they said.
-- A discussion usually is not. Its results land in the agreement, `decisions.md`, discussion blocks and, at the checkpoint, Current Context.
+- A discussion usually is not. Its results land in the agreement, `decisions.md` and, at the checkpoint, Current Context and Recovery.
 
 Start a Slice before its first effect (Rules): `slice start` for a proposal in Future Work, `slice start-direct` for one that was never proposed. It names its result, scope, what shows it done, when to stop, and the state of what it will change. A Slice with no effects, such as an investigation, may be recorded once it becomes substantial.
 
@@ -172,7 +172,7 @@ Goal: at a compaction, a switch or a transfer, the task folder holds everything 
 
    Give a file `(lines <a>–<b>)` when only those lines matter. The list stays as it is unless you change it, and it can be empty: drop what the work no longer needs.
 3. Adjust the rest of Current Work and Future Work: one Next action a fresh context can act on, and the route. Close nothing to make room. Do not rush a Slice to completion, claim an unfinished check passed, or guess the outcome of a running operation.
-4. If discussion with the user in this context cycle shaped the work, save it as blocks; skip this when none did. Messages already saved with the change they led to are not saved again. `discussion list` numbers the user's messages since the last checkpoint; `discussion save --messages 4-7,11 --title <topic> --shapes <A-NNN or S-NNN> --input -` appends one block with those messages word for word and your line under each saying what it answered, specifically enough that it reads alone. A secret or credential in a message is left out, with a mark where it stood. A cycle may add several blocks, one per stretch of discussion, or none. A block is never edited: one that a later discussion changes is replaced (`--replaces B-NNN`), and once the work a block shaped is closed and nothing open rests on it, `discussion drop` removes it; the checkpoint lists those blocks.
+4. If the user's messages in this context cycle shaped the work and the next cycle must read them, name them in Recovery: `always: messages M-12–M-18, M-24 — <what they settled>` (or `when <trigger>: messages …`); skip this when none did. Freeflow keeps every message word for word already (a secret redacted): `discussion list` numbers them, `discussion show M-12–M-18` prints them, and `view recover` checks the numbers exist.
 5. `checkpoint --record <ID> --input -` with In flight's lines, which replace the old ones whole, then, when Recovery changes, a line `Recovery:` and the whole new list under it (`Recovery: none` empties it); add `--compact` when Freeflow should compact. In flight is the record's part of the compaction: write state, not a story, and keep exact paths, identifiers, commands, error text, numbers, and the user's words where wording matters.
    - `Now:` the step in progress and exactly how far it got;
    - `Observed:` a result the next step rests on, with its evidence; `Hypothesis:` what is being tested, unverified;

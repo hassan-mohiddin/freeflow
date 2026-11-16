@@ -1,3 +1,4 @@
+import { useFreeflowHome, everywhereFile } from "../fixtures/freeflow-home.js";
 import assert from "node:assert/strict";
 import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -55,8 +56,8 @@ function loadExtension(extension = freeflowExtension) {
 
 async function configuredRepo(config = {}) {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-prompt-architecture-"));
-  await mkdir(join(cwd, ".freeflow"));
-  await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify(config, null, 2), "utf8");
+  await useFreeflowHome();
+  await writeFile(everywhereFile(), JSON.stringify(config, null, 2), "utf8");
   return cwd;
 }
 
@@ -203,7 +204,7 @@ test("provider context reuses the before-agent surface until the next provider t
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.match(before.renderedGuidance, /# Freeflow Interaction Contract/);
 
-    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({}), "utf8");
+    await writeFile(everywhereFile(), JSON.stringify({}), "utf8");
     const sameTurn = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(lastRuntimeState(sameTurn.messages).content, /Freeflow: active/);
 
@@ -412,10 +413,8 @@ test("Runtime State remains present while Freeflow is disabled without optional 
     assert.equal(before.message, undefined);
 
     const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
-    const runtimeState = lastRuntimeState(providerContext.messages);
-    assert.ok(runtimeState);
-    assert.match(runtimeState.content, /Freeflow: inactive/);
-    assert.doesNotMatch(runtimeState.content, /Default mode|Active mode|Interaction Contract|Skills/);
+    // Off sends nothing (settled Setting 1): no Runtime State reaches the request.
+    assert.equal(lastRuntimeState(providerContext.messages), undefined);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.equal(resources.skillPaths.length, 1, "only Setup Freeflow while inactive");

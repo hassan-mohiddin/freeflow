@@ -9,8 +9,7 @@
 // files (never synced): sessions/<session>/cycle.json (the context cycle, its start, its notice and the window), due.json (a
 // notice waiting for the next hook that can add context), events-buffer.jsonl (event lines until a turn ends)
 // and calls/ (when each tool call started). Every handler fails open: on an error it prints nothing, Codex goes on, and
-// a `freeflow` line in the event log says what failed. The one exception is PreToolUse's gates under `block`, which
-// fail closed (SPEC-008, section 5).
+// a `freeflow` line in the event log says what failed. The delegation gate only warns (D-069), so a failing gate lets the call go.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -29,10 +28,7 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
-  DEFAULT_GATE_SETTINGS,
   FILE_WRITE_TOOLS,
-  GATES,
-  GATE_MODES,
   SHELL_TOOLS,
   decide,
   gateEvent,
@@ -311,18 +307,21 @@ const missingText = (found) =>
 async function resolveSwitches(root, ctx) {
   const store = await import(pathToFileURL(join(PLUGIN_ROOT, "pi-extension/dist/host/config-store.js")).href);
   const validation = await import(pathToFileURL(join(PLUGIN_ROOT, "pi-extension/dist/host/config-validation.js")).href);
-  const repository = store.readConfigFile(root, "repository");
-  const personal = store.readConfigFile(root, "personal");
+  const repository = store.readConfigFile(root, "repository", ctx.home);
+  const personal = store.readConfigFile(root, "personal", ctx.home);
   const layers = {
     repository: repository.value,
     personal: personal.value,
     session: store.readSessionSettings(ctx.home, ctx.session),
   };
-  const value = (/** @type {string} */ key) => store.resolveSetting(validation.settingSpec(key), layers).value;
+  // The settings this driver acts on, as Codex's harness reads them: its ticks win within each scope (D-060).
+  const value = (/** @type {string} */ key) =>
+    store.resolveSetting(validation.settingSpec(key), layers, "codex", ctx.home).value;
   return {
     enabled: value("enabled") !== false,
+    // Task memory off: no menu, no task offered, nothing recorded (Setting 2).
+    memory: value("memory.mode") ?? "local",
     events: value("events.enabled") !== false,
-    gates: Object.fromEntries(GATES.map((gate) => [gate, value(`gates.${gate}`)])),
   };
 }
 
@@ -402,10 +401,7 @@ export function claims(eventsOn) {
     send: claim("no", "no Codex hook addresses another session or agent"),
     wake: claim("no", "nothing runs in an idle Codex session until the next prompt"),
     ask: claim("no", "no Codex hook asks the user; the agent asks in its reply"),
-    block: claim(
-      "yes",
-      "PreToolUse denies the delegation gate's call under block (gates.delegation), with the reason; not hosted tools such as web search",
-    ),
+    block: claim("no", "the delegation gate only warns, so no Codex hook refuses a call (D-069)"),
     sensors: eventsOn
       ? claim("yes", "tool calls, model requests with token usage, compactions, workers, written to the event log")
       : claim("possible", "the event log is off (events.enabled)"),
@@ -449,7 +445,7 @@ function noticeText(found, tokens, window, limit, number) {
   const command = `node ${SCRIPT}`;
   const at = limit ? `; Codex compacts on its own at about ${limit} tokens` : "";
   const checkpoint = found?.task
-    ? `At that point, checkpoint ${found.task.id}: bring ${found.task.id}'s Current Context up to date, adjust the rest of Current Work and Future Work, save as blocks any discussion in this cycle that shaped the work and is not saved yet (discussion list, discussion save; skip it when there was none), then run ${command} checkpoint --record ${found.task.id} --input - with In flight's lines.`
+    ? `At that point, checkpoint ${found.task.id}: bring ${found.task.id}'s Current Context up to date, adjust the rest of Current Work and Future Work, name in Recovery the messages of this cycle that the next cycle must read (messages M-n, as discussion list numbers them; skip it when none did), then run ${command} checkpoint --record ${found.task.id} --input - with In flight's lines.`
     : `This session holds no task: at that point, write its summary with ${command} checkpoint --session --input - (Goal, Settled, Open, Agreement, In flight, Recovery, Next action).`;
   return `Freeflow, context cycle ${number}: compaction is near. The context is at ${share(tokens, window)}${at}. Keep working until a safe point: ${SAFE_POINT}. If your work ends within a step or two, finish it first. ${checkpoint} Then end your turn. When Codex compacts, Freeflow adds the record as of that checkpoint after Codex's summary. This is the only notice this context cycle.`;
 }
@@ -566,7 +562,7 @@ const context = (eventName, additionalContext) => ({
 async function guidance(ctx) {
   const shared = await import(pathToFileURL(join(PLUGIN_ROOT, "hooks/shared/runtime-context.mjs")).href);
   const root = shared.findWorkspaceRoot(ctx.cwd);
-  return { root, text: shared.renderRuntimeContext(root, undefined, { session: ctx.session }) };
+  return { root, text: shared.renderRuntimeContext(root, undefined, { session: ctx.session, harness: "codex" }) };
 }
 
 /**
@@ -608,16 +604,18 @@ async function sessionStart(ctx) {
  */
 async function taskMemoryAtStart(ctx, root, parts, logged) {
   const switches = await resolveSwitches(root, ctx);
+  // Off writes nothing, not even the state or the claims, before this check (D-060, Setting 1).
+  if (!switches.enabled) return;
   const { window, limit } = codexWindow(ctx.cwd, ctx.input.model, ctx.env);
   ctx.window = window;
   ctx.limit = limit;
   ctx.state = updateState(ctx, { ...switches, window, limit, model: ctx.input.model ?? null, store: false });
-  // Off, no line is kept (emit asks the state) and every claim is no.
   emit(ctx, "session.start", {
     source: ["startup", "resume", "clear", "fork"].includes(ctx.input.source) ? ctx.input.source : "startup",
   });
   writeCapabilities(ctx, switches);
-  if (!switches.enabled) return;
+  // Task memory off: no cycle, no store, no menu (D-060, Setting 2).
+  if (switches.memory === "off") return;
   const kept = readCycle(ctx);
   writeCycle(ctx, { cycle: kept.cycle, startedAt: Date.now(), notice: null });
   rmSync(fileOf(ctx, "due.json"), { force: true });
@@ -774,19 +772,9 @@ function preToolUse(ctx) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// The gate (SPEC-008): Track Work's gates5.mjs decides each file-writing or shell call from the session's gate state,
-// which Track Work's lifecycle commands write to sessions/<session>/gates.json; the gate's mode (gates.delegation) was
-// resolved with enabled at session start. Under warn the call runs and the agent reads one row per turn, as
-// additionalContext; under block Codex refuses the call with the same text (permissionDecision: deny). Each gate that
-// fired leaves a `gate` line in the buffer.
-
-/** The gates' modes as session start resolved them; a state from before gates.* existed gives the defaults. */
-function gateModes(ctx) {
-  const kept = ctx.state?.gates ?? {};
-  return Object.fromEntries(
-    GATES.map((gate) => [gate, GATE_MODES.includes(kept[gate]) ? kept[gate] : DEFAULT_GATE_SETTINGS[gate]]),
-  );
-}
+// The gate (SPEC-008, D-069): Track Work's gates5.mjs decides each file-writing or shell call from the session's gate
+// state, which Track Work's lifecycle commands write to sessions/<session>/gates.json. The gate only warns: the call
+// runs and the agent reads one row per turn, as additionalContext. Each gate that fired leaves a `gate` line in the buffer.
 
 /**
  * The session's gate state, read once for this call; null where it is missing or not a version this module reads,
@@ -822,50 +810,32 @@ function firstWarnings(ctx, agent, fired) {
   return fresh;
 }
 
-/** Codex's refusal of a tool call: the reason reaches the model as the call's result. @param {string} reason */
-const deny = (reason) => ({
-  hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: reason },
-});
-
 /**
- * The gates on one tool call: nothing printed where every gate allows; under warn, the rows not yet read this turn as
- * additionalContext; under block, a deny with each refusing gate's text. A failure is open under warn and closed
- * while any gate is at block (section 5); a hook Codex stops for its timeout is open, which no driver can change.
+ * The gate on one tool call: nothing printed where the gate allows; otherwise the rows not yet read this turn as
+ * additionalContext. A failure lets the call go: the gate only warns (section 5).
  * @param {any} ctx
  */
 function gated(ctx) {
-  const modes = gateModes(ctx);
   const tool = String(ctx.input.tool_name ?? "");
   if (!FILE_WRITE_TOOLS.has(tool) && !SHELL_TOOLS.has(tool)) return null;
-  if (GATES.every((gate) => modes[gate] === "off")) return null;
   try {
     const input = ctx.input.tool_input;
-    const result = decide(
-      readGates(ctx),
-      { tool, paths: toolPaths(tool, input, ctx.cwd), command: commandOf(tool, input), cwd: ctx.cwd },
-      modes,
-    );
+    const result = decide(readGates(ctx), {
+      tool,
+      paths: toolPaths(tool, input, ctx.cwd),
+      command: commandOf(tool, input),
+      cwd: ctx.cwd,
+    });
     if (result.decision === "allow") return null;
     const agent = agentOf(ctx);
     for (const fired of result.fired) emit(ctx, "gate", gateEvent(fired, tool), agent);
-    if (result.decision === "warn") {
-      const rows = firstWarnings(ctx, agent, result.fired).map((fired) => gateText(fired));
-      if (!rows.length) return null;
-      sent(ctx, "gate", rows.join("\n\n"));
-      return context("PreToolUse", rows.join("\n\n"));
-    }
-    const reason = result.fired
-      .filter((fired) => fired.decision !== "warn")
-      .map((fired) => gateText(fired))
-      .join("\n\n");
-    sent(ctx, "gate", reason);
-    return deny(reason);
+    const rows = firstWarnings(ctx, agent, result.fired).map((fired) => gateText(fired));
+    if (!rows.length) return null;
+    sent(ctx, "gate", rows.join("\n\n"));
+    return context("PreToolUse", rows.join("\n\n"));
   } catch (error) {
     note(ctx, error);
-    if (!Object.values(modes).includes("block")) return null;
-    const reason = "Freeflow's gates could not decide this call; try again.";
-    sent(ctx, "gate", reason);
-    return deny(reason);
+    return null;
   }
 }
 
@@ -983,10 +953,37 @@ function subagent(ctx) {
   return null;
 }
 
-/** Stop: the turn's end; the store synced when it changed; the turn's lines written in one run. @param {any} ctx */
+/**
+ * Discussion capture (Track Work's `discussion capture`): the turn's new user messages, read from the transcript Stop
+ * names (transcript_path), and committed to the store; the push is left to the store sync below, which Stop's budget
+ * allows for. A failure is said in the event log, and the next turn captures what this one missed.
+ * @param {any} ctx
+ */
+function discussionCapture(ctx) {
+  // Codex names no transcript for some sessions (its Stop input says null): then there is nothing to capture from.
+  if (typeof ctx.input.transcript_path !== "string" || !ctx.input.transcript_path) return;
+  const args = [
+    "discussion",
+    "capture",
+    "--no-push",
+    "--session",
+    ctx.session,
+    "--transcript",
+    ctx.input.transcript_path,
+  ];
+  const run = script(ctx, args, { timeoutMs: 4_000 });
+  if (run.status !== 0)
+    emit(ctx, "freeflow", {
+      what: "error",
+      detail: `discussion capture: ${(run.stderr.split("\n")[0] || `exit code ${run.status}`).trim()}`.slice(0, 200),
+    });
+}
+
+/** Stop: the turn's end; the turn's messages captured and the store synced when it changed; the lines written in one run. @param {any} ctx */
 function stop(ctx) {
   if (agentOf(ctx) !== "main") return null;
   emit(ctx, "turn.end", { turn: ctx.state?.turn ?? undefined });
+  if (ctx.state?.store) discussionCapture(ctx);
   if (ctx.state?.store) {
     const found = sessionStatus(ctx, 2_000);
     if (found?.store && found.changed) {
@@ -1085,11 +1082,10 @@ export async function handle(event, input, env = process.env) {
     // No session start ran (its hook not trusted, say): the switches are read once here.
     if (!ctx.state && event !== "SessionStart") {
       const shared = await import(pathToFileURL(join(PLUGIN_ROOT, "hooks/shared/runtime-context.mjs")).href);
-      ctx.state = updateState(ctx, {
-        ...(await resolveSwitches(shared.findWorkspaceRoot(ctx.cwd), ctx)),
-        store: false,
-      });
-      if (ctx.state.enabled === false) return null;
+      const switches = await resolveSwitches(shared.findWorkspaceRoot(ctx.cwd), ctx);
+      // Off writes nothing, not even this session's state (D-060, Setting 1): the hook stops here.
+      if (!switches.enabled) return null;
+      ctx.state = updateState(ctx, { ...switches, store: false });
     }
     restoreWindow(ctx);
     return await handler(ctx);

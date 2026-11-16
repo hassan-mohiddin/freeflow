@@ -36,7 +36,8 @@ import {
   stateLine5,
   warnings5,
 } from "./record5.mjs";
-import { closedBlocks } from "./discussion5.mjs";
+import { messageFiles } from "./discussion5.mjs";
+import { writeReadme } from "./task-folder5.mjs";
 import {
   addEvents,
   addUsed,
@@ -51,7 +52,14 @@ import { predictSlice } from "./planner5.mjs";
 import { holdStart, summaryForTask } from "./events5.mjs";
 // projects5 imports this module too; both use the other's functions only when a command runs.
 import { readSessions, sessionIdentity } from "./projects5.mjs";
-import { REPOSITORIES_FILE, freeflowStoreOf, isFreeflowStore, writeAtomically, writeTaskFile } from "./store.mjs";
+import {
+  REPOSITORIES_FILE,
+  freeflowStoreOf,
+  isFreeflowStore,
+  readInput,
+  writeAtomically,
+  writeTaskFile,
+} from "./store.mjs";
 
 function fail(code, message) {
   const error = new Error(message);
@@ -172,9 +180,11 @@ async function publish(task, { record = null, history = null, decisions = null }
   const { root, path } = task.loaded;
   if (history !== null && history !== task.historyText)
     await writeTaskFile(root, path, HISTORY_FILE, task.historyText, history);
-  if (record !== null) await writeAtomically(root, path, task.record.text, recordText);
+  // decisions.md before record.md: a record that names a new agreement never sits beside the closed one's list. A
+  // close stopped between the writes is finished by running it again (its History entry says it was interrupted).
   if (decisions !== null && decisions !== task.decisionsText)
     await writeTaskFile(root, path, DECISIONS_FILE, task.decisionsText, decisions);
+  if (record !== null) await writeAtomically(root, path, task.record.text, recordText);
   return candidate;
 }
 
@@ -540,7 +550,20 @@ async function closeAgreement(options, text, loaded) {
   assertNotInterrupted(task, agreement.id);
   const state = requiredOption(options, "--state", "agreement close");
   if (!CLOSED_STATES.agreement.has(state)) fail("invalid-state", "An agreement closes as completed, ended or replaced");
-  if (record.work.slice && fieldText(record.work.slice, "Under") === agreement.id)
+  // A replaced agreement's next one opens in the same step, from --next-input's lines; a Slice under this one moves to it.
+  const nextInput = options["--next-input"];
+  if (nextInput !== undefined && state !== "replaced")
+    fail("invalid-option", "--next-input goes with --state replaced: the next agreement replaces this one");
+  if (nextInput === "-" && options["--input"] === "-")
+    fail("invalid-option", "--input and --next-input cannot both read stdin");
+  const nextLines = nextInput === undefined ? null : agreedLines(await readInput(nextInput), "agreement close");
+  const nextTitle = oneLine(options["--next-title"]);
+  if (nextLines && !nextTitle)
+    fail("missing-option", "agreement close --next-input needs --next-title: the next agreement's title");
+  if (nextTitle && !nextLines)
+    fail("invalid-option", "--next-title goes with --next-input: it titles the next agreement");
+  const moving = Boolean(record.work.slice && fieldText(record.work.slice, "Under") === agreement.id);
+  if (moving && !nextLines)
     fail("slice-under-agreement", `${record.work.slice.id} works under ${agreement.id}; close it first`);
   const fields = input(text, ["Cue", "Result", "Task effect", "Settled"], "agreement close");
   let history = task.historyText;
@@ -559,7 +582,29 @@ async function closeAgreement(options, text, loaded) {
     };
     history = appendEntry(task, record.header.name, entryLines("agreement", agreement.id, agreement.title, values));
   }
-  const replacements = [{ start: agreement.index, end: agreement.end, lines: [] }];
+  // The next agreement takes the closed one's place in Current Work, numbered after every ID already used.
+  const nextId = nextLines ? nextId5(task, "A") : null;
+  const replacements = [
+    {
+      start: agreement.index,
+      end: agreement.end,
+      lines: nextLines
+        ? [`### Agreement ${nextId} — ${nextTitle}`, "", `- Opened: ${localDate()}`, ...nextLines, ""]
+        : [],
+    },
+  ];
+  if (moving) {
+    const slice = record.work.slice;
+    const update = `- Moved: under ${agreement.id}, replaced by ${nextId}`;
+    replacements.push({
+      start: slice.index,
+      end: slice.end,
+      lines: renderSlice(slice.id, slice.title, { ...sliceValues(slice), Under: [nextId] }, [
+        ...updateLines(slice),
+        update,
+      ]),
+    });
+  }
   const settled = fields.lines("Settled");
   if (settled) {
     const section = record.context.get("Settled");
@@ -574,7 +619,9 @@ async function closeAgreement(options, text, loaded) {
     record: edit(record, replacements),
     decisions: task.decisionsText === null ? null : EMPTY_DECISIONS,
   });
-  return `Closed agreement: ${agreement.id} — ${state}\n${await syncAfter(task, `close ${agreement.id}`)}\n`;
+  const opened = nextLines ? `\nOpened agreement: ${nextId} — ${nextTitle}` : "";
+  const moved = moving ? `\nMoved ${record.work.slice.id} under ${agreement.id} to ${nextId}.` : "";
+  return `Closed agreement: ${agreement.id} — ${state}${opened}${moved}\n${await syncAfter(task, `close ${agreement.id}`)}\n`;
 }
 
 function git(directory, args) {
@@ -688,7 +735,10 @@ function recoveryReport(measure, before, replaced) {
     entry.kind === "when" ? `when ${entry.trigger}` : entry.kind === "always" ? "always" : "always, not counted";
   const counted = (size) => `${size.toLocaleString("en-US")} word${size === 1 ? "" : "s"}`;
   const lines = recovery.map((entry) => {
-    const size = sourceFiles([entry], context).reduce((sum, file) => sum + file.words, 0);
+    const size = [...sourceFiles([entry], context), ...messageFiles([entry], context.messages)].reduce(
+      (sum, file) => sum + file.words,
+      0,
+    );
     const what = entry.text.slice(label(entry).length + 1).trim();
     const share =
       entry.kind === "always"
@@ -794,10 +844,6 @@ async function checkpoint(options, text, loaded) {
       entry.pointers.filter((pointer) => pointer.problem).map((pointer) => `Warning: Recovery: ${pointer.problem}`),
     ),
     ...warnings5(after).map((warning) => `Warning: ${warning}`),
-    ...closedBlocks(loaded.path, task.history).map(
-      (block) =>
-        `Discussion block ${block.id} shaped ${block.shapes.join(", ")}, now closed: drop it (discussion drop --block ${block.id}) once nothing open rests on it.`,
-    ),
   ];
   // This session's event summary since it took the task, committed with the checkpoint (P7).
   if (home) {
@@ -810,6 +856,8 @@ async function checkpoint(options, text, loaded) {
     });
     if (events) lines.push(events);
   }
+  // The README lists the folders that exist now: a folder made since the last checkpoint is listed here.
+  writeReadme(dirname(loaded.path), record.header.name);
   lines.push(await syncAfter(task, "checkpoint"));
   return `${lines.join("\n")}\n`;
 }
