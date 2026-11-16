@@ -150,7 +150,7 @@ function world(on: any) {
     runs: [] as string[],
     // Every settings script run, as its arguments joined (without --root and --json).
     settingsRuns: [] as string[],
-    // The normal view `list --view normal --json` gives, or null for a script that has no views yet.
+    // The normal view `list --view normal --json` gives, or null for the one the switches give.
     normalView: null as any[] | null,
     switches: { enabled: true, pane: true, statusLine: true, events: true },
     surfaces: ["terminal"] as string[],
@@ -216,8 +216,30 @@ function world(on: any) {
       if (args[0] === "get")
         return value({ stdout: JSON.stringify({ key: args[1], value: args[1] === "enabled" ? enabled : true }) });
       if (args.includes("--view")) {
-        if (!w.normalView) return value({ exitCode: 1, stderr: "Error: Unknown option --view\n" });
-        return value({ stdout: JSON.stringify({ root: "/work/widget", settings: w.normalView }) });
+        const toggle = ["on", "off"];
+        const settings = w.normalView ?? [
+          { key: "enabled", label: "Freeflow", value: enabled, scope: "default", choices: toggle, readOnly: false },
+          {
+            key: "memory.mode",
+            label: "Task memory",
+            value: "local",
+            scope: "default",
+            choices: ["local", "sync", "off"],
+            readOnly: false,
+          },
+          { key: "review", label: "Review", value: "One reviewer and one round, at pull request", readOnly: true },
+          { key: "workers", label: "Workers", value: "Haiku by default", readOnly: true },
+          {
+            key: "pane.statusLine",
+            label: "Status line",
+            value: statusLine,
+            scope: statusLine ? "default" : "folder",
+            choices: toggle,
+            readOnly: false,
+          },
+          { key: "pane.enabled", label: "Pane", value: pane, scope: "default", choices: toggle, readOnly: false },
+        ];
+        return value({ stdout: JSON.stringify({ root: "/work/widget", view: "normal", settings }) });
       }
       return value({
         stdout: JSON.stringify({
@@ -225,15 +247,12 @@ function world(on: any) {
           settings: [
             { key: "enabled", label: "Freeflow", value: enabled, scope: "default", hosts: "all" },
             { key: "events.enabled", label: "Event log", value: events, scope: "default", hosts: "all" },
-            { key: "review.unit", label: "Review unit", value: "pr", scope: "default", hosts: "all" },
-            { key: "review.model", label: "Reviewer model", value: "auto", scope: "default", hosts: "all" },
-            { key: "review.rounds", label: "Review rounds", value: 3, scope: "default", hosts: "all" },
             { key: "pane.enabled", label: "Pane", value: pane, scope: "default", hosts: "claude-code" },
             {
               key: "pane.statusLine",
               label: "Status line",
               value: statusLine,
-              scope: statusLine ? "default" : "personal",
+              scope: statusLine ? "default" : "folder",
               hosts: "claude-code",
             },
           ],
@@ -406,11 +425,7 @@ test("/freeflow pane opens at 50 columns docked and 24 rows inline, reads the sc
   // The turn's end reads the session's status and the store's own state, and no plan (the cost governor was removed, D-058).
   expect(w.reads()).toEqual(["session status"]);
   await w.clock.advance(1);
-  expect(w.reads()).toEqual([
-    "session status",
-    "session status",
-    "project list --json",
-  ]);
+  expect(w.reads()).toEqual(["session status", "session status", "project list --json"]);
 
   // A Track Work command a tool ran reads again too; any other command does not.
   w.runs.length = 0;
@@ -722,44 +737,41 @@ test("Sent: the 20 newest lines, then show older; each opens to its full text; t
   await ui.unmount();
 });
 
-test("Settings: the rows as switches and choices; the ⋯ reach menu only with the normal view's scopes; Developer settings a link", async ($, on) => {
+test("Settings: the normal view's rows as switches and choices, each with its ⋯ reach menu; Developer settings a link", async ($, on) => {
   const w = world(on);
   await opened($, w);
   const ui = await $.ui.mount(PANE("terminal"));
   await ui.press({ key: "tab-settings" });
   const sets = () => w.settingsRuns.filter((run) => run.startsWith("set "));
 
-  // The script has no views yet: the settled rows from the flat list, those it cannot give as settled read only, no
-  // ⋯ (a change writes this folder's personal file, and the tab says so).
+  // The script's normal view: the switches, Task memory's choices, Review and Workers read only; a change goes
+  // everywhere by default.
   let lines = await shown(ui);
   expect(lines).toEqual(
     expect.arrayContaining([
-      "A change here applies to this folder (.freeflow/local.json).",
       "Freeflow  [on]",
-      "Task memory · read only",
-      "  On (a store is set up)",
       "Review · read only",
-      "  unit pr, model auto, up to 3 rounds",
+      "  One reviewer and one round, at pull request",
       "Workers · read only",
-      "  from your rules (rules/delegation.md)",
+      "  Haiku by default",
       "Status line  [on]",
       "Pane  [on]",
       "  from the default",
     ]),
   );
-  expect((await keysOf(ui)).filter((key) => key.startsWith("reach:"))).toEqual([]);
+  expect((await keysOf(ui)).filter((key) => key.startsWith("reach:"))).toContain("reach:pane.statusLine");
   await ui.press({ key: "setting:pane.statusLine" });
-  expect(sets().at(-1)).toBe("set pane.statusLine off --scope personal");
+  expect(sets().at(-1)).toBe("set pane.statusLine off --scope everywhere");
   expect(rows(w).at(-1)).toContain(
     "The user changed a Freeflow setting with /freeflow settings: pane.statusLine is now off",
   );
   expect(rows(w).at(-1)).toContain("(The user changed it in Freeflow's pane.)");
 
   // Developer settings: one link, the command put in the prompt box for the user's Enter.
-  expect(lines).toContain("Developer settings › /freeflow settings");
+  expect(lines).toContain("Developer settings › /freeflow settings --all");
   await ui.press({ key: "developer" });
-  expect(w.filled).toEqual(["/freeflow settings"]);
-  expect(w.toasts.at(-1)).toBe("/freeflow settings is in the prompt: Enter runs it.");
+  expect(w.filled).toEqual(["/freeflow settings --all"]);
+  expect(w.toasts.at(-1)).toBe("/freeflow settings --all is in the prompt: Enter runs it.");
 
   // The settings script's normal view: its rows, choices and read-only rows; a change goes everywhere by default.
   w.normalView = [
@@ -794,8 +806,7 @@ test("Settings: the rows as switches and choices; the ⋯ reach menu only with t
   const memory = await ui.find({ key: "setting:memory" });
   expect(memory?.props.options.map((each: any) => each.label)).toEqual(["On, this machine", "On, with sync", "Off"]);
   await ui.select({ key: "setting:memory", value: "sync" });
-  expect(sets().at(-1)).toBe("set memory sync --scope personal");
-  expect(await shown(ui)).not.toContain("A change here applies to this folder (.freeflow/local.json).");
+  expect(sets().at(-1)).toBe("set memory sync --scope everywhere");
 
   // ⋯ with the normal view: the reach of that row's next change.
   await ui.press({ key: "reach:pane.enabled" });

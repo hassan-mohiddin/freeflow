@@ -37,19 +37,16 @@ const TABS = [
   { id: "settings", label: "Settings", hotkey: "4" },
   { id: "about", label: "About", hotkey: "5" },
 ];
-/**
- * A change's reach, as the `⋯` menu on a settings row offers it, and the `/freeflow settings` flag each takes. The
- * settings branch (D-060) gives the three scopes and the normal view; until it merges, the pane shows no `⋯` and a
- * change writes this folder's personal file (`--personal`, `.freeflow/local.json`), which the Settings tab says.
- */
+/** A change's reach, as the `⋯` menu on a settings row offers it, and the `/freeflow settings` flag each takes (D-060). */
 const REACHES = [
   { id: "everywhere", label: "Everywhere" },
   { id: "folder", label: "Only this folder" },
   { id: "session", label: "Only this session" },
 ];
-const REACH_FLAGS = /** @type {Record<"normal" | "legacy", Record<string, string>>} */ ({
-  normal: { everywhere: "", folder: "--folder", session: "--session" },
-  legacy: { everywhere: "--personal" },
+const REACH_FLAGS = /** @type {Record<string, string>} */ ({
+  everywhere: "",
+  folder: "--folder",
+  session: "--session",
 });
 // What a Track Work command a tool ran looks like: after one, the store may have changed, so the pane reads again.
 const TRACK_WORK = /working-record\.mjs\b/;
@@ -240,7 +237,7 @@ async function readOnce($) {
     spent = task ? await read("spent", ["estimate", "--spent", "--record", task, "--json"]) : null;
     events = await eventSummary($, failed, events);
     sent = await sentList($, failed, sent);
-    settings = await settingsView($, failed, settings, store);
+    settings = await settingsView($, failed, settings);
     version = await versionOf($);
   }
   const usage = await $.session.usage().catch(() => null);
@@ -329,15 +326,12 @@ async function sentList($, failed, was) {
 
 /**
  * The settings' normal view as rows: `list --view normal --json` from the settings script, each row with key, label,
- * value, the scope it came from, its choices and whether it is read-only. A script that has no views yet (before the
- * settings branch merges) is read with `list --json` and mapped to the rows it can give: Freeflow, Task memory (read
- * only, from whether there is a store), Status line and Pane.
+ * value, the scope it came from, its choices and whether it is read-only.
  * @param {any} $
  * @param {string[]} failed
  * @param {any} was
- * @param {boolean} store
  */
-async function settingsView($, failed, was, store) {
+async function settingsView($, failed, was) {
   try {
     // The flat list also gives the event log's switch, which empties Sent; the normal view does not show it.
     const listed = await settingsScript($, ["list", "--host", "claude-code"]);
@@ -346,11 +340,7 @@ async function settingsView($, failed, was, store) {
     if (typeof eventLog === "boolean") switches = { ...switches, eventLog };
     const normal = await settingsScript($, ["list", "--view", "normal"]);
     if (normal.exitCode === 0)
-      return {
-        legacy: false,
-        rows: JSON.parse(normal.stdout).settings.map((/** @type {any} */ row) => settingRow(row)),
-      };
-    if (flat) return { legacy: true, rows: legacyRows(flat, store) };
+      return { rows: JSON.parse(normal.stdout).settings.map((/** @type {any} */ row) => settingRow(row)) };
   } catch {
     // the same as a run that failed
   }
@@ -377,45 +367,6 @@ function settingRow(row) {
     choices,
     readOnly: Boolean(row.readOnly ?? row.readonly ?? row["read-only"] ?? false),
   };
-}
-
-/**
- * The normal view's rows from the script's flat list, before it has views.
- * @param {any[]} rows
- * @param {boolean} store
- */
-function legacyRows(rows, store) {
-  const byKey = new Map(rows.map((row) => [row.key, row]));
-  const from = (/** @type {string} */ key, /** @type {string} */ label) =>
-    byKey.has(key) ? [settingRow({ ...byKey.get(key), label })] : [];
-  const value = (/** @type {string} */ key) => shownValue(byKey.get(key)?.value);
-  // The settled rows; those this script cannot give as settled (Task memory's choices, Review without settings,
-  // Workers from the rules) are read only, with what the script does give, until the settings update.
-  return [
-    ...from("enabled", "Freeflow"),
-    settingRow({
-      key: "task-memory",
-      label: "Task memory",
-      value: store ? "On (a store is set up)" : "Off (no store)",
-      readOnly: true,
-    }),
-    settingRow({
-      key: "review",
-      label: "Review",
-      value:
-        [
-          byKey.has("review.unit") ? `unit ${value("review.unit")}` : null,
-          byKey.has("review.model") ? `model ${value("review.model")}` : null,
-          byKey.has("review.rounds") ? `up to ${value("review.rounds")} rounds` : null,
-        ]
-          .filter(Boolean)
-          .join(", ") || "from your rules or Freeflow's default",
-      readOnly: true,
-    }),
-    settingRow({ key: "workers", label: "Workers", value: "from your rules (rules/delegation.md)", readOnly: true }),
-    ...from("pane.statusLine", "Status line"),
-    ...from("pane.enabled", "Pane"),
-  ];
 }
 
 /** The plugin's version, from its manifest. @param {any} $ */
@@ -591,8 +542,6 @@ const scopeText = (scope) =>
     everywhere: "everywhere",
     folder: "this folder",
     session: "this session",
-    personal: "this folder",
-    repository: "the repository's config",
   })[scope] ?? scope;
 
 /** The decision items waiting on the user: proposed or new. */
@@ -1001,15 +950,6 @@ function settingsTab($, ui, values, reach) {
   const settings = values.settings;
   if (!settings) return [text("Reading the settings…", { dimColor: true })];
   const rows = [];
-  // Until the three scopes ship, the script writes this folder's personal file: no reach to choose, and the pane says so.
-  if (settings.legacy)
-    rows.push(
-      el.Text({
-        dimColor: true,
-        wrap: "wrap",
-        children: "A change here applies to this folder (.freeflow/local.json).",
-      }),
-    );
   for (const row of settings.rows) {
     if (row.readOnly) {
       rows.push(text(`${row.label} · read only`));
@@ -1017,7 +957,7 @@ function settingsTab($, ui, values, reach) {
       continue;
     }
     const to = reach.chosen?.[row.key] ?? "everywhere";
-    const change = (/** @type {unknown} */ value) => changeSetting($, row.key, value, to, settings.legacy);
+    const change = (/** @type {unknown} */ value) => changeSetting($, row.key, value, to);
     const control =
       typeof row.value === "boolean"
         ? el.Button({
@@ -1039,11 +979,6 @@ function settingsTab($, ui, values, reach) {
                 row.choices.find((/** @type {any} */ choice) => shownValue(choice.value) === value)?.value ?? value,
               ),
           });
-    if (settings.legacy) {
-      rows.push(control);
-      rows.push(text(`  from ${scopeText(row.scope)}`, { dimColor: true }));
-      continue;
-    }
     rows.push(
       el.Box({
         flexDirection: "row",
@@ -1068,7 +1003,7 @@ function settingsTab($, ui, values, reach) {
         }),
       );
   }
-  const all = settings.legacy ? "/freeflow settings" : "/freeflow settings --all";
+  const all = "/freeflow settings --all";
   rows.push(keys([["developer", "d", `Developer settings › ${all}`, () => developerSettings($, all)]]));
   return rows;
 }
@@ -1422,10 +1357,9 @@ async function chooseReach($, key, to) {
  * @param {string} key
  * @param {unknown} value
  * @param {string} to
- * @param {boolean} legacy
  */
-async function changeSetting($, key, value, to, legacy) {
-  const flag = REACH_FLAGS[legacy ? "legacy" : "normal"][to] ?? "";
+async function changeSetting($, key, value, to) {
+  const flag = REACH_FLAGS[to] ?? "";
   const result = await settingsCommand($, `settings ${key} ${shownValue(value)}${flag ? ` ${flag}` : ""}`);
   if (!result.context) {
     $.ui.toast(result.text);
@@ -1437,7 +1371,7 @@ async function changeSetting($, key, value, to, legacy) {
 }
 
 /**
- * Developer settings: one link to `/freeflow settings --all` (`/freeflow settings` until the settings update): it puts
+ * Developer settings: one link to `/freeflow settings --all`: it puts
  * the command in the prompt box for the user's Enter; where no box takes it, the command's listing shows in the pane.
  * @param {any} $
  * @param {string} command

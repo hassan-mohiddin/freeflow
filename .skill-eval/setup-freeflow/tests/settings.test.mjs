@@ -341,7 +341,10 @@ test("doctor names each problem with its fix and changes nothing without --fix; 
   const f = await fixture();
   t.after(f.cleanup);
   await mkdir(f.home, { recursive: true });
-  await writeFile(join(f.home, "settings.json"), `{"delegation":{"claimHours":"3"},"gates":{"slice":"blok"},"enabled":false}\n`);
+  await writeFile(
+    join(f.home, "settings.json"),
+    `{"delegation":{"claimHours":"3"},"gates":{"slice":"blok"},"enabled":false}\n`,
+  );
   const before = await readFile(join(f.home, "settings.json"), "utf8");
   const check = f.run("doctor");
   assert.equal(check.status, 1);
