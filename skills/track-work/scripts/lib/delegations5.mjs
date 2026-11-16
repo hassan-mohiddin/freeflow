@@ -30,7 +30,7 @@ import { modelNow, priceTable, renderMeasure, workerMeasure } from "./measure5.m
 import { freeflowStoreOf, isFreeflowStore, projectOf, writeAtomically, writeTaskFile } from "./store.mjs";
 import { sessionIdentity } from "./projects5.mjs";
 import { storeHome } from "./freeflow-store.mjs";
-import { CHECKS, ROUTING_FILE, SETTLED, routeFrom, routingFiles } from "./routing5.mjs";
+import { CHECKS, SETTLED, grantCovers, grantsIn, ranksAbove, routeFrom, rulesFiles, workerFrom } from "./routing5.mjs";
 
 export const KINDS = new Set(["build", "review", "research", "eval", "gather"]);
 export const OUTCOMES = new Set(["accepted", "sent back", "stopped"]);
@@ -307,41 +307,65 @@ function coordinatorModel(env = process.env) {
   }
 }
 
+/** The agreement that grants a route's model and effort, by its open agreement's Workers: line, or null. */
+function grantedBy(task, model, effort) {
+  const agreement = task?.record.work.agreement;
+  if (!agreement) return null;
+  const grants = grantsIn(task.record.lines.slice(agreement.start, agreement.end));
+  return grants.some((grant) => grantCovers(grant, model, effort)) ? agreement.id : null;
+}
+
 /**
- * The route delegate open takes from the routing table (SPEC-010 4.1, section 5): with --agent, the agent given and
- * only a warning when a table does not parse; without it, the first matching row's model and effort, refused with
- * the reason when there is no table, a table does not parse, no row matches, or the row asks the user first.
+ * The route delegate open takes from the delegation rules (SPEC-010 4.1, section 5). A model ranked above the Worker:
+ * line is refused unless --named-by-user says the user named it. With --agent, the agent given, with a warning when a
+ * rules file does not parse. Without it, the first matching row's model and effort, refused with the reason when a
+ * file does not parse or no row matches; a row that asks the user first opens when the open agreement's Workers: line
+ * grants its model and effort (the Route line says granted by A-NNN), and is refused until --agent otherwise.
  */
-function routeOf(loaded, taskDir, work, given) {
+function routeOf(loaded, task, taskDir, work, given, namedByUser) {
   const home = freeflowStoreOf(taskDir) ?? (loaded ? null : isFreeflowStore(storeHome()) ? storeHome() : null);
   const project = loaded ? projectOf(loaded.path) : null;
-  const files = routingFiles(home, project ? basename(project) : null);
-  const where = home ? join(home, ROUTING_FILE) : `the Freeflow store's ${ROUTING_FILE}`;
-  const routed = routeFrom(files, work, given ? null : coordinatorModel());
-  const instead = `give --agent "<model>, <effort>"`;
-  if (given)
+  const files = rulesFiles(home, project ? basename(project) : null);
+  const worker = workerFrom(files);
+  const above = `the Worker: line (${worker}), the strongest model a worker may run on`;
+  if (given) {
+    const model = given.split(",")[0].trim();
+    if (ranksAbove(model, worker) && !namedByUser)
+      fail(
+        `delegate open: ${model} is ranked above ${above}. Only a model the user names goes above it: add --named-by-user.`,
+      );
+    const routed = routeFrom(files, work, null);
     return routed.state === "malformed"
       ? {
-          warning: `Warning: ${routed.error.message}; the brief's Agent is the one given (only the user edits the table).`,
+          warning: `Warning: ${routed.error.message}; the brief's Agent is the one given (only the user edits the rules).`,
         }
       : {};
-  if (routed.state === "none")
-    fail(
-      `delegate open requires --agent "<model>, <effort>": there is no routing table${home ? "" : ", since this task is not in a Freeflow store"}. The table goes in ${where}, and only the user writes it.`,
-    );
+  }
+  const instead = `give --agent "<model>, <effort>"`;
+  const routed = routeFrom(files, work, coordinatorModel());
   if (routed.state === "malformed")
     fail(
-      `delegate open: ${routed.error.message}. Ask the user to mend it (only the user edits the table), or ${instead}.`,
+      `delegate open: ${routed.error.message}. Ask the user to mend it (only the user edits the rules), or ${instead}.`,
     );
   if (routed.state === "unmatched")
     fail(
       `delegate open: no row of ${routed.labels.join(" or ")} matches ${routed.inputs}${work.settled && work.check ? "" : " (give --settled and --check where the table asks)"}; ${instead}.`,
     );
-  if (routed.askFirst)
+  if (routed.resolved && ranksAbove(routed.model, worker) && !namedByUser)
     fail(
-      `${routed.line}. Ask the user; on their yes, open it again with --agent "${routed.resolved ? routed.model : routed.row.tier === "frontier" ? "<the coordinator's model>" : `<the ${routed.model} tier's model>`}, ${routed.effort}".`,
+      `delegate open: ${routed.route} routes to ${routed.model}, above ${above}. Only a model the user names goes above it: ${instead} --named-by-user, after the user's yes.`,
     );
-  return routed;
+  if (!routed.askFirst) return routed;
+  const granted = routed.resolved ? grantedBy(task, routed.model, routed.effort) : null;
+  if (granted)
+    return {
+      ...routed,
+      granted,
+      route: `${routed.route}, granted by ${granted}`,
+      line: `Route: ${routed.named}, ${routed.effort} (${routed.label}: ${routed.inputs}), granted by ${granted}`,
+    };
+  const agent = routed.resolved ? routed.model : `<the ${routed.model} tier's model>`;
+  fail(`${routed.line}. Ask the user; on their yes, open it again with --agent "${agent}, ${routed.effort}".`);
 }
 
 /**
@@ -357,8 +381,11 @@ export async function openDelegation(loaded, options, text) {
   if (!KINDS.has(kind)) fail(`--kind is one of ${[...KINDS].join(", ")}.`);
   const given = oneLine(options["--agent"]);
   if (given && !/^[^,]+, ?\S+$/.test(given)) fail('--agent names the model and effort, as "Haiku, xhigh".');
+  const namedByUser = options["--named-by-user"] === true;
+  if (namedByUser && !given)
+    fail('--named-by-user goes with --agent "<model>, <effort>": it says the user named that model.');
   const work = routeWork(kind, options);
-  const routed = routeOf(loaded, taskDir, work, given);
+  const routed = routeOf(loaded, task, taskDir, work, given, namedByUser);
   const agent = given || routed.agent;
   const sections = briefInput(text);
   const parent = options["--parent"] ? parseId(options["--parent"]) : null;
