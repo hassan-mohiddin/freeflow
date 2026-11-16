@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -132,3 +132,45 @@ test("Freeflow adds no context-usage estimate when the turn reports its usage", 
   const withFreeflow = await countPrompt(50, {});
   assert.equal(withFreeflow.usage, without.usage);
 });
+
+// The turn's discussion capture (D-056) is scheduled off the request path: once per settled run, and none while a run is
+// in flight. Counted, so the check is deterministic: the capture's script starts, per settled run and per prompt.
+test(
+  "Freeflow starts at most one discussion capture per settled run, and none while a run is in flight",
+  { timeout: 60000 },
+  async () => {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const { DiscussionCapture, CAPTURE_IDLE_MS } = await import("../../dist/discussion/capture.js");
+    const home = await mkdtemp(join(tmpdir(), "freeflow-capture-budget-"));
+    await mkdir(home, { recursive: true });
+    await writeFile(join(home, "store.json"), "{}\n");
+    const saved = {
+      FREEFLOW_HOME: process.env.FREEFLOW_HOME,
+      FREEFLOW_SESSION: process.env.FREEFLOW_SESSION,
+      FREEFLOW_TRANSCRIPT: process.env.FREEFLOW_TRANSCRIPT,
+    };
+    process.env.FREEFLOW_HOME = home;
+    process.env.FREEFLOW_SESSION = "budget-session";
+    process.env.FREEFLOW_TRANSCRIPT = join(home, "transcript.jsonl");
+    try {
+      const starts = [];
+      const capture = new DiscussionCapture(async (args) => {
+        if (args[1] === "capture") starts.push(args);
+        return { code: 0, stdout: "No new messages.\n", stderr: "" };
+      });
+      capture.settled();
+      capture.runStarted();
+      await new Promise((done) => setTimeout(done, CAPTURE_IDLE_MS + 300));
+      assert.equal(starts.length, 0, "no capture starts while a run is in flight");
+      capture.settled();
+      await new Promise((done) => setTimeout(done, CAPTURE_IDLE_MS + 300));
+      assert.equal(starts.length, 1, "one capture per settled run");
+    } finally {
+      for (const [name, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+      await rm(home, { recursive: true, force: true });
+    }
+  },
+);
