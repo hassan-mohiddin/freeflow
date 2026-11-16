@@ -140,6 +140,15 @@ const table = (rows, { cheap = null, worker = null } = {}) =>
     .filter((line) => line !== null && line !== false)
     .join("\n");
 
+test("the shipped default's Models section is prose: one line per Claude model, each marked how it is known, and the table still parses", () => {
+  const section = DEFAULT_RULES.slice(DEFAULT_RULES.indexOf("## Models"));
+  for (const model of ["claude-opus-5-5", "claude-fable-5-2", "claude-haiku-5-5", "claude-sonnet-5-5"])
+    assert.match(section, new RegExp(`^- ${model}: .*\\((observed|measured|list price)`, "m"), model);
+  const parsed = parseRules(DEFAULT_RULES);
+  assert.equal(parsed.rows.length, 6);
+  assert.deepEqual([parsed.cheap, parsed.worker], ["claude-haiku-5-5", "claude-opus-5-5"]);
+});
+
 test("the shipped default picks the first matching row for each kind, settled and check, as SPEC-010 section 3 lays out", () => {
   const parsed = parseRules(DEFAULT_RULES);
   assert.equal(parsed.cheap, "claude-haiku-5-5");
@@ -544,7 +553,7 @@ test("check-return and close read Settled, Check and Route; a return sent back n
     );
     assert.match(
       ok(cli(["delegate", "check-return", "--record", "widget/task-001", "--id", "D-001"])),
-      /^D-001's return: State done \(build, settled yes, check tests, route Freeflow's default row 4\); every heading is there; it names no commit\. Its line now says returned\..* Now read it and the diff, and rerun the tests that decide the result\.\n$/,
+      /^D-001's return: State done \(build, settled yes, check tests, route Freeflow's default row 4\); every heading is there; it names no commit\. Its line now says returned\..* Now read it and the diff, and rerun every command its brief's Done when names: tests decide the result\.\n$/,
     );
     const close = (flags) =>
       cli(["delegate", "close", "--record", "widget/task-001", "--id", "D-001", ...flags, "--input", "-"], {

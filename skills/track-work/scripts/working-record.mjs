@@ -206,11 +206,11 @@ const COMMAND_HELP = new Map([
   ],
   [
     "delegate status",
-    "Usage: delegate status --record <record.md> [--json]\nThe open delegations: ID, title, kind, agent, when opened, branch, whether a return is there, and each one's sub-workers. With --json, the same as data for a harness layer such as Freeflow's Claude Code pane: delegations, each with id, title, kind, agent, opened, handle, branch, worktree, returned (its return's State, or null), folder and sub (its sub-workers, the same way).",
+    "Usage: delegate status --record <record.md> [--cites <P3>] [--json]\nThe open delegations: ID, title, kind, agent, when opened, branch, whether a return is there, and each one's sub-workers. --cites <P3> lists only those whose brief's Settled cites that decision, the workers a change to it touches. With --json, the same as data for a harness layer such as Freeflow's Claude Code pane: delegations, each with id, title, kind, agent, opened, handle, branch, worktree, returned (its return's State, or null), folder and sub (its sub-workers, the same way).",
   ],
   [
     "delegate check-return",
-    "Usage: delegate check-return --record <record.md> --id <D-NNN[.n]> [--elsewhere <hash>=<owner/name> ...]\nRefuses a return that is missing, lacks its State line or a heading (Result, Identities, Checks, Left open, Not done; a reviewer returns Review Work's report instead), or names a commit that is not in the repository or not on the brief's branch. A hex word inside an email address, a UUID or a folder name between two slashes of a path (but not a URL's git ref, after blob/, tree/, commit/, raw/ or blame/) is not taken for a commit. --elsewhere, once per commit, names a commit the return names that belongs to another repository, such as a host's source the worker pinned: it is not looked for here, and the output names it; it is refused when the return names no such commit missing here. When it passes, the delegation's line says returned and the delegation log has its return (or blocked) line; it warns when Left open has text but no choice line (\"- <the choice> -> <what was taken>[, technical]\"). A worker session checks its own return the same way, leaving the record as it is. A return that passes is not accepted: read it and the diff, and rerun the check that decides the result. --scratch <folder> in place of --record checks a delegation opened with --scratch.",
+    "Usage: delegate check-return --record <record.md> --id <D-NNN[.n]> [--elsewhere <hash>=<owner/name> ...]\nRefuses a return that is missing, lacks its State line or a heading (Result, Identities, Checks, Left open, Not done; a reviewer returns Review Work's report instead), or names a commit that is not in the repository or not on the brief's branch. A hex word inside an email address, a UUID or a folder name between two slashes of a path (but not a URL's git ref, after blob/, tree/, commit/, raw/ or blame/) is not taken for a commit. --elsewhere, once per commit, names a commit the return names that belongs to another repository, such as a host's source the worker pinned: it is not looked for here, and the output names it; it is refused when the return names no such commit missing here. When it passes, the delegation's line says returned and the delegation log has its return (or blocked) line; it warns when Left open has text but no choice line (\"- <the choice> -> <what was taken>[, technical]\"). A worker session checks its own return the same way, leaving the record as it is. A return that passes is not accepted: read it and the diff, and rerun every command its brief's Done when names. --scratch <folder> in place of --record checks a delegation opened with --scratch.",
   ],
   [
     "delegate close",
@@ -497,7 +497,7 @@ function allowedOptions(command, operation) {
     if (operation === "join") return new Set([...record, "--id", "--home"]);
     if (operation === "log") return new Set([...record, "--id", "--append", "--kind", "--body", "--agent"]);
     if (operation === "amend") return new Set([...record, "--id", "--text", "--handle", "--input"]);
-    if (operation === "status") return new Set([...record, "--json"]);
+    if (operation === "status") return new Set([...record, "--json", "--cites"]);
     if (operation === "check-return") return new Set([...record, "--id", "--scratch", "--elsewhere"]);
     if (operation === "close")
       return new Set([
@@ -1014,7 +1014,12 @@ async function runCore(command, rest) {
     const input = await readInput(options["--input"], cwd());
     if (operation === "open") return openDelegation(loaded, options, input);
     if (operation === "amend") return amendDelegation(loaded, options, input);
-    if (operation === "status") return delegationStatus(loaded, { json: options["--json"] === true });
+    if (operation === "status") {
+      const cites = options["--cites"];
+      if (cites !== undefined && !/^[PT][1-9]\d*$/.test(String(cites)))
+        throw new CliError(`--cites takes a decision ID, P<n> or T<n>, not ${JSON.stringify(cites)}`, 2);
+      return delegationStatus(loaded, { json: options["--json"] === true, cites: cites ?? null });
+    }
     // A worker checks its own return before it hands back; the record stays the coordinator's.
     if (operation === "check-return") return checkReturn(loaded, options, { readOnly: Boolean(joined) });
     if (operation === "close") return closeDelegation(loaded, options, input);

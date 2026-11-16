@@ -40,9 +40,10 @@ const RETURN_STATES = new Set(["done", "blocked", "stopped"]);
 const BRIEF_SECTIONS = ["Result wanted", "Scope", "Settled", "Read", "Done when", "Return when", "Changes"];
 /** What decides a return, by the brief's Check (SPEC-010 4.2): what check-return tells the coordinator to do next. */
 const CHECK_NEXT = {
-  scripted: "rerun the script that decides the result",
-  tests: "rerun the tests that decide the result",
-  judgement: "judge it against the brief's Result wanted and Done when, or have it judged, since no script decides it",
+  scripted: "rerun every command its brief's Done when names: a script decides the result",
+  tests: "rerun every command its brief's Done when names: tests decide the result",
+  judgement:
+    "rerun every command its brief's Done when names, then judge it against the brief's Result wanted and Done when, or have it judged, since no script decides it",
 };
 const RETURN_SECTIONS = ["Result", "Identities", "Checks", "Left open", "Not done"];
 const ID = /^D-(\d{3,})(?:\.(\d+))?$/;
@@ -581,11 +582,14 @@ function sessionText(channel, id, brief, returned) {
  * same as data for a harness layer such as Freeflow's Claude Code pane (SPEC-015): each one's ID, title, kind, agent,
  * opened date, handle, branch and worktree, its return's State or null, its folder, and its sub-workers.
  */
-export async function delegationStatus(loaded, { json = false } = {}) {
+export async function delegationStatus(loaded, { json = false, cites = null } = {}) {
   const task = await loadTask5(loaded.path, loaded.text);
   const taskDir = dirname(loaded.path);
-  if (!task.record.work.delegations.length)
-    return json ? `${JSON.stringify({ delegations: [] }, null, 2)}\n` : "No open delegations.\n";
+  // --cites: only the delegations whose brief's Settled names the decision ID as a whole word (P3, not P30 or TP3).
+  const citing = cites && new RegExp(`(?<![A-Za-z0-9])${cites}(?![0-9])`);
+  const none = cites ? `No open delegation's Settled cites ${cites}.\n` : "No open delegations.\n";
+  const wrap = (delegations) => `${JSON.stringify(cites ? { cites, delegations } : { delegations }, null, 2)}\n`;
+  if (!task.record.work.delegations.length) return json ? wrap([]) : none;
   const channel = readChannel(taskDir).lines;
   const lines = [];
   const items = [];
@@ -615,12 +619,14 @@ export async function delegationStatus(loaded, { json = false } = {}) {
       continue;
     }
     const brief = parseBrief(readFileSync(join(directory, "brief.md"), "utf8"));
+    if (citing && !citing.test((brief.sections.Settled ?? []).join("\n"))) continue;
     const state = returnState(directory);
     lines.push(
       `- ${id} — ${brief.title} · ${brief.Kind}, ${brief.Agent.replace(/,\s*/, " ")}${brief.Process === "session" ? ` · ${sessionText(channel, id, brief, state)}` : ""} · opened ${brief.Opened} · ${brief.branch ? `branch ${brief.branch}` : "no branch"} · ${state ? `returned: ${state}` : "no return yet"} · ${relative(taskDir, join(directory, "brief.md"))}`,
     );
     const entry = { ...data(brief, directory), sub: [] };
     items.push(entry);
+    if (citing) continue;
     for (const name of readdirSync(directory)
       .filter((each) => new RegExp(`^${id}\\.\\d+-`).test(each))
       .sort()) {
@@ -632,7 +638,8 @@ export async function delegationStatus(loaded, { json = false } = {}) {
       entry.sub.push(data(subBrief, join(directory, name)));
     }
   }
-  return json ? `${JSON.stringify({ delegations: items }, null, 2)}\n` : `${lines.join("\n")}\n`;
+  if (json) return wrap(items);
+  return lines.length ? `${lines.join("\n")}\n` : none;
 }
 
 /**
@@ -765,7 +772,7 @@ export async function checkReturn(loaded, options, { readOnly = false } = {}) {
   const shape = brief.Kind === "review" ? "a reviewer's return" : "every heading is there";
   const next = readOnly
     ? "Now tell your coordinator, through the harness's message tool where there is one, that it is there."
-    : `Now read it and the diff, and ${CHECK_NEXT[brief.Check] ?? "rerun the check that decides the result"}.`;
+    : `Now read it and the diff, and ${CHECK_NEXT[brief.Check] ?? "rerun every command its brief's Done when names"}.`;
   // The route as the brief records it, for work opened with --settled or --check (SPEC-010 4.2).
   const routed =
     brief.Settled || brief.Check
