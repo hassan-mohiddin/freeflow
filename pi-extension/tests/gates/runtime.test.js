@@ -250,13 +250,26 @@ test(
           assert.ok(existsSync(join(home, "sessions", session, "gates.json")));
           // The lines are written when the run settles: no gate line at all.
           const log = join(home, "events", `${session}.jsonl`);
-          for (let tries = 0; tries < 100 && !existsSync(log); tries += 1)
-            await new Promise((done) => setTimeout(done, 50));
-          const gateLines = readFileSync(log, "utf8")
-            .trim()
-            .split("\n")
-            .map((line) => JSON.parse(line))
-            .filter((line) => line.kind === "gate");
+          // A read can land while the flush is still writing (an empty file or a half-written last line): poll
+          // again, as the recorder test does (#166); a line that never parses still fails, with its error.
+          let gateLines = null;
+          let unread;
+          for (let tries = 0; tries < 200 && gateLines === null; tries += 1) {
+            if (existsSync(log)) {
+              try {
+                gateLines = readFileSync(log, "utf8")
+                  .trim()
+                  .split("\n")
+                  .map((line) => JSON.parse(line))
+                  .filter((line) => line.kind === "gate");
+                unread = undefined;
+              } catch (error) {
+                unread = error;
+              }
+            }
+            if (gateLines === null) await new Promise((done) => setTimeout(done, 25));
+          }
+          if (unread) assert.fail(`${log} never parsed: ${unread.message}`);
           assert.deepEqual(gateLines, []);
         },
         true,

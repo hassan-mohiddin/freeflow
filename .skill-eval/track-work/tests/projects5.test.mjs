@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import test from "node:test";
 import { sessionIdentity } from "../../../skills/track-work/scripts/lib/projects5.mjs";
-import { DEFAULT_TABLE } from "../../../skills/track-work/scripts/lib/routing5.mjs";
 
 const scriptPath = resolve("skills/track-work/scripts/working-record.mjs");
 
@@ -518,6 +517,8 @@ test("task here --rules adds the store's rules and the folder's and held task's 
     );
     ok(cli("aaaaaaaa-1", ["task", "move", "--id", "task-001", "--project", "widget"]));
     await writeFile(join(home, "rules", "style.md"), "Plain words, short sentences.\n");
+    // The delegation rules are read by delegate open and printed here like any other rules file (not counted).
+    await writeFile(join(home, "rules", "delegation.md"), "Delegation rules, in prose.\n");
     await writeFile(join(home, "projects", "widget", "rules", "review.md"), "Every change gets a review.\n");
     await writeFile(join(home, "projects", "other", "rules", "other.md"), "Not for widget.\n");
     const plain = ok(cli("aaaaaaaa-1", ["task", "here"], work));
@@ -526,8 +527,7 @@ test("task here --rules adds the store's rules and the folder's and held task's 
     assert.ok(ruled.startsWith(plain), "the menu comes first, unchanged");
     assert.equal(
       ruled.slice(plain.length),
-      // store init wrote the default routing table into the store's rules/ (SPEC-010 T2); it sorts first.
-      `\n## Rules\n\n### rules/routing.md\n\n${DEFAULT_TABLE.trim()}\n\n### rules/style.md\n\nPlain words, short sentences.\n\n### projects/widget/rules/review.md\n\nEvery change gets a review.\n`,
+      `\n## Rules\n\n### rules/delegation.md\n\nDelegation rules, in prose.\n\n### rules/style.md\n\nPlain words, short sentences.\n\n### projects/widget/rules/review.md\n\nEvery change gets a review.\n`,
     );
     // Outside the repository, the held task's project still brings its rules.
     assert.match(ok(cli("aaaaaaaa-1", ["task", "here", "--rules"], folder)), /### projects\/widget\/rules\/review\.md/);
