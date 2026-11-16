@@ -39,7 +39,7 @@ What each action does, as the command the agent would run, with your press as th
 - **see now** shows the worker's own transcript in the main view.
 - **check** runs `delegate check-return` on its return.
 - **stop** asks you first, then stops the running worker; what it wrote stays in its worktree.
-- A settings row's switch or choice runs `/freeflow settings <key> <value>`: a change applies everywhere, and a `⋯` on each row sets the next one to only this folder or only this session. **Developer settings** puts `/freeflow settings --all` in the prompt box, and Enter runs it. A read-only row (Task memory, Review, Workers) shows what applies and where it is set.
+- A settings row's switch or choice runs `/freeflow settings <key> <value>`: a change applies everywhere, and a `⋯` on each row sets the next one to only this folder or only this session. **Developer settings** puts `/freeflow settings --all` in the prompt box, and Enter runs it. A read-only row (Review, Workers) shows what applies and where it is set.
 
 A command that fails shows its error in a small box and changes nothing. A value Freeflow could not read keeps its last good reading, and the pane says `as of <time>; could not read <command>` at its foot.
 

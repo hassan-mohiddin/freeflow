@@ -110,7 +110,7 @@ test("with no task the notice asks for the session summary", () => {
 test("with no task held and compaction.withoutTask off, no notice asks for a checkpoint and Pi compacts on its own (B2, D-060)", async () => {
   const event = { preparation: { firstKeptEntryId: "tail-1", tokensBefore: 120_000 }, signal: undefined };
   const plain = setup({ state: { home: "/home", store: false, session: "s-1" }, withoutTask: false });
-  plain.at(150_000);
+  plain.at(163_616);
   assert.equal(plain.controller.observe(plain.ctx), undefined);
   assert.equal(await plain.controller.fallback(event, plain.ctx), undefined);
   assert.equal(plain.calls.summarize.length, 0, "no Freeflow summarizer request");
@@ -118,14 +118,14 @@ test("with no task held and compaction.withoutTask off, no notice asks for a che
 
   // A held task is not a session without one: its notice and its bundle still come.
   const held = setup({ state: task(new Date().toISOString()), withoutTask: false });
-  held.at(150_000);
+  held.at(163_616);
   assert.match(held.controller.observe(held.ctx).text, /checkpoint freeflow\/task-001/);
 });
 
-test("task memory off: no row, no notice and no Freeflow compaction, whatever a held task says (D-060, Setting 2)", async () => {
+test("task memory off: no notice and no Freeflow compaction, whatever a held task says (D-060, Setting 2)", async () => {
   const event = { preparation: { firstKeptEntryId: "tail-1", tokensBefore: 120_000 }, signal: undefined };
   const off = setup({ state: task(new Date().toISOString()), memoryOff: true });
-  off.at(150_000);
+  off.at(163_616);
   assert.equal(off.controller.observe(off.ctx), undefined);
   assert.equal(await off.controller.fallback(event, off.ctx), undefined);
   assert.equal(off.calls.bundle.length, 0);

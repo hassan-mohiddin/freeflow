@@ -171,14 +171,17 @@ async function untilGated(handlers, event, ctx) {
 }
 
 test("Pi's tool_call warns through the call's result and allows, or blocks with the reason under block", async () => {
-  const warnRepo = await configuredRepo({ enabled: true, toolExecution: { enabled: false } });
-  // The removed gates' keys are ignored by the file, and the delegation gate alone is set to block (D-058).
-  const blockRepo = await configuredRepo({
-    enabled: true,
-    gates: { delegation: "block", agreement: "block", slice: "block", delivery: "block" },
-  });
+  // The folders first, for the claims; their settings go in the home's folders.json once the home is set.
+  const warnRepo = await mkdtemp(join(tmpdir(), "freeflow-gates-repo-"));
+  const blockRepo = await mkdtemp(join(tmpdir(), "freeflow-gates-repo-"));
   try {
     await withHome(state({ claims: [claim(`${blockRepo}/**`), claim(`${warnRepo}/**`)] }), async () => {
+      await setFolderSettings(warnRepo, { enabled: true, toolExecution: { enabled: false } });
+      // The removed gates' keys are ignored by the layer, and the delegation gate alone is set to block (D-058).
+      await setFolderSettings(blockRepo, {
+        enabled: true,
+        gates: { delegation: "block", agreement: "block", slice: "block", delivery: "block" },
+      });
       // Block first: the refusal shows when the state has been read.
       let handlers = loadExtension();
       let ctx = context(blockRepo);
