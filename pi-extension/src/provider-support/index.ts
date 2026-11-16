@@ -7,12 +7,18 @@ export interface ProviderSupport {
   keepAlive: CacheKeepAlive;
 }
 
-export function registerProviderSupport(pi: any, enabled?: () => boolean, monitor?: CacheMonitor): ProviderSupport {
+export function registerProviderSupport(
+  pi: any,
+  enabled?: () => boolean,
+  monitor?: CacheMonitor,
+  sent?: (what: string, text: string) => void,
+): ProviderSupport {
   registerOpenAIEffortSupport(pi, enabled, monitor);
   const anchor = new CacheAnchorAdapter(enabled);
   const report = () => monitor?.set("keep-alive", keepAlive.status());
   const keepAlive = new CacheKeepAlive({
     enabled,
+    sent,
     onRefresh: (record) => {
       try {
         // Pi's session usage totals are host-owned; keep-alive spend is recorded for Freeflow attribution.

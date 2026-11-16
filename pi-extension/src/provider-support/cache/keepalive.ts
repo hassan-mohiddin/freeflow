@@ -29,7 +29,12 @@ export interface KeepAliveOptions {
   maxHoldCost?: number;
   /** Receives each completed refresh so its usage and cost can be attributed. */
   onRefresh?: (record: KeepAliveRecord) => void;
+  /** Keeps the text a refresh sends to the model as a `sent` line (its source, and the text). */
+  sent?: (what: string, text: string) => void;
 }
+
+/** The text a refresh sends the model in its one user message: the same text every refresh, so logged once. */
+export const KEEP_ALIVE_TEXT = "cache keep-alive";
 
 export interface KeepAliveRecord {
   provider: string;
@@ -232,6 +237,7 @@ export class CacheKeepAlive {
       return this.stop("refresh would not save money");
     if (active.spent + economics.warm > (this.options.maxHoldCost ?? 2)) return this.stop("hold spend limit");
     let usage: KeepAliveUsage | undefined;
+    this.options.sent?.("keep-alive", KEEP_ALIVE_TEXT);
     try {
       usage = await this.send(lane.model, PROTOCOLS[lane.model.api].cap(lane.payload), active.ctx);
     } catch {
@@ -291,7 +297,7 @@ function cost(model: any, usage: KeepAliveUsage): number {
 async function sendThroughHost(model: any, payload: any, ctx: any): Promise<KeepAliveUsage | undefined> {
   const stream = ctx.modelRegistry.streamSimple(
     model,
-    { systemPrompt: "", messages: [{ role: "user", content: "cache keep-alive", timestamp: Date.now() }] },
+    { systemPrompt: "", messages: [{ role: "user", content: KEEP_ALIVE_TEXT, timestamp: Date.now() }] },
     { onPayload: () => payload, maxRetries: 0, maxTokens: 1 },
   );
   const message = await stream.result();

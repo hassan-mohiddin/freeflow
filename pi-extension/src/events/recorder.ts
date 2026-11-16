@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { freeflowHome } from "../messaging/registry.js";
@@ -127,6 +128,8 @@ export class EventRecorder {
   private turnStarted: number | undefined;
   private readonly started = new Map<string, number>();
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The digests of the texts logged with `once` this session: what every request carries is logged once. */
+  private readonly sentOnce = new Set<string>();
 
   constructor(
     private readonly run: Run,
@@ -140,6 +143,7 @@ export class EventRecorder {
     this.turns = 0;
     this.turnStarted = undefined;
     this.started.clear();
+    this.sentOnce.clear();
     this.claimsWritten = undefined;
   }
 
@@ -161,6 +165,22 @@ export class EventRecorder {
     };
     for (const [key, value] of Object.entries(fields)) if (value !== undefined) line[key] = value;
     this.buffered.push(line);
+  }
+
+  /**
+   * Keeps the whole text Freeflow put in front of the model as one `sent` line, by its source (`what`, one of Track
+   * Work's SENT_WHATS; the writer redacts it and sets its length and digest). With `once`, a text this session already
+   * kept is not kept again: what every request carries, such as the system prompt's sections. Memory only: the lines are
+   * written by the recorder's flush, off the request path (R-4).
+   */
+  sent(what: string, text: string | undefined, options: { once?: boolean } = {}): void {
+    if (!this.on || !this.session || typeof text !== "string" || text === "") return;
+    if (options.once) {
+      const digest = createHash("sha256").update(text, "utf8").digest("hex");
+      if (this.sentOnce.has(digest)) return;
+      this.sentOnce.add(digest);
+    }
+    this.emit("sent", { what, text });
   }
 
   sessionStarted(reason: string | undefined, interactive: boolean): void {

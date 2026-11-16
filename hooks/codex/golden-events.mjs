@@ -1,7 +1,8 @@
 // The golden event log of Codex's driver (SPEC-012 section 7, SPEC-006 4.7): the lines a scripted Codex session of
 // recorded hook inputs leaves in the event log, in order (start, a prompt, model requests, two tool calls, a worker, a
 // compaction, the turn's end, the session's end). hooks/tests/codex-driver.test.mjs drives the driver through them and
-// compares, leaving out ts, seq and ms, which change from run to run. Change it only on purpose, from the lines that test
+// compares, leaving out ts, seq and ms, which change from run to run, and a sent line's text, length and digest, which
+// that test checks in full (the guidance is the repository's). Change it only on purpose, from the lines that test
 // prints when they differ.
 export default [
   {
@@ -29,6 +30,24 @@ export default [
     harness: "codex",
     agent: "main",
     kind: "freeflow",
+    what: "menu",
+  },
+  {
+    v: 1,
+    ts: "2026-11-03T12:00:00.000Z",
+    session: "thr_golden-1",
+    harness: "codex",
+    agent: "main",
+    kind: "sent",
+    what: "session-start",
+  },
+  {
+    v: 1,
+    ts: "2026-11-03T12:00:00.000Z",
+    session: "thr_golden-1",
+    harness: "codex",
+    agent: "main",
+    kind: "sent",
     what: "menu",
   },
   {
@@ -113,6 +132,15 @@ export default [
     session: "thr_golden-1",
     harness: "codex",
     agent: "main",
+    kind: "sent",
+    what: "gate",
+  },
+  {
+    v: 1,
+    ts: "2026-11-03T12:00:00.000Z",
+    session: "thr_golden-1",
+    harness: "codex",
+    agent: "main",
     kind: "tool.call",
     tool: "apply_patch",
     ok: true,
@@ -172,6 +200,24 @@ export default [
     trigger: "auto",
     by: "harness",
     cycle: 1,
+  },
+  {
+    v: 1,
+    ts: "2026-11-03T12:00:00.000Z",
+    session: "thr_golden-1",
+    harness: "codex",
+    agent: "main",
+    kind: "sent",
+    what: "session-start",
+  },
+  {
+    v: 1,
+    ts: "2026-11-03T12:00:00.000Z",
+    session: "thr_golden-1",
+    harness: "codex",
+    agent: "main",
+    kind: "sent",
+    what: "bundle",
   },
   {
     v: 1,

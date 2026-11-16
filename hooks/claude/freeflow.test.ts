@@ -88,6 +88,8 @@ function world(on: any) {
     registered: [] as any[],
     env: {} as Record<string, string | undefined>,
     sent: [] as any[],
+    // Claude's own compaction is skipped when this is set: the mod's result then takes no message.
+    skipCompaction: false as boolean,
     submitted: [] as string[],
     commandsRun: [] as string[],
     compactions: [] as any[],
@@ -264,6 +266,7 @@ function world(on: any) {
   });
   on("session.compact", (_: any, e: any) => {
     w.compactions.push(e);
+    if (w.skipCompaction) return { skip: "the test skips this compaction" };
     return { messages: [{ role: "user", text: "Claude's summary.", toolUses: [] }] };
   });
   on("session.start", (_: any, e: any) => ({ cwd: e.cwd }));
@@ -330,6 +333,8 @@ const start = ($: any, fields: object = {}) =>
 const appended = (w: any) => w.session.appended().map((row: any) => row.message.content[0].text as string);
 const noticesOf = (w: any) => appended(w).filter((text) => text.includes("Keep working until a safe point"));
 const rowsOf = (w: any) => appended(w).filter((text) => text.includes("the checkpoint notice comes at"));
+/** The sent lines of one source, as the session flushed them (the text Freeflow sent the model). */
+const sentOf = (w: any, what: string) => w.events().filter((line: any) => line.kind === "sent" && line.what === what);
 
 test("session start: with a store, pull it, give the scripts the window and the agent the menu; otherwise only what is missing", async ($, on) => {
   const w = world(on);
@@ -1045,6 +1050,9 @@ test("the store is the agent's to keep: file tools inside it are allowed where t
   // A deny stands, inside the store too.
   w.verdict = { decision: "deny", rule: "Edit(/store/**)" };
   expect((await check("Edit", { file_path: record })).decision).toBe("deny");
+  // The allow's reason is the user's to read, not the model's: no sent line keeps it (SPEC-006, sent).
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "store-allow")).toEqual([]);
 });
 
 const ready = ($: any) => $.session.start({ cwd: "/work/widget", surface: null, isInteractive: false });
@@ -1143,7 +1151,7 @@ test("/freeflow settings: declared at session start, lists what Claude Code acts
     "Freeflow settings: unknown option --global.",
   );
   expect((await freeflow($, "status")).text).toBe(
-    "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session; /freeflow pane opens or closes Freeflow's pane.",
+    "Freeflow on Claude Code: /freeflow settings lists Freeflow's settings and changes one; /freeflow capabilities says what Freeflow can do in this session; /freeflow pane opens or closes Freeflow's pane; /freeflow sent lists the text Freeflow sent to the model.",
   );
   expect(w.commands()).toEqual([]);
 });
@@ -1245,10 +1253,12 @@ test("the event log: each loop event the mod sees is one schema v1 line, in orde
   expect(w.eventRuns.length).toBe(1);
   expect(w.eventRuns[0].args).toEqual(["events", "append", "--input", "-"]);
   expect(w.eventRuns[0].session).toBe(SESSION);
+  // The menu the start gave the agent is a sent line of its own (the guidance is empty in this test's world).
   expect(kinds(w)).toEqual([
     "session.start",
     "freeflow",
     "freeflow",
+    "sent",
     "turn.start",
     "model.request",
     "tool.call",
@@ -1256,7 +1266,8 @@ test("the event log: each loop event the mod sees is one schema v1 line, in orde
     "turn.end",
     "freeflow",
   ]);
-  const lines = w.events();
+  // The indexed checks below read the lines that are not sent texts; the sent texts are checked on their own.
+  const lines = w.events().filter((line: any) => line.kind !== "sent");
   for (const line of lines) {
     expect(line.v).toBe(1);
     expect(line.ts).toBe(new Date(T0).toISOString());
@@ -1266,6 +1277,12 @@ test("the event log: each loop event the mod sees is one schema v1 line, in orde
   }
   // A -p run: no one at the prompt (section 4.5).
   expect(lines[0]).toMatchObject({ kind: "session.start", source: "startup", interactive: false });
+  expect(
+    w
+      .events()
+      .filter((line: any) => line.kind === "sent")
+      .map((line: any) => line.what),
+  ).toEqual(["menu"]);
   expect(lines.filter((line: any) => line.kind === "freeflow").map((line: any) => line.what)).toEqual([
     "capabilities",
     "menu",
@@ -1304,7 +1321,7 @@ test("the event log: each loop event the mod sees is one schema v1 line, in orde
   // Nothing new, nothing written.
   await $.turn.complete(turnEnd("answer"));
   expect(w.eventRuns.length).toBe(2);
-  expect(kinds(w).slice(9)).toEqual(["turn.end", "freeflow"]);
+  expect(kinds(w).slice(10)).toEqual(["turn.end", "freeflow"]);
 });
 
 test("the event log is written at a compaction, a worker's hand-back and the session's end, and before a checkpoint or release runs (T2)", async ($, on) => {
@@ -1347,7 +1364,19 @@ test("the event log is written at a compaction, a worker's hand-back and the ses
   expect(w.events().at(-1)).toMatchObject({ kind: "compaction", trigger: "manual", by: "harness", before: 150_000 });
   // A script under Freeflow's own plugin is Freeflow's overhead, which Part 8 counts.
   expect(w.scriptPath).toEndWith("/skills/track-work/scripts/working-record.mjs");
-  expect(w.events().at(-2)).toMatchObject({ kind: "tool.call", tool: "Bash", source: "freeflow" });
+  // The checkpoint's own call is written before the compaction's lines, which are what Freeflow sent the model (its note
+  // and, after it, the bundle the summary was made from) and then the compaction itself.
+  expect(
+    w
+      .events()
+      .filter((line: any) => line.kind === "tool.call")
+      .at(-1),
+  ).toMatchObject({
+    kind: "tool.call",
+    tool: "Bash",
+    source: "freeflow",
+  });
+  expect(kinds(w).slice(-2)).toEqual(["sent", "compaction"]);
 
   // After a checkpoint made in the cycle, Freeflow's own.
   w.status = held(at(30));
@@ -1429,7 +1458,8 @@ test("events.enabled off writes no line and claims sensors only as possible; Fre
   expect(JSON.parse(w.claims.at(-1)!.text).claims.sensors.claim).toBe("yes");
   await $.turn.start({ text: "go", turnId: "turn-2" } as any);
   await $.turn.complete(turnEnd("answer"));
-  expect(kinds(w)).toEqual(["freeflow", "turn.start", "turn.end"]);
+  // The setting's change is what the agent reads in its context: a sent line, after the event that says it changed.
+  expect(kinds(w)).toEqual(["freeflow", "sent", "turn.start", "turn.end"]);
 
   // Freeflow off: no claims but no, and nothing written.
   w.enabled = false;
@@ -2255,4 +2285,104 @@ test("a first store read that fails leaves the cycle's copy to the next read: a 
   w.stored.set("/store/sessions/sess-1/cycle.json", JSON.stringify({ cycle: 1, notice: 1_700_000_000_000 }) + "\n");
   await step($, w, 160_000);
   expect(noticesOf(w).length).toBe(0);
+});
+
+test("the text Freeflow sent the model is kept whole: a notice and each gate row as a sent line; /freeflow sent lists it and shows one whole (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  // Prefixes match in order, so the longer answer comes last.
+  w.answers["events sent"] = {
+    stdout: "1  2026-10-29T12:00:00.000Z  gate  40 chars  Freeflow gate (warn, agreement)\n",
+  };
+  w.answers["events sent --show 2"] = { stdout: "THE NOTICE, WHOLE\n" };
+  w.stored.set(GATES_PATH, gateState({ agreement: null, slice: null }));
+  await start($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  // A request past the notice point, then a change the gates warn about.
+  await step($, w, 148_000);
+  await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any);
+  await $.turn.complete(turnEnd("answer"));
+
+  // Each text the agent read is one sent line, under its source, with the whole text: the menu the start gave, the
+  // notice, and each gate row (the gates warn once each per turn).
+  const sent = w.events().filter((line: any) => line.kind === "sent");
+  expect(sent.map((line: any) => line.what)).toEqual(["menu", "notice", "gate", "gate"]);
+  expect(sent[0].text).toContain("Freeflow task memory:");
+  expect(sent[1].text).toBe(noticesOf(w)[0]);
+  expect(sent[2].text).toBe(gateRows(w)[0]);
+  expect(sent[3].text).toBe(gateRows(w)[1]);
+
+  // /freeflow sent: the list the log's `events sent` prints, and entry n whole.
+  expect((await freeflow($, "sent")).text).toBe(
+    "1  2026-10-29T12:00:00.000Z  gate  40 chars  Freeflow gate (warn, agreement)",
+  );
+  expect((await freeflow($, "sent 2")).text).toBe("THE NOTICE, WHOLE");
+});
+
+test("the pinned guidance every request carries is kept as a sent line once per session, not with each request (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.answers["task here"] = { stdout: MENU };
+  await start($);
+  await $.turn.start({ text: "go", turnId: "turn-1" } as any);
+  // Three requests compose the same section: each carries it, and the log keeps its text once.
+  const sections = [] as string[];
+  for (let request = 0; request < 3; request += 1)
+    sections.push((await $.prompt.compose(COMPOSE)).sections.at(-1)!.text);
+  expect(new Set(sections).size).toBe(1);
+  await $.turn.complete(turnEnd("answer"));
+  const pinned = w.events().filter((line: any) => line.kind === "sent" && line.what === "pinned-guidance");
+  expect(pinned.map((line: any) => line.text)).toEqual([sections[0]]);
+  expect(pinned[0].text).toContain("CORE GUIDANCE");
+});
+
+test("the classic session start's guidance is kept as one sent line with its full text, and none while the guidance is pinned (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  w.answers["task here"] = { stdout: MENU };
+  w.parts = [SECTION];
+  w.hookContext = [SECTION];
+  // Pinned at a fresh start: the hooks' copy is left out of the conversation, so no line keeps it.
+  await start($);
+  // A thread the ledger does not show pinned: the hooks' copy is what the model reads, and its text is the line.
+  w.stored.delete(LEDGER);
+  w.ledgers.clear();
+  expect((await start($, { source: "resume" })).additionalContext).toEqual([SECTION, `Freeflow task memory:\n${MENU}`]);
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "session-start").map((line: any) => line.text)).toEqual([SECTION]);
+});
+
+test("a renderer that fails at a session start leaves the hooks' texts in the conversation, and each is kept as a session-start line (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.status = store();
+  w.answers["task here"] = { stdout: MENU };
+  w.hookContext = ["CORE GUIDANCE", "THE CONTRACT"];
+  w.sectionAnswer = { exitCode: 1, stderr: "Error: no prompts\n" };
+  expect((await start($)).additionalContext).toEqual([
+    "CORE GUIDANCE",
+    "THE CONTRACT",
+    `Freeflow task memory:\n${MENU}`,
+  ]);
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "session-start").map((line: any) => line.text)).toEqual(["CORE GUIDANCE", "THE CONTRACT"]);
+});
+
+test("a compaction that skips takes no message, so its error is no sent line; one that takes the message keeps its error (SPEC-006, sent)", async ($, on) => {
+  const w = world(on);
+  w.answers["view bundle --record"] = { exitCode: 1, stderr: "Error: Future Work holds only proposed Slices.\n" };
+  w.status = store();
+  await start($);
+  await w.clock.advance(2 * 60_000);
+  w.status = held(at(1));
+  w.skipCompaction = true;
+  expect((await $.session.compact({ trigger: "manual", messages: CONVERSATION })).skip).toBe(
+    "the test skips this compaction",
+  );
+  w.skipCompaction = false;
+  const kept = await $.session.compact({ trigger: "manual", messages: CONVERSATION });
+  const error = kept.messages?.[1]?.text as string;
+  expect(error).toContain("Freeflow could not make widget/task-001's bundle: Future Work holds only proposed Slices.");
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "compaction-error").map((line: any) => line.text)).toEqual([error]);
 });

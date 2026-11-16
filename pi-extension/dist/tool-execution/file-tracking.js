@@ -49,10 +49,15 @@ export function withLines(content, lines) {
  * direct ones, except that a nested read is never answered for the model: the script consumes its text.
  */
 export class FileTracking {
+  sent;
   state = new FileState();
   changed = new Map();
   skillReads = new SkillReads();
   built = false;
+  /** @param sent keeps a text this put in front of the model as a `sent` line (the event log's `what`, `files`). */
+  constructor(sent = () => {}) {
+    this.sent = sent;
+  }
   reset() {
     this.state.reset();
     this.changed.clear();
@@ -128,7 +133,9 @@ export class FileTracking {
     if (!TRACKED_TOOLS.includes(name)) {
       if (event.parentToolCallId) return undefined;
       const notice = await this.changedNotice(ctx);
-      return notice === undefined ? undefined : { content: withLines(event.content ?? [], [notice]) };
+      if (notice === undefined) return undefined;
+      this.sent("files", notice);
+      return { content: withLines(event.content ?? [], [notice]) };
     }
     const path = event.input?.path;
     if (!["read", "edit", "write"].includes(name) || typeof path !== "string") return undefined;
@@ -145,7 +152,9 @@ export class FileTracking {
       }
       const error = (event.content ?? []).map((part) => (part?.type === "text" ? part.text : "")).join("");
       const rewritten = rewriteEditError(error, path, event.input?.edits ?? [], fileText);
-      return rewritten === undefined ? undefined : { content: [{ type: "text", text: rewritten }] };
+      if (rewritten === undefined) return undefined;
+      this.sent("files", rewritten);
+      return { content: [{ type: "text", text: rewritten }] };
     }
     await this.state.observe(path, ctx.cwd, name);
     if (name === "read") {
@@ -158,6 +167,8 @@ export class FileTracking {
         : changed
           ? [changedAfterWrite(path)]
           : [];
-    return lines.length > 0 ? { content: withLines(event.content ?? [], lines) } : undefined;
+    if (lines.length === 0) return undefined;
+    for (const line of lines) this.sent("files", line);
+    return { content: withLines(event.content ?? [], lines) };
   }
 }

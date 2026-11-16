@@ -1,4 +1,6 @@
 import { isChatGPTSignIn } from "../routes.js";
+/** The text a refresh sends the model in its one user message: the same text every refresh, so logged once. */
+export const KEEP_ALIVE_TEXT = "cache keep-alive";
 const responses = {
   cap: (payload) => ({ ...payload, max_output_tokens: 16 }),
   retention: (payload) =>
@@ -162,6 +164,7 @@ export class CacheKeepAlive {
       return this.stop("refresh would not save money");
     if (active.spent + economics.warm > (this.options.maxHoldCost ?? 2)) return this.stop("hold spend limit");
     let usage;
+    this.options.sent?.("keep-alive", KEEP_ALIVE_TEXT);
     try {
       usage = await this.send(lane.model, PROTOCOLS[lane.model.api].cap(lane.payload), active.ctx);
     } catch {
@@ -214,7 +217,7 @@ function cost(model, usage) {
 async function sendThroughHost(model, payload, ctx) {
   const stream = ctx.modelRegistry.streamSimple(
     model,
-    { systemPrompt: "", messages: [{ role: "user", content: "cache keep-alive", timestamp: Date.now() }] },
+    { systemPrompt: "", messages: [{ role: "user", content: KEEP_ALIVE_TEXT, timestamp: Date.now() }] },
     { onPayload: () => payload, maxRetries: 0, maxTokens: 1 },
   );
   const message = await stream.result();

@@ -37,6 +37,22 @@ export function noticeBody(content) {
     .join("")
     .trim();
 }
+/** A notice's `sent` source by its custom message type, for the notices whose type does not name it. */
+const SENT_BY_TYPE = {
+  "freeflow-background": "background",
+  "freeflow-monitor": "monitor",
+  "freeflow-store": "waits",
+  "freeflow-message": "message",
+};
+/**
+ * The `sent` source a notice's text is logged under (the event log's `what`): a background or monitor notice names itself
+ * in its type, else its custom message type says it.
+ */
+export function sentWhatOf(customType, content) {
+  const type = /^\s*<freeflow-notice type="([a-z-]+)"/.exec(content)?.[1];
+  if (type === "background" || type === "monitor") return type;
+  return SENT_BY_TYPE[customType] ?? "notice";
+}
 export class Inbound {
   host;
   pending = new Map();
@@ -101,19 +117,28 @@ export class Inbound {
   send(notice) {
     const message = { customType: notice.customType, content: notice.content, display: true, details: notice.details };
     const wake = notice.wake && this.host.canWake?.() !== false;
-    // A send that throws at once is caught like one that rejects later: a notice never breaks its source.
+    // A send that throws at once is caught like one that rejects later: a notice never breaks its source. Its text is
+    // kept (the event log, `sent`) only once the send is accepted: a notice that did not reach the model is no line.
     const asMessage = () =>
       new Promise((resolve) =>
         resolve(
           this.host.sendMessage(message, wake ? { triggerTurn: true, deliverAs: "steer" } : { triggerTurn: false }),
         ),
       ).then(
-        () => {},
+        () => this.keep(notice),
         () => {},
       );
     // Always Freeflow's own message, never the user's: the run it starts keeps Freeflow's system sections
     // (host/section-keeper.ts); Pi #10267 once made idle notices go out as user messages.
     return asMessage();
+  }
+  /** The notice's text as the event log keeps it. A log that fails keeps nothing, and the notice stays sent. */
+  keep(notice) {
+    try {
+      this.host.logSent?.(sentWhatOf(notice.customType, notice.content), notice.content);
+    } catch {
+      // The log fails open, as every sensor does: the notice has reached the model already.
+    }
   }
 }
 /**

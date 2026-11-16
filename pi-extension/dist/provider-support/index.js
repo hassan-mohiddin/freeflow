@@ -1,12 +1,13 @@
 import { CacheAnchorAdapter } from "./cache/index.js";
 import { CacheKeepAlive } from "./cache/keepalive.js";
 import { registerOpenAIEffortSupport } from "./openai/index.js";
-export function registerProviderSupport(pi, enabled, monitor) {
+export function registerProviderSupport(pi, enabled, monitor, sent) {
   registerOpenAIEffortSupport(pi, enabled, monitor);
   const anchor = new CacheAnchorAdapter(enabled);
   const report = () => monitor?.set("keep-alive", keepAlive.status());
   const keepAlive = new CacheKeepAlive({
     enabled,
+    sent,
     onRefresh: (record) => {
       try {
         // Pi's session usage totals are host-owned; keep-alive spend is recorded for Freeflow attribution.

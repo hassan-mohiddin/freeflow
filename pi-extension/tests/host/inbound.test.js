@@ -127,3 +127,36 @@ test("Freeflow's notices are tagged, cannot close their own tag, and a one-parag
   const open = renderNotice("Compaction")({ content: tagged }, { expanded: true }, undefined).render(200).join("\n");
   assert.match(open, /Recover before you continue/);
 });
+
+test("a notice is kept as a sent line once its send is accepted: a log that throws keeps nothing and stops nothing, a send that is refused keeps no line (SPEC-006, sent)", async () => {
+  // A log that throws: the notice still goes to the model, and the throw is no failure of the send.
+  const throwing = host(true);
+  throwing.logSent = () => {
+    throw new Error("the log is down");
+  };
+  new Inbound(throwing).deliver(notice("done"));
+  await pause(5);
+  assert.equal(throwing.sent.length, 1);
+
+  // A send the host refuses: the notice did not reach the model, so no line keeps its text.
+  const kept = [];
+  const refusing = host(true);
+  refusing.sendMessage = (message, options) => {
+    refusing.sent.push({ kind: "message", message, options });
+    return Promise.reject(new Error("refused"));
+  };
+  refusing.logSent = (what, text) => kept.push([what, text]);
+  new Inbound(refusing).deliver(notice("done"));
+  await pause(5);
+  assert.equal(refusing.sent.length, 1);
+  assert.deepEqual(kept, []);
+
+  // A send the host accepts: the line keeps the notice's text under its source.
+  const accepted = [];
+  const ok = host(true);
+  ok.logSent = (what, text) => accepted.push([what, text]);
+  new Inbound(ok).deliver(notice("done"));
+  await pause(5);
+  assert.equal(accepted.length, 1);
+  assert.equal(accepted[0][1], notice("done").content);
+});

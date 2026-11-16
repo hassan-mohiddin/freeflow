@@ -748,12 +748,23 @@ async function current($, view) {
   return { values: data?.values ?? null, id: selected[view] ?? null };
 }
 
+/** The texts the pane put in front of the model since freeflow.mjs last took them, to keep as `sent` lines. */
+let paneTexts = [];
+
+/** Takes the texts the pane put in front of the model since the last call; freeflow.mjs logs them as `sent` lines. */
+export function takePaneTexts() {
+  const taken = paneTexts;
+  paneTexts = [];
+  return taken;
+}
+
 /**
  * Appends the row that tells the agent what the user did in the pane.
  * @param {any} $
  * @param {string} text
  */
 async function tell($, text) {
+  paneTexts.push(text);
   await $.session.append({ message: { type: "user", content: [{ type: "text", text }] } });
 }
 
@@ -808,9 +819,9 @@ async function openTask($) {
     takeover = true;
   }
   if (values.task) {
-    await $.prompt.submit({
-      text: `The user pressed open on ${task.id} in Freeflow's pane. Checkpoint ${values.task} first, then run task switch --id ${task.id}${takeover ? " --takeover" : ""} and recover it.`,
-    });
+    const text = `The user pressed open on ${task.id} in Freeflow's pane. Checkpoint ${values.task} first, then run task switch --id ${task.id}${takeover ? " --takeover" : ""} and recover it.`;
+    paneTexts.push(text);
+    await $.prompt.submit({ text });
     $.ui.toast(`Freeflow: the agent checkpoints ${values.task}, then switches to ${task.id}.`);
     return;
   }
@@ -928,11 +939,13 @@ async function answer($, value) {
       ...(typed === "none" ? ["--no-project"] : ["--project", typed]),
     ]);
   else if (asking.kind === "send") {
-    const sent = await $.session.send({ to: { agentId: asking.agentId }, text: typed });
-    if (sent?.isDelivered === false || sent?.deny) {
+    // The line the person typed, sent on to a worker: a text Freeflow put in front of that agent, once it arrives.
+    const delivered = await $.session.send({ to: { agentId: asking.agentId }, text: typed });
+    if (delivered?.isDelivered === false || delivered?.deny) {
       $.ui.toast(`Freeflow: the line did not reach ${asking.label}.`);
       return;
     }
+    paneTexts.push(typed);
     await tell($, `Freeflow: the user sent ${asking.label} a line from Freeflow's pane: "${typed}"`);
     $.ui.toast(`Sent to ${asking.label}.`);
   }
