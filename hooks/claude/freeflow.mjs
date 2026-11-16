@@ -160,7 +160,7 @@ async function sent($, what, text, { once = false } = {}) {
  * @param {any} $
  * @param {{ session?: string, timeoutMs?: number }} [options]
  */
-async function flush($, options = {}) {
+export async function flush($, options = {}) {
   // The texts the pane put in front of the model since the last flush: its own `sent` lines, placed here at flush time,
   // so their order against the other `sent` lines can differ from the order they were sent in.
   for (const text of takePaneTexts()) await sent($, "pane", text);
@@ -1121,7 +1121,7 @@ async function sentCommand($, args) {
  * @param {string} args
  * @returns {Promise<{ text: string, context?: string[] }>}
  */
-async function settingsCommand($, args) {
+export async function settingsCommand($, args) {
   const words = args.trim().split(/\s+/).filter(Boolean);
   if (words[0] !== "settings")
     return {

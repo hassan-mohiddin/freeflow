@@ -448,6 +448,22 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
   const tools = new Map();
   const compactions = { freeflow: 0, harness: 0 };
   const workers = { spawned: 0, stopped: 0, blocked: 0 };
+  // Each worker by its agent ID: its delegation and model from its spawn, when it stopped, and its requests' tokens.
+  const agents = new Map();
+  const agentOf = (id) => {
+    if (!agents.has(id))
+      agents.set(id, {
+        agent: id,
+        delegation: null,
+        model: null,
+        effort: null,
+        started: null,
+        stopped: null,
+        requests: 0,
+        tokens: 0,
+      });
+    return agents.get(id);
+  };
   let requests = 0;
   let toolCalls = 0;
   let freeflowCalls = 0;
@@ -484,6 +500,13 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       entry.requests += 1;
       for (const field of ["in", "out", "cacheRead", "cacheWrite"]) entry[field] += line[field] ?? 0;
       tokens.set(key, entry);
+      if (line.agent && line.agent !== "main") {
+        const agent = agentOf(line.agent);
+        agent.requests += 1;
+        agent.tokens += ["in", "out", "cacheRead", "cacheWrite"].reduce((sum, field) => sum + (line[field] ?? 0), 0);
+        agent.model ??= line.model;
+        agent.effort = line.effort ?? agent.effort;
+      }
     } else if (line.kind === "tool.call") {
       toolCalls += 1;
       if (line.source === "freeflow") freeflowCalls += 1;
@@ -493,10 +516,18 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
       tools.set(line.tool, entry);
     } else if (line.kind === "compaction") {
       if (line.by in compactions) compactions[line.by] += 1;
-    } else if (line.kind === "agent.spawn") workers.spawned += 1;
-    else if (line.kind === "agent.stop") {
+    } else if (line.kind === "agent.spawn") {
+      workers.spawned += 1;
+      if (line.agent && line.agent !== "main") {
+        const agent = agentOf(line.agent);
+        agent.started = line.ts;
+        agent.delegation = line.delegation ?? agent.delegation;
+        agent.model = line.model ?? agent.model;
+      }
+    } else if (line.kind === "agent.stop") {
       workers.stopped += 1;
       if (line.blocked) workers.blocked += 1;
+      if (line.agent && line.agent !== "main" && !line.blocked) agentOf(line.agent).stopped = line.ts;
     } else if (line.kind === "freeflow" && line.what === "dropped") dropped += line.dropped ?? 0;
     else if (line.kind === "gate" && line.gate in gates) {
       gates[line.gate] += 1;
@@ -531,6 +562,8 @@ export function summarize(lines, { session, since = null, task = null, bytes = n
     tools: [...tools.values()].sort(byName),
     compactions,
     workers,
+    // Each worker that spawned or made a request in the span, in the order it started.
+    agents: [...agents.values()].sort((x, y) => (x.started ?? "").localeCompare(y.started ?? "")),
     freeflow: {
       toolCalls: freeflowCalls,
       share: toolCalls ? Math.round((freeflowCalls / toolCalls) * 1000) / 1000 : 0,

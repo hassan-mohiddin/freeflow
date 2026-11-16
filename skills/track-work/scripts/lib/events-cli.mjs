@@ -57,6 +57,9 @@ export async function runEvents(operation, options, { home, identity, input }) {
   if (operation === "sent") {
     if (!session) throw new Error("No session: give --session <ID>, or run it in a session that names its own");
     const what = options["--what"];
+    const limit = options["--limit"] === undefined ? null : Number(options["--limit"]);
+    if (limit !== null && (!Number.isInteger(limit) || limit < 1))
+      throw new Error("--limit takes a whole number above 0");
     if (what !== undefined && !SENT_WHATS.includes(what)) throw new Error(`--what is one of ${SENT_WHATS.join(", ")}`);
     const path = logPath(home, session);
     if (!existsSync(path)) throw new Error(`No event log for session ${session} (${path})`);
@@ -68,6 +71,12 @@ export async function runEvents(operation, options, { home, identity, input }) {
         (line) => line.kind === "sent" && typeof line.text === "string" && (what === undefined || line.what === what),
       )
       .reverse();
+    if (options["--sha"] !== undefined) {
+      // The line whose text has this digest (`sha` in the --json list), newest first: a key a later line cannot shift.
+      const line = sent.find((each) => each.sha === options["--sha"]);
+      if (!line) throw new Error(`No sent line with sha ${options["--sha"]} in session ${session}`);
+      return line.text.endsWith("\n") ? line.text : `${line.text}\n`;
+    }
     if (options["--show"] !== undefined) {
       const number = Number(options["--show"]);
       if (!Number.isInteger(number) || number < 1 || number > sent.length)
@@ -79,8 +88,26 @@ export async function runEvents(operation, options, { home, identity, input }) {
       const { text } = sent[number - 1];
       return text.endsWith("\n") ? text : `${text}\n`;
     }
+    const listed = limit === null ? sent : sent.slice(0, limit);
+    if (options["--json"])
+      return `${JSON.stringify(
+        {
+          session,
+          total: sent.length,
+          sent: listed.map((line, index) => ({
+            n: index + 1,
+            ts: line.ts,
+            what: line.what,
+            chars: line.chars ?? line.text.length,
+            sha: line.sha ?? null,
+            first: line.text.split("\n")[0].trim(),
+          })),
+        },
+        null,
+        2,
+      )}\n`;
     if (!sent.length) return `No sent lines${what === undefined ? "" : ` (what ${what})`} in session ${session}.\n`;
-    return `${sent
+    return `${listed
       .map((line, index) => {
         const first = line.text.split("\n")[0].trim();
         const cut = first.length > SENT_LIST_WIDTH ? `${first.slice(0, SENT_LIST_WIDTH - 1)}…` : first;
