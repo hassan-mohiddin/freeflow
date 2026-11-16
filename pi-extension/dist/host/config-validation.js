@@ -105,36 +105,24 @@ export const REMOVED_SETTINGS = {
   "gates.agreement": "the Agreement gate was removed from Freeflow",
   "gates.slice": "the Slice gate was removed from Freeflow",
   "gates.delivery": "the Delivery gate was removed from Freeflow; each harness's own permission prompts cover delivery",
+  "gates.delegation": "the delegation gate has no setting: it only warns, and never blocks a call (D-069)",
   "governor.mode": "the cost governor was removed from Freeflow",
   "governor.cap": "the cost cap was removed from Freeflow",
 };
 /**
- * The gates (SPEC-008 4.5): the delegation gate is `off`, `warn` (the default: the agent reads a warning, the event log
- * counts it) or `block`, on every host with a Freeflow driver. Track Work's `lib/gates5.mjs` decides; the drivers read
- * this value. The agreement, Slice and delivery gates were removed (D-058).
+ * The gates (SPEC-008 4.5): the delegation gate has no setting (D-069). It only warns, on every host with a Freeflow
+ * driver, and Track Work's `lib/gates5.mjs` decides. A config file's `gates.delegation` is a removed key: it is named as
+ * ignored, and `settings.mjs doctor --fix` removes it. The `gates` section stays so such a file still loads.
  */
-export const GATE_KEYS = ["delegation"];
-export const GATE_MODES = ["off", "warn", "block"];
 function validateGatesConfig(value) {
   if (!isRecord(value)) return "gates must be an object";
-  const unknown = Object.keys(value).find(
-    (key) => !GATE_KEYS.includes(key) && REMOVED_SETTINGS[`gates.${key}`] === undefined,
-  );
-  if (unknown) return `gates has unsupported key: ${unknown}`;
-  for (const key of GATE_KEYS)
-    if (value[key] !== undefined && !GATE_MODES.includes(value[key]))
-      return `gates.${key} must be one of ${GATE_MODES.join(", ")}`;
+  const unknown = Object.keys(value).find((key) => REMOVED_SETTINGS[`gates.${key}`] === undefined);
+  if (unknown !== undefined) return `gates has unsupported key: ${unknown}`;
   return null;
-}
-/** Each gate's mode for two valid config layers: the personal layer overrides the repository's, gate by gate. */
-export function resolveGateSettings(repository, local) {
-  const layer = (config) => (isRecord(config?.gates) ? config.gates : {});
-  const [shared, personal] = [layer(repository), layer(local)];
-  return Object.fromEntries(GATE_KEYS.map((key) => [key, personal[key] ?? shared[key] ?? "warn"]));
 }
 /**
  * Delegation across sessions (SPEC-009 4.7): how long a claim on paths lasts, in hours (`claimHours`, one of a few
- * choices, default 4), and whether a delegation the coordinator waits on wakes its idle session when it comes back
+ * choices, default 8), and whether a delegation the coordinator waits on wakes its idle session when it comes back
  * (`wakeOnReturn`, on by default). Every driver reads them; Track Work's claim takes the hours from the driver.
  */
 export const DELEGATION_KEYS = ["claimHours", "wakeOnReturn"];
@@ -154,7 +142,7 @@ export function resolveDelegationSettings(repository, local) {
   const layer = (config) => (isRecord(config?.delegation) ? config.delegation : {});
   const [shared, personal] = [layer(repository), layer(local)];
   return {
-    claimHours: personal.claimHours ?? shared.claimHours ?? "4",
+    claimHours: personal.claimHours ?? shared.claimHours ?? "8",
     wakeOnReturn: personal.wakeOnReturn ?? shared.wakeOnReturn ?? true,
   };
 }
@@ -218,21 +206,12 @@ export const SETTINGS = [
     session: true,
   })),
   { key: "events.enabled", label: "Event log", values: "boolean", default: true, hosts: "all", session: true },
-  // The gate (SPEC-008 4.5).
-  {
-    key: "gates.delegation",
-    label: "Delegation gate",
-    values: GATE_MODES,
-    default: "warn",
-    hosts: "all",
-    session: true,
-  },
   // Delegation across sessions (SPEC-009 4.7).
   {
     key: "delegation.claimHours",
     label: "Claim hours",
     values: CLAIM_HOURS,
-    default: "4",
+    default: "8",
     hosts: "all",
     session: true,
   },

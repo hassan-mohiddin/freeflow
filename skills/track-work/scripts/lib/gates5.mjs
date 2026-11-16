@@ -3,22 +3,17 @@
 // the small state Track Work's lifecycle commands keep in `<FREEFLOW_HOME>/sessions/<session>/gates.json` (lib/
 // gate-state5.mjs). One module decides for every driver (T1): Claude Code's mod imports this file, Pi's extension loads
 // it from Freeflow's package, and Codex's driver calls it. It is pure and synchronous, and imports nothing, so a mod
-// may import it and a call costs no file read: the driver hands it the state it holds, the call and the settings.
+// may import it and a call costs no file read: the driver hands it the state it holds and the call.
 // The agreement, Slice and delivery gates were removed (D-058): their records stay in the event log, readable.
 //
-// The gate answers allow, warn or block. It ships at `warn` (P2): the agent reads a warning with the rule, the reason
-// and the way through, and the event log counts each would-fire, so the user can decide from data. `block` is built and
-// tested, and off until the `gates.delegation` setting turns it on.
+// The gate answers allow or warn. It only warns (D-069): the agent reads a warning with the rule, the reason and the way
+// through, and the event log counts each would-fire, so the user can decide from data. No setting changes it, and it
+// never refuses a call. A driver runs it only while Freeflow is on.
 
 export const GATES = ["delegation"];
-export const GATE_MODES = ["off", "warn", "block"];
-export const GATE_DECISIONS = ["allow", "warn", "block"];
+export const GATE_DECISIONS = ["allow", "warn"];
 /** gates.json's version; a driver reads only this one. Older files keep the fields this module no longer reads. */
 export const GATE_STATE_VERSION = 1;
-/** The gate warns until a setting says otherwise (P2). */
-export const DEFAULT_GATE_SETTINGS = Object.freeze({
-  delegation: "warn",
-});
 
 /** Tools that write files, on every harness: Claude Code's, Pi's and Codex's names (section 4.2). */
 export const FILE_WRITE_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit", "edit", "write", "apply_patch"]);
@@ -26,7 +21,6 @@ export const FILE_WRITE_TOOLS = new Set(["Edit", "Write", "MultiEdit", "Notebook
 export const SHELL_TOOLS = new Set(["Bash", "bash", "shell", "exec_command", "local_shell"]);
 /** The task folder's files only the coordinator writes. */
 const RECORD_FILES = ["record.md", "decisions.md", "history.md"];
-const SEVERITY = { allow: 0, warn: 1, block: 2 };
 const STATE_MISSING = "Freeflow cannot read its gate state; run `task here`, then go on.";
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -451,13 +445,6 @@ export function matchesGlob(path, glob) {
 // ---------------------------------------------------------------------------------------------------------------------
 // The decision.
 
-/** A setting's value as the gates read it: off, warn or block; anything else is the default. */
-export function gateSettings(settings = {}) {
-  return Object.fromEntries(
-    GATES.map((gate) => [gate, GATE_MODES.includes(settings?.[gate]) ? settings[gate] : DEFAULT_GATE_SETTINGS[gate]]),
-  );
-}
-
 /** Whether `state` is a gates.json this module reads. */
 export function validGateState(state) {
   return typeof state === "object" && state !== null && state.v === GATE_STATE_VERSION;
@@ -491,22 +478,18 @@ function callText(call, paths) {
   return `${call.tool} \`${command.length > 60 ? `${command.slice(0, 59)}…` : command}\``;
 }
 
-/** The decision the gate's mode gives a call it fires on: warn, or block where the setting says block. */
-const verdict = (mode) => (mode === "warn" ? "warn" : "block");
-
 /**
  * Decides one tool call against the gate: the strongest decision of the gate's rules that fire, with each that fired in
- * `fired`, for the driver to warn or refuse once and to log each one. Pure and synchronous (section 4.2).
+ * `fired`, for the driver to warn once and to log each one. Pure and synchronous (section 4.2). It only warns (D-069).
  *
- * `state` is gates.json as the driver read it, or null when it is missing or unreadable (section 5: quiet under warn,
- * closed under block). `call` is `{ tool, paths?, command?, cwd?, readOnly?, delegation?, now? }`: paths absolute;
- * `readOnly` where the tool says its input only reads; `delegation` the D-NNN of the worker making the call, absent on
- * the main loop (a worker session's state names its own, `worker`); `now` the time other sessions' claims are read at
- * (default the clock's). `settings` maps the gate to off, warn or block.
- * @returns {{ gate: string | null, decision: "allow" | "warn" | "block", reason: string, way: string, rule: string | null, fired: { gate: string, decision: string, reason: string, way: string, rule: string }[] }}
+ * `state` is gates.json as the driver read it, or null when it is missing or unreadable: quiet, as a missing state
+ * always was. `call` is `{ tool, paths?, command?, cwd?, readOnly?, delegation?, now? }`: paths absolute; `readOnly`
+ * where the tool says its input only reads; `delegation` the D-NNN of the worker making the call, absent on the main
+ * loop (a worker session's state names its own, `worker`); `now` the time other sessions' claims are read at (default
+ * the clock's).
+ * @returns {{ gate: string | null, decision: "allow" | "warn", reason: string, way: string, rule: string | null, fired: { gate: string, decision: string, reason: string, way: string, rule: string }[] }}
  */
-export function decide(state, call, settings = DEFAULT_GATE_SETTINGS) {
-  const modes = gateSettings(settings);
+export function decide(state, call) {
   const tool = String(call?.tool ?? "");
   const isFile = FILE_WRITE_TOOLS.has(tool);
   const isShell = SHELL_TOOLS.has(tool);
@@ -519,13 +502,7 @@ export function decide(state, call, settings = DEFAULT_GATE_SETTINGS) {
   const changing = call.readOnly === true ? false : isFile || Boolean(shell?.changing);
   const fired = [];
   const fire = (gate, rule, what, why, way) => {
-    const mode = modes[gate];
-    if (mode === "off") return;
-    fired.push({ gate, decision: verdict(mode), reason: `${what}\nWhy: ${why}`, way, rule });
-  };
-  const missing = (gate, rule) => {
-    if (modes[gate] === "block")
-      fired.push({ gate, decision: "block", reason: STATE_MISSING, way: STATE_MISSING, rule: `${rule}, no state` });
+    fired.push({ gate, decision: "warn", reason: `${what}\nWhy: ${why}`, way, rule });
   };
   const what = callText(call, paths);
   // A subagent worker names its delegation; a worker session's state names the one it joined (SPEC-009 4.1).
@@ -538,8 +515,7 @@ export function decide(state, call, settings = DEFAULT_GATE_SETTINGS) {
 
   if (worker && (changing || shell?.trackWorkWrites)) {
     const scope = readable?.delegations?.[worker];
-    if (!readable) missing("delegation", "worker scope");
-    else if (scope) {
+    if (scope && readable) {
       const taskDir = readable.taskDir ?? null;
       const recordFiles = taskDir ? RECORD_FILES.map((name) => resolvePath(taskDir, name)) : [];
       const recordFile = paths.find((path) => recordFiles.includes(normalPath(path)));
@@ -587,21 +563,22 @@ export function decide(state, call, settings = DEFAULT_GATE_SETTINGS) {
   }
 
   if (!fired.length) return ALLOW;
-  const top = fired.reduce((best, each) => (SEVERITY[each.decision] > SEVERITY[best.decision] ? each : best));
-  return { gate: top.gate, decision: top.decision, reason: top.reason, way: top.way, rule: top.rule, fired };
+  const top = fired[0];
+  return { gate: top.gate, decision: "warn", reason: top.reason, way: top.way, rule: top.rule, fired };
 }
 
 /**
- * The text the agent reads for one gate that fired (section 3): the rule, why, and the way through; under warn it says
- * the gate only warns.
+ * The text the agent reads for one gate that fired (section 3): the rule, why, and the way through. The gate only warns.
  * @param {{ gate: string, decision: string, reason: string, way: string }} fired
  */
 export function gateText(fired) {
-  const label = fired.decision === "warn" ? "warn" : "block";
-  const tail = fired.decision === "warn" ? " This gate only warns for now." : "";
-  if (fired.reason === STATE_MISSING) return `Freeflow gate (${label}, ${fired.gate}): ${STATE_MISSING}`;
+  if (fired.reason === STATE_MISSING) return `Freeflow gate (warn, ${fired.gate}): ${STATE_MISSING}`;
   const [first, ...rest] = fired.reason.split("\n");
-  return [`Freeflow gate (${label}, ${fired.gate}): ${first}`, ...rest, `Way through: ${fired.way}${tail}`].join("\n");
+  return [
+    `Freeflow gate (warn, ${fired.gate}): ${first}`,
+    ...rest,
+    `Way through: ${fired.way} This gate only warns.`,
+  ].join("\n");
 }
 
 /** The event line's fields for one gate that fired (T3): `{ gate, decision, tool, rule }`. */

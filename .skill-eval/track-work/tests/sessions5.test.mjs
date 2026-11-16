@@ -647,7 +647,7 @@ test("claims: claim, release, expiry and renewal; the gate warns on another sess
     assert.ok(claimed);
     assert.match(
       gateText(claimed),
-      /^Freeflow gate \(warn, delegation\): src\/a.ts is claimed by widget\/task-001 \(session aaaaaaaa…, until \d\d:\d\d UTC\)\.\nWhy: two sessions changing the same files conflict when their work merges\.\nWay through: ask that session through the harness's message tool, or pick other work\. This gate only warns for now\.$/,
+      /^Freeflow gate \(warn, delegation\): src\/a.ts is claimed by widget\/task-001 \(session aaaaaaaa…, until \d\d:\d\d UTC\)\.\nWhy: two sessions changing the same files conflict when their work merges\.\nWay through: ask that session through the harness's message tool, or pick other work\. This gate only warns\.$/,
     );
     assert.equal(
       decide(other, { tool: "Write", paths: [join(repo, "docs/x/y.md")], cwd: repo }).fired.length > 0,

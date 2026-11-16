@@ -7,13 +7,10 @@ import {
 } from "../config.js";
 import {
   CLAIM_HOURS,
-  GATE_KEYS,
-  GATE_MODES,
   MEMORY_MODES,
   RUNTIME_PROMPTS,
   SWITCHABLE_SKILLS,
   resolveDelegationSettings,
-  resolveGateSettings,
   sectionEnabled,
   settingSpec,
 } from "../config-validation.js";
@@ -417,11 +414,6 @@ const INBOUND_DESCRIPTIONS = {
   hold: "Ask you before delivering any message.",
   refuse: "Refuse every message.",
 };
-// The gate (SPEC-008 4.5): one row, off, warn or block. The agreement, Slice and delivery gates were removed (D-058).
-const GATE_LABELS: Record<(typeof GATE_KEYS)[number], [string, string]> = {
-  delegation: ["Delegation gate", "A worker's write outside its brief's scope, or to the task's record"],
-};
-const GATE_VALUE_LABELS = { off: "off", warn: "warn", block: "block" };
 // Delegation across sessions (SPEC-009 4.7).
 const CLAIM_HOURS_LABELS = { "1": "1 hour", "2": "2 hours", "4": "4 hours", "8": "8 hours", "24": "24 hours" };
 const CLAIM_HOURS_DESCRIPTIONS = Object.fromEntries(
@@ -430,11 +422,6 @@ const CLAIM_HOURS_DESCRIPTIONS = Object.fromEntries(
     `A claim on paths lasts ${CLAIM_HOURS_LABELS[hours]}, renewed while its session syncs.`,
   ]),
 );
-const GATE_DESCRIPTIONS = {
-  off: "No check.",
-  warn: "The agent reads a warning with the rule and the way through, and the event log counts it.",
-  block: "The call is refused with the same text.",
-};
 
 /** A choice among fixed values in the Session scope; inherit follows This folder and Everywhere. */
 function createSessionChoiceItem(options: {
@@ -520,7 +507,6 @@ const SECTION_ORDER = [
   "freeflow.toolExecution",
   "freeflow.messaging",
   "freeflow.events",
-  "freeflow.gates",
   "freeflow.delegation",
   "freeflow.session",
 ];
@@ -631,25 +617,6 @@ function sessionFreeflowItems(
     eventsOn,
     true,
   );
-  // The gates, on every host with a Freeflow driver (SPEC-008 4.5).
-  const gateItems = GATE_KEYS.map((gate) => {
-    const inherited = configuredSetting(rawConfig, localConfig, ["gates", gate], "warn");
-    const item = createSessionChoiceItem({
-      id: `freeflow.gates.${gate}`,
-      label: GATE_LABELS[gate][0],
-      description: `${GATE_LABELS[gate][1]}, in this session.`,
-      key: `gates.${gate}`,
-      values: GATE_MODES,
-      valueLabels: GATE_VALUE_LABELS,
-      valueDescriptions: GATE_DESCRIPTIONS,
-      inheritedValue: inherited.value,
-      inheritedSource: inherited.source,
-      effectiveValue: state.gates?.[gate] ?? "warn",
-      sessionOverrides,
-    });
-    item.inactive = freeflowInactive;
-    return item;
-  });
   // Delegation across sessions, on every host with a Freeflow driver (SPEC-009 4.7).
   // Unset everywhere: sync when the store has a remote, else on this machine (defaultValueFor, round 3).
   const memoryDefault = String(defaultValueFor(settingSpec("memory.mode")!, freeflowHome(process.env)));
@@ -671,7 +638,7 @@ function sessionFreeflowItems(
     effectiveValue: (sessionOverrides["memory.mode"] as string | undefined) ?? memoryInherited.value,
     sessionOverrides,
   });
-  const claimInherited = configuredSetting(rawConfig, localConfig, ["delegation", "claimHours"], "4");
+  const claimInherited = configuredSetting(rawConfig, localConfig, ["delegation", "claimHours"], "8");
   const claimItem = createSessionChoiceItem({
     id: "freeflow.delegation.claimHours",
     label: "Claim hours",
@@ -682,7 +649,7 @@ function sessionFreeflowItems(
     valueDescriptions: CLAIM_HOURS_DESCRIPTIONS,
     inheritedValue: claimInherited.value,
     inheritedSource: claimInherited.source,
-    effectiveValue: state.delegation?.claimHours ?? "4",
+    effectiveValue: state.delegation?.claimHours ?? "8",
     sessionOverrides,
   });
   claimItem.inactive = freeflowInactive;
@@ -790,7 +757,6 @@ function sessionFreeflowItems(
     sectionItem("freeflow.events", "Event log", "The event log for this session.", eventsOn ? "on" : "off", [
       eventsItem,
     ]),
-    sectionItem("freeflow.gates", "Gates", "Freeflow's gates for this session.", "", gateItems),
     sectionItem("freeflow.delegation", "Delegation", "Delegation across sessions for this session.", "", [
       claimItem,
       wakeItem,
@@ -1134,37 +1100,6 @@ function freeflowItems(
     children: [eventsEnabledItem],
   };
 
-  // The gates, on every host with a Freeflow driver (SPEC-008 4.5).
-  const gateModes = resolveGateSettings(rawConfig, localConfig);
-  const gatesGroup: SettingsItem = {
-    id: "freeflow.gates",
-    label: "Gates",
-    description: "Configure Freeflow's gate on every host with a Freeflow driver: off, warn (the default) or block.",
-    kind: "group",
-    value: true,
-    inactive: freeflowInactive,
-    displaySuffix: "",
-    children: GATE_KEYS.map((gate) => {
-      const item = createScopedChoiceItem({
-        scope,
-        rawConfig,
-        localConfig,
-        id: `freeflow.gates.${gate}`,
-        label: GATE_LABELS[gate][0],
-        description: `${GATE_LABELS[gate][1]}.`,
-        path: ["gates", gate],
-        values: GATE_MODES,
-        valueLabels: GATE_VALUE_LABELS,
-        valueDescriptions: GATE_DESCRIPTIONS,
-        defaultValue: "warn",
-        effectiveValue: gateModes[gate],
-        effectiveSource: toolSource(["gates", gate]),
-      });
-      item.inactive = freeflowInactive;
-      return item;
-    }),
-  };
-
   // Delegation across sessions, on every host with a Freeflow driver (SPEC-009 4.7).
   const delegation = resolveDelegationSettings(rawConfig, localConfig);
   const claimHoursItem = createScopedChoiceItem({
@@ -1178,7 +1113,7 @@ function freeflowItems(
     values: CLAIM_HOURS,
     valueLabels: CLAIM_HOURS_LABELS,
     valueDescriptions: CLAIM_HOURS_DESCRIPTIONS,
-    defaultValue: "4",
+    defaultValue: "8",
     effectiveValue: delegation.claimHours,
     effectiveSource: toolSource(["delegation", "claimHours"]),
   });
@@ -1214,7 +1149,6 @@ function freeflowItems(
     compactionGroup,
     messagingGroup,
     eventsGroup,
-    gatesGroup,
     delegationGroup,
     promptsGroup,
     skillsGroup,

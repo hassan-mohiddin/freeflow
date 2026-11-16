@@ -97,7 +97,7 @@ How each part works and why:
 - [Prompt assembly](subsystems/prompt-assembly.md): prompt fragments, Runtime State, discoverable skills, gating, host delivery, and nested execution context.
 - [Skill routing](subsystems/skill-routing.md): shipped skills, ownership, sibling routes, and reference dependencies.
 - [Compaction](subsystems/compaction.md): Freeflow's compaction on Pi with the task's bundle, the notice, Pi's own compaction, the store's layer on Pi, and the behavior that looks wrong but is intended.
-- [Gates](subsystems/gates.md): the delegation-scope gate (the agreement, Slice and delivery gates were removed, D-058), the gate state Track Work keeps for it, how Claude Code's mod and Pi's extension run them, and why they warn first.
+- [Gates](subsystems/gates.md): the delegation-scope gate (the agreement, Slice and delivery gates were removed, D-058), the gate state Track Work keeps for it, and how Claude Code's mod, Codex's driver and Pi's extension run it. It only warns, and has no setting (D-069).
 - [Freeflow store and Schema 5 tasks](subsystems/freeflow-store.md): the store and its sync, projects, tasks and holds, the task folder and the commands that change it, recovery's views and the bundle, delegation, and measurement and planning.
 - [Ask user and the inbound channel](subsystems/ask-user.md): the `ask_user` dialog, its guidance layers, and how content from outside the turn reaches the model.
 - [Messaging](subsystems/messaging.md) (preview): messages between live Pi sessions: the registry, sockets, the inbound policy and held messages, deferred tools.

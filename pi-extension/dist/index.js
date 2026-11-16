@@ -785,15 +785,11 @@ export default function freeflow(pi) {
       /working-record\.mjs\s+(checkpoint|task\s+(release|switch))\b/.test(String(event.input?.command ?? ""))
     )
       await events.flush();
-    // The gate (SPEC-008 4.3), before Freeflow's other checks: warn adds a row to the result, block refuses.
-    if (capability?.gates) {
-      const gated = gates.check(event, ctx.cwd, capability.gates);
+    // The gate (SPEC-008 4.3), before Freeflow's other checks: it only warns, and the warning joins the result (D-069).
+    if (capability?.gates?.delegation) {
+      const gated = gates.check(event, ctx.cwd);
       if (gates.missingOnce()) events.freeflow("gates", "no gate state for this session");
       for (const fired of gated.fired) events.emit("gate", gates.eventFields(fired, event.toolName));
-      if (gated.kind === "block") {
-        events.sent("gate", gated.reason);
-        return { block: true, reason: gated.reason };
-      }
     }
     if (!toolExecutionEffective()) return undefined;
     const refusal = event.toolName === "bash" ? backgroundRefusal(event.input?.command) : undefined;

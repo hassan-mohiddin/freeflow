@@ -213,12 +213,12 @@ test("Pi passes delegation.claimHours to Track Work's script and the agent's com
     const { handlers } = loadExtension();
     await handlers.get("session_start")({ type: "session_start", reason: "startup" }, context(cwd));
     assert.equal(process.env.FREEFLOW_CLAIM_HOURS, "8");
-    // With the setting at its default, the script's own default (4 hours) applies: the variable says so. A second
+    // With the setting at its default, the script's own default (8 hours) applies: the variable says so. A second
     // home stands for a folder with no setting.
     plain = await configuredRepo();
     const other = loadExtension();
     await other.handlers.get("session_start")({ type: "session_start", reason: "startup" }, context(plain));
-    assert.equal(process.env.FREEFLOW_CLAIM_HOURS, "4");
+    assert.equal(process.env.FREEFLOW_CLAIM_HOURS, "8");
   } finally {
     if (saved === undefined) delete process.env.FREEFLOW_CLAIM_HOURS;
     else process.env.FREEFLOW_CLAIM_HOURS = saved;
@@ -532,16 +532,8 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
       "Claude Code's status line (SPEC-015): only Claude Code's mod acts on it, through its own /freeflow settings",
   };
   const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
-  const {
-    CONFIG_SECTIONS,
-    PROMPTS_KEYS,
-    SKILLS_KEYS,
-    EVENTS_KEYS,
-    GATE_KEYS,
-    DELEGATION_KEYS,
-    PANE_KEYS,
-    MEMORY_KEYS,
-  } = await import("../../dist/host/config-validation.js");
+  const { CONFIG_SECTIONS, PROMPTS_KEYS, SKILLS_KEYS, EVENTS_KEYS, DELEGATION_KEYS, PANE_KEYS, MEMORY_KEYS } =
+    await import("../../dist/host/config-validation.js");
   const { TOOL_EXECUTION_KEYS } = await import("../../dist/tool-execution/config.js");
   const { COMPACTION_KEYS } = await import("../../dist/compaction/config.js");
   const { MESSAGING_KEYS } = await import("../../dist/messaging/config.js");
@@ -552,7 +544,7 @@ test("every config key Freeflow acts on has a /freeflow settings row, or a state
     prompts: PROMPTS_KEYS,
     skills: SKILLS_KEYS,
     events: EVENTS_KEYS,
-    gates: GATE_KEYS,
+    gates: [], // the delegation gate has no setting (D-069); a file's gates.delegation is a removed key
     delegation: DELEGATION_KEYS,
     pane: PANE_KEYS,
     memory: MEMORY_KEYS,
@@ -1102,8 +1094,8 @@ test("Pi restores remaining session overrides from the active branch and ignores
 });
 
 test("Pi stays on when an existing local override cannot be read: it reads as empty and is named", async () => {
-  // The repository's block gate still applies when the personal file is unreadable (the file reads as empty).
-  const cwd = await configuredRepo({ enabled: true, gates: { delegation: "block" } });
+  // The repository's settings still apply when the personal file is unreadable (the file reads as empty).
+  const cwd = await configuredRepo({ enabled: true });
   try {
     await writeFile(join(process.env.FREEFLOW_HOME, "folders.json"), "{ invalid\n", "utf8");
     const layers = await readFreeflowConfigLayers(cwd);
@@ -1114,7 +1106,7 @@ test("Pi stays on when an existing local override cannot be read: it reads as em
     assert.match(layers.local.parseError, /./);
     const state = await readCapabilityState(cwd);
     assert.equal(state.enabled, true);
-    assert.equal(state.gates.delegation, "block");
+    assert.equal(state.gates.delegation, true);
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
     assert.ok(resources.skillPaths.length > 1);

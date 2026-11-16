@@ -1593,7 +1593,7 @@ test("the claims: written at session start in the Freeflow home, with section 4.
     send: "yes",
     wake: "yes",
     ask: "possible",
-    block: "yes",
+    block: "no",
     sensors: "yes",
     timers: "yes",
   });
@@ -1944,14 +1944,20 @@ const gateLines = (w: any) =>
     .events()
     .filter((line: any) => line.kind === "gate")
     .map((line: any) => `${line.gate}:${line.decision}:${line.tool}`);
-/** The listing of the one gate left, the delegation gate, with the given mode (D-058: the other three are gone). */
-const gateSettings = (mode: string, ignored: { file: string; key: string | null; reason: string }[] = []) => ({
+/** A listing that names the removed delegation gate setting as ignored: the gate has none, and only warns (D-069). */
+const removedGateSetting = {
   stdout: JSON.stringify({
     root: "/work/widget",
-    settings: [{ key: "gates.delegation", label: "Delegation gate", value: mode, scope: "everywhere", hosts: "all" }],
-    ignored,
+    settings: [],
+    ignored: [
+      {
+        file: "settings.json",
+        key: "gates.delegation",
+        reason: "the delegation gate has no setting: it only warns, and never blocks a call (D-069)",
+      },
+    ],
   }),
-});
+};
 /** Another session's claim on src.mjs, live for years: the delegation gate warns or refuses a write to it (SPEC-009 4.5). */
 const CLAIM = {
   writes: ["/work/widget/src.mjs"],
@@ -1974,7 +1980,7 @@ test("the delegation gate warns: the call runs, one row per gate per turn, and e
   expect((await edit("/work/widget/src.mjs")).decision).toBe("ask");
   expect(gateRows(w).map((text) => GATE_ROW.exec(text)![1])).toEqual(["delegation"]);
   expect(gateRows(w)[0]).toStartWith("Freeflow gate (warn, delegation): src.mjs is claimed by other/task-002 D-009 ");
-  expect(gateRows(w)[0]).toContain("This gate only warns for now.");
+  expect(gateRows(w)[0]).toContain("This gate only warns.");
   // The same gate in the same turn: no row again, though the would-fire is logged.
   expect((await edit("/work/widget/src.mjs")).decision).toBe("ask");
   expect(gateRows(w).length).toBe(1);
@@ -1994,68 +2000,30 @@ test("the delegation gate warns: the call runs, one row per gate per turn, and e
   expect(gateLines(w)).toEqual(["delegation:warn:Edit", "delegation:warn:Edit", "delegation:warn:Edit"]);
 });
 
-test("the delegation gate under block: refused with the gate's text, a deny beneath standing (SPEC-008 4.2)", async ($, on) => {
+test("a removed gates.delegation setting is named and ignored: the gate only warns, and the claimed write runs (D-069)", async ($, on) => {
   const w = world(on);
   w.status = held(at(-30));
   w.answers["task here"] = { stdout: MENU };
-  w.settingsAnswers["list "] = gateSettings("block", [
-    { file: ".freeflow/config.json", key: "gates.slice", reason: "the Slice gate was removed from Freeflow" },
-  ]);
+  w.settingsAnswers["list "] = removedGateSetting;
   w.stored.set(GATES_PATH, gateState({ claims: [CLAIM] }));
   w.verdict = { decision: "allow" };
   await start($);
   await $.turn.start({ text: "go", turnId: "turn-1" } as any);
 
-  const refused = await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any);
-  expect(refused.decision).toBe("deny");
-  expect(refused.reason).toStartWith("Freeflow gate (block, delegation): src.mjs is claimed by other/task-002 D-009 ");
-  expect(gateRows(w)).toEqual([]);
-  // The store's own files and what the removed gates warned about are not refused.
-  expect((await $.tool.check({ tool: "Edit", input: { file_path: RECORD } } as any)).decision).toBe("allow");
-  expect((await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/other.mjs" } } as any)).decision).toBe(
+  // The claimed write is never refused: the verdict stands, and the row names the claim.
+  expect((await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any)).decision).toBe(
     "allow",
   );
+  expect(gateRows(w)[0]).toStartWith("Freeflow gate (warn, delegation): src.mjs is claimed by other/task-002 D-009 ");
+  // What the removed gates warned about passes, and a deny beneath stands.
+  expect((await $.tool.check({ tool: "Edit", input: { file_path: RECORD } } as any)).decision).toBe("allow");
   expect((await $.tool.check({ tool: "Bash", input: { command: "git push" } } as any)).decision).toBe("allow");
-  // A deny from beneath is never turned into anything else.
   w.verdict = { decision: "deny", rule: "Edit(src.mjs)" };
   expect((await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any)).decision).toBe(
     "deny",
   );
   await $.turn.complete(turnEnd("answer"));
-  expect(gateLines(w)).toEqual(["delegation:block:Edit"]);
-});
-
-// R1 B1: a gate whose value the listing ignores keeps the mode the mod last read in this process; a config problem
-// never drops a block to warn (D-045). Three session starts in one process: block, an ignored value, block.
-test("a gate's ignored value keeps the mode the mod last read: block, an ignored value, block stay block (D-045, R1 B1)", async ($, on) => {
-  const w = world(on);
-  w.status = held(at(-30));
-  w.answers["task here"] = { stdout: MENU };
-  w.stored.set(GATES_PATH, gateState({ claims: [CLAIM] }));
-  w.verdict = { decision: "allow" };
-  const editDecision = async () =>
-    (await $.tool.check({ tool: "Edit", input: { file_path: "/work/widget/src.mjs" } } as any)).decision;
-  const ignoredValue = [
-    {
-      file: "settings.json",
-      key: "gates.delegation",
-      reason: "gates.delegation must be one of off, warn, block",
-    },
-  ];
-  const starts: [string, typeof ignoredValue][] = [
-    ["block", []],
-    ["warn", ignoredValue],
-    ["block", []],
-  ];
-  const decisions: string[] = [];
-  for (const [mode, ignored] of starts) {
-    w.settingsAnswers["list "] = gateSettings(mode, ignored);
-    await start($);
-    await $.turn.start({ text: "go", turnId: "turn-1" } as any);
-    decisions.push(await editDecision());
-    await $.turn.complete(turnEnd("answer"));
-  }
-  expect(decisions).toEqual(["deny", "deny", "deny"]);
+  expect(gateLines(w)).toEqual(["delegation:warn:Edit"]);
 });
 
 test("the delegation gate: a worker's write outside its brief's May write, or to the task's record, warns the worker (SPEC-008 4.2)", async ($, on) => {
@@ -2117,22 +2085,21 @@ test("with no gate state the gate is quiet under warn and says so once in the ev
   expect(w.events().filter((line: any) => line.kind === "freeflow" && line.what === "gates").length).toBe(1);
 });
 
-test("with no gate state under block, a worker's write is refused with how to write one (SPEC-008 section 5)", async ($, on) => {
+test("with no gate state, a worker's write is quiet and never refused (SPEC-008 section 5, D-069)", async ($, on) => {
   const w = world(on);
   w.stored.delete(GATES_PATH);
   w.status = held(at(-30));
   w.answers["task here"] = { stdout: MENU };
-  w.settingsAnswers["list "] = gateSettings("block");
   await start($);
   await $.agent.spawn(spawn("Do D-012's part."));
   await $.turn.start({ text: "x", turnId: "turn-w", agentId: "agent-7" } as any);
-  const refused = await $.tool.check({
+  const decision = await $.tool.check({
     tool: "Edit",
     input: { file_path: "/wt/d-012/x.mjs" },
     agentId: "agent-7",
   } as any);
-  expect(refused.decision).toBe("deny");
-  expect(refused.reason).toContain("Freeflow cannot read its gate state; run `task here`");
+  expect(decision.decision).not.toBe("deny");
+  expect(w.sent).toEqual([]);
 });
 
 test("the event log: the notice names the context that crossed it and the notice point, and a compaction the cycle it ended", async ($, on) => {

@@ -106,7 +106,7 @@ test("the developer view is the whole table at its defaults, with the two read-o
   assert.deepEqual(listed.state, []);
   const text = f.run("list", "--view", "developer");
   assert.equal(text.status, 0, text.stderr);
-  assert.match(text.stdout, /Claim hours\s+4\s+default\s+\(delegation\.claimHours\)/);
+  assert.match(text.stdout, /Claim hours\s+8\s+default\s+\(delegation\.claimHours\)/);
   assert.match(text.stdout, /Review\s+One reviewer and one round, at pull request\s+Freeflow's default/);
   // The normal view: Freeflow, Task memory, Review, Workers, then Claude Code's status line and pane.
   const normal = f.json("list", "--view", "normal", "--host", "claude-code");
@@ -157,22 +157,22 @@ test("inherit removes a setting in its scope; a set without --scope is an everyw
   f.json("set", "delegation.claimHours", "24", "--scope", "folder");
   const result = f.json("set", "delegation.claimHours", "inherit", "--scope", "folder");
   assert.equal(result.scope, "default");
-  assert.equal(result.value, "4");
-  const everywhere = f.json("set", "delegation.claimHours", "8");
+  assert.equal(result.value, "8");
+  const everywhere = f.json("set", "delegation.claimHours", "4");
   assert.equal(everywhere.scope, "everywhere");
-  assert.deepEqual(await f.homeFile("settings.json"), { delegation: { claimHours: "8" } });
+  assert.deepEqual(await f.homeFile("settings.json"), { delegation: { claimHours: "4" } });
 });
 
 test("an everywhere write drops a value equal to its default; a folder write keeps it and overrides everywhere", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
-  f.json("set", "delegation.claimHours", "8", "--scope", "everywhere");
-  assert.deepEqual(await f.homeFile("settings.json"), { delegation: { claimHours: "8" } });
-  f.json("set", "delegation.claimHours", "4", "--scope", "folder");
-  assert.deepEqual(await f.homeFile("folders.json"), { [f.root]: { delegation: { claimHours: "4" } } });
-  assert.equal(f.json("get", "delegation.claimHours").value, "4");
-  assert.equal(f.json("get", "delegation.claimHours").scope, "folder");
   f.json("set", "delegation.claimHours", "4", "--scope", "everywhere");
+  assert.deepEqual(await f.homeFile("settings.json"), { delegation: { claimHours: "4" } });
+  f.json("set", "delegation.claimHours", "8", "--scope", "folder");
+  assert.deepEqual(await f.homeFile("folders.json"), { [f.root]: { delegation: { claimHours: "8" } } });
+  assert.equal(f.json("get", "delegation.claimHours").value, "8");
+  assert.equal(f.json("get", "delegation.claimHours").scope, "folder");
+  f.json("set", "delegation.claimHours", "8", "--scope", "everywhere");
   assert.equal(existsSync(join(f.home, "settings.json")), false, "the everywhere default is pruned, so the file goes");
 });
 
@@ -181,7 +181,7 @@ test("precedence is session, then folder, then everywhere, then the default; a h
   t.after(f.cleanup);
   const codex = ["--harness", "codex"];
   const claude = ["--harness", "claude-code"];
-  f.json("set", "delegation.claimHours", "8", "--scope", "everywhere");
+  f.json("set", "delegation.claimHours", "4", "--scope", "everywhere");
   assert.equal(f.json("get", "delegation.claimHours").scope, "everywhere");
   f.json("set", "delegation.claimHours", "2", "--scope", "folder");
   assert.equal(f.json("get", "delegation.claimHours").value, "2");
@@ -189,20 +189,20 @@ test("precedence is session, then folder, then everywhere, then the default; a h
   assert.equal(f.json("get", "delegation.claimHours").scope, "session");
   f.json("unset", "delegation.claimHours", "--scope", "session");
   f.json("unset", "delegation.claimHours", "--scope", "folder");
-  assert.equal(f.json("get", "delegation.claimHours").value, "8");
+  assert.equal(f.json("get", "delegation.claimHours").value, "4");
 
   // A tick for Codex, in the everywhere scope: Codex reads it, Claude Code keeps the general value.
   const tick = f.json("set", "delegation.claimHours", "24", "--scope", "everywhere", "--harness-only", ...codex);
   assert.equal(tick.ticked, true);
   assert.equal(tick.harness, "codex");
   assert.deepEqual(await f.homeFile("settings.json"), {
-    delegation: { claimHours: "8" },
+    delegation: { claimHours: "4" },
     harness: { codex: { delegation: { claimHours: "24" } } },
   });
   const forCodex = f.json("get", "delegation.claimHours", ...codex);
   assert.equal(forCodex.value, "24");
   assert.equal(forCodex.ticked, true);
-  assert.equal(f.json("get", "delegation.claimHours", ...claude).value, "8");
+  assert.equal(f.json("get", "delegation.claimHours", ...claude).value, "4");
   assert.equal(f.json("get", "delegation.claimHours", ...claude).ticked, false);
 
   // A tick in the folder wins over the everywhere tick within the folder's own scope, but a general folder value wins over everywhere's tick.
@@ -218,13 +218,13 @@ test("precedence is session, then folder, then everywhere, then the default; a h
   );
 
   // A session's general value beats any tick below it.
-  f.json("set", "delegation.claimHours", "4", "--scope", "session");
-  assert.equal(f.json("get", "delegation.claimHours", ...codex).value, "4");
+  f.json("set", "delegation.claimHours", "8", "--scope", "session");
+  assert.equal(f.json("get", "delegation.claimHours", ...codex).value, "8");
   assert.equal(f.json("get", "delegation.claimHours", ...codex).scope, "session");
   // A session's tick for Codex wins over the session's general value for Codex.
   f.json("set", "delegation.claimHours", "24", "--scope", "session", "--harness-only", ...codex);
   assert.equal(f.json("get", "delegation.claimHours", ...codex).value, "24");
-  assert.equal(f.json("get", "delegation.claimHours", ...claude).value, "4");
+  assert.equal(f.json("get", "delegation.claimHours", ...claude).value, "8");
 });
 
 test("a change prints the Runtime State lines it changed, and the notes for a prompt, a Pi-only setting and a Claude Code setting", async (t) => {
@@ -266,15 +266,15 @@ test("refusals name what is wrong and write nothing", async (t) => {
     [["set", "review.depth", "deep", "--scope", "everywhere"], /unknown setting review\.depth/],
     [["set", "delegation.claimHours", "3", "--scope", "folder"], /delegation\.claimHours takes 1, 2, 4, 8, 24, not 3/],
     [["set", "enabled", "maybe", "--scope", "folder"], /enabled takes on or off, not maybe/],
-    [["set", "delegation.claimHours", "8", "--scope", "repository"], /--scope must be everywhere, folder or session/],
-    [["set", "delegation.claimHours", "8", "--scope", "personal"], /--scope must be everywhere, folder or session/],
+    [["set", "delegation.claimHours", "4", "--scope", "repository"], /--scope must be everywhere, folder or session/],
+    [["set", "delegation.claimHours", "4", "--scope", "personal"], /--scope must be everywhere, folder or session/],
     [
-      ["set", "delegation.claimHours", "8", "--harness", "emacs", "--harness-only"],
+      ["set", "delegation.claimHours", "4", "--harness", "emacs", "--harness-only"],
       /--harness must be claude-code, codex, pi/,
     ],
-    [["set", "delegation.claimHours", "8", "--harness-only"], /--harness-only needs a harness/],
+    [["set", "delegation.claimHours", "4", "--harness-only"], /--harness-only needs a harness/],
     [["set", "gates.slice", "block", "--scope", "folder"], /gates\.slice/],
-    [["set", "gates.delegation", "blok", "--scope", "folder"], /gates\.delegation takes off, warn, block, not blok/],
+    [["set", "gates.delegation", "block", "--scope", "folder"], /gates\.delegation/],
     [["set", "memory.mode", "cloud", "--scope", "folder"], /memory\.mode takes local, sync, off, not cloud/],
   ];
   for (const [args, message] of cases) {
@@ -288,7 +288,7 @@ test("refusals name what is wrong and write nothing", async (t) => {
 test("the Session scope is refused without a session ID", async (t) => {
   const f = await fixture({ session: null });
   t.after(f.cleanup);
-  const result = f.run("set", "delegation.claimHours", "8", "--scope", "session");
+  const result = f.run("set", "delegation.claimHours", "4", "--scope", "session");
   assert.equal(result.status, 1);
   assert.match(result.stderr, /the Session scope needs a host that names its session/);
 });
@@ -305,13 +305,13 @@ test("an ignored setting is named by list and stops writes to its layer until do
     /Settings ignored: settings\.json delegation\.claimHours: delegation\.claimHours must be one of/,
   );
   // The ignored value is not used: the default is.
-  assert.equal(f.json("get", "delegation.claimHours").value, "4");
-  const write = f.run("set", "delegation.claimHours", "8", "--scope", "everywhere");
+  assert.equal(f.json("get", "delegation.claimHours").value, "8");
+  const write = f.run("set", "delegation.claimHours", "4", "--scope", "everywhere");
   assert.equal(write.status, 1);
   assert.match(write.stderr, /in the Freeflow home has settings Freeflow ignores; run settings\.mjs doctor/);
   assert.deepEqual(await f.homeFile("settings.json"), { delegation: { claimHours: "3" } });
-  f.json("set", "delegation.claimHours", "8", "--scope", "folder");
-  assert.deepEqual(await f.homeFile("folders.json"), { [f.root]: { delegation: { claimHours: "8" } } });
+  f.json("set", "delegation.claimHours", "4", "--scope", "folder");
+  assert.deepEqual(await f.homeFile("folders.json"), { [f.root]: { delegation: { claimHours: "4" } } });
 });
 
 test("a home file holding the removed review settings loads with them ignored, and doctor names each and removes it", async (t) => {
@@ -320,10 +320,10 @@ test("a home file holding the removed review settings loads with them ignored, a
   await mkdir(f.home, { recursive: true });
   await writeFile(
     join(f.home, "settings.json"),
-    `{"review":{"mode":"auto","unit":"push","depth":{"default":"deep"}},"delegation":{"claimHours":"8"}}\n`,
+    `{"review":{"mode":"auto","unit":"push","depth":{"default":"deep"}},"delegation":{"claimHours":"4"}}\n`,
   );
   const listed = f.json("list");
-  assert.equal(listed.settings.find((row) => row.key === "delegation.claimHours").value, "8");
+  assert.equal(listed.settings.find((row) => row.key === "delegation.claimHours").value, "4");
   const named = listed.ignored.map((item) => item.key);
   assert.ok(
     named.includes("review.mode") && named.includes("review.unit") && named.includes("review.depth"),
@@ -334,7 +334,7 @@ test("a home file holding the removed review settings loads with them ignored, a
   assert.match(check.stdout, /review\.mode: removed: review has no settings/);
   const fix = f.run("doctor", "--fix");
   assert.equal(fix.status, 0, fix.stdout);
-  assert.deepEqual(await f.homeFile("settings.json"), { delegation: { claimHours: "8" } });
+  assert.deepEqual(await f.homeFile("settings.json"), { delegation: { claimHours: "4" } });
 });
 
 test("doctor names each problem with its fix and changes nothing without --fix; --fix writes the folder and session files", async (t) => {
@@ -358,11 +358,11 @@ test("doctor names each problem with its fix and changes nothing without --fix; 
   assert.equal(f.run("doctor").status, 0);
   // A session file with a key the table does not know is named, and fixed.
   await mkdir(join(f.home, "sessions/s-1"), { recursive: true });
-  await writeFile(join(f.home, "sessions/s-1/settings.json"), `{"nope":true,"delegation.claimHours":"8"}\n`);
+  await writeFile(join(f.home, "sessions/s-1/settings.json"), `{"nope":true,"delegation.claimHours":"4"}\n`);
   const sessionCheck = f.run("doctor");
   assert.match(sessionCheck.stdout, /nope: unknown setting/);
   assert.equal(f.run("doctor", "--fix").status, 0);
-  assert.deepEqual(await f.homeFile("sessions/s-1/settings.json"), { "delegation.claimHours": "8" });
+  assert.deepEqual(await f.homeFile("sessions/s-1/settings.json"), { "delegation.claimHours": "4" });
 });
 
 test("a repository's committed .freeflow/config.json is moved by doctor to This folder, and the committed file is rewritten only with --committed", async (t) => {
@@ -370,25 +370,25 @@ test("a repository's committed .freeflow/config.json is moved by doctor to This 
   t.after(f.cleanup);
   await mkdir(join(f.root, ".freeflow"), { recursive: true });
   const committed = join(f.root, ".freeflow/config.json");
-  await writeFile(committed, `{"delegation":{"claimHours":"8"},"prompts":{"core":false},"review":{"mode":"auto"}}\n`);
+  await writeFile(committed, `{"delegation":{"claimHours":"4"},"prompts":{"core":false},"review":{"mode":"auto"}}\n`);
   // Nothing reads the committed file any more: it is named as moved, and the defaults apply.
   const listed = f.json("list");
-  assert.equal(listed.settings.find((row) => row.key === "delegation.claimHours").value, "4");
+  assert.equal(listed.settings.find((row) => row.key === "delegation.claimHours").value, "8");
   assert.ok(
     listed.ignored.some((item) => item.file === ".freeflow/config.json" && /moved to This folder/.test(item.reason)),
   );
   const check = f.run("doctor");
   assert.equal(check.status, 1);
-  assert.match(check.stdout, /delegation\.claimHours: moved to This folder \("8"\)/);
+  assert.match(check.stdout, /delegation\.claimHours: moved to This folder \("4"\)/);
   assert.match(check.stdout, /prompts\.core: moved to This folder \(false\)/);
   // doctor --fix moves them to this folder and keeps the committed file (it is shared).
   const fix = f.run("doctor", "--fix");
   assert.equal(fix.status, 1, fix.stdout);
   assert.match(fix.stdout, /not rewritten: the committed file is shared/);
   assert.deepEqual(await f.homeFile("folders.json"), {
-    [f.root]: { delegation: { claimHours: "8" }, prompts: { core: false } },
+    [f.root]: { delegation: { claimHours: "4" }, prompts: { core: false } },
   });
-  assert.equal(f.json("get", "delegation.claimHours").value, "8");
+  assert.equal(f.json("get", "delegation.claimHours").value, "4");
   assert.equal(f.json("get", "delegation.claimHours").scope, "folder");
   assert.equal(existsSync(committed), true, "the committed file is kept until --committed");
   // With --committed the file goes; this folder keeps the settings, and a second run finds nothing.
@@ -522,7 +522,7 @@ test("a Session file that holds a removed key names it with its reason, and doct
   await mkdir(join(f.home, "sessions/s-1"), { recursive: true });
   await writeFile(
     join(f.home, "sessions/s-1/settings.json"),
-    '{"gates.slice":"block","governor.cap":6,"delegation.claimHours":"8"}\n',
+    '{"gates.slice":"block","governor.cap":6,"delegation.claimHours":"4"}\n',
   );
   const result = f.run("doctor");
   assert.equal(result.status, 1, result.stderr);
@@ -531,11 +531,11 @@ test("a Session file that holds a removed key names it with its reason, and doct
   const fixed = f.run("doctor", "--fix");
   assert.equal(fixed.status, 0, fixed.stdout);
   assert.deepEqual(JSON.parse(await readFile(join(f.home, "sessions/s-1/settings.json"), "utf8")), {
-    "delegation.claimHours": "8",
+    "delegation.claimHours": "4",
   });
 });
 
-test("a file holding a removed governor or gate key loads: the validators accept it, and the sanitizer names each key with its reason (D-058)", () => {
+test("a file holding a removed governor or gate key loads: the validators accept it, and the sanitizer names each key with its reason (D-058, D-069)", () => {
   const removed = {
     governor: { mode: "stop", cap: 6 },
     gates: { agreement: "block", slice: "warn", delivery: "block", delegation: "block" },
@@ -543,9 +543,10 @@ test("a file holding a removed governor or gate key loads: the validators accept
   assert.equal(validateRepositoryConfig({ v: 1, ...removed }), null);
   assert.equal(validateLocalConfig({ v: 1, ...removed }), null);
   const shared = sanitizeConfigFile({ v: 1, ...removed }, "repository");
-  assert.deepEqual(shared.config, { v: 1, gates: { delegation: "block" } });
+  assert.deepEqual(shared.config, { v: 1, gates: {} });
   assert.deepEqual(shared.ignored.map((item) => item.key).sort(), [
     "gates.agreement",
+    "gates.delegation",
     "gates.delivery",
     "gates.slice",
     "governor.cap",
@@ -556,8 +557,12 @@ test("a file holding a removed governor or gate key loads: the validators accept
     "the cost cap was removed from Freeflow",
   );
   const personal = sanitizeConfigFile({ v: 1, ...removed }, "personal");
-  assert.deepEqual(personal.config, { v: 1, gates: { delegation: "block" } });
-  assert.equal(personal.ignored.length, 5);
+  assert.deepEqual(personal.config, { v: 1, gates: {} });
+  assert.equal(personal.ignored.length, 6);
+  assert.equal(
+    shared.ignored.find((item) => item.key === "gates.delegation").reason,
+    "the delegation gate has no setting: it only warns, and never blocks a call (D-069)",
+  );
   // A key the removed section never had is unsupported, and a removed section that is not an object is named whole.
   assert.deepEqual(sanitizeConfigFile({ v: 1, governor: { foo: 1 } }, "repository").ignored, [
     { key: "governor.foo", reason: "unsupported key" },

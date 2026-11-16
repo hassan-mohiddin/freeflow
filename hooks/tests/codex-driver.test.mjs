@@ -456,8 +456,8 @@ function claimSrcByOther({ cli }) {
   cli(["session", "status"]);
 }
 
-test(CONFORMANCE.block, () => {
-  // The removed gates' keys in the file are ignored, and the file still loads (D-058).
+test("a removed gates.delegation setting is named and ignored: the gate only warns, and the claimed write runs (D-069)", () => {
+  // The removed gates' keys in the file are ignored, and the file still loads (D-058); the delegation gate has no setting.
   const { hook, log, cli, done } = setUp({
     config: { gates: { delegation: "block", agreement: "block", slice: "block", delivery: "block" } },
   });
@@ -465,27 +465,24 @@ test(CONFORMANCE.block, () => {
     hook("SessionStart");
     hook("UserPromptSubmit");
     claimSrcByOther({ cli });
-    // The main loop's write to the claimed path is refused, in Codex's deny shape, with the gate's text as the reason.
-    const refused = hook("PreToolUse", patchCall());
-    codexReads(refused);
-    assert.match(
-      reasonOf(refused),
-      /^Freeflow gate \(block, delegation\): src\/app\.js is claimed by widget\/task-002 /,
-    );
-    assert.doesNotMatch(reasonOf(refused), /only warns/);
-    // Every call the gate fires on is refused, not only a turn's first.
-    assert.equal(hook("PreToolUse", patchCall("call_p2")).hookSpecificOutput.permissionDecision, "deny");
+    // The main loop's write to the claimed path runs: no decision, and the row as additionalContext.
+    const first = hook("PreToolUse", patchCall());
+    codexReads(first);
+    assert.equal(first.hookSpecificOutput.permissionDecision, undefined);
+    assert.match(contextOf(first), /^Freeflow gate \(warn, delegation\): src\/app\.js is claimed by widget\/task-002 /);
+    // Every call the gate fires on warns; none is refused.
+    assert.equal(hook("PreToolUse", patchCall("call_p2")), null);
     // What the removed gates warned about passes: a delivery step, and a write outside the claim with no Slice or agreement.
     assert.equal(hook("PreToolUse", shellCall("git status && git push origin main")), null);
     assert.equal(hook("PreToolUse", docsCall()), null);
     assert.equal(hook("PreToolUse", shellCall("npm test")), null);
     hook("Stop");
-    // Each refusal is a gate line, decision block, valid in schema v1.
+    // Each would-fire is a gate line, decision warn, valid in schema v1.
     const lines = log().filter((line) => line.kind === "gate");
     for (const line of lines) assert.equal(lineProblem(line), null, JSON.stringify(line));
     assert.deepEqual(
       lines.map(({ gate, decision }) => `${gate} ${decision}`),
-      ["delegation block", "delegation block"],
+      ["delegation warn", "delegation warn"],
     );
   } finally {
     done();
@@ -504,7 +501,7 @@ test("the gate warns by default: the call runs, the row reaches the model once p
     assert.equal(first.hookSpecificOutput.permissionDecision, undefined);
     const rows = contextOf(first);
     assert.match(rows, /^Freeflow gate \(warn, delegation\): src\/app\.js is claimed by widget\/task-002 /);
-    assert.match(rows, /This gate only warns for now\.$/);
+    assert.match(rows, /This gate only warns\.$/);
     // The same gate in the same turn: no row again, though each would-fire is logged.
     assert.equal(hook("PreToolUse", patchCall("call_p2")), null);
     // The removed gates never warn: a delivery step and a write outside the claim pass.
@@ -533,8 +530,8 @@ test("the gate warns by default: the call runs, the row reaches the model once p
   }
 });
 
-test("the gate fails open under warn and closed under block: no gate state, and an error deciding", () => {
-  // Under warn: no gate state is quiet and said once a session; an error deciding lets the call run.
+test("the gate fails open: no gate state, and an error deciding both let the call run (D-069)", () => {
+  // No gate state is quiet and said once a session; an unreadable state is quiet too.
   const warn = setUp();
   try {
     warn.hook("SessionStart");
@@ -556,21 +553,6 @@ test("the gate fails open under warn and closed under block: no gate state, and 
   } finally {
     warn.done();
   }
-  // Under block: a main-loop call needs no gate state, so none refuses it; an error deciding refuses the call.
-  const block = setUp({ config: { gates: { delegation: "block" } } });
-  try {
-    block.hook("SessionStart");
-    rmSync(block.sessionFile("gates.json"), { force: true });
-    assert.equal(block.hook("PreToolUse", patchCall()), null);
-    claimSrcByOther(block);
-    rmSync(block.sessionFile("events-buffer.jsonl"), { force: true });
-    mkdirSync(block.sessionFile("events-buffer.jsonl"));
-    const failed = block.hook("PreToolUse", patchCall("call_p2"));
-    codexReads(failed);
-    assert.equal(reasonOf(failed), "Freeflow's gates could not decide this call; try again.");
-  } finally {
-    block.done();
-  }
 });
 
 test("each conformance test names a yes claim of the driver, and every yes claim has one (SPEC-006 4.7)", () => {
@@ -580,9 +562,9 @@ test("each conformance test names a yes claim of the driver, and every yes claim
   assert.deepEqual(Object.keys(CONFORMANCE).sort(), yes.sort());
   const source = readFileSync(resolve("hooks/tests/codex-driver.test.mjs"), "utf8");
   for (const request of yes) assert.ok(source.includes(`test(CONFORMANCE.${request},`), request);
-  // The rest say so: block is yes with Part 5's gates; compact and the others no.
-  assert.equal(claims(true).block.claim, "yes");
-  for (const request of ["forget", "compact", "rewind", "route", "spawn", "send", "wake", "ask", "timers"])
+  // The rest say so: block is no, since the delegation gate only warns (D-069); compact and the others no.
+  assert.equal(claims(true).block.claim, "no");
+  for (const request of ["forget", "compact", "rewind", "route", "spawn", "send", "wake", "ask", "timers", "block"])
     assert.equal(claims(true)[request].claim, "no", request);
   assert.equal(claims(false).sensors.claim, "possible");
 });
@@ -598,7 +580,7 @@ test("capabilities.mjs lists Codex's claims from the file the driver writes", ()
     assert.equal(run.status, 0, run.stderr);
     assert.match(run.stdout, /^Freeflow on Codex \(codex-driver \d+\.\d+\.\d+, request set 1\)\n/);
     assert.match(run.stdout, /\n {2}pin +yes +session-start context, again after each compaction/);
-    assert.match(run.stdout, /\n {2}block +yes +PreToolUse denies the delegation gate's call under block/);
+    assert.match(run.stdout, /\n {2}block +no +the delegation gate only warns/);
     assert.match(run.stdout, /\n {2}compact +no +Codex compacts on its own/);
     assert.match(run.stdout, /\nEvent log: on, /);
     const check = spawnSync(

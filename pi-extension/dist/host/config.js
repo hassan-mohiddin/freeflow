@@ -6,7 +6,6 @@ import { resolveCompactionConfig } from "../compaction/config.js";
 import { resolveMessagingConfig } from "../messaging/config.js";
 import {
   resolveDelegationSettings,
-  resolveGateSettings,
   SETTINGS,
   sectionEnabled,
   selectedRuntimePrompts,
@@ -217,10 +216,8 @@ export async function readCapabilityState(cwd, host = undefined) {
   const promptsEnabled = sectionEnabled(repositoryConfig, sessionLocalConfig, "prompts");
   // The event log (SPEC-006 P5): written while Freeflow and its own switch are on.
   const events = { enabled: enabled && sectionEnabled(repositoryConfig, sessionLocalConfig, "events") };
-  // The gates (SPEC-008 4.5): each gate's mode; with Freeflow off, every gate is off.
-  const gates = enabled
-    ? resolveGateSettings(repositoryConfig, sessionLocalConfig)
-    : resolveGateSettings({ gates: { delegation: "off" } }, {});
+  // The delegation gate (SPEC-008 4.5, D-069): it has no setting; it warns while Freeflow is on, and never blocks.
+  const gates = { delegation: enabled };
   // Delegation across sessions (SPEC-009 4.7): claim hours and whether a return wakes the session.
   const delegation = resolveDelegationSettings(repositoryConfig, sessionLocalConfig);
   const capabilityState = {
