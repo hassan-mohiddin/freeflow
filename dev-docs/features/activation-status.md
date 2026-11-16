@@ -1,7 +1,7 @@
 # Activation and Status
 
 > **Covers:** `pi-extension/src/host/status.ts`, `pi-extension/src/host/config.ts`, `pi-extension/src/host/config-validation.ts`, `pi-extension/src/host/runtime-state.ts`, `pi-extension/src/store/layer.ts`
-> **Verified at:** `4e888630` (2026-11-14: driven at `4e888630`, the activation steps listed under Driving it, in fresh runs with model calls blocked; act-store and act-start-ledger are not driven, as before)
+> **Verified at:** `0ca2ebb1` (2026-11-16: driven at `0ca2ebb1`, every activation step listed under Driving it, in fresh runs with model calls blocked; act-store and act-start-ledger are not driven, as before)
 > **User docs:** `plugin-docs/settings.md`
 
 Freeflow is on once it is installed (D-060): on Pi it runs in every folder with its defaults, and no config file or setup step is needed. Its settings live in the Freeflow home: `settings.json` (everywhere), `folders.json` (this folder) and the session's values. The footer and `/freeflow status` report the effective state, and name each setting a layer ignores with its file and reason. Pi's former "setup needed" state is gone.
@@ -26,7 +26,7 @@ Freeflow is on once it is installed (D-060): on Pi it runs in every folder with 
 
 ## Driving it
 
-Preconditions: `scripts/verify-live.sh launch` (the run's Freeflow home holds `settings.json` `{}`), or `launch --no-config` for the no-settings run. The steps below ran at `4e888630`, with model calls blocked.
+Preconditions: `scripts/verify-live.sh launch` (the run's Freeflow home holds `settings.json` `{}`), or `launch --no-config` for the no-settings run. The steps below ran at `0ca2ebb1`, with model calls blocked.
 
 - **On by default.** Run `scripts/verify-live.sh launch`: `ready: freeflow: on`. Run `scripts/verify-live.sh observe act-1-home -- bash -c 'ls -A "$FREEFLOW_HOME"; ls -A .freeflow || echo "no .freeflow in the repository"'`: `settings.json`, `sessions` and `first-session.json` in the home, and `no .freeflow in the repository`.
 - **No settings at all.** Run `scripts/verify-live.sh launch --no-config`: `ready: freeflow: on`, the home holds `sessions` and `first-session.json` only, and the repository has no `.freeflow` folder.
@@ -37,7 +37,7 @@ Preconditions: `scripts/verify-live.sh launch` (the run's Freeflow home holds `s
 - **The committed file goes.** Run `observe act-5-committed -- bash -c 'node "$FFV_REPO/skills/setup-freeflow/scripts/settings.mjs" doctor --fix --committed'`: exit code `0`, and `fixed: .freeflow/config.json removed (committed)`.
 - **A file that is not JSON.** Run `observe act-6-not-json -- bash -c 'printf "{ not json\n" > "$FREEFLOW_HOME/settings.json"'`, then `/reload` and `/freeflow status`: `Freeflow: disabled; Settings ignored: settings.json (whole file): not JSON: ...`; the folder's own `off` still holds, and the file is not rewritten.
 
-Not driven at `51dec29f`: `act-store` and `act-start-ledger` (no task is held in these runs, and the store's steps are Track Work's, driven in its own feature file); the Codex and Claude Code footers (no Codex here; Claude Code's status line is driven in [Settings](settings.md)).
+Not driven at `0ca2ebb1`: `act-store` and `act-start-ledger` (no task is held in these runs, and the store's steps are Track Work's, driven in its own feature file); the Codex and Claude Code footers (no Codex here; Claude Code's status line is driven in [Settings](settings.md)).
 
 ## Gotchas
 
