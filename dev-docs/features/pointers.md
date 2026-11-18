@@ -37,5 +37,6 @@ Preconditions: a fresh `scripts/verify-live.sh launch` (Pi is used only for its 
 
 - A pointer comes once per context cycle: a compaction, or a new session start on Claude Code and Codex, lets it come again; on Claude Code a reload of the mod does too.
 - Only the main conversation gets pointers on Claude Code and Codex; a worker's own calls raise none.
+- Codex reads `pointers.enabled` at session start: a change made during a Codex session counts from the next one. Claude Code applies a `/freeflow settings` change at once, and Pi at the next prompt.
 - On Pi the pull request pointer joins the result of the `gh pr create` call, since Pi's path for a mid-turn line is the tool result.
 - Codex's driver reads a test command's failure from its output text (`Exit code: N`, `Process exited with code N`), since Codex's hook input documents no exit code; a live Codex's output format is not driven here.

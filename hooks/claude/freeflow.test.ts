@@ -120,6 +120,8 @@ function world(on: any) {
     ]),
     verdict: { decision: "ask" } as { decision: string; rule?: string },
     toolFails: false as boolean,
+    // A tool call the harness denies, which never ran.
+    toolDenied: false as boolean,
     // Track Work's script as the mod runs it, under the plugin's root.
     scriptPath: "" as string,
   };
@@ -232,7 +234,9 @@ function world(on: any) {
   });
   on("tool.check", () => ({ ...w.verdict }));
   // A tool runs: its result, or an error result when the scenario says so.
-  on("tool.call", () => ({ result: {}, text: "", ...(w.toolFails ? { isError: true } : {}) }));
+  on("tool.call", () =>
+    w.toolDenied ? { deny: "denied by a rule" } : { result: {}, text: "", ...(w.toolFails ? { isError: true } : {}) },
+  );
   on("fs.write", (_: any, e: any) => {
     // The claims a session start writes are kept apart, as the event runs are (SPEC-006 T4).
     if (String(e.path ?? e[0]).endsWith("/capabilities.json")) {
@@ -2354,4 +2358,24 @@ test("the reference pointers: pointers.enabled off sends none, and turning it on
   await $.command.run({ command: "freeflow", args: "settings pointers.enabled on" } as any);
   await $.tool.check({ tool: "Bash", input: { command: "gh pr create" } } as any);
   expect(pointersOf(w)).toEqual([POINTERS["pull-request"]]);
+});
+
+test("the reference pointers: a denied call never ran, so it is neither a test edit nor a failure toward the diagnose pointer", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.verdict = { decision: "allow" };
+  await start($);
+  w.toolDenied = true;
+  await $.tool.call({ tool: "Bash", command: "npm test" } as any);
+  await $.tool.call({ tool: "Bash", command: "npm test" } as any);
+  await $.tool.call({ tool: "Edit", file_path: "/work/widget/tests/parse.test.mjs" } as any);
+  w.toolDenied = false;
+  expect(pointersOf(w)).toEqual([]);
+  // The count starts at the first failure that ran: the second one sends the diagnose pointer.
+  w.toolFails = true;
+  await $.tool.call({ tool: "Bash", command: "npm test" } as any);
+  expect(pointersOf(w)).toEqual([]);
+  await $.tool.call({ tool: "Bash", command: "npm test" } as any);
+  w.toolFails = false;
+  expect(pointersOf(w)).toEqual([POINTERS.diagnose]);
 });

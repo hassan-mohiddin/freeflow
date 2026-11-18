@@ -506,11 +506,18 @@ async function point($, ids) {
  */
 async function pointAfter($, e, result) {
   if (!enabled || !pointersOn || e.agentId !== undefined) return;
-  const input = /** @type {Record<string, unknown>} */ (e);
-  const command = COMMAND_TOOLS.has(e.tool) && typeof input.command === "string" ? input.command : undefined;
-  const paths = FILE_TOOLS.has(e.tool) ? toolPaths(input, await $.session.cwd()) : [];
-  const failed = Boolean(result?.deny || result?.isError);
-  await point($, afterCall({ tool: String(e.tool), command, paths, failed }, testFailures));
+  // Guarded as point() is: the tool has run, and a pointer that fails never fails its event (review R24 N1).
+  try {
+    // A denied call never ran: it is neither a test edit nor a failure toward the diagnose pointer (review R24 N2).
+    if (result?.deny) return;
+    const input = /** @type {Record<string, unknown>} */ (e);
+    const command = COMMAND_TOOLS.has(e.tool) && typeof input.command === "string" ? input.command : undefined;
+    const paths = FILE_TOOLS.has(e.tool) ? toolPaths(input, await $.session.cwd()) : [];
+    const failed = Boolean(result?.isError);
+    await point($, afterCall({ tool: String(e.tool), command, paths, failed }, testFailures));
+  } catch (error) {
+    $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /** After each request of the main conversation: at the notice point, the cycle's one checkpoint notice, appended so a

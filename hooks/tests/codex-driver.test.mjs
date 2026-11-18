@@ -898,3 +898,43 @@ test("the reference pointers: pointers.enabled off sends none and keeps no point
     done();
   }
 });
+
+test("a gate warning and a pointer in one PreToolUse: the gate's text first and whole, then the pointer (review R24 B2)", () => {
+  const { hook, cli, done } = setUp();
+  try {
+    hook("SessionStart");
+    hook("UserPromptSubmit");
+    claimSrcByOther({ cli });
+    // The gate's text alone, for a claimed write that raises no pointer.
+    const gateOnly = contextOf(hook("PreToolUse", shellCall("echo x > src/app.js", "call_g1")));
+    assert.match(gateOnly, /^Freeflow gate \(warn, delegation\): src\/app\.js is claimed by widget\/task-002 /);
+    // A fresh turn: the same claimed write in a call that also opens a pull request.
+    hook("UserPromptSubmit", { turn_id: "turn-2" });
+    const both = hook(
+      "PreToolUse",
+      shellCall("echo x > src/app.js; gh pr create --fill", "call_g2", { turn_id: "turn-2" }),
+    );
+    codexReads(both);
+    assert.equal(both.hookSpecificOutput.permissionDecision, undefined);
+    assert.equal(contextOf(both), `${gateOnly}\n\n${POINTERS["pull-request"]}`);
+  } finally {
+    done();
+  }
+});
+
+test("Codex keeps no failing test command's text on disk: its count is keyed by a digest of the redacted command", () => {
+  const { hook, sessionFile, done } = setUp();
+  try {
+    hook("SessionStart");
+    const command = "API_TOKEN=s3cret npm test";
+    assert.deepEqual(pointerLines(hook("PostToolUse", failing(command))), []);
+    const kept = readFileSync(sessionFile("pointer-failures.json"), "utf8");
+    assert.doesNotMatch(kept, /s3cret/);
+    assert.doesNotMatch(kept, /npm test/);
+    // The count still works: the same command failing again sends the diagnose pointer.
+    assert.deepEqual(pointerLines(hook("PostToolUse", failing(command))), [POINTERS.diagnose]);
+    assert.doesNotMatch(readFileSync(sessionFile("pointer-failures.json"), "utf8"), /s3cret/);
+  } finally {
+    done();
+  }
+});

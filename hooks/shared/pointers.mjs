@@ -72,16 +72,20 @@ export function beforeCall({ tool, command }) {
 /**
  * The pointers a call raises once its result is in: `test-edit` for a file tool that wrote a test path, `diagnose` for
  * the second failure in a row of the same test command. `failures` is the driver's count by command, which this
- * updates (a pass forgets the command; at most FAILURE_KEYS are kept).
+ * updates (a pass forgets the command; at most FAILURE_KEYS are kept). `keyOf` turns the whitespace-normalized command
+ * into the count's key: a driver that keeps the counts on disk passes one that holds no secret (a digest of the
+ * redacted text); in memory the text itself is the key.
  * @param {{ tool: string, command?: string, paths?: string[], failed: boolean }} call
  * @param {Map<string, number>} failures
+ * @param {{ keyOf?: (command: string) => string }} [options]
  * @returns {string[]}
  */
-export function afterCall({ tool, command, paths = [], failed }, failures) {
+export function afterCall({ tool, command, paths = [], failed }, failures, { keyOf } = {}) {
   const raised = [];
   if (FILE_WRITE_TOOLS.has(tool) && !failed && paths.some(isTestPath)) raised.push("test-edit");
   if (typeof command === "string" && TEST_COMMAND.test(command)) {
-    const key = command.trim().replace(/\s+/g, " ");
+    const normalized = command.trim().replace(/\s+/g, " ");
+    const key = keyOf ? keyOf(normalized) : normalized;
     if (failed) {
       const count = (failures.get(key) ?? 0) + 1;
       failures.delete(key);

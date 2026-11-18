@@ -779,7 +779,13 @@ function preToolUse(ctx) {
     note(ctx, error);
   }
   const gate = gated(ctx);
-  const lines = agentOf(ctx) === "main" ? pointed(ctx, beforeCall(callOf(ctx))) : [];
+  // The gate's warning is recorded as delivered by now: a failure in the pointers returns it as it is (review R24 N3).
+  let lines = [];
+  try {
+    lines = agentOf(ctx) === "main" ? pointed(ctx, beforeCall(callOf(ctx))) : [];
+  } catch (error) {
+    note(ctx, error);
+  }
   if (!lines.length) return gate;
   const rows = [gate?.hookSpecificOutput?.additionalContext, ...lines].filter(Boolean);
   return context("PreToolUse", rows.join("\n\n"));
@@ -841,15 +847,20 @@ function shellFailed(response) {
 
 /**
  * The pointers a call raises once its result is in; a test command's failures in a row are kept in
- * pointer-failures.json, read and written only for a test command.
+ * pointer-failures.json, read and written only for a test command, keyed by the digest of the command as the event
+ * writer redacts it, so no command text (and no secret inline in one) is kept on disk. The writer's module is loaded
+ * only for a test command, so other calls pay nothing for it.
  * @param {any} ctx
  * @param {string} tool
  * @param {string | undefined} command
  * @param {string[]} paths
  */
-function pointersAfter(ctx, tool, command, paths) {
+async function pointersAfter(ctx, tool, command, paths) {
   if (ctx.state?.pointers === false) return [];
   const counted = testCommand(command);
+  const writer = counted
+    ? await import(pathToFileURL(join(PLUGIN_ROOT, "skills/track-work/scripts/lib/events5.mjs")).href)
+    : null;
   const path = fileOf(ctx, "pointer-failures.json");
   const failures = new Map(counted ? Object.entries(readJson(path, {}) ?? {}) : []);
   const ids = afterCall(
@@ -860,6 +871,7 @@ function pointersAfter(ctx, tool, command, paths) {
       failed: counted ? shellFailed(ctx.input.tool_response) : failed(ctx.input.tool_response),
     },
     failures,
+    { keyOf: (text) => writer.digest(writer.redact(text)) },
   );
   if (counted) writeJson(path, Object.fromEntries(failures));
   return pointed(ctx, ids, { due: true });
@@ -938,7 +950,7 @@ function gated(ctx) {
  * a notice waiting reaches the model after the call's result.
  * @param {any} ctx
  */
-function postToolUse(ctx) {
+async function postToolUse(ctx) {
   const tool = String(ctx.input.tool_name ?? "");
   const input = ctx.input.tool_input;
   const started = callFile(ctx, ctx.input.tool_use_id);
@@ -969,7 +981,12 @@ function postToolUse(ctx) {
       agentOf(ctx),
     );
   if (agentOf(ctx) !== "main") return null;
-  const lines = pointersAfter(ctx, tool, command, paths);
+  let lines = [];
+  try {
+    lines = await pointersAfter(ctx, tool, command, paths);
+  } catch (error) {
+    note(ctx, error);
+  }
   const due = takeDue(ctx);
   const rows = [due, ...lines].filter(Boolean);
   return rows.length ? context("PostToolUse", rows.join("\n\n")) : null;
