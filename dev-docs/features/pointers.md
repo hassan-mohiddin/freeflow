@@ -1,7 +1,7 @@
 # Reference Pointers
 
 > **Covers:** `hooks/shared/pointers.mjs`, `pi-extension/src/host/pointers.ts`, `skills/verify-work/scripts/lib/test-patterns.mjs`
-> **Verified at:** `d664221e` (2026-11-18: the Codex steps, Claude Code's listing and change, and Pi's Pointers row in all three tabs driven at `d664221e` with model calls blocked; a pointer in a live Claude Code or Pi conversation is unverified, since it needs a model's tool call)
+> **Verified at:** `c89031ff` (2026-11-18: the Codex steps and Claude Code's listing and change driven at `c89031ff` with model calls blocked; Pi's Pointers row in all three tabs and the script steps were driven at `d664221e`, and the round-2 fix touches neither; a pointer in a live Claude Code or Pi conversation is unverified, since it needs a model's tool call)
 > **User docs:** `plugin-docs/settings.md`
 
 The agent gets one line from a skill at the moment that skill's method matters, at most once per context cycle, after what it already received: a worker about to start (Execute Work's delegation reference), a pull request about to open (Deliver Work's Review Check), a test file edited (Verify Work's test design), and the same test command failing a second time (Execute Work's diagnose lines). Each line is kept as a `pointer` sent line, so `/freeflow sent` lists it. One Developer setting, Pointers (`pointers.enabled`, on by default), turns all four off. On Pi only the pull request and test edit pointers come from here: Pi has no workers, and Tool Execution's guidance notices send the diagnose lines (Pointers off holds those back too). How it works: the developer docs' Reference Pointers section.
