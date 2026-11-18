@@ -259,6 +259,27 @@ test("appends to history.md on two machines merge by keeping both sides' lines",
   });
 });
 
+test("first-session.json written on both machines never stops a sync: the earlier date stands, on both and the remote", async () => {
+  await withFolder(async (folder) => {
+    const { one, two, remoteFile } = await twoMachines(folder);
+    const marker = (at) => `${JSON.stringify({ at })}\n`;
+    await writeIn(one, "first-session.json", marker("2026-11-02T09:00:00.000Z"));
+    assert.equal(store(folder, ["sync", "--home", one]).status, 0);
+    // The later copy is this machine's: the remote's earlier one stands.
+    await writeIn(two, "first-session.json", marker("2026-11-03T10:00:00.000Z"));
+    const kept = store(folder, ["sync", "--home", two]);
+    assert.equal(kept.status, 0, kept.stderr);
+    assert.equal(await readFile(join(two, "first-session.json"), "utf8"), marker("2026-11-02T09:00:00.000Z"));
+    assert.equal(remoteFile("first-session.json"), marker("2026-11-02T09:00:00.000Z"));
+    // The earlier copy is this machine's: it stands over the remote's later one.
+    await writeIn(two, "first-session.json", marker("2026-11-01T08:00:00.000Z"));
+    assert.equal(store(folder, ["sync", "--home", two]).status, 0);
+    assert.equal(store(folder, ["sync", "--home", one]).status, 0);
+    assert.equal(await readFile(join(one, "first-session.json"), "utf8"), marker("2026-11-01T08:00:00.000Z"));
+    assert.equal(remoteFile("first-session.json"), marker("2026-11-01T08:00:00.000Z"));
+  });
+});
+
 test("a record both machines changed keeps both copies and stops, until store sync --resolved", async () => {
   await withFolder(async (folder) => {
     const { one, two, remoteFile } = await twoMachines(folder);

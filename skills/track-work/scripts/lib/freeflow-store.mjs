@@ -25,8 +25,10 @@ const execFile = promisify(execFileCallback);
  * event log at the store's root (a task folder's events/ holds the summaries a checkpoint commits).
  */
 export const STORE_IGNORE = ["scratch/", "evidence/**/raw/", "local/", "sessions/", "/events/"];
+/** The first-session marker in the home: "this user has had a first session" (D-060). Two machines may each write one. */
+const FIRST_SESSION = "first-session.json";
 /** The user's settings and the first-session marker in the home (D-060): the store commits them, so they sync. */
-const SETTINGS_FILES = ["settings.json", "folders.json", "first-session.json"];
+const SETTINGS_FILES = ["settings.json", "folders.json", FIRST_SESSION];
 /** Lines an earlier build of the store wrote to .gitignore to keep the settings files out of the store's commits. */
 const RETIRED_SETTINGS_IGNORES = ["/settings.json", "/folders.json", "/first-session.json"];
 /** Files that only append merge by keeping both sides' lines. */
@@ -541,6 +543,35 @@ async function pendingConflict(home) {
   }
 }
 
+/** The date a first-session marker gives, in milliseconds; Infinity when it holds no readable date. */
+function firstSessionAt(text) {
+  try {
+    const at = Date.parse(JSON.parse(text).at);
+    return Number.isNaN(at) ? Infinity : at;
+  } catch {
+    return Infinity;
+  }
+}
+
+/**
+ * Resolves a rebase stopped only by first-session.json (D-060: each machine writes one when it has its first session):
+ * the copy with the earlier date stands, as the file means that a first session happened. Returns whether it resolved
+ * the stop, so the rebase can go on; false for any other conflict, which stops the sync as before.
+ */
+async function keepEarliestFirstSession(home) {
+  const listed = await git(home, ["diff", "--name-only", "--diff-filter=U"], { allowFailure: true });
+  if (listed.stdout !== FIRST_SESSION) return false;
+  // Index stages in a rebase: 2 is the remote's copy ("ours"), 3 the local commit being replayed ("theirs").
+  const [remote, local] = await Promise.all(
+    [2, 3].map((stage) => gitRaw(home, ["show", `:${stage}:${FIRST_SESSION}`]).catch(() => null)),
+  );
+  if (remote === null || local === null) return false;
+  const kept = firstSessionAt(local) < firstSessionAt(remote) ? local : remote;
+  await writeFile(join(home, FIRST_SESSION), kept);
+  await git(home, ["add", "--", FIRST_SESSION]);
+  return true;
+}
+
 /**
  * Puts the local commits on top of the remote's. History and sessions files merge by union; any other conflict
  * aborts, keeps the remote's copy of each conflicted file under local/conflicts/ beside this store's own, committed
@@ -548,9 +579,12 @@ async function pendingConflict(home) {
  */
 async function rebaseOntoRemote(home, { resolved = false } = {}) {
   // In a rebase, "theirs" are the local commits being replayed.
-  const rebased = await git(home, ["rebase", "--quiet", ...(resolved ? ["-X", "theirs"] : []), `origin/${BRANCH}`], {
+  let rebased = await git(home, ["rebase", "--quiet", ...(resolved ? ["-X", "theirs"] : []), `origin/${BRANCH}`], {
     allowFailure: true,
   });
+  // Each step resolves the first-session marker that stopped the rebase and goes on; the steps end with the rebase.
+  for (let step = 0; !rebased.ok && step < 1000 && (await keepEarliestFirstSession(home)); step += 1)
+    rebased = await git(home, ["-c", "core.editor=true", "rebase", "--continue"], { allowFailure: true });
   if (rebased.ok) return;
   const listed = await git(home, ["diff", "--name-only", "--diff-filter=U"], { allowFailure: true });
   const paths = listed.stdout.split("\n").filter(Boolean);

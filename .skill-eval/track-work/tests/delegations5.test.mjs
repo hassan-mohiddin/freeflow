@@ -1027,3 +1027,71 @@ test("delegate status --cites lists only the open delegations whose brief's Sett
     assert.match(ok(cli(["delegate", "status", "--record", record])), /D-002/);
   });
 });
+
+const REVIEW_BRIEF =
+  "## Result wanted\nA review of the thing's change.\n## Scope\nmay write: none.\n## Done when\nthe report is adjudicated.\n## Read\n- The reviewer writes its report to `reviews/R1-report.md` in the task folder.\n";
+
+test("a review delegation closes on its reviewer's adjudicated report, at the reviews/R<n>-report.md its brief names", async () => {
+  await withTask(async ({ record, taskDir, cli }) => {
+    ok(
+      cli(
+        [
+          "delegate",
+          "open",
+          "--record",
+          record,
+          "--title",
+          "Review the thing",
+          "--kind",
+          "review",
+          "--agent",
+          "Haiku, xhigh",
+          "--input",
+          "-",
+        ],
+        REVIEW_BRIEF,
+      ),
+    );
+    const close = (args) =>
+      cli(["delegate", "close", "--record", record, "--id", "D-001", ...args, "--input", "-"], CLOSE_INPUT);
+    // No report yet: the reviewer has not written it, and no return.md is wanted.
+    assert.match(
+      close(["--outcome", "accepted"]).stderr,
+      /D-001 cannot be accepted: its return is not ready: no report yet at /,
+    );
+    assert.match(cli(["delegate", "check-return", "--record", record, "--id", "D-001"]).stderr, /no report yet at /);
+    await mkdir(join(taskDir, "reviews"), { recursive: true });
+    const report = join(taskDir, "reviews", "R1-report.md");
+    await writeFile(report, "# Review 1\nJudgment: Blocking\n\n#### Issues — Blocking\n\nB1. It crashes.\n");
+    // The report is there and is checked; a review is accepted only once it is adjudicated.
+    assert.match(
+      ok(cli(["delegate", "check-return", "--record", record, "--id", "D-001"])),
+      /^D-001's return: State done; a reviewer's return; it names no commit/m,
+    );
+    assert.match(
+      close(["--outcome", "accepted"]).stderr,
+      /D-001 cannot be accepted: its report reviews\/R1-report\.md has no "## Adjudication" section/,
+    );
+    await writeFile(
+      report,
+      `${await readFile(report, "utf8")}\n## Adjudication\n\n- B1: Accepted. Reproduced.\n\nAdjudicated judgment: Blocking\n`,
+    );
+    assert.match(ok(close(["--outcome", "accepted"])), /^Closed D-001 — accepted$/m);
+    const history = await readFile(join(taskDir, "history.md"), "utf8");
+    assert.match(history, /^## D-001 — Review the thing$/m);
+    assert.match(history, /^- Return: reviews\/R1-report\.md$/m);
+    assert.match(history, /^- Kind: review$/m);
+  });
+});
+
+test("delegate close says where its Cue goes: the input's Cue line", async () => {
+  await withTask(async ({ record, repo, cli }) => {
+    openBuild(cli, record, repo);
+    const refused = cli(
+      ["delegate", "close", "--record", record, "--id", "D-001", "--outcome", "stopped", "--input", "-"],
+      "- Result: r.\n- Task effect: t.\n",
+    );
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stderr, /delegate close requires Cue: put it on the input's "Cue:" line\.\n$/);
+  });
+});

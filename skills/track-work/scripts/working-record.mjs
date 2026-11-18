@@ -1424,7 +1424,7 @@ async function claimCommand(command, options, joined) {
         identity,
         globs: paths,
         cwd: cwd(),
-        hours: claimHours(options["--for"]),
+        hours: claimHours(options["--for"], { cwd: cwd() }),
       });
       return `${lines.map((line) => `Claimed ${line.repo ? `${line.repo}: ` : ""}${line.paths.join(", ")} for ${line.task}${line.delegation ? ` ${line.delegation}` : ""} until ${line.until.slice(0, 16).replace("T", " ")} UTC (${line.id}).`).join("\n")}\nThe gates warn other sessions before they write these; release them when done (release).\n`;
     }
