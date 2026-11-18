@@ -280,6 +280,20 @@ test("first-session.json written on both machines never stops a sync: the earlie
   });
 });
 
+test("first-session.json written on both machines: this machine's earlier copy stands over the remote's later one", async () => {
+  await withFolder(async (folder) => {
+    const { one, two, remoteFile } = await twoMachines(folder);
+    const marker = (at) => `${JSON.stringify({ at })}\n`;
+    await writeIn(one, "first-session.json", marker("2026-11-05T09:00:00.000Z"));
+    assert.equal(store(folder, ["sync", "--home", one]).status, 0);
+    await writeIn(two, "first-session.json", marker("2026-11-03T10:00:00.000Z"));
+    const kept = store(folder, ["sync", "--home", two]);
+    assert.equal(kept.status, 0, kept.stderr);
+    assert.equal(await readFile(join(two, "first-session.json"), "utf8"), marker("2026-11-03T10:00:00.000Z"));
+    assert.equal(remoteFile("first-session.json"), marker("2026-11-03T10:00:00.000Z"));
+  });
+});
+
 test("a first-session.json conflict beside a record conflict never stops the sync for itself: it stops for the record, and --resolved keeps the earlier date", async () => {
   await withFolder(async (folder) => {
     const { one, two, remoteFile } = await twoMachines(folder);

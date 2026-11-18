@@ -550,7 +550,7 @@ async function pendingConflict(home) {
  * stands. Git runs it in every merge and rebase of the store, so no conflict in that file stops a sync, beside another
  * conflict or on `--resolved`. Git keeps a driver's definition in each clone's config, so each sync sets it.
  */
-const FIRST_SESSION_DRIVER = `node -e 'const fs=require("fs");const at=(f)=>{try{const t=Date.parse(JSON.parse(fs.readFileSync(f,"utf8")).at);return Number.isNaN(t)?Infinity:t}catch{return Infinity}};const [,ours,theirs]=process.argv;if(at(theirs)<at(ours))fs.copyFileSync(theirs,ours);' %O %A %B`;
+const FIRST_SESSION_DRIVER = `node -e 'const fs=require("fs");const at=(f)=>{try{const t=Date.parse(JSON.parse(fs.readFileSync(f,"utf8")).at);return Number.isNaN(t)?Infinity:t}catch{return Infinity}};const [,,ours,theirs]=process.argv;if(at(theirs)<at(ours))fs.copyFileSync(theirs,ours);' %O %A %B`;
 
 async function ensureFirstSessionMerge(home) {
   await git(home, ["config", "merge.firstsession.driver", FIRST_SESSION_DRIVER]);
