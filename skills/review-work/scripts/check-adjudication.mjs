@@ -12,7 +12,8 @@
 // the round, base and head from the brief beside the first report, the reviewers and flags from its Plan line, the
 // reviewer's model (--model, required with --record), the judgment and the counts, so review-status.mjs can tell
 // which commit the review covers. With --fixed <commit> it records instead that the initiator checked the fixes of a
-// Blocking review whose Blocking items are all Accepted, at that commit, a descendant of the reviewed head: the floor's
+// Blocking review whose Blocking items are each Accepted or Rejected, at least one Accepted and none Open, at that
+// commit, a descendant of the reviewed head: the floor's
 // one round is then complete, and review-status counts that commit as covered. --root names the repository the commit
 // is in (default: the current folder's).
 // Usage: check-adjudication.mjs <report>... [--adjudication <file>] [--record --model <name> [--fixed <commit>]]
@@ -253,12 +254,16 @@ if (values.record && ok) {
       fail(
         `--fixed is for a Blocking review; this one is ${judgment ?? "not judged"}, and a ${judgment} review records as it is`,
       );
-    if (!blocking.length || blocking.some((item) => item.disposition !== "Accepted"))
+    const unsettled = blocking.filter((item) => item.disposition !== "Accepted" && item.disposition !== "Rejected");
+    if (unsettled.length)
       fail(
-        `--fixed needs every Blocking item Accepted; ${blocking
-          .filter((item) => item.disposition !== "Accepted")
+        `--fixed needs every Blocking item Accepted or Rejected; ${unsettled
           .map((item) => `${item.id} is ${item.disposition ?? "not disposed"}`)
-          .join(", ")}: a Blocking finding left Open or Rejected is not fixed`,
+          .join(", ")}: a Blocking finding left Open is not fixed`,
+      );
+    if (!blocking.some((item) => item.disposition === "Accepted"))
+      fail(
+        "--fixed needs at least one Blocking item Accepted: a review whose Blocking items were all Rejected has no fixes to check",
       );
     const run = (args) =>
       spawnSync("git", args, { cwd: resolve(values.root ?? "."), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });

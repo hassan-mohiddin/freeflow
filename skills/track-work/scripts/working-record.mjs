@@ -252,7 +252,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "claim",
-    "Usage: claim --paths <glob> ... [--for <hours>] [--home <folder>]\n       claim --list [--home <folder>]\nClaims files this session is changing, for the task it holds or the delegation it works for, in the Freeflow store's claims.jsonl (the project's, or the store's for a task with no project), so the delegation gate warns another session before it writes them. A path is kept relative to its repository, so every checkout and worktree of it is covered. A claim lasts --for hours (default: delegation.claimHours, which the driver passes as FREEFLOW_CLAIM_HOURS, else 8), is renewed by this session's store sync while it is live, and ends at release, its delegation's close or the session's end. --list prints every live claim in the store.",
+    "Usage: claim --paths <glob> ... [--for <hours>] [--home <folder>]\n       claim --list [--home <folder>]\nClaims files this session is changing, for the task it holds or the delegation it works for, in the Freeflow store's claims.jsonl (the project's, or the store's for a task with no project), so the delegation gate warns another session before it writes them. A path is kept relative to its repository, so every checkout and worktree of it is covered. A claim lasts --for hours (else FREEFLOW_CLAIM_HOURS, which a driver passes, else delegation.claimHours as the settings give it for this folder, session and harness, else 8), is renewed by this session's store sync while it is live, and ends at release, its delegation's close or the session's end. --list prints every live claim in the store.",
   ],
   [
     "release",
@@ -1424,7 +1424,7 @@ async function claimCommand(command, options, joined) {
         identity,
         globs: paths,
         cwd: cwd(),
-        hours: claimHours(options["--for"]),
+        hours: claimHours(options["--for"], { cwd: cwd() }),
       });
       return `${lines.map((line) => `Claimed ${line.repo ? `${line.repo}: ` : ""}${line.paths.join(", ")} for ${line.task}${line.delegation ? ` ${line.delegation}` : ""} until ${line.until.slice(0, 16).replace("T", " ")} UTC (${line.id}).`).join("\n")}\nThe gates warn other sessions before they write these; release them when done (release).\n`;
     }

@@ -96,6 +96,55 @@ test("decide: the delegation gate keeps a worker to its scope and off the task's
   assert.equal(worker(edit(`${TASK_DIR}/record.md`)).decision, "warn");
 });
 
+test("decide: a worker's relative paths are in its worktree, not in the folder its session's cwd names", () => {
+  const state = held({
+    delegations: {
+      "D-006": {
+        writes: ["/wt/d-006/**"],
+        line: false,
+        worktree: "/wt/d-006",
+        folder: `${TASK_DIR}/delegations/D-006-z`,
+      },
+    },
+  });
+  const worker = (call) => decide(state, { ...call, delegation: "D-006" });
+  // The session's cwd is the coordinator's folder: .tmp/ is the worktree's, so it is inside the worker's scope.
+  assert.deepEqual(gates(worker({ tool: "Write", paths: [".tmp/x.md"], cwd: "/work/app" })), []);
+  assert.deepEqual(gates(worker({ tool: "Bash", command: "echo x > .tmp/y.md", cwd: "/work/app" })), []);
+  // A path truly outside the worktree still warns, relative or absolute.
+  assert.deepEqual(gates(worker({ tool: "Write", paths: ["../other/x.ts"], cwd: "/wt/d-006/src" })), [
+    "delegation:warn",
+  ]);
+  assert.deepEqual(gates(worker({ tool: "Write", paths: ["/work/app/a.ts"], cwd: "/work/app" })), ["delegation:warn"]);
+  assert.match(
+    worker({ tool: "Write", paths: ["/work/app/a.ts"], cwd: "/work/app" }).reason,
+    /its worktree is its scope: \/wt\/d-006\/\*\*\)\./,
+  );
+});
+
+test("decide: a relative write after a cd out of the worktree is outside the worker's scope; a cd inside it is not", () => {
+  const state = held({
+    delegations: {
+      "D-006": {
+        writes: ["/wt/d-006/**"],
+        line: false,
+        worktree: "/wt/d-006",
+        folder: `${TASK_DIR}/delegations/D-006-z`,
+      },
+    },
+  });
+  const worker = (call) => decide(state, { ...call, delegation: "D-006" });
+  // The session starts in the coordinator's folder: a cd out takes the relative write out of the worktree.
+  assert.deepEqual(gates(worker(bash("cd /work/app && echo x > foo.txt"))), ["delegation:warn"]);
+  assert.match(worker(bash("cd /work/app && echo x > foo.txt")).reason, /outside its scope/);
+  assert.deepEqual(gates(worker(bash("cd /work/app && echo x > foo.txt && cd /wt/d-006 && echo y > bar.txt"))), [
+    "delegation:warn",
+  ]);
+  // A cd inside the worktree, absolute or relative, keeps the write in it.
+  assert.deepEqual(gates(worker(bash("cd /wt/d-006/src && echo x > foo.txt"))), []);
+  assert.deepEqual(gates(worker(bash("cd src && echo x > foo.txt"))), []);
+});
+
 test("decide: a missing gate state is quiet, for the main loop and for a worker alike (D-069)", () => {
   assert.equal(decide(null, edit("/work/app/a.ts")).decision, "allow");
   assert.equal(decide({ v: 2 }, edit("/work/app/a.ts")).decision, "allow");

@@ -379,9 +379,14 @@ export function classifyCommand(command) {
   const { segments, dynamic } = splitCommand(command);
   const parts = segments.map((segment) => ({ ...classifySegment(segment.words), writes: segment.writes }));
   const writes = parts.flatMap((part) => part.writes).filter((path) => !NOT_WRITTEN.has(path));
+  // The folders the command changes into, as written (`cd`, `pushd`), so a relative write after one is resolved there.
+  const directories = segments
+    .filter((segment) => ["cd", "pushd"].includes(segment.words[0]) && segment.words[1])
+    .map((segment) => segment.words[1]);
   return {
     changing: dynamic || writes.length > 0 || parts.some((part) => part.changing),
     writes,
+    directories,
     trackWorkWrites: parts.some((part) => part.trackWork === "write"),
   };
 }
@@ -496,15 +501,6 @@ export function decide(state, call) {
   if (!isFile && !isShell) return ALLOW;
   const readable = state === null || state === undefined ? null : validGateState(state) ? state : null;
   const shell = isShell ? classifyCommand(call.command ?? "") : null;
-  const paths = isFile
-    ? (call.paths ?? []).filter((path) => typeof path === "string" && path).map((path) => resolvePath(call.cwd, path))
-    : (shell?.writes ?? []).map((path) => resolvePath(call.cwd, path));
-  const changing = call.readOnly === true ? false : isFile || Boolean(shell?.changing);
-  const fired = [];
-  const fire = (gate, rule, what, why, way) => {
-    fired.push({ gate, decision: "warn", reason: `${what}\nWhy: ${why}`, way, rule });
-  };
-  const what = callText(call, paths);
   // A subagent worker names its delegation; a worker session's state names the one it joined (SPEC-009 4.1).
   const worker =
     typeof call.delegation === "string" && call.delegation
@@ -512,6 +508,20 @@ export function decide(state, call) {
       : typeof readable?.worker === "string" && readable.worker
         ? readable.worker
         : null;
+  // A worker's relative paths are in its own worktree, not in the folder the session's cwd names (the coordinator's,
+  // for a subagent that does not change directory); a worker with no worktree is a reader or writes absolute paths.
+  const base = worker && readable?.delegations?.[worker]?.worktree ? readable.delegations[worker].worktree : call.cwd;
+  // A command that changes into a folder outside the worktree writes its relative paths there: they are outside too.
+  const strayed = (shell?.directories ?? []).map((dir) => resolvePath(base, dir)).find((dir) => !inside(dir, base));
+  const paths = isFile
+    ? (call.paths ?? []).filter((path) => typeof path === "string" && path).map((path) => resolvePath(base, path))
+    : (shell?.writes ?? []).map((path) => resolvePath(strayed ?? base, path));
+  const changing = call.readOnly === true ? false : isFile || Boolean(shell?.changing);
+  const fired = [];
+  const fire = (gate, rule, what, why, way) => {
+    fired.push({ gate, decision: "warn", reason: `${what}\nWhy: ${why}`, way, rule });
+  };
+  const what = callText(call, paths);
 
   if (worker && (changing || shell?.trackWorkWrites)) {
     const scope = readable?.delegations?.[worker];

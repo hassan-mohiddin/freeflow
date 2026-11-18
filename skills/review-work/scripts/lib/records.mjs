@@ -64,7 +64,7 @@ const distance = (root, from, to) => Number(git(root, ["rev-list", "--count", `$
  * A covering record is a Pass or Non-blocking review that is Review 1, or a later round whose base is the head of an
  * earlier review on record, so the diff-only re-review completes it; or the initiator's check of a Blocking review's
  * fixes (`kind: "fixes-checked"`, written by check-adjudication.mjs --fixed, which refuses it unless every Blocking item
- * was Accepted), which completes the floor's one round at the commit it names. Records of commits not in head's
+ * was Accepted or Rejected and at least one was Accepted), which completes the floor's one round at the commit it names. Records of commits not in head's
  * history are ignored.
  */
 export function coverage(root, headRef, records) {
