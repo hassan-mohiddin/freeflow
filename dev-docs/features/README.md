@@ -46,4 +46,5 @@ An H1 title and one paragraph on what the user sees, then four sections in this 
 - [Pane and status line](pane.md): `/freeflow pane` and the status line on Claude Code, the JSON they read, and their two settings; the views' keys are driven in the mocked engine.
 - [Track Work CLI](track-work-cli.md): `working-record.mjs`, the record surface on Claude Code, Codex and other hosts.
 - [Codex driver](codex-driver.md): Freeflow on Codex's hooks: the menu at session start, the notice, the task's record after Codex compacts, the event log, and the hold at the session's end, driven with recorded hook inputs.
+- [Reference pointers](pointers.md): the four one-line pointers into a skill on Claude Code, Codex and Pi, once a cycle, and the Pointers setting; driven on Codex with recorded hook inputs, the setting on every host; a pointer in a live conversation needs a model call.
 - [Evaluator uncommitted run](evaluator-uncommitted-run.md): `skill-eval run`'s plan, the refusal of uncommitted inputs, `--uncommitted`, and the refused `--dry-run`.

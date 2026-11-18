@@ -1,7 +1,7 @@
 # Activation and Status
 
 > **Covers:** `pi-extension/src/host/status.ts`, `pi-extension/src/host/config.ts`, `pi-extension/src/host/config-validation.ts`, `pi-extension/src/host/runtime-state.ts`, `pi-extension/src/store/layer.ts`
-> **Verified at:** `f83c3fc5` (2026-11-16: driven at `f83c3fc5` in fresh runs with model calls blocked: the default run, the folder off and back on, the legacy file, doctor, the committed file and the file that is not JSON; act-store, act-start-ledger, and the Codex and Claude Code footers are not driven, as before)
+> **Verified at:** `d664221e` (2026-11-18: driven at `d664221e` with model calls blocked: on by default and the home's files, `/freeflow status` in the default run, the folder off and back on; the legacy file, doctor, the committed file and the file that is not JSON are not re-driven at this commit (the change adds the `pointers` section and touches none of them); act-store, act-start-ledger, and the Codex and Claude Code footers are not driven, as before)
 > **User docs:** `plugin-docs/settings.md`
 
 Freeflow is on once it is installed (D-060): on Pi it runs in every folder with its defaults, and no config file or setup step is needed. Its settings live in the Freeflow home: `settings.json` (everywhere), `folders.json` (this folder) and the session's values. The footer and `/freeflow status` report the effective state, and name each setting a layer ignores with its file and reason. Pi's former "setup needed" state is gone.

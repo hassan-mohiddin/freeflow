@@ -1,7 +1,7 @@
 # Gates
 
 > **Covers:** `skills/track-work/scripts/lib/gates5.mjs`, `skills/track-work/scripts/lib/gate-state5.mjs`, `pi-extension/src/gates/`, `hooks/claude/freeflow.mjs`, `hooks/codex/driver.mjs`
-> **Verified at:** `f83c3fc5` (2026-11-16: the Claude Code, Codex and Pi steps below driven at `f83c3fc5`, model calls blocked; the Pi warn step is unverified, it needs a model call)
+> **Verified at:** `d664221e` (2026-11-18: Claude Code's refused gate setting, its Developer settings with no Gates row, and its block claim, Codex's block claim, and Pi's settings with no Gates row driven at `d664221e`, model calls blocked; the Codex warn and removed-key steps are not re-driven at this commit (the gate's rows now share PreToolUse's context with any pointer; `hooks/tests/codex-driver.test.mjs` covers both); the Pi warn step is unverified, it needs a model call)
 > **User docs:** `plugin-docs/capabilities/gates.md`
 
 Before each tool call on Claude Code, Codex and Pi, Freeflow checks one rule, the delegation gate: a worker writes only its brief's scope and not the task's record, and a file another session claims is warned of. It only warns (D-069): the call runs, and the agent reads the rule, why and the way through, once per turn. The gate has no setting; `gates.delegation` is a removed key, named as ignored by a file that still holds it. The agreement, Slice and delivery gates were removed (D-058). The state the gate reads is `<FREEFLOW_HOME>/sessions/<session ID>/gates.json`, which Track Work's commands write. How it works: [Gates](../subsystems/gates.md).

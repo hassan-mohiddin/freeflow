@@ -1,7 +1,7 @@
 # Settings
 
 > **Covers:** `pi-extension/src/host/settings/`, `pi-extension/src/host/config-validation.ts`, `pi-extension/src/host/config-store.ts`, `pi-extension/src/host/config.ts`, `skills/setup-freeflow/scripts/settings.mjs`, `hooks/claude/freeflow.mjs`, `hooks/shared/runtime-context.mjs`, `hooks/codex/driver.mjs`, `pi-extension/src/compaction/config.ts`, `pi-extension/src/tool-execution/config.ts`, `pi-extension/src/messaging/config.ts`
-> **Verified at:** `f83c3fc5` (2026-11-16: driven at `f83c3fc5`: the script steps (the harness tick, precedence, the refusal, the one-harness off, the doctor, the removed key, the list), and Claude Code's `/freeflow settings --all` listing with its removed-key line; the Pi screen steps are not re-driven here, except that no Gates row shows on either screen; the Claude Code change step, and the Codex steps, are not driven at this commit)
+> **Verified at:** `d664221e` (2026-11-18: driven at `d664221e`: the Pointers row in all three Pi tabs and the script's tick, precedence and refusal for `pointers.enabled` (in [Reference pointers](pointers.md)), Claude Code's `/freeflow settings --all` listing and a `/freeflow settings pointers.enabled off --harness-only` change, and the Pi screen with no Gates row; the other script steps and the Pi screen steps are not re-driven at this commit; the Codex steps are not driven)
 > **User docs:** `plugin-docs/settings.md`
 
 Settings live in the Freeflow home (`FREEFLOW_HOME`, `~/.freeflow`), never in the repository (D-060). Three layers, with precedence session, then this folder, then everywhere, then the default: `settings.json` (everywhere, the default for a change), `folders.json` (this folder, one entry per repository), and the session's own file. A setting can be ticked "only on this harness", and the harness value wins within its layer. The repository's own `.freeflow/config.json` and `.freeflow/local.json` are no longer read: `settings.mjs doctor --fix` moves their settings into this folder.
@@ -16,6 +16,7 @@ Every key is one row of the settings table, `SETTINGS` in `config-validation.ts`
 - `settings-tabs`: `Tab` cycles Session, This folder and Everywhere; each tab's summary line says where its values go.
 - `settings-memory`: Task memory is one row (`memory.mode`: on, this machine; on, with sync; off), written to the tab's layer.
 - `settings-compaction-no-task`: Compaction has a row for Compaction without a task (`compaction.withoutTask`) in every tab.
+- `settings-pointers`: Pointers (`pointers.enabled`) has a row in every tab, below Event log, written to the tab's layer; driven in [Reference pointers](pointers.md).
 - `settings-skills`: Skills is a switch for every skill but Setup Freeflow, and Each skill under it opens one switch per skill; the title reads `Freeflow settings › <tab> › Each skill`.
 - `settings-prompts`: Runtime prompts is a switch for all three prompts; Each prompt opens Core, the Interaction Contract and the Working Method.
 - `settings-gates`: the delegation gate has no setting (D-069): no Gates row in any screen, and `set gates.delegation` is refused as unknown; driven in [Gates](gates.md).
