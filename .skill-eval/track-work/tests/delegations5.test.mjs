@@ -1029,7 +1029,7 @@ test("delegate status --cites lists only the open delegations whose brief's Sett
 });
 
 const REVIEW_BRIEF =
-  "## Result wanted\nA review of the thing's change.\n## Scope\nmay write: none.\n## Done when\nthe report is adjudicated.\n## Read\n- The reviewer writes its report to `reviews/R1-report.md` in the task folder.\n";
+  "## Result wanted\nA review of the thing's change.\n## Scope\nmay write: none.\n## Done when\nthe report is adjudicated.\n## Read\n- Report: `reviews/R1-report.md` in the task folder.\n";
 
 test("a review delegation closes on its reviewer's adjudicated report, at the reviews/R<n>-report.md its brief names", async () => {
   await withTask(async ({ record, taskDir, cli }) => {
@@ -1093,5 +1093,101 @@ test("delegate close says where its Cue goes: the input's Cue line", async () =>
     );
     assert.notEqual(refused.status, 0);
     assert.match(refused.stderr, /delegate close requires Cue: put it on the input's "Cue:" line\.\n$/);
+  });
+});
+
+test("a review closes on the report its brief names on its Report or May write line, not on an earlier review's report the brief reads", async () => {
+  await withTask(async ({ record, taskDir, cli }) => {
+    const brief =
+      "## Result wanted\nA second review of the thing's change, against the earlier report `reviews/R1-report.md`.\n## Scope\nMay write: `reviews/R2-report.md`\n## Done when\nthe report is adjudicated.\n";
+    ok(
+      cli(
+        [
+          "delegate",
+          "open",
+          "--record",
+          record,
+          "--title",
+          "Review again",
+          "--kind",
+          "review",
+          "--agent",
+          "Haiku, xhigh",
+          "--input",
+          "-",
+        ],
+        brief,
+      ),
+    );
+    // The previous review's report is adjudicated and in the folder; this review's report is not written yet.
+    await mkdir(join(taskDir, "reviews"), { recursive: true });
+    await writeFile(
+      join(taskDir, "reviews", "R1-report.md"),
+      "# Review 1\n\n## Adjudication\n\n- B1: Accepted. Fixed.\n",
+    );
+    assert.match(
+      cli(["delegate", "check-return", "--record", record, "--id", "D-001"]).stderr,
+      /no report yet at .*reviews\/R2-report\.md/,
+    );
+    assert.match(
+      cli(
+        ["delegate", "close", "--record", record, "--id", "D-001", "--outcome", "accepted", "--input", "-"],
+        CLOSE_INPUT,
+      ).stderr,
+      /no report yet at .*reviews\/R2-report\.md/,
+    );
+    await writeFile(
+      join(taskDir, "reviews", "R2-report.md"),
+      "# Review 2\n\n## Adjudication\n\n- B1: Accepted. Fixed.\n",
+    );
+    assert.match(
+      ok(cli(["delegate", "check-return", "--record", record, "--id", "D-001"])),
+      /State done; a reviewer's return/,
+    );
+    assert.match(
+      ok(
+        cli(
+          ["delegate", "close", "--record", record, "--id", "D-001", "--outcome", "accepted", "--input", "-"],
+          CLOSE_INPUT,
+        ),
+      ),
+      /Closed D-001 — accepted/,
+    );
+    assert.match(await readFile(join(taskDir, "history.md"), "utf8"), /^- Return: reviews\/R2-report\.md$/m);
+  });
+});
+
+test("a review whose brief names two reports on its Report and May write lines is refused until it names one", async () => {
+  await withTask(async ({ record, taskDir, cli }) => {
+    ok(
+      cli(
+        [
+          "delegate",
+          "open",
+          "--record",
+          record,
+          "--title",
+          "Review twice",
+          "--kind",
+          "review",
+          "--agent",
+          "Haiku, xhigh",
+          "--input",
+          "-",
+        ],
+        "## Result wanted\nA review.\n## Scope\nMay write: `reviews/R3-report.md`\n## Done when\ndone.\n## Read\n- Report: `reviews/R4-report.md`\n",
+      ),
+    );
+    await mkdir(join(taskDir, "reviews"), { recursive: true });
+    await writeFile(join(taskDir, "reviews", "R3-report.md"), "# Review 3\n\n## Adjudication\n\n- B1: Accepted.\n");
+    await writeFile(join(taskDir, "reviews", "R4-report.md"), "# Review 4\n\n## Adjudication\n\n- B1: Accepted.\n");
+    assert.match(cli(["delegate", "check-return", "--record", record, "--id", "D-001"]).stderr, /names 2 reports/);
+    assert.match(
+      cli(
+        ["delegate", "close", "--record", record, "--id", "D-001", "--outcome", "accepted", "--input", "-"],
+        CLOSE_INPUT,
+      ).stderr,
+      /names 2 reports/,
+    );
   });
 });

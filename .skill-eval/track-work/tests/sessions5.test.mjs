@@ -705,6 +705,17 @@ test("claims: claim, release, expiry and renewal; the gate warns on another sess
   });
 });
 
+test("claim's usage says where its hours come from: --for, the driver's variable, the settings, then 8", async () => {
+  await withTask(async ({ repo, cli }) => {
+    const help = cli(["claim", "--help"], { cwd: repo });
+    assert.equal(help.status, 0, help.stderr);
+    assert.match(
+      help.stdout + help.stderr,
+      /else FREEFLOW_CLAIM_HOURS, which a driver passes, else delegation\.claimHours as the settings give it for this folder, session and harness, else 8\)/,
+    );
+  });
+});
+
 test("claim hours: with no FREEFLOW_CLAIM_HOURS a claim lasts delegation.claimHours as the settings give it, every scope; --for and the variable still win", async () => {
   await withTask(async ({ home, repo, cli }) => {
     // The hours a claim lasts, from the `until` its output prints (to the minute), in the repository's folder.

@@ -563,8 +563,8 @@ export async function amendDelegation(loaded, options, text) {
 
 function returnState(directory, taskDir) {
   if (parseBrief(readFileSync(join(directory, "brief.md"), "utf8")).Kind === "review") {
-    const report = reviewReportOf(directory, taskDir);
-    return report && existsSync(report) ? "done" : null;
+    const reports = reviewReportsOf(directory, taskDir);
+    return reports.length === 1 && existsSync(reports[0]) ? "done" : null;
   }
   const path = join(directory, "return.md");
   if (!existsSync(path)) return null;
@@ -683,37 +683,51 @@ export function parseElsewhere(values = []) {
 }
 
 /**
- * The report a review delegation's reviewer writes: the reviews/R<n>-report.md its brief names, in the task folder (or
- * the absolute path it names); null when the brief names none.
+ * The reports a review delegation's reviewer writes: the reviews/R<n>-report.md its brief names on its May write or
+ * Report line (in the task folder, or the absolute path it names), each once. Other mentions in the brief, such as a
+ * previous review's report in its Read section, name no report of this delegation.
  */
-export function reviewReportOf(directory, taskDir) {
-  const named = /([^\s`'"()<>]*reviews\/R\d+[a-z]?-report\.md)/.exec(readFileSync(join(directory, "brief.md"), "utf8"));
-  if (!named) return null;
-  return isAbsolute(named[1]) ? named[1] : join(taskDir, named[1]);
+export function reviewReportsOf(directory, taskDir) {
+  const reports = new Set();
+  for (const line of readFileSync(join(directory, "brief.md"), "utf8").split(/\r?\n/)) {
+    if (!/^\s*(?:[-*]\s+)?(?:\*\*)?(?:May write|Report)(?:\*\*)?:/.test(line)) continue;
+    for (const [, named] of line.matchAll(/([^\s`'"(),<>]*reviews\/R\d+[a-z]?-report\.md)/g))
+      reports.add(isAbsolute(named) ? named : join(taskDir, named));
+  }
+  return [...reports];
 }
 
 /**
  * Problems with a delegation's return: its State and headings, and every commit it names on the brief's branch. A
  * commit that is not in the repository is a problem unless `elsewhere` names it (either is a prefix of the other); each
  * `elsewhere` entry must name a commit the return does and that is not in the repository. A review's return is its
- * reviewer's report (reviewReportOf), which has no State or headings to check. `path` is the file the return is in.
+ * reviewer's report (reviewReportsOf), which has no State or headings to check. `path` is the file the return is in.
  */
 export function returnProblems(directory, elsewhere = [], taskDir = dirname(dirname(directory))) {
   const brief = parseBrief(readFileSync(join(directory, "brief.md"), "utf8"));
   if (brief.Kind === "review") {
-    const report = reviewReportOf(directory, taskDir);
-    const path = report ?? join(directory, "return.md");
-    if (!report)
+    const reports = reviewReportsOf(directory, taskDir);
+    const path = reports.length === 1 ? reports[0] : join(directory, "return.md");
+    if (reports.length === 0)
       return {
         brief,
-        problems: ["its brief names no reviews/R<n>-report.md"],
+        problems: ["its brief names no reviews/R<n>-report.md on its May write or Report line"],
         commits: [],
         unchecked: [],
         path,
         state: null,
       };
-    if (!existsSync(report))
-      return { brief, problems: [`no report yet at ${report}`], commits: [], unchecked: [], path, state: null };
+    if (reports.length > 1)
+      return {
+        brief,
+        problems: [`its brief names ${reports.length} reports (${reports.join(", ")}): name the one it writes`],
+        commits: [],
+        unchecked: [],
+        path,
+        state: null,
+      };
+    if (!existsSync(path))
+      return { brief, problems: [`no report yet at ${path}`], commits: [], unchecked: [], path, state: null };
     return { brief, problems: [], commits: [], unchecked: [], path, state: "done" };
   }
   const path = join(directory, "return.md");

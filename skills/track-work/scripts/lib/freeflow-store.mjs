@@ -38,6 +38,8 @@ export const STORE_ATTRIBUTES = [
   // The delegation log and the claims (SPEC-009 T2): appended lines, kept from both sides.
   "channel.jsonl merge=union",
   "claims.jsonl merge=union",
+  // The first-session marker: the earlier copy stands (FIRST_SESSION_DRIVER, D-060).
+  `${FIRST_SESSION} merge=firstsession`,
 ];
 const BRANCH = "main";
 /** Folders a new store starts with; Git keeps an empty one only through a placeholder file. */
@@ -543,33 +545,15 @@ async function pendingConflict(home) {
   }
 }
 
-/** The date a first-session marker gives, in milliseconds; Infinity when it holds no readable date. */
-function firstSessionAt(text) {
-  try {
-    const at = Date.parse(JSON.parse(text).at);
-    return Number.isNaN(at) ? Infinity : at;
-  } catch {
-    return Infinity;
-  }
-}
-
 /**
- * Resolves a rebase stopped only by first-session.json (D-060: each machine writes one when it has its first session):
- * the copy with the earlier date stands, as the file means that a first session happened. Returns whether it resolved
- * the stop, so the rebase can go on; false for any other conflict, which stops the sync as before.
+ * The merge driver for first-session.json (D-060): when two machines each wrote one, the copy with the earlier date
+ * stands. Git runs it in every merge and rebase of the store, so no conflict in that file stops a sync, beside another
+ * conflict or on `--resolved`. Git keeps a driver's definition in each clone's config, so each sync sets it.
  */
-async function keepEarliestFirstSession(home) {
-  const listed = await git(home, ["diff", "--name-only", "--diff-filter=U"], { allowFailure: true });
-  if (listed.stdout !== FIRST_SESSION) return false;
-  // Index stages in a rebase: 2 is the remote's copy ("ours"), 3 the local commit being replayed ("theirs").
-  const [remote, local] = await Promise.all(
-    [2, 3].map((stage) => gitRaw(home, ["show", `:${stage}:${FIRST_SESSION}`]).catch(() => null)),
-  );
-  if (remote === null || local === null) return false;
-  const kept = firstSessionAt(local) < firstSessionAt(remote) ? local : remote;
-  await writeFile(join(home, FIRST_SESSION), kept);
-  await git(home, ["add", "--", FIRST_SESSION]);
-  return true;
+const FIRST_SESSION_DRIVER = `node -e 'const fs=require("fs");const at=(f)=>{try{const t=Date.parse(JSON.parse(fs.readFileSync(f,"utf8")).at);return Number.isNaN(t)?Infinity:t}catch{return Infinity}};const [,ours,theirs]=process.argv;if(at(theirs)<at(ours))fs.copyFileSync(theirs,ours);' %O %A %B`;
+
+async function ensureFirstSessionMerge(home) {
+  await git(home, ["config", "merge.firstsession.driver", FIRST_SESSION_DRIVER]);
 }
 
 /**
@@ -579,12 +563,9 @@ async function keepEarliestFirstSession(home) {
  */
 async function rebaseOntoRemote(home, { resolved = false } = {}) {
   // In a rebase, "theirs" are the local commits being replayed.
-  let rebased = await git(home, ["rebase", "--quiet", ...(resolved ? ["-X", "theirs"] : []), `origin/${BRANCH}`], {
+  const rebased = await git(home, ["rebase", "--quiet", ...(resolved ? ["-X", "theirs"] : []), `origin/${BRANCH}`], {
     allowFailure: true,
   });
-  // Each step resolves the first-session marker that stopped the rebase and goes on; the steps end with the rebase.
-  for (let step = 0; !rebased.ok && step < 1000 && (await keepEarliestFirstSession(home)); step += 1)
-    rebased = await git(home, ["-c", "core.editor=true", "rebase", "--continue"], { allowFailure: true });
   if (rebased.ok) return;
   const listed = await git(home, ["diff", "--name-only", "--diff-filter=U"], { allowFailure: true });
   const paths = listed.stdout.split("\n").filter(Boolean);
@@ -630,6 +611,9 @@ export async function syncStore({ home: explicit, message, pull = false, resolve
       pushed: false,
       reason: "task memory is off: nothing synced",
     };
+  // The attribute and the driver are in place before anything is committed or rebased.
+  await ensureUnionMerge(home);
+  await ensureFirstSessionMerge(home);
   if (mode === "local") {
     const committed = await commitChanges(home, message);
     return { home, committed, local: true, pulled: false, pushed: false, reason: "task memory is local: not synced" };

@@ -457,7 +457,10 @@ async function recordSlice(options, text, loaded) {
   const occurred = OCCURRED.exec(fields.text("Occurred"));
   const today = localDate();
   if (!occurred || !isDate(occurred[1]) || (occurred[2] && (!isDate(occurred[2]) || occurred[2] < occurred[1])))
-    fail("invalid-occurred", "slice record requires Occurred: YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD");
+    fail(
+      "invalid-occurred",
+      `slice record requires Occurred: put it on the input's "Occurred:" line, as YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD.`,
+    );
   if ((occurred[2] ?? occurred[1]) > today) fail("invalid-occurred", `Occurred cannot end after today (${today})`);
   const values = {
     State: state,
