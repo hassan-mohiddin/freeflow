@@ -1155,6 +1155,14 @@ function refreshSettingsDerivedState(items) {
     eventsGroup.value = on;
     eventsGroup.displaySuffix = on ? "on" : "off";
   }
+  // So does the Pointers row.
+  const pointersGroup = findSettingsItem(items, "freeflow.pointers");
+  const pointersEnabled = findSettingsItem(items, "freeflow.pointers.enabled");
+  if (pointersGroup && pointersEnabled) {
+    const on = effectiveItemValue(pointersEnabled) === true;
+    pointersGroup.value = on;
+    pointersGroup.displaySuffix = on ? "on" : "off";
+  }
   const messagingGroup = findSettingsItem(items, "freeflow.messaging");
   const messagingEnabled = findSettingsItem(items, "freeflow.messaging.enabled");
   if (messagingGroup && messagingEnabled) {
