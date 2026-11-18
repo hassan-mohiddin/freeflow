@@ -46,11 +46,13 @@ The settings of the retired v2 runtime (`capture`, `programs`, `workspace`, `dis
 **Guidance notices.** <a id="guidance-notices"></a>A few lines of a skill's guidance join the result of the tool call that makes them relevant, whether or not the agent read the skill:
 
 - a `git commit` result: Deliver Work's commit essentials (check what the commit holds; never commit Working Records, secrets or env files; no amend, no-verify, empty commit or push unless you asked; inspect after a failed commit or hook), plus a reminder of Write Skill's loss check when the commit holds instruction text such as a skill or `AGENTS.md`;
-- the second failure of the same test command: the two key lines of Execute Work's diagnose method;
+- the second failure of the same test command: the two key lines of Execute Work's diagnose method, once per command until it passes. It is also one of Freeflow's [pointers](../settings.md#all-settings), so the Pointers row (`pointers.enabled`) off holds it back too;
 - a passing test command after the agent changed a file: a reminder to run Verify Work's `self-review.mjs` before reporting;
 - any tool result while Execute Work is not in the agent's context (never read, or dropped by a compaction): read it before more tool calls. A read of one of Freeflow's skills does not trigger it, so reading Discuss Work first is not interrupted, and it stays off while Execute Work is turned off under Skills.
 
 The commit, self-review and Execute Work notices come at most once per run. They are added to a result not yet sent, so they do not change anything the provider has cached. Turn them off with the Guidance notices row under Tool Execution in `/freeflow settings`, for this session, for you, or for the repository (`toolExecution.guidanceNotices`).
+
+Two of Freeflow's pointers join a tool result on Pi the same way, under their own Pointers row rather than Tool Execution, so they come with Tool Execution off too: a `gh pr create` (or a GitHub tool that creates a pull request) gets Deliver Work's Review Check line, and an edit to a test file gets Verify Work's test-design line, each at most once per context cycle.
 
 **Shell habits.** `bash` refuses a command ending in `&` (it would keep running with no exit notice and no saved output) and a foreground `sleep` of 10 seconds or more, and points to `bash_background`.
 

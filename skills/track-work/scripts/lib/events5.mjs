@@ -72,6 +72,8 @@ export const SENT_WHATS = [
   "settings",
   "pane",
   "guidance",
+  // A reference pointer (hooks/shared/pointers.mjs): one skill's line at the moment it matters, once a context cycle.
+  "pointer",
   "files",
   "background",
   "monitor",

@@ -122,6 +122,7 @@
     "hooks/cursor/hooks.json",
     "hooks/freeflow-runtime-context.mjs",
     "hooks/hooks.json",
+    "hooks/shared/pointers.mjs",
     "hooks/shared/runtime-context.mjs",
     "pi-extension/freeflow/**",
     "pi-extension/dist/**",

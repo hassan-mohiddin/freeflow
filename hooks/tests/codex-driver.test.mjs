@@ -15,6 +15,7 @@ import {
   toolPaths,
 } from "../codex/driver.mjs";
 import GOLDEN from "../codex/golden-events.mjs";
+import { POINTERS } from "../shared/pointers.mjs";
 import { lineProblem } from "../../skills/track-work/scripts/lib/events5.mjs";
 import { OUTPUT_SCHEMAS, SCHEMAS, recorded } from "./fixtures/codex/inputs.mjs";
 
@@ -788,4 +789,112 @@ test("a script run after the session start gets the host's notice point: the sta
   const plain = { session: "thr_n4", home: "/tmp/none", state: { window: 272_000, limit: null } };
   restoreWindow(plain);
   assert.equal(scriptEnvironment(plain, {}).FREEFLOW_NOTICE_POINT, "204000");
+});
+
+// The reference pointers (hooks/shared/pointers.mjs): each row's line as hook context at its moment, once a context
+// cycle, for the main conversation, kept as a `pointer` sent line; pointers.enabled off sends none.
+const pointerLines = (output) =>
+  (contextOf(output) ?? "").split("\n\n").filter((text) => Object.values(POINTERS).includes(text));
+const failing = (command) => ({
+  tool_input: { command },
+  tool_response: "Exit code: 1\nWall time: 0.4 seconds\nOutput:\n1 failing",
+});
+
+test("the reference pointers: each row at its moment, once a cycle, as a pointer sent line; Codex's compaction starts them again", () => {
+  const { hook, log, done } = setUp();
+  try {
+    hook("SessionStart");
+    // Calls that raise none: another command, a source edit, a passing test, a test that fails once.
+    assert.deepEqual(pointerLines(hook("PreToolUse", { tool_input: { command: "git status" } })), []);
+    const edit = (path, extra = {}) => ({
+      tool_name: "apply_patch",
+      tool_input: { command: `*** Begin Patch\n*** Update File: ${path}\n@@\n-a\n+b\n*** End Patch\n` },
+      tool_response: "Success. Updated the following files:",
+      ...extra,
+    });
+    assert.deepEqual(pointerLines(hook("PostToolUse", edit("src/app.js"))), []);
+    assert.deepEqual(pointerLines(hook("PostToolUse")), []);
+    assert.deepEqual(pointerLines(hook("PostToolUse", failing("npm test"))), []);
+
+    // Row 1: a worker about to start (Codex's spawn tool, or a delegation opened), once.
+    assert.deepEqual(pointerLines(hook("PreToolUse", { tool_name: "spawn_agent", tool_input: {} })), [
+      POINTERS.delegation,
+    ]);
+    assert.deepEqual(
+      pointerLines(hook("PreToolUse", { tool_input: { command: "node working-record.mjs delegate open --title x" } })),
+      [],
+    );
+    // Row 2: a pull request about to open.
+    assert.deepEqual(pointerLines(hook("PreToolUse", { tool_input: { command: "gh pr create --fill" } })), [
+      POINTERS["pull-request"],
+    ]);
+    assert.deepEqual(
+      pointerLines(hook("PreToolUse", { tool_name: "mcp__github__create_pull_request", tool_input: {} })),
+      [],
+    );
+    // Row 3: a test file edited; a failed edit is not one.
+    assert.deepEqual(
+      pointerLines(hook("PostToolUse", edit("tests/app.test.js", { tool_response: { success: false } }))),
+      [],
+    );
+    assert.deepEqual(pointerLines(hook("PostToolUse", edit("tests/app.test.js"))), [POINTERS["test-edit"]]);
+    assert.deepEqual(pointerLines(hook("PostToolUse", edit("src/app.test.ts"))), []);
+    // Row 4: the same failing test command fails a second time (it failed once above); not again this cycle.
+    assert.deepEqual(pointerLines(hook("PostToolUse", failing("npm test"))), [POINTERS.diagnose]);
+    assert.deepEqual(pointerLines(hook("PostToolUse", failing("npm test"))), []);
+    // A worker's calls raise none.
+    assert.equal(
+      hook("PreToolUse", { tool_input: { command: "gh pr create" }, agent_id: "agent-1", agent_type: "default" }),
+      null,
+    );
+
+    hook("Stop");
+    assert.deepEqual(
+      log()
+        .filter((line) => line.kind === "sent" && line.what === "pointer")
+        .map((line) => line.text),
+      [POINTERS.delegation, POINTERS["pull-request"], POINTERS["test-edit"], POINTERS.diagnose],
+    );
+
+    // After Codex compacts, a new cycle: each may come once more. A worker that starts leaves its pointer for the next
+    // hook that can add context.
+    hook("SessionStart", { source: "compact" });
+    assert.deepEqual(pointerLines(hook("PreToolUse", { tool_input: { command: "gh pr create" } })), [
+      POINTERS["pull-request"],
+    ]);
+    assert.equal(hook("SubagentStart"), null);
+    assert.deepEqual(pointerLines(hook("PostToolUse")), [POINTERS.delegation]);
+    assert.deepEqual(pointerLines(hook("PostToolUse")), []);
+    assert.deepEqual(pointerLines(hook("PreToolUse", { tool_name: "spawn_agent", tool_input: {} })), []);
+  } finally {
+    done();
+  }
+});
+
+test("the reference pointers: pointers.enabled off sends none and keeps no pointer line", () => {
+  const { hook, log, done } = setUp({ config: { pointers: { enabled: false } } });
+  try {
+    hook("SessionStart");
+    const outputs = [
+      hook("PreToolUse", { tool_name: "spawn_agent", tool_input: {} }),
+      hook("PreToolUse", { tool_input: { command: "gh pr create" } }),
+      hook("PostToolUse", {
+        tool_name: "apply_patch",
+        tool_input: { command: "*** Begin Patch\n*** Add File: tests/a.test.js\n+x\n*** End Patch\n" },
+        tool_response: "Success.",
+      }),
+      hook("PostToolUse", failing("npm test")),
+      hook("PostToolUse", failing("npm test")),
+      hook("SubagentStart"),
+      hook("UserPromptSubmit"),
+    ];
+    for (const output of outputs) assert.deepEqual(pointerLines(output), []);
+    hook("Stop");
+    assert.deepEqual(
+      log().filter((line) => line.kind === "sent" && line.what === "pointer"),
+      [],
+    );
+  } finally {
+    done();
+  }
 });

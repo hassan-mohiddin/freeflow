@@ -38,7 +38,7 @@ Each rule that fires gives `{ gate, decision, reason, way, rule }`; every one is
 
 **Claude Code** (`hooks/claude/freeflow.mjs`). `tool.check`, after `next(e)` and the store's allow, calls `gated`: it reads the state at most once a turn (`readGates`; reread after a Track Work command seen in `tool.call`), maps a worker's `agentId` to its delegation through the mod's worker map, passes `isReadOnly`, and calls `decide`. The verdict stands; one row per turn is appended (`appendRow`; a worker's goes to it with `$.session.send`). The hook's `.catch` leaves the engine's verdict as it is.
 
-**Codex** (`hooks/codex/driver.mjs`). `PreToolUse` calls `gated`, which reads the state once for the call. The call runs and the rows reach the model as `additionalContext`, once per turn per loop. A failure lets the call go.
+**Codex** (`hooks/codex/driver.mjs`). `PreToolUse` calls `gated`, which reads the state once for the call. The call runs and the rows reach the model as `additionalContext`, once per turn per loop, joined with any reference pointer the call raises (dev-docs README, Reference Pointers). A failure lets the call go.
 
 **Pi** (`pi-extension/src/gates/runtime.ts`). `GateRuntime` loads `gates5.mjs` from Freeflow's package once, reads the state at session start, again after the store's session start (`settled`), and after each `working-record.mjs` command's result, never per call. `tool_call` calls it before Freeflow's other checks while the capability state's `gates.delegation` is on (Freeflow on); it keeps the rows for the call's id and `tool_result` adds them to the result after Tool Execution's notices, with Tool Execution on or off. Pi has no workers, so only the claim rule fires there.
 

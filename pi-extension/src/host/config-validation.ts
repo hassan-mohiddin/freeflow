@@ -116,6 +116,20 @@ function validatePaneConfig(value: unknown) {
 }
 
 /**
+ * Reference pointers (task-001's reference-pointers plan): four lines, each sent at the moment its skill's method
+ * matters, once a context cycle (hooks/shared/pointers.mjs). One switch turns all four off, on every host; on by default.
+ */
+export const POINTERS_KEYS = ["enabled"] as const;
+
+function validatePointersConfig(value: unknown) {
+  if (!isRecord(value)) return "pointers must be an object";
+  const unknown = Object.keys(value).find((key) => !(POINTERS_KEYS as readonly string[]).includes(key));
+  if (unknown) return `pointers has unsupported key: ${unknown}`;
+  if (value.enabled !== undefined && typeof value.enabled !== "boolean") return "pointers.enabled must be a boolean";
+  return null;
+}
+
+/**
  * Removed settings (D-058): a key a file may still hold. A file that holds one loads; the key is named as ignored with
  * its reason, keeps its default (nothing reads it), and `settings.mjs doctor --fix` removes it. The agreement, Slice and
  * delivery gates and the cost governor (with its cost cap) were removed from Freeflow.
@@ -258,6 +272,7 @@ export const SETTINGS: readonly SettingSpec[] = [
     session: true,
   })),
   { key: "events.enabled", label: "Event log", values: "boolean", default: true, hosts: "all", session: true },
+  { key: "pointers.enabled", label: "Pointers", values: "boolean", default: true, hosts: "all", session: true },
   // Delegation across sessions (SPEC-009 4.7).
   {
     key: "delegation.claimHours",
@@ -404,6 +419,7 @@ export const CONFIG_SECTIONS = [
   "prompts",
   "skills",
   "events",
+  "pointers",
   "gates",
   "delegation",
   "pane",
@@ -428,6 +444,7 @@ const LOCAL_KEYS = [
   "prompts",
   "skills",
   "events",
+  "pointers",
   "gates",
   "delegation",
   "pane",
@@ -498,6 +515,10 @@ export function validateRepositoryConfig(value: unknown): string | null {
     const error = validatePaneConfig(value.pane);
     if (error) return error;
   }
+  if (value.pointers !== undefined) {
+    const error = validatePointersConfig(value.pointers);
+    if (error) return error;
+  }
   return null;
 }
 
@@ -554,6 +575,10 @@ export function validateLocalConfig(value: unknown): string | null {
     const error = validatePaneConfig(value.pane);
     if (error) return error;
   }
+  if (value.pointers !== undefined) {
+    const error = validatePointersConfig(value.pointers);
+    if (error) return error;
+  }
   return null;
 }
 
@@ -587,6 +612,8 @@ function sectionValidator(
       return validateDelegationConfig;
     case "pane":
       return validatePaneConfig;
+    case "pointers":
+      return validatePointersConfig;
     case "memory":
       return validateMemoryConfig;
     default:

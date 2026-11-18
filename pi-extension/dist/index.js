@@ -13,6 +13,7 @@ import { toolExecutionSections, toolExecutionTail } from "./tool-execution/promp
 import { FileTracking, withLines } from "./tool-execution/file-tracking.js";
 import { GateRuntime } from "./gates/runtime.js";
 import { GuidanceNotices } from "./tool-execution/guidance-notices.js";
+import { ReferencePointers } from "./host/pointers.js";
 import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
 import {
@@ -256,6 +257,9 @@ export default function freeflow(pi) {
   const guidanceNoticesEffective = () =>
     toolExecutionEffective() && capability?.toolExecution?.guidanceNotices !== false;
   const compactionEffective = () => capability?.compaction?.effective === true;
+  // The reference pointers (hooks/shared/pointers.mjs): a pull request and a test edit, once a context cycle.
+  const pointers = new ReferencePointers(packageRoot, (ctx) => compaction.cycleNow(ctx));
+  const pointersEffective = () => capability?.pointers?.enabled === true;
   const askUserEffective = () => capability?.askUser?.effective === true;
   const messagingEffective = () => capability?.messaging?.effective === true;
   const cacheHealth = new CacheHealth();
@@ -649,6 +653,8 @@ export default function freeflow(pi) {
     // The gate state as it stands, read now; storeStart reads it again once session status has written it.
     gates.begin(ctx.sessionManager?.getSessionId?.());
     await gates.refresh();
+    pointers.begin();
+    await pointers.load();
     events.sessionStarted(event?.reason, ctx.hasUI !== false);
     syncClaims();
     // A reload keeps the session, whose ledger says whether its start had the store's menu (SPEC-013).
@@ -827,15 +833,22 @@ export default function freeflow(pi) {
     const gateRows = gates.takeRows(event.toolCallId);
     // The rows as the result carries them: one line each, joined the way withLines joins them.
     if (gateRows.length) events.sent("gate", gateRows.join("\n"));
-    if (!toolExecutionEffective())
-      return gateRows.length ? { content: withLines(event.content ?? [], gateRows) } : undefined;
+    // The reference pointers this call raises, at most once a cycle each; they need no Tool Execution.
+    const pointed = pointersEffective() ? pointers.toolResult(event, ctx) : [];
+    for (const line of pointed) events.sent("pointer", line);
+    if (!toolExecutionEffective()) {
+      const rows = [...pointed, ...gateRows];
+      return rows.length ? { content: withLines(event.content ?? [], rows) } : undefined;
+    }
     const shaped = await files.toolResult(event, ctx);
     // The push retriever's notice joins the result before it is delivered, after anything Tool Execution added.
     const executeWorkUnread = () =>
       !(capability?.skills?.off ?? []).includes("execute-work") && !files.loadedSkills(ctx).includes("execute-work");
-    const guided = guidanceNoticesEffective() ? await guidance.toolResult(event, ctx.cwd, executeWorkUnread) : [];
+    const guided = guidanceNoticesEffective()
+      ? await guidance.toolResult(event, ctx.cwd, executeWorkUnread, { diagnose: pointersEffective() })
+      : [];
     for (const notice of guided) events.sent("guidance", notice);
-    const lines = [...guided, ...gateRows];
+    const lines = [...guided, ...pointed, ...gateRows];
     return lines.length ? { content: withLines(shaped?.content ?? event.content ?? [], lines) } : shaped;
   });
   pi.on("turn_end", async (event, ctx) => {

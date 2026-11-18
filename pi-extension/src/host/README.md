@@ -16,6 +16,7 @@ Everything Freeflow needs on Pi that is not one capability: reading configuratio
 | [`status.ts`](status.ts) | The two status surfaces: the footer (current settings only) and the `/freeflow status` report (diagnostics, including prompt-cache health). |
 | [`branch.ts`](branch.ts) | The active session branch, walked once per leaf: every reader gets the same frozen array until the leaf moves (see `dev-docs/guides/performance.md`, rule R-3). |
 | [`inbound.ts`](inbound.ts) | The inbound channel: content reaching the model from outside the turn (background exits now). Steered in while the agent works, a user message while it is idle; batching and limits per source; the notice prefix and its one-line transcript row. |
+| [`pointers.ts`](pointers.ts) | The reference pointers on Pi: a pull request about to open and a test file edited add their line (from `hooks/shared/pointers.mjs`) to that call's result, once a context cycle, while `pointers.enabled` is on. |
 | [`canonical.ts`](canonical.ts) | Deterministic JSON, so equal values serialize, compare, and hash equally. |
 | [`settings/`](settings/README.md) | The `/freeflow` command and its settings screens. |
 

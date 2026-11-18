@@ -8,6 +8,7 @@ Tests for [`src/host/`](../../src/host/README.md).
 | `inbound.test.js` | The inbound channel: delivery while busy and idle, waiting for the next turn, batching within a window, a source stopped at its limit, and the one-line notice row. |
 | `section-keeper.test.js` | Keeping the last prompt's system sections in the request of a run an extension's message starts. |
 | `run-start-native.test.js` | Runs an extension's message starts on Pi 1.4.0: which sections Pi keeps with and without Freeflow, Freeflow's own sections following what it set, each request extending the last, and a skill command sent while a run starts. |
+| `pointers-native.test.js` | The reference pointers on a real Pi session: a pull request and a test edit each carry their line once a cycle and again after a compaction, as `pointer` sent lines, with Tool Execution off too; `pointers.enabled` off sends none and holds back the diagnose line; Pi's diagnose line and test commands match the shared module's. |
 | `persisted-branch.test.js` | Checking that a session file still matches what Pi holds in memory: newly appended entries are verified from the file's tail, and a mismatch on the active branch fails. |
 
 Most host behavior is tested through the whole extension in [`integration/`](../integration/README.md).

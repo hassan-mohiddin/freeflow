@@ -11,38 +11,10 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
+import { DEFAULT_PATTERNS, matcher } from "./lib/test-patterns.mjs";
+
 const USAGE =
   "Usage: test-changes.mjs --base <ref> [--head <ref>] [--root <repository>] [--pattern <glob>]... [--only] [--exclude <glob>]... [--new] [--json]";
-
-// Common layouts for JavaScript, TypeScript, Python, Go, Ruby, Java, Kotlin, C#, Swift, C and C++, PHP, Elixir and
-// Dart. Matching is case-sensitive, so capitalised folders such as Swift's Tests/ are listed separately. --pattern adds
-// to these; --only replaces them.
-const DEFAULT_PATTERNS = [
-  "**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
-  "**/{test,tests,__tests__,spec,e2e,Tests}/**",
-  "**/*.{Tests,UnitTests,IntegrationTests}/**",
-  "**/src/*Test/**",
-  "**/*_test.{go,dart,exs}",
-  "**/*_{test,unittest}.{c,cc,cpp,cxx}",
-  "**/*_spec.rb",
-  "**/*{Test,Tests}.{java,kt,cs,swift,php}",
-  "**/test_*.py",
-  "**/*_test.py",
-  "**/conftest.py",
-  "**/{fixtures,__fixtures__,testdata,__mocks__}/**",
-  "**/__snapshots__/**",
-  "**/*.snap",
-  "**/{jest,vitest,playwright,cypress,karma}.config.*",
-  "**/vitest.workspace.*",
-  "**/{jest.setup,setupTests,setup-tests,test-setup,vitest.setup}.*",
-  "**/*.setup.{js,mjs,cjs,ts,mts,cts}",
-  "**/.mocharc*",
-  "**/{pytest.ini,tox.ini,noxfile.py}",
-  "**/{spec_helper,rails_helper}.rb",
-  "**/.rspec",
-  "**/phpunit.xml*",
-  "**/test_helper.exs",
-];
 
 // The first matching kind wins, so a snapshot under tests/ is a snapshot and a fixture under tests/ is a fixture.
 const KINDS = [
@@ -93,38 +65,6 @@ try {
 const { values } = parsed;
 if (!values.base) fail(USAGE);
 if (values.only && !values.pattern.length) fail(`--only needs at least one --pattern\n${USAGE}`);
-
-// Glob to RegExp over repository-relative paths with "/" separators: "**/" is zero or more directories, "**" anything,
-// "*" anything within one segment, "?" one character, and "{a,b}" either alternative.
-function globToRegExp(glob) {
-  let source = "";
-  for (let index = 0; index < glob.length; index += 1) {
-    const char = glob[index];
-    if (char === "*" && glob[index + 1] === "*") {
-      const slash = glob[index + 2] === "/";
-      source += slash ? "(?:.*/)?" : ".*";
-      index += slash ? 2 : 1;
-    } else if (char === "*") source += "[^/]*";
-    else if (char === "?") source += "[^/]";
-    else if (char === "{") {
-      const end = glob.indexOf("}", index);
-      if (end === -1) source += "\\{";
-      else {
-        source += `(?:${glob
-          .slice(index + 1, end)
-          .split(",")
-          .map((part) => globToRegExp(part).source.slice(1, -1))
-          .join("|")})`;
-        index = end;
-      }
-    } else source += /[.+^$()|[\]\\]/.test(char) ? `\\${char}` : char;
-  }
-  return new RegExp(`^${source}$`);
-}
-const matcher = (globs) => {
-  const expressions = globs.map(globToRegExp);
-  return (path) => expressions.some((expression) => expression.test(path));
-};
 
 const patterns = values.only ? values.pattern : [...DEFAULT_PATTERNS, ...values.pattern];
 const included = matcher(patterns);

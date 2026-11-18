@@ -6,7 +6,8 @@
 // released at the session's end. What happens to a task's memory stays Track Work's script's.
 //
 // Each run is its own process, so what lasts between events lives in the Freeflow home, beside the session's other
-// files (never synced): sessions/<session>/cycle.json (the context cycle, its start, its notice and the window), due.json (a
+// files (never synced): sessions/<session>/cycle.json (the context cycle, its start, its notice, the pointers it sent and
+// one waiting), pointer-failures.json (each test command's failures in a row), due.json (a
 // notice waiting for the next hook that can add context), events-buffer.jsonl (event lines until a turn ends)
 // and calls/ (when each tool call started). Every handler fails open: on an error it prints nothing, Codex goes on, and
 // a `freeflow` line in the event log says what failed. The delegation gate only warns (D-069), so a failing gate lets the call go.
@@ -36,6 +37,7 @@ import {
   validGateState,
 } from "../../skills/track-work/scripts/lib/gates5.mjs";
 import { noticePoint as hostNoticePoint } from "../../skills/track-work/scripts/lib/notice5.mjs";
+import { POINTERS, POINTER_SENT, afterCall, beforeCall, testCommand } from "../shared/pointers.mjs";
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SCRIPT = join(PLUGIN_ROOT, "skills/track-work/scripts/working-record.mjs");
@@ -111,19 +113,24 @@ function updateState(ctx, changes) {
 }
 
 /**
- * The context cycle (as Claude Code's mod keeps its number and notice, in the same file): its number, when it started and
- * its one notice; a resumed session keeps its number.
+ * The context cycle (as Claude Code's mod keeps its number and notice, in the same file): its number, when it started,
+ * its one notice, the reference pointers it sent and the one waiting for a hook that can add context (`pointerDue`); a
+ * resumed session keeps its number. A new cycle is written without pointers, so each may come again.
  * @param {any} ctx
  */
 function readCycle(ctx) {
   const kept = readJson(fileOf(ctx, "cycle.json"), {});
+  const ids = (/** @type {unknown} */ value) =>
+    Array.isArray(value) ? value.filter((id) => typeof id === "string" && Object.hasOwn(POINTERS, id)) : [];
   return {
     cycle: Number(kept?.cycle) || 1,
     startedAt: Number(kept?.startedAt) || Date.now(),
     notice: typeof kept?.notice === "number" ? kept.notice : null,
+    pointers: ids(kept?.pointers),
+    pointerDue: ids(kept?.pointerDue),
   };
 }
-/** @param {any} ctx @param {{ cycle: number, startedAt: number, notice: number | null }} cycle */
+/** @param {any} ctx @param {{ cycle: number, startedAt: number, notice: number | null, pointers?: string[], pointerDue?: string[] }} cycle */
 const writeCycle = (ctx, cycle) => writeJson(fileOf(ctx, "cycle.json"), cycle);
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -322,6 +329,8 @@ async function resolveSwitches(root, ctx) {
     // Task memory off: no menu, no task offered, nothing recorded (Setting 2).
     memory: value("memory.mode") ?? "local",
     events: value("events.enabled") !== false,
+    // The reference pointers (hooks/shared/pointers.mjs): on unless set to false.
+    pointers: value("pointers.enabled") !== false,
   };
 }
 
@@ -750,7 +759,8 @@ function userPromptSubmit(ctx) {
   ctx.state = updateState(ctx, { turn });
   emit(ctx, "turn.start", { turn });
   const due = takeDue(ctx);
-  return due ? context("UserPromptSubmit", due) : null;
+  const rows = [due, ...pointed(ctx, [], { due: true })].filter(Boolean);
+  return rows.length ? context("UserPromptSubmit", rows.join("\n\n")) : null;
 }
 
 /**
@@ -768,7 +778,91 @@ function preToolUse(ctx) {
   } catch (error) {
     note(ctx, error);
   }
-  return gated(ctx);
+  const gate = gated(ctx);
+  const lines = agentOf(ctx) === "main" ? pointed(ctx, beforeCall(callOf(ctx))) : [];
+  if (!lines.length) return gate;
+  const rows = [gate?.hookSpecificOutput?.additionalContext, ...lines].filter(Boolean);
+  return context("PreToolUse", rows.join("\n\n"));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The reference pointers (hooks/shared/pointers.mjs): one skill's line at the moment it matters, at most once a context
+// cycle, for the main conversation only, while pointers.enabled is on. Before a call: a worker starting or a delegation
+// opened, a pull request opening. After it: a test file written, the same test command failing a second time. A
+// SubagentStart, which can add no context, leaves the worker's pointer waiting in cycle.json for the next hook that can.
+
+/** The call as the pointers read it: its tool and a shell call's command. @param {any} ctx */
+const callOf = (ctx) => {
+  const tool = String(ctx.input.tool_name ?? "");
+  return { tool, command: commandOf(tool, ctx.input.tool_input) };
+};
+
+/**
+ * The lines of the pointers among `ids` this cycle has not sent, now marked sent and kept as `sent` lines; nothing
+ * while pointers.enabled is off. Reads cycle.json only when a pointer was raised or one waits.
+ * @param {any} ctx
+ * @param {string[]} ids
+ * @param {{ due?: boolean }} [options] with `due`, a waiting pointer is taken too
+ */
+function pointed(ctx, ids, { due = false } = {}) {
+  if (ctx.state?.pointers === false || (!ids.length && !(due && ctx.state?.pointerDue))) return [];
+  const cycle = readCycle(ctx);
+  const wanted = [...(due ? cycle.pointerDue : []), ...ids].filter(
+    (id, at, all) => all.indexOf(id) === at && !cycle.pointers.includes(id),
+  );
+  if (due && ctx.state?.pointerDue) ctx.state = updateState(ctx, { pointerDue: false });
+  if (!wanted.length && !(due && cycle.pointerDue.length)) return [];
+  const pointerDue = due ? [] : cycle.pointerDue.filter((id) => !wanted.includes(id));
+  writeCycle(ctx, { ...cycle, pointers: [...cycle.pointers, ...wanted], pointerDue });
+  const lines = wanted.map((id) => POINTERS[id]);
+  for (const line of lines) sent(ctx, POINTER_SENT, line);
+  return lines;
+}
+
+/**
+ * Whether a shell call failed: the response says so, or its text reports a nonzero exit (Codex documents no exit code
+ * field, so the text is all there is).
+ * @param {unknown} response
+ */
+function shellFailed(response) {
+  if (failed(response)) return true;
+  if (response && typeof response === "object") {
+    const code = /** @type {any} */ (response).exit_code ?? /** @type {any} */ (response).exitCode;
+    if (Number.isInteger(code)) return code !== 0;
+  }
+  const text =
+    typeof response === "string"
+      ? response
+      : typeof (/** @type {any} */ (response)?.output) === "string"
+        ? /** @type {any} */ (response).output
+        : "";
+  return /(?:^|\n)\s*(?:Exit code|Process exited with code|Command exited with code)[:\s]+[1-9]\d*\b/i.test(text);
+}
+
+/**
+ * The pointers a call raises once its result is in; a test command's failures in a row are kept in
+ * pointer-failures.json, read and written only for a test command.
+ * @param {any} ctx
+ * @param {string} tool
+ * @param {string | undefined} command
+ * @param {string[]} paths
+ */
+function pointersAfter(ctx, tool, command, paths) {
+  if (ctx.state?.pointers === false) return [];
+  const counted = testCommand(command);
+  const path = fileOf(ctx, "pointer-failures.json");
+  const failures = new Map(counted ? Object.entries(readJson(path, {}) ?? {}) : []);
+  const ids = afterCall(
+    {
+      tool,
+      command: counted ? command : undefined,
+      paths,
+      failed: counted ? shellFailed(ctx.input.tool_response) : failed(ctx.input.tool_response),
+    },
+    failures,
+  );
+  if (counted) writeJson(path, Object.fromEntries(failures));
+  return pointed(ctx, ids, { due: true });
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -874,8 +968,11 @@ function postToolUse(ctx) {
       },
       agentOf(ctx),
     );
-  const due = agentOf(ctx) === "main" ? takeDue(ctx) : null;
-  return due ? context("PostToolUse", due) : null;
+  if (agentOf(ctx) !== "main") return null;
+  const lines = pointersAfter(ctx, tool, command, paths);
+  const due = takeDue(ctx);
+  const rows = [due, ...lines].filter(Boolean);
+  return rows.length ? context("PostToolUse", rows.join("\n\n")) : null;
 }
 
 /**
@@ -942,14 +1039,22 @@ function compactEvent(ctx) {
 /** SubagentStart and SubagentStop: a worker's lines. @param {any} ctx */
 function subagent(ctx) {
   const agent = typeof ctx.input.agent_id === "string" && ctx.input.agent_id ? ctx.input.agent_id : "main";
-  if (ctx.event === "SubagentStart")
+  if (ctx.event === "SubagentStart") {
     emit(
       ctx,
       "agent.spawn",
       { model: typeof ctx.input.model === "string" && ctx.input.model ? ctx.input.model : undefined },
       agent,
     );
-  else emit(ctx, "agent.stop", { blocked: false }, agent);
+    // A worker started: its pointer waits for the main conversation's next hook, unless this cycle had it.
+    if (ctx.state?.pointers !== false) {
+      const cycle = readCycle(ctx);
+      if (!cycle.pointers.includes("delegation") && !cycle.pointerDue.includes("delegation")) {
+        writeCycle(ctx, { ...cycle, pointerDue: [...cycle.pointerDue, "delegation"] });
+        ctx.state = updateState(ctx, { pointerDue: true });
+      }
+    }
+  } else emit(ctx, "agent.stop", { blocked: false }, agent);
   return null;
 }
 

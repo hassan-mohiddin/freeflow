@@ -3,6 +3,8 @@
 // scenario, so what is checked is when the mod runs which command and what it delivers.
 import { expect, mock, test } from "claude-code/testing";
 
+import { POINTERS } from "../shared/pointers.mjs";
+
 const T0 = Date.parse("2026-10-29T12:00:00.000Z");
 const at = (minutes: number) => new Date(T0 + minutes * 60_000).toISOString();
 const SESSION = "sess-1";
@@ -845,7 +847,8 @@ test("a worker runs: its delegation comes from the spawn's prompt; near its thre
   expect(w.commands().filter((command) => command.startsWith("delegate log"))).toEqual([
     `delegate log --record ${RECORD} --id D-012 --append --kind inform --body context at 76%: told to rewrite progress.md --agent agent-7`,
   ]);
-  expect(w.session.appended()).toEqual([]);
+  // The worker's notice goes to the worker alone: the main conversation has only the delegation pointer its spawn sent.
+  expect(appended(w)).toEqual([POINTERS.delegation]);
   // One notice a cycle for a worker too.
   w.response = { input_tokens: 100_000, cache_read_input_tokens: 70_000, cache_creation_input_tokens: 2_000 };
   await step($, w, 1_000, { agentId: "agent-7", model: "haiku" });
@@ -2256,4 +2259,99 @@ test("a compaction that skips takes no message, so its error is no sent line; on
   expect(error).toContain("Freeflow could not make widget/task-001's bundle: Future Work holds only proposed Slices.");
   await $.turn.complete(turnEnd("answer"));
   expect(sentOf(w, "compaction-error").map((line: any) => line.text)).toEqual([error]);
+});
+
+// The reference pointers (hooks/shared/pointers.mjs): each row's line at its moment, once a cycle, appended to the main
+// conversation and kept as a `pointer` sent line; pointers.enabled off sends none.
+const pointersOf = (w: any) => appended(w).filter((text) => (Object.values(POINTERS) as string[]).includes(text));
+const listing = (pointers: boolean) => ({
+  stdout: JSON.stringify({
+    root: "/work/widget",
+    settings: [{ key: "pointers.enabled", label: "Pointers", value: pointers, scope: "session", hosts: "all" }],
+    state: [],
+  }),
+});
+
+test("the reference pointers: each row at its moment, once a cycle, as a pointer sent line; a compaction's new cycle sends them again", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.verdict = { decision: "allow" };
+  await start($);
+
+  // Calls that raise none: a read, a source edit, another command, a passing test, a test that fails once.
+  await $.tool.check({ tool: "Bash", input: { command: "git status" } } as any);
+  await $.tool.call({ tool: "Edit", file_path: "/work/widget/src/parse.mjs" } as any);
+  await $.tool.call({ tool: "Bash", command: "npm test" } as any);
+  w.toolFails = true;
+  await $.tool.call({ tool: "Bash", command: "npm test" } as any);
+  w.toolFails = false;
+  expect(pointersOf(w)).toEqual([]);
+
+  // Row 1: a worker about to start (an Agent call's check, then its spawn: one line), or a delegation opened.
+  await $.tool.check({ tool: "Agent", input: { prompt: "Do D-012's part." } } as any);
+  await $.agent.spawn(spawn("Do D-012's part."));
+  await $.tool.check({ tool: "Bash", input: { command: `node ${w.scriptPath} delegate open --title x` } } as any);
+  // Row 2: a pull request about to open, by gh or by the GitHub tool.
+  await $.tool.check({ tool: "Bash", input: { command: "gh pr create --fill" } } as any);
+  await $.tool.check({ tool: "mcp__github__create_pull_request", input: {} } as any);
+  // Row 3: a test file edited; a failed edit is not one.
+  w.toolFails = true;
+  await $.tool.call({ tool: "Edit", file_path: "/work/widget/tests/parse.test.mjs" } as any);
+  w.toolFails = false;
+  expect(pointersOf(w)).toEqual([POINTERS.delegation, POINTERS["pull-request"]]);
+  await $.tool.call({ tool: "Write", file_path: "/work/widget/src/parse.test.ts" } as any);
+  await $.tool.call({ tool: "Edit", file_path: "/work/widget/tests/other.test.mjs" } as any);
+  // Row 4: the same failing test command fails a second time (it failed once above); a third failure sends nothing more.
+  w.toolFails = true;
+  await $.tool.call({ tool: "Bash", command: "npm test" } as any);
+  expect(pointersOf(w).at(-1)).toBe(POINTERS.diagnose);
+  await $.tool.call({ tool: "Bash", command: "npm test" } as any);
+  w.toolFails = false;
+  expect(pointersOf(w)).toEqual([
+    POINTERS.delegation,
+    POINTERS["pull-request"],
+    POINTERS["test-edit"],
+    POINTERS.diagnose,
+  ]);
+  // A worker's own calls raise none: the pointers are the main conversation's.
+  await $.tool.check({ tool: "Bash", input: { command: "gh pr create" }, agentId: "agent-7" } as any);
+  expect(pointersOf(w).length).toBe(4);
+
+  await $.turn.complete(turnEnd("answer"));
+  expect(sentOf(w, "pointer").map((line: any) => line.text)).toEqual(pointersOf(w));
+
+  // A compaction starts the next cycle: each may come once more.
+  w.status = held(at(30));
+  await $.session.compact({ trigger: "manual", messages: CONVERSATION } as any);
+  await $.tool.check({ tool: "Bash", input: { command: "gh pr create" } } as any);
+  await $.tool.check({ tool: "Bash", input: { command: "gh pr create" } } as any);
+  expect(pointersOf(w).filter((text) => text === POINTERS["pull-request"]).length).toBe(2);
+});
+
+test("the reference pointers: pointers.enabled off sends none, and turning it on sends them from the next call", async ($, on) => {
+  const w = world(on);
+  w.status = held(at(-30));
+  w.verdict = { decision: "allow" };
+  w.settingsAnswers["list "] = listing(false);
+  await $.session.start({ cwd: "/work/widget", surface: "terminal", isInteractive: true } as any);
+  await start($);
+  await $.tool.check({ tool: "Agent", input: {} } as any);
+  await $.agent.spawn(spawn("Do D-012's part."));
+  await $.tool.check({ tool: "Bash", input: { command: "gh pr create" } } as any);
+  await $.tool.call({ tool: "Edit", file_path: "/work/widget/tests/parse.test.mjs" } as any);
+  w.toolFails = true;
+  await $.tool.call({ tool: "Bash", command: "npm test" } as any);
+  await $.tool.call({ tool: "Bash", command: "npm test" } as any);
+  w.toolFails = false;
+  await $.turn.complete(turnEnd("answer"));
+  expect(pointersOf(w)).toEqual([]);
+  expect(sentOf(w, "pointer")).toEqual([]);
+
+  w.settingsAnswers["list "] = listing(true);
+  w.settingsAnswers["set pointers.enabled on "] = {
+    stdout: JSON.stringify({ key: "pointers.enabled", label: "Pointers", value: true, scope: "everywhere" }),
+  };
+  await $.command.run({ command: "freeflow", args: "settings pointers.enabled on" } as any);
+  await $.tool.check({ tool: "Bash", input: { command: "gh pr create" } } as any);
+  expect(pointersOf(w)).toEqual([POINTERS["pull-request"]]);
 });

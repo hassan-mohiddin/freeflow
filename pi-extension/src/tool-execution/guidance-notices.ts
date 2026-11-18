@@ -10,7 +10,8 @@ import { isFreeflowInstruction } from "./skill-reads.js";
  *
  * - A `git commit` result: Deliver Work's commit essentials, plus Write Skill's loss check when the commit staged
  *   model-facing instruction text (read from Git at that result). Once per run.
- * - The second failure of the same test command: diagnose's two key lines. Once per command until it passes.
+ * - The second failure of the same test command: diagnose's two key lines. Once per command until it passes, and not
+ *   while `pointers.enabled` is off: it is also the diagnose reference pointer (hooks/shared/pointers.mjs).
  * - A test command that passes after the run changed a file: run Verify Work's self-review before the final report.
  *   Once per run, and not after self-review ran.
  * - Any tool result while Execute Work's body is not in the model's context (never read, or dropped by a compaction):
@@ -23,7 +24,7 @@ import { isFreeflowInstruction } from "./skill-reads.js";
  */
 
 const FAILURE_KEYS = 32;
-const TEST_COMMAND =
+export const TEST_COMMAND =
   /(^|[\s;&|(])((npm|pnpm|yarn|bun)\b[^;&|]*\btest(:[\w:-]+)?\b|node\s+(\S+\s+)*--test\b|(pytest|jest|vitest|mocha|rspec|phpunit|ctest|tox)\b|go\s+test\b|cargo\s+(test|nextest)\b|(mvn|gradle|\.\/gradlew)\b[^;&|]*\btest\b|make\s+(test|check)\b|dotnet\s+test\b|bundle\s+exec\s+rspec\b|python3?\s+-m\s+(pytest|unittest)\b)/;
 const GIT_COMMIT = /(^|[\s;&|(])git(\s+(-C|-c)\s+\S+)*\s+commit\b(?![^;&|]*--help)/;
 const CHANGES_FILES = new Set(["edit", "write", "apply_patch"]);
@@ -85,8 +86,14 @@ export class GuidanceNotices {
   /**
    * The notice lines to append to a tool result; empty when none applies. `executeWorkUnread` says whether Execute
    * Work is a skill this session lists and its body is not in the model's context; omitted, the notice never shows.
+   * `diagnose: false` holds back the diagnose line, which is also a reference pointer: `pointers.enabled` off.
    */
-  async toolResult(event: any, cwd: string, executeWorkUnread?: () => boolean): Promise<string[]> {
+  async toolResult(
+    event: any,
+    cwd: string,
+    executeWorkUnread?: () => boolean,
+    options: { diagnose?: boolean } = {},
+  ): Promise<string[]> {
     if (event?.parentToolCallId) return [];
     const name = event?.toolName;
     const lines: string[] = [];
@@ -124,7 +131,7 @@ export class GuidanceNotices {
         this.failures.delete(key);
         this.failures.set(key, count);
         while (this.failures.size > FAILURE_KEYS) this.failures.delete(this.failures.keys().next().value as string);
-        if (count === 2) lines.push(freeflowNotice("guidance", DIAGNOSE_NOTICE));
+        if (count === 2 && options.diagnose !== false) lines.push(freeflowNotice("guidance", DIAGNOSE_NOTICE));
       } else {
         this.failures.delete(key);
         if (this.run.changed && !this.run.reviewed && !this.run.reminded) {

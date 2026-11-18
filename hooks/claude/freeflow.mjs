@@ -5,6 +5,7 @@
 
 import { decide, gateEvent, gateText, validGateState } from "../../skills/track-work/scripts/lib/gates5.mjs";
 import { noticePoint } from "../../skills/track-work/scripts/lib/notice5.mjs";
+import { POINTERS, POINTER_SENT, afterCall, beforeCall } from "../shared/pointers.mjs";
 
 import { paneCommand, paneRead, registerPane, resolvePane, takePaneTexts } from "./pane.mjs";
 
@@ -97,6 +98,16 @@ let wakeOnReturn = true;
 let memoryOff = false;
 /** `compaction.withoutTask`: Freeflow's compaction when no task is held (D-060). */
 let compactWithoutTask = true;
+
+// The reference pointers (hooks/shared/pointers.mjs): one skill's line, appended at the moment it matters, at most once
+// a context cycle, in the main conversation, while `pointers.enabled` is on. The pointers a cycle sent are kept by its
+// cycle object, so a compaction's new cycle starts with none; a module reload starts with none too.
+/** `pointers.enabled`, resolved with `enabled`. */
+let pointersOn = true;
+/** @type {WeakMap<object, Set<string>>} the pointers each cycle sent */
+const pointersSent = new WeakMap();
+/** @type {Map<string, number>} each test command's failures in a row, for the diagnose pointer */
+const testFailures = new Map();
 const WAIT_BATCH_MS = 60_000;
 /** How often an idle session whose Slice waits on a delegation looks for its return (Pi's WaitWatch, once a minute). */
 const WAIT_POLL_MS = 60_000;
@@ -463,6 +474,43 @@ function noticeText($, context, state, number) {
 async function appendRow($, text, what) {
   await sent($, what, text);
   await $.session.append({ message: { type: "user", content: [{ type: "text", text }] } });
+}
+
+/**
+ * Appends each pointer among `ids` this cycle has not sent, kept as a `pointer` sent line; nothing while Freeflow or
+ * the pointers are off. Never fails the event it runs in.
+ * @param {any} $
+ * @param {string[]} ids
+ */
+async function point($, ids) {
+  if (!enabled || !pointersOn || !ids.length) return;
+  try {
+    let done = pointersSent.get(cycle);
+    if (!done) pointersSent.set(cycle, (done = new Set()));
+    for (const id of ids) {
+      if (done.has(id) || !POINTERS[id]) continue;
+      done.add(id);
+      await appendRow($, POINTERS[id], POINTER_SENT);
+    }
+  } catch (error) {
+    $.ui.log(`Freeflow: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
+ * The pointers a main-conversation call raises once its result is in: a test file written, the same test command
+ * failing a second time.
+ * @param {any} $
+ * @param {any} e the tool.call event
+ * @param {any} result
+ */
+async function pointAfter($, e, result) {
+  if (!enabled || !pointersOn || e.agentId !== undefined) return;
+  const input = /** @type {Record<string, unknown>} */ (e);
+  const command = COMMAND_TOOLS.has(e.tool) && typeof input.command === "string" ? input.command : undefined;
+  const paths = FILE_TOOLS.has(e.tool) ? toolPaths(input, await $.session.cwd()) : [];
+  const failed = Boolean(result?.deny || result?.isError);
+  await point($, afterCall({ tool: String(e.tool), command, paths, failed }, testFailures));
 }
 
 /** After each request of the main conversation: at the notice point, the cycle's one checkpoint notice, appended so a
@@ -919,6 +967,7 @@ async function resolveEnabled($) {
       if (row.key === "delegation.wakeOnReturn" && typeof row.value === "boolean") wakeOnReturn = row.value;
       if (row.key === "memory.mode") memoryOff = row.value === "off";
       if (row.key === "compaction.withoutTask" && typeof row.value === "boolean") compactWithoutTask = row.value;
+      if (row.key === "pointers.enabled" && typeof row.value === "boolean") pointersOn = row.value;
       if (row.key === "delegation.claimHours" && row.value != null)
         await $.env.set("FREEFLOW_CLAIM_HOURS", String(row.value));
     }
@@ -1129,7 +1178,8 @@ export async function settingsCommand($, args) {
     data.key === "enabled" ||
     data.key === "events.enabled" ||
     data.key === "memory.mode" ||
-    data.key === "compaction.withoutTask"
+    data.key === "compaction.withoutTask" ||
+    data.key === "pointers.enabled"
   ) {
     await resolveEnabled($);
     // Memory on again: the task steps run at the next turn's start, as session start's would have (D-060).
@@ -1674,7 +1724,12 @@ export function register(on) {
   // shell command's text, which the writer redacts and cuts (P4). Before a checkpoint or a release runs, the lines so
   // far are written, so the summary it commits counts this turn too.
   on("tool.call", async ($, e, next) => {
-    if (!enabled || !eventsOn) return next(e);
+    if (!enabled) return next(e);
+    if (!eventsOn) {
+      const result = await next(e);
+      await pointAfter($, e, result);
+      return result;
+    }
     const input = /** @type {Record<string, unknown>} */ (e);
     const command = COMMAND_TOOLS.has(e.tool) && typeof input.command === "string" ? input.command : undefined;
     if (command !== undefined && /working-record\.mjs\s+(checkpoint|task\s+(release|switch))\b/.test(command))
@@ -1702,16 +1757,25 @@ export function register(on) {
       },
       e.agentId ?? "main",
     );
+    await pointAfter($, e, result);
     return result;
   });
 
   // The store holds the task memory the agent keeps, so a file tool on a path that really lands inside it runs where
   // the mode would ask, as in a working directory with edits allowed; any deny, a rule's or a hook's, still stands.
   // Then the gates decide (SPEC-008, D-069): a warning leaves the verdict as it is.
+  // Then the pointers a main-conversation call raises before it runs: a worker starting or a delegation opened, a pull
+  // request opening; none for a call that is denied.
   on("tool.check", async ($, e, next) => {
     const verdict = await next(e);
     if (!enabled) return verdict;
-    return gated($, e, await storeAllowed($, e, verdict));
+    const decided = await gated($, e, await storeAllowed($, e, verdict));
+    if (e.agentId === undefined && decided.decision !== "deny") {
+      const input = /** @type {Record<string, unknown>} */ (e.input ?? {});
+      const command = COMMAND_TOOLS.has(e.tool) && typeof input.command === "string" ? input.command : undefined;
+      await point($, beforeCall({ tool: String(e.tool), command }));
+    }
+    return decided;
   }).catch(async ($, e, next) => {
     // A gate that fails is open: it only warns, so the call goes on as the harness decided it.
     return next(e);
@@ -1757,6 +1821,8 @@ export function register(on) {
 
   // A worker's start: which delegation it is, from its prompt (T7), kept for its notices, compaction and hand-back.
   on("agent.spawn", async ($, e, next) => {
+    // A worker is about to start: the delegation pointer, once a cycle (an Agent call's check may have sent it).
+    if (e.agentId === undefined) await point($, ["delegation"]);
     const result = await next(e);
     const delegation = DELEGATION.exec(e.prompt ?? "")?.[0];
     if (result.agentId) {

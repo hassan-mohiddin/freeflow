@@ -279,6 +279,10 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
   const promptsEnabled = sectionEnabled(repositoryConfig, sessionLocalConfig, "prompts");
   // The event log (SPEC-006 P5): written while Freeflow and its own switch are on.
   const events = { enabled: enabled && sectionEnabled(repositoryConfig, sessionLocalConfig, "events") };
+  // The reference pointers (pointers.enabled): on unless set to false, while Freeflow is on.
+  const pointers = {
+    enabled: enabled && layeredSetting(sessionLayer, repositoryConfig, localConfig, ["pointers", "enabled"]) !== false,
+  };
   // The delegation gate (SPEC-008 4.5, D-069): it has no setting; it warns while Freeflow is on, and never blocks.
   const gates = { delegation: enabled };
   // Delegation across sessions (SPEC-009 4.7): claim hours and whether a return wakes the session.
@@ -303,6 +307,7 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
     promptsEnabled,
     skills,
     events,
+    pointers,
     gates,
     delegation,
     // ask_user: core, on whenever Freeflow is enabled (Task 002 D-001); off in subagents, which have no user.

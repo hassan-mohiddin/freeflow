@@ -365,6 +365,7 @@ const SECTION_ORDER = [
   "freeflow.toolExecution",
   "freeflow.messaging",
   "freeflow.events",
+  "freeflow.pointers",
   "freeflow.delegation",
   "freeflow.session",
 ];
@@ -456,6 +457,20 @@ function sessionFreeflowItems(state, rawConfig, localConfig) {
     "Write what happens in this session's loop to the event log on this machine.",
     "events.enabled",
     eventsOn,
+    true,
+  );
+  // The reference pointers, on every host with a Freeflow driver.
+  const pointersInherited = configuredSetting(rawConfig, localConfig, ["pointers", "enabled"], true);
+  const pointersOn =
+    typeof sessionOverrides["pointers.enabled"] === "boolean"
+      ? sessionOverrides["pointers.enabled"]
+      : pointersInherited.value;
+  const pointersItem = sessionSwitch(
+    "freeflow.pointers.enabled",
+    "Enabled",
+    "Send a skill's one-line pointer at the moment it matters, once a context cycle, in this session.",
+    "pointers.enabled",
+    pointersOn,
     true,
   );
   // Delegation across sessions, on every host with a Freeflow driver (SPEC-009 4.7).
@@ -596,6 +611,13 @@ function sessionFreeflowItems(state, rawConfig, localConfig) {
     sectionItem("freeflow.events", "Event log", "The event log for this session.", eventsOn ? "on" : "off", [
       eventsItem,
     ]),
+    sectionItem(
+      "freeflow.pointers",
+      "Pointers",
+      "The reference pointers for this session.",
+      pointersOn ? "on" : "off",
+      [pointersItem],
+    ),
     sectionItem("freeflow.delegation", "Delegation", "Delegation across sessions for this session.", "", [
       claimItem,
       wakeItem,
@@ -918,6 +940,33 @@ function freeflowItems(rawConfig, options = {}) {
     displaySuffix: eventsOn ? "on" : "off",
     children: [eventsEnabledItem],
   };
+  // The reference pointers, on every host with a Freeflow driver.
+  const pointersOn =
+    getPath(localConfig, ["pointers", "enabled"]) ?? getPath(rawConfig, ["pointers", "enabled"]) ?? true;
+  const pointersEnabledItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.pointers.enabled",
+    label: "Enabled",
+    description:
+      "Send a skill's one-line pointer at the moment it matters (a worker starting, a pull request opening, a test edited, a test command failing twice), once a context cycle.",
+    path: ["pointers", "enabled"],
+    effectiveValue: pointersOn === true,
+    effectiveSource: toolSource(["pointers", "enabled"]),
+    defaultValue: true,
+  });
+  pointersEnabledItem.inactive = freeflowInactive;
+  const pointersGroup = {
+    id: "freeflow.pointers",
+    label: "Pointers",
+    description: "Configure the reference pointers: one line from a skill, sent when its method matters.",
+    kind: "group",
+    value: pointersOn === true,
+    inactive: freeflowInactive,
+    displaySuffix: pointersOn === true ? "on" : "off",
+    children: [pointersEnabledItem],
+  };
   // Delegation across sessions, on every host with a Freeflow driver (SPEC-009 4.7).
   const delegation = resolveDelegationSettings(rawConfig, localConfig);
   const claimHoursItem = createScopedChoiceItem({
@@ -966,6 +1015,7 @@ function freeflowItems(rawConfig, options = {}) {
     compactionGroup,
     messagingGroup,
     eventsGroup,
+    pointersGroup,
     delegationGroup,
     promptsGroup,
     skillsGroup,

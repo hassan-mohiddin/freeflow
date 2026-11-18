@@ -16,6 +16,7 @@ const requiredFiles = [
   "hooks/hooks.json",
   "hooks/cursor/hooks.json",
   "hooks/shared/runtime-context.mjs",
+  "hooks/shared/pointers.mjs",
   "hooks/adapters/claude-session-start.mjs",
   "hooks/adapters/codex-session-start.mjs",
   "hooks/adapters/gemini-session-start.mjs",
