@@ -172,3 +172,17 @@ test("with memory.mode off, task create, task take and checkpoint refuse and nam
     );
   });
 });
+
+test("a memory.mode ticked for Pi applies when Pi names its harness as its driver does, FREEFLOW_HARNESS=Pi", async () => {
+  const { memoryModeFor } = await import(resolve("skills/track-work/scripts/lib/memory5.mjs"));
+  await withFolder(async (folder) => {
+    const home = join(folder, "home");
+    const cwd = join(folder, "work");
+    execFileSync("mkdir", ["-p", home, cwd]);
+    await writeFile(join(home, "settings.json"), JSON.stringify({ harness: { pi: { memory: { mode: "off" } } } }));
+    for (const name of ["Pi", "pi"])
+      assert.equal(memoryModeFor({ home, cwd, env: { FREEFLOW_HARNESS: name } }), "off", `FREEFLOW_HARNESS=${name}`);
+    for (const name of ["Codex", "Claude Code"])
+      assert.equal(memoryModeFor({ home, cwd, env: { FREEFLOW_HARNESS: name } }), "local", `FREEFLOW_HARNESS=${name}`);
+  });
+});
