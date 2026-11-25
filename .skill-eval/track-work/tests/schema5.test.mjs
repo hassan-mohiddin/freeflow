@@ -476,6 +476,22 @@ test("agreements: one open at a time, updates in the user's words, and closing c
   });
 });
 
+test("slice record says where its Occurred goes when the line is missing or not a date", async () => {
+  await withFolder(async (folder) => {
+    const record = initTask(folder, folder);
+    const refused = run(
+      folder,
+      ["slice", "record", "--record", record, "--title", "Baseline", "--state", "completed", "--input", "-"],
+      "- Cue: read when the baseline matters\n- Under: the user's request\n- Result wanted: r.\n- Result: r.\n- Evidence: e.\n- Task effect: t.\n",
+    );
+    assert.notEqual(refused.status, 0);
+    assert.match(
+      refused.stderr,
+      /slice record requires Occurred: put it on the input's "Occurred:" line, as YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD\./,
+    );
+  });
+});
+
 test("slice record writes one retroactive History entry and leaves record.md alone", async () => {
   await withFolder(async (folder) => {
     const record = initTask(folder, folder);

@@ -705,6 +705,50 @@ test("claims: claim, release, expiry and renewal; the gate warns on another sess
   });
 });
 
+test("claim's usage says where its hours come from: --for, the driver's variable, the settings, then 8", async () => {
+  await withTask(async ({ repo, cli }) => {
+    const help = cli(["claim", "--help"], { cwd: repo });
+    assert.equal(help.status, 0, help.stderr);
+    assert.match(
+      help.stdout + help.stderr,
+      /else FREEFLOW_CLAIM_HOURS, which a driver passes, else delegation\.claimHours as the settings give it for this folder, session and harness, else 8\)/,
+    );
+  });
+});
+
+test("claim hours: with no FREEFLOW_CLAIM_HOURS a claim lasts delegation.claimHours as the settings give it, every scope; --for and the variable still win", async () => {
+  await withTask(async ({ home, repo, cli }) => {
+    // The hours a claim lasts, from the `until` its output prints (to the minute), in the repository's folder.
+    const lasts = (args, env = {}) => {
+      const out = ok(cli(["claim", ...args], { cwd: repo, env }));
+      const until = /until (\d{4}-\d\d-\d\d \d\d:\d\d) UTC/.exec(out)[1];
+      return Math.round((Date.parse(`${until.replace(" ", "T")}:00Z`) - Date.now()) / 3_600_000);
+    };
+    const write = async (path, value) => {
+      await mkdir(dirname(join(home, path)), { recursive: true });
+      await writeFile(join(home, path), `${JSON.stringify(value)}\n`);
+    };
+    assert.equal(lasts(["--paths", "src/none.ts"]), 8, "the default");
+    await write("settings.json", { delegation: { claimHours: "24" } });
+    assert.equal(lasts(["--paths", "src/everywhere.ts"]), 24, "everywhere");
+    await write("folders.json", { "github.com/acme/widget": { delegation: { claimHours: "4" } } });
+    assert.equal(lasts(["--paths", "src/folder.ts"]), 4, "this folder beats everywhere");
+    await write(`sessions/${COORDINATOR}/settings.json`, { "delegation.claimHours": "1" });
+    assert.equal(lasts(["--paths", "src/session.ts"]), 1, "this session beats this folder");
+    assert.equal(lasts(["--paths", "src/variable.ts"], { FREEFLOW_CLAIM_HOURS: "2" }), 2, "the variable wins");
+    assert.equal(lasts(["--paths", "src/flag.ts", "--for", "6"]), 6, "--for wins");
+    // Codex's driver names its harness "Codex" and cannot set the agent's environment: its tick applies to it alone.
+    await rm(join(home, "sessions", COORDINATOR, "settings.json"));
+    await rm(join(home, "folders.json"));
+    await write("settings.json", {
+      delegation: { claimHours: "24" },
+      harness: { codex: { delegation: { claimHours: "2" } } },
+    });
+    assert.equal(lasts(["--paths", "src/codex.ts"], { FREEFLOW_HARNESS: "Codex" }), 2, "Codex's tick");
+    assert.equal(lasts(["--paths", "src/claude.ts"]), 24, "Claude Code does not read Codex's tick");
+  });
+});
+
 test("a worker session's end releases its claims and logs that it ended; delegate status shows it", async () => {
   await withTask(async ({ repo, taskDir, cli }) => {
     openSession(cli, repo);

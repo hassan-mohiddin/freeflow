@@ -341,9 +341,9 @@ test("a Blocking floor review whose Blocking items were accepted, fixed and chec
       ...["--agreement", join(h.root, "src/a.js")],
     ]);
     assert.equal(brief.status, 0, brief.stdout + brief.stderr);
-    const adjudicated = (dispositions, judgment) =>
+    const adjudicated = (dispositions, judgment, extra = "") =>
       write(reviews, {
-        "R1-report.md": `Judgment: Blocking\n\n### Review Items\n\n#### Issues — Blocking\n\nB1. It crashes.\n\n#### Issues — Non-blocking\n\nN1. A name is unclear.\n\n## Adjudication\n\n${dispositions}\n\nAdjudicated judgment: ${judgment}\n`,
+        "R1-report.md": `Judgment: Blocking\n\n### Review Items\n\n#### Issues — Blocking\n\nB1. It crashes.\n\n${extra}#### Issues — Non-blocking\n\nN1. A name is unclear.\n\n## Adjudication\n\n${dispositions}\n\nAdjudicated judgment: ${judgment}\n`,
       });
     const report = join(reviews, "R1-report.md");
     const record = (...args) => node(h.root, adjudication, [report, "--record", "--model", "test/reviewer", ...args]);
@@ -376,9 +376,21 @@ test("a Blocking floor review whose Blocking items were accepted, fixed and chec
     assert.equal(h.run().rereview.split("..")[0], fixed.slice(0, 12));
     // Refused: a Blocking item left Open, and a review that is not Blocking.
     await adjudicated("- B1: Open, not reproduced yet.\n- N1: Accepted. Renamed.", "Blocking");
-    assert.match(record("--fixed", fixed).stderr, /^--fixed needs every Blocking item Accepted; B1 is Open/);
+    assert.match(
+      record("--fixed", fixed).stderr,
+      /^--fixed needs every Blocking item Accepted or Rejected; B1 is Open/,
+    );
     await adjudicated("- B1: Rejected, the caller checks it.\n- N1: Accepted. Renamed.", "Non-blocking");
     assert.match(record("--fixed", fixed).stderr, /^--fixed is for a Blocking review; this one is Non-blocking/);
+    // Rejected is settled too: the fixes checked are the Accepted ones, so at least one Blocking item must be Accepted.
+    await adjudicated("- B1: Rejected, the caller checks it.\n- N1: Accepted. Renamed.", "Blocking");
+    assert.match(record("--fixed", fixed).stderr, /^--fixed needs at least one Blocking item Accepted/);
+    await adjudicated(
+      "- B1: Rejected, not reproduced.\n- B2: Accepted. Reproduced.\n- N1: Accepted. Renamed.",
+      "Blocking",
+      "B2. It crashes too.\n\n",
+    );
+    assert.equal(record("--fixed", fixed).status, 0, "a Rejected Blocking item beside an Accepted one is checked");
   } finally {
     await h.cleanup();
   }

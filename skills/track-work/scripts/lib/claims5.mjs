@@ -5,9 +5,9 @@
 // next sync ("first push wins"). A path is kept relative to its repository, named as Space names it, so two checkouts
 // or worktrees of one repository claim the same file; a path outside any repository is kept whole.
 //
-// A claim lasts its hours (default 8, `delegation.claimHours`, which a driver passes as FREEFLOW_CLAIM_HOURS), is
-// renewed by its session's next store sync while it is live, and ends at its release, its delegation's close, or its
-// session's end.
+// A claim lasts its hours (default 8: `delegation.claimHours`, which a driver passes as FREEFLOW_CLAIM_HOURS or, where
+// none does, the script reads from the settings), is renewed by its session's next store sync while it is live, and
+// ends at its release, its delegation's close, or its session's end.
 
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -17,6 +17,14 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from "node:pat
 import { normalPath, resolvePath } from "./gates5.mjs";
 import { ensureUnionMerge, storeHome } from "./freeflow-store.mjs";
 import { REPOSITORIES_FILE, isFreeflowStore } from "./store.mjs";
+import {
+  freeflowHome,
+  readConfigFile,
+  readSessionSettings,
+  resolveSetting,
+  sessionId,
+} from "../../../../pi-extension/dist/host/config-store.js";
+import { HARNESSES, settingSpec } from "../../../../pi-extension/dist/host/config-validation.js";
 
 export const CLAIMS_FILE = "claims.jsonl";
 export const CLAIM_VERSION = 1;
@@ -154,10 +162,39 @@ export function storeClaims(home, now = Date.now()) {
   );
 }
 
-/** The hours a new claim lasts: --for, else the driver's FREEFLOW_CLAIM_HOURS (delegation.claimHours), else 8. */
-export function claimHours(option, env = process.env) {
-  const given = option ?? env.FREEFLOW_CLAIM_HOURS;
-  if (given === undefined || given === "") return DEFAULT_CLAIM_HOURS;
+const HARNESS_NAMES = new Map([
+  ["Claude Code", "claude-code"],
+  ["Codex", "codex"],
+  ["Pi", "pi"],
+]);
+
+/** The harness this process runs for, as the settings name it: the drivers' FREEFLOW_HARNESS names, else Claude Code's session. */
+function claimHarness(env) {
+  const named = HARNESS_NAMES.get(env.FREEFLOW_HARNESS) ?? env.FREEFLOW_HARNESS;
+  if (HARNESSES.includes(named)) return named;
+  return env.CLAUDE_CODE_SESSION_ID ? "claude-code" : null;
+}
+
+/**
+ * delegation.claimHours as the settings give it for the folder at `cwd`, this session and this harness: every layer
+ * the settings script reads, with the harness's tick over each, then the default.
+ */
+function claimHoursSetting(cwd, env) {
+  const home = freeflowHome(env);
+  const repository = readConfigFile(cwd, "repository", home).value;
+  const personal = readConfigFile(cwd, "personal", home).value;
+  const session = readSessionSettings(home, sessionId(env));
+  const spec = settingSpec("delegation.claimHours");
+  return resolveSetting(spec, { repository, personal, session }, claimHarness(env), home).value;
+}
+
+/**
+ * The hours a new claim lasts: --for, else the driver's FREEFLOW_CLAIM_HOURS, else delegation.claimHours as the settings
+ * give it for the folder at `cwd` (Codex's hooks cannot set the agent's environment, so the script reads it), else 8.
+ */
+export function claimHours(option, { env = process.env, cwd = process.cwd() } = {}) {
+  const given = option ?? (env.FREEFLOW_CLAIM_HOURS || claimHoursSetting(cwd, env));
+  if (given === undefined || given === null || given === "") return DEFAULT_CLAIM_HOURS;
   const hours = Number(given);
   if (!Number.isFinite(hours) || hours <= 0 || hours > 168)
     fail("--for is a number of hours, more than 0 and at most 168.");

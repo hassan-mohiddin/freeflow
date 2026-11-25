@@ -99,7 +99,7 @@ function input(text, names, command) {
     text: (name) => (lines(name) ?? []).join("\n").trim(),
     require(name) {
       const value = lines(name);
-      if (!value) fail("missing-field", `${command} requires ${name}`);
+      if (!value) fail("missing-field", `${command} requires ${name}: put it on the input's "${name}:" line.`);
       return value;
     },
   };
@@ -339,7 +339,7 @@ async function startSlice(options, text, loaded, direct) {
     if (!values[name])
       fail(
         "missing-field",
-        `${command} requires ${name}${name === "Under" ? ": the open agreement A-NNN, or the user's words that authorize the Slice" : ""}`,
+        `${command} requires ${name}: put it on the input's "${name}:" line${name === "Under" ? ", the open agreement A-NNN or the user's words that authorize the Slice" : ""}.`,
       );
   const id = nextId5(task, "S");
   const at = record.work.headings.get("Delegations").index;
@@ -411,7 +411,10 @@ async function closeSlice(options, text, loaded) {
     const values = {
       State: state,
       Dates: datesFrom(fieldText(slice, "Opened")),
-      Cue: requireCue(fields.text("Cue") || fail("missing-field", "slice close requires Cue"), "slice close"),
+      Cue: requireCue(
+        fields.text("Cue") || fail("missing-field", 'slice close requires Cue: put it on the input\'s "Cue:" line.'),
+        "slice close",
+      ),
       Under: fieldLines5(slice, "Under"),
       "Result wanted": fieldLines5(slice, "Result wanted"),
       Result: fields.require("Result"),
@@ -454,13 +457,19 @@ async function recordSlice(options, text, loaded) {
   const occurred = OCCURRED.exec(fields.text("Occurred"));
   const today = localDate();
   if (!occurred || !isDate(occurred[1]) || (occurred[2] && (!isDate(occurred[2]) || occurred[2] < occurred[1])))
-    fail("invalid-occurred", "slice record requires Occurred: YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD");
+    fail(
+      "invalid-occurred",
+      `slice record requires Occurred: put it on the input's "Occurred:" line, as YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD.`,
+    );
   if ((occurred[2] ?? occurred[1]) > today) fail("invalid-occurred", `Occurred cannot end after today (${today})`);
   const values = {
     State: state,
     Dates: fields.text("Occurred"),
     Recorded: `retroactively on ${today}`,
-    Cue: requireCue(fields.text("Cue") || fail("missing-field", "slice record requires Cue"), "slice record"),
+    Cue: requireCue(
+      fields.text("Cue") || fail("missing-field", 'slice record requires Cue: put it on the input\'s "Cue:" line.'),
+      "slice record",
+    ),
     Under: fields.require("Under"),
     "Result wanted": fields.require("Result wanted"),
     Result: fields.require("Result"),
@@ -573,7 +582,11 @@ async function closeAgreement(options, text, loaded) {
     const values = {
       State: state,
       Dates: datesFrom(agreement.opened),
-      Cue: requireCue(fields.text("Cue") || fail("missing-field", "agreement close requires Cue"), "agreement close"),
+      Cue: requireCue(
+        fields.text("Cue") ||
+          fail("missing-field", 'agreement close requires Cue: put it on the input\'s "Cue:" line.'),
+        "agreement close",
+      ),
       Lines: parts.lines,
       Updates: parts.updates,
       Decisions: decisions,

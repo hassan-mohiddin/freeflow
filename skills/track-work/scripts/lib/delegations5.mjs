@@ -180,7 +180,8 @@ function briefInput(text) {
     if (!BRIEF_SECTIONS.slice(0, 6).includes(name))
       fail(`Unknown brief section ${name}; the brief has ${BRIEF_SECTIONS.slice(0, 6).join(", ")}.`);
   for (const name of ["Result wanted", "Scope", "Done when"])
-    if (!sections[name]?.join("").trim()) fail(`delegate open requires the brief's ${name} section.`);
+    if (!sections[name]?.join("").trim())
+      fail(`delegate open requires the brief's ${name} section: put it under a "## ${name}" heading in the input.`);
   return sections;
 }
 
@@ -499,7 +500,7 @@ export async function openDelegation(loaded, options, text) {
         identity: sessionIdentity(),
         globs: mayWrite,
         cwd: worktree ?? process.cwd(),
-        hours: claimHours(undefined),
+        hours: claimHours(undefined, { cwd: worktree ?? process.cwd() }),
       });
       claimed = `\nClaimed: ${lines.flatMap((line) => line.paths).join(", ")} for ${taskName(loaded.path)} ${id}`;
     } catch (error) {
@@ -560,7 +561,11 @@ export async function amendDelegation(loaded, options, text) {
   return `Amended ${id}${change ? ": the change is appended to its brief, dated; tell the worker too." : ""}${handle ? ` Handle: ${handle}.` : ""}${note}\n`;
 }
 
-function returnState(directory) {
+function returnState(directory, taskDir) {
+  if (parseBrief(readFileSync(join(directory, "brief.md"), "utf8")).Kind === "review") {
+    const reports = reviewReportsOf(directory, taskDir);
+    return reports.length === 1 && existsSync(reports[0]) ? "done" : null;
+  }
   const path = join(directory, "return.md");
   if (!existsSync(path)) return null;
   return /^State: (.+)$/m.exec(readFileSync(path, "utf8"))?.[1]?.trim() ?? "no State line";
@@ -608,7 +613,7 @@ export async function delegationStatus(loaded, { json = false, cites = null } = 
     handle: brief.Handle ?? null,
     branch: brief.branch,
     worktree: brief.worktree,
-    returned: returnState(directory),
+    returned: returnState(directory, taskDir),
     folder: directory,
   });
   for (const item of task.record.work.delegations) {
@@ -623,7 +628,7 @@ export async function delegationStatus(loaded, { json = false, cites = null } = 
     }
     const brief = parseBrief(readFileSync(join(directory, "brief.md"), "utf8"));
     if (citing && !citing.test((brief.sections.Settled ?? []).join("\n"))) continue;
-    const state = returnState(directory);
+    const state = returnState(directory, taskDir);
     lines.push(
       `- ${id} — ${brief.title} · ${brief.Kind}, ${brief.Agent.replace(/,\s*/, " ")}${brief.Process === "session" ? ` · ${sessionText(channel, id, brief, state)}` : ""} · opened ${brief.Opened} · ${brief.branch ? `branch ${brief.branch}` : "no branch"} · ${state ? `returned: ${state}` : "no return yet"} · ${relative(taskDir, join(directory, "brief.md"))}`,
     );
@@ -634,7 +639,7 @@ export async function delegationStatus(loaded, { json = false, cites = null } = 
       .filter((each) => new RegExp(`^${id}\\.\\d+-`).test(each))
       .sort()) {
       const subBrief = parseBrief(readFileSync(join(directory, name, "brief.md"), "utf8"));
-      const subState = returnState(join(directory, name));
+      const subState = returnState(join(directory, name), taskDir);
       lines.push(
         `  - ${subBrief.id} — ${subBrief.title} · ${subBrief.Kind}, ${subBrief.Agent.replace(/,\s*/, " ")} · ${subState ? `returned: ${subState}` : "no return yet"}`,
       );
@@ -678,14 +683,56 @@ export function parseElsewhere(values = []) {
 }
 
 /**
- * Problems with a delegation's return: its State and headings, and every commit it names on the brief's branch.
- * A commit that is not in the repository is a problem unless `elsewhere` names it (either is a prefix of the
- * other); each `elsewhere` entry must name a commit the return does and that is not in the repository.
+ * The reports a review delegation's reviewer writes: the reviews/R<n>-report.md its brief names on its May write or
+ * Report line (in the task folder, or the absolute path it names), each once. Other mentions in the brief, such as a
+ * previous review's report in its Read section, name no report of this delegation.
  */
-export function returnProblems(directory, elsewhere = []) {
+export function reviewReportsOf(directory, taskDir) {
+  const reports = new Set();
+  for (const line of readFileSync(join(directory, "brief.md"), "utf8").split(/\r?\n/)) {
+    if (!/^\s*(?:[-*]\s+)?(?:\*\*)?(?:May write|Report)(?:\*\*)?:/.test(line)) continue;
+    for (const [, named] of line.matchAll(/([^\s`'"(),<>]*reviews\/R\d+[a-z]?-report\.md)/g))
+      reports.add(isAbsolute(named) ? named : join(taskDir, named));
+  }
+  return [...reports];
+}
+
+/**
+ * Problems with a delegation's return: its State and headings, and every commit it names on the brief's branch. A
+ * commit that is not in the repository is a problem unless `elsewhere` names it (either is a prefix of the other); each
+ * `elsewhere` entry must name a commit the return does and that is not in the repository. A review's return is its
+ * reviewer's report (reviewReportsOf), which has no State or headings to check. `path` is the file the return is in.
+ */
+export function returnProblems(directory, elsewhere = [], taskDir = dirname(dirname(directory))) {
   const brief = parseBrief(readFileSync(join(directory, "brief.md"), "utf8"));
+  if (brief.Kind === "review") {
+    const reports = reviewReportsOf(directory, taskDir);
+    const path = reports.length === 1 ? reports[0] : join(directory, "return.md");
+    if (reports.length === 0)
+      return {
+        brief,
+        problems: ["its brief names no reviews/R<n>-report.md on its May write or Report line"],
+        commits: [],
+        unchecked: [],
+        path,
+        state: null,
+      };
+    if (reports.length > 1)
+      return {
+        brief,
+        problems: [`its brief names ${reports.length} reports (${reports.join(", ")}): name the one it writes`],
+        commits: [],
+        unchecked: [],
+        path,
+        state: null,
+      };
+    if (!existsSync(path))
+      return { brief, problems: [`no report yet at ${path}`], commits: [], unchecked: [], path, state: null };
+    return { brief, problems: [], commits: [], unchecked: [], path, state: "done" };
+  }
   const path = join(directory, "return.md");
-  if (!existsSync(path)) return { brief, problems: ["no return.md yet"], commits: [], unchecked: [] };
+  if (!existsSync(path))
+    return { brief, problems: ["no return.md yet"], commits: [], unchecked: [], path, state: null };
   const text = readFileSync(path, "utf8");
   const problems = [];
   if (!new RegExp(`^# ${brief.id.replace(".", "\\.")} return\\b`).test(text))
@@ -716,7 +763,7 @@ export function returnProblems(directory, elsewhere = []) {
   for (const entry of elsewhere)
     if (!used.has(entry))
       problems.push(`--elsewhere ${entry.hash}=${entry.repository} names no commit of the return that is missing here`);
-  return { brief, problems, commits, unchecked: elsewhere.filter((entry) => used.has(entry)), state };
+  return { brief, problems, commits, unchecked: elsewhere.filter((entry) => used.has(entry)), path, state };
 }
 
 /** How check-return and close name the commits --elsewhere set aside. */
@@ -744,13 +791,14 @@ export async function checkReturn(loaded, options, { readOnly = false } = {}) {
   const { id, sub } = parseId(options["--id"]);
   const taskDir = loaded ? dirname(loaded.path) : resolve(options["--scratch"]);
   const directory = delegationDir(taskDir, id);
-  const { brief, problems, commits, unchecked, state } = returnProblems(
+  const { brief, problems, commits, unchecked, path, state } = returnProblems(
     directory,
     parseElsewhere(options["--elsewhere"]),
+    taskDir,
   );
   if (problems.length) fail(`${id}'s return is not ready: ${problems.join("; ")}.`);
   const named = unchecked.length ? `; not checked here, named another repository's: ${elsewhereText(unchecked)}` : "";
-  const open = leftOpen(readFileSync(join(directory, "return.md"), "utf8"));
+  const open = leftOpen(readFileSync(path, "utf8"));
   const warning =
     open.other && !open.choices.length
       ? `\nWarning: Left open has text but no choice line; write each choice you took as "- <the choice> -> <what you took>[, technical]", so the coordinator's close adds it to decisions.md.`
@@ -759,7 +807,7 @@ export async function checkReturn(loaded, options, { readOnly = false } = {}) {
     ? await logged(taskDir, {
         delegation: id,
         kind: state === "blocked" ? "blocked" : "return",
-        ref: relative(taskDir, join(directory, "return.md")),
+        ref: relative(taskDir, path),
         body: `State: ${state}`,
       })
     : "";
@@ -890,17 +938,27 @@ export async function closeDelegation(loaded, options, text) {
   if (!item)
     fail(`${id} has no line in Current Work's Delegations: it is closed, or was never opened with delegate open.`);
   const directory = delegationDir(taskDir, id);
-  const { brief, problems, unchecked } = returnProblems(directory, parseElsewhere(options["--elsewhere"]));
+  const {
+    brief,
+    problems,
+    unchecked,
+    path: returned,
+  } = returnProblems(directory, parseElsewhere(options["--elsewhere"]), taskDir);
   const finishing = task.history.entries.some((entry) => entry.id === id);
   let history = task.historyText;
   if (!finishing) {
     const fields = closeInput(text);
-    const cue = fields.text("Cue") || fail("delegate close requires Cue.");
+    const cue = fields.text("Cue") || fail('delegate close requires Cue: put it on the input\'s "Cue:" line.');
     const problem = cueProblem(cue);
     if (problem) fail(`delegate close: ${problem}`);
     const merge = oneLine(options["--merge"]);
     if (outcome === "accepted") {
       if (problems.length) fail(`${id} cannot be accepted: its return is not ready: ${problems.join("; ")}.`);
+      // A review is accepted on its adjudicated report: the reviewer's findings, with the initiator's dispositions.
+      if (brief.Kind === "review" && !/^##\s+Adjudication\b/m.test(readFileSync(returned, "utf8")))
+        fail(
+          `${id} cannot be accepted: its report ${relative(taskDir, returned)} has no "## Adjudication" section: adjudicate it first (review-work's check-adjudication.mjs).`,
+        );
       // A reader, a survey or a reviewer made no commits and has nothing to merge; a builder's commits must be merged.
       const ahead = brief.branch ? commitsBeyondBase(brief) : 0;
       if (ahead !== 0 && !merge)
@@ -944,7 +1002,7 @@ export async function closeDelegation(loaded, options, text) {
       "Task effect": fields.require("Task effect"),
       "Merge commit": merge || null,
       Elsewhere: unchecked.length ? `not checked here, named another repository's: ${elsewhereText(unchecked)}` : null,
-      Return: relative(taskDir, join(directory, "return.md")),
+      Return: relative(taskDir, returned),
     };
     const heading = `## ${id} — ${brief.title}`;
     const entry = renderFields5(heading, ENTRY_ORDER.delegation, values);
@@ -953,12 +1011,8 @@ export async function closeDelegation(loaded, options, text) {
   }
   // An accepted return's Left open choices join the decision list (SPEC-009 4.3); an invalid list refuses the close.
   const added =
-    !finishing && outcome === "accepted" && existsSync(join(directory, "return.md"))
-      ? decisionsWithLeftOpen(
-          task.decisionsText,
-          leftOpen(readFileSync(join(directory, "return.md"), "utf8")).choices,
-          id,
-        )
+    !finishing && outcome === "accepted" && existsSync(returned)
+      ? decisionsWithLeftOpen(task.decisionsText, leftOpen(readFileSync(returned, "utf8")).choices, id)
       : null;
   // The last line goes with the blank line before it, so the section stays as init wrote it.
   const alone = !task.record.lines[item.index - 1]?.trim() && !task.record.lines[item.index + 1]?.trim();
@@ -973,7 +1027,7 @@ export async function closeDelegation(loaded, options, text) {
   const note = await logged(taskDir, {
     delegation: id,
     kind,
-    ref: relative(taskDir, join(directory, "return.md")),
+    ref: relative(taskDir, returned),
     body: (finishing ? "" : oneLine(closeInput(text).text("Result"))) || outcome,
   });
   // Its claims end with it (SPEC-009 4.5); a sent-back delegation runs again and keeps them.
@@ -1042,7 +1096,7 @@ function closeInput(text) {
     text: (name) => lines(name).join(" ").trim(),
     require(name) {
       const value = lines(name);
-      if (!value.length) fail(`delegate close requires ${name}.`);
+      if (!value.length) fail(`delegate close requires ${name}: put it on the input's "${name}:" line.`);
       return value;
     },
   };
@@ -1090,7 +1144,7 @@ export function delegationChecks(taskDir, record) {
     try {
       const directory = delegationDir(taskDir, id);
       const brief = parseBrief(readFileSync(join(directory, "brief.md"), "utf8"));
-      const state = returnState(directory);
+      const state = returnState(directory, taskDir);
       return `- Delegation ${id}: opened ${brief.Opened ?? "on an unknown date"}, ${brief.branch ? `branch ${brief.branch}` : "no branch"}; ${state ? `returned: ${state}, check it (delegate check-return --id ${id})` : "no return yet"}.`;
     } catch (error) {
       return `- Delegation ${id}: ${error.message}`;
@@ -1172,7 +1226,8 @@ function progressInput(text) {
   for (const name of Object.keys(sections))
     if (!PROGRESS_SECTIONS.includes(name))
       fail(`Unknown progress section ${name}; progress.md has ${PROGRESS_SECTIONS.join(", ")}.`);
-  if (!trim(sections.Next).length) fail("checkpoint --delegation requires Next: where the work goes on from.");
+  if (!trim(sections.Next).length)
+    fail('checkpoint --delegation requires Next: put it on the input\'s "Next:" line, where the work goes on from.');
   return sections;
 }
 
@@ -1244,7 +1299,7 @@ export function waitsOf(taskDir, record) {
       let at = line?.ts ?? null;
       if (!state) {
         try {
-          const found = returnState(delegationDir(taskDir, id));
+          const found = returnState(delegationDir(taskDir, id), taskDir);
           if (found && RETURN_STATES.has(found)) state = found;
         } catch {
           state = null;

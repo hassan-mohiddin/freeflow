@@ -25,8 +25,10 @@ const execFile = promisify(execFileCallback);
  * event log at the store's root (a task folder's events/ holds the summaries a checkpoint commits).
  */
 export const STORE_IGNORE = ["scratch/", "evidence/**/raw/", "local/", "sessions/", "/events/"];
+/** The first-session marker in the home: "this user has had a first session" (D-060). Two machines may each write one. */
+const FIRST_SESSION = "first-session.json";
 /** The user's settings and the first-session marker in the home (D-060): the store commits them, so they sync. */
-const SETTINGS_FILES = ["settings.json", "folders.json", "first-session.json"];
+const SETTINGS_FILES = ["settings.json", "folders.json", FIRST_SESSION];
 /** Lines an earlier build of the store wrote to .gitignore to keep the settings files out of the store's commits. */
 const RETIRED_SETTINGS_IGNORES = ["/settings.json", "/folders.json", "/first-session.json"];
 /** Files that only append merge by keeping both sides' lines. */
@@ -36,6 +38,8 @@ export const STORE_ATTRIBUTES = [
   // The delegation log and the claims (SPEC-009 T2): appended lines, kept from both sides.
   "channel.jsonl merge=union",
   "claims.jsonl merge=union",
+  // The first-session marker: the earlier copy stands (FIRST_SESSION_DRIVER, D-060).
+  `${FIRST_SESSION} merge=firstsession`,
 ];
 const BRANCH = "main";
 /** Folders a new store starts with; Git keeps an empty one only through a placeholder file. */
@@ -542,6 +546,17 @@ async function pendingConflict(home) {
 }
 
 /**
+ * The merge driver for first-session.json (D-060): when two machines each wrote one, the copy with the earlier date
+ * stands. Git runs it in every merge and rebase of the store, so no conflict in that file stops a sync, beside another
+ * conflict or on `--resolved`. Git keeps a driver's definition in each clone's config, so each sync sets it.
+ */
+const FIRST_SESSION_DRIVER = `node -e 'const fs=require("fs");const at=(f)=>{try{const t=Date.parse(JSON.parse(fs.readFileSync(f,"utf8")).at);return Number.isNaN(t)?Infinity:t}catch{return Infinity}};const [,,ours,theirs]=process.argv;if(at(theirs)<at(ours))fs.copyFileSync(theirs,ours);' %O %A %B`;
+
+async function ensureFirstSessionMerge(home) {
+  await git(home, ["config", "merge.firstsession.driver", FIRST_SESSION_DRIVER]);
+}
+
+/**
  * Puts the local commits on top of the remote's. History and sessions files merge by union; any other conflict
  * aborts, keeps the remote's copy of each conflicted file under local/conflicts/ beside this store's own, committed
  * in place, and stops for the user. With `resolved`, this store's version wins where the two still conflict.
@@ -596,6 +611,9 @@ export async function syncStore({ home: explicit, message, pull = false, resolve
       pushed: false,
       reason: "task memory is off: nothing synced",
     };
+  // The attribute and the driver are in place before anything is committed or rebased.
+  await ensureUnionMerge(home);
+  await ensureFirstSessionMerge(home);
   if (mode === "local") {
     const committed = await commitChanges(home, message);
     return { home, committed, local: true, pulled: false, pushed: false, reason: "task memory is local: not synced" };
