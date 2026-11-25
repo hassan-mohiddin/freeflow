@@ -96,6 +96,8 @@ export class EventRecorder {
   session;
   on = false;
   claimsWritten;
+  /** The claims writes in the order they were asked for: the latest settles once every earlier one has. */
+  claimsWriting = Promise.resolve();
   flushing = Promise.resolve();
   turns = 0;
   turnStarted;
@@ -271,8 +273,10 @@ export class EventRecorder {
     }
   }
   /**
-   * Writes the session's claims when they changed since the last write (T4). Not awaited by its callers: a file
-   * write, off the request path.
+   * Writes the session's claims when they changed since the last write (T4). Most callers do not await it: a file
+   * write, off the request path. A caller that awaits it, such as the listing, gets the claims on disk: a call with
+   * the claims already asked for waits for the write in flight rather than returning before it lands, and writes run
+   * one after another, so the last claims asked for are the last written.
    */
   async writeClaims(inputs, version) {
     if (!this.session) return;
@@ -287,17 +291,20 @@ export class EventRecorder {
       claims: piClaims(inputs),
     };
     const text = `${JSON.stringify(file, null, 2)}\n`;
-    if (text === this.claimsWritten) return;
+    if (text === this.claimsWritten) return this.claimsWriting;
     this.claimsWritten = text;
     // Its line where the claims changed, not where the disk finished.
     this.freeflow("capabilities", file.mode);
     const folder = join(resolve(freeflowHome()), "sessions", this.session);
-    try {
-      await mkdir(folder, { recursive: true });
-      await writeFile(join(folder, "capabilities.json"), text);
-    } catch {
-      // A home that cannot be written: the claims read as none, and every request as no.
-      this.claimsWritten = undefined;
-    }
+    this.claimsWriting = this.claimsWriting.then(async () => {
+      try {
+        await mkdir(folder, { recursive: true });
+        await writeFile(join(folder, "capabilities.json"), text);
+      } catch {
+        // A home that cannot be written: the claims read as none, and every request as no.
+        if (this.claimsWritten === text) this.claimsWritten = undefined;
+      }
+    });
+    return this.claimsWriting;
   }
 }

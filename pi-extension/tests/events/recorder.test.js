@@ -159,20 +159,6 @@ test("a flush that fails drops its lines and the next says how many, with only a
   assert.equal(recorder.pending(), 0);
 });
 
-/** The session's claims file, once it holds the claims (a write Freeflow starts off the request path). */
-async function claimsFileWritten(home, session) {
-  const path = join(home, "sessions", session, "capabilities.json");
-  for (let i = 0; i < 400; i++) {
-    try {
-      if (JSON.parse(readFileSync(path, "utf8")).v === 1) return;
-    } catch {
-      // Not yet written, or written only in part: the next read decides.
-    }
-    await new Promise((done) => setTimeout(done, 25));
-  }
-  assert.fail(`${path} never held the session's claims`);
-}
-
 test(
   "a Pi session writes its loop to the event log when the run settles, and its claims at session start",
   { timeout: 60000 },
@@ -313,8 +299,6 @@ test("/freeflow capabilities on Pi prints the listing for this session", { timeo
       async () => [],
       false,
       async ({ session, notices }) => {
-        // The session's claims file is written off the request path, and the listing reads it: wait until it is there.
-        await claimsFileWritten(process.env.FREEFLOW_HOME, process.env.FREEFLOW_SESSION);
         await session.prompt("/freeflow capabilities");
         const listing = notices.map(([text]) => text).find((text) => /^Freeflow on Pi/.test(String(text)));
         assert.ok(listing, `a listing among ${JSON.stringify(notices)}`);
@@ -477,4 +461,18 @@ test("every source Pi's extension names for a sent line is one Track Work's log 
     for (const match of read(file, "utf8").matchAll(/\bsent\??\.?\(\s*"([a-z-]+)"/g)) named.add(match[1]);
   assert.ok(named.size >= 15, `found ${named.size} source names`);
   for (const name of named) assert.ok(SENT_WHATS.includes(name), `${name} is not a sent source`);
+});
+
+test("an awaited claims write finds the claims on disk, though the same claims were asked for first without a wait", async () => {
+  await withHome(async (home) => {
+    const recorder = new EventRecorder(async () => ({ code: 0, stdout: "", stderr: "" }));
+    recorder.begin("pi-claims", false);
+    const inputs = { enabled: true, events: false, compaction: true, messaging: false, askUser: false };
+    const first = recorder.writeClaims(inputs, "0.0.0"); // as a session start does: not awaited
+    await recorder.writeClaims(inputs, "0.0.0"); // as /freeflow capabilities does, before it reads the file
+    const path = join(home, "sessions", "pi-claims", "capabilities.json");
+    assert.ok(existsSync(path), "the awaited call returned before the claims were on disk");
+    assert.equal(JSON.parse(readFileSync(path, "utf8")).v, 1);
+    await first;
+  });
 });

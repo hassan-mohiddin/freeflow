@@ -171,6 +171,7 @@
 - Track Work's `sessions.md` keeps one line per session and task in each clone: a session that takes, releases and takes the same task again updates its line (first held, last held, last released, how it ended) instead of adding another. Files that already hold several lines per session stay readable.
 - Freeflow's event log no longer holds a heredoc's body: a shell command is cut at its first heredoc operator before the length cut, so the text a command writes into a file is never logged.
 - Freeflow's compaction notice no longer repeats when the Claude Code mod or Pi reloads in the same context cycle, or a session resumes in it: each cycle's notice is kept beside its number in the session's `cycle.json`, which is read again at a reload.
+- `/freeflow capabilities` on Pi no longer prints "no Freeflow driver runs" for a moment after a session starts under load: it waits for a claims write already in flight instead of reading the file before that write lands.
 - `settings.mjs` takes `FREEFLOW_HARNESS` and `--harness` as the claims do: `Claude Code`, `Codex` and `Pi` name their harness as well as `claude-code`, `codex` and `pi` do, through one mapping the settings and the claims share.
 
 ### Removed
