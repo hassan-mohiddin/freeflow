@@ -159,6 +159,20 @@ test("a flush that fails drops its lines and the next says how many, with only a
   assert.equal(recorder.pending(), 0);
 });
 
+/** The session's claims file, once it holds the claims (a write Freeflow starts off the request path). */
+async function claimsFileWritten(home, session) {
+  const path = join(home, "sessions", session, "capabilities.json");
+  for (let i = 0; i < 400; i++) {
+    try {
+      if (JSON.parse(readFileSync(path, "utf8")).v === 1) return;
+    } catch {
+      // Not yet written, or written only in part: the next read decides.
+    }
+    await new Promise((done) => setTimeout(done, 25));
+  }
+  assert.fail(`${path} never held the session's claims`);
+}
+
 test(
   "a Pi session writes its loop to the event log when the run settles, and its claims at session start",
   { timeout: 60000 },
@@ -255,7 +269,16 @@ test(
           assert.equal(claims.claims.route.claim, "possible");
         },
         true,
-        { ...noRouting, home },
+        {
+          ...noRouting,
+          home,
+          // The two calls run one after the other, so the log's order is the order they were made, whatever the timing
+          // of their processes. Pi runs a message's calls at once by default, and which ends first is not what this
+          // test checks.
+          onSession: (session) => {
+            session.agent.toolExecution = "sequential";
+          },
+        },
       );
     });
   },
@@ -290,6 +313,8 @@ test("/freeflow capabilities on Pi prints the listing for this session", { timeo
       async () => [],
       false,
       async ({ session, notices }) => {
+        // The session's claims file is written off the request path, and the listing reads it: wait until it is there.
+        await claimsFileWritten(process.env.FREEFLOW_HOME, process.env.FREEFLOW_SESSION);
         await session.prompt("/freeflow capabilities");
         const listing = notices.map(([text]) => text).find((text) => /^Freeflow on Pi/.test(String(text)));
         assert.ok(listing, `a listing among ${JSON.stringify(notices)}`);

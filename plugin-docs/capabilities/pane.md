@@ -1,14 +1,14 @@
 # The pane and the status line
 
-On Claude Code, Freeflow's mod keeps a status line under the prompt and a pane you open with `/freeflow pane`. With them you see and work your Freeflow store without typing a prompt: pick a project and a task, take it, release it, switch to another, start a new one, look after your workers, read what Freeflow sent the model, and change Freeflow's settings. They need a Freeflow store. They are built and checked for the terminal; the Desktop app's Code tab and VS Code also draw a mod's pane, but this one has not been checked there yet. A cloud session and a `claude -p` run draw neither, so Freeflow reads nothing for them there.
+On Claude Code, Freeflow's mod keeps a status line under the prompt and a pane you open with `/freeflow pane`. With them you see and work your Freeflow store without typing a prompt: pick a project and a task, take it, release it, switch to another, start a new one, look after your workers, read what Freeflow sent the model, and change Freeflow's settings. They need a Freeflow store. They are built and checked for the terminal; the Desktop app's Code tab and VS Code also draw a mod's pane, but this one has not been checked there yet. A `claude -p` run draws neither, so Freeflow reads nothing for it. In a cloud session the Claude desktop app draws the status line; whether the pane opens there has not been checked.
 
 ## The status line
 
 ```text
-Freeflow › freeflow › Memory & orchestration · A-012 · ctx 73% (cycle 3) · 7d 41%
+freeflow › Memory & orchestration · A-012 · ctx 73% (cycle 3) · 7d 41%
 ```
 
-The project and the task this session holds, in words; the open agreement's number; how full the context is, with the context cycle in brackets; and the plan's weekly window (on a subscription). The project's words stop at 16 characters and the task's at 24, cut at a word with an ellipsis; a task with a short name shows the short name instead. A task in no project shows no project. With no task held it reads `Freeflow: no task held`. Freeflow reads it again at session start, at the end of each turn, and after each Track Work command the agent runs (taking or releasing a task, a checkpoint), so it can change mid-turn; it is set only when its text changed. Your workers are in the pane, not here.
+The project and the task this session holds, in words; the open agreement's number; how full the context is, with the context cycle in brackets; and the plan's weekly window (on a subscription). The project's words stop at 16 characters and the task's at 24, cut at a word with an ellipsis; a task with a short name shows the short name instead. A task in no project shows no project. With no task held it reads `no task held`. Freeflow reads it again at session start, at the end of each turn, and after each Track Work command the agent runs (taking or releasing a task, a checkpoint), so it can change mid-turn; it is set only when its text changed. Your workers are in the pane, not here.
 
 ## The pane
 

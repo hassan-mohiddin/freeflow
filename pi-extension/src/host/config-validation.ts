@@ -182,6 +182,22 @@ export const HARNESSES = ["claude-code", "codex", "pi"] as const;
 export type Harness = (typeof HARNESSES)[number];
 
 /**
+ * The harness names a driver gives in FREEFLOW_HARNESS, as the claims and the settings script both read them: a name
+ * here is the harness it stands for; any other value is taken as it is. One mapping for both, not one per script.
+ */
+const HARNESS_LABELS: ReadonlyMap<string, Harness> = new Map([
+  ["Claude Code", "claude-code"],
+  ["Codex", "codex"],
+  ["Pi", "pi"],
+]);
+
+/** A harness name as the settings and claims name it: "Pi" is "pi", "claude-code" stays. Undefined stays undefined. */
+export function harnessNamed(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  return HARNESS_LABELS.get(value) ?? value;
+}
+
+/**
  * Task memory (Setting 2): `local` (on, this machine only, the default), `sync` (on, with the store's private remote) or
  * `off` (no menu, no task offered, nothing recorded). A task's budget and the sync remote stay where they are.
  */
