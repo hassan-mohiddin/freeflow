@@ -173,6 +173,7 @@
 - Freeflow's compaction notice no longer repeats when the Claude Code mod or Pi reloads in the same context cycle, or a session resumes in it: each cycle's notice is kept beside its number in the session's `cycle.json`, which is read again at a reload.
 - `/freeflow capabilities` on Pi no longer prints "no Freeflow driver runs" for a moment after a session starts under load: it waits for a claims write already in flight instead of reading the file before that write lands.
 - `settings.mjs` takes `FREEFLOW_HARNESS` and `--harness` as the claims do: `Claude Code`, `Codex` and `Pi` name their harness as well as `claude-code`, `codex` and `pi` do, through one mapping the settings and the claims share.
+- Task memory's mode and the runtime context read `FREEFLOW_HARNESS` through the same mapping: on Pi (`Pi`) and Codex (`Codex`), a setting ticked for that harness now applies there too.
 
 ### Removed
 

@@ -9,11 +9,12 @@ import {
   resolveSetting,
   sessionId,
 } from "../../../../pi-extension/dist/host/config-store.js";
-import { HARNESSES, settingSpec } from "../../../../pi-extension/dist/host/config-validation.js";
+import { HARNESSES, harnessNamed, settingSpec } from "../../../../pi-extension/dist/host/config-validation.js";
 
-/** The harness this process runs for, as the settings name it: FREEFLOW_HARNESS, else Claude Code's session. */
+/** The harness this process runs for, as the settings name it: FREEFLOW_HARNESS (a driver's name, such as "Pi", included), else Claude Code's session. */
 function harnessOf(env) {
-  if (HARNESSES.includes(env.FREEFLOW_HARNESS)) return env.FREEFLOW_HARNESS;
+  const named = harnessNamed(env.FREEFLOW_HARNESS);
+  if (HARNESSES.includes(named)) return named;
   return env.CLAUDE_CODE_SESSION_ID ? "claude-code" : null;
 }
 

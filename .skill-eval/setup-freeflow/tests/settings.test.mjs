@@ -605,3 +605,16 @@ test("a file holding a removed governor or gate key loads: the validators accept
     { key: "governor", reason: "governor was removed from Freeflow" },
   ]);
 });
+
+test("the runtime context reads FREEFLOW_HARNESS as the drivers set it: Claude Code, Codex and Pi name their harness", async () => {
+  const { harnessFromEnv } = await import(runtimeContextPath);
+  const cases = [
+    ["Claude Code", "claude-code"],
+    ["Codex", "codex"],
+    ["Pi", "pi"],
+    ["pi", "pi"],
+    ["emacs", null],
+  ];
+  for (const [given, harness] of cases) assert.equal(harnessFromEnv({ FREEFLOW_HARNESS: given }), harness, given);
+  assert.equal(harnessFromEnv({ CLAUDE_CODE_SESSION_ID: "s-1" }), "claude-code");
+});

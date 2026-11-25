@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // ignored and named, and the rest stays (D-045). The settings live in the Freeflow home (D-060).
 import {
   HARNESSES,
+  harnessNamed,
   ignoredStateLine,
   selectedRuntimePrompts,
   settingsForHarness,
@@ -92,9 +93,10 @@ function withSession(local, session) {
   return merged;
 }
 
-/** The harness this process runs for: FREEFLOW_HARNESS when it names one, else Claude Code when its session is named; or null. */
+/** The harness this process runs for: FREEFLOW_HARNESS when it names one (a driver's name, such as "Pi", included), else Claude Code when its session is named; or null. */
 export function harnessFromEnv(env = process.env) {
-  if (HARNESSES.includes(env.FREEFLOW_HARNESS)) return env.FREEFLOW_HARNESS;
+  const named = harnessNamed(env.FREEFLOW_HARNESS);
+  if (HARNESSES.includes(named)) return named;
   return env.CLAUDE_CODE_SESSION_ID ? "claude-code" : null;
 }
 
