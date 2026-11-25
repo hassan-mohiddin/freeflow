@@ -397,6 +397,11 @@ export async function fixture(script, _unused, after, withUI = true, options = {
     );
     return { requests, entries: manager.getEntries(), contexts, toolUpdates };
   } finally {
+    // Pi's runtime ends a session with session_shutdown before it disposes of it; dispose alone emits none. The
+    // extension's last lines are written and its idle timers stop here, so nothing writes into the test's home
+    // after the test has removed it (a recorder flush from the previous test's idle timer did, on load).
+    if (session?.extensionRunner.hasHandlers("session_shutdown"))
+      await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
     session?.dispose();
     globalThis.fetch = priorFetch;
     if (offline === undefined) delete process.env.PI_OFFLINE;

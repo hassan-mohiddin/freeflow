@@ -58,6 +58,22 @@ async function withHome(run) {
   }
 }
 
+/** The task tests' store, made before their session starts: a session start reads the store's status at once, and a store
+ * init that ran beside it lost the git index lock. */
+function initStore(home) {
+  execFileSync(process.execPath, [
+    script,
+    "store",
+    "init",
+    "--home",
+    home,
+    "--git-name",
+    "Probe",
+    "--git-email",
+    "probe@example.com",
+  ]);
+}
+
 test(
   "with no store, a session summary's checkpoint --compact compacts with its bundle and the run continues (P4)",
   { timeout: 60000 },
@@ -106,6 +122,7 @@ test(
   { timeout: 60000 },
   async () => {
     await withHome(async (home) => {
+      initStore(home);
       await fixture(
         async (n) =>
           [
@@ -149,19 +166,6 @@ test(
         {
           ...noRouting,
           home,
-          beforePrompt: async () => {
-            execFileSync(process.execPath, [
-              script,
-              "store",
-              "init",
-              "--home",
-              home,
-              "--git-name",
-              "Probe",
-              "--git-email",
-              "probe@example.com",
-            ]);
-          },
         },
       );
     });
@@ -170,6 +174,7 @@ test(
 
 test("a reload keeps the session's hold, since the same session goes on (F36)", { timeout: 60000 }, async () => {
   await withHome(async (home) => {
+    initStore(home);
     await fixture(
       async (n) =>
         n === 1
@@ -198,19 +203,6 @@ test("a reload keeps the session's hold, since the same session goes on (F36)", 
       {
         ...noRouting,
         home,
-        beforePrompt: async () => {
-          execFileSync(process.execPath, [
-            script,
-            "store",
-            "init",
-            "--home",
-            home,
-            "--git-name",
-            "Probe",
-            "--git-email",
-            "probe@example.com",
-          ]);
-        },
       },
     );
   });

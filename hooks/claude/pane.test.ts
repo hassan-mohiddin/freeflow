@@ -129,7 +129,7 @@ const SENT = (total: number, limit: number) => ({
     first: index === 0 ? "Freeflow: the context reached the notice point." : `Gate warning ${index}`,
   })),
 });
-const STATUS_LINE = "Freeflow › freeflow › Memory and orchestration · A-011 · ctx 62% (cycle 12) · 7d 41%";
+const STATUS_LINE = "freeflow › Memory and orchestration · A-011 · ctx 62% (cycle 12) · 7d 41%";
 
 /** The engine and the scripts beneath the mod, answered from the scenario `w` the test changes as it goes. */
 function world(on: any) {
@@ -852,25 +852,23 @@ test("the status line's words: project within 16, task within 24 cut at a word, 
     usage: { context: 73, windows: [{ kind: "seven_day", percent: 41.2 }] },
   });
   expect(statusText(values("freeflow", { title: "Memory & orchestration" }))).toBe(
-    "Freeflow › freeflow › Memory & orchestration · A-012 · ctx 73% (cycle 3) · 7d 41%",
+    "freeflow › Memory & orchestration · A-012 · ctx 73% (cycle 3) · 7d 41%",
   );
   // A long task is cut at a word, before "for".
   expect(statusText(values("freeflow", { title: "Memory & orchestration for long-horizon agent work" }))).toBe(
-    "Freeflow › freeflow › Memory & orchestration… · A-012 · ctx 73% (cycle 3) · 7d 41%",
+    "freeflow › Memory & orchestration… · A-012 · ctx 73% (cycle 3) · 7d 41%",
   );
   // A long project is cut within 16.
   expect(statusText(values("Applications and experiments", { title: "Docs sweep" }))).toBe(
-    "Freeflow › Applications… › Docs sweep · A-012 · ctx 73% (cycle 3) · 7d 41%",
+    "Applications… › Docs sweep · A-012 · ctx 73% (cycle 3) · 7d 41%",
   );
   // A task's short name stands in place of its title.
   expect(
     statusText(values("freeflow", { title: "Memory and orchestration for long-horizon agent work", short: "Memory" })),
-  ).toBe("Freeflow › freeflow › Memory · A-012 · ctx 73% (cycle 3) · 7d 41%");
+  ).toBe("freeflow › Memory · A-012 · ctx 73% (cycle 3) · 7d 41%");
   // A task in no project has no project part.
-  expect(statusText(values(null, { title: "Loose notes" }))).toBe(
-    "Freeflow › Loose notes · A-012 · ctx 73% (cycle 3) · 7d 41%",
-  );
-  expect(statusText(values("freeflow", { title: "x" }, null))).toBe("Freeflow: no task held");
+  expect(statusText(values(null, { title: "Loose notes" }))).toBe("Loose notes · A-012 · ctx 73% (cycle 3) · 7d 41%");
+  expect(statusText(values("freeflow", { title: "x" }, null))).toBe("no task held");
   expect(statusText({ store: false })).toBe(null);
   expect(cutWords("Supercalifragilisticexpialidocious", 16)).toBe("Supercalifragil…");
   // A cut never ends on a joining word.
@@ -879,7 +877,7 @@ test("the status line's words: project within 16, task within 24 cut at a word, 
   expect(cutWords("Notes with an appendix about", 16)).toBe("Notes…");
   // A short name keeps the same budget.
   expect(statusText(values("freeflow", { title: "x", short: "A short name that runs on too long" }))).toBe(
-    "Freeflow › freeflow › A short name that runs… · A-012 · ctx 73% (cycle 3) · 7d 41%",
+    "freeflow › A short name that runs… · A-012 · ctx 73% (cycle 3) · 7d 41%",
   );
 });
 
@@ -894,7 +892,7 @@ test("the status line matches the fixture, has no workers, is set only when it c
   // No task held: the line says so, and nothing else.
   w.answers["session status"] = { stdout: JSON.stringify({ ...STATUS, task: null }) };
   await turn($, w, "t3");
-  expect(w.statuses.at(-1)).toBe("Freeflow: no task held");
+  expect(w.statuses.at(-1)).toBe("no task held");
 
   w.switches.statusLine = false;
   await freeflow($, "settings pane.statusLine off");
@@ -934,7 +932,7 @@ test("no render writes state; a script that fails keeps the last values with an 
   await garbled.unmount();
   w.answers["session status"] = { stdout: JSON.stringify({ ...STATUS, task: null }) };
   await turn($, w);
-  expect(w.statuses.at(-1)).toBe("Freeflow: no task held");
+  expect(w.statuses.at(-1)).toBe("no task held");
   w.answers["session status"] = { stdout: JSON.stringify(STATUS) };
 
   // A session with no event log yet is not a failure.

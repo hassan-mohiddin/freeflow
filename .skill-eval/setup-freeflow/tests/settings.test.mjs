@@ -486,6 +486,40 @@ test("off sends nothing and writes nothing: no text, no first-session marker, no
   assert.equal(existsSync(join(f.root, ".freeflow")), false);
 });
 
+test("FREEFLOW_HARNESS and --harness take the drivers' names (Claude Code, Codex, Pi) as the claims do, and the settings' names", async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+  for (const [named, harness] of [
+    ["Claude Code", "claude-code"],
+    ["Codex", "codex"],
+    ["Pi", "pi"],
+    ["pi", "pi"],
+  ]) {
+    const env = { ...f.env, FREEFLOW_HARNESS: named };
+    const result = spawnSync(process.execPath, [scriptPath, "list", "--json", "--root", f.root], {
+      env,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).harness, harness, `FREEFLOW_HARNESS=${named}`);
+    assert.equal(f.json("list", "--harness", named).harness, harness, `--harness ${named}`);
+  }
+  // A tick named as the driver names Pi is stored under the settings' name, and read back for Pi.
+  const tick = f.json(
+    "set",
+    "delegation.claimHours",
+    "24",
+    "--scope",
+    "everywhere",
+    "--harness-only",
+    "--harness",
+    "Pi",
+  );
+  assert.equal(tick.harness, "pi");
+  assert.deepEqual(await f.homeFile("settings.json"), { harness: { pi: { delegation: { claimHours: "24" } } } });
+  assert.equal(f.json("get", "delegation.claimHours", "--harness", "Pi").value, "24");
+});
+
 test("off for one harness names the harness's own command to disable the plugin, and Freeflow never disables itself", async (t) => {
   const f = await fixture();
   t.after(f.cleanup);

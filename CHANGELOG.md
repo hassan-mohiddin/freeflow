@@ -137,6 +137,7 @@
 - Track Work's `delegate open --repo` without `--worktree` makes the worker's worktree at `<repo>.worktrees/<D-NNN-slug>`, one folder beside the repository, instead of a sibling `<repo>-<slug>`; `delegate close` removes that worktree (or one given with `--worktree`) when the outcome is accepted or stopped and it would lose nothing: no uncommitted or untracked change, no ignored file outside `node_modules/`, and no commit on a detached HEAD that its branch does not hold; it keeps the branch and says what it removed or what kept the worktree.
 - Track Work's `agreement close --state replaced --next-input <file|->` closes the agreement, opens the next from the given lines under `--next-title` in its place and moves a Slice running under it to the next agreement (its `Under`, with a `Moved` update); Keep The Agreement says so. The guard that refuses closing an agreement under a running Slice stays for every other state and when no next agreement is given.
 - The compaction notice comes a lead of 20,000 tokens before the host's own compaction point, and never past 750,000 tokens. Where the point is not known it comes at 75% of the window, as before, up to the same ceiling. The one function that computes it (`skills/track-work/scripts/lib/notice5.mjs`) serves Claude Code, Pi, Codex and Track Work's `estimate` and `plan`, which print the point in tokens.
+- Claude Code's status line drops its `Freeflow ›` prefix, since the Claude app labels a plugin's status line with its name: `<project> › <task> · A-NNN · ctx N% (cycle N) · 7d N%`, `<task> · …` for a task in no project, and `no task held` when none is held.
 
 ### Fixed
 
@@ -170,6 +171,8 @@
 - Track Work's `sessions.md` keeps one line per session and task in each clone: a session that takes, releases and takes the same task again updates its line (first held, last held, last released, how it ended) instead of adding another. Files that already hold several lines per session stay readable.
 - Freeflow's event log no longer holds a heredoc's body: a shell command is cut at its first heredoc operator before the length cut, so the text a command writes into a file is never logged.
 - Freeflow's compaction notice no longer repeats when the Claude Code mod or Pi reloads in the same context cycle, or a session resumes in it: each cycle's notice is kept beside its number in the session's `cycle.json`, which is read again at a reload.
+- `/freeflow capabilities` on Pi no longer prints "no Freeflow driver runs" for a moment after a session starts under load: it waits for a claims write already in flight instead of reading the file before that write lands.
+- `settings.mjs` takes `FREEFLOW_HARNESS` and `--harness` as the claims do: `Claude Code`, `Codex` and `Pi` name their harness as well as `claude-code`, `codex` and `pi` do, through one mapping the settings and the claims share.
 
 ### Removed
 

@@ -5,7 +5,7 @@
 // timer after session start, each main turn's end and each Track Work command a tool call ran), keeps the values in
 // `$.state`, and draws from there: a render never writes state, and a redraw happens only when a value changed. A press
 // runs the command the agent would run, with the user's press as the authority, and appends one row saying what the
-// user did, so the agent sees it. Nothing here runs where no surface draws (a `-p` run, a cloud session).
+// user did, so the agent sees it. Nothing here runs where no surface draws (a `-p` run). A cloud session whose desktop app shows the status line gets it; whether the pane opens there is not checked.
 
 // `/freeflow settings` as the mod serves it, so a change from the pane does what the command does (a plugin's own
 // `$.command.run` skips its own hooks); and the event log's flush, so a switch reads what this session did.
@@ -436,18 +436,19 @@ export function cutWords(words, budget) {
 }
 
 /**
- * The status line (Setting 6): `Freeflow › <project> › <task> · A-012 · ctx 73% (cycle 3) · 7d 41%`, the project's
- * words within 16 characters and the task's within 24 (its short name when it has one), the agreement as its number;
- * `Freeflow: no task held` when this session holds none; null with no store.
+ * The status line (Setting 6): `<project> › <task> · A-012 · ctx 73% (cycle 3) · 7d 41%`, or `<task> · …` for a task in
+ * no project. The project's words are within 16 characters and the task's within 24 (its short name when it has one),
+ * the agreement is its number; `no task held` when this session holds none; null with no store. The Claude app labels a
+ * plugin's status line with the plugin's name, so the line carries no prefix of its own.
  * @param {any} values
  */
 export function statusText(values) {
   if (!values?.store) return null;
-  if (!values.task) return "Freeflow: no task held";
+  if (!values.task) return "no task held";
   const task = heldTask(values);
   const name = cutWords(task?.short ?? task?.shortName ?? task?.title ?? values.task, TASK_BUDGET);
   const place = task?.project ? `${cutWords(task.project, PROJECT_BUDGET)} › ` : "";
-  const parts = [`Freeflow › ${place}${name}`];
+  const parts = [`${place}${name}`];
   if (task?.agreement) parts.push(task.agreement.id);
   if (values.usage?.context !== null && values.usage?.context !== undefined)
     parts.push(`ctx ${values.usage.context}%${values.cycle ? ` (cycle ${values.cycle})` : ""}`);

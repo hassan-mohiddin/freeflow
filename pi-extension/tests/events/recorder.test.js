@@ -255,7 +255,16 @@ test(
           assert.equal(claims.claims.route.claim, "possible");
         },
         true,
-        { ...noRouting, home },
+        {
+          ...noRouting,
+          home,
+          // The two calls run one after the other, so the log's order is the order they were made, whatever the timing
+          // of their processes. Pi runs a message's calls at once by default, and which ends first is not what this
+          // test checks.
+          onSession: (session) => {
+            session.agent.toolExecution = "sequential";
+          },
+        },
       );
     });
   },
@@ -452,4 +461,18 @@ test("every source Pi's extension names for a sent line is one Track Work's log 
     for (const match of read(file, "utf8").matchAll(/\bsent\??\.?\(\s*"([a-z-]+)"/g)) named.add(match[1]);
   assert.ok(named.size >= 15, `found ${named.size} source names`);
   for (const name of named) assert.ok(SENT_WHATS.includes(name), `${name} is not a sent source`);
+});
+
+test("an awaited claims write finds the claims on disk, though the same claims were asked for first without a wait", async () => {
+  await withHome(async (home) => {
+    const recorder = new EventRecorder(async () => ({ code: 0, stdout: "", stderr: "" }));
+    recorder.begin("pi-claims", false);
+    const inputs = { enabled: true, events: false, compaction: true, messaging: false, askUser: false };
+    const first = recorder.writeClaims(inputs, "0.0.0"); // as a session start does: not awaited
+    await recorder.writeClaims(inputs, "0.0.0"); // as /freeflow capabilities does, before it reads the file
+    const path = join(home, "sessions", "pi-claims", "capabilities.json");
+    assert.ok(existsSync(path), "the awaited call returned before the claims were on disk");
+    assert.equal(JSON.parse(readFileSync(path, "utf8")).v, 1);
+    await first;
+  });
 });

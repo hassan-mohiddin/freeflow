@@ -24,7 +24,7 @@ import {
   resolveSetting,
   sessionId,
 } from "../../../../pi-extension/dist/host/config-store.js";
-import { HARNESSES, settingSpec } from "../../../../pi-extension/dist/host/config-validation.js";
+import { HARNESSES, harnessNamed, settingSpec } from "../../../../pi-extension/dist/host/config-validation.js";
 
 export const CLAIMS_FILE = "claims.jsonl";
 export const CLAIM_VERSION = 1;
@@ -162,15 +162,9 @@ export function storeClaims(home, now = Date.now()) {
   );
 }
 
-const HARNESS_NAMES = new Map([
-  ["Claude Code", "claude-code"],
-  ["Codex", "codex"],
-  ["Pi", "pi"],
-]);
-
 /** The harness this process runs for, as the settings name it: the drivers' FREEFLOW_HARNESS names, else Claude Code's session. */
 function claimHarness(env) {
-  const named = HARNESS_NAMES.get(env.FREEFLOW_HARNESS) ?? env.FREEFLOW_HARNESS;
+  const named = harnessNamed(env.FREEFLOW_HARNESS);
   if (HARNESSES.includes(named)) return named;
   return env.CLAUDE_CODE_SESSION_ID ? "claude-code" : null;
 }

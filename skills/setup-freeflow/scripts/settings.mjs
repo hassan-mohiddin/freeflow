@@ -16,6 +16,7 @@ import {
   HARNESSES,
   SETTINGS,
   SWITCHABLE_SKILLS,
+  harnessNamed,
   ignoredStateLine,
   removedSettingReason,
   sanitizeConfigFile,
@@ -112,7 +113,8 @@ function parse(argv) {
 /** The harness this script runs for: --harness, else FREEFLOW_HARNESS, else Claude Code when its session is named; or null. */
 function harnessOf(options, env) {
   const named =
-    options["--harness"] ?? env.FREEFLOW_HARNESS ?? (env.CLAUDE_CODE_SESSION_ID ? "claude-code" : undefined);
+    harnessNamed(options["--harness"] ?? env.FREEFLOW_HARNESS) ??
+    (env.CLAUDE_CODE_SESSION_ID ? "claude-code" : undefined);
   if (named === undefined || named === "") return null;
   if (!HARNESSES.includes(named)) throw new UsageError(`--harness must be ${HARNESSES.join(", ")}`);
   return named;
